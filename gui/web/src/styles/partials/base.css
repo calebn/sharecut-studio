@@ -10,7 +10,7 @@ body,
   height: 100%;
   font-family: var(--font-family-sans);
   font-size: var(--font-size-review);
-  color: var(--text);
+  color: var(--color-text-primary);
   background: var(--color-bg-canvas);
 }
 

@@ -39,7 +39,7 @@ See [shell chrome](design-system.md#shell-chrome) for the catalog boundary.
 
 Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewportClass.ts) reads a first-render snapshot through the shared media-query subscription in `useMediaQueryStore.ts` (`matchMedia` + `visualViewport` resize). Pointer capability and Storybook docs theme use that subscription too; pointer events still select the last used device. Store mirrors `shellBreakpoint`. CSS class stem `.daw-shell*` is frozen BEM (`StudioShell` / `MobileShell`); do not rename it in lockstep with the TypeScript component.
 
-Chrome type/space is rem via theme tokens. Pane density (status chips, pipeline, header rail) follows named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`), not viewport-width `@media`. Short-viewport `@media (max-height: 40rem)` for portaled sheets is a documented exception (`-- user-approved:`). Policy: [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md).
+Chrome type/space is rem via theme tokens, and Studio color consumers use semantic `--color-*` roles. Pane density (status chips, pipeline, header rail) follows named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`), not viewport-width `@media`. Short-viewport `@media (max-height: 40rem)` for portaled sheets is a documented exception (`-- user-approved:`). Policy: [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md).
 
 ## Browser chrome, safe areas and Home Screen (#1077)
 

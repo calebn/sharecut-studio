@@ -1,7 +1,7 @@
 /* Inspector / modifier chrome */
 .inspector {
   background: var(--color-bg-raised);
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--color-border);
   padding: var(--space-5);
   overflow: auto;
   box-shadow: var(--shadow-raised);
@@ -39,7 +39,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
 }
 
 .modifier-titles h2 {
@@ -55,7 +55,7 @@
 .modifier-subtitle {
   margin: var(--space-0) 0 0;
   font-size: var(--font-size-small);
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
   overflow-wrap: anywhere;
 }
 
@@ -72,11 +72,11 @@
 }
 
 .modifier-action.primary {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
 }
 
 .modifier-action.danger {
-  color: var(--danger);
+  color: var(--color-danger);
 }
 
 .modifier-body {
@@ -123,7 +123,7 @@ html[data-shell="phone"] .clip-destructive-controls .ui-control {
 .modifier-footer {
   flex: 0 0 auto;
   padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-border);
 }
 
 .modifier-footer-actions {
@@ -151,7 +151,7 @@ html[data-shell="phone"]
   flex-direction: column;
   gap: var(--space-3);
   padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .clip-fade-controls {
@@ -179,7 +179,7 @@ html[data-shell="phone"]
 .clip-fade-control output {
   min-inline-size: 0;
   overflow-wrap: anywhere;
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
   font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
   text-align: end;
@@ -237,7 +237,7 @@ html[data-shell="phone"]
 .track-sheet-gain {
   margin: 0;
   font-size: var(--font-size-small);
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
 }
 
 .track-fader-note {
@@ -360,7 +360,7 @@ html[data-shell="phone"]
 }
 
 .inspector-actions .done {
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
   text-decoration: line-through;
 }
 
@@ -374,7 +374,7 @@ html[data-shell="phone"]
 }
 
 .inspector dt {
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
   margin-top: var(--space-4);
 }
@@ -397,7 +397,7 @@ html[data-shell="phone"]
   gap: var(--space-3);
   margin-block-start: var(--space-5);
   padding-block-start: var(--space-3);
-  border-block-start: 1px solid var(--border);
+  border-block-start: 1px solid var(--color-border);
 }
 
 .clip-destructive-controls h3 {
@@ -470,7 +470,7 @@ html[data-shell="phone"]
 .inspector-peek-owner {
   overflow: hidden;
   font-size: var(--font-size-small);
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -508,7 +508,7 @@ html[data-shell="phone"]
 
 .nudge-row-label {
   font-size: var(--font-size-small);
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
 }
 
 .nudge-row-value {

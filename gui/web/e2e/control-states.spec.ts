@@ -154,7 +154,7 @@ test.describe("control state parity", () => {
 
     const commentToken = await page.evaluate(() => {
       const el = document.createElement("div");
-      el.style.background = "var(--comment-marker)";
+      el.style.background = "var(--color-comment-marker)";
       document.body.appendChild(el);
       const bg = getComputedStyle(el).backgroundColor;
       el.remove();

@@ -1,6 +1,6 @@
 export function presenceColorVar(index: number | undefined): string {
   const n = (((index ?? 0) % 8) + 8) % 8;
-  return `var(--presence-${n})`;
+  return `var(--color-presence-${n})`;
 }
 
 export function initials(name: string): string {

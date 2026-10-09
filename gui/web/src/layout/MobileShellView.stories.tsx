@@ -179,7 +179,7 @@ function PhonePreview(args: PreviewProps) {
                         id: "mira",
                         label: "Mira",
                         initials: "M",
-                        identityColor: "var(--clip-dialogue-0)",
+                        identityColor: "var(--color-clip-dialogue-0)",
                         muteState: "off",
                         solo: false,
                         faderDb: 0,

@@ -5,7 +5,7 @@
 
 .track-mix-note {
   margin: 0 0 var(--space-3);
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-small);
 }
 
@@ -23,7 +23,7 @@
   align-items: center;
   gap: var(--space-1);
   min-block-size: var(--mix-row-height);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .track-mix-identity {
@@ -38,7 +38,7 @@
   inline-size: var(--mix-identity-size);
   block-size: var(--mix-identity-size);
   border-radius: var(--radius-sm);
-  color: var(--text);
+  color: var(--color-text-primary);
   background: var(--track-identity-background);
   font-size: var(--font-size-micro);
   font-weight: 600;

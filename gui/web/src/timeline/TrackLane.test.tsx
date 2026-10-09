@@ -211,7 +211,7 @@ describe("TrackLane mute dim", () => {
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
     const clip = container.querySelector<HTMLElement>(".clip-block");
-    expect(clip?.style.backgroundColor).toBe("var(--clip-dialogue-0)");
+    expect(clip?.style.backgroundColor).toBe("var(--color-clip-dialogue-0)");
     expect(clip?.style.backgroundImage).toBe("");
   });
 });

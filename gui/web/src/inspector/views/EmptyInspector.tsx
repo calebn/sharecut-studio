@@ -16,7 +16,7 @@ export function EmptyInspector({
       {...presenceAnchorProps(presenceAnchor("inspector"))}
     >
       <h2>Inspector</h2>
-      <p style={{ color: "var(--text-dim)" }}>
+      <p style={{ color: "var(--color-text-secondary)" }}>
         Click a clip, edit, track header, chapter marker, or Levels envelope
         point.
       </p>
@@ -25,7 +25,7 @@ export function EmptyInspector({
           <h2>{unmappedPendingLabel(unmappable.length)}</h2>
           <p
             style={{
-              color: "var(--text-dim)",
+              color: "var(--color-text-secondary)",
               fontSize: "var(--font-size-caption)",
             }}
           >

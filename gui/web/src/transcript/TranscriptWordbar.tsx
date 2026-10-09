@@ -387,7 +387,7 @@ function TimingEditor({
           clipLeftCss={0}
           clipWidthCss={width}
           zoom={width / (window.end - window.start)}
-          colorVar="var(--clip-dialogue-0)"
+          colorVar="var(--color-clip-dialogue-0)"
           role={
             project?.tracks.find(
               (track) => track.id === context.target.track_id,

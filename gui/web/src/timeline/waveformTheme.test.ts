@@ -46,7 +46,7 @@ describe("waveformStyle", () => {
     });
     const s = waveformStyle(
       clipLayer("transparent"),
-      "var(--clip-sfx)",
+      "var(--color-clip-sfx)",
       "dark",
     );
     expect([...s.core].map((v) => Math.round(v * 255))).toEqual([
@@ -83,7 +83,7 @@ describe("waveformStyle", () => {
   it("gives the lane's core and edge tints as RGBA floats, cached", () => {
     const style = vi.spyOn(window, "getComputedStyle");
     const layer = clipLayer("rgb(13, 126, 117)");
-    const s = waveformStyle(layer, "var(--clip-dialogue-0)", "dark");
+    const s = waveformStyle(layer, "var(--color-clip-dialogue-0)", "dark");
     expect([...s.core].map((v) => Math.round(v * 255))).toEqual([
       122, 184, 179, 255,
     ]);
@@ -94,23 +94,27 @@ describe("waveformStyle", () => {
     expect(
       waveformStyle(
         clipLayer("rgb(1, 2, 3)"),
-        "var(--clip-dialogue-0)",
+        "var(--color-clip-dialogue-0)",
         "dark",
       ),
     ).toBe(s);
     expect(style.mock.calls.length).toBe(reads);
-    expect(waveformStyle(layer, "var(--clip-dialogue-0)", "light")).not.toBe(s);
+    expect(
+      waveformStyle(layer, "var(--color-clip-dialogue-0)", "light"),
+    ).not.toBe(s);
   });
 
   it("falls back to the peak colour, edge at 0.6 alpha, without caching", () => {
     const layer = clipLayer("transparent");
-    const s = waveformStyle(layer, "var(--clip-sfx)", "dark");
+    const s = waveformStyle(layer, "var(--color-clip-sfx)", "dark");
     expect([...s.core].map((v) => Math.round(v * 255))).toEqual([
       200, 200, 200, 255,
     ]);
     expect(s.edge[3]).toBeCloseTo(0.6, 6);
     const later = clipLayer("rgb(13, 126, 117)");
-    expect(waveformStyle(later, "var(--clip-sfx)", "dark")).not.toEqual(s);
+    expect(waveformStyle(later, "var(--color-clip-sfx)", "dark")).not.toEqual(
+      s,
+    );
   });
 
   it("is transparent when nothing parses yet", () => {
@@ -141,13 +145,13 @@ describe("waveformStyle", () => {
       return real(el, pseudo);
     });
     const layer = clipLayer("transparent");
-    waveformStyle(layer, "var(--clip-sfx)", "dark");
-    waveformStyle(layer, "var(--clip-sfx)", "dark");
+    waveformStyle(layer, "var(--color-clip-sfx)", "dark");
+    waveformStyle(layer, "var(--color-clip-sfx)", "dark");
     expect(probes).toBe(1);
-    waveformStyle(layer, "var(--clip-sfx)", "light");
+    waveformStyle(layer, "var(--color-clip-sfx)", "light");
     expect(probes).toBe(2);
     clearWaveformFillCache();
-    waveformStyle(layer, "var(--clip-sfx)", "dark");
+    waveformStyle(layer, "var(--color-clip-sfx)", "dark");
     expect(probes).toBe(3);
   });
 
@@ -180,7 +184,7 @@ describe("waveformStyle", () => {
     );
     const s = waveformStyle(
       clipLayer("transparent"),
-      "var(--clip-sfx)",
+      "var(--color-clip-sfx)",
       "dark",
     );
     expect(ctx.fillStyle).toBe("oklch(0.9 0 0)");
@@ -227,10 +231,10 @@ describe("waveformStyle", () => {
       .spyOn(HTMLCanvasElement.prototype, "getContext")
       .mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
     const layer = clipLayer("transparent");
-    const s = waveformStyle(layer, "var(--clip-sfx)", "dark");
+    const s = waveformStyle(layer, "var(--color-clip-sfx)", "dark");
     expect([...s.core, ...s.edge]).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
     expect(getImageData).not.toHaveBeenCalled();
-    waveformStyle(layer, "var(--clip-sfx)", "dark");
+    waveformStyle(layer, "var(--color-clip-sfx)", "dark");
     expect(getContext).toHaveBeenCalledTimes(2);
   });
 });

@@ -127,7 +127,7 @@ describe("TrackHeader", () => {
       </DawProvider>,
     );
     expect(container.querySelector(".track-header-row")).toHaveStyle({
-      "--track-identity-color": "var(--clip-music)",
+      "--track-identity-color": "var(--color-clip-music)",
     });
   });
 
