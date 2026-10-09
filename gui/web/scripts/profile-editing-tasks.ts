@@ -8,6 +8,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import {
+  admitImportedBackend,
+  admitRetainedBackend,
+  type BackendAdmission,
+} from "../e2e/editingBackendIdentity";
 import { editingTaskRegistry } from "../e2e/editingTaskCases";
 import { verifyEditingDistribution } from "../e2e/editingTaskEvidence";
 import {
@@ -164,6 +169,7 @@ const harnessFiles = Object.fromEntries(
     "e2e/editingTasks.ts",
     "e2e/editingTaskCases.ts",
     "e2e/editingTaskEvidence.ts",
+    "e2e/editingBackendIdentity.ts",
     "e2e/editingTaskInputs.ts",
     "e2e/twoBrowserPages.ts",
     "e2e/editing-tasks.spec.ts",
@@ -235,49 +241,7 @@ fs.writeFileSync(
   backendOutput.stdout + backendOutput.stderr,
 );
 const backend: unknown = JSON.parse(backendOutput.stdout.trim());
-if (
-  !isRecord(backend) ||
-  typeof backend.cwd !== "string" ||
-  backend.cwd.trim().length === 0 ||
-  typeof backend.executable !== "string" ||
-  backend.executable.trim().length === 0 ||
-  typeof backend.module !== "string" ||
-  backend.module.trim().length === 0
-)
-  throw new Error("Backend import provenance returned invalid metadata");
-const canonicalRepo = fs.realpathSync(repo);
-if (fs.realpathSync(backend.cwd) !== canonicalRepo)
-  throw new Error("Backend import is outside verified app source");
-const serverProductPath = "src/podcast_mcp/gui/server.py";
-const serverPath = path.join(canonicalRepo, serverProductPath);
-const canonicalModule = fs.realpathSync(backend.module);
-if (canonicalModule !== serverPath)
-  throw new Error("Backend import does not match admitted server source");
-function requireRegularBackendSource(file: string): void {
-  const root = [canonicalRepo, repo].find((candidate) =>
-    file.startsWith(`${candidate}${path.sep}`),
-  );
-  if (!root)
-    throw new Error("Backend import does not match admitted server source");
-  let componentPath = canonicalRepo;
-  for (const component of file.slice(root.length + 1).split(path.sep)) {
-    componentPath = path.join(componentPath, component);
-    const relative = path.relative(canonicalRepo, componentPath);
-    if (
-      relative === ".." ||
-      relative.startsWith(`..${path.sep}`) ||
-      fs.lstatSync(componentPath).isSymbolicLink()
-    )
-      throw new Error("Backend import does not match admitted server source");
-  }
-  if (!fs.lstatSync(componentPath).isFile())
-    throw new Error("Backend import does not match admitted server source");
-}
-requireRegularBackendSource(serverPath);
-requireRegularBackendSource(backend.module);
-const backendSourceHash = hash(fs.readFileSync(canonicalModule));
-if (backendSourceHash !== productFiles[serverProductPath])
-  throw new Error("Backend import does not match admitted server source");
+const admittedBackend = admitImportedBackend(repo, productFiles, backend);
 type BuildReceipt = {
   command: string[];
   exit: number;
@@ -410,7 +374,7 @@ const schedule = tasks.flatMap((task) => {
   ).flat();
 });
 const protocol = {
-  version: 7,
+  version: 8,
   retainedPriorFailures: [
     {
       task: "envelope",
@@ -435,12 +399,8 @@ const protocol = {
   ],
   replayMedia,
   source,
-  backend: {
-    ...backend,
-    cwd: canonicalRepo,
-    module: canonicalModule,
-    sourceHash: backendSourceHash,
-  },
+  backend: admittedBackend,
+  productionDist: fs.realpathSync(dist),
   build: buildReceipt,
   assets,
   tasks,
@@ -490,6 +450,7 @@ type FinalAttempt = Scheduled &
         runner: RunnerOutcome;
         semantic: SemanticReceipt;
         profile: ProfileAdmission;
+        backend: BackendAdmission;
         admission: Admission;
         loadBefore: number[];
         loadAfter: number[];
@@ -592,6 +553,7 @@ function qualify(
   runner: RunnerOutcome,
   semantic: SemanticReceipt,
   profile: ProfileAdmission,
+  backend: BackendAdmission,
 ): Admission {
   const reasons: string[] = [];
   if (runner.kind === "rejected")
@@ -604,6 +566,8 @@ function qualify(
     reasons.push(...semantic.result.reasons);
   if (profile.kind === "excluded")
     reasons.push(`Profile excluded: ${profile.reason}`);
+  if (backend.kind === "rejected")
+    reasons.push(`Backend excluded: ${backend.reason}`);
   const durationMs =
     semantic.kind === "assessed" ? semantic.observedDurationMs : null;
   if (durationMs === null || !Number.isFinite(durationMs) || durationMs < 0)
@@ -681,6 +645,7 @@ try {
       EDITING_TASK_OUT: attempt,
       EDITING_MODE: mode,
       EDITING_PROTOCOL_HASH: hash(protocolJson),
+      EDITING_PROTOCOL_FILE: path.join(output, "protocol.json"),
       DAW_PROFILE_OUT: path.join(attempt, "profiler"),
       PODCAST_GUI_DIST: dist,
       PODCAST_SHARE_REGISTRY: path.join(attempt, "share-registry.sqlite"),
@@ -708,13 +673,19 @@ try {
     }
     const semantic = assessRetainedTrial(scheduled, attempt);
     const profile = admitRetainedProfile(attempt);
+    const backend = admitRetainedBackend(
+      attempt,
+      path.join(output, "protocol.json"),
+      hash(protocolJson),
+    );
     const row: FinalAttempt = {
       ...scheduled,
       kind: "invoked",
       runner,
       semantic,
       profile,
-      admission: qualify(runner, semantic, profile),
+      backend,
+      admission: qualify(runner, semantic, profile, backend),
       loadBefore,
       loadAfter: os.loadavg(),
     };

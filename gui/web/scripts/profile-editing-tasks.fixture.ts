@@ -210,6 +210,20 @@ vi.mock("node:child_process", async () => {
   };
 });
 
+vi.mock("../e2e/editingBackendIdentity", async () => {
+  const actual = await vi.importActual<
+    typeof import("../e2e/editingBackendIdentity")
+  >("../e2e/editingBackendIdentity");
+  return {
+    ...actual,
+    admitRetainedBackend: () => ({
+      kind: "admitted",
+      before: { phase: "before" },
+      after: { phase: "after" },
+    }),
+  };
+});
+
 vi.mock("../e2e/runE2e", async () => {
   const actual =
     await vi.importActual<typeof import("../e2e/runE2e")>("../e2e/runE2e");

@@ -11,10 +11,13 @@ import {
   type TestInfo,
 } from "@playwright/test";
 import {
+  type BackendEvidence,
+  verifyEditingBackend,
+} from "./editingBackendIdentity";
+import {
   createEditingFixture,
   readEditingHistory,
   readEditingState,
-  verifyEditingBackend,
 } from "./editingTaskEvidence";
 import {
   navigateEditingTimeline,
@@ -542,7 +545,25 @@ export async function runEditingTask(
     true,
   );
   const mainObservation = observe(page, () => mainOrigin);
+  let backendBefore: BackendEvidence | undefined;
+  const backendInput = {
+    protocolFile: process.env.EDITING_PROTOCOL_FILE!,
+    protocolHash: process.env.EDITING_PROTOCOL_HASH!,
+  };
   try {
+    try {
+      backendBefore = await verifyEditingBackend(
+        output,
+        process.env.DAW_E2E_PORT,
+        { ...backendInput, phase: "before" },
+      );
+      trial.backend = { before: backendBefore };
+      retain();
+    } catch (error) {
+      fail(error, { owner: "global", blocks: "all-proofs" });
+      handledFailures.add(error);
+      throw error;
+    }
     if (chosen.cancellation.length) {
       cancelOrigin = {
         owner: "cancel",
@@ -681,17 +702,6 @@ export async function runEditingTask(
       }
     }
     await prepare(page, fixture.projectPath, mainOrigin);
-    try {
-      verifyEditingBackend(output, process.env.DAW_E2E_PORT, {
-        cwd: path.resolve("../.."),
-        productionDist: process.env.PODCAST_GUI_DIST,
-        shareRegistry: process.env.PODCAST_SHARE_REGISTRY,
-      });
-    } catch (error) {
-      fail(error, { owner: "global", blocks: "all-proofs" });
-      handledFailures.add(error);
-      throw error;
-    }
     await page.screenshot({
       path: path.join(output, "before.png"),
       fullPage: true,
@@ -856,6 +866,18 @@ export async function runEditingTask(
         fail(error, mainOrigin, "main response drain: ");
         retain();
       });
+    }
+    if (backendBefore) {
+      try {
+        const after = await verifyEditingBackend(
+          output,
+          process.env.DAW_E2E_PORT,
+          { ...backendInput, phase: "after", previous: backendBefore },
+        );
+        trial.backend = { before: backendBefore, after };
+      } catch (error) {
+        fail(error, { owner: "global", blocks: "all-proofs" });
+      }
     }
     trial.profiler = process.env.DAW_PROFILE_OUT
       ? path.join(process.env.DAW_PROFILE_OUT, "report.json")

@@ -28,6 +28,22 @@ const simulation = vi.hoisted(() => ({
     | undefined,
   persistState: undefined as ((state: DurableState) => void) | undefined,
 }));
+vi.mock("./editingBackendIdentity", () => ({
+  verifyEditingBackend: async (
+    _attempt: string,
+    _port: string,
+    input: { phase: "before" | "after" },
+  ) => ({
+    phase: input.phase,
+    protocolHash: "controlled",
+    pid: 1,
+    startTime: "1",
+    listenerInode: "1",
+    receiptHash: "controlled",
+    launchHash: "controlled",
+    verificationHash: "controlled",
+  }),
+}));
 vi.mock("./editingTaskEvidence", () => ({
   createEditingFixture: () => {
     const next = simulation.fixtureSequence.shift();
@@ -41,7 +57,6 @@ vi.mock("./editingTaskEvidence", () => ({
       ? simulation.readState(...args)
       : (simulation.states.get(args[0]) ?? simulation.state),
   readEditingHistory: () => simulation.history,
-  verifyEditingBackend: () => {},
 }));
 vi.mock("./shareableProject", () => ({ switchE2eProject: async () => {} }));
 vi.mock("./editingTaskInputs", () => ({

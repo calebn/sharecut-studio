@@ -486,6 +486,15 @@ Pytest runs with a **95% coverage floor** (`pyproject.toml` → `[tool.pytest.in
 The editing task workload keeps browser observation in `gui/web/e2e/editingTasks.ts`.
 `editingTaskReport.ts` parses retained evidence and derives the shared strict assessment.
 `editingTaskState.ts` owns the durable-state types, parser, and comparison.
+`editingBackendIdentity.ts` owns the dedicated protocol8 source, bind, child, listener,
+and retained backend identity boundary. Python `create_app` supplies the actual factory
+module and selected static root. `run_gui_server` compares those facts and publishes
+a private receipt only after acquiring the exact socket supplied to uvicorn. The
+existing E2E wrapper records its actual child and requires owned listener identity
+plus health. Browser checks precede mutation and follow final observation work.
+Producer admission joins retained before/after proof after process shutdown,
+independently of assets and semantics. Dedicated certification requires Linux native
+process and socket facts. Ordinary GUI launch behavior remains available elsewhere.
 The route registry declares cancellation recipes consumed by input execution and assessment.
 The canonical `twoBrowserPages.ts` helper closes acquired cancellation contexts after
 partial page or CDP setup. The runner retains clone setup and close failures separately

@@ -7,6 +7,7 @@ describe("e2eRuntimeEnv", () => {
   it("removes every relay and object-store deployment setting", () => {
     const env = e2eRuntimeEnv(
       {
+        PODCAST_EDITING_BIND_REQUEST: "/tmp/stale-private-bind-request.json",
         PODCAST_RELAY_CONFIG: "/Users/developer/.config/podcast_mcp/relay.yaml",
         PODCAST_RELAY_URL: "https://relay.example.test",
         PODCAST_RELAY_HOST_TOKEN: "relay-secret",
@@ -26,6 +27,7 @@ describe("e2eRuntimeEnv", () => {
       path.join(os.tmpdir(), "sharecut-e2e-relay-test-run.yaml"),
     );
     for (const name of [
+      "PODCAST_EDITING_BIND_REQUEST",
       "PODCAST_RELAY_URL",
       "PODCAST_RELAY_HOST_TOKEN",
       "PODCAST_RELAY_PUBLIC_BASE_URL",

@@ -582,6 +582,12 @@ podcast gui --project /path/to/episode.project.json --background
 podcast gui
 ```
 
+GUI launches use an exclusive listening socket. The dedicated Linux editing
+workload supplies a private bind request and verifies the serving factory and
+listener before editing. Explicit invalid requests stop startup. The ordinary
+E2E launcher removes inherited private request state; see
+[the workload contract](../gui/web/e2e/EDITING_TASK_WORKLOADS.md).
+
 ### Web build in wheels
 
 A wheel ships the web build when `gui/web/dist` exists at build time. The custom

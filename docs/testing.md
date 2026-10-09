@@ -1155,7 +1155,18 @@ acceptable UX merely because a run completes or fits a local envelope.
 
 The opt-in [editing task protocol](../gui/web/e2e/EDITING_TASK_WORKLOADS.md)
 checks literal Save, independent cancellation clones, and Undo evidence.
-Protocol version 7 requires source-owned journal, UI, and failure records.
+Protocol version 8 requires source-owned journal, UI, failure records, and complete
+before/after serving identity proof. The dedicated Linux gate joins the actual app
+factory and exclusive bind receipt with the wrapper child tree and PID-owned leased
+LISTEN inode. Matching argv and health alone are insufficient. Final backend
+admission parses retained proof after shutdown and remains independent of semantic,
+asset, runner, and duration gates. Stale protocol7 records reject.
+`tests/test_gui_bind.py` exercises real socket ownership and receipt lifetime through
+the public binder. `e2e/editingBackendIdentity.test.ts` rejects a real inert Python
+child and checks a real canonical listener plus retained admission after shutdown.
+These bounded tests do not replace installed CI and local UV browser controls or
+a same-interpreter alternate factory control. The producer fixture partially mocks
+only retained backend admission for its synthetic runner and supplies no serving proof.
 One pure assessment supplies both whole-trial admission and phase observations.
 A failed attempt retains its evidence and completed work stays zero.
 The oracle suites separate durable state, retained journal, History, phase projection,

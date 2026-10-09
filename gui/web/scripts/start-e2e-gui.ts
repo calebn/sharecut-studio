@@ -1,7 +1,11 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { EditingBackendLaunch } from "../e2e/editingBackendIdentity";
 import { repoRoot } from "../e2e/env";
 import { guiCommand } from "../e2e/guiCommand";
 import { configuredE2ePort } from "../e2e/port";
+import { processTreeTerminator } from "../e2e/processTree";
 import { e2eRuntimeEnv } from "../e2e/runtimeEnv";
 
 const port = configuredE2ePort();
@@ -17,15 +21,61 @@ const [command, ...args] = guiCommand({
   pinProject,
   projectPath: projectPath ?? "",
 });
+const runtimeEnv = e2eRuntimeEnv(process.env, `${process.pid}-${port}`);
+const editing = [
+  process.env.EDITING_TASK_OUT,
+  process.env.EDITING_PROTOCOL_FILE,
+  process.env.EDITING_PROTOCOL_HASH,
+].some((value) => value !== undefined);
+if (
+  editing &&
+  (!process.env.EDITING_TASK_OUT ||
+    !process.env.EDITING_PROTOCOL_FILE ||
+    !process.env.EDITING_PROTOCOL_HASH)
+)
+  throw new Error("Editing backend requires attempt and protocol file/hash");
+const identity = editing
+  ? new EditingBackendLaunch(
+      process.env.EDITING_TASK_OUT!,
+      process.env.EDITING_PROTOCOL_FILE!,
+      process.env.EDITING_PROTOCOL_HASH!,
+      port,
+      runtimeEnv,
+    )
+  : undefined;
 const child = spawn(command, args, {
   cwd: repoRoot,
-  env: e2eRuntimeEnv(process.env, `${process.pid}-${port}`),
+  env: identity?.environment ?? runtimeEnv,
   stdio: "inherit",
 });
+if (identity) {
+  child.once("spawn", () => {
+    const ready = async () => {
+      identity.recordChild(child.pid!, [command, ...args]);
+      await identity.waitUntilReady();
+    };
+    void ready().catch(async (error: unknown) => {
+      try {
+        fs.writeFileSync(
+          path.join(
+            process.env.EDITING_TASK_OUT!,
+            "backend-identity",
+            "failure.json",
+          ),
+          JSON.stringify({ error: String(error) }),
+          { flag: "wx", mode: 0o600 },
+        );
+      } finally {
+        process.exitCode = 1;
+        await processTreeTerminator().terminate(child.pid!, "SIGTERM");
+      }
+    });
+  });
+}
 child.once("error", (error) => {
   throw error;
 });
 child.once("exit", (code, signal) => {
-  process.exitCode =
+  process.exitCode ??=
     code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 1);
 });

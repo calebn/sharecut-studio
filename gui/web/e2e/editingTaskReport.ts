@@ -1,3 +1,4 @@
+import type { BackendEvidence } from "./editingBackendIdentity";
 import {
   type DurableState,
   type Json,
@@ -85,6 +86,7 @@ export type EditingTrial = {
   failures: TrialFailure[];
   profiler?: string;
   protocolHash?: string;
+  backend?: { before: BackendEvidence; after?: BackendEvidence };
   definitionHash?: string;
   role?: "host";
   fixture?: {

@@ -15,11 +15,26 @@ const ownerProbe = vi.hoisted(() => ({
   state: undefined as DurableState | undefined,
   finish: async () => {},
 }));
+vi.mock("./editingBackendIdentity", () => ({
+  verifyEditingBackend: async (
+    _attempt: string,
+    _port: string,
+    input: { phase: "before" | "after" },
+  ) => ({
+    phase: input.phase,
+    protocolHash: "controlled",
+    pid: 1,
+    startTime: "1",
+    listenerInode: "1",
+    receiptHash: "controlled",
+    launchHash: "controlled",
+    verificationHash: "controlled",
+  }),
+}));
 vi.mock("./editingTaskEvidence", () => ({
   createEditingFixture: () => ownerProbe.fixture,
   readEditingState: () => ownerProbe.state,
   readEditingHistory: () => ({ cursor: -1, headId: null, entries: [] }),
-  verifyEditingBackend: () => {},
 }));
 vi.mock("./editorProfile", () => ({
   createEditorProfiler: async () => ({

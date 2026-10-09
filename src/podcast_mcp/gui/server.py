@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -289,6 +290,9 @@ def create_app(
         return registry.to_manifest()
 
     static_root = static_dir or resolve_gui_static_root()
+    if "PODCAST_EDITING_BIND_REQUEST" in os.environ:
+        app.state.editing_factory_module = sys.modules[__name__]
+        app.state.editing_static_root = static_root.resolve()
     if static_bundle_ready(static_root):
         assets_dir = static_root / "assets"
         if assets_dir.is_dir():

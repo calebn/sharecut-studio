@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import stat
@@ -107,6 +108,7 @@ def test_public_bind_passes_the_open_listener_and_closes_it(
 
     monkeypatch.delenv(EPHEMERAL_ENV, raising=False)
     monkeypatch.delenv(LISTEN_FILE_ENV, raising=False)
+    monkeypatch.delenv("PODCAST_EDITING_BIND_REQUEST", raising=False)
     app = object()
     observed: dict[str, Any] = {}
 
@@ -455,4 +457,188 @@ def test_run_gui_server_refuses_invalid_editing_request_before_serving(
     _patch_uvicorn_server(monkeypatch, seen)
     with pytest.raises(ValueError, match=r"[Ee]diting"):
         run_gui_server(object(), host="127.0.0.1", port=0, log_level="warning")
+    assert seen == {}
+
+
+def _editing_app_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Any, Path, dict[str, Any]]:
+    from podcast_mcp.gui import server
+    from podcast_mcp.util.hashing import sha256_file
+
+    for name in (BOOT_TOKEN_ENV, EPHEMERAL_ENV, LISTEN_FILE_ENV):
+        monkeypatch.delenv(name, raising=False)
+    request_path = tmp_path / "request.json"
+    monkeypatch.setenv("PODCAST_EDITING_BIND_REQUEST", str(request_path))
+    registry = tmp_path / "share-registry.sqlite"
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(registry))
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>editing bind fixture</html>", encoding="utf-8")
+    reserved = exclusive_listen_socket("127.0.0.1", 0)
+    port = reserved.getsockname()[1]
+    reserved.close()
+    module = Path(server.__file__).resolve()
+    request = {
+        "version": 1,
+        "protocolHash": "a" * 64,
+        "host": "127.0.0.1",
+        "port": port,
+        "expected": {
+            "cwd": str(Path.cwd().resolve()),
+            "executable": str(Path(sys.executable).resolve()),
+            "module": str(module),
+            "moduleName": "podcast_mcp.gui.server",
+            "sourceHash": sha256_file(module),
+            "productionDist": str(dist.resolve()),
+            "shareRegistry": str(registry.resolve()),
+        },
+    }
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    return server.create_app(static_dir=dist), request_path, request
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Dedicated editing identity requires Linux")
+@pytest.mark.parametrize("serve_fails", [False, True])
+def test_editing_bind_retains_actual_factory_and_owned_socket_until_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, serve_fails: bool
+) -> None:
+    import uvicorn
+
+    app, request_path, request = _editing_app_request(tmp_path, monkeypatch)
+    observed: dict[str, Any] = {}
+    receipt_path = request_path.parent / "live.json"
+
+    class Config:
+        def __init__(self, supplied_app: object, **options: object) -> None:
+            observed["app"] = supplied_app
+
+    class Server:
+        def __init__(self, config: Config) -> None:
+            self.config = config
+
+        def run(self, *, sockets: list[socket.socket]) -> None:
+            listener = sockets[0]
+            observed["listener"] = listener
+            observed["receipt"] = json.loads(receipt_path.read_text(encoding="utf-8"))
+            assert stat.S_IMODE(receipt_path.stat().st_mode) == 0o600
+            assert listener.getsockname() == ("127.0.0.1", request["port"])
+            assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN) == 1
+            with socket.create_connection(listener.getsockname(), timeout=1):
+                pass
+            contender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                with pytest.raises(OSError):
+                    contender.bind(listener.getsockname())
+            finally:
+                contender.close()
+            if serve_fails:
+                raise RuntimeError("literal editing serve failure")
+
+    monkeypatch.setattr(uvicorn, "Config", Config)
+    monkeypatch.setattr(uvicorn, "Server", Server)
+    if serve_fails:
+        with pytest.raises(RuntimeError, match="literal editing serve failure"):
+            run_gui_server(app, host="127.0.0.1", port=request["port"])
+    else:
+        run_gui_server(app, host="127.0.0.1", port=request["port"])
+    assert observed["app"] is app
+    assert observed["receipt"] == {
+        "version": 1,
+        "protocolHash": "a" * 64,
+        "host": "127.0.0.1",
+        "port": request["port"],
+        "pid": os.getpid(),
+        "actual": request["expected"],
+    }
+    assert observed["listener"].fileno() == -1
+    assert not receipt_path.exists()
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Dedicated editing identity requires Linux")
+@pytest.mark.parametrize(
+    "field", ["module", "sourceHash", "cwd", "executable", "productionDist", "shareRegistry"]
+)
+def test_editing_bind_rejects_mismatched_expected_identity_before_serve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    app, request_path, request = _editing_app_request(tmp_path, monkeypatch)
+    request["expected"][field] = "b" * 64 if field == "sourceHash" else str(tmp_path / "wrong")
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    seen: dict[str, object] = {}
+    _patch_uvicorn_server(monkeypatch, seen)
+    with pytest.raises(ValueError, match="Editing backend bind identity rejected"):
+        run_gui_server(app, host="127.0.0.1", port=request["port"])
+    assert seen == {}
+    assert not (request_path.parent / "live.json").exists()
+
+
+@pytest.mark.parametrize("request_value", ["", "  ", "missing-request.json"])
+def test_editing_bind_rejects_explicit_invalid_request_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request_value: str
+) -> None:
+    monkeypatch.setenv(
+        "PODCAST_EDITING_BIND_REQUEST",
+        str(tmp_path / request_value) if request_value.strip() else request_value,
+    )
+    seen: dict[str, object] = {}
+    _patch_uvicorn_server(monkeypatch, seen)
+    with pytest.raises(ValueError, match="Editing backend bind identity rejected"):
+        run_gui_server(object(), host="127.0.0.1", port=8765)
+    assert seen == {}
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Dedicated editing identity requires Linux")
+@pytest.mark.parametrize("name", [BOOT_TOKEN_ENV, EPHEMERAL_ENV, LISTEN_FILE_ENV])
+def test_editing_bind_rejects_sidecar_configuration_conflict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    app, _request_path, request = _editing_app_request(tmp_path, monkeypatch)
+    monkeypatch.setenv(name, "")
+    seen: dict[str, object] = {}
+    _patch_uvicorn_server(monkeypatch, seen)
+    with pytest.raises(ValueError, match="Editing backend bind identity rejected"):
+        run_gui_server(app, host="127.0.0.1", port=request["port"])
+    assert seen == {}
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Dedicated editing identity requires Linux")
+def test_editing_bind_closes_acquired_socket_when_receipt_publication_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.gui import bind
+
+    app, _request_path, request = _editing_app_request(tmp_path, monkeypatch)
+    acquired: list[socket.socket] = []
+    actual_bind = bind.exclusive_listen_socket
+
+    def observe_bind(host: str, port: int) -> socket.socket:
+        listener = actual_bind(host, port)
+        acquired.append(listener)
+        return listener
+
+    def fail_publication(*args: Any, **kwargs: Any) -> None:
+        raise OSError("literal receipt publication failure")
+
+    monkeypatch.setattr(bind, "exclusive_listen_socket", observe_bind)
+    monkeypatch.setattr(bind, "write_json_atomic", fail_publication)
+    seen: dict[str, object] = {}
+    _patch_uvicorn_server(monkeypatch, seen)
+    with pytest.raises(OSError, match="literal receipt publication failure"):
+        run_gui_server(app, host="127.0.0.1", port=request["port"])
+    assert len(acquired) == 1
+    assert acquired[0].fileno() == -1
+    assert seen == {}
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Dedicated editing identity requires Linux")
+def test_editing_bind_rejects_unsupported_native_platform(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, _request_path, request = _editing_app_request(tmp_path, monkeypatch)
+    monkeypatch.setattr("podcast_mcp.gui.bind.sys.platform", "darwin")
+    seen: dict[str, object] = {}
+    _patch_uvicorn_server(monkeypatch, seen)
+    with pytest.raises(ValueError, match="Editing backend bind identity rejected"):
+        run_gui_server(app, host="127.0.0.1", port=request["port"])
     assert seen == {}

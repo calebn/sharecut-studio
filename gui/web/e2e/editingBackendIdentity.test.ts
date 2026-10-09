@@ -1,11 +1,17 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { verifyEditingBackend } from "./editingTaskEvidence";
+import {
+  admitRetainedBackend,
+  EditingBackendLaunch,
+  verifyEditingBackend,
+} from "./editingBackendIdentity";
 import { acquireE2ePortLease } from "./port";
+import { processTreeTerminator } from "./processTree";
 
 function connectionResult(port: number): Promise<string> {
   return new Promise((resolve) => {
@@ -27,6 +33,182 @@ function connectionResult(port: number): Promise<string> {
 }
 
 describe.skipIf(process.platform !== "linux")("actual backend identity", () => {
+  it("admits the owned canonical listener and its complete retained proof after shutdown", async () => {
+    const cwd = fs.realpathSync(path.resolve("../.."));
+    const output = fs.mkdtempSync(
+      path.join(os.tmpdir(), "sharecut-owned-backend-"),
+    );
+    const lease = await acquireE2ePortLease({});
+    const dist = path.join(output, "dist");
+    fs.mkdirSync(dist);
+    fs.writeFileSync(
+      path.join(dist, "index.html"),
+      "<html>owned backend fixture</html>",
+    );
+    const module = path.join(cwd, "src/podcast_mcp/gui/server.py");
+    const sourceHash = createHash("sha256")
+      .update(fs.readFileSync(module))
+      .digest("hex");
+    const protocolFile = path.join(output, "protocol.json");
+    const protocolBytes = JSON.stringify({
+      version: 8,
+      backend: {
+        cwd,
+        executable: path.join(cwd, ".venv/bin/python"),
+        module,
+        sourceHash,
+      },
+      source: { productFiles: { "src/podcast_mcp/gui/server.py": sourceHash } },
+      productionDist: dist,
+    });
+    fs.writeFileSync(protocolFile, protocolBytes);
+    const protocolHash = createHash("sha256")
+      .update(protocolBytes)
+      .digest("hex");
+    const identity = new EditingBackendLaunch(
+      output,
+      protocolFile,
+      protocolHash,
+      lease.port,
+      {
+        ...process.env,
+        PODCAST_GUI_DIST: dist,
+        PODCAST_SHARE_REGISTRY: path.join(output, "share-registry.sqlite"),
+      },
+    );
+    const command = [
+      path.join(cwd, ".venv/bin/podcast"),
+      "gui",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(lease.port),
+      "--no-open",
+    ];
+    const child = spawn(command[0], command.slice(1), {
+      cwd,
+      env: identity.environment,
+      stdio: "pipe",
+    });
+    const exited = new Promise<void>((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", () => resolve());
+    });
+    child.stdout.resume();
+    child.stderr.resume();
+    const terminate = async () => {
+      await processTreeTerminator().terminate(child.pid!, "SIGTERM");
+      await exited;
+    };
+    try {
+      await new Promise<void>((resolve, reject) => {
+        child.once("spawn", resolve);
+        child.once("error", reject);
+      });
+      identity.recordChild(child.pid!, command);
+      await identity.waitUntilReady();
+      const before = await verifyEditingBackend(output, String(lease.port), {
+        protocolFile,
+        protocolHash,
+        phase: "before",
+      });
+      const receipt = JSON.parse(
+        fs.readFileSync(
+          path.join(output, "backend-identity/live.json"),
+          "utf8",
+        ),
+      ) as { pid: number; actual: { module: string; sourceHash: string } };
+      expect({ phase: before.phase, pid: before.pid }).toEqual({
+        phase: "before",
+        pid: child.pid,
+      });
+      expect(receipt).toMatchObject({
+        pid: child.pid,
+        actual: { module, sourceHash },
+      });
+      expect(await connectionResult(lease.port)).toBe("connected");
+      const after = await verifyEditingBackend(output, String(lease.port), {
+        protocolFile,
+        protocolHash,
+        phase: "after",
+        previous: before,
+      });
+      expect({
+        phase: after.phase,
+        pid: after.pid,
+        startTime: after.startTime,
+        listenerInode: after.listenerInode,
+      }).toEqual({
+        phase: "after",
+        pid: child.pid,
+        startTime: before.startTime,
+        listenerInode: before.listenerInode,
+      });
+      const liveFile = path.join(output, "backend-identity/live.json");
+      const liveBytes = fs.readFileSync(liveFile, "utf8");
+      const changed = JSON.parse(liveBytes) as { actual: { module: string } };
+      changed.actual.module = path.join(output, "alternate/server.py");
+      fs.writeFileSync(liveFile, JSON.stringify(changed));
+      await expect(
+        verifyEditingBackend(output, String(lease.port), {
+          protocolFile,
+          protocolHash,
+          phase: "after",
+          previous: before,
+        }),
+      ).rejects.toThrow("Editing backend actual factory identity differs");
+      fs.writeFileSync(liveFile, liveBytes);
+      fs.writeFileSync(
+        path.join(output, "trial.json"),
+        JSON.stringify({ protocolHash, backend: { before, after } }),
+      );
+      await terminate();
+      expect(await connectionResult(lease.port)).toBe("ECONNREFUSED");
+      expect(admitRetainedBackend(output, protocolFile, protocolHash)).toEqual({
+        kind: "admitted",
+        before,
+        after,
+      });
+      const afterFile = path.join(output, "backend-identity/after.json");
+      const afterBytes = fs.readFileSync(afterFile);
+      fs.unlinkSync(afterFile);
+      expect(
+        admitRetainedBackend(output, protocolFile, protocolHash).kind,
+      ).toBe("rejected");
+      fs.writeFileSync(afterFile, afterBytes);
+      fs.writeFileSync(
+        path.join(output, "trial.json"),
+        JSON.stringify({
+          protocolHash,
+          backend: { before, after: { ...after, receiptHash: "b".repeat(64) } },
+        }),
+      );
+      expect(
+        admitRetainedBackend(output, protocolFile, protocolHash).kind,
+      ).toBe("rejected");
+      fs.writeFileSync(
+        path.join(output, "trial.json"),
+        JSON.stringify({ protocolHash, backend: { before, after } }),
+      );
+      fs.writeFileSync(protocolFile, `${protocolBytes}\n`);
+      expect(
+        admitRetainedBackend(output, protocolFile, protocolHash).kind,
+      ).toBe("rejected");
+    } finally {
+      if (child.exitCode === null && child.signalCode === null)
+        await terminate();
+      const retained = process.env.EDITING_IDENTITY_TEST_RETAIN;
+      if (retained) {
+        fs.mkdirSync(retained, { recursive: true });
+        fs.cpSync(output, path.join(retained, path.basename(output)), {
+          recursive: true,
+        });
+      }
+      lease.release();
+      fs.rmSync(output, { force: true, recursive: true });
+    }
+  }, 45_000);
+
   it("rejects an owned inert Python process with matching argv and isolation", async () => {
     const cwd = fs.realpathSync(path.resolve("../.."));
     const output = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-inert-"));
@@ -34,8 +216,41 @@ describe.skipIf(process.platform !== "linux")("actual backend identity", () => {
     const expected = {
       cwd,
       productionDist: path.join(output, "dist"),
-      shareRegistry: path.join(output, "registry.sqlite"),
+      shareRegistry: path.join(output, "share-registry.sqlite"),
     };
+    fs.mkdirSync(expected.productionDist);
+    const module = path.join(cwd, "src/podcast_mcp/gui/server.py");
+    const sourceHash = createHash("sha256")
+      .update(fs.readFileSync(module))
+      .digest("hex");
+    const protocolFile = path.join(output, "protocol.json");
+    const protocolBytes = JSON.stringify({
+      version: 8,
+      backend: {
+        cwd,
+        executable: path.join(cwd, ".venv/bin/python"),
+        module,
+        sourceHash,
+      },
+      source: { productFiles: { "src/podcast_mcp/gui/server.py": sourceHash } },
+      productionDist: expected.productionDist,
+    });
+    fs.writeFileSync(protocolFile, protocolBytes);
+    const protocolHash = createHash("sha256")
+      .update(protocolBytes)
+      .digest("hex");
+    const env = {
+      ...process.env,
+      PODCAST_GUI_DIST: expected.productionDist,
+      PODCAST_SHARE_REGISTRY: expected.shareRegistry,
+    };
+    const identity = new EditingBackendLaunch(
+      output,
+      protocolFile,
+      protocolHash,
+      lease.port,
+      env,
+    );
     const child = spawn(
       path.join(cwd, ".venv/bin/python"),
       [
@@ -47,11 +262,7 @@ describe.skipIf(process.platform !== "linux")("actual backend identity", () => {
       ],
       {
         cwd,
-        env: {
-          ...process.env,
-          PODCAST_GUI_DIST: expected.productionDist,
-          PODCAST_SHARE_REGISTRY: expected.shareRegistry,
-        },
+        env: identity.environment,
         stdio: ["pipe", "pipe", "pipe"],
       },
     );
@@ -80,10 +291,15 @@ describe.skipIf(process.platform !== "linux")("actual backend identity", () => {
         pid: child.pid,
         backendImported: false,
       });
+      identity.recordChild(child.pid!, child.spawnargs);
       expect(await connectionResult(lease.port)).toBe("ECONNREFUSED");
       let outcome = "admitted";
       try {
-        verifyEditingBackend(output, String(lease.port), expected);
+        await verifyEditingBackend(output, String(lease.port), {
+          protocolFile,
+          protocolHash,
+          phase: "before",
+        });
       } catch (error) {
         if (!(error instanceof Error)) throw error;
         outcome = "rejected";
