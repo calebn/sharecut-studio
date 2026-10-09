@@ -31,9 +31,10 @@ def immediate_transaction(conn: sqlite3.Connection) -> Iterator[None]:
 
     ``BEGIN IMMEDIATE`` takes the database write lock up front, so every connection to
     the file (other processes included) serializes on it. If the body raises or ``COMMIT``
-    fails (SQLITE_FULL, IOERR, BUSY), it rolls back, so the connection never stays inside
-    an open transaction. A failing ``ROLLBACK`` is suppressed so the original error
-    propagates. Not re-entrant: callers that nest keep their own depth count.
+    fails (SQLITE_FULL, IOERR, BUSY), it attempts rollback. A failing ``ROLLBACK``
+    with a SQLite error is suppressed so the original error propagates; the owner must
+    close a connection that remains in a transaction after failure. Not re-entrant:
+    callers that nest keep their own depth count.
     """
     conn.execute("BEGIN IMMEDIATE")
     try:

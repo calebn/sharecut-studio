@@ -130,11 +130,23 @@ with versioned HMAC-SHA-256 over the resolved workspace path and normalized
 workspace-relative recording path. The secret stays local to the host and never
 enters project data or guest responses. A malformed stored value or storage
 failure refuses listing. Registry backup preserves the identity namespace;
-deleting or replacing the registry resets it. The feature does not change the
+deleting it or replacing it with a different installation's registry resets it.
+Stop all registry-owning processes before deleting or replacing the database,
+then restart them. Open connections retain the old database after replacement. The feature does not change the
 registry's `synchronous=NORMAL` setting. `recording_key_secret` is host-local;
 a future relay backend must not expose it as a relay retrieval API.
 
-File mode: parent dir `0700`, DB `0600` when the OS allows. Treat the file as
+A failed secret initialization closes its connection before propagating the original
+error. The next registry operation opens a new connection from durable state before token
+lookup or mutation. The process-wide getter also recovers the cached owner before
+returning it; directly injected registry owners use the same recovery boundary.
+Registry and session owners share the bounded WAL transition in `util/sqlite_wal.py`;
+normal registry writes retain the existing 5-second busy timeout.
+
+File mode: parent dir `0700`, DB `0600` before WAL setup when the OS allows.
+WAL/SHM mode inheritance depends on SQLite and the platform; the disposable POSIX
+regression checks the live files on the test host, not every supported platform.
+Overrides must remain in a private host directory. Treat the file as
 **capability-adjacent** (tokens are capabilities).
 
 ### Backup / restore
@@ -145,9 +157,15 @@ podcast review backup-registry
 podcast review backup-registry --dest ~/Backups/share_registry.sqlite
 ```
 
-Uses sqlite online `Connection.backup()` (safe with WAL). To restore: stop GUI /
-tunnel / CLI using the registry, replace the file at `PODCAST_SHARE_REGISTRY`
-(or the default path), then restart. Prefer Time Machine / restic of
+Uses sqlite online `Connection.backup()` (safe with WAL) into a unique private
+`0600` temporary file in the destination directory. Only a successful copy
+atomically replaces the destination; failure or cancellation removes the temporary
+file and preserves the previous backup. An already-open destination descriptor
+keeps the previous file, so it cannot read the newly copied secret.
+
+To restore, stop all registry-owning processes, including GUI, tunnel, CLI, and
+MCP servers. Replace the file at `PODCAST_SHARE_REGISTRY` (or the default path),
+then restart all owners. Open connections retain the old database after replacement. Prefer Time Machine / restic of
 `~/.podcast_mcp/` in addition to explicit backups before OS upgrades.
 
 ## Project sidecar

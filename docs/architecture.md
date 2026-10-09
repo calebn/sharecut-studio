@@ -294,7 +294,11 @@ Recording sessions reuse the share registry (`kind`) and prefixed session-sync
 sqlite tables (`record_*`) rather than a new plane — see [recording-session.md](recording-session.md).
 `EditService.list_clips` acquires the host-local recording-key secret from the
 share registry once per call; `edits.timeline_ops.list_clips` passes it to pure
-HMAC derivation in `edits.clips_ops.recording_key`.
+HMAC derivation in `edits.clips_ops.recording_key`. Registry and session SQLite owners share
+`util/sqlite_wal.ensure_wal` for the bounded WAL transition; session setup retains
+its per-path locks and timing controls. A failed registry secret transaction closes
+its connection. The process-wide getter and each registry operation recover from
+durable state before token lookup, including directly injected registry owners.
 
 ### Service contexts
 
