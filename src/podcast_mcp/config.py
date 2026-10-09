@@ -30,7 +30,7 @@ def whisper_cache_dir() -> Path:
 
 
 def bin_cache_dir() -> Path:
-    """Where bootstrapped native binaries (e.g. ffmpeg/ffprobe) are cached."""
+    """Existing source-use directory for a locally supplied FFmpeg/FFprobe pair."""
     d = cache_dir() / "bin"
     d.mkdir(parents=True, exist_ok=True)
     return d

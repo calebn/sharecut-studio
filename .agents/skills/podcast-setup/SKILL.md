@@ -10,8 +10,8 @@ description: >-
 ## Prerequisites
 
 - Python 3.11+
-- FFmpeg and ffprobe — a system binary (`brew install ffmpeg` / `apt install ffmpeg`),
-  or `podcast bootstrap --component ffmpeg` for a static build (no package manager)
+- Matching FFmpeg and FFprobe 9.0.2 or later 9.x from a supported system package,
+  or build the pinned sources with `python scripts/build_ffmpeg.py --output <directory>` and set the existing executable overrides
 - Pair selection prefers the native Homebrew keg on macOS. See the tested release
   policy in [docs/setup.md](../../../docs/setup.md#ffmpeg-version-and-pair-policy).
 - [uv](https://github.com/astral-sh/uv) (recommended — `pip install uv` if not already on PATH)
@@ -28,7 +28,7 @@ source .venv/bin/activate   # or: uv run …
 # Heavy torch extras (speaker / joinqc) are NOT included — see Optional downloads below.
 ```
 
-`./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody`
+`./install.sh` runs `uv sync --extra dev --extra gui --extra relay --extra prosody`
 (or the same extras via pip without `uv`). Details:
 [docs/setup.md](../../../docs/setup.md#full-local-install).
 
@@ -55,8 +55,10 @@ CI and local pytest enforce **95% minimum coverage** (see `docs/testing.md`).
 2b. No system FFmpeg (or want a fully offline-ready cache up front)?
 
 ```bash
-podcast bootstrap --component ffmpeg
-# or: podcast bootstrap --component all   # + whisper model + rnnoise
+python scripts/build_ffmpeg.py --output /absolute/path/sharecut-ffmpeg
+export PODCAST_MCP_FFMPEG=/absolute/path/sharecut-ffmpeg/bin/ffmpeg
+export PODCAST_MCP_FFPROBE=/absolute/path/sharecut-ffmpeg/bin/ffprobe
+# Model assets: podcast bootstrap --component all
 ```
 
 See [docs/setup.md](../../../docs/setup.md#optional-downloads-and-extras) for
@@ -101,7 +103,7 @@ podcast track add --project /path/to/my_episode/episode.project.json \
 
 | Kind | What | Required for core CLI? |
 |------|------|------------------------|
-| `bootstrap` ffmpeg | Static ffmpeg/ffprobe in cache | Only if no system FFmpeg |
+| FFmpeg pair | Matching FFmpeg/FFprobe 9.0.2 or later 9.x | Source installs; desktop includes exact 9.0.2 |
 | `bootstrap` whisper / rnnoise | Model cache (`large-v3-turbo` default) | Whisper required before pipeline/transcribe Run (no silent download); catalog Whisper sizes are pinned by revision + per-file sha256; a mismatch fails closed (`podcast doctor` `[fail]`); re-download with `podcast bootstrap --component whisper --whisper-model <id> --upgrade` (a plain bootstrap or Studio **Download** also re-fetches it) |
 | `bootstrap` nisqa | Neural join QC weights (opt-in; default URL may 404 — use `PODCAST_MCP_NISQA_MODEL`) | No |
 | `bootstrap` word-aligner | Forced-aligner ONNX snapshot (opt-in download; English). Once downloaded, forced alignment is **on by default** (`transcribe.forced_alignment.enabled` unset, #780); without it unset remains unavailable and an explicit `true` fails the run with this command. Studio lets a person turn off that blocked saved request; word times remain Whisper's. A sha256 mismatch in any snapshot file (`vocab.json`, configs, ONNX) fails closed (keeps Whisper's times) — re-download with `--upgrade`, or Studio Pipeline tab **Download word aligner**; `podcast doctor` reports `[fail]` | No |

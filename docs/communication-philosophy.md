@@ -65,6 +65,7 @@ to UX partners; for UI copy, this table wins.
 
 | Term | Meaning | Never say |
 |---|---|---|
+| Audio tools | The bundled FFmpeg and FFprobe pair needed for media work. Source installs supply a supported matching pair | "Download FFmpeg" in desktop setup |
 | Review link | Async share for follow-along/comment/edit, no live session. It works until the host chooses Stop sharing | "share link"; "share" alone when record rooms also exist |
 | Record room | The live recording room and its lobby/session | "session link", "call" |
 | Guest link | Record-room link for the person being recorded | "guest role" |

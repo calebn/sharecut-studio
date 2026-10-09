@@ -39,7 +39,7 @@ from podcast_mcp.models import (
     Track,
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
-from podcast_mcp.util.binaries import FFmpegPair, resolve_ffmpeg_pair
+from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import (
@@ -375,34 +375,15 @@ class FFmpegEngine:
         pair = resolve_ffmpeg_pair(ffmpeg, ffprobe)
         self.ffmpeg = pair.ffmpeg
         self.ffprobe = pair.ffprobe
+        self.source = pair.source
         self._filter_names_cache: set[str] | None = None
 
     def check_available(self) -> tuple[bool, str]:
-        pair = FFmpegPair(self.ffmpeg, self.ffprobe)
-        if not pair.is_available():
-            return (
-                False,
-                "FFmpeg/FFprobe pair is unavailable (one or both commands are not executable)",
-            )
         try:
-            r = run(
-                [self.ffmpeg, "-version"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if r.returncode != 0:
-                return False, r.stderr or "ffmpeg failed"
-            line = (r.stdout or "").splitlines()
-            if not line:
-                return False, "ffmpeg returned empty version output"
-            return True, line[0]
-        except FileNotFoundError:
-            return False, "ffmpeg not found on PATH"
-        except TimeoutExpired:
-            return False, "ffmpeg timed out"
-        except PermissionError:
-            return False, "ffmpeg is not executable"
+            pair = resolve_ffmpeg_pair(self.ffmpeg, self.ffprobe)
+        except FFmpegPairResolutionError as exc:
+            return False, str(exc)
+        return True, "FFmpeg/FFprobe " + ".".join(map(str, pair.version))
 
     def probe(self, path: Path, *, untrusted: bool = False) -> AudioProbe:
         cmd = [

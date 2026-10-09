@@ -24,7 +24,7 @@ vi.mock("../api", () => ({
   waitForBootstrapJob: vi.fn(async (id: string) => ({
     id,
     kind: "bootstrap",
-    components: ["ffmpeg", "whisper"],
+    components: ["whisper"],
     whisper_model: "large-v3-turbo",
     status: "ok",
     message: "Ready",
@@ -38,7 +38,7 @@ vi.mock("../api", () => ({
       whisper: { ok: false, required_for_first_run: true },
       rnnoise: { ok: false, required_for_first_run: false },
     },
-    default_components: ["ffmpeg", "whisper"],
+    default_components: ["whisper"],
     optional_components: ["rnnoise"],
     cdn_base: false,
   })),
@@ -89,9 +89,10 @@ describe("BootstrapWizard", () => {
     await user.selectOptions(select, "small.en");
     expect(fetchMock).toHaveBeenCalledWith("small.en");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(runMock).toHaveBeenCalledWith(
-      expect.objectContaining({ whisper_model: "small.en" }),
-    );
+    expect(runMock).toHaveBeenCalledWith({
+      components: ["whisper"],
+      whisper_model: "small.en",
+    });
   });
 
   it("calls onReady when a model-scoped refresh reports ready", async () => {
@@ -106,7 +107,7 @@ describe("BootstrapWizard", () => {
         whisper: { ok: model === "small.en", required_for_first_run: true },
         rnnoise: { ok: false, required_for_first_run: false },
       },
-      default_components: ["ffmpeg", "whisper"],
+      default_components: ["whisper"],
       optional_components: ["rnnoise"],
       cdn_base: false,
     }));

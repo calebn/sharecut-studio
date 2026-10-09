@@ -14,7 +14,7 @@ still uses `devUrl` on :8765 (start `podcast gui` in another terminal).
 | Tauri window + this Rust crate | `podcast-relay` / Caddy / Terraform |
 | Python sidecar (frozen CPython + `gui` extra + `web-dist`) | Node.js toolchain; torch / speaker / joinqc |
 | Prebuilt `gui/web/dist` (served by FastAPI) | tests, docs sites |
-| Optional first-run FFmpeg / Whisper (CDN or Hub) | |
+| Bundled FFmpeg; optional first-run Whisper download | |
 
 See [docs/desktop-packaging.md](../../docs/desktop-packaging.md).
 
@@ -77,3 +77,5 @@ Run the AppImage itself with `--cli <podcast arguments>` or `--mcp <podcast-mcp 
 - Share tokens must use the current lowercase coolname slug format.
 - Parse/allowlist is in `src-tauri/src/share_url.rs` (`ShareDeepLink.prefix`). Desktop open is `main.rs` + `tauri-plugin-shell`. macOS registration is config-only (`Info.plist`); Windows/Linux need the single-instance plugin so a second process is not spawned.
 - Record microphone: `Info.plist` `NSMicrophoneUsageDescription` + `Entitlements.plist` `audio-input`. WebView handler (macOS `requestMediaCapturePermissionForOrigin`, Windows `PermissionRequested`) allows mic only for `http://127.0.0.1:{engine-port}` (`allow_engine_microphone` in `share_url.rs`). Linux/AppImage does not install that handler (WebKitGTK default prompt; record-in-browser is the supported guest path). Camera and deny-by-default WebView policy stay v1.
+
+Desktop builds include the pinned native FFmpeg 9.0.2 pair under `sharecut-runtime/ffmpeg`. The shared source builder verifies media capabilities and system-only linkage before fresh or reused freezes complete. See [desktop packaging](../../docs/desktop-packaging.md#bundled-native-audio-tools).

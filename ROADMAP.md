@@ -277,3 +277,5 @@ Audio-only `export_social_clips_tool` (WAV + JSON) is **not** market-complete. *
 |------|--------|
 | **Native mobile + BYOK in-app agent** | Same React Sharecut Studio + episode v2; phones use in-process libav + platform playback/ASR; user supplies model key. Follow [docs/cross-platform-byok.md](docs/cross-platform-byok.md) § Interim. |
 | **iOS/Android native record clients** | After desktop + browser recording session ships. |
+
+Desktop audio tools use the shared pinned FFmpeg 9.0.2 source recipe. Native Linux x64, Intel macOS and Windows x64 jobs verify it. Apple Silicon remains outside the current release matrix.

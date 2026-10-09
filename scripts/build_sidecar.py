@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze a per-OS Sharecut Studio sidecar (CPython + gui,bootstrap extras + web dist).
+"""Freeze a per-OS Sharecut Studio sidecar (CPython + gui extras + web dist).
 
 Contributor ``tauri dev`` keeps ``gui/desktop/binaries/sharecut-sidecar`` (bash).
 This script writes a gitignored runtime tree and a target-triple launcher that
@@ -21,7 +21,7 @@ BINARIES = ROOT / "gui" / "desktop" / "binaries"
 RUNTIME_NAME = "sharecut-runtime"
 LAUNCHER_RS = Path(__file__).resolve().parent / "sidecar_launcher.rs"
 SIDECAR_STEM = "sharecut-sidecar"
-GUI_EXTRAS = "gui,bootstrap"
+GUI_EXTRAS = "gui"
 PYTHON_VERSION = "3.12"
 FREEZE_COMPLETE = ".freeze-complete"
 PYTHON_HOME_MARKER = ".python-home"
@@ -59,6 +59,7 @@ if [ -z "$ROOT" ]; then
   exit 1
 fi
 export PODCAST_GUI_DIST="$ROOT/web-dist"
+export PODCAST_MCP_FFMPEG_BUNDLE="$ROOT/ffmpeg/bin"
 export PODCAST_MAGIC_LINK_PRINT=0
 export PODCAST_GUI_OPENAPI=0
 if [ -z "${{PYTHONHOME:-}}" ]; then
@@ -122,6 +123,7 @@ if not defined ROOT (
   exit /b 1
 )
 set PODCAST_GUI_DIST=%ROOT%\\web-dist
+set PODCAST_MCP_FFMPEG_BUNDLE=%ROOT%\\ffmpeg\\bin
 set PODCAST_MAGIC_LINK_PRINT=0
 set PODCAST_GUI_OPENAPI=0
 if not defined PYTHONHOME if exist "%ROOT%\\{marker}" (
@@ -661,6 +663,41 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def refresh_ffmpeg_integrity(runtime: Path) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/build_ffmpeg.py"),
+            "--output",
+            str(runtime / "ffmpeg"),
+            "--refresh-integrity",
+        ],
+        check=True,
+        timeout=120,
+    )
+
+
+def ensure_ffmpeg_payload(runtime: Path, triple: str) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/build_ffmpeg.py"),
+            "--output",
+            str(runtime / "ffmpeg"),
+            "--target",
+            triple,
+            "--source-cache",
+            str(
+                Path(
+                    os.environ.get("PODCAST_FFMPEG_SOURCE_CACHE", runtime.parent / "ffmpeg-sources")
+                )
+            ),
+        ],
+        check=True,
+        timeout=5400,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     binaries: Path = args.out
@@ -685,7 +722,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.codesign_only:
         if not identity:
             raise SystemExit("--codesign-only requires APPLE_SIGNING_IDENTITY")
+        clear_freeze_complete(runtime)
         codesign_runtime(runtime, identity)
+        refresh_ffmpeg_integrity(runtime)
+        write_freeze_complete(runtime)
         return 0
 
     if args.dry_run:
@@ -701,10 +741,16 @@ def main(argv: list[str] | None = None) -> int:
 
     require_rustc()
     if args.ensure and runtime_is_complete(runtime, windows=windows):
+        clear_freeze_complete(runtime)
         assert_production_web_dist(runtime / "web-dist")
+        ensure_ffmpeg_payload(runtime, triple)
         # Always rebuild the launcher: a cached one may predate `--cli` or be a
         # --dry-run shell script. Cheap next to the freeze, which is reused.
         compile_launchers(binaries, triple)
+        if sys.platform == "darwin" and identity:
+            codesign_runtime(runtime, identity)
+            refresh_ffmpeg_integrity(runtime)
+        write_freeze_complete(runtime)
         print(f"reusing complete freeze: {runtime}")
         return 0
 
@@ -712,10 +758,12 @@ def main(argv: list[str] | None = None) -> int:
     clear_freeze_complete(runtime)
     copy_web_dist(runtime, rebuild=args.rebuild_web)
     freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
+    ensure_ffmpeg_payload(runtime, triple)
     compile_launchers(binaries, triple)
     print(f"runtime: {runtime}")
     if sys.platform == "darwin" and identity:
         codesign_runtime(runtime, identity)
+        refresh_ffmpeg_integrity(runtime)
     write_freeze_complete(runtime)
     return 0
 

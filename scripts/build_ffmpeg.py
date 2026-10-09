@@ -1,0 +1,437 @@
+#!/usr/bin/env python3
+"""Build and verify the pinned native FFmpeg payload from reviewed sources."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
+from podcast_mcp.util.hashing import sha256_file
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def verify_archive(archive: Path, expected: str) -> None:
+    actual = sha256_file(archive)
+    if actual != expected:
+        raise ValueError(f"sha256 mismatch for {archive.name}: expected {expected}, got {actual}")
+
+
+def safe_extract(archive: Path, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    root = destination.resolve()
+    with tarfile.open(archive) as handle:
+        members = handle.getmembers()
+        if sum(member.size for member in members) > 1024 * 1024 * 1024:
+            raise ValueError("source archive exceeds extraction limit")
+        for member in members:
+            path = (root / member.name).resolve()
+            if not path.is_relative_to(root) or not (member.isfile() or member.isdir()):
+                raise ValueError(f"unsafe source archive member {member.name!r}")
+        handle.extractall(root, members=members, filter="data")
+
+
+def _run(
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+    timeout: int = 120,
+) -> str:
+    result = subprocess.run(
+        argv, cwd=cwd, env=env, capture_output=True, text=True, check=False, timeout=timeout
+    )
+    if result.returncode:
+        raise RuntimeError(f"Command failed {argv!r}: {result.stdout}\n{result.stderr}")
+    return result.stdout + result.stderr
+
+
+def _target() -> str:
+    machine = platform.machine().lower()
+    architectures = {
+        "arm64": "aarch64",
+        "aarch64": "aarch64",
+        "x86_64": "x86_64",
+        "amd64": "x86_64",
+    }
+    if machine not in architectures:
+        raise ValueError(f"unsupported native architecture {machine!r}")
+    arch = architectures[machine]
+    suffix = {"Darwin": "apple-darwin", "Linux": "unknown-linux-gnu", "Windows": "pc-windows-msvc"}[
+        platform.system()
+    ]
+    return f"{arch}-{suffix}"
+
+
+def _linkage(binary: Path) -> str:
+    system = platform.system()
+    if system == "Darwin":
+        text = _run(["otool", "-L", str(binary)])
+        loads = _run(["otool", "-l", str(binary)])
+        minima = []
+        for block in loads.split("Load command"):
+            if "LC_BUILD_VERSION" in block:
+                minima.extend(re.findall(r"^\s*minos (\d+\.\d+(?:\.\d+)?)", block, re.MULTILINE))
+            elif "LC_VERSION_MIN_MACOSX" in block:
+                minima.extend(re.findall(r"^\s*version (\d+\.\d+(?:\.\d+)?)", block, re.MULTILINE))
+        maximum = tuple(map(int, ffmpeg_policy()["macos_deployment_target"].split(".")))
+        if not minima or any(tuple(map(int, value.split(".")))[:2] > maximum for value in minima):
+            raise ValueError(f"Mach-O minimum OS exceeds deployment target: {minima}")
+        dependencies = [line.strip().split(" (")[0] for line in text.splitlines()[1:]]
+        invalid = [
+            item for item in dependencies if not item.startswith(("/usr/lib/", "/System/Library/"))
+        ]
+    elif system == "Windows":
+        text = _run(["objdump", "-p", str(binary)])
+        dependencies = re.findall(r"DLL Name:\s*(\S+)", text)
+        allowed = {
+            "kernel32.dll",
+            "msvcrt.dll",
+            "ucrtbase.dll",
+            "advapi32.dll",
+            "bcrypt.dll",
+            "crypt32.dll",
+            "user32.dll",
+            "ws2_32.dll",
+            "secur32.dll",
+            "shell32.dll",
+            "ole32.dll",
+            "avrt.dll",
+        }
+        invalid = [
+            item
+            for item in dependencies
+            if item.lower() not in allowed and not item.lower().startswith("api-ms-win-")
+        ]
+    else:
+        text = _run(["ldd", str(binary)])
+        allowed = {
+            "libc.so.6",
+            "libm.so.6",
+            "libpthread.so.0",
+            "libdl.so.2",
+            "librt.so.1",
+            "ld-linux-x86-64.so.2",
+            "ld-linux-aarch64.so.1",
+            "linux-vdso.so.1",
+        }
+        dependencies = [line.strip().split()[0] for line in text.splitlines() if line.strip()]
+        invalid = [item for item in dependencies if Path(item).name not in allowed]
+    if not dependencies or invalid:
+        raise ValueError(f"non-system native linkage for {binary}: {invalid or text}")
+    return text
+
+
+def media_proof(directory: Path) -> dict[str, Any]:
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    ffmpeg, ffprobe = (directory / "bin" / (name + suffix) for name in ("ffmpeg", "ffprobe"))
+    environment = os.environ.copy()
+    for key in ("DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH", "LD_LIBRARY_PATH"):
+        environment.pop(key, None)
+    if platform.system() == "Windows":
+        environment["PATH"] = str(Path(environment["SystemRoot"]) / "System32")
+    else:
+        environment["PATH"] = "/usr/bin:/bin"
+    with tempfile.TemporaryDirectory(prefix="media-proof-") as temp:
+        output = Path(temp)
+        base = [
+            str(ffmpeg),
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:duration=1:sample_rate=48000",
+        ]
+        for codec, extension, expected in (
+            ("pcm_s16le", "wav", "pcm_s16le"),
+            ("pcm_f32le", "wav", "pcm_f32le"),
+            ("flac", "flac", "flac"),
+            ("aac", "m4a", "aac"),
+            ("libmp3lame", "mp3", "mp3"),
+        ):
+            encoded = output / f"{codec}.{extension}"
+            _run([*base, "-c:a", codec, str(encoded)], env=environment)
+            probe = json.loads(
+                _run(
+                    [str(ffprobe), "-v", "error", "-show_streams", "-of", "json", str(encoded)],
+                    env=environment,
+                )
+            )["streams"][0]
+            if probe["codec_name"] != expected or probe["sample_rate"] != "48000":
+                raise ValueError(f"codec proof failed for {codec}: {probe}")
+            decoded = output / f"{codec}.f32"
+            _run(
+                [str(ffmpeg), "-v", "error", "-i", str(encoded), "-f", "f32le", str(decoded)],
+                env=environment,
+            )
+            frames = decoded.stat().st_size // 4
+            if not 48000 <= frames <= 49152:
+                raise ValueError(f"decoded sample count for {codec}: {frames}")
+        resampled = output / "resampled.f32"
+        _run([*base, "-ar", "44100", "-f", "f32le", str(resampled)], env=environment)
+        if resampled.stat().st_size != 44100 * 4:
+            raise ValueError("resampling proof failed")
+        for audio_filter, marker in (
+            ("ebur128=peak=true", "True peak:"),
+            ("loudnorm=I=-16:TP=-1:LRA=11:print_format=json", "input_tp"),
+        ):
+            if marker not in _run([*base, "-af", audio_filter, "-f", "null", "-"], env=environment):
+                raise ValueError(f"loudness proof failed for {audio_filter}")
+        png = output / "waveform.png"
+        _run(
+            [*base, "-filter_complex", "showwavespic=s=320x100", "-frames:v", "1", str(png)],
+            env=environment,
+        )
+        if png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+            raise ValueError("PNG waveform proof failed")
+    return {
+        "codecs": ["pcm_s16le", "pcm_f32le", "flac", "aac", "libmp3lame"],
+        "resampling": "48000 to 44100",
+        "filters": ["ebur128", "loudnorm", "showwavespic"],
+    }
+
+
+def refresh_integrity(directory: Path) -> None:
+    path = directory / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["files"] = {
+        str(file.relative_to(directory)): sha256_file(file)
+        for file in sorted(directory.rglob("*"))
+        if file.is_file() and file != path
+    }
+    path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+
+def verify_payload(directory: Path, *, target: str | None = None) -> dict[str, Any]:
+    policy = ffmpeg_policy()
+    manifest = json.loads((directory / "manifest.json").read_text())
+    contract_digest = sha256_file(ROOT / "contracts/ffmpeg-build.json")
+    if (
+        manifest["contract_sha256"] != contract_digest
+        or manifest["target"] != (target or _target())
+        or manifest["version"] != policy["version"]
+        or manifest["builder_sha256"] != sha256_file(Path(__file__))
+    ):
+        raise ValueError("payload target, recipe, or release differs from the build policy")
+    for relative, expected in manifest["files"].items():
+        file = (directory / relative).resolve()
+        if not file.is_relative_to(directory.resolve()) or not file.is_file():
+            raise ValueError(f"payload file is missing or unsafe: {relative}")
+        verify_archive(file, expected)
+    for name, source in policy["sources"].items():
+        verify_archive(directory / "sources" / source["archive"], source["sha256"])
+        if not (directory / "notices" / name).is_dir():
+            raise ValueError(f"missing {name} notices")
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    for name in ("ffmpeg", "ffprobe"):
+        binary = directory / "bin" / (name + suffix)
+        version = _run([str(binary), "-version"])
+        if not re.match(rf"^{name} version {re.escape(policy['version'])}(?:\s|$)", version):
+            raise ValueError(f"payload {name} does not report exact {policy['version']}")
+        if "--enable-gpl" in version or "--enable-nonfree" in version:
+            raise ValueError("GPL or nonfree configure flag in payload")
+        _linkage(binary)
+    media_proof(directory)
+    return manifest
+
+
+def build_payload(
+    directory: Path, *, source_cache: Path | None = None, target: str | None = None, jobs: int = 2
+) -> dict[str, Any]:
+    target = target or _target()
+    if target != _target():
+        raise ValueError(f"native builder target {target} differs from host {_target()}")
+    policy = ffmpeg_policy()
+    source_cache = source_cache or directory / "download-cache"
+    source_cache.mkdir(parents=True, exist_ok=True)
+    (directory / "sources").mkdir()
+    (directory / "notices").mkdir()
+    (directory / "bin").mkdir()
+    with tempfile.TemporaryDirectory(prefix="ffmpeg-native-") as temp:
+        work = Path(temp)
+        environment = os.environ.copy()
+        prefix = work / "prefix"
+        environment.update(PKG_CONFIG_PATH="", PKG_CONFIG_LIBDIR=str(prefix / "lib/pkgconfig"))
+        if platform.system() == "Darwin":
+            environment["MACOSX_DEPLOYMENT_TARGET"] = policy["macos_deployment_target"]
+        logs: dict[str, str] = {}
+        for name, source in policy["sources"].items():
+            archive = source_cache / source["archive"]
+            if not archive.is_file():
+                partial = work / source["archive"]
+                _run(
+                    [
+                        "curl",
+                        "--fail",
+                        "--location",
+                        "--proto",
+                        "=https",
+                        "--proto-redir",
+                        "=https",
+                        "--max-time",
+                        "120",
+                        "--retry",
+                        "2",
+                        "--max-filesize",
+                        "104857600",
+                        "--output",
+                        str(partial),
+                        source["url"],
+                    ],
+                    timeout=400,
+                )
+                verify_archive(partial, source["sha256"])
+                shutil.copy2(partial, archive)
+            verify_archive(archive, source["sha256"])
+            shutil.copy2(archive, directory / "sources" / archive.name)
+            safe_extract(archive, work)
+            source_dir = work / source["directory"]
+            notices = directory / "notices" / name
+            notices.mkdir()
+            for file in source_dir.iterdir():
+                if file.is_file() and (
+                    file.name.startswith("COPYING")
+                    or file.name in {"LICENSE", "LICENSE.md", "README"}
+                ):
+                    shutil.copy2(file, notices / file.name)
+        lame = work / policy["sources"]["lame"]["directory"]
+        flags = [*policy["lame_configure"], f"--prefix={prefix.as_posix()}"]
+        logs["lame-configure"] = _run(
+            ["sh", "configure", *flags], cwd=lame, env=environment, timeout=300
+        )
+        logs["lame-build"] = _run(
+            ["make", f"-j{min(max(jobs, 1), 8)}"], cwd=lame, env=environment, timeout=1800
+        )
+        logs["lame-install"] = _run(["make", "install"], cwd=lame, env=environment, timeout=300)
+        zlib = work / policy["sources"]["zlib"]["directory"]
+        logs["zlib-configure"] = _run(
+            ["sh", "configure", *policy["zlib_configure"], f"--prefix={prefix.as_posix()}"],
+            cwd=zlib,
+            env=environment,
+            timeout=300,
+        )
+        logs["zlib-build"] = _run(
+            ["make", f"-j{min(max(jobs, 1), 8)}"], cwd=zlib, env=environment, timeout=600
+        )
+        logs["zlib-install"] = _run(["make", "install"], cwd=zlib, env=environment, timeout=300)
+        ffmpeg = work / policy["sources"]["ffmpeg"]["directory"]
+        flags = [
+            *policy["ffmpeg_configure"],
+            f"--extra-cflags=-I{(prefix / 'include').as_posix()}",
+            f"--extra-ldflags=-L{(prefix / 'lib').as_posix()}",
+            f"--prefix={prefix.as_posix()}",
+        ]
+        if platform.system() == "Windows":
+            flags.extend(["--target-os=mingw32", "--extra-ldexeflags=-static -static-libgcc"])
+        elif platform.system() == "Linux":
+            flags.append("--extra-ldexeflags=-static-libgcc")
+        logs["ffmpeg-configure"] = _run(
+            ["sh", "configure", *flags], cwd=ffmpeg, env=environment, timeout=300
+        )
+        config = (ffmpeg / "config.h").read_text()
+        if "#define CONFIG_GPL 0" not in config or "#define CONFIG_NONFREE 0" not in config:
+            raise ValueError("build enabled GPL or nonfree")
+        logs["ffmpeg-build"] = _run(
+            ["make", f"-j{min(max(jobs, 1), 8)}", "ffmpeg", "ffprobe"],
+            cwd=ffmpeg,
+            env=environment,
+            timeout=3600,
+        )
+        suffix = ".exe" if platform.system() == "Windows" else ""
+        for name in ("ffmpeg", "ffprobe"):
+            shutil.copy2(ffmpeg / (name + suffix), directory / "bin" / (name + suffix))
+        rebuild = directory / "rebuild"
+        rebuild.mkdir()
+        (rebuild / "scripts").mkdir()
+        (rebuild / "contracts").mkdir()
+        modules = rebuild / "src/podcast_mcp/util"
+        modules.mkdir(parents=True)
+        (modules.parent / "__init__.py").write_text("")
+        (modules / "__init__.py").write_text("")
+        for module in ("ffmpeg_policy.py", "hashing.py"):
+            shutil.copy2(ROOT / "src/podcast_mcp/util" / module, modules / module)
+        shutil.copy2(Path(__file__), rebuild / "scripts/build_ffmpeg.py")
+        shutil.copy2(ROOT / "contracts/ffmpeg-build.json", rebuild / "contracts/ffmpeg-build.json")
+        for name, text in logs.items():
+            (rebuild / f"{name}.log").write_text(text)
+        (rebuild / "config.h").write_text(config)
+        manifest = {
+            "version": policy["version"],
+            "target": target,
+            "contract_sha256": sha256_file(ROOT / "contracts/ffmpeg-build.json"),
+            "builder_sha256": sha256_file(Path(__file__)),
+            "os": platform.platform(),
+            "compiler": _run(["cc", "--version"]),
+            "files": {},
+        }
+        (directory / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        refresh_integrity(directory)
+    return manifest
+
+
+def ensure_payload(
+    output: Path, *, source_cache: Path | None = None, target: str | None = None, jobs: int = 2
+) -> dict[str, Any]:
+    """Verify a local prior build or replace it with one complete native build."""
+    try:
+        return verify_payload(output, target=target)
+    except (OSError, ValueError, KeyError, RuntimeError):
+        pass
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{output.name}-", dir=output.parent) as temp:
+        stage = Path(temp) / "payload"
+        stage.mkdir()
+        build_payload(stage, source_cache=source_cache, target=target, jobs=jobs)
+        manifest = verify_payload(stage, target=target)
+        previous = Path(temp) / "previous"
+        if output.exists():
+            output.rename(previous)
+        try:
+            stage.rename(output)
+        except OSError:
+            if previous.exists():
+                previous.rename(output)
+            raise
+    return manifest
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-cache", type=Path)
+    parser.add_argument("--target")
+    parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--refresh-integrity", action="store_true")
+    parser.add_argument("--verify-only", action="store_true")
+    args = parser.parse_args(argv)
+    if args.verify_only:
+        verify_payload(args.output, target=args.target)
+        return 0
+    if args.refresh_integrity:
+        refresh_integrity(args.output)
+        verify_payload(args.output, target=args.target)
+        return 0
+    ensure_payload(
+        args.output.absolute(), source_cache=args.source_cache, target=args.target, jobs=args.jobs
+    )
+    print(f"Verified FFmpeg {ffmpeg_policy()['version']} native payload at {args.output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

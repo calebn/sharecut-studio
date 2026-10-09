@@ -7,11 +7,7 @@ import typer
 
 from podcast_mcp.config import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
-from podcast_mcp.util.binaries import (
-    FFmpegPairResolutionError,
-    bootstrap_ffmpeg,
-    resolve_ffmpeg_pair,
-)
+from podcast_mcp.util.binaries import FFmpegPairResolutionError
 from podcast_mcp.util.model_assets import (
     bootstrap_nisqa_model,
     bootstrap_rnnoise_model,
@@ -31,7 +27,7 @@ from podcast_mcp.word_aligner_models import (
 
 setup_app = typer.Typer(help="Install and verify Podcast MCP.")
 
-_COMPONENTS = ("ffmpeg", "whisper", "rnnoise", "silero-vad", "nisqa", "word-aligner")
+_COMPONENTS = ("whisper", "rnnoise", "silero-vad", "nisqa", "word-aligner")
 _OPT_IN_COMPONENTS = ("nisqa", "word-aligner")
 
 
@@ -67,7 +63,7 @@ def setup(
     else:
         typer.echo(f"FFmpeg missing: {msg}", err=True)
         typer.echo(
-            "Fix: brew/apt install ffmpeg, or `podcast bootstrap --component ffmpeg`",
+            "Fix: install a matching FFmpeg 9.0.2 or later 9.x pair; see docs/setup.md",
             err=True,
         )
 
@@ -153,12 +149,12 @@ def bootstrap(
     ),
     upgrade: bool = typer.Option(False, "--upgrade", help="Re-download even if already cached."),
 ) -> None:
-    """Download optional heavyweight assets on demand (FFmpeg, Whisper, RNNoise; opt-in NISQA / word aligner).
+    """Download optional model assets on demand.
 
     Nothing here is required to install the package -- everything is fetched
     lazily into the cache dir (`podcast doctor` shows the path) the first time
     you actually need it. Run this once for a fully offline-ready setup, or
-    per-component (`--component ffmpeg`) to top up just one piece. Safe to
+    per-component (`--component whisper`) to top up just one piece. Safe to
     re-run; already-cached assets are skipped unless `--upgrade`.
     """
     if component != "all" and component not in _COMPONENTS:
@@ -173,8 +169,6 @@ def bootstrap(
     if component == "all":
         wanted = tuple(c for c in wanted if c not in _OPT_IN_COMPONENTS)
     ok = True
-    if "ffmpeg" in wanted:
-        ok = _bootstrap_ffmpeg_component(force=upgrade) and ok
     if "whisper" in wanted:
         try:
             model = validate_whisper_model(whisper_model)
@@ -194,29 +188,6 @@ def bootstrap(
     if not ok:
         raise typer.Exit(1)
     typer.echo("Bootstrap complete.")
-
-
-def _bootstrap_ffmpeg_component(*, force: bool) -> bool:
-    if not force:
-        try:
-            pair = resolve_ffmpeg_pair()
-        except FFmpegPairResolutionError:
-            pass
-        else:
-            if pair.is_available():
-                typer.echo(f"[skip] ffmpeg: pair available at {pair.ffmpeg} and {pair.ffprobe}")
-                return True
-    try:
-        ffmpeg_path, ffprobe_path = bootstrap_ffmpeg(force=force)
-    except ImportError as exc:
-        typer.echo(f"[fail] ffmpeg: {exc}", err=True)
-        return False
-    except Exception as exc:  # pragma: no cover - network/platform failures
-        typer.echo(f"[fail] ffmpeg: {exc}", err=True)
-        return False
-    typer.echo(f"[ok] ffmpeg: {ffmpeg_path}")
-    typer.echo(f"[ok] ffprobe: {ffprobe_path}")
-    return True
 
 
 def _bootstrap_whisper_component(model_size: str, *, force: bool) -> bool:

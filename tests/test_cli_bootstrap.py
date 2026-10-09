@@ -7,18 +7,8 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError
 
 runner = CliRunner()
-
-
-@pytest.fixture
-def executable_pair(tmp_path: Path) -> FFmpegPair:
-    for name in ("ffmpeg", "ffprobe"):
-        command = tmp_path / name
-        command.write_text("#!/bin/sh\nexit 0\n")
-        command.chmod(0o755)
-    return FFmpegPair(str(tmp_path / "ffmpeg"), str(tmp_path / "ffprobe"))
 
 
 @pytest.fixture(autouse=True)
@@ -30,50 +20,6 @@ def test_bootstrap_unknown_component_errors() -> None:
     result = runner.invoke(app, ["bootstrap", "--component", "bogus"])
     assert result.exit_code == 2
     assert "Unknown component" in result.stderr
-
-
-def test_bootstrap_ffmpeg_skips_when_already_on_path(executable_pair: FFmpegPair) -> None:
-    with patch(
-        "podcast_mcp.cli.setup_cmd.resolve_ffmpeg_pair",
-        return_value=executable_pair,
-    ):
-        result = runner.invoke(app, ["bootstrap", "--component", "ffmpeg"])
-    assert result.exit_code == 0
-    assert "pair available" in result.stdout
-
-
-def test_bootstrap_ffmpeg_reports_failure_without_static_ffmpeg() -> None:
-    with (
-        patch(
-            "podcast_mcp.cli.setup_cmd.resolve_ffmpeg_pair",
-            side_effect=FFmpegPairResolutionError("missing pair"),
-        ),
-        patch(
-            "podcast_mcp.cli.setup_cmd.bootstrap_ffmpeg",
-            side_effect=ImportError("static-ffmpeg is required"),
-        ),
-    ):
-        result = runner.invoke(app, ["bootstrap", "--component", "ffmpeg"])
-    assert result.exit_code == 1
-    assert "static-ffmpeg is required" in result.stderr
-
-
-def test_bootstrap_ffmpeg_success(tmp_path: Path) -> None:
-    ffmpeg_path = tmp_path / "ffmpeg"
-    ffprobe_path = tmp_path / "ffprobe"
-    with (
-        patch(
-            "podcast_mcp.cli.setup_cmd.resolve_ffmpeg_pair",
-            side_effect=FFmpegPairResolutionError("missing pair"),
-        ),
-        patch(
-            "podcast_mcp.cli.setup_cmd.bootstrap_ffmpeg",
-            return_value=(ffmpeg_path, ffprobe_path),
-        ),
-    ):
-        result = runner.invoke(app, ["bootstrap", "--component", "ffmpeg"])
-    assert result.exit_code == 0
-    assert str(ffmpeg_path) in result.stdout
 
 
 def test_bootstrap_whisper_success() -> None:
@@ -224,11 +170,8 @@ def test_bootstrap_silero_vad_unavailable() -> None:
     assert result.exit_code == 1
 
 
-def test_bootstrap_all_runs_every_component(tmp_path: Path, executable_pair: FFmpegPair) -> None:
-    with patch(
-        "podcast_mcp.cli.setup_cmd.resolve_ffmpeg_pair",
-        return_value=executable_pair,
-    ):
+def test_bootstrap_all_runs_every_component(tmp_path: Path) -> None:
+    with patch("podcast_mcp.cli.setup_cmd.FFmpegEngine"):
         with patch(
             "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
             return_value={
@@ -344,20 +287,3 @@ def test_bootstrap_whisper_cli_uses_shared_downloader() -> None:
     assert result.exit_code == 0
     mocked.assert_called_once_with("small.en", force=False)
     assert "small.en" in result.stdout
-
-
-def test_bootstrap_does_not_skip_invalid_explicit_pair() -> None:
-    with (
-        patch(
-            "podcast_mcp.cli.setup_cmd.resolve_ffmpeg_pair",
-            return_value=FFmpegPair("/missing/ffmpeg", "/missing/ffprobe"),
-        ),
-        patch(
-            "podcast_mcp.cli.setup_cmd.bootstrap_ffmpeg",
-            side_effect=ImportError("bootstrap unavailable"),
-        ) as bootstrap,
-    ):
-        result = runner.invoke(app, ["bootstrap", "--component", "ffmpeg"])
-    bootstrap.assert_called_once_with(force=False)
-    assert result.exit_code == 1
-    assert "pair available" not in result.stdout

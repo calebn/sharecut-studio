@@ -88,17 +88,6 @@ def main() -> int:
                     f"skip {name}: use huggingface_hub snapshot_download "
                     f"for {meta.get('repo')}@{meta.get('revision')} → {prefix}/"
                 )
-        elif kind == "static-ffmpeg":
-            planned.append(
-                {
-                    "name": name,
-                    "action": "manual_static_ffmpeg",
-                    "cdn_prefix": prefix,
-                    "note": meta.get("notes", ""),
-                }
-            )
-            if not args.dry_run:
-                print(f"skip {name}: place platform ffmpeg/ffprobe under {prefix}/")
         else:
             print(f"unknown kind {kind!r} for {name}", file=sys.stderr)
             return 2

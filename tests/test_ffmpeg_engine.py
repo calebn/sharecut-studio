@@ -183,61 +183,29 @@ def test_apply_gain(sample_wav: Path, tmp_path: Path):
     assert out.is_file()
 
 
-def test_check_available_failure_paths():
-    eng = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(returncode=1, stderr="broken", stdout="")
-        ok, msg = eng.check_available()
-        assert ok is False
-        assert "broken" in msg
-
-    with patch(
-        "podcast_mcp.engines.ffmpeg.run",
-        side_effect=FileNotFoundError,
-    ):
-        ok, msg = eng.check_available()
-        assert ok is False
-        assert "not found" in msg
-
-    with patch(
-        "podcast_mcp.engines.ffmpeg.run",
-        side_effect=subprocess.TimeoutExpired("ffmpeg", 10),
-    ):
-        ok, msg = eng.check_available()
-        assert ok is False
-        assert "timed out" in msg
-
-
-def test_check_available_rejects_missing_explicit_ffprobe_before_subprocess(tmp_path: Path):
-    ffmpeg = tmp_path / "ffmpeg"
-    ffmpeg.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    ffmpeg.chmod(0o755)
-    engine = FFmpegEngine(ffmpeg=str(ffmpeg), ffprobe=str(tmp_path / "missing-ffprobe"))
-
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+@pytest.mark.parametrize(
+    "failure",
+    [
+        FileNotFoundError("missing"),
+        PermissionError("denied"),
+        subprocess.TimeoutExpired("ffmpeg", 10),
+    ],
+)
+def test_check_available_failure_paths(failure):
+    engine = FFmpegEngine()
+    with patch("podcast_mcp.util.binaries.run", side_effect=failure):
         ok, message = engine.check_available()
-
     assert ok is False
-    assert "pair is unavailable" in message
-    run.assert_not_called()
+    assert "Cannot run" in message
+    assert "9.0.2" in message
 
 
 def test_check_available_handles_empty_version_output():
     engine = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run", return_value=MagicMock(returncode=0, stdout="")):
+    with patch("podcast_mcp.util.binaries.run", return_value=MagicMock(returncode=0, stdout="")):
         ok, message = engine.check_available()
-
     assert ok is False
-    assert "empty version output" in message
-
-
-def test_check_available_handles_permission_error():
-    engine = FFmpegEngine()
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=PermissionError):
-        ok, message = engine.check_available()
-
-    assert ok is False
-    assert "not executable" in message
+    assert "did not report a numeric" in message
 
 
 def test_probe_parsed_from_json(tmp_path: Path):
@@ -791,29 +759,27 @@ def test_build_track_filter_arnndn_escapes_colons_in_path():
 def test_ffmpeg_engine_defaults_resolve_binaries():
     with patch(
         "podcast_mcp.engines.ffmpeg.resolve_ffmpeg_pair",
-        return_value=FFmpegPair("/resolved/ffmpeg", "/resolved/ffprobe"),
+        return_value=FFmpegPair("/resolved/ffmpeg", "/resolved/ffprobe", (9, 0, 2), "explicit"),
     ):
         eng = FFmpegEngine()
     assert eng.ffmpeg == "/resolved/ffmpeg"
     assert eng.ffprobe == "/resolved/ffprobe"
 
 
-def test_ffmpeg_engine_explicit_paths_override_resolver():
-    eng = FFmpegEngine(ffmpeg="/custom/ffmpeg", ffprobe="/custom/ffprobe")
-    assert eng.ffmpeg == "/custom/ffmpeg"
-    assert eng.ffprobe == "/custom/ffprobe"
+def test_ffmpeg_engine_rejects_invalid_explicit_pair():
+    from podcast_mcp.util.binaries import FFmpegPairResolutionError
+
+    with pytest.raises(FFmpegPairResolutionError, match="Cannot run"):
+        FFmpegEngine(ffmpeg="/custom/ffmpeg", ffprobe="/custom/ffprobe")
 
 
-def test_ffmpeg_engine_constructor_override_wins_per_slot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_ffmpeg_engine_constructor_override_wins_per_slot(monkeypatch):
+    from podcast_mcp.util.binaries import FFmpegPairResolutionError
+
     monkeypatch.setenv("PODCAST_MCP_FFMPEG", "/env/ffmpeg")
     monkeypatch.setenv("PODCAST_MCP_FFPROBE", "/env/ffprobe")
-
-    engine = FFmpegEngine(ffmpeg="invalid explicit command")
-
-    assert engine.ffmpeg == "invalid explicit command"
-    assert engine.ffprobe == "/env/ffprobe"
+    with pytest.raises(FFmpegPairResolutionError, match="invalid explicit command"):
+        FFmpegEngine(ffmpeg="invalid explicit command")
 
 
 def test_render_spectrogram(sample_wav: Path, tmp_path: Path):
@@ -1409,7 +1375,11 @@ def test_silence_uses_the_engine_selected_pair(tmp_path: Path, monkeypatch):
     from unittest.mock import Mock
 
     monkeypatch.setenv("PODCAST_MCP_FFMPEG", "environment-ffmpeg")
-    engine = FFmpegEngine(ffmpeg="selected-ffmpeg", ffprobe="selected-ffprobe")
+    with patch(
+        "podcast_mcp.engines.ffmpeg.resolve_ffmpeg_pair",
+        return_value=FFmpegPair("selected-ffmpeg", "selected-ffprobe", (9, 0, 2), "explicit"),
+    ):
+        engine = FFmpegEngine(ffmpeg="selected-ffmpeg", ffprobe="selected-ffprobe")
     invocation = Mock()
     monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", invocation)
     output = tmp_path / "silence.wav"

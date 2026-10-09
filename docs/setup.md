@@ -3,15 +3,13 @@
 ## Requirements
 
 - Python 3.11+
-- FFmpeg and ffprobe — either a system install on `PATH` (fastest if you already
-  have one), or fetched via `podcast bootstrap --component ffmpeg` (see below; works
-  the same on macOS, Linux, and Windows, no package manager required)
+- A matching FFmpeg and FFprobe 9.0.2 or later 9.x pair for source installs. Desktop releases include the pinned 9.0.2 pair.
 - [uv](https://github.com/astral-sh/uv) (recommended; `install.sh` falls back to a plain `.venv` + `pip` if not present)
 - For the Sharecut Studio viewer only: Node.js 24+ (npm) to build `gui/web`
 
 ## Full local install
 
-Recommended contributor path (tests + GUI API + bootstrap FFmpeg helper + relay + prosody; **not** the heavy torch extras):
+Recommended contributor path (tests + GUI API + relay + prosody; **not** the heavy torch extras):
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -24,29 +22,21 @@ source .venv/bin/activate   # or prefix commands with: uv run
 podcast doctor
 ```
 
-`./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
+`./install.sh` runs `uv sync --extra dev --extra gui --extra relay --extra prosody` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
 
 For a packaged Sharecut Studio app on macOS, Linux `.deb`, or AppImage, use the native app menu's **Install Command Line Tools…** to install `podcast` and `podcast-mcp` in `~/.local/bin`. The app offers this once after its first successful engine start. Add `~/.local/bin` to your shell PATH if the app reports it missing. The same menu removes only commands owned by this app. AppImage installs wrappers that call the absolute `.AppImage` path, so keep the AppImage at that path; before moving it, remove the wrappers, then install again from the new path. You can also run `SharecutStudio.AppImage --cli <podcast arguments>` or `SharecutStudio.AppImage --mcp <podcast-mcp arguments>` directly.
 
 The core install includes `filelock` to coordinate transcript-refine status
 decisions between local pipeline, CLI, and MCP processes.
 
-If doctor reports missing FFmpeg:
-
-```bash
-# System package (preferred when available)
-brew install ffmpeg          # macOS
-# sudo apt install ffmpeg    # Debian/Ubuntu
-
-# Or fetch a static build into the podcast cache (needs bootstrap extra — already in install.sh)
-podcast bootstrap --component ffmpeg
-podcast doctor
-```
+If doctor reports missing or unsupported FFmpeg, install a matching supported pair
+or use the [shared source builder](#build-ffmpeg-from-source). Run `podcast doctor`
+again after setting the executable paths.
 
 Optional next steps:
 
 ```bash
-podcast bootstrap --component all          # ffmpeg + whisper model + rnnoise (+ silero check)
+podcast bootstrap --component all          # whisper model + rnnoise (+ silero check)
 cd gui/web && npm ci && npm run build && cd ../..   # Sharecut Studio static assets
 make hooks                                          # lint-staged + check-only pre-commit hooks
 make worktree-setup                                 # per git worktree: hooks + venv (incl. pre-commit) + gui/web node_modules
@@ -114,7 +104,6 @@ podcast doctor
 |-------|------|------------------|
 | *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), PyAV ≥ 11 and < 19 (faster-whisper 1.2.1 passes `metadata_errors` to `av.open`, which PyAV 19 rejects), mcp ≥ 2.2 and < 3 (`mcp/args.py`, `mcp/tool_errors.py` and `gui/host_mcp.py` rely on SDK internals; their client tests catch drift on a minor bump), onnxruntime + huggingface-hub (used by forced alignment when its optional model is installed), … | Always — `uv sync` with no extras |
 | `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit | Running `make test` / `make lint-py` and check-only commit hooks |
-| `bootstrap` | `static-ffmpeg` | `podcast bootstrap --component ffmpeg` without a system FFmpeg |
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, anyio ≥4, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
 | `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
@@ -124,7 +113,7 @@ podcast doctor
 | `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
 | `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling — expect multi‑GB torch/CUDA on Linux |
 
-`./install.sh` installs `dev` + `gui` + `bootstrap` + `relay` + `prosody`. It deliberately skips `speaker` / `joinqc` / `all`.
+`./install.sh` installs `dev` + `gui` + `relay` + `prosody`. It deliberately skips `speaker` / `joinqc` / `all`.
 
 **Clean-install check.** `pip install "podcast-mcp[extra]"` ignores `uv.lock`, so an extra can break on a newer transitive release while a locked `uv sync` still works (#1168). `tests/test_extras_import.py` builds a fresh unlocked venv per extra, installs the project with it, and imports the modules the code uses. It is opt-in because it downloads wheels. The path-filtered, weekly `extras-import` workflow runs it; run one extra locally with:
 
@@ -140,7 +129,6 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
 
 | Component | What it fetches | Needed for |
 |-----------|------------------|------------|
-| `ffmpeg` | Static `ffmpeg`/`ffprobe` via CDN when `PODCAST_BOOTSTRAP_CDN_BASE` is set **and** `sha256_by_platform` pins exist; otherwise `static-ffmpeg` | Everything if no system FFmpeg |
 | `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the Sharecut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.whisper_models.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are hashed uncached at download, by the pre-run gate and at load (each about 1–3 s for the large models, on every run that transcribes), and memoised per file in status checks (Pipeline badge, bootstrap status, the catalog picker, Studio's early Run check, `podcast doctor`). A mismatch reports `[fail]` with a `--upgrade` hint; any download (`--upgrade`, a plain bootstrap, or a Studio **Download**) re-fetches a cached snapshot that fails its pin. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset |
 | `silero-vad` | Nothing — verifies the model bundled with `faster-whisper` | Optional VAD breath handling |
@@ -198,10 +186,10 @@ uv run hf download Systran/faster-whisper-small.en config.json model.bin tokeniz
 shasum -a 256 /tmp/pin-check/config.json /tmp/pin-check/model.bin /tmp/pin-check/tokenizer.json /tmp/pin-check/vocabulary.txt
 ```
 
-Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
+Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so RNNoise tries CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
 
 ```bash
-podcast bootstrap --component all      # ffmpeg + whisper (large-v3-turbo) + rnnoise + silero check
+podcast bootstrap --component all      # whisper (large-v3-turbo) + rnnoise + silero check
 podcast bootstrap --component whisper --whisper-model small.en
 podcast setup --whisper-model medium.en   # persist without downloading
 # Use another downloaded model for one standalone transcription run.
@@ -254,66 +242,70 @@ source .venv/bin/activate
 podcast doctor
 ```
 
-## Any OS, no package manager (idiot-proof path)
+## Build FFmpeg from source
 
-Skip the system FFmpeg install entirely and let the app fetch what it needs:
+Desktop releases include audio tools and require no FFmpeg download. For a source
+checkout without a supported system pair, use the same native builder as CI:
 
 ```bash
-./install.sh                         # includes bootstrap extra when using the default install
-source .venv/bin/activate
-podcast bootstrap --component ffmpeg # or: podcast bootstrap --component all
+python scripts/build_ffmpeg.py --output /absolute/path/sharecut-ffmpeg
+export PODCAST_MCP_FFMPEG=/absolute/path/sharecut-ffmpeg/bin/ffmpeg
+export PODCAST_MCP_FFPROBE=/absolute/path/sharecut-ffmpeg/bin/ffprobe
 podcast doctor
 ```
 
-From a pip-only env without `install.sh`:
-
-```bash
-pip install "podcast-mcp[bootstrap]"   # or: uv sync --extra bootstrap
-podcast bootstrap                       # fetches ffmpeg/ffprobe + whisper model
-podcast doctor
-```
+On Windows, build in MSYS2 MINGW64 with GCC, make, pkg-config, Python and curl,
+then use the `.exe` paths. Linux requires a C compiler, make, pkg-config and curl.
+macOS requires the Xcode command-line tools, make, pkg-config and curl. The builder
+compiles native sources. It does not run during normal startup or bootstrap.
 
 ### FFmpeg version and pair policy
 
-Research checked the upstream release and security pages, Homebrew's formula,
-and the installed native pair on 2026-10-02. Upstream publishes signed source
-releases; Homebrew provides native Apple Silicon builds and bottles.
-FFmpeg 9.0.2 was the latest stable release on that date and is the recommended
-baseline. Prefer current maintained patches or distributor security updates
-when upgrading. See the [FFmpeg release list](https://ffmpeg.org/download.html),
-[FFmpeg security page](https://ffmpeg.org/security.html), and [Homebrew FFmpeg formula](https://formulae.brew.sh/formula/ffmpeg).
+#### Decision: Bundle the pinned FFmpeg 9 pair
 
-On macOS, pair consumers first use the native Homebrew installation under
-`/opt/homebrew/opt/ffmpeg/bin` on Apple Silicon or `/usr/local/opt/ffmpeg/bin`
-on Intel. They then use the first `PATH` directory with executable `ffmpeg`
-and `ffprobe`, followed by a complete executable pair in the bootstrap cache.
-The resolver does not rank versions, inspect binaries, access the network, or
-change global configuration. If no complete pair exists, pair consumers report
-that FFmpeg is missing. `FFmpegEngine` accepts `ffmpeg` and `ffprobe` constructor
-overrides. Each constructor value takes precedence over its matching
-`PODCAST_MCP_FFMPEG` or `PODCAST_MCP_FFPROBE` environment variable.
-Nonempty environment overrides and supplied constructor values stay unchanged,
-so you can intentionally select commands from different installations. The single-command `resolve_ffmpeg()` and `resolve_ffprobe()`
-functions use the same native Homebrew preference, followed by individual
-`PATH` and cache lookup. They serve workflows that invoke only one command.
-For a single explicit path, an executable sibling fills an unset companion;
-otherwise automatic pair discovery fills it. First-run readiness checks both
-selected commands for executability, including bare command overrides.
+<!-- decision
+id: D-bundled-ffmpeg9
+status: accepted
+date: 2026-10-09
+decided-by: calebn
+evidence:
+- Owner instruction to bundle FFmpeg 9 in desktop releases, use the same version in CI and drop FFmpeg 6 support
+enforced-by:
+- tests/test_binaries.py::test_unsupported_release_fails_before_return
+- tests/test_build_ffmpeg.py::test_source_hash_failure_does_not_extract
+- tests/test_build_sidecar.py::test_payload_is_ensured_before_runtime_completion
+-->
 
-The functional floor is FFmpeg 6.0. Both 6.0 and 9.0.2 passed the selected resolver and media contracts,
-including direct mix-ceiling checks during the #859 investigation. This
-floor describes tested behavior. It is not a security recommendation.
-Ubuntu CI uses authenticated distro packages. The Windows lane pins 9.0.2 and
-covers a narrower test set. See [CI dependency downloads](testing.md#ci-dependency-downloads)
-for Ubuntu's package verification.
+The shared resolver validates both executables with bounded version probes.
+Supported source-use releases have major version 9 and are at least 9.0.2.
+Both executables must report the same numeric release. Old majors, prereleases,
+development identifiers and unequal releases fail with an installation hint.
 
-Bootstrap remains an alternate installation path. The current `static-ffmpeg`
-3.0 helper fetches from mutable `main` and `v8.0` URLs in the
-[ffmpeg_bins source tree](https://github.com/zackees/ffmpeg_bins/tree/main/v8.0).
-Sharecut's CDN path stays
-disabled until real per-platform hashes are configured. `podcast bootstrap --component ffmpeg --upgrade` rechecks the configured source and recopies its binaries.
-The helper can reuse its own cache, so this flag does not guarantee a fresh
-download, update the Python helper package, or promise FFmpeg 9.0.2.
+Explicit constructor paths win over their matching environment overrides.
+An explicit partial path uses its actual executable sibling, including a bare
+command resolved through PATH. It never mixes with an unrelated installation.
+Selected command paths become absolute before any media work starts.
+
+Without explicit overrides, `PODCAST_MCP_FFMPEG_BUNDLE` declares the desktop
+pair's executable directory. That directory must contain exact 9.0.2. A missing,
+corrupt or unsupported declared bundle fails instead of falling back to PATH.
+Otherwise automatic discovery checks the native macOS Homebrew keg, complete
+PATH directories, then the existing source-use cache. Unsupported automatic
+candidates are rejected before a later supported candidate can be selected.
+Single-command helpers use the same validated pair.
+
+The authoritative [source recipe](../contracts/ffmpeg-build.json) pins FFmpeg
+9.0.2, static LAME 4.0 and static zlib 1.3.2 by independently expected SHA256.
+The recipe keeps built-in media codecs and filters, enables MP3 through LAME and
+PNG through zlib, and enables neither GPL nor nonfree dependencies. Standalone
+x86 assembly is disabled, so native jobs do not need NASM. CI and desktop release
+jobs run this builder and execute the resulting pair. Source archives alone are
+cached and rechecked before extraction. Binary hashes detect corruption after a
+trusted source build, and do not authenticate arbitrary binary downloads.
+
+`podcast bootstrap` downloads model assets only. FFmpeg is a readiness check and
+is absent from CLI and GUI download component lists. Keep supported system tools,
+use explicit paths from the source builder, or reinstall a damaged desktop bundle.
 
 Run the selected build's media acceptance suite with the
 [`scripts/verify_ffmpeg_baseline.py`](../scripts/verify_ffmpeg_baseline.py).
@@ -338,7 +330,7 @@ system/base Python) — every third-party import is declared here.
 
 ```bash
 # Match install.sh (recommended contributor set)
-uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody
+uv sync --extra dev --extra gui --extra relay --extra prosody
 
 # Everything including speaker + joinqc (large torch/CUDA wheels on Linux)
 uv sync --all-extras
@@ -365,7 +357,7 @@ uv lock
 ```
 
 Without `uv`, `install.sh` creates a plain `.venv` and runs
-`pip install -e ".[dev,gui,bootstrap,relay,prosody]"`. Add speaker/joinqc manually if needed:
+`pip install -e ".[dev,gui,relay,prosody]"`. Add speaker/joinqc manually if needed:
 `pip install -e ".[speaker,joinqc]"`.
 
 ## MCP and agents

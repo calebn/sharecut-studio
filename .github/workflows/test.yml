@@ -9,7 +9,7 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,8 +29,6 @@ jobs:
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
-        with:
-          save-cache: "true"
 
       - name: Install package and dev deps
         run: |
@@ -76,7 +74,7 @@ jobs:
   # required repository merge checks.
   pytest-python-floor:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
@@ -151,7 +149,7 @@ jobs:
   frontend-e2e-suites:
     name: frontend-e2e-${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:

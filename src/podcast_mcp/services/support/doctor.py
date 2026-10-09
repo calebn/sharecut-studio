@@ -13,10 +13,7 @@ from podcast_mcp.engines import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import (
     FFmpegPairResolutionError,
-    ffmpeg_source,
-    resolve_ffmpeg,
     resolve_ffmpeg_pair,
-    resolve_ffprobe,
 )
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.whisper_models import (
@@ -73,7 +70,7 @@ def run_doctor_checks(
     else:
         ok, msg = engine.check_available()
     if ok:
-        source = ffmpeg_source(engine.ffmpeg)
+        source = engine.source
         report.checks.append(DoctorCheck("ok", f"ffmpeg ({source}): {msg}"))
     else:
         report.checks.append(
@@ -81,11 +78,7 @@ def run_doctor_checks(
                 "fail",
                 f"ffmpeg: {msg}",
                 err=True,
-                extra=(
-                    "  Fix: install system-wide (macOS: `brew install ffmpeg`; "
-                    "Debian/Ubuntu: `sudo apt install ffmpeg`) or run "
-                    "`podcast bootstrap --component ffmpeg`"
-                ),
+                extra="  Fix: install a matching FFmpeg 9.0.2 or later 9.x pair; see docs/setup.md",
             )
         )
 
@@ -224,9 +217,11 @@ def ffmpeg_probe_info() -> dict[str, Any]:
         ffmpeg, ffprobe = pair.ffmpeg, pair.ffprobe
         engine = FFmpegEngine(ffmpeg, ffprobe)
         ok, ffmpeg_ver = engine.check_available()
-    except FFmpegPairResolutionError:
-        ffmpeg, ffprobe = resolve_ffmpeg(), resolve_ffprobe()
-        ok, ffmpeg_ver = False, "FFmpeg and FFprobe pair not found"
+    except FFmpegPairResolutionError as exc:
+        return {
+            name: {"ok": False, "version": str(exc), "path": name, "source": "unavailable"}
+            for name in ("ffmpeg", "ffprobe")
+        }
     probe_ok, probe_ver = False, "ffprobe not found"
     try:
         r = run([ffprobe, "-version"], capture_output=True, text=True, timeout=10)
@@ -242,7 +237,7 @@ def ffmpeg_probe_info() -> dict[str, Any]:
             "ok": ok,
             "version": ffmpeg_ver,
             "path": Path(ffmpeg).name,
-            "source": ffmpeg_source(ffmpeg),
+            "source": pair.source,
         },
         "ffprobe": {
             "ok": probe_ok,

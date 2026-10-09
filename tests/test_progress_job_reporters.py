@@ -89,25 +89,11 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     fp.write_text("x")
     ff.chmod(0o755)
     fp.chmod(0o755)
-    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda: FFmpegPair(str(ff), str(fp)))
+    monkeypatch.setattr(
+        boot, "resolve_ffmpeg_pair", lambda: FFmpegPair(str(ff), str(fp), (9, 0, 2), "explicit")
+    )
     assert boot.component_status()["components"]["ffmpeg"]["ok"] is True
 
-    monkeypatch.setattr(
-        boot,
-        "bootstrap_ffmpeg",
-        lambda **_k: (_ for _ in ()).throw(RuntimeError("net")),
-    )
-    assert boot._run_ffmpeg(force=True)["ok"] is False
-
-    monkeypatch.setattr(
-        boot,
-        "bootstrap_ffmpeg",
-        lambda **_k: (tmp_path / "ff", tmp_path / "fp"),
-    )
-    (tmp_path / "ff").write_text("x")
-    (tmp_path / "fp").write_text("x")
-    assert boot._run_ffmpeg(force=True)["ok"] is True
-    assert "ffmpeg" in boot._run_ffmpeg(force=True)
     monkeypatch.setattr(
         boot,
         "bootstrap_whisper_model",
@@ -135,7 +121,6 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     assert boot._run_rnnoise(force=False)["ok"] is True
 
     # Cover run_bootstrap rnnoise branch
-    monkeypatch.setattr(boot, "_run_ffmpeg", lambda **_k: {"ok": True})
     monkeypatch.setattr(boot, "_run_whisper", lambda _m, **_k: {"ok": True})
     monkeypatch.setattr(boot, "_run_rnnoise", lambda **_k: {"ok": True})
     monkeypatch.setattr(
@@ -147,7 +132,7 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
             "rnnoise": {"ready": True},
         },
     )
-    out = boot.run_bootstrap(["ffmpeg", "whisper", "rnnoise"])
+    out = boot.run_bootstrap(["whisper", "rnnoise"])
     assert out["ok"] is True
 
 
