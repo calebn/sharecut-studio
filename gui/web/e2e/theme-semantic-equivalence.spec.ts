@@ -64,6 +64,18 @@ test("semantic theme roles preserve browser values in both themes", async ({
   const receipt: Record<string, unknown> = {};
   for (const theme of ["dark", "light"] as const) {
     await setTheme(page, theme);
+    await expect(page.locator(".daw-shell")).toHaveCSS(
+      "color",
+      theme === "dark" ? "rgb(241, 239, 232)" : "rgb(26, 33, 30)",
+    );
+    await expect(page.locator(".timeline-area")).toHaveCSS(
+      "background-color",
+      theme === "dark" ? "rgb(14, 12, 11)" : "rgb(238, 241, 240)",
+    );
+    await expect(page.locator(".transport")).toHaveCSS(
+      "color",
+      "rgb(241, 239, 232)",
+    );
     receipt[theme] = await page.evaluate((tokens) => {
       const style = getComputedStyle(document.documentElement);
       const values = Object.fromEntries(
