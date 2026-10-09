@@ -4,6 +4,11 @@ Plain-language steps for `/r/{token}`. Public review link URLs are
 `https://sharecut.studio/r/{token}`. No project JSON. Pair with
 [Screens → Guest / share](#/screens).
 
+Guest clip lists recognize clips from the same recording without exposing recording
+filenames or host paths. Their opaque identities remain stable across sessions on
+the same host installation. A guessed path cannot reproduce an identity without
+the host's private secret.
+
 ---
 
 ## 1. Cold open → listen → comment (Commenter)

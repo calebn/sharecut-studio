@@ -8,7 +8,8 @@ import time
 from pathlib import Path
 
 from podcast_mcp.util.keyed_lock import KeyedLocks
-from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA, is_sqlite_busy
+from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA
+from podcast_mcp.util.sqlite_wal import ensure_wal
 
 _WAL_INIT_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 _WAL_INIT_TIMEOUT_SEC = 10.0
@@ -47,18 +48,13 @@ def _with_empty_uri_authority(uri: str) -> str:
 
 
 def _ensure_wal(connection: sqlite3.Connection) -> None:
-    """Switch *connection*'s database to WAL, retrying while another process holds the lock."""
-    deadline = time.monotonic() + _WAL_INIT_TIMEOUT_SEC
-    while True:
-        try:
-            journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
-            if journal_mode != "wal":
-                connection.execute("PRAGMA journal_mode=WAL")
-            return
-        except sqlite3.OperationalError as exc:
-            if not is_sqlite_busy(exc) or time.monotonic() >= deadline:
-                raise
-            time.sleep(_WAL_INIT_RETRY_SEC)
+    ensure_wal(
+        connection,
+        timeout_sec=_WAL_INIT_TIMEOUT_SEC,
+        retry_sec=_WAL_INIT_RETRY_SEC,
+        monotonic=time.monotonic,
+        sleep=time.sleep,
+    )
 
 
 def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connection:
