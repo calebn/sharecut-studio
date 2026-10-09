@@ -448,21 +448,21 @@ recording into one bounded MediaSeek input.
 
 | Operation | Filter used |
 |-----------|-------------|
-| Retained source-piece sequence | `concat` |
+| Retained pieces and actually abutting ordinary clip bodies | `concat` |
 | Connected soft clip join | `acrossfade` with `render.crossfade_curve` |
 | Independent placed actors, including gaps and overlaps | `adelay` + unnormalized longest `amix` |
-| Requested-window uncovered extent | Zero audio mixed at the contracted requested extent |
+| Requested-window extent after track FX | `apad=whole_dur` then `atrim=duration` |
 
 Authored windows select source intersections before applying source removes.
 They retain local edge-fade policy and are not guaranteed to equal slices of a
-cached full stem. Their terminal selected source bound keeps the existing
-whole-sample requested extent. Full tracks follow their natural frontier without
-forced padding or output trimming.
+cached full stem. Final padding and trimming preserve the requested extent
+after stream format negotiation and track effects. Full tracks follow their
+natural frontier without forced padding or output trimming.
 
 Every `adelay` is followed by `asetpts=N/SR/TB`. After `atrim` cuts a seeked input,
 `adelay` would otherwise emit its silence without timestamps. Completed mixes
-are reframed without padding so frame-evaluated track effects and envelopes keep
-advancing through gaps and after shorter actors end.
+are reframed without padding so frame-evaluated track
+effects and envelopes keep advancing through gaps and after shorter actors end.
 
 It then runs the track FX chain **once** over the fully assembled audio. Besides
 collapsing N+1 subprocess spawns into one, this keeps stateful filters

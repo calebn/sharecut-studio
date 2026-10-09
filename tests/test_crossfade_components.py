@@ -117,8 +117,8 @@ def test_plan_names_saved_partner_and_preserves_enclosing_actor(tmp_path: Path):
             _prepared("later", 11, 13, later, join=True),
         ]
     )
-    assert plan == MixAudio(At(2, follower), (At(5, CrossfadeAudio(anchor, later, 0.1)),))
-    assert duration(plan) == 22
+    assert plan.audio == MixAudio(At(2, follower), (At(5, CrossfadeAudio(anchor, later, 0.1)),))
+    assert duration(plan.audio) == 22
 
 
 @pytest.mark.parametrize(
@@ -168,9 +168,9 @@ def test_short_middle_keeps_sequential_native_chain(tmp_path: Path, floating: bo
     prepared[1].clip.fade_out_ms = 200
     prepared[2].clip.fade_in_ms = 200
     chain = _place_clips(prepared)
-    assert chain == MixAudio(At(0, CrossfadeAudio(CrossfadeAudio(a, b, 0.02), c, 0.2)), ())
+    assert chain.audio == MixAudio(At(0, CrossfadeAudio(CrossfadeAudio(a, b, 0.02), c, 0.2)), ())
     out = tmp_path / "chain.wav"
-    FFmpegEngine().render_timeline(out, chain, "anull")
+    FFmpegEngine().render_timeline(out, chain.audio, "anull")
     pcm = _read(out)
     assert len(pcm) == 90240
     assert [pcm[round(t * 48000)] for t in (0.97, 0.98, 1.0, 1.05, 1.5)] == expected
@@ -328,8 +328,8 @@ def test_unselected_saved_predecessor_cannot_borrow_another_actor(tmp_path: Path
             _prepared("later", 11, 13, later, join=True),
         ]
     )
-    assert plan == MixAudio(At(2, follower), (At(11, later),))
-    assert duration(plan) == 22
+    assert plan.audio == MixAudio(At(2, follower), (At(11, later),))
+    assert duration(plan.audio) == 22
 
 
 def test_no_retained_content_has_no_render_expression(tmp_path: Path):
@@ -350,3 +350,40 @@ def test_silence_expression_uses_default_engine_format(tmp_path: Path):
             12000,
         )
         assert source.readframes(12000) == bytes(12000 * 2 * 2)
+
+
+@pytest.mark.parametrize("follower_first", [False, True])
+def test_longest_mix_keeps_every_input_eof_and_content(tmp_path: Path, follower_first: bool):
+    follower = At(2, _constant(tmp_path / "follower.wav", 20, 10000))
+    anchor = _constant(tmp_path / "anchor.wav", 6, 3000)
+    later = _constant(tmp_path / "later.wav", 2, 5000)
+    chain = At(5, CrossfadeAudio(anchor, later, 0.1))
+    actors = (follower, chain) if follower_first else (chain, follower)
+    output = tmp_path / "mix.wav"
+    FFmpegEngine().render_timeline(output, MixAudio(actors[0], (actors[1],)), "anull")
+    pcm = _read(output)
+    assert len(pcm) == 1056000
+    assert [pcm[round(time * 48000)] for time in (1, 3, 6, 11.5, 14.5, 21.5)] == [
+        0,
+        10000,
+        13000,
+        15000,
+        10000,
+        10000,
+    ]
+
+
+def test_component_frontier_retires_a_shrunk_maximum(tmp_path: Path):
+    predecessor = SourceAudio(tmp_path / "a.wav", 0, 1.001)
+    independent = SourceAudio(tmp_path / "b.wav", 0, 20.00075)
+    right = SourceAudio(tmp_path / "c.wav", 0, 0.0005)
+    plan = _place_clips(
+        [
+            _prepared("b", 5, 25.00075, independent),
+            _prepared("a", 24, 25.001, predecessor),
+            _prepared("c", 25.001, 25.0015, right, join=True),
+        ],
+        window_length=26,
+    )
+    assert duration(plan.audio) == pytest.approx(25.00075)
+    assert plan.extent.seconds == pytest.approx(25.99925)

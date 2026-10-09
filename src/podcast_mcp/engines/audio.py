@@ -23,6 +23,11 @@ class MuteSampleEnvelope:
 
 
 @dataclass(frozen=True)
+class RequestedExtent:
+    seconds: float
+
+
+@dataclass(frozen=True)
 class MuteEnvelope:
     """One muted region's gain, in seconds from a render window's start.
 
