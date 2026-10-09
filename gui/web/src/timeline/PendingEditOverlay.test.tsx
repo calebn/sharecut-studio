@@ -724,6 +724,66 @@ describe("PendingEditOverlayView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("moves the single review actionbar into pinned compact chrome and restores focus when it closes", async () => {
+    const root = document.createElement("div");
+    root.className = "bottom-sheet-root";
+    const panel = document.createElement("div");
+    panel.className = "bottom-sheet bottom-sheet--compact bottom-sheet--peek";
+    const chrome = document.createElement("div");
+    chrome.className = "bottom-sheet-chrome";
+    panel.append(chrome);
+    root.append(panel);
+    document.body.append(root);
+    selectPending();
+    const onReviewAction = vi.fn(async () => ({ queued: false }));
+    const { container, unmount } = render(
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        timelineWidthPx={1000}
+        selectedId="cut_1"
+        projectPath="/tmp/p.json"
+        clipsByTrack={{}}
+        canAdjust
+        canApply
+        onSelect={vi.fn()}
+        onCommitSpan={vi.fn()}
+        onReviewAction={onReviewAction}
+      />,
+    );
+    await waitFor(() => {
+      const bar = chrome.querySelector<HTMLElement>(
+        ".pending-actionbar--docked",
+      );
+      expect(bar).not.toBeNull();
+      return bar;
+    });
+    await expectNoA11yViolations(chrome);
+    const approve = screen.getByRole("button", { name: "Approve" });
+    expect(chrome.contains(approve)).toBe(true);
+    approve.focus();
+    panel.classList.remove("bottom-sheet--compact");
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).toBeNull(),
+    );
+    const floatingApprove = screen.getByRole("button", { name: "Approve" });
+    expect(container.ownerDocument.body.contains(floatingApprove)).toBe(true);
+    await waitFor(() => expect(floatingApprove).toHaveFocus());
+    await userEvent.click(floatingApprove);
+    await waitFor(() =>
+      expect(onReviewAction).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        expect.any(Number),
+        "cut_1",
+        "approve",
+      ),
+    );
+    unmount();
+    root.remove();
+  });
+
   it("commits an end-handle drag as mapped source seconds", async () => {
     const onSelect = vi.fn();
     const onCommitSpan = vi.fn();
