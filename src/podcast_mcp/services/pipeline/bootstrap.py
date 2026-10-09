@@ -13,10 +13,7 @@ from typing import Any
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.util.asset_sources import cdn_base_configured
 from podcast_mcp.util.binaries import (
-    FFmpegPair,
     FFmpegPairResolutionError,
-    bootstrap_ffmpeg,
-    ffmpeg_source,
     resolve_ffmpeg_pair,
 )
 from podcast_mcp.util.model_assets import bootstrap_rnnoise_model, rnnoise_model_path
@@ -40,7 +37,7 @@ from podcast_mcp.word_aligner_models import (
 )
 
 # Consumer first-run defaults: never pull torch / NISQA.
-DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = ("ffmpeg", "whisper")
+DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = ("whisper",)
 OPTIONAL_COMPONENTS: tuple[str, ...] = ("rnnoise",)
 # Opt-in (like the CLI's nisqa / word-aligner): downloaded only when a request names it;
 # never a first-run default. Studio offers it next to the Pipeline field that uses it.
@@ -48,16 +45,6 @@ OPT_IN_COMPONENTS: tuple[str, ...] = ("word-aligner",)
 ALL_GUI_COMPONENTS: tuple[str, ...] = (
     DEFAULT_FIRST_RUN_COMPONENTS + OPTIONAL_COMPONENTS + OPT_IN_COMPONENTS
 )
-
-
-def _available_ffmpeg_pair() -> FFmpegPair | None:
-    try:
-        pair = resolve_ffmpeg_pair()
-    except FFmpegPairResolutionError:
-        return None
-    if pair.is_available():
-        return pair
-    return None
 
 
 def _rnnoise_ready() -> bool:
@@ -140,15 +127,21 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     from podcast_mcp.engines.vad_silero import is_available as silero_available
 
     model = resolve_whisper_model(requested=whisper_model)
-    ffmpeg_pair = _available_ffmpeg_pair()
-    ffmpeg_ok = ffmpeg_pair is not None
+    ffmpeg_error = None
+    try:
+        ffmpeg_pair = resolve_ffmpeg_pair()
+    except FFmpegPairResolutionError as exc:
+        ffmpeg_pair = None
+        ffmpeg_error = str(exc)
+    ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
     whisper = whisper_component(model)
     rnnoise_ok = _rnnoise_ready()
     components = {
         "ffmpeg": {
             "ok": ffmpeg_ok,
-            "source": ffmpeg_source(ffmpeg_pair.ffmpeg) if ffmpeg_pair else "not found",
+            "source": ffmpeg_pair.source if ffmpeg_pair else "not found",
             "required_for_first_run": True,
+            "hint": ffmpeg_error,
         },
         "whisper": {**whisper, "cache": str(whisper_cache_dir()), "required_for_first_run": True},
         "rnnoise": {
@@ -163,7 +156,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         },
         "word-aligner": word_aligner_component(),
     }
-    ready = all(
+    ready = ffmpeg_ok and all(
         components[name]["ok"] for name in DEFAULT_FIRST_RUN_COMPONENTS if name in components
     )
     return {
@@ -211,9 +204,7 @@ def run_bootstrap(
     ) as task:
         for name in wanted:
             task.set_phase(name, f"Fetching {name}…")
-            if name == "ffmpeg":
-                results[name] = _run_ffmpeg(force=force)
-            elif name == "whisper":
+            if name == "whisper":
                 results[name] = _run_whisper(model, force=force)
             elif name == "rnnoise":
                 results[name] = _run_rnnoise(force=force)
@@ -224,26 +215,6 @@ def run_bootstrap(
 
     status = component_status(whisper_model=model)
     return {"ok": all(r.get("ok") for r in results.values()), "results": results, **status}
-
-
-def _run_ffmpeg(*, force: bool) -> dict[str, Any]:
-    if not force and (pair := _available_ffmpeg_pair()):
-        return {
-            "ok": True,
-            "skipped": True,
-            "reason": "available pair",
-            "ffmpeg": pair.ffmpeg,
-            "ffprobe": pair.ffprobe,
-        }
-    try:
-        ffmpeg_path, ffprobe_path = bootstrap_ffmpeg(force=force)
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
-    return {
-        "ok": True,
-        "ffmpeg": str(ffmpeg_path),
-        "ffprobe": str(ffprobe_path),
-    }
 
 
 def _run_whisper(model_size: str, *, force: bool = False) -> dict[str, Any]:

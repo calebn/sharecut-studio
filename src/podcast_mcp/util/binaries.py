@@ -1,21 +1,15 @@
-"""Resolve and (optionally) bootstrap the native FFmpeg/FFprobe binaries.
+"""Select and validate a supported FFmpeg 9 executable pair.
 
-Explicit constructor arguments and nonempty environment overrides take
-precedence. Automatic selection prefers the native Homebrew keg on macOS.
-Pair consumers then use the first complete executable PATH directory, followed
-by a complete cache pair. Single-command consumers can use an individual PATH
-or cached command, or a literal command name for subprocess error reporting.
-
-Resolution never runs commands, inspects versions, or downloads binaries.
-Downloads require the explicit ``bootstrap_ffmpeg`` operation. Release and
-source policy is documented in ``docs/setup.md``.
+Explicit commands win, followed by a declared desktop bundle, native Homebrew,
+a complete PATH directory, and the existing source-use cache. Selection runs
+bounded version probes and never downloads or mutates files.
 """
 
 from __future__ import annotations
 
-import logging
 import os
 import platform
+import re
 import shutil
 from dataclasses import dataclass
 from os import environ
@@ -23,89 +17,72 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.config import bin_cache_dir
+from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
+from podcast_mcp.util.process import TimeoutExpired, run
 
-logger = logging.getLogger(__name__)
+SelectionSource = Literal["explicit", "bundle", "homebrew", "path", "cache"]
 
 
 @dataclass(frozen=True)
 class FFmpegPair:
-    """Selected commands, including intentionally mixed explicit overrides."""
+    """An admitted pair with equal supported upstream releases."""
 
     ffmpeg: str
     ffprobe: str
+    version: tuple[int, int, int]
+    source: SelectionSource
 
     def is_available(self) -> bool:
-        """Check that both commands are executable without running them."""
+        """Check that the admitted executables still exist."""
         return all(shutil.which(command) is not None for command in (self.ffmpeg, self.ffprobe))
 
 
 class FFmpegPairResolutionError(RuntimeError):
-    """Raised when a pair consumer cannot resolve both executable commands."""
+    """A missing, invalid, or unsupported native executable pair."""
 
 
-def _pair_in(directory: Path) -> FFmpegPair | None:
-    directory = directory.absolute()
-    suffix = _exe_suffix()
-    ffmpeg = directory / f"ffmpeg{suffix}"
-    ffprobe = directory / f"ffprobe{suffix}"
-    if all(path.is_file() and os.access(path, os.X_OK) for path in (ffmpeg, ffprobe)):
-        return FFmpegPair(str(ffmpeg), str(ffprobe))
-    return None
+_INSTALL_HINT = (
+    "Install matching FFmpeg and FFprobe 9.0.2 or later 9.x, or build the pinned pair "
+    "with `python scripts/build_ffmpeg.py --output <directory>` and set "
+    "PODCAST_MCP_FFMPEG and PODCAST_MCP_FFPROBE to its bin executables."
+)
+_VERSION = re.compile(r"^(ffmpeg|ffprobe) version (\d+)\.(\d+)(?:\.(\d+))?(?:\s|$)")
 
 
-def _native_homebrew_pair() -> FFmpegPair | None:
-    if platform.system() != "Darwin":
-        return None
-    prefix = {"arm64": Path("/opt/homebrew"), "x86_64": Path("/usr/local")}.get(platform.machine())
-    return _pair_in(prefix / "opt" / "ffmpeg" / "bin") if prefix else None
-
-
-def _automatic_pair() -> FFmpegPair | None:
-    if native := _native_homebrew_pair():
-        return native
-    for entry in environ.get("PATH", os.defpath).split(os.pathsep):
-        if pair := _pair_in(Path(entry or os.curdir)):
-            return pair
-    return _pair_in(bin_cache_dir())
-
-
-def _explicit_value(value: str | None, variable: str) -> str | None:
-    return value if value is not None else environ.get(variable) or None
-
-
-def _executable_sibling(command: str, sibling: str) -> str | None:
-    if not os.path.dirname(command):
-        return None
-    path = Path(command).absolute()
-    candidate = path.parent / f"{sibling}{_exe_suffix()}"
-    return str(candidate) if candidate.is_file() and os.access(candidate, os.X_OK) else None
-
-
-def resolve_ffmpeg_pair(ffmpeg: str | None = None, ffprobe: str | None = None) -> FFmpegPair:
-    """Resolve a complete pair, preserving explicit command strings exactly."""
-    selected_ffmpeg = _explicit_value(ffmpeg, "PODCAST_MCP_FFMPEG")
-    selected_ffprobe = _explicit_value(ffprobe, "PODCAST_MCP_FFPROBE")
-    if selected_ffmpeg is not None and selected_ffprobe is not None:
-        return FFmpegPair(selected_ffmpeg, selected_ffprobe)
-
-    if selected_ffmpeg is not None:
-        sibling = _executable_sibling(selected_ffmpeg, "ffprobe")
-        if sibling:
-            return FFmpegPair(selected_ffmpeg, sibling)
-    if selected_ffprobe is not None:
-        sibling = _executable_sibling(selected_ffprobe, "ffmpeg")
-        if sibling:
-            return FFmpegPair(sibling, selected_ffprobe)
-
-    automatic = _automatic_pair()
-    if automatic is None:
+def _version(command: str, name: str) -> tuple[int, int, int]:
+    try:
+        result = run([command, "-version"], capture_output=True, text=True, timeout=10)
+    except (OSError, TimeoutExpired) as exc:
+        raise FFmpegPairResolutionError(f"Cannot run {command!r}: {exc}. {_INSTALL_HINT}") from exc
+    match = _VERSION.match(result.stdout or "")
+    if result.returncode or match is None or match[1] != name:
         raise FFmpegPairResolutionError(
-            "FFmpeg and FFprobe were not found as an executable pair. "
-            "Install FFmpeg or run `podcast bootstrap --component ffmpeg`."
+            f"{command!r} did not report a numeric {name} 9 release. {_INSTALL_HINT}"
+        )
+    version = (int(match[2]), int(match[3]), int(match[4] or 0))
+    policy = ffmpeg_policy()
+    if version[0] != policy["supported_major"] or version < tuple(policy["minimum_version"]):
+        raise FFmpegPairResolutionError(
+            f"{command!r} reports unsupported {'.'.join(map(str, version))}. {_INSTALL_HINT}"
+        )
+    return version
+
+
+def _validate(ffmpeg: str, ffprobe: str, source: SelectionSource) -> FFmpegPair:
+    ffmpeg = str(Path(shutil.which(ffmpeg) or ffmpeg).absolute())
+    ffprobe = str(Path(shutil.which(ffprobe) or ffprobe).absolute())
+    version = _version(ffmpeg, "ffmpeg")
+    probe_version = _version(ffprobe, "ffprobe")
+    if version != probe_version:
+        raise FFmpegPairResolutionError(
+            f"FFmpeg and FFprobe releases must match: {ffmpeg!r} reports {version}, "
+            f"{ffprobe!r} reports {probe_version}. {_INSTALL_HINT}"
         )
     return FFmpegPair(
-        selected_ffmpeg if selected_ffmpeg is not None else automatic.ffmpeg,
-        selected_ffprobe if selected_ffprobe is not None else automatic.ffprobe,
+        str(Path(shutil.which(ffmpeg) or ffmpeg).absolute()),
+        str(Path(shutil.which(ffprobe) or ffprobe).absolute()),
+        version,
+        source,
     )
 
 
@@ -113,110 +90,89 @@ def _exe_suffix() -> str:
     return ".exe" if platform.system() == "Windows" else ""
 
 
-def _cached_binary(name: str) -> Path | None:
-    path = bin_cache_dir() / f"{name}{_exe_suffix()}"
-    return path if path.is_file() else None
+def _pair_in(directory: Path) -> tuple[str, str] | None:
+    directory = directory.absolute()
+    commands = tuple(directory / f"{name}{_exe_suffix()}" for name in ("ffmpeg", "ffprobe"))
+    if all(path.is_file() and os.access(path, os.X_OK) for path in commands):
+        return str(commands[0]), str(commands[1])
+    return None
 
 
-def _resolve_single(name: Literal["ffmpeg", "ffprobe"]) -> str:
-    if override := environ.get(f"PODCAST_MCP_{name.upper()}"):
-        return override
-    if pair := _native_homebrew_pair():
-        return pair.ffmpeg if name == "ffmpeg" else pair.ffprobe
-    if found := shutil.which(name):
-        return found
-    if cached := _cached_binary(name):
-        return str(cached)
-    return name
+def _native_homebrew_pair() -> tuple[str, str] | None:
+    if platform.system() != "Darwin":
+        return None
+    prefix = {"arm64": Path("/opt/homebrew"), "x86_64": Path("/usr/local")}.get(platform.machine())
+    return _pair_in(prefix / "opt" / "ffmpeg" / "bin") if prefix else None
+
+
+def _automatic_pair() -> FFmpegPair:
+    failures: list[str] = []
+    candidates: list[tuple[tuple[str, str] | None, SelectionSource]] = [
+        (_native_homebrew_pair(), "homebrew")
+    ]
+    candidates.extend(
+        (_pair_in(Path(entry or os.curdir)), "path")
+        for entry in environ.get("PATH", os.defpath).split(os.pathsep)
+    )
+    candidates.append((_pair_in(bin_cache_dir()), "cache"))
+    for commands, source in candidates:
+        if commands is not None:
+            try:
+                return _validate(*commands, source)
+            except FFmpegPairResolutionError as exc:
+                failures.append(str(exc))
+    detail = " ".join(failures) or "FFmpeg and FFprobe were not found as an executable pair."
+    raise FFmpegPairResolutionError(f"{detail} {_INSTALL_HINT}")
+
+
+def _explicit_value(value: str | None, variable: str) -> str | None:
+    return value if value is not None else environ.get(variable) or None
+
+
+def _executable_sibling(command: str, sibling: str) -> str:
+    resolved = shutil.which(command)
+    if resolved:
+        candidate = Path(resolved).absolute().parent / f"{sibling}{_exe_suffix()}"
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    raise FFmpegPairResolutionError(
+        f"{command!r} has no executable {sibling} sibling. Supply both explicit commands. "
+        f"{_INSTALL_HINT}"
+    )
+
+
+def resolve_ffmpeg_pair(ffmpeg: str | None = None, ffprobe: str | None = None) -> FFmpegPair:
+    """Admit a complete supported pair without mixing partial installations."""
+    selected_ffmpeg = _explicit_value(ffmpeg, "PODCAST_MCP_FFMPEG")
+    selected_ffprobe = _explicit_value(ffprobe, "PODCAST_MCP_FFPROBE")
+    if selected_ffmpeg is not None or selected_ffprobe is not None:
+        if selected_ffmpeg is None:
+            selected_ffmpeg = _executable_sibling(selected_ffprobe or "", "ffmpeg")
+        if selected_ffprobe is None:
+            selected_ffprobe = _executable_sibling(selected_ffmpeg, "ffprobe")
+        return _validate(selected_ffmpeg, selected_ffprobe, "explicit")
+    if bundle := environ.get("PODCAST_MCP_FFMPEG_BUNDLE"):
+        commands = _pair_in(Path(bundle))
+        if commands is None:
+            raise FFmpegPairResolutionError(
+                f"Declared FFmpeg bundle {bundle!r} is incomplete or not executable. "
+                "Reinstall Sharecut Studio or supply a supported explicit pair."
+            )
+        try:
+            pair = _validate(*commands, "bundle")
+            if pair.version != tuple(map(int, ffmpeg_policy()["version"].split("."))):
+                raise FFmpegPairResolutionError("bundle must report the exact pinned release")
+            return pair
+        except FFmpegPairResolutionError as exc:
+            raise FFmpegPairResolutionError(f"Invalid FFmpeg bundle {bundle!r}: {exc}") from exc
+    return _automatic_pair()
 
 
 def resolve_ffmpeg() -> str:
-    """Resolve one command using overrides, native Homebrew, PATH, then cache."""
-    return _resolve_single("ffmpeg")
+    """Return FFmpeg from the validated pair."""
+    return resolve_ffmpeg_pair().ffmpeg
 
 
 def resolve_ffprobe() -> str:
-    """Resolve one command using overrides, native Homebrew, PATH, then cache."""
-    return _resolve_single("ffprobe")
-
-
-def ffmpeg_source(resolved_path: str) -> str:
-    """Classify a resolved path for `podcast doctor`/`bootstrap` reporting."""
-    if resolved_path in ("ffmpeg", "ffprobe"):
-        return "not found"
-    if str(bin_cache_dir()) in resolved_path:
-        return "bundled"
-    return "system"
-
-
-def bootstrap_ffmpeg(*, force: bool = False) -> tuple[Path, Path]:
-    """Download static ffmpeg/ffprobe binaries into the bootstrap cache dir.
-
-    Requires the optional `static-ffmpeg` package (the `bootstrap` extra) --
-    only this function imports it, so normal resolution never pays that cost.
-    Copies the resolved binaries into our own cache dir so ``resolve_ffmpeg``/
-    ``resolve_ffprobe`` never need to know about `static_ffmpeg`'s internals.
-    """
-    from podcast_mcp.util.asset_sources import (
-        AssetSourceError,
-        bootstrap_cdn_base,
-        cdn_url_for,
-        download_first_ok,
-        ffmpeg_cdn_pins,
-        ffmpeg_cdn_relative_paths,
-    )
-
-    dest_ffmpeg = bin_cache_dir() / f"ffmpeg{_exe_suffix()}"
-    dest_ffprobe = bin_cache_dir() / f"ffprobe{_exe_suffix()}"
-    if FFmpegPair(str(dest_ffmpeg), str(dest_ffprobe)).is_available() and not force:
-        return dest_ffmpeg, dest_ffprobe
-
-    cdn_base = bootstrap_cdn_base()
-    pins: tuple[str, str] | None = None
-    try:
-        pins = ffmpeg_cdn_pins()
-    except AssetSourceError:
-        pins = None
-    if cdn_base and pins:
-        ff_rel, fp_rel = ffmpeg_cdn_relative_paths()
-        ff_url = cdn_url_for("ffmpeg", ff_rel)
-        fp_url = cdn_url_for("ffmpeg", fp_rel)
-        if ff_url and fp_url:
-            try:
-                download_first_ok([ff_url], dest_ffmpeg, expected_sha256=pins[0])
-                dest_ffmpeg.chmod(0o755)
-                download_first_ok([fp_url], dest_ffprobe, expected_sha256=pins[1])
-                dest_ffprobe.chmod(0o755)
-                if not FFmpegPair(str(dest_ffmpeg), str(dest_ffprobe)).is_available():
-                    raise OSError("downloaded FFmpeg/FFprobe pair is not executable")
-                return dest_ffmpeg, dest_ffprobe
-            except (AssetSourceError, OSError) as exc:
-                logger.warning("CDN ffmpeg failed (%s); falling back to static-ffmpeg", exc)
-                dest_ffmpeg.unlink(missing_ok=True)
-                dest_ffprobe.unlink(missing_ok=True)
-    elif cdn_base and not pins:
-        logger.warning("skipping ffmpeg CDN: no sha256_by_platform pins")
-
-    try:
-        from static_ffmpeg import run
-    except ImportError as exc:
-        raise ImportError(
-            "static-ffmpeg is required to bootstrap ffmpeg. "
-            "Install with: pip install 'podcast-mcp[bootstrap]'"
-        ) from exc
-
-    src_ffmpeg, src_ffprobe = run.get_or_fetch_platform_executables_else_raise()
-    try:
-        shutil.copy2(src_ffmpeg, dest_ffmpeg)
-        shutil.copy2(src_ffprobe, dest_ffprobe)
-        dest_ffmpeg.chmod(0o755)
-        dest_ffprobe.chmod(0o755)
-    except OSError:
-        dest_ffmpeg.unlink(missing_ok=True)
-        dest_ffprobe.unlink(missing_ok=True)
-        raise
-    if not FFmpegPair(str(dest_ffmpeg), str(dest_ffprobe)).is_available():
-        dest_ffmpeg.unlink(missing_ok=True)
-        dest_ffprobe.unlink(missing_ok=True)
-        raise OSError("bootstrapped FFmpeg/FFprobe pair is not executable")
-    return dest_ffmpeg, dest_ffprobe
+    """Return FFprobe from the validated pair."""
+    return resolve_ffmpeg_pair().ffprobe

@@ -12,7 +12,7 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
 )
 from podcast_mcp.models import ClipJoinMode, EpisodeProject
-from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import run
 from podcast_mcp.util.tracks import track_audio_path
@@ -22,7 +22,7 @@ from podcast_mcp.util.wav import open_wav
 def _decode_f32(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[str]) -> np.ndarray:
     result = run(
         [
-            ffmpeg or resolve_ffmpeg(),
+            resolve_ffmpeg_pair(ffmpeg=ffmpeg).ffmpeg,
             "-v",
             "error",
             "-i",

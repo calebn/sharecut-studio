@@ -44,15 +44,15 @@ while [ $# -gt 0 ]; do
 done
 
 if command -v uv >/dev/null 2>&1; then
-  # Contributor default: tests + GUI API + bootstrap FFmpeg + relay + prosody.
+  # Contributor default: tests + GUI API + relay + prosody.
   # Omits speaker/joinqc (large torch/CUDA downloads). For those: uv sync --all-extras
-  uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody
+  uv sync --extra dev --extra gui --extra relay --extra prosody
   PODCAST=(uv run podcast)
 else
   if [ ! -d .venv ]; then
     python3 -m venv .venv
   fi
-  .venv/bin/pip install -e ".[dev,gui,bootstrap,relay,prosody]" -q
+  .venv/bin/pip install -e ".[dev,gui,relay,prosody]" -q
   PODCAST=(.venv/bin/podcast)
 fi
 
@@ -79,7 +79,7 @@ echo
 echo "Activate the venv (or prefix with uv run) before calling podcast:"
 echo "  source .venv/bin/activate"
 echo "  podcast doctor"
-echo "No system FFmpeg?  podcast bootstrap --component ffmpeg"
+echo "Audio tools: install matching FFmpeg 9.0.2+9.x or use scripts/build_ffmpeg.py"
 echo "Whisper model:     podcast bootstrap --component whisper   # default large-v3-turbo"
 echo "                   ./install.sh --whisper-model small.en     # smaller, higher WER"
 echo "New git worktree? make worktree-setup  # hooks + venv + gui/web node_modules (pre-commit also self-provisions)"

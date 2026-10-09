@@ -23,9 +23,6 @@ from podcast_mcp.util.asset_sources import (
     cdn_base_configured,
     cdn_url_for,
     download_first_ok,
-    ffmpeg_cdn_pins,
-    ffmpeg_cdn_relative_paths,
-    ffmpeg_platform_slug,
     load_manifest,
     manifest_path,
     ordered_http_urls,
@@ -124,14 +121,6 @@ def test_download_first_ok_single_url(tmp_path: Path) -> None:
         assert download_first_ok(["https://upstream.example/one.bin"], dest) == "upstream"
 
 
-def test_ffmpeg_platform_slug() -> None:
-    with patch("podcast_mcp.util.asset_sources.platform.system", return_value="Darwin"):
-        with patch("podcast_mcp.util.asset_sources.platform.machine", return_value="arm64"):
-            assert ffmpeg_platform_slug() == "darwin-arm64"
-    ff, _fp = ffmpeg_cdn_relative_paths()
-    assert ff.endswith("/ffmpeg") or ff.endswith("/ffmpeg.exe")
-
-
 def test_cdn_base_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PODCAST_BOOTSTRAP_CDN_BASE", raising=False)
     assert bootstrap_cdn_base() is None
@@ -199,10 +188,6 @@ def test_single_cdn_url_labeled_cdn(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     with patch("podcast_mcp.util.asset_sources._download_url", fake_download):
         assert download_first_ok(["https://cdn.example.test/one.bin"], dest) == "cdn"
-
-
-def test_ffmpeg_cdn_pins_absent_without_manifest_hashes() -> None:
-    assert ffmpeg_cdn_pins() is None
 
 
 def test_whisper_manifest_rows_are_not_wired_to_runtime() -> None:
@@ -388,41 +373,3 @@ def test_download_url_sha_mismatch_leaves_dest(
             expected_sha256=hashlib.sha256(b"good").hexdigest(),
         )
     assert dest.read_bytes() == b"keep"
-
-
-def test_ffmpeg_platform_slugs() -> None:
-    with (
-        patch("podcast_mcp.util.asset_sources.platform.system", return_value="Darwin"),
-        patch("podcast_mcp.util.asset_sources.platform.machine", return_value="x86_64"),
-    ):
-        assert ffmpeg_platform_slug() == "darwin-x64"
-    with (
-        patch("podcast_mcp.util.asset_sources.platform.system", return_value="Windows"),
-        patch("podcast_mcp.util.asset_sources.platform.machine", return_value="AMD64"),
-    ):
-        assert ffmpeg_platform_slug() == "windows-x64"
-    with (
-        patch("podcast_mcp.util.asset_sources.platform.system", return_value="Linux"),
-        patch("podcast_mcp.util.asset_sources.platform.machine", return_value="x86_64"),
-    ):
-        assert ffmpeg_platform_slug() == "linux-x64"
-    with (
-        patch("podcast_mcp.util.asset_sources.platform.system", return_value="Linux"),
-        patch("podcast_mcp.util.asset_sources.platform.machine", return_value="aarch64"),
-    ):
-        assert ffmpeg_platform_slug() == "linux-aarch64"
-
-
-def test_ffmpeg_cdn_pins_from_platform_map(monkeypatch: pytest.MonkeyPatch) -> None:
-    slug = ffmpeg_platform_slug()
-    suffix = ".exe" if slug.startswith("windows") else ""
-    monkeypatch.setattr(
-        "podcast_mcp.util.asset_sources.asset_entry",
-        lambda _asset_id: {
-            "sha256_by_platform": {
-                f"{slug}/ffmpeg{suffix}": "AA",
-                f"{slug}/ffprobe{suffix}": "BB",
-            }
-        },
-    )
-    assert ffmpeg_cdn_pins() == ("aa", "bb")

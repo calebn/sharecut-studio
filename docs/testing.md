@@ -184,21 +184,15 @@ The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, 
 
 ### CI dependency downloads
 
-The `pytest` and browser matrix jobs use `.github/actions/setup-ffmpeg` to install
-Ubuntu's FFmpeg without recommended packages. Every job refreshes signed APT
-metadata, resolves a fresh SHA256 archive manifest, and installs FFmpeg even on a
-cache hit. `scripts/ci_ffmpeg_cache.py` removes unexpected files, symlinks, and
-archives with the wrong size or SHA256 before installation. Missing archives use
-APT's normal download path. Setup fails if APT, `ffmpeg`, or `ffprobe` fails.
-
-The cache holds only `.deb` downloads. The fresh manifest stays outside the cached
-directory. The exact key includes the Ubuntu release, architecture, runner image,
-action and helper content, and each archive's URI, filename, size, and SHA256.
-There is no fallback key. Cache restore and save failures are advisory.
-Only `pytest` publishes a complete verified archive set, before tests, on pull
-requests and pushes to `main`. Sets larger than 150 MiB are not saved. The job
-summary reports the exact hit, verified restored count, planned count and bytes,
-and setup time.
+The `pytest` and browser matrix jobs build the pinned native FFmpeg source
+recipe through `.github/actions/setup-ffmpeg`. Source archives are the only
+FFmpeg cache entries. The builder verifies expected SHA256 before safe extraction
+on every use, checks system-only linkage, and executes codec, resampling,
+loudness and PNG probes before exporting the absolute pair paths. A damaged
+archive fails closed. No downloaded binary cache is trusted through its manifest.
+Native desktop jobs execute the same recipe on Ubuntu 22.04 x64, Intel macOS,
+and Windows x64 with MinGW/MSYS2. A separate Ubuntu 24 job executes the Linux
+payload built on 22.04. Local arm64 proof does not replace these target jobs.
 
 Python jobs cache pip downloads with `actions/setup-python`. Both `pyproject.toml`
 and `uv.lock` invalidate that cache. The editable pip install commands still run
@@ -209,9 +203,6 @@ and WebKit with `--with-deps` for both existing suites.
 
 Run the archive boundary and workflow checks with
 `.venv/bin/python -m pytest -q --no-cov tests/test_ci_dependency_cache.py tests/test_browser_acceptance_matrix.py`.
-A cold and warm run on fresh hosted runners must use the same archive key. The
-warm install must report `Need to get 0 B`, and all existing required checks must
-pass before accepting a performance improvement.
 
 ### FFmpeg release acceptance
 
@@ -571,13 +562,11 @@ Failed-spec traces remain separate `playwright-test-results-<name>` artifacts.
 | Recording keeper landing | `test_record_landing.py` probes a real reader snapshot while each keeper hash is paused and checks that both project locks are free. |
 | PCM WAV header | `test_wav_util.py` (`util/wav.py`, shared by record landing and the benchmark fixture) |
 
-Low-rate MP3 padding coverage lives in `test_waveform_pyramid.py`. FFmpeg 6
-reports a 1.152 s duration for the one-second 8 kHz fixture, while FFmpeg 9
-reports 1.0 s after gapless trimming. The test checks each native duration and
-a declared 1.152 s duration, then compares the pyramid's frames and bins with
-a separate full decode.
-
-Audio integration tests skip automatically when FFmpeg is unavailable.
+Low-rate MP3 padding coverage lives in `test_waveform_pyramid.py`. The supported
+9 pair reports 1.0 s after gapless trimming. The test also checks a declared
+1.152 s duration against a separate full decode. The release acceptance verifier
+rejects skipped or deselected tests, and the required Python coverage gate stays
+at least 95 percent.
 
 ### Frontend dialog tests and initial focus
 
@@ -1559,7 +1548,7 @@ Windows desktop binary. The Windows job logs
 so reviewers can check for duplicate `windows` and `windows-result` versions.
 The Windows job compiles WebView2-only adapters that macOS
 and Linux cannot typecheck; installer creation remains in the reusable release
-workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` with Python 3.11 and 3.12 so the Windows fallback of pinned media reads is tested on NTFS at the `requires-python` floor and the sidecar's version, not only simulated. A `project-commit-lock-windows` job runs `tests/test_project_commit_lock.py`, `tests/test_history.py`, and `tests/test_review_versions.py` on `windows-latest` with Python 3.12 (installing a pinned FFmpeg 9.0.2 via Chocolatey first, since `tests/conftest.py::sample_wav` skips without it) so the cross-process commit lock and every review-publication test that does not stage media runs on real Windows; `requires_safe_cleanup` / `requires_safe_failed_cleanup` (`tests/review_platform.py`) skip the staging/quarantine paths that publication does not support there (see `docs/persistence.md`'s Inventory row for review publication).
+workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` with Python 3.11 and 3.12 so the Windows fallback of pinned media reads is tested on NTFS at the `requires-python` floor and the sidecar's version, not only simulated. A `project-commit-lock-windows` job runs `tests/test_project_commit_lock.py`, `tests/test_history.py`, and `tests/test_review_versions.py` on `windows-latest` with Python 3.12 (building the shared pinned FFmpeg source recipe first, since `tests/conftest.py::sample_wav` skips without it) so the cross-process commit lock and every review-publication test that does not stage media runs on real Windows; `requires_safe_cleanup` / `requires_safe_failed_cleanup` (`tests/review_platform.py`) skip the staging/quarantine paths that publication does not support there (see `docs/persistence.md`'s Inventory row for review publication).
 
 Local mirrors:
 

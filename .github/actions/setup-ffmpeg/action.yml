@@ -1,90 +1,57 @@
-name: Set up FFmpeg
-description: Install Ubuntu FFmpeg with authenticated disposable download caching
+name: Set up pinned FFmpeg
+description: Build and execute the shared FFmpeg source recipe on the native runner
 inputs:
-  save-cache:
-    description: Publish a verified archive cache from the designated writer
-    default: "false"
+  output:
+    description: Complete native payload destination
+    default: ""
 runs:
   using: composite
   steps:
-    - name: Resolve fresh FFmpeg archive plan
-      id: plan
+    - name: Install Linux build tools
+      if: runner.os == 'Linux'
       shell: bash
-      env:
-        POLICY_HASH: ${{ hashFiles('.github/actions/setup-ffmpeg/action.yml', 'scripts/ci_ffmpeg_cache.py') }}
       run: |
-        source /etc/os-release
-        : "${VERSION_CODENAME:?Missing Ubuntu release}" "${ImageVersion:?Missing runner image version}" "${POLICY_HASH:?Missing installer policy hash}"
-        started=$(date +%s)
-        directory="${RUNNER_TEMP:?}/ffmpeg-archives"
-        rm -rf "$directory"
-        mkdir -m 755 "$directory"
-        manifest=$(mktemp "$RUNNER_TEMP/ffmpeg-plan.XXXXXX")
-        sudo apt-get --error-on=any -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-        sudo apt-get --yes --no-install-recommends --print-uris \
-          -o Acquire::ForceHash=SHA256 -o "Dir::Cache::archives=$directory" \
-          install ffmpeg > "$manifest"
-        python3 "$GITHUB_WORKSPACE/scripts/ci_ffmpeg_cache.py" plan "$manifest" >> "$GITHUB_OUTPUT"
-        {
-          echo "directory=$directory"
-          echo "manifest=$manifest"
-          echo "started=$started"
-          echo "identity=ffmpeg-debs-v1-${RUNNER_OS}-${RUNNER_ARCH}-${VERSION_CODENAME}-${ImageVersion}-${POLICY_HASH}"
-        } >> "$GITHUB_OUTPUT"
-
-    - name: Restore FFmpeg downloads
-      id: restore
-      continue-on-error: true
-      uses: actions/cache/restore@v6
-      env:
-        SEGMENT_DOWNLOAD_TIMEOUT_MINS: "2"
+        sudo apt-get --error-on=any -o Acquire::Retries=2 update
+        sudo apt-get --yes --no-install-recommends install build-essential pkg-config curl
+    - name: Install Windows native build tools
+      if: runner.os == 'Windows'
+      uses: msys2/setup-msys2@v2
       with:
-        path: ${{ steps.plan.outputs.directory }}/*.deb
-        key: ${{ steps.plan.outputs.identity }}-${{ steps.plan.outputs.digest }}
-
-    - name: Reject untrusted cached archives
-      id: restored
-      shell: bash
+        msystem: MINGW64
+        update: true
+        install: make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-python curl
+    - name: Restore hash-verified source archives
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/ffmpeg-sources
+        key: ffmpeg-sources-${{ hashFiles('contracts/ffmpeg-build.json') }}
+    - name: Build native Windows payload
+      if: runner.os == 'Windows'
+      shell: msys2 {0}
       env:
-        ARCHIVES: ${{ steps.plan.outputs.directory }}
-        MANIFEST: ${{ steps.plan.outputs.manifest }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci_ffmpeg_cache.py" verify "$MANIFEST" "$ARCHIVES" >> "$GITHUB_OUTPUT"
-
-    - name: Install and verify FFmpeg
-      id: installed
-      shell: bash
-      env:
-        ARCHIVES: ${{ steps.plan.outputs.directory }}
-        MANIFEST: ${{ steps.plan.outputs.manifest }}
-        STARTED: ${{ steps.plan.outputs.started }}
-        RESTORED_COUNT: ${{ steps.restored.outputs.verified_count }}
-        CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
-        ARCHIVE_COUNT: ${{ steps.plan.outputs.archive_count }}
-        ARCHIVE_BYTES: ${{ steps.plan.outputs.total_bytes }}
+        PAYLOAD_OUTPUT: ${{ inputs.output }}
       run: |
-        sudo apt-get --yes --no-install-recommends \
-          -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
-          -o "Dir::Cache::archives=$ARCHIVES" -o APT::Keep-Downloaded-Packages=true install ffmpeg
-        ffmpeg -version
-        ffprobe -version
-        python3 "$GITHUB_WORKSPACE/scripts/ci_ffmpeg_cache.py" verify "$MANIFEST" "$ARCHIVES" >> "$GITHUB_OUTPUT"
-        {
-          echo "### FFmpeg setup"
-          echo "Exact cache hit: ${CACHE_HIT:-false}"
-          echo "Verified restored archives: $RESTORED_COUNT"
-          echo "Planned archives: $ARCHIVE_COUNT"
-          echo "Archive bytes: $ARCHIVE_BYTES"
-          echo "Setup seconds: $(( $(date +%s) - STARTED ))"
-        } >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Save verified FFmpeg downloads
-      if: >-
-        inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true' &&
-        fromJSON(steps.installed.outputs.archive_count) > 0 &&
-        steps.installed.outputs.verified_count == steps.installed.outputs.archive_count &&
-        fromJSON(steps.installed.outputs.total_bytes) <= 157286400
-      continue-on-error: true
+        output="$(cygpath -am "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}")"
+        python scripts/build_ffmpeg.py --output "$output" --source-cache "$RUNNER_TEMP/ffmpeg-sources"
+        echo "$(cygpath -w /mingw64/bin)" >> "$GITHUB_PATH"
+        echo "$(cygpath -w /usr/bin)" >> "$GITHUB_PATH"
+        echo "$(cygpath -w "$output/bin")" >> "$GITHUB_PATH"
+        echo "PODCAST_MCP_FFMPEG=$(cygpath -m "$output/bin/ffmpeg.exe")" >> "$GITHUB_ENV"
+        echo "PODCAST_MCP_FFPROBE=$(cygpath -m "$output/bin/ffprobe.exe")" >> "$GITHUB_ENV"
+    - name: Build native Unix payload
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        PAYLOAD_OUTPUT: ${{ inputs.output }}
+      run: |
+        output="$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).absolute())' "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}")"
+        python3 scripts/build_ffmpeg.py --output "$output" --source-cache "$RUNNER_TEMP/ffmpeg-sources"
+        echo "$output/bin" >> "$GITHUB_PATH"
+        echo "PODCAST_MCP_FFMPEG=$output/bin/ffmpeg" >> "$GITHUB_ENV"
+        echo "PODCAST_MCP_FFPROBE=$output/bin/ffprobe" >> "$GITHUB_ENV"
+    - name: Save source archives
+      if: github.ref == 'refs/heads/main'
       uses: actions/cache/save@v6
       with:
-        path: ${{ steps.plan.outputs.directory }}/*.deb
-        key: ${{ steps.plan.outputs.identity }}-${{ steps.plan.outputs.digest }}
+        path: ${{ runner.temp }}/ffmpeg-sources
+        key: ffmpeg-sources-${{ hashFiles('contracts/ffmpeg-build.json') }}

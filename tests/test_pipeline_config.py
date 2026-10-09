@@ -1440,6 +1440,8 @@ def test_component_status_checks_executability_for_explicit_pair(monkeypatch, ex
 
     monkeypatch.setattr(binaries.shutil, "which", lambda _command: "found" if executable else None)
     monkeypatch.setattr(
-        binaries, "resolve_ffmpeg_pair", lambda: binaries.FFmpegPair("ffmpeg", "ffprobe")
+        binaries,
+        "resolve_ffmpeg_pair",
+        lambda: binaries.FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
     )
     assert pc.component_status()["ffmpeg"]["ok"] is executable

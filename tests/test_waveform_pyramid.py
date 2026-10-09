@@ -1058,7 +1058,7 @@ def test_stream_timer_kills_stuck_process(tmp_path):
     assert timer.cancelled
     argv = popen.call_args[0][0]
     assert argv[:9] == [
-        "ffmpeg",
+        eng.ffmpeg,
         "-nostdin",
         "-hide_banner",
         "-v",

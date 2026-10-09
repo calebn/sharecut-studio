@@ -44,7 +44,6 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
     "speaker": ("torch", "speechbrain.inference.speaker"),
     "speaker-lite": ("resemblyzer",),
     "joinqc": ("torch", "librosa", "transformers"),
-    "bootstrap": ("static_ffmpeg",),
     "gui": (
         "anyio",
         "fastapi",

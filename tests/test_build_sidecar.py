@@ -187,9 +187,8 @@ def test_slim_python_runtime_keeps_stdlib_threading(tmp_path: Path) -> None:
     assert not tcl_thread.exists()
 
 
-def test_freeze_extras_include_bootstrap() -> None:
+def test_freeze_uses_gui_extras() -> None:
     mod = _load_build_sidecar()
-    assert "bootstrap" in mod.GUI_EXTRAS
     assert "gui" in mod.GUI_EXTRAS
 
 
@@ -270,6 +269,7 @@ def test_ensure_recompiles_stale_script_launcher(
     )
     monkeypatch.setattr(mod, "copy_web_dist", _fail)
     monkeypatch.setattr(mod, "freeze_python", _fail)
+    monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_a: None)
 
     assert mod.main(["--ensure", "--out", str(tmp_path), "--triple", "aarch64-apple-darwin"]) == 0
     assert compiled == [launcher]
@@ -528,3 +528,41 @@ def test_bundled_cpython_prefix_missing(tmp_path: Path) -> None:
     runtime = tmp_path / "sharecut-runtime"
     (runtime / "python").mkdir(parents=True)
     assert mod.bundled_cpython_prefix(runtime) is None
+
+
+def test_ensure_payload_failure_clears_complete_marker(monkeypatch, tmp_path):
+    mod = _load_build_sidecar()
+    runtime = tmp_path / "sharecut-runtime"
+    runtime.mkdir()
+    mod.write_freeze_complete(runtime)
+    monkeypatch.setattr(mod, "require_rustc", lambda: None)
+    monkeypatch.setattr(mod, "runtime_is_complete", lambda *_a, **_k: True)
+    monkeypatch.setattr(mod, "assert_production_web_dist", lambda *_a: None)
+
+    def failure(*args):
+        raise RuntimeError("FFprobe missing from payload")
+
+    monkeypatch.setattr(mod, "ensure_ffmpeg_payload", failure)
+    with pytest.raises(RuntimeError, match="FFprobe missing"):
+        mod.main(["--ensure", "--out", str(tmp_path)])
+    assert not (runtime / ".freeze-complete").exists()
+
+
+@pytest.mark.parametrize("reuse", [False, True])
+def test_payload_is_ensured_before_runtime_completion(monkeypatch, tmp_path, reuse):
+    mod = _load_build_sidecar()
+    order = []
+    monkeypatch.setattr(mod, "require_rustc", lambda: None)
+    monkeypatch.setattr(mod, "runtime_is_complete", lambda *_a, **_k: reuse)
+    monkeypatch.setattr(mod, "assert_production_web_dist", lambda *_a: None)
+    monkeypatch.setattr(mod, "copy_web_dist", lambda *_a, **_k: order.append("web"))
+    monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: order.append("python"))
+    monkeypatch.setattr(mod, "compile_launchers", lambda *_a: order.append("launchers"))
+    monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_a: order.append("pair"))
+    monkeypatch.setattr(mod, "write_freeze_complete", lambda *_a: order.append("complete"))
+    assert mod.main(["--ensure", "--out", str(tmp_path)]) == 0
+    assert order == (
+        ["pair", "launchers", "complete"]
+        if reuse
+        else ["web", "python", "pair", "launchers", "complete"]
+    )

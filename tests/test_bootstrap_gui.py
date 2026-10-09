@@ -21,7 +21,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
 
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
     monkeypatch.setattr(config, "whisper_cache_dir", lambda: tmp_path / "cache" / "whisper")
-    monkeypatch.setattr(boot, "_available_ffmpeg_pair", lambda: None)
+    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda: None)
     from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
@@ -37,12 +37,12 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     status = boot.component_status()
     assert status["ready"] is False
     assert status["cdn_base"] is False
-    assert status["components"]["ffmpeg"]["required_for_first_run"] is True
+    assert status["components"]["whisper"]["required_for_first_run"] is True
     assert status["components"]["whisper"]["required_for_first_run"] is True
     assert status["components"]["rnnoise"]["required_for_first_run"] is False
     assert status["components"]["whisper"]["ok"] is False
     assert status["components"]["whisper"]["bootstrap"] == "podcast bootstrap --component whisper"
-    assert "ffmpeg" in status["default_components"]
+    assert status["default_components"] == ["whisper"]
     assert status["whisper_model"] == "large-v3-turbo"
     assert any(item["id"] == "large-v3-turbo" for item in status["whisper_models"])
 
@@ -163,7 +163,6 @@ def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
 def test_run_bootstrap_default_never_pulls_word_aligner(monkeypatch) -> None:
     from podcast_mcp.services.pipeline import bootstrap as boot
 
-    monkeypatch.setattr(boot, "_run_ffmpeg", lambda *, force=False: {"ok": True})
     monkeypatch.setattr(boot, "_run_whisper", lambda model, *, force=False: {"ok": True})
 
     def fail_if_called(*, force=False):
@@ -188,7 +187,7 @@ def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
             "ready": True,
             "whisper_model": whisper_model,
             "components": {},
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -206,26 +205,6 @@ def test_run_bootstrap_rejects_torch_extras() -> None:
 
     with pytest.raises(ValueError, match="unsupported"):
         run_bootstrap(["speaker"])
-
-
-def test_run_bootstrap_ffmpeg_skip_when_on_path(monkeypatch, tmp_path: Path) -> None:
-    from podcast_mcp.services.pipeline import bootstrap as boot
-    from podcast_mcp.util.binaries import FFmpegPair
-
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    commands = (bin_dir / "ffmpeg", bin_dir / "ffprobe")
-    for command in commands:
-        command.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-        command.chmod(0o755)
-    monkeypatch.setattr(
-        boot,
-        "resolve_ffmpeg_pair",
-        lambda: FFmpegPair(str(commands[0]), str(commands[1])),
-    )
-    out = boot.run_bootstrap(["ffmpeg"])
-    assert out["ok"] is True
-    assert out["results"]["ffmpeg"]["skipped"] is True
 
 
 def test_whisper_component_requires_matching_model(tmp_path: Path, monkeypatch) -> None:
@@ -283,7 +262,7 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
                 "whisper": {"ok": False, "required_for_first_run": True},
                 "rnnoise": {"ok": False, "required_for_first_run": False},
             },
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -298,7 +277,7 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
             "ready": True,
             "whisper_model": whisper_model,
             "components": {},
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -311,7 +290,7 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
     assert status.status_code == 200
     assert status.json()["ready"] is False
 
-    started = client.post("/api/bootstrap/run", json={"components": ["ffmpeg", "whisper"]})
+    started = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert started.status_code == 200
     job_id = started.json()["job"]["id"]
 
@@ -326,7 +305,7 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
     assert job["status"] == "ok"
 
     # Second concurrent start while still "ok" should replace finished job.
-    started2 = client.post("/api/bootstrap/run", json={"components": ["ffmpeg"]})
+    started2 = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert started2.status_code == 200
     from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
@@ -363,7 +342,7 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
             "ready": True,
             "whisper_model": whisper_model,
             "components": {},
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -375,13 +354,13 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
     shared_bootstrap_job_manager(reset=True)
     client = TestClient(create_app())
 
-    started = client.post("/api/bootstrap/run", json={"components": ["ffmpeg"]})
+    started = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert started.status_code == 200
     job_id = started.json()["job"]["id"]
 
     conflict = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert conflict.status_code == 409
-    assert "ffmpeg" in conflict.json()["detail"]
+    assert "whisper" in conflict.json()["detail"]
     assert "already running" in conflict.json()["detail"]
 
     missing = client.post("/api/bootstrap/cancel", json={"job_id": "nope"})
@@ -423,7 +402,7 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
             "ready": True,
             "whisper_model": whisper_model,
             "components": {},
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -438,7 +417,7 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
     missing = client.get("/api/bootstrap/events?job_id=nope")
     assert missing.status_code == 404
 
-    started = client.post("/api/bootstrap/run", json={"components": ["ffmpeg"]})
+    started = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     job_id = started.json()["job"]["id"]
 
     with client.stream("GET", f"/api/bootstrap/events?job_id={job_id}") as stream:
@@ -464,7 +443,7 @@ def test_gui_bootstrap_run_value_error(monkeypatch) -> None:
     app = create_app()
     app.state.bootstrap_jobs = mgr
     client = TestClient(app)
-    res = client.post("/api/bootstrap/run", json={"components": ["ffmpeg"]})
+    res = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert res.status_code == 400
     assert "bad components" in res.json()["detail"]
 
@@ -480,7 +459,7 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
             "ready": False,
             "whisper_model": whisper_model,
             "components": {},
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -492,7 +471,7 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
     shared_bootstrap_job_manager(reset=True)
     client = TestClient(create_app())
 
-    started = client.post("/api/bootstrap/run", json={"components": ["ffmpeg"]})
+    started = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     job_id = started.json()["job"]["id"]
     job = None
     for _ in range(50):
@@ -543,7 +522,7 @@ def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
                 "whisper": {"ok": False, "required_for_first_run": True},
                 "rnnoise": {"ok": False, "required_for_first_run": False},
             },
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -560,7 +539,7 @@ def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
             "ready": True,
             "whisper_model": whisper_model,
             "components": {},
-            "default_components": ["ffmpeg", "whisper"],
+            "default_components": ["whisper"],
             "optional_components": ["rnnoise"],
         }
 
@@ -701,5 +680,7 @@ def test_first_run_readiness_checks_bare_and_nonexecutable_explicit_commands(
     from podcast_mcp.util.binaries import FFmpegPair
 
     monkeypatch.setattr(binaries.shutil, "which", lambda _command: "found" if executable else None)
-    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda: FFmpegPair("ffmpeg", "ffprobe"))
+    monkeypatch.setattr(
+        boot, "resolve_ffmpeg_pair", lambda: FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit")
+    )
     assert boot.component_status()["components"]["ffmpeg"]["ok"] is executable

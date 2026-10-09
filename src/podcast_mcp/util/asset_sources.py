@@ -6,7 +6,6 @@ import copy
 import ipaddress
 import json
 import logging
-import platform
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -253,37 +252,3 @@ def download_first_ok(
                 logger.info("bootstrap CDN miss for %s (%s); trying upstream", dest.name, exc)
     detail = "; ".join(errors) if errors else "no download URLs"
     raise AssetSourceError(detail) from last_error
-
-
-def ffmpeg_platform_slug() -> str:
-    system = platform.system().lower()
-    machine = platform.machine().lower()
-    if system == "darwin":
-        if machine in {"arm64", "aarch64"}:
-            return "darwin-arm64"
-        return "darwin-x64"
-    if system == "windows":
-        return "windows-x64"
-    if machine in {"x86_64", "amd64"}:
-        return "linux-x64"
-    return f"{system}-{machine}"
-
-
-def ffmpeg_cdn_relative_paths() -> tuple[str, str]:
-    slug = ffmpeg_platform_slug()
-    suffix = ".exe" if platform.system().lower() == "windows" else ""
-    return (f"{slug}/ffmpeg{suffix}", f"{slug}/ffprobe{suffix}")
-
-
-def ffmpeg_cdn_pins() -> tuple[str, str] | None:
-    """Return (ffmpeg, ffprobe) sha256 pins for this platform, if present."""
-    meta = asset_entry("ffmpeg")
-    by_plat = meta.get("sha256_by_platform")
-    if not isinstance(by_plat, dict):
-        return None
-    ff_rel, fp_rel = ffmpeg_cdn_relative_paths()
-    ff = by_plat.get(ff_rel)
-    fp = by_plat.get(fp_rel)
-    if isinstance(ff, str) and isinstance(fp, str) and ff.strip() and fp.strip():
-        return ff.strip().lower(), fp.strip().lower()
-    return None

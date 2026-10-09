@@ -2,7 +2,7 @@
 
 FOSS podcast production toolkit: multitrack projects, per-track transcription, transcript-driven tightening, FFmpeg processing, a read-only DAW viewer, and agent skills under `.agents/`.
 
-**Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv) recommended (`install.sh` falls back to `.venv` + `pip`), and FFmpeg (system install or `podcast bootstrap`).
+**Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv) recommended (`install.sh` falls back to `.venv` + `pip`), and a matching FFmpeg/FFprobe 9.0.2 or later 9.x pair for source use. Desktop releases bundle 9.0.2.
 
 ## Quick start
 
@@ -11,17 +11,17 @@ git clone <repo-url> && cd sharecut-studio
 ./install.sh
 source .venv/bin/activate   # or: uv run podcast …
 podcast doctor
-# No system FFmpeg?  podcast bootstrap --component ffmpeg
+# Audio tools for source installs: see docs/setup.md
 # Whisper defaults to large-v3-turbo (~1.6 GB, first transcribe). Smaller: ./install.sh --whisper-model small.en
 ```
 
-`./install.sh` installs a **contributor** set (`dev` + `gui` + `bootstrap` + `relay`) — not the heavy `speaker`/`joinqc` torch extras. Optional downloads and extras: [docs/setup.md](docs/setup.md#optional-downloads-and-extras).
+`./install.sh` installs a **contributor** set (`dev` + `gui` + `relay`) — not the heavy `speaker`/`joinqc` torch extras. Optional downloads and extras: [docs/setup.md](docs/setup.md#optional-downloads-and-extras).
 
 Choose a downloaded Whisper model for one standalone transcription with `podcast transcribe --project … --model small.en`; use `podcast setup --whisper-model small.en` or `PODCAST_WHISPER_MODEL` to make that choice the machine default.
 
 `podcast transcribe` reports the number of tracks processed by that run. When there are no dialogue tracks to process, it reports `Transcribed 0 track(s).` and warns on stderr.
 
-No system FFmpeg? `podcast bootstrap --component ffmpeg` (included after `install.sh`) fetches FFmpeg into a local cache. See [docs/setup.md](docs/setup.md#any-os-no-package-manager-idiot-proof-path). Pair selection and the tested release policy are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
+No supported system pair? Build the pinned sources with the [shared native builder](docs/setup.md#build-ffmpeg-from-source). Pair selection and the tested release policy are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
 
 Agent config is tool-agnostic under [.agents/](.agents/) (skills, rules, MCP template). Register MCP per [docs/setup.md](docs/setup.md). With `podcast gui` running on loopback, **Connect agent…** (home or Menu) copies `http://127.0.0.1:8765/mcp` for URL-only clients. Use the `podcast-setup` skill when onboarding.
 
@@ -35,7 +35,7 @@ Use this only when you need enrollment speaker ID (`speaker` / `speaker-lite`) a
 git clone <repo-url> && cd sharecut-studio
 uv sync --all-extras
 source .venv/bin/activate   # or: uv run …
-podcast bootstrap --component all    # ffmpeg + whisper model + rnnoise (+ silero check)
+podcast bootstrap --component all    # whisper model + rnnoise (+ silero check)
 podcast doctor
 # Optional Sharecut Studio UI (needs Node 24+):
 cd gui/web && npm ci && npm run build && cd ../..
@@ -43,7 +43,7 @@ cd gui/web && npm ci && npm run build && cd ../..
 
 Notes (verified in a disposable Linux Docker image):
 
-- `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `bootstrap`, `relay`, `object-store`, `speaker`, `speaker-lite`, `joinqc`).
+- `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `relay`, `object-store`, `speaker`, `speaker-lite`, `joinqc`).
 - Expect CUDA-flavored `torch` on Linux even without a GPU; plan for several GB of free disk.
 - `podcast bootstrap --component nisqa` is **opt-in** (not part of `--component all`). The default release URL may 404 — set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights directory if you need neural NISQA.
 - `podcast bootstrap --component word-aligner` is **opt-in** (not part of `--component all`); once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).

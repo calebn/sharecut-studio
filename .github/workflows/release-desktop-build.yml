@@ -208,6 +208,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Build pinned native FFmpeg resource
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          output: gui/desktop/binaries/sharecut-runtime/ffmpeg
+
       - name: Download private extension wheel
         uses: actions/download-artifact@v8
         with:
@@ -381,6 +386,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
+      - name: Build pinned native FFmpeg resource
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          output: gui/desktop/binaries/sharecut-runtime/ffmpeg
 
       - name: Configure distribution profile
         env:

@@ -30,8 +30,8 @@ def test_setup_ffmpeg_missing(tmp_path, monkeypatch):
         result = runner.invoke(setup_app, ["setup"])
     assert result.exit_code == 0
     assert "FFmpeg missing" in result.stderr
-    assert "brew/apt install ffmpeg" in result.stderr
-    assert "podcast bootstrap --component ffmpeg" in result.stderr
+    assert "FFmpeg 9.0.2" in result.stderr
+    assert "docs/setup.md" in result.stderr
 
 
 @pytest.mark.parametrize("command", ["setup", "doctor"])
@@ -40,7 +40,11 @@ def test_setup_and_doctor_reject_missing_explicit_ffprobe(
 ) -> None:
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     ffmpeg = tmp_path / "ffmpeg"
-    ffmpeg.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    import shutil
+
+    from podcast_mcp.util.binaries import resolve_ffmpeg
+
+    shutil.copy2(resolve_ffmpeg(), ffmpeg)
     ffmpeg.chmod(0o755)
     monkeypatch.setenv("PODCAST_MCP_FFMPEG", str(ffmpeg))
     monkeypatch.setenv("PODCAST_MCP_FFPROBE", str(tmp_path / "missing-ffprobe"))
@@ -49,7 +53,7 @@ def test_setup_and_doctor_reject_missing_explicit_ffprobe(
         result = runner.invoke(setup_app, [command])
 
     assert result.exit_code == (0 if command == "setup" else 1)
-    assert "pair is unavailable" in result.output
+    assert "missing-ffprobe" in result.output
     run.assert_not_called()
 
 

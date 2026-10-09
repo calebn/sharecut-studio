@@ -27,7 +27,9 @@ def test_preflight_records_both_commands_and_rejects_wrong_expected_release(
     ffmpeg.chmod(0o755)
     ffprobe.chmod(0o755)
     monkeypatch.setattr(
-        runner, "resolve_ffmpeg_pair", lambda *_args: FFmpegPair(str(ffmpeg), str(ffprobe))
+        runner,
+        "resolve_ffmpeg_pair",
+        lambda *_args: FFmpegPair(str(ffmpeg), str(ffprobe), (9, 0, 2), "explicit"),
     )
 
     def version(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -46,7 +48,9 @@ def test_preflight_records_both_commands_and_rejects_wrong_expected_release(
 
 def test_preflight_rejects_uninspectable_release_when_guarded(runner, monkeypatch) -> None:
     monkeypatch.setattr(
-        runner, "resolve_ffmpeg_pair", lambda *_args: FFmpegPair("ffmpeg", "ffprobe")
+        runner,
+        "resolve_ffmpeg_pair",
+        lambda *_args: FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
     )
     with patch.object(
         runner,

@@ -199,13 +199,18 @@ Models                   models/  (EpisodeProject, snapshots)
 11. **Extensions** (`podcast_mcp.extensions`) — public FeatureRegistry / soft-load SPI; built-in FOSS `collaboration` extension; optional independently installed provider extension named `online`; example stub. `collaboration` composes share CLI/MCP, anonymous guest identity, review/record/remote-MCP routes, guest SPA hooks, and share/tunnel feature slots. `online` contributes only provider account/auth surfaces. Absent extension ⇒ no contributed routes/tools/UI ([extension-seams.md](extension-seams.md)). FOSS share mint works against any self-hosted relay; provider defaults, accounts, and quotas remain outside this repository.
 12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/collaboration/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
 
-`FFmpegEngine` resolves `ffmpeg` and `ffprobe` as one `FFmpegPair` through
-[`util.binaries.resolve_ffmpeg_pair`](../src/podcast_mcp/util/binaries.py).
-Pair selection prefers the native Homebrew keg on macOS, then the first complete
-`PATH` directory, then the bootstrap cache. Single-command workflows keep using
-`resolve_ffmpeg()` or `resolve_ffprobe()` with the same native preference and
-individual PATH/cache fallback. First-run boundaries share `FFmpegPair.is_available()`
-to check executability without running commands. See [FFmpeg version and pair policy](setup.md#ffmpeg-version-and-pair-policy).
+`FFmpegEngine` and single-command consumers select one validated `FFmpegPair`
+through `util.binaries.resolve_ffmpeg_pair`. The value carries absolute command
+paths, an equal numeric release, and the selection source. Explicit supported
+pairs win, followed by the declared exact-release bundle, native Homebrew, complete
+PATH directories and the existing source-use cache. Version validation lives at
+this executable boundary. Readiness reports retain its failures and source.
+`contracts/ffmpeg-build.json` owns the release and native source recipe.
+`scripts/build_ffmpeg.py` builds, verifies and publishes a complete payload.
+The sidecar builder ensures it before runtime completion on fresh and reused
+builds. The native launcher supplies `PODCAST_MCP_FFMPEG_BUNDLE` in GUI, CLI and
+MCP modes. Bootstrap downloads model assets only. See
+[FFmpeg version and pair policy](setup.md#ffmpeg-version-and-pair-policy).
 
 Playback meter sources live under `gui/web/src/audio/`. Transports bind one
 runtime source through `playbackMeterSource.ts`; track meter leaves subscribe

@@ -261,6 +261,10 @@ fn python_command(
 ) -> Command {
     let mut cmd = Command::new(py);
     cmd.env("PODCAST_GUI_DIST", dist);
+    cmd.env(
+        "PODCAST_MCP_FFMPEG_BUNDLE",
+        runtime.join("ffmpeg").join("bin"),
+    );
     match mode {
         LauncherMode::Gui => {
             cmd.args(PYTHON_MODULE_ARGS)
@@ -495,6 +499,28 @@ mod tests {
         assert_eq!(env_value(&cmd, PACKAGED_CLI_ENV), Some(Some("1".into())));
         assert_eq!(env_value(&cmd, "PODCAST_GUI_OPENAPI"), None);
         assert_eq!(env_value(&cmd, "PODCAST_MAGIC_LINK_PRINT"), None);
+    }
+
+    #[test]
+    fn every_mode_selects_bundled_audio_without_overwriting_explicit_paths() {
+        for mode in [
+            LauncherMode::Gui,
+            LauncherMode::Cli(vec![]),
+            LauncherMode::Mcp(vec![]),
+        ] {
+            let cmd = build(&mode, &Cell::new(false));
+            assert_eq!(
+                env_value(&cmd, "PODCAST_MCP_FFMPEG_BUNDLE"),
+                Some(Some(
+                    Path::new("runtime")
+                        .join("ffmpeg")
+                        .join("bin")
+                        .into_os_string()
+                ))
+            );
+            assert_eq!(env_value(&cmd, "PODCAST_MCP_FFMPEG"), None);
+            assert_eq!(env_value(&cmd, "PODCAST_MCP_FFPROBE"), None);
+        }
     }
 
     #[test]

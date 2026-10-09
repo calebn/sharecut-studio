@@ -280,7 +280,9 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             **(
                 {}
                 if ok
-                else {"hint": "FFmpeg not found - run podcast bootstrap --component ffmpeg"}
+                else {
+                    "hint": "Install a matching FFmpeg 9.0.2 or later 9.x pair; see docs/setup.md"
+                }
             ),
         }
     except FFmpegPairResolutionError as exc:

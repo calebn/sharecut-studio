@@ -73,7 +73,7 @@ Home screen shows a bootstrap wizard when FFmpeg or Whisper is missing:
 
 Default speech model is **large-v3-turbo**. Users can pick a smaller size in the wizard or via `./install.sh --whisper-model` / `podcast bootstrap --whisper-model`.
 
-Same downloads as `podcast bootstrap` (ffmpeg, whisper; optional rnnoise).
+First run checks the bundled FFmpeg pair and downloads Whisper, with optional RNNoise.
 Torch / speaker / joinqc are **not** exposed in the GUI.
 
 **Open project:** Sharecut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
@@ -172,7 +172,7 @@ Apple Silicon Docker produces an **aarch64** AppImage (native). Testers download
 
 Testers do not have `podcast` on PATH. [`scripts/build_sidecar.py`](../scripts/build_sidecar.py) freezes **on each OS** (native `faster-whisper` / CTranslate2 wheels):
 
-- Standalone CPython (`uv python install 3.12`) + venv with `--extra gui,bootstrap` (no torch / joinqc). `bootstrap` is `static-ffmpeg` so first-run FFmpeg download works without a system binary. The venv is created from `uv python find --managed-python --no-project 3.12` under `UV_PYTHON_INSTALL_DIR`, not the repo `.venv`. A Homebrew/framework interpreter plus uv `PYTHONHOME` fails with `ModuleNotFoundError: math` (uv standalone keeps `math` builtin; Homebrew expects `lib-dynload/math*.so`). Freeze then imports `math`, `datetime`, `encodings`, and `uvicorn` before writing `.freeze-complete`.
+- Standalone CPython (`uv python install 3.12`) + venv with `--extra gui` (no torch / joinqc). The pinned FFmpeg resource is built before completion; first run never downloads FFmpeg. The venv is created from `uv python find --managed-python --no-project 3.12` under `UV_PYTHON_INSTALL_DIR`, not the repo `.venv`. A Homebrew/framework interpreter plus uv `PYTHONHOME` fails with `ModuleNotFoundError: math` (uv standalone keeps `math` builtin; Homebrew expects `lib-dynload/math*.so`). Freeze then imports `math`, `datetime`, `encodings`, and `uvicorn` before writing `.freeze-complete`.
 - Copied `gui/web/dist` as `sharecut-runtime/web-dist`. The freeze and
   `--ensure` reuse paths reject assets containing recording E2E hooks; build
   ordinary web assets after running `make test-web-e2e` before packaging.
@@ -508,3 +508,24 @@ Universal Links, if used, are managed by the distributor's web deployment.
 - [`docs/extension-seams.md`](extension-seams.md) — FOSS collaboration vs hosted provider
 - [`docs/host-online-relay.md`](host-online-relay.md) — self-host relay
 - [`ROADMAP.md`](../ROADMAP.md) — CDN / sidecar / notarization rows
+
+### Bundled native audio tools
+
+The sidecar contains `sharecut-runtime/ffmpeg/bin/ffmpeg` and `ffprobe`, with
+`.exe` suffixes on Windows. `scripts/build_ffmpeg.py` consumes the shared
+`contracts/ffmpeg-build.json` recipe on each native release runner. Fresh freeze
+and `--ensure` both verify the complete pair before `.freeze-complete` is written.
+Failure clears that marker. Replacement stages one complete payload in a unique
+owned directory before publication. Normal app startup does not compile or fetch.
+
+The payload contains source archives, upstream notices, a runnable rebuild tree,
+configure logs, concrete compiler and OS provenance, and SHA256 digests. Static
+LGPL sources and rebuild materials accompany the binaries. These are source
+and recipe pins, with no signature-verification or byte-reproducibility claim.
+macOS runtime signing refreshes integrity after executable bytes change. Existing
+release checkout trust and signing gates still govern the build.
+
+The launcher supplies `PODCAST_MCP_FFMPEG_BUNDLE` for GUI, packaged `podcast`,
+and packaged `podcast-mcp`. It preserves explicit user executable overrides.
+The resolver selects the complete exact 9.0.2 bundle ahead of ambient tools and
+fails clearly if a declared bundle is damaged. See [setup](setup.md#ffmpeg-version-and-pair-policy).

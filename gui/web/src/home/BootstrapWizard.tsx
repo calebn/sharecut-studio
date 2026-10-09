@@ -81,7 +81,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
   const start = async () => {
     setBusy(true);
     setError(null);
-    const components = ["ffmpeg", "whisper"];
+    const components = [...(status?.default_components ?? ["whisper"])];
     if (includeRnnoise) {
       components.push("rnnoise");
     }
@@ -128,9 +128,10 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       <div className="bootstrap-wizard-header stack">
         <h1>Set up Sharecut Studio</h1>
         <p>
-          Download FFmpeg and a Whisper speech model once. Nothing downloads
-          until you click Continue. The recommended model has the lowest
-          practical WER; pick a smaller one only if you need to save disk.
+          Download a Whisper speech model once. Audio tools are bundled with
+          Sharecut Studio. Nothing downloads until you click Continue. The
+          recommended model has the lowest practical WER; pick a smaller one
+          only if you need to save disk.
         </p>
       </div>
       {error ? (
@@ -139,7 +140,18 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
         </p>
       ) : null}
       <ul className="bootstrap-wizard-list">
-        <li>FFmpeg: {ffmpegOk ? "ready" : "needed for audio"}</li>
+        <li>
+          Audio tools: {ffmpegOk ? "ready" : "unavailable"}
+          {!ffmpegOk ? (
+            <p>
+              Reinstall Sharecut Studio, or follow the{" "}
+              <a href="https://docs.sharecut.studio/#/setup">
+                source setup guide
+              </a>
+              .
+            </p>
+          ) : null}
+        </li>
         <li>
           Whisper {whisperModel}:{" "}
           {whisperOk ? "ready" : "needed for transcription"}
