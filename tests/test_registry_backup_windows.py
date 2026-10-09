@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.edits import share_registry
 from podcast_mcp.edits.share_registry import SqliteShareRegistry
 from podcast_mcp.util import registry_backup
 from podcast_mcp.util.registry_backup_windows import _WindowsAPI
@@ -221,3 +222,102 @@ def test_native_ambiguous_final_name_refuses_without_snapshot(tmp_path, name):
         assert source.recording_key_secret() == secret
     finally:
         source.close()
+
+
+@pytest.mark.parametrize("suffix", [".", " "])
+@pytest.mark.parametrize(
+    "site", ["constructor-parent", "constructor-leaf", "default-parent", "default-leaf"]
+)
+def test_native_ambiguous_source_component_refuses_before_registry_creation(
+    tmp_path, monkeypatch, suffix, site
+):
+    normal = tmp_path / "host" / "registry.sqlite"
+    if site.endswith("parent"):
+        raw = Path(str(tmp_path / f"host{suffix}")) / "registry.sqlite"
+    else:
+        raw = tmp_path / "host" / f"registry.sqlite{suffix}"
+
+    if site.startswith("default"):
+        monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(raw))
+        share_registry.reset_share_registry_for_tests()
+        operation = share_registry.get_share_registry
+    else:
+
+        def operation():
+            return SqliteShareRegistry(raw)
+
+    try:
+        with pytest.raises(PermissionError, match="unambiguous"):
+            result = operation()
+            result.close()
+        assert not normal.exists(), "ambiguous source spelling must not create its Win32 target"
+        safe = tmp_path / "safe" / "registry.sqlite"
+        with closing(SqliteShareRegistry(safe)) as owner:
+            assert len(owner.recording_key_secret()) == 32
+        assert safe.is_file()
+    finally:
+        share_registry.reset_share_registry_for_tests()
+
+
+@pytest.mark.parametrize("suffix", [".", " "])
+def test_native_ambiguous_destination_parent_refuses_before_snapshot(tmp_path, suffix):
+    source = SqliteShareRegistry(tmp_path / "host" / "registry.sqlite")
+    secret = source.recording_key_secret()
+    output = tmp_path / "backups"
+    output.mkdir()
+    destination = Path(f"{output}{suffix}") / "new.sqlite"
+    try:
+        with pytest.raises(PermissionError, match="unambiguous"):
+            source.backup_to_new(destination)
+        assert list(output.iterdir()) == []
+        assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
+        assert source.recording_key_secret() == secret
+    finally:
+        source.close()
+
+
+@pytest.mark.parametrize("spelling", ["drive-relative", "root-relative"])
+@pytest.mark.parametrize("site", ["constructor", "default", "backup"])
+def test_native_ambiguous_anchoring_refuses_before_creating_files(
+    tmp_path, monkeypatch, spelling, site
+):
+    import uuid
+
+    monkeypatch.chdir(tmp_path)
+    filename = f"sharecut-{uuid.uuid4().hex}.sqlite"
+    if spelling == "drive-relative":
+        raw = f"{tmp_path.drive}{filename}"
+        expected = tmp_path / filename
+    else:
+        relative = str(tmp_path.relative_to(Path(tmp_path.anchor)) / filename)
+        raw = "\\" + relative.replace("/", "\\")
+        expected = Path(tmp_path.drive + "\\" + relative.replace("/", "\\"))
+
+    if site == "backup":
+        source = SqliteShareRegistry(tmp_path / "host" / "registry.sqlite")
+        secret = source.recording_key_secret()
+        try:
+            with pytest.raises((PermissionError, ValueError)):
+                source.backup_to_new(Path(raw))
+            assert not expected.exists()
+            assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
+            assert source.recording_key_secret() == secret
+        finally:
+            source.close()
+    else:
+        if site == "default":
+            monkeypatch.setenv("PODCAST_SHARE_REGISTRY", raw)
+            share_registry.reset_share_registry_for_tests()
+            operation = share_registry.get_share_registry
+        else:
+
+            def operation():
+                return SqliteShareRegistry(Path(raw))
+
+        try:
+            with pytest.raises((PermissionError, ValueError)):
+                result = operation()
+                result.close()
+            assert not expected.exists()
+        finally:
+            share_registry.reset_share_registry_for_tests()

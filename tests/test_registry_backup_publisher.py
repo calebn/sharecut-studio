@@ -197,6 +197,163 @@ def test_missing_destination_parent_is_not_created(backup_paths):
     assert not missing.parent.exists()
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX no-follow backup paths")
+@pytest.mark.parametrize("alias_kind", ["parent", "leaf"])
+def test_backup_destination_symlink_alias_refuses_without_copy(
+    backup_paths, monkeypatch, alias_kind
+):
+    source, destination = backup_paths
+    secret = source.recording_key_secret()
+    source.claim_active(
+        {
+            "token": "destination-alias-source-token",
+            "id": "destination-alias-source-token",
+            "project_workspace": str(destination.parent),
+            "review_version_id": "version",
+        }
+    )
+    source_path = source.db_path
+    source_before = (
+        source_path.stat().st_ino,
+        source_path.read_bytes(),
+        stat.S_IMODE(source_path.stat().st_mode),
+    )
+    sentinel = destination.with_name("existing.sqlite")
+    sentinel.write_bytes(b"existing backup bytes")
+    sentinel_inode = sentinel.stat().st_ino
+    output = destination.parent
+    if alias_kind == "parent":
+        unsafe = output.parent / "replaceable"
+        unsafe.mkdir(mode=0o700)
+        unsafe.chmod(0o777)
+        alias_parent = unsafe / "output-alias"
+        alias_parent.symlink_to(output, target_is_directory=True)
+        raw_destination = alias_parent / destination.name
+        alias_object = alias_parent
+    else:
+        raw_destination = output / destination.name
+        raw_destination.symlink_to(sentinel)
+        alias_object = raw_destination
+    raw_inode = alias_object.lstat().st_ino
+    alias_target = alias_object.resolve()
+    copied = []
+    copy = registry_backup._copy_snapshot
+    monkeypatch.setattr(
+        registry_backup,
+        "_copy_snapshot",
+        lambda read_fd, write_fd: (
+            copied.append(True),
+            copy(read_fd, write_fd),
+        ),
+    )
+    with pytest.raises((PermissionError, FileExistsError)):
+        source.backup_to_new(raw_destination)
+    assert copied == []
+    assert sentinel.read_bytes() == b"existing backup bytes"
+    assert sentinel.stat().st_ino == sentinel_inode
+    assert alias_object.is_symlink()
+    assert alias_object.lstat().st_ino == raw_inode
+    assert alias_object.resolve() == alias_target
+    assert source.recording_key_secret() == secret
+    assert source.get_active("destination-alias-source-token")["token"] == (
+        "destination-alias-source-token"
+    )
+    assert (
+        source_path.stat().st_ino,
+        source_path.read_bytes(),
+        stat.S_IMODE(source_path.stat().st_mode),
+    ) == source_before
+    expected_entries = [sentinel] if alias_kind == "parent" else [sentinel, raw_destination]
+    assert sorted(output.iterdir(), key=lambda path: path.name) == sorted(
+        expected_entries, key=lambda path: path.name
+    )
+    assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX no-follow backup ancestry")
+def test_backup_destination_dotdot_refuses_before_snapshot_or_copy(backup_paths, monkeypatch):
+    source, destination = backup_paths
+    secret = source.recording_key_secret()
+    sentinel = destination.with_name("existing.sqlite")
+    sentinel.write_bytes(b"existing backup bytes")
+    sentinel_inode = sentinel.stat().st_ino
+    unsafe = destination.parent.parent / "replaceable"
+    unsafe.mkdir(mode=0o700)
+    unsafe.chmod(0o777)
+    raw_destination = unsafe / ".." / destination.parent.name / destination.name
+    snapshot = source._snapshot
+    snapshot_calls = []
+
+    def observe_snapshot(path):
+        snapshot_calls.append(path)
+        snapshot(path)
+
+    monkeypatch.setattr(source, "_snapshot", observe_snapshot)
+    with pytest.raises(PermissionError):
+        source.backup_to_new(raw_destination)
+    assert snapshot_calls == []
+    assert not destination.exists()
+    assert sentinel.read_bytes() == b"existing backup bytes"
+    assert sentinel.stat().st_ino == sentinel_inode
+    assert stat.S_IMODE(unsafe.stat().st_mode) == 0o777
+    assert source.recording_key_secret() == secret
+    assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
+    assert list(destination.parent.iterdir()) == [sentinel]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX no-follow source ancestry")
+def test_backup_raw_source_dotdot_refuses_before_snapshot_or_copy(tmp_path, monkeypatch):
+    source_path = tmp_path / "host" / "registry.db"
+    source = SqliteShareRegistry(source_path)
+    secret = source.recording_key_secret()
+    source.claim_active(
+        {
+            "token": "raw-source-dotdot-token",
+            "id": "raw-source-dotdot-token",
+            "project_workspace": str(tmp_path),
+            "review_version_id": "version",
+        }
+    )
+    source_before = (
+        source_path.stat().st_ino,
+        source_path.read_bytes(),
+        stat.S_IMODE(source_path.stat().st_mode),
+    )
+    unsafe = tmp_path / "replaceable"
+    unsafe.mkdir(mode=0o700)
+    unsafe.chmod(0o777)
+    raw_source = unsafe / ".." / "host" / source_path.name
+    output = tmp_path / "backups"
+    output.mkdir(mode=0o700)
+    destination = output / "new.sqlite"
+    snapshots = []
+    snapshot = source._snapshot
+
+    def observe_snapshot(path):
+        snapshots.append(path)
+        snapshot(path)
+
+    monkeypatch.setattr(source, "_snapshot", observe_snapshot)
+    try:
+        with pytest.raises(PermissionError):
+            registry_backup.publish_registry_backup(raw_source, destination, source._snapshot)
+
+        assert snapshots == []
+        assert not destination.exists()
+        assert list(output.iterdir()) == []
+        assert not list(source_path.parent.glob(".registry-snapshot-*"))
+        assert stat.S_IMODE(unsafe.stat().st_mode) == 0o777
+        assert source.recording_key_secret() == secret
+        assert source.get_active("raw-source-dotdot-token")["token"] == ("raw-source-dotdot-token")
+        assert (
+            source_path.stat().st_ino,
+            source_path.read_bytes(),
+            stat.S_IMODE(source_path.stat().st_mode),
+        ) == source_before
+    finally:
+        source.close()
+
+
 @pytest.mark.skipif(sys.platform != "darwin", reason="native macOS extended ACL")
 def test_mac_extended_read_grant_is_refused_before_secret_copy(backup_paths):
     source, destination = backup_paths

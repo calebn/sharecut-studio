@@ -414,10 +414,9 @@ def test_public_cancellation_after_native_publication_keeps_completed_final(
     with closing(sqlite3.connect(destination)) as observer:
         assert observer.execute("SELECT secret FROM recording_key_secret").fetchone()[0] == secret
         assert observer.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
-    assert list(destination.parent.iterdir()) == [
-        destination.with_name("previous.sqlite"),
-        destination,
-    ]
+    assert sorted(destination.parent.iterdir(), key=lambda path: path.name) == sorted(
+        [destination.with_name("previous.sqlite"), destination], key=lambda path: path.name
+    )
     assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
     assert_authority(source, destination, secret)
 

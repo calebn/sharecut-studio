@@ -46,6 +46,9 @@ function hostState() {
 it("passes distinct private invocation auth stores through runtimeEnv and cleans failed runs", async () => {
   const host = hostState();
   const manifests = [createE2eCleanupManifest(), createE2eCleanupManifest()];
+  const physicalDirectories = manifests.map((manifest) =>
+    fs.realpathSync(manifest.manifestDir),
+  );
   const childEnvs: NodeJS.ProcessEnv[] = [];
   try {
     for (const [index, manifest] of manifests.entries()) {
@@ -60,7 +63,7 @@ it("passes distinct private invocation auth stores through runtimeEnv and cleans
             "PODCAST_SHARE_IDENTITY",
           ]) {
             const file = child[key];
-            if (file && invocationFile(manifest.manifestDir, file)) {
+            if (file && invocationFile(physicalDirectories[index], file)) {
               fs.mkdirSync(path.dirname(file), {
                 recursive: true,
                 mode: 0o700,
@@ -87,8 +90,8 @@ it("passes distinct private invocation auth stores through runtimeEnv and cleans
     for (const [index, child] of childEnvs.entries()) {
       const registry = child.PODCAST_SHARE_REGISTRY;
       const identity = child.PODCAST_SHARE_IDENTITY;
-      expect(invocationFile(manifests[index].manifestDir, registry)).toBe(true);
-      expect(invocationFile(manifests[index].manifestDir, identity)).toBe(true);
+      expect(invocationFile(physicalDirectories[index], registry)).toBe(true);
+      expect(invocationFile(physicalDirectories[index], identity)).toBe(true);
       expect(registry).not.toBe(identity);
       expect(fs.existsSync(registry ?? "")).toBe(false);
       expect(fs.existsSync(identity ?? "")).toBe(false);
@@ -110,6 +113,7 @@ it("passes distinct private invocation auth stores through runtimeEnv and cleans
 it("retains invocation auth stores when process shutdown cannot be confirmed", async () => {
   const host = hostState();
   const manifest = createE2eCleanupManifest();
+  const physicalDirectory = fs.realpathSync(manifest.manifestDir);
   const handlers = new Map<NodeJS.Signals, () => void>();
   let finishChild: (code: number) => void = () => undefined;
   let finishWait: () => void = () => undefined;
@@ -137,7 +141,7 @@ it("retains invocation auth stores when process shutdown cannot be confirmed", a
           ["PODCAST_SHARE_IDENTITY", "owned identity state"],
         ]) {
           const file = childEnv[key];
-          if (file && invocationFile(manifest.manifestDir, file)) {
+          if (file && invocationFile(physicalDirectory, file)) {
             fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
             fs.writeFileSync(file, contents);
           }
@@ -162,10 +166,10 @@ it("retains invocation auth stores when process shutdown cannot be confirmed", a
     host.assertUnchanged();
     expect(fs.existsSync(manifest.manifestDir)).toBe(true);
     expect(
-      invocationFile(manifest.manifestDir, childEnv.PODCAST_SHARE_REGISTRY),
+      invocationFile(physicalDirectory, childEnv.PODCAST_SHARE_REGISTRY),
     ).toBe(true);
     expect(
-      invocationFile(manifest.manifestDir, childEnv.PODCAST_SHARE_IDENTITY),
+      invocationFile(physicalDirectory, childEnv.PODCAST_SHARE_IDENTITY),
     ).toBe(true);
     expect(fs.readFileSync(childEnv.PODCAST_SHARE_REGISTRY ?? "", "utf8")).toBe(
       "owned registry state",
@@ -181,6 +185,7 @@ it("retains invocation auth stores when process shutdown cannot be confirmed", a
 
 it("keeps auth store paths stable through repeated config and launcher transforms", () => {
   const manifest = createE2eCleanupManifest();
+  const physicalDirectory = fs.realpathSync(manifest.manifestDir);
   const inherited = {
     DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
     PODCAST_SHARE_REGISTRY: "host-registry.sqlite",
@@ -191,10 +196,10 @@ it("keeps auth store paths stable through repeated config and launcher transform
     const config = e2eRuntimeEnv(inherited, "config-transform");
     const launcher = e2eRuntimeEnv(config, "launcher-transform");
     expect(
-      invocationFile(manifest.manifestDir, config.PODCAST_SHARE_REGISTRY),
+      invocationFile(physicalDirectory, config.PODCAST_SHARE_REGISTRY),
     ).toBe(true);
     expect(
-      invocationFile(manifest.manifestDir, config.PODCAST_SHARE_IDENTITY),
+      invocationFile(physicalDirectory, config.PODCAST_SHARE_IDENTITY),
     ).toBe(true);
     expect(launcher.PODCAST_SHARE_REGISTRY).toBe(config.PODCAST_SHARE_REGISTRY);
     expect(launcher.PODCAST_SHARE_IDENTITY).toBe(config.PODCAST_SHARE_IDENTITY);
