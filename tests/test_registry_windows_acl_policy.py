@@ -76,3 +76,68 @@ def test_private_directory_creation_descriptor_protects_future_children(tmp_path
         "(A;OICI;FA;;;S-1-5-21-101-102-103-1001)"
         "(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
     ]
+
+
+@pytest.mark.parametrize("private", [False, True])
+@pytest.mark.parametrize(
+    "owner,trustee,flags,accepted",
+    [
+        ("administrators", "S-1-3-4", 3, True),
+        ("owner", "S-1-3-4", 0, True),
+        ("owner", "S-1-3-4", 11, True),
+        ("installer", "S-1-3-4", 3, True),
+        ("stranger", "S-1-3-4", 3, False),
+        ("owner", "everyone", 3, False),
+        ("owner", "everyone", 11, False),
+    ],
+)
+def test_owner_rights_bind_to_each_validated_object_owner(private, owner, trustee, flags, accepted):
+    api = object.__new__(windows._WindowsAPI)
+    api.trusted = {"owner", "system", "administrators"}
+    api.ancestry_trusted = api.trusted | {"installer"}
+    header = windows._AclHeader()
+    header.count = 1
+    ace = windows._AllowAce()
+    ace.kind, ace.flags, ace.mask = 0, flags, 0x001F01FF
+
+    def information(handle, pointer):
+        info = ctypes.cast(pointer, ctypes.POINTER(windows._FileInformation)).contents
+        info.attributes, info.index_low = 0x10, handle
+        return True
+
+    def volume(handle, name, length, serial, maximum, filesystem_flags, filesystem, size):
+        filesystem.value = "NTFS"
+        return True
+
+    def security(handle, kind, requested, output_owner, group, acl, sacl, descriptor):
+        ctypes.cast(output_owner, ctypes.POINTER(ctypes.c_void_p))[0] = 1 if handle == 123 else 2
+        ctypes.cast(acl, ctypes.POINTER(ctypes.c_void_p))[0] = ctypes.addressof(header)
+        return 0
+
+    def get_ace(acl, index, pointer):
+        ctypes.cast(pointer, ctypes.POINTER(ctypes.c_void_p))[0] = ctypes.addressof(ace)
+        return True
+
+    def sid(pointer):
+        value = getattr(pointer, "value", pointer)
+        return owner if value == 1 else "stranger" if value == 2 else trustee
+
+    api.kernel = SimpleNamespace(
+        GetFileInformationByHandle=information,
+        GetVolumeInformationByHandleW=volume,
+        LocalFree=lambda descriptor: None,
+    )
+    api.security = SimpleNamespace(GetSecurityInfo=security, GetAce=get_ace)
+    api.sid_string = sid
+    if owner == "installer" and private:
+        with pytest.raises(PermissionError, match="untrusted owner"):
+            api.verify_handle(123, private=True, directory=True)
+    elif accepted:
+        assert api.verify_handle(123, private=private, directory=True).index_low == 123
+    elif not private and flags & 8:
+        assert api.verify_handle(123, private=False, directory=True).index_low == 123
+    else:
+        with pytest.raises(PermissionError):
+            api.verify_handle(123, private=private, directory=True)
+    with pytest.raises(PermissionError, match="untrusted owner"):
+        api.verify_handle(124, private=private, directory=True)

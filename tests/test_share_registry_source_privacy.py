@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.edits import share_registry
+from registry_windows_fixture import powershell_environment
 
 
 @contextmanager
@@ -79,10 +80,24 @@ def test_initial_source_directory_acl_refused_before_database_creation(tmp_path,
     path = parent / "registry.sqlite"
     if inherited:
         with readable_acl(tmp_path, inherited=True):
-            parent.mkdir(mode=0o700)
+            parent.mkdir() if os.name == "nt" else parent.mkdir(mode=0o700)
             try:
                 listing = acl_listing(parent)
                 assert "inherited" in listing if sys.platform == "darwin" else "(I)" in listing
+                if os.name == "nt":
+                    assert any(
+                        "(I)" in line and ("Everyone" in line or "S-1-1-0" in line)
+                        for line in listing.splitlines()
+                    )
+                    from podcast_mcp.util.registry_backup_windows import _WindowsAPI
+
+                    api = _WindowsAPI()
+                    for ancestor in parent.parents:
+                        handle = api.open_directory(ancestor)
+                        try:
+                            api.verify_handle(handle, private=False, directory=True, path=ancestor)
+                        finally:
+                            api.close(handle)
                 assert_refused_without_repair(
                     lambda: share_registry.SqliteShareRegistry(path), parent
                 )
@@ -268,7 +283,7 @@ def test_fresh_windows_directory_installs_protected_private_inheritable_acl(tmp_
             check=True,
             capture_output=True,
             text=True,
-            env={**os.environ, "SHARECUT_TEST_SOURCE": str(path.parent)},
+            env=powershell_environment(overrides={"SHARECUT_TEST_SOURCE": str(path.parent)}),
         )
         lines = result.stdout.strip().splitlines()
         assert lines[0] == "True"

@@ -18,6 +18,7 @@ from podcast_mcp.edits.share_registry import SqliteShareRegistry
 from podcast_mcp.util import registry_backup
 from podcast_mcp.util.registry_backup_windows import _WindowsAPI
 from podcast_mcp.util.registry_cleanup import cleanup
+from registry_windows_fixture import powershell_environment
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="requires native Windows NTFS and accounts")
 
@@ -36,7 +37,13 @@ def _run(arguments, *, account: _Account | None = None, create: bool = False):
         )
     try:
         result = subprocess.run(
-            arguments, input=payload, text=True, capture_output=True, check=False, timeout=30
+            arguments,
+            input=payload,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+            env=powershell_environment(),
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError("disposable Windows actor setup timed out") from None
