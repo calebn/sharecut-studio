@@ -385,7 +385,8 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   validate against that basis and refuse synthetic preview tails. A canceled
   splice removes synthetic tails and restores deleted rows without reconstructing source,
   fade, join or mute fields. An unchanged pending mix does not cancel a hold;
-  a genuine mix publication does. A current release or selection-change
+  a genuine mix publication does. Republishing the same project without an
+  active hold is a no-op. A current release or selection-change
   unmount hands off the exact preview and saves once. Stale tokens cannot
   remove a newer hold. Invalid document lifetime never restores old geometry.
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge

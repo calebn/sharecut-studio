@@ -202,11 +202,15 @@ export const createProjectSlice: StateCreator<
     };
   },
   setProject: (project) => {
-    set({
-      heldTrim: null,
-      project,
-      ...zoomReclampPatch(get(), sessionSecOf({ project })),
-    });
+    set((state) =>
+      state.heldTrim === null && state.project === project
+        ? state
+        : {
+            heldTrim: null,
+            project,
+            ...zoomReclampPatch(state, sessionSecOf({ project })),
+          },
+    );
   },
   setGuestMode: (guestMode: string | null) => set({ guestMode }),
   setPipelineJob: (pipelineJob: PipelineJobSnapshot | null) =>
