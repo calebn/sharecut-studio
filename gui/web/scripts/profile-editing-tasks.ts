@@ -245,9 +245,39 @@ if (
   backend.module.trim().length === 0
 )
   throw new Error("Backend import provenance returned invalid metadata");
-if (backend.cwd !== repo || !backend.module.startsWith(`${repo}/src/`))
+const canonicalRepo = fs.realpathSync(repo);
+if (fs.realpathSync(backend.cwd) !== canonicalRepo)
   throw new Error("Backend import is outside verified app source");
-const backendSourceHash = hash(fs.readFileSync(backend.module));
+const serverProductPath = "src/podcast_mcp/gui/server.py";
+const serverPath = path.join(canonicalRepo, serverProductPath);
+const canonicalModule = fs.realpathSync(backend.module);
+if (canonicalModule !== serverPath)
+  throw new Error("Backend import does not match admitted server source");
+function requireRegularBackendSource(file: string): void {
+  const root = [canonicalRepo, repo].find((candidate) =>
+    file.startsWith(`${candidate}${path.sep}`),
+  );
+  if (!root)
+    throw new Error("Backend import does not match admitted server source");
+  let componentPath = canonicalRepo;
+  for (const component of file.slice(root.length + 1).split(path.sep)) {
+    componentPath = path.join(componentPath, component);
+    const relative = path.relative(canonicalRepo, componentPath);
+    if (
+      relative === ".." ||
+      relative.startsWith(`..${path.sep}`) ||
+      fs.lstatSync(componentPath).isSymbolicLink()
+    )
+      throw new Error("Backend import does not match admitted server source");
+  }
+  if (!fs.lstatSync(componentPath).isFile())
+    throw new Error("Backend import does not match admitted server source");
+}
+requireRegularBackendSource(serverPath);
+requireRegularBackendSource(backend.module);
+const backendSourceHash = hash(fs.readFileSync(canonicalModule));
+if (backendSourceHash !== productFiles[serverProductPath])
+  throw new Error("Backend import does not match admitted server source");
 type BuildReceipt = {
   command: string[];
   exit: number;
@@ -405,7 +435,12 @@ const protocol = {
   ],
   replayMedia,
   source,
-  backend: { ...backend, sourceHash: backendSourceHash },
+  backend: {
+    ...backend,
+    cwd: canonicalRepo,
+    module: canonicalModule,
+    sourceHash: backendSourceHash,
+  },
   build: buildReceipt,
   assets,
   tasks,
