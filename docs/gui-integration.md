@@ -196,7 +196,13 @@ The server refuses a stale pair before history capture, including a draft made
 while an Undo reply was delayed. The current project shows "This clip changed.
 Nothing was saved. Adjust the fade again." Timeline handles and phone nudges
 announce it visibly; Clip Inspector shows it inline. A fresh gesture uses the
-restored pair. Offline replay preserves the original baseline.
+restored pair. On a coded `clip_fade_changed` refusal, the shared command queue
+refreshes the current project through `refreshDocumentProject` before reporting
+the refusal, even when a peer's WebSocket projection is delayed. This also applies
+to host and guest offline replay. The rejected command keeps its original
+baseline and identity, leaves the queue permanently, and remains in **Needs
+attention**. A failed refresh preserves the original refusal. A delayed refresh
+cannot apply to a switched project or a reopened project generation.
 
 ### Pointer draft ownership
 

@@ -2123,7 +2123,17 @@ foreign-writer reload, unrelated changes, and required complete integer baseline
 Focused caller tests exercise captured pairs, visible refusal, and fresh gestures.
 `e2e/fade-history-races.spec.ts` holds real server Undo's HTTP reply and WebSocket
 messages, checks literal persisted refusal invariants, then retries successfully.
+Both fade browser regressions use separate disposable projects and keep
+WebSocket messages withheld through the fresh retry. `e2e/fade-peer-recovery.spec.ts` sends a real peer Undo, verifies visible
+refusal and refreshed handle values, and saves `(0, 1)` with a fresh `(0, 0)`
+baseline. `services/commandQueue.fadeRecovery.integration.test.ts` exercises the
+canonical refresh for live and replay host/guest commands, refresh failure with
+the original refusal retained, continued replay after permanent conflict, and
+scope/generation guards for switched or reopened projects. It checks unchanged
+rejected baselines and identities, dequeue and Needs attention records, and no
+refresh for inactive projects or unrelated conflicts.
 The existing history ordering and peer-head refusal tests remain required.
+Shared touch fixtures also submit the saved fade pair from their project snapshot.
 
 The responsive inspector's long-title test uses Playwright native `selectOption`
 after pointer geometry admission because End/Enter did not commit the macOS
