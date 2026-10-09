@@ -68,7 +68,7 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
   },
   {
     file: "timeline/PendingEditOverlayView.tsx",
-    marker: 'className="pending-actionbar"',
+    marker: 'aria-label="Pending edit actions"',
     reason: "the portaled action card only stops presses reaching the lanes",
   },
   {

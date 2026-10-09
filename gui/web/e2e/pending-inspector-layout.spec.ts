@@ -141,12 +141,17 @@ test.describe("Pending inspector layout", () => {
     await expect(
       dialog.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
-    await clickApproveUntilError(dialog);
-    await expectErrorPinnedAboveAudition(dialog);
-    await exposeControl(page, dialog.getByRole("button", { name: "Seek" }), []);
+    const inspector = dialog.getByRole("complementary");
+    await clickApproveUntilError(inspector);
+    await expectErrorPinnedAboveAudition(inspector);
     await exposeControl(
       page,
-      dialog.getByRole("group", { name: "Preview mode" }),
+      inspector.getByRole("button", { name: "Seek" }),
+      [],
+    );
+    await exposeControl(
+      page,
+      inspector.getByRole("group", { name: "Preview mode" }),
       [],
     );
   });

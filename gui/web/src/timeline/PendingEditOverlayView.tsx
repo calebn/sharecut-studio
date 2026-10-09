@@ -206,8 +206,12 @@ function PendingEditRegion({
   const [overlayHeightPx, setOverlayHeightPx] = useState(0);
   const [labelActive, setLabelActive] = useState(false);
   const [docked, setDocked] = useState(false);
-  const focusedActionRef = useRef<string | null>(null);
-  const previousDockedRef = useRef(false);
+  const [actionbarHost] = useState(() => {
+    if (typeof document === "undefined") return null;
+    const host = document.createElement("div");
+    host.className = "pending-actionbar-host";
+    return host;
+  });
   const edgeHintId = useId();
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const pointerKind = useDawStore((state) => state.pointerKind);
@@ -553,21 +557,27 @@ function PendingEditRegion({
   }, [labelInPortal, selected, left, width]);
 
   useLayoutEffect(() => {
-    if (previousDockedRef.current !== docked) {
-      previousDockedRef.current = docked;
-      if (
-        document.activeElement === document.body &&
-        focusedActionRef.current
-      ) {
-        actionbarRef.current
-          ?.querySelector<HTMLButtonElement>(
-            `[data-pending-action="${focusedActionRef.current}"]`,
-          )
-          ?.focus();
-      }
-      focusedActionRef.current = null;
+    if (!actionbarHost) return;
+    if (!actionbarRef.current) {
+      actionbarHost.remove();
+      return;
     }
-  }, [docked]);
+    const destination = docked
+      ? (compactSheetPanel()?.querySelector<HTMLElement>(
+          ".bottom-sheet-chrome",
+        ) ?? document.body)
+      : document.body;
+    if (actionbarHost.parentElement === destination) return;
+    const active = document.activeElement;
+    const focused =
+      active instanceof HTMLElement && actionbarHost.contains(active)
+        ? active
+        : null;
+    destination.append(actionbarHost);
+    if (focused?.isConnected) focused.focus({ preventScroll: true });
+  });
+
+  useLayoutEffect(() => () => actionbarHost?.remove(), [actionbarHost]);
 
   useEffect(
     () => () => {
@@ -918,10 +928,7 @@ function PendingEditRegion({
     "--pending-actionbar-max-height": `${actionbarPlacement?.maxHeight ?? 0}px`,
   };
   const actionPortal =
-    selected &&
-    isOriginLane &&
-    spanIndex === 0 &&
-    typeof document !== "undefined"
+    selected && isOriginLane && spanIndex === 0 && actionbarHost
       ? createPortal(
           <div
             ref={actionbarRef}
@@ -934,15 +941,6 @@ function PendingEditRegion({
             aria-label="Pending edit actions"
             data-coarse-pointer={coarsePointer ? "true" : undefined}
             onPointerDown={(event) => event.stopPropagation()}
-            onFocusCapture={(event) => {
-              const button =
-                event.target instanceof HTMLElement
-                  ? event.target.closest<HTMLButtonElement>(
-                      "[data-pending-action]",
-                    )
-                  : null;
-              focusedActionRef.current = button?.dataset.pendingAction ?? null;
-            }}
           >
             {width < LABEL_INLINE_WIDTH_REM * rootRem() ? (
               <span className="pending-label">{regionLabel}</span>
@@ -959,7 +957,6 @@ function PendingEditRegion({
               <div className="pending-actions">
                 <Button
                   variant="primary"
-                  data-pending-action="approve"
                   disabled={
                     !canApply ||
                     actionState.kind === "busy" ||
@@ -976,7 +973,6 @@ function PendingEditRegion({
                 </Button>
                 <Button
                   variant="danger"
-                  data-pending-action="reject"
                   disabled={
                     !canApply ||
                     actionState.kind === "busy" ||
@@ -1041,11 +1037,7 @@ function PendingEditRegion({
               <span role="alert">{actionState.message}</span>
             ) : null}
           </div>,
-          docked
-            ? (compactSheetPanel()?.querySelector<HTMLElement>(
-                ".bottom-sheet-chrome",
-              ) ?? document.body)
-            : document.body,
+          actionbarHost,
         )
       : null;
 
