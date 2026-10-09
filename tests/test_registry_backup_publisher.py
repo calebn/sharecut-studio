@@ -107,7 +107,7 @@ def test_directory_durability_failure_keeps_published_backup(backup_paths, monke
     def fail(self):
         raise OSError("directory sync failed")
 
-    monkeypatch.setattr(backend, "sync", fail)
+    monkeypatch.setattr(backend, "check_published_directory", fail)
     with pytest.raises(OSError, match="was published"):
         source.backup_to_new(destination)
     assert_snapshot(destination, secret)
@@ -316,16 +316,16 @@ def test_native_directory_close_failure_drains_remaining_descriptors(
 ):
     source, destination = backup_paths
     source.recording_key_secret()
-    directory = registry_backup._directory
+    initialize = registry_backup.PosixDirectory.__init__
     close = os.close
     acquired = []
     fault_fd = None
     injected = False
     original = OSError("original stream failure")
 
-    def capture(path):
+    def capture(opened, path):
         nonlocal fault_fd
-        opened = directory(path)
+        initialize(opened, path)
         acquired.extend(fd for fd, _ in opened._chain)
         role = (
             "output"
@@ -336,7 +336,6 @@ def test_native_directory_close_failure_drains_remaining_descriptors(
         )
         if role == site:
             fault_fd = opened.fd
-        return opened
 
     def fail_copy(read_fd, write_fd):
         raise original
@@ -348,7 +347,7 @@ def test_native_directory_close_failure_drains_remaining_descriptors(
             injected = True
             raise KeyboardInterrupt("native directory close cancelled")
 
-    monkeypatch.setattr(registry_backup, "_directory", capture)
+    monkeypatch.setattr(registry_backup.PosixDirectory, "__init__", capture)
     monkeypatch.setattr(registry_backup, "_copy_snapshot", fail_copy)
     monkeypatch.setattr(os, "close", fail_close)
     try:

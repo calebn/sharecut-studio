@@ -62,6 +62,11 @@ npm --prefix gui/web run test:e2e:install
 npm --prefix gui/web run profile:remaining -- --preset small --out /tmp/editor-profile
 ```
 
+Run GUI browser scenarios through the npm E2E wrapper, which owns private registry
+and identity files. `make ux-demo-screens` copies the existing showcase fixture and
+prepares guest shares in the same invocation. Run `make ux-demo` separately when
+you want to rebuild that fixture.
+
 `profile:remaining` builds disposable media fixtures and serves the production
 GUI; `profile:compare` freezes or applies worker-specific diagnostic budgets.
 See [editor responsiveness profiling](testing.md#large-project-browser-profile-opt-in)

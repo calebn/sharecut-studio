@@ -4,11 +4,9 @@ import os
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from functools import partial
 from pathlib import Path
 
 from podcast_mcp.util.registry_backup_posix import BackupDirectory as PosixDirectory
-from podcast_mcp.util.registry_backup_posix import identity
 from podcast_mcp.util.registry_backup_windows import BackupDirectory as WindowsDirectory
 from podcast_mcp.util.registry_cleanup import cleanup as _cleanup
 from podcast_mcp.util.sqlite_tx import SQLITE_SIDECARS
@@ -62,53 +60,29 @@ def publish_registry_backup(
         _require_unused(output, destination.name)
         with _closing_directory(source.parent) as host:
             workspace_name = f".registry-snapshot-{uuid.uuid4().hex}"
-            workspace_identity = host.create_workspace(workspace_name)
-            try:
-                with _closing_directory(host.path / workspace_name) as private:
-                    snapshot_name = "registry.sqlite"
-                    snapshot_fd = private.create_file(snapshot_name)
-                    snapshot_identity = identity(os.fstat(snapshot_fd))
-                    os.close(snapshot_fd)
-                    stage_name = f".{destination.name}.{uuid.uuid4().hex}.partial"
-                    stage_identity = None
-                    stage_fd = None
-                    read_fd = None
-                    try:
-                        snapshot(private.path / snapshot_name)
-                        private.verify_file(snapshot_name, snapshot_identity)
-                        if any(
-                            private.exists(snapshot_name + suffix) for suffix in _SQLITE_SIDECARS
-                        ):
-                            raise OSError("registry snapshot still depends on SQLite sidecars")
-                        output.verify()
-                        _require_unused(output, destination.name)
-                        read_fd = private.open_snapshot(snapshot_name, snapshot_identity)
-                        stage_fd = output.create_file(stage_name)
-                        stage_identity = identity(os.fstat(stage_fd))
-                        _copy_snapshot(read_fd, stage_fd)
-                        os.fsync(stage_fd)
-                        output.verify_file(stage_name, stage_identity)
-                        _require_unused(output, destination.name)
-                        output.publish(stage_name, destination.name, stage_identity, stage_fd)
-                        try:
-                            output.verify_file(destination.name, stage_identity)
-                            output.sync()
-                        except OSError as exc:
-                            raise OSError(
-                                "registry backup was published, but directory durability could not be confirmed"
-                            ) from exc
-                    finally:
-                        actions: list[Callable[[], None]] = []
-                        if read_fd is not None:
-                            actions.append(partial(os.close, read_fd))
-                        if stage_fd is not None:
-                            actions.append(partial(os.close, stage_fd))
-                        if stage_identity is not None:
-                            actions.append(partial(output.remove_file, stage_name, stage_identity))
-                        actions.append(
-                            lambda: private.remove_file(snapshot_name, snapshot_identity)
-                        )
-                        _cleanup(actions)
-            finally:
-                _cleanup([lambda: host.remove_workspace(workspace_name, workspace_identity)])
+            with host.workspace(workspace_name) as private:
+                snapshot_name = "registry.sqlite"
+                with private.created_file(snapshot_name) as disk_snapshot:
+                    disk_snapshot.close_descriptor()
+                    snapshot(disk_snapshot.path)
+                    private.verify_file(snapshot_name, disk_snapshot.identity)
+                    if any(private.exists(snapshot_name + suffix) for suffix in _SQLITE_SIDECARS):
+                        raise OSError("registry snapshot still depends on SQLite sidecars")
+                    output.verify()
+                    _require_unused(output, destination.name)
+                    with private.snapshot_reader(snapshot_name, disk_snapshot.identity) as read_fd:
+                        stage_name = f".{destination.name}.{uuid.uuid4().hex}.partial"
+                        with output.created_file(stage_name) as stage:
+                            _copy_snapshot(read_fd, stage.fd)
+                            os.fsync(stage.fd)
+                            output.verify_file(stage_name, stage.identity)
+                            _require_unused(output, destination.name)
+                            output.publish(stage_name, destination.name, stage.identity, stage.fd)
+                            try:
+                                output.verify_file(destination.name, stage.identity)
+                                output.check_published_directory()
+                            except OSError as exc:
+                                raise OSError(
+                                    "registry backup was published, but directory durability could not be confirmed"
+                                ) from exc
     return destination

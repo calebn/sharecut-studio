@@ -8,6 +8,7 @@ import {
 } from "./cleanupManifest";
 import { acquireE2ePortLease, type E2ePortLease } from "./port";
 import { processTreeTerminator } from "./processTree";
+import { e2eRuntimeEnv } from "./runtimeEnv";
 
 const TERMINATION_GRACE_MS = 5_000;
 
@@ -172,11 +173,14 @@ export async function runE2e(
   let cleanupAllowed = true;
   try {
     lease = await acquireLease();
-    const env = {
-      ...process.env,
-      DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
-      DAW_E2E_PORT: String(lease.port),
-    };
+    const env = e2eRuntimeEnv(
+      {
+        ...process.env,
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
+        DAW_E2E_PORT: String(lease.port),
+      },
+      `${process.pid}-${lease.port}`,
+    );
     const child = runner(args, env);
     signalForwarding = installSignalForwarding(child, lifecycle);
     const code = await child.exited;

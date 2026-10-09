@@ -63,6 +63,7 @@ def main() -> int:
     from podcast_mcp.edits.share_capabilities import capabilities_for_role
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.collaboration import ReviewService, ShareService
+    from podcast_mcp.services.pipeline import PipelineService
 
     ws = ProjectWorkspace.open(args.project)
     existing = [
@@ -73,6 +74,7 @@ def main() -> int:
     if existing:
         ver_id = existing[0].id
     else:
+        PipelineService(ws).render_preview()
         ver = ReviewService(ws).publish(label="UX demo review")
         ver_id = ver["id"]
 

@@ -11,6 +11,17 @@ from podcast_mcp.util import registry_backup as publisher
 from podcast_mcp.util import registry_backup_windows as windows
 
 
+def adopt(owned, open_file):
+    owned.handle = open_file(owned.path, 0, 0, None, 1, 0, None)
+    owned.created = True
+    return True
+
+
+def native_identity(handle):
+    info = os.fstat(handle)
+    return info.st_dev, info.st_ino
+
+
 @pytest.mark.parametrize("site", ["snapshot", "stage", "reader"])
 @pytest.mark.parametrize("boundary", ["validation", "transfer"])
 @pytest.mark.parametrize("kind", [OSError, KeyboardInterrupt])
@@ -68,12 +79,15 @@ def test_public_windows_acquisition_failure_closes_resource_and_known_names(
         native_close(handle)
 
     api = SimpleNamespace(
-        create_directory=lambda path: path.mkdir(mode=0o700),
-        create_file=lambda path: open_file(path, 0, 0, None, 1, 0, None),
+        create_directory=lambda path, acquired: (path.mkdir(mode=0o700), acquired()),
+        create_file=lambda owned, **kwargs: adopt(owned, open_file),
+        file_identity=native_identity,
+        open_directory=lambda path: os.open(path, os.O_RDONLY),
+        open_file=lambda path: open_file(path, 0, 0, None, 3, 0, None),
         verify_handle=verify,
         close=close_handle,
         kernel=SimpleNamespace(CreateFileW=open_file),
-        crt=SimpleNamespace(open_osfhandle=transfer),
+        crt=SimpleNamespace(open_osfhandle=transfer, get_osfhandle=lambda fd: fd),
     )
     try:
         with monkeypatch.context() as patch:
@@ -121,22 +135,37 @@ def test_public_windows_reader_metadata_failure_after_crt_transfer_closes_only_d
         )
         info = native_fstat(fd)
         acquired.append((fd, (info.st_dev, info.st_ino)))
+        transferred.discard(fd)
         if disposition == 3 and access == 0x80020000:
             read_fd.append(fd)
         return fd
 
+    transferred = set()
+
+    def transfer(handle, flags):
+        transferred.add(handle)
+        return handle
+
     def inspect(fd):
-        if read_fd and fd == read_fd[0]:
+        if read_fd and fd == read_fd[0] and fd in transferred:
             raise failure
-        return native_fstat(fd)
+        info = native_fstat(fd)
+        return info.st_dev, info.st_ino
 
     api = SimpleNamespace(
-        create_directory=lambda path: path.mkdir(mode=0o700),
-        create_file=lambda path: open_file(path, 0, 0, None, 1, 0, None),
-        verify_handle=lambda handle, **kwargs: SimpleNamespace(volume=1, index_high=0, index_low=1),
+        create_directory=lambda path, acquired: (path.mkdir(mode=0o700), acquired()),
+        create_file=lambda owned, **kwargs: adopt(owned, open_file),
+        file_identity=lambda handle: (native_fstat(handle).st_dev, native_fstat(handle).st_ino),
+        open_directory=lambda path: os.open(path, os.O_RDONLY),
+        open_file=lambda path: open_file(path, 0, 0, None, 3, 0, None),
+        verify_handle=lambda handle, **kwargs: SimpleNamespace(
+            volume=native_fstat(handle).st_dev, index_high=0, index_low=native_fstat(handle).st_ino
+        ),
         close=native_close,
         kernel=SimpleNamespace(CreateFileW=open_file),
-        crt=SimpleNamespace(open_osfhandle=lambda handle, flags: handle),
+        crt=SimpleNamespace(
+            open_osfhandle=lambda handle, flags: handle, get_osfhandle=lambda fd: fd
+        ),
     )
     try:
         with monkeypatch.context() as patch:
@@ -144,7 +173,8 @@ def test_public_windows_reader_metadata_failure_after_crt_transfer_closes_only_d
             patch.setattr(windows, "_open_chain", lambda *args, **kwargs: [])
             patch.setattr(windows, "_verify_chain", lambda *args, **kwargs: None)
             patch.setattr(publisher, "_directory", windows.BackupDirectory)
-            patch.setattr(os, "fstat", inspect)
+            api.file_identity = inspect
+            api.crt.open_osfhandle = transfer
             with pytest.raises(BaseException) as caught:
                 source.backup_to_new(destination)
         assert caught.value is failure
@@ -188,15 +218,17 @@ def test_public_windows_security_descriptor_free_failure_owns_created_handle(
         raise failure
 
     api = SimpleNamespace(
-        create_directory=lambda path: path.mkdir(mode=0o700),
+        create_directory=lambda path, acquired: (path.mkdir(mode=0o700), acquired()),
         private_descriptor=lambda: ctypes.c_void_p(123),
+        file_identity=native_identity,
+        open_directory=lambda path: os.open(path, os.O_RDONLY),
         check=windows._WindowsAPI.check,
         kernel=SimpleNamespace(CreateFileW=acquire, LocalFree=local_free),
         verify_handle=lambda handle, **kwargs: SimpleNamespace(volume=1, index_high=0, index_low=1),
         close=native_close,
         crt=SimpleNamespace(open_osfhandle=lambda handle, flags: handle),
     )
-    api.create_file = lambda path: create_file(api, path)
+    api.create_file = lambda owned, **kwargs: create_file(api, owned, **kwargs)
     try:
         with monkeypatch.context() as patch:
             patch.setattr(windows, "_WindowsAPI", lambda: api)
@@ -237,10 +269,11 @@ def test_public_windows_source_validation_failure_releases_known_new_main(
     native_fstat, native_close = os.fstat, os.close
     acquired = []
 
-    def create(child):
-        fd = os.open(child, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+    def create(owned, **kwargs):
+        fd = os.open(owned.path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
         acquired.append(fd)
-        return fd
+        owned.handle, owned.created = fd, True
+        return True
 
     def verify(handle, **kwargs):
         info = native_fstat(handle)
@@ -250,6 +283,7 @@ def test_public_windows_source_validation_failure_releases_known_new_main(
     api = SimpleNamespace(
         open_file=lambda child: os.open(child, os.O_RDONLY),
         create_file=create,
+        file_identity=native_identity,
         verify_handle=verify,
         close=native_close,
     )

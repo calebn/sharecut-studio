@@ -67,6 +67,35 @@ function requiredManifest(manifestPath: string): CleanupManifest {
   return result.value;
 }
 
+export function ownedE2eManifestDirectory(manifestPath: string): string {
+  const directory = path.dirname(path.resolve(manifestPath));
+  const info = fs.lstatSync(directory);
+  const file = fs.lstatSync(manifestPath);
+  if (
+    !managedTmpWorkspace(directory) ||
+    !path.basename(directory).startsWith("sharecut-e2e-cleanup-") ||
+    path.basename(manifestPath) !== "workspaces.json" ||
+    !info.isDirectory() ||
+    !file.isFile() ||
+    (process.platform !== "win32" &&
+      ((info.mode & 0o077) !== 0 || info.uid !== process.getuid?.()))
+  ) {
+    throw new Error("E2E cleanup manifest must belong to a private invocation");
+  }
+  requiredManifest(manifestPath);
+  return directory;
+}
+
+export function registeredE2eCleanupWorkspace(workspaceDir: string): boolean {
+  const manifestPath = process.env[cleanupManifestEnv];
+  const workspace = managedTmpWorkspace(workspaceDir);
+  return Boolean(
+    manifestPath &&
+      workspace &&
+      requiredManifest(manifestPath).workspaces.includes(workspace),
+  );
+}
+
 function writeManifest(manifestPath: string, manifest: CleanupManifest): void {
   const temporary = `${manifestPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
   try {

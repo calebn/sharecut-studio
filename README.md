@@ -171,6 +171,9 @@ make e2e        # aligned_dialogue fixture; see docs/e2e-fixture-manual.md
 ```
 
 GUI frontend unit tests (session dedupe, etc.): `cd gui/web && npm test`.
+GUI browser tests use `npm --prefix gui/web run test:e2e`; its wrapper owns private
+registry and identity state. `make ux-demo-screens` captures host and guest views
+from a disposable copy of the existing showcase fixture.
 
 ## License
 

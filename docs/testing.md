@@ -390,8 +390,23 @@ Tests that need object storage mock `load_object_store_config` / `ObjectStoreCli
 
 `test_review_versions.py` / `test_review_share.py` cover review-media path containment (`..`, absolute, and symlink escapes; guest routes and host `/api/audio?kind=review` return 400), and `tests/test_workspace_paths.py` covers `resolve_within`.
 
-Playwright E2E launches also scrub relay and object-store deployment settings. Its
-server receives an invocation-local, nonexistent `PODCAST_RELAY_CONFIG`; all
+Playwright E2E launches also scrub relay and object-store deployment settings.
+Registry and identity SQLite files live beside the existing invocation cleanup
+manifest in its private directory. `runE2e` supplies both paths to Playwright;
+config and GUI launcher transforms derive the same paths from the required owned
+manifest. Missing or unowned manifests fail before GUI startup. Ordinary failures
+remove state after confirmed process shutdown; unconfirmed shutdown retains it.
+
+`make ux-demo-screens` uses the same npm wrapper and copies the existing demo
+fixture, including a supplied `UX_DEMO_PROJECT`, before changing review state.
+The GUI launcher renders the copied preview and seeds guest shares in that
+invocation's registry before startup.
+Its token JSON stays in the manifest directory. `UX_DEMO_SCREENS_DIR` selects an
+alternative screenshot output directory; the default remains `ux/assets/screens`.
+The target does not rebuild or restore a caller's fixture. Run `make ux-demo`
+separately when the showcase fixture needs rebuilding.
+
+The E2E server receives an invocation-local, nonexistent `PODCAST_RELAY_CONFIG`; all
 `PODCAST_RELAY_*` deployment settings and `PODCAST_OBJECT_STORE_*` values are
 removed. Developer credentials and network storage therefore cannot affect browser
 tests. A fixture that deliberately needs relay configuration must provide it within
