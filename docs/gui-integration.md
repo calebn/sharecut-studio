@@ -212,6 +212,14 @@ Any HTTP route that does not map `project_commit_lock` / `render_lock` contentio
 
 Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation.
 
+A held trim nudge in the inspector captures its project path, project epoch,
+document sequence and authoritative project. An incoming document snapshot or
+project change cancels its repeat timer and run before another preview or save;
+the newly received project stays displayed. Releasing or unmounting a stale run
+does not restore its old preview. A current run still saves on release and on
+the normal selection-change unmount. A save rejection cannot replace a newer
+authoritative display.
+
 Fade gestures capture both saved fades and submit that pair with `SetClipFade`.
 The server refuses a stale pair before history capture, including a draft made
 while an Undo reply was delayed. The current project shows "This clip changed.

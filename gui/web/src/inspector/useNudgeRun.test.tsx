@@ -1,5 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import { resetDocumentSeqForTests } from "../document/cursor";
 import { type NudgeField, saveNudge } from "../edit/nudge";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
@@ -129,5 +131,164 @@ describe("refused trim nudges", () => {
       field,
       7,
     );
+  });
+});
+
+describe("trim nudge document lifetime", () => {
+  beforeEach(() => {
+    resetDocumentSeqForTests();
+    vi.mocked(saveNudge).mockReset().mockResolvedValue(true);
+  });
+
+  function project() {
+    return minimalProject({
+      tracks: [sampleTrack({ id: "host" })],
+      clips: {
+        tracks: {
+          host: [
+            clipRow({ id: "anchor", source_end: 10, timeline_end: 10 }),
+            clipRow({
+              id: "follower",
+              source_start: 10,
+              source_end: 20,
+              timeline_start: 9.9996,
+              timeline_end: 19.9996,
+            }),
+          ],
+        },
+        clip_count: 2,
+      },
+    });
+  }
+
+  it.each(["metadata", "follower geometry"])(
+    "keeps an authoritative %s update through repeat and release",
+    async (change) => {
+      const origin = project();
+      useDawStore.getState().hydrate("/tmp/one.json", origin);
+      const { getByRole } = render(<Harness />);
+      const button = getByRole("button");
+      fireEvent.keyDown(button, { key: "Enter" });
+      const fresh = structuredClone(origin);
+      if (change === "metadata") fresh.meta.name = "Committed name";
+      else fresh.clips.tracks.host[1]!.timeline_start = 8;
+      applyDocumentSnapshot({ server_seq: 1, project: fresh });
+      const authoritative = useDawStore.getState().project;
+      fireEvent.keyDown(button, { key: "Enter", repeat: true });
+      expect(useDawStore.getState().project).toBe(authoritative);
+      await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+      expect(saveNudge).not.toHaveBeenCalled();
+    },
+  );
+
+  it("discards a replacement snapshot at the current document sequence", () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const { getByRole } = render(<Harness />);
+    const button = getByRole("button");
+    fireEvent.keyDown(button, { key: "Enter" });
+    applyDocumentSnapshot({ server_seq: 1, project: origin });
+    const fresh = {
+      ...origin,
+      meta: { ...origin.meta, name: "Same sequence" },
+    };
+    applyDocumentSnapshot({ server_seq: 1, project: fresh });
+    const authoritative = useDawStore.getState().project;
+    fireEvent.keyDown(button, { key: "Enter", repeat: true });
+    expect(useDawStore.getState().project).toBe(authoritative);
+    expect(useDawStore.getState().project?.meta.name).toBe("Same sequence");
+  });
+
+  it.each(["new project", "switch away and back"])(
+    "does not publish or save after %s during a held trim",
+    async (change) => {
+      const origin = project();
+      useDawStore.getState().hydrate("/tmp/one.json", origin);
+      const { getByRole } = render(<Harness />);
+      const button = getByRole("button");
+      fireEvent.keyDown(button, { key: "Enter" });
+      const fresh = {
+        ...origin,
+        meta: { ...origin.meta, name: "Fresh project" },
+      };
+      if (change === "new project") {
+        act(() => useDawStore.getState().hydrate("/tmp/two.json", fresh));
+      } else {
+        act(() => {
+          useDawStore.getState().hydrate("/tmp/two.json", project());
+          useDawStore.getState().hydrate("/tmp/one.json", fresh);
+        });
+      }
+      const authoritative = useDawStore.getState().project;
+      fireEvent.keyDown(button, { key: "Enter", repeat: true });
+      expect(useDawStore.getState().project).toBe(authoritative);
+      await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+      expect(saveNudge).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not save on release when an update arrives before the next repeat", async () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const { getByRole } = render(<Harness />);
+    const button = getByRole("button");
+    fireEvent.keyDown(button, { key: "Enter" });
+    const fresh = { ...origin, meta: { ...origin.meta, name: "Fresh" } };
+    applyDocumentSnapshot({ server_seq: 1, project: fresh });
+    await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+    expect(useDawStore.getState().project?.meta.name).toBe("Fresh");
+    expect(saveNudge).not.toHaveBeenCalled();
+  });
+
+  it("cancels a pending pointer repeat when a snapshot replaces the project", async () => {
+    vi.useFakeTimers();
+    try {
+      const origin = project();
+      useDawStore.getState().hydrate("/tmp/one.json", origin);
+      const { getByRole } = render(<Harness />);
+      const button = getByRole("button");
+      fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+      const fresh = { ...origin, meta: { ...origin.meta, name: "Fresh" } };
+      applyDocumentSnapshot({ server_seq: 1, project: fresh });
+      const authoritative = useDawStore.getState().project;
+      await act(async () => vi.advanceTimersByTime(500));
+      expect(useDawStore.getState().project).toBe(authoritative);
+      expect(vi.getTimerCount()).toBe(0);
+      fireEvent.pointerUp(button, { pointerId: 1 });
+      expect(saveNudge).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not restore its preview when a pending save rejects after an update", async () => {
+    let rejectSave!: (error: Error) => void;
+    vi.mocked(saveNudge).mockReturnValueOnce(
+      new Promise<boolean>((_resolve, reject) => {
+        rejectSave = reject;
+      }),
+    );
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const { getByRole } = render(<Harness />);
+    const button = getByRole("button");
+    fireEvent.keyDown(button, { key: "Enter" });
+    await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+    const fresh = { ...origin, meta: { ...origin.meta, name: "Fresh" } };
+    applyDocumentSnapshot({ server_seq: 1, project: fresh });
+    await act(async () => rejectSave(new Error("stale")));
+    expect(useDawStore.getState().project?.meta.name).toBe("Fresh");
+  });
+
+  it("discards the run on unmount after an authoritative update", async () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const { getByRole, unmount } = render(<Harness />);
+    fireEvent.keyDown(getByRole("button"), { key: "Enter" });
+    const fresh = { ...origin, meta: { ...origin.meta, name: "Fresh" } };
+    applyDocumentSnapshot({ server_seq: 1, project: fresh });
+    await act(async () => unmount());
+    expect(useDawStore.getState().project?.meta.name).toBe("Fresh");
+    expect(saveNudge).not.toHaveBeenCalled();
   });
 });
