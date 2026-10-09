@@ -248,6 +248,10 @@ describe("trim nudge document lifetime", () => {
       const { getByRole } = render(<Harness />);
       const button = getByRole("button");
       fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+      expect(
+        useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+      ).toBe(9.99);
+      expect(vi.getTimerCount()).toBe(1);
       const fresh = { ...origin, meta: { ...origin.meta, name: "Fresh" } };
       applyDocumentSnapshot({ server_seq: 1, project: fresh });
       const authoritative = useDawStore.getState().project;
