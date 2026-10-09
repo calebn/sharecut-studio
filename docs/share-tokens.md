@@ -143,11 +143,28 @@ returning it; directly injected registry owners use the same recovery boundary.
 Registry and session owners share the bounded WAL transition in `util/sqlite_wal.py`;
 normal registry writes retain the existing 5-second busy timeout.
 
-File mode: parent dir `0700`, DB `0600` before WAL setup when the OS allows.
-WAL/SHM mode inheritance depends on SQLite and the platform; the disposable POSIX
-regression checks the live files on the test host, not every supported platform.
-Overrides must remain in a private host directory. Treat the file as
-**capability-adjacent** (tokens are capabilities).
+The registry admits the complete source namespace before SQLite opens it. The
+parent must be owned and private, and every ancestor must prevent ordinary accounts
+from replacing its entries. Symlinks and Windows reparse points are refused.
+Existing main, WAL, SHM, and journal files must have private effective permissions.
+Extended POSIX ACL grants, default ACLs, and unsafe Windows inherited child grants
+fail closed without repair or source replacement. Owned POSIX modes may tighten to
+`0700` for the parent and `0600` for files after ACL inspection.
+
+New main files are exclusively created empty with private permissions before SQLite
+receives the path. New Windows directories have protected owner, SYSTEM, and
+Administrators grants with `OI|CI` inheritance. SQLite children inherit the verified
+private parent policy and main-file mode. Initialization, recovery, and every registry
+operation inspect the current file family. Actual sidecar disappearance is allowed;
+permission errors are not treated as absence. A privacy refusal before SQL leaves an
+otherwise healthy connection open so refusal itself cannot checkpoint or delete an
+unsafe WAL or SHM.
+
+Overrides require stable trusted host ancestry. Windows source storage requires
+local NTFS, just as backup publication does. These checks exclude an ordinary other
+account. They do not protect against the host account or an administrator deliberately
+changing trusted storage, or revoke previously obtained handles. Treat this database
+as **capability-adjacent**, because tokens are capabilities.
 
 ### Backup / restore
 
@@ -168,8 +185,10 @@ disk workspace beside the host registry. The snapshot is normalized to DELETE
 journal mode, closed, and checked for leftover sidecars. A fixed-size buffer streams
 its bytes through an owned private destination descriptor before no-replace atomic
 publication. Source and destination can reside on different filesystems. Temporary
-entries are cleaned up by identity on failure or cancellation. A directory durability
-error after publication reports an error but retains the completed backup.
+entries are cleaned up by identity on failure or cancellation. Cleanup attempts every acquired directory
+handle even if another close fails. Cleanup preserves the original failure
+or cancellation, and reports the first cleanup failure when the operation succeeded.
+A directory durability error after publication reports an error but retains the completed backup.
 
 The publisher pins and validates directory ancestry. POSIX requires an owned `0700`
 parent, `0600` files, no extended ACL grants, and no untrusted nonsticky writable
@@ -177,7 +196,10 @@ ancestors or symlinks. Windows requires trusted local NTFS ancestry without repa
 points or ambiguous names (alternate streams, reserved devices, and trailing
 dot/space aliases), restrictive DACLs, and pinned native handles; private DACLs are installed
 before secret writes and publication uses native no-replace rename. The focused
-Windows CI job exercises these operations and second-account read denial. Native
+Windows CI job provisions a run-owned NTFS volume with an exact protected trusted
+root DACL and checks the full path with production admission before running tests.
+It exercises source, snapshot, stage, and published-file second-account read denial.
+A proposed workflow or portable policy mock is not successful native proof. Native
 macOS ACL tests do not establish Windows guarantees. Unsupported path or filesystem
 security semantics fail closed. These controls exclude another ordinary account;
 they do not defend against the host account or an administrator deliberately

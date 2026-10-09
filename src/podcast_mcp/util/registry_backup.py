@@ -1,40 +1,33 @@
 from __future__ import annotations
 
 import os
-import sys
 import uuid
-from collections.abc import Callable
-from contextlib import closing
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
 from podcast_mcp.util.registry_backup_posix import BackupDirectory as PosixDirectory
 from podcast_mcp.util.registry_backup_posix import identity
 from podcast_mcp.util.registry_backup_windows import BackupDirectory as WindowsDirectory
+from podcast_mcp.util.registry_cleanup import cleanup as _cleanup
+from podcast_mcp.util.sqlite_tx import SQLITE_SIDECARS
 
 _COPY_BUFFER_BYTES = 1024 * 1024
-_SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
+_SQLITE_SIDECARS = SQLITE_SIDECARS
 
 
 def _directory(path: Path) -> PosixDirectory | WindowsDirectory:
     return WindowsDirectory(path) if os.name == "nt" else PosixDirectory(path)
 
 
-def _cleanup(actions: list[Callable[[], None]]) -> None:
-    original = sys.exc_info()[1]
-    first: BaseException | None = None
-    for action in actions:
-        try:
-            action()
-        except BaseException as exc:
-            if original is not None:
-                original.add_note(
-                    "Registry backup cleanup could not remove an owned temporary entry."
-                )
-            elif first is None:
-                first = exc
-    if first is not None:
-        raise first
+@contextmanager
+def _closing_directory(path: Path) -> Iterator[PosixDirectory | WindowsDirectory]:
+    directory = _directory(path)
+    try:
+        yield directory
+    finally:
+        _cleanup([directory.close])
 
 
 def _require_unused(directory: PosixDirectory | WindowsDirectory, name: str) -> None:
@@ -65,13 +58,13 @@ def publish_registry_backup(
     destination = Path(os.path.abspath(destination))
     if any(destination == Path(str(source) + suffix) for suffix in ("", *_SQLITE_SIDECARS)):
         raise FileExistsError("backup destination must be outside the live registry namespace")
-    with closing(_directory(destination.parent)) as output:
+    with _closing_directory(destination.parent) as output:
         _require_unused(output, destination.name)
-        with closing(_directory(source.parent)) as host:
+        with _closing_directory(source.parent) as host:
             workspace_name = f".registry-snapshot-{uuid.uuid4().hex}"
             workspace_identity = host.create_workspace(workspace_name)
             try:
-                with closing(_directory(host.path / workspace_name)) as private:
+                with _closing_directory(host.path / workspace_name) as private:
                     snapshot_name = "registry.sqlite"
                     snapshot_fd = private.create_file(snapshot_name)
                     snapshot_identity = identity(os.fstat(snapshot_fd))

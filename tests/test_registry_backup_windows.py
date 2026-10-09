@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import os
 import secrets
 import sqlite3
@@ -8,6 +9,7 @@ import subprocess
 import uuid
 from contextlib import closing, contextmanager
 from ctypes import wintypes
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,7 @@ import pytest
 from podcast_mcp.edits.share_registry import SqliteShareRegistry
 from podcast_mcp.util import registry_backup
 from podcast_mcp.util.registry_backup_windows import _WindowsAPI
+from podcast_mcp.util.registry_cleanup import cleanup
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="requires native Windows NTFS and accounts")
 
@@ -23,19 +26,71 @@ def _system_program(name: str) -> str:
     return str(Path(os.environ["SYSTEMROOT"]) / "System32" / name)
 
 
-def _run(arguments):
-    result = subprocess.run(arguments, capture_output=True, check=False)
-    assert result.returncode == 0, "disposable Windows actor setup failed"
+def _run(arguments, *, account: _Account | None = None, create: bool = False):
+    payload = None
+    if account is not None:
+        payload = (
+            json.dumps({"name": account.name, "password": account.password})
+            if create
+            else account.name
+        )
+    try:
+        result = subprocess.run(
+            arguments, input=payload, text=True, capture_output=True, check=False, timeout=30
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("disposable Windows actor setup timed out") from None
+    if result.returncode:
+        message = result.stdout + result.stderr
+        if account is not None:
+            message = message.replace(account.password, "[redacted]")
+        raise RuntimeError(
+            f"disposable Windows actor setup failed with status {result.returncode}: {message}"
+        )
+
+
+@dataclass(frozen=True)
+class _Account:
+    name: str
+    password: str = field(repr=False)
 
 
 @pytest.fixture
 def other_account():
-    name, password = "sc" + uuid.uuid4().hex[:12], secrets.token_urlsafe(24) + "aA1!"
-    _run([_system_program("net.exe"), "user", name, password, "/add"])
+    account = _Account("sc" + uuid.uuid4().hex[:12], secrets.token_urlsafe(24) + "aA1!")
+    program = _system_program("WindowsPowerShell/v1.0/powershell.exe")
     try:
-        yield name, password
+        _run(
+            [
+                program,
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "$actor = [Console]::In.ReadToEnd() | ConvertFrom-Json; "
+                "$password = ConvertTo-SecureString -String $actor.password -AsPlainText -Force; "
+                "New-LocalUser -Name $actor.name -Password $password -ErrorAction Stop | Out-Null",
+            ],
+            account=account,
+            create=True,
+        )
+        yield account
     finally:
-        _run([_system_program("net.exe"), "user", name, "/delete"])
+        cleanup(
+            [
+                lambda: _run(
+                    [
+                        program,
+                        "-NoProfile",
+                        "-NonInteractive",
+                        "-Command",
+                        "$name = [Console]::In.ReadToEnd(); "
+                        "$actor = Get-LocalUser -Name $name -ErrorAction SilentlyContinue; "
+                        "if ($actor) { Remove-LocalUser -Name $name -ErrorAction Stop }",
+                    ],
+                    account=account,
+                )
+            ]
+        )
 
 
 @contextmanager
@@ -55,7 +110,9 @@ def _impersonate(account):
     api.security.RevertToSelf.argtypes = []
     api.security.RevertToSelf.restype = wintypes.BOOL
     token = wintypes.HANDLE()
-    api.check(api.security.LogonUserW(account[0], ".", account[1], 2, 0, ctypes.byref(token)))
+    api.check(
+        api.security.LogonUserW(account.name, ".", account.password, 2, 0, ctypes.byref(token))
+    )
     try:
         api.check(api.security.ImpersonateLoggedOnUser(token))
         try:
@@ -75,13 +132,20 @@ def test_other_account_cannot_read_snapshot_stream_or_published_secret(
     output.mkdir()
     destination = output / "new.sqlite"
     original = registry_backup._copy_snapshot
+    journal = Path(str(source.db_path) + "-journal")
+    journal.touch(mode=0o600)
+    source_family = list(source.db_path.parent.glob("registry.db*"))
+    assert source.db_path in source_family
+    assert Path(str(source.db_path) + "-wal") in source_family
+    assert Path(str(source.db_path) + "-shm") in source_family
+    assert journal in source_family
     checked = []
 
     def copy(read_fd, write_fd):
         snapshot = next(source.db_path.parent.glob(".registry-snapshot-*/registry.sqlite"))
         stage = next(output.glob("*.partial"))
         with _impersonate(other_account):
-            for path in (snapshot, stage):
+            for path in (*source_family, snapshot, stage):
                 with pytest.raises(PermissionError):
                     with path.open("rb"):
                         pytest.fail("another account read private secret staging")
