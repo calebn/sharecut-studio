@@ -36,9 +36,11 @@ from sqlite_helpers import FailingConnection
 
 def _registry_secret_process(db_path: str, barrier, queue) -> None:
     registry = SqliteShareRegistry(Path(db_path))
-    barrier.wait(timeout=10)
-    queue.put(registry.recording_key_secret())
-    registry.close()
+    try:
+        barrier.wait(timeout=10)
+        queue.put(registry.recording_key_secret())
+    finally:
+        registry.close()
 
 
 def _iso(dt: datetime) -> str:
@@ -701,14 +703,25 @@ def test_recording_key_secret_concurrent_process_initialization(tmp_path: Path) 
         ctx.Process(target=_registry_secret_process, args=(str(path), barrier, queue))
         for _ in range(4)
     ]
-    for process in processes:
-        process.start()
-    secrets_seen = [queue.get(timeout=20) for _ in processes]
-    for process in processes:
-        process.join(timeout=20)
-        assert process.exitcode == 0
-    assert len(set(secrets_seen)) == 1
-    assert len(secrets_seen[0]) == 32
+    started = []
+    try:
+        for process in processes:
+            process.start()
+            started.append(process)
+        secrets_seen = [queue.get(timeout=20) for _ in processes]
+        for process in processes:
+            process.join(timeout=20)
+            assert process.exitcode == 0
+        assert len(set(secrets_seen)) == 1
+        assert len(secrets_seen[0]) == 32
+    finally:
+        for process in started:
+            if process.is_alive():
+                process.terminate()
+            process.join()
+            process.close()
+        queue.close()
+        queue.join_thread()
 
 
 def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
@@ -720,8 +733,10 @@ def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
     ):
         with pytest.raises(OSError, match="entropy unavailable"):
             registry.recording_key_secret()
-    assert registry._conn.execute("SELECT * FROM recording_key_secret").fetchall() == []
-    assert registry._conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    with sqlite3.connect(registry.db_path) as observer:
+        assert observer.execute("SELECT * FROM recording_key_secret").fetchall() == []
+        assert observer.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    assert len(registry.recording_key_secret()) == 32
 
 
 def test_recording_key_secret_refuses_malformed_stored_value(registry: SqliteShareRegistry) -> None:
