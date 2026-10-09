@@ -116,16 +116,57 @@ Tables (portable schema contract for a future relay backend):
 
 - `active_shares(token PRIMARY KEY, id, project_workspace, review_version_id, created_at, last_used_at, expires_at, capabilities, kind, role, session_id)`: `id` is the random per-share id (`EditDecision.author`); `kind` is `review` \| `record` (default `review`)
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
+- `recording_key_secret(singleton=1, secret BLOB)`: one random 32-byte host installation secret
 
 Access layer: `ShareRegistryProtocol` in `edits/share_registry.py` (`get_active`,
 `list_active_for_workspace`, `is_reserved`, `claim_active`, `release_claim`, `upsert_active_metadata`,
-`touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to`,
-`close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
-`BEGIN IMMEDIATE` on claim/demote/release). Wired through `edits/review_shares.py`
+`touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to_new`,
+`recording_key_secret`, `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
+`BEGIN IMMEDIATE` on registry writes and singleton secret initialization). Wired through `edits/review_shares.py`
 and `services/collaboration/share.py`. Do **not** hand-edit the DB or invent a third index.
 
-File mode: parent dir `0700`, DB `0600` when the OS allows. Treat the file as
-**capability-adjacent** (tokens are capabilities).
+Clip listing uses the secret once per service call to derive `rec_` identities
+with versioned HMAC-SHA-256 over the resolved workspace path and normalized
+workspace-relative recording path. The secret stays local to the host and never
+enters project data or guest responses. A malformed stored value or storage
+failure refuses listing. Registry backup preserves the identity namespace;
+deleting it or replacing it with a different installation's registry resets it.
+Stop all registry-owning processes before deleting or replacing the database,
+then restart them. Open connections retain the old database after replacement. The feature does not change the
+registry's `synchronous=NORMAL` setting. `recording_key_secret` is host-local;
+a future relay backend must not expose it as a relay retrieval API.
+
+A failed registry write closes its connection before propagating the original
+error. The next registry operation opens a new connection from durable state before token
+lookup or mutation. The process-wide getter also recovers the cached owner before
+returning it; directly injected registry owners use the same recovery boundary.
+Registry and session owners share the bounded WAL transition in `util/sqlite_wal.py`;
+normal registry writes retain the existing 5-second busy timeout.
+
+The registry admits the complete source namespace before SQLite opens it. The
+parent must be owned and private, and every ancestor must prevent ordinary accounts
+from replacing its entries. Symlinks and Windows reparse points are refused.
+Existing main, WAL, SHM, and journal files must have private effective permissions.
+Extended POSIX ACL grants, default ACLs, and unsafe Windows inherited child grants
+fail closed without repair or source replacement. Owned POSIX modes may tighten to
+`0700` for the parent and `0600` for files after ACL inspection.
+
+New main files are exclusively created empty with private permissions before SQLite
+receives the path. New Windows directories have protected owner, SYSTEM, and
+Administrators grants with `OI|CI` inheritance. SQLite children inherit the verified
+private parent policy and main-file mode. Initialization, recovery, and every registry
+operation inspect the current file family. Actual sidecar disappearance is allowed;
+permission errors are not treated as absence. A privacy refusal before SQL leaves an
+otherwise healthy connection open so refusal itself cannot checkpoint or delete an
+unsafe WAL or SHM.
+
+Overrides retain their caller-supplied path components through native admission;
+symlink aliases and unsafe parent traversal are refused. Overrides require stable
+trusted host ancestry. Windows source storage requires
+local NTFS, just as backup publication does. These checks exclude an ordinary other
+account. They do not protect against the host account or an administrator deliberately
+changing trusted storage, or revoke previously obtained handles. Treat this database
+as **capability-adjacent**, because tokens are capabilities.
 
 ### Backup / restore
 
@@ -135,10 +176,55 @@ podcast review backup-registry
 podcast review backup-registry --dest ~/Backups/share_registry.sqlite
 ```
 
-Uses sqlite online `Connection.backup()` (safe with WAL). To restore: stop GUI /
-tunnel / CLI using the registry, replace the file at `PODCAST_SHARE_REGISTRY`
-(or the default path), then restart. Prefer Time Machine / restic of
-`~/.podcast_mcp/` in addition to explicit backups before OS upgrades.
+Creates a new single SQLite file; existing destination names (including dangling
+aliases and SQLite sidecar names) are refused without modification. `--dest`
+requires an existing trusted private directory. It never changes that directory's
+permissions. The default name includes a timestamp and random suffix; atomic
+no-replace publication decides collisions.
+
+SQLite's WAL-safe online `Connection.backup()` writes only inside a unique private
+disk workspace beside the host registry. The snapshot is normalized to DELETE
+journal mode, closed, and checked for leftover sidecars. A fixed-size buffer streams
+its bytes through an owned private destination descriptor before no-replace atomic
+publication. Source and destination can reside on different filesystems. Temporary
+entries are removed on failure or cancellation only when their captured creation
+identity still matches. If initial identity acquisition fails, cleanup attempts
+the resource close and leaves the private unknown entry with a generic note.
+Cleanup attempts each acquired resource close once, even if another close fails.
+Cleanup preserves the original failure
+or cancellation, and reports the first cleanup failure when the operation succeeded.
+A directory durability error after publication reports an error but retains the completed backup.
+
+Native acquisition scopes own handles, descriptors, and temporary names before
+validation or descriptor conversion. A newly created source main becomes durable
+authority after full source-family admission and successful close, before SQLite
+opens it. Windows OWNER RIGHTS grants bind to each inspected object's trusted
+owner; admission checks every existing child independently.
+
+The publisher pins and validates directory ancestry. POSIX requires an owned `0700`
+parent, `0600` files, no extended ACL grants, and no untrusted nonsticky writable
+ancestors or symlinks. Windows requires trusted local NTFS ancestry without reparse
+points or ambiguous names (alternate streams, reserved devices, and trailing
+dot/space aliases), restrictive DACLs, and pinned native handles; private DACLs are installed
+before secret writes and publication uses native no-replace rename. The focused
+Windows CI job provisions a run-owned NTFS volume with an exact protected trusted
+root DACL and checks the full path with production admission before running tests.
+It exercises source, snapshot, stage, and published-file second-account read denial.
+A proposed workflow or portable policy mock is not successful native proof. Native
+macOS ACL tests do not establish Windows guarantees. Unsupported path or filesystem
+security semantics fail closed. These controls exclude another ordinary account;
+they do not defend against the host account or an administrator deliberately
+changing its own trusted storage.
+
+To restore, stop every registry-owning process, including GUI, tunnel, CLI, and MCP
+servers. Preserve the old database together with its `-wal`, `-shm`, and `-journal`
+files as one stopped set if recovery is needed. Ensure none of those old sidecars
+remain at the restored database name, then install the standalone backup at
+`PODCAST_SHARE_REGISTRY` (or the default path) in the private host directory. Restart
+all owners. Open connections retain the old database after replacement; replacing
+an inode does not revoke their database authority. Apply the same stop/restart rule
+before deletion. Prefer Time Machine / restic of `~/.podcast_mcp/` in addition to
+explicit backups before OS upgrades.
 
 ## Project sidecar
 

@@ -22,6 +22,41 @@ const [command, ...args] = guiCommand({
   projectPath: projectPath ?? "",
 });
 const runtimeEnv = e2eRuntimeEnv(process.env, `${process.pid}-${port}`);
+if (runtimeEnv.UX_DEMO_SCREENSHOTS) {
+  if (!projectPath || !runtimeEnv.UX_DEMO_GUEST_TOKENS)
+    throw new Error(
+      "UX screenshots require an owned project and token manifest",
+    );
+  const python = runtimeEnv.CI
+    ? "python"
+    : path.join(
+        repoRoot,
+        process.platform === "win32"
+          ? ".venv/Scripts/python.exe"
+          : ".venv/bin/python",
+      );
+  const seed = spawn(
+    python,
+    [
+      "scripts/ux_demo_prepare_shares.py",
+      "--project",
+      projectPath,
+      "--registry",
+      runtimeEnv.PODCAST_SHARE_REGISTRY ?? "",
+      "--base-url",
+      `http://127.0.0.1:${port}`,
+      "--tokens-out",
+      runtimeEnv.UX_DEMO_GUEST_TOKENS,
+    ],
+    { cwd: repoRoot, env: runtimeEnv, stdio: "inherit" },
+  );
+  const code = await new Promise<number | null>((resolve, reject) => {
+    seed.once("error", reject);
+    seed.once("exit", resolve);
+  });
+  if (code !== 0)
+    throw new Error(`UX share preparation failed with exit ${code}`);
+}
 const editing = [
   process.env.EDITING_TASK_OUT,
   process.env.EDITING_PROTOCOL_FILE,

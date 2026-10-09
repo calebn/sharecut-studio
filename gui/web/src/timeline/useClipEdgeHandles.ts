@@ -325,7 +325,12 @@ export function useClipEdgeHandles(context: Context) {
           .getState()
           .announceStatus(d.kind === "fade" ? "Fade saved" : "Trim saved");
     } catch (error) {
-      if (fresh(c))
+      if (
+        fresh(c) ||
+        (d.kind === "fade" &&
+          useDawStore.getState().projectPath === c.projectPath &&
+          useDawStore.getState().projectEpoch === c.projectEpoch)
+      )
         useDawStore
           .getState()
           .announceStatus(`Clip edit failed: ${errorMessage(error)}`);

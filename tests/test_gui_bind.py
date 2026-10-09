@@ -480,7 +480,7 @@ def _editing_app_request(
     reserved.close()
     module = Path(server.__file__).resolve()
     request = {
-        "version": 1,
+        "version": 2,
         "protocolHash": "a" * 64,
         "host": "127.0.0.1",
         "port": port,
@@ -544,7 +544,7 @@ def test_editing_bind_retains_actual_factory_and_owned_socket_until_exit(
         run_gui_server(app, host="127.0.0.1", port=request["port"])
     assert observed["app"] is app
     assert observed["receipt"] == {
-        "version": 1,
+        "version": 2,
         "protocolHash": "a" * 64,
         "host": "127.0.0.1",
         "port": request["port"],
@@ -642,3 +642,19 @@ def test_editing_bind_rejects_unsupported_native_platform(
     with pytest.raises(ValueError, match="Editing backend bind identity rejected"):
         run_gui_server(app, host="127.0.0.1", port=request["port"])
     assert seen == {}
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Dedicated editing identity requires Linux")
+@pytest.mark.parametrize("version", [1, 3, True, "2"])
+def test_editing_bind_rejects_other_private_wire_versions_before_listen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: object
+) -> None:
+    app, request_path, request = _editing_app_request(tmp_path, monkeypatch)
+    request["version"] = version
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    seen: dict[str, object] = {}
+    _patch_uvicorn_server(monkeypatch, seen)
+    with pytest.raises(ValueError, match="Editing backend bind identity rejected"):
+        run_gui_server(app, host="127.0.0.1", port=request["port"])
+    assert seen == {}
+    assert not (request_path.parent / "live.json").exists()

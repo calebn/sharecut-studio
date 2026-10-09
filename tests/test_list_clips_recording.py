@@ -1,15 +1,9 @@
-"""``list_clips`` rows say which recording a clip plays and how long it is.
-
-The DAW's trim preview (gui/web/src/edit/trimLimits.ts) mirrors ``trim_edge_limits``,
-which stops an edge at the clip's own recording, so every row carries the two facts
-that function reads: ``source_duration_sec`` and ``recording_key``, an opaque identity
-that two clips share exactly when they play the same file. It names no file, so a share
-guest, who never sees a track's ``media_path``, learns no file name from a clip row.
-"""
-
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import os
 import re
 
 from podcast_mcp.edits.timeline_ops import list_clips
@@ -22,6 +16,8 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+SECRET = bytes(range(32))
 
 
 def _project() -> EpisodeProject:
@@ -72,7 +68,7 @@ def _project() -> EpisodeProject:
 
 
 def _rows() -> dict[str, dict]:
-    lanes = list_clips(_project())["tracks"]
+    lanes = list_clips(_project(), secret=SECRET)["tracks"]
     return {row["id"]: row for lane in lanes.values() for row in lane}
 
 
@@ -85,12 +81,34 @@ def test_a_key_is_an_opaque_digest_that_depends_on_the_workspace() -> None:
     assert re.fullmatch(r"rec_[0-9a-f]{16}", key)
     other = _project()
     other.meta.workspace_dir = "/tmp/elsewhere"
-    assert list_clips(other)["tracks"]["host"][0]["recording_key"] != key
+    assert list_clips(other, secret=SECRET)["tracks"]["host"][0]["recording_key"] != key
 
 
 def test_a_clip_without_a_source_plays_its_track_media() -> None:
     row = _rows()["own"]
     assert (row["source_duration_sec"], row["recording_key"]) == (600.0, _key("own"))
+
+
+def test_recording_key_matches_versioned_hmac_vector() -> None:
+    vectors = {
+        "/private/tmp/rows": "7d5ee9b58073dd43",
+        "/tmp/rows": "6d1b77aceba5926a",
+        r"C:\tmp\rows": "61c3a403a5eada27",
+    }
+    for canonical, expected in vectors.items():
+        literal = f"podcast-mcp:recording-key:v1\0{canonical}\0raw/host_t1.wav".encode()
+        assert hmac.new(SECRET, literal, hashlib.sha256).hexdigest()[:16] == expected
+    project = _project()
+    if os.name == "nt":
+        project.meta.workspace_dir = r"C:\tmp\rows"
+    workspace = str(project.workspace_path().expanduser().resolve())
+    message = f"podcast-mcp:recording-key:v1\0{workspace}\0raw/host_t1.wav".encode()
+    expected = vectors[workspace]
+    assert hmac.new(SECRET, message, hashlib.sha256).hexdigest()[:16] == expected
+    assert (
+        list_clips(project, secret=SECRET)["tracks"]["host"][0]["recording_key"]
+        == f"rec_{expected}"
+    )
 
 
 def test_a_clip_names_its_source_recording() -> None:
@@ -124,7 +142,7 @@ def test_a_row_carries_no_file_name() -> None:
 def test_a_guest_view_of_the_rows_shows_identity_but_no_file_name() -> None:
     view = {
         "tracks": [{"id": "host", "media_path": "raw/host_t1.wav"}],
-        "clips": list_clips(_project()),
+        "clips": list_clips(_project(), secret=SECRET),
     }
     out = sanitize_guest_project_view(view)
     assert out["tracks"][0]["media_path"] is None

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { e2eAuthStores, ownedE2eAuthStores } from "./runtimeEnv";
 
 type BackendSource = {
   cwd: string;
@@ -8,13 +9,23 @@ type BackendSource = {
   module: string;
   sourceHash: string;
 };
-type BoundIdentity = BackendSource & {
+type ProtocolIdentity = BackendSource & {
   moduleName: "podcast_mcp.gui.server";
   productionDist: string;
+};
+type CleanupOwner = Readonly<{
+  directory: string;
+  manifestPath: string;
+  device: string;
+  inode: string;
+  uid: string;
+  mode: number;
+}>;
+type BoundIdentity = ProtocolIdentity & {
   shareRegistry: string;
 };
 type BindRequest = {
-  version: 1;
+  version: 2;
   protocolHash: string;
   host: "127.0.0.1";
   port: number;
@@ -26,13 +37,15 @@ type BindReceipt = Omit<BindRequest, "expected"> & {
 };
 type ProcessIdentity = { pid: number; parentPid: number; startTime: string };
 type LaunchRecord = {
-  version: 1;
+  version: 2;
   protocolHash: string;
   attempt: string;
   port: number;
   wrapper: ProcessIdentity;
   child: ProcessIdentity;
   command: string[];
+  requestHash: string;
+  cleanupOwner: CleanupOwner;
 };
 type LiveFacts = {
   process: ProcessIdentity;
@@ -43,10 +56,12 @@ type LiveFacts = {
   executable: string;
   productionDist: string;
   shareRegistry: string;
+  shareIdentity: string;
+  cleanupOwner: CleanupOwner;
   health: { status: 200; ok: true };
 };
 type Observation = {
-  version: 1;
+  version: 2;
   phase: "before" | "after";
   protocolHash: string;
   attempt: string;
@@ -108,6 +123,89 @@ function integer(value: unknown, maximum = Number.MAX_SAFE_INTEGER): number {
 function same(actual: unknown, expected: unknown, label: string): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected))
     throw new Error(`Editing backend ${label} differs`);
+}
+function decimal(value: unknown): string {
+  const result = text(value);
+  if (!/^(0|[1-9][0-9]*)$/.test(result))
+    throw new Error("Editing backend owner requires decimal stat metadata");
+  return result;
+}
+function retainedPath(value: unknown): string {
+  const result = text(value);
+  if (
+    !path.isAbsolute(result) ||
+    path.resolve(result) !== result ||
+    result.includes("\0")
+  )
+    throw new Error("Editing backend owner requires canonical absolute paths");
+  return result;
+}
+function parseCleanupOwner(value: unknown): CleanupOwner {
+  const row = fields(value, [
+    "directory",
+    "manifestPath",
+    "device",
+    "inode",
+    "uid",
+    "mode",
+  ]);
+  const directory = retainedPath(row.directory);
+  const manifestPath = retainedPath(row.manifestPath);
+  if (
+    !path.basename(directory).startsWith("sharecut-e2e-cleanup-") ||
+    manifestPath !== path.join(directory, "workspaces.json") ||
+    typeof row.mode !== "number" ||
+    !Number.isSafeInteger(row.mode) ||
+    row.mode < 0 ||
+    row.mode > 0o777 ||
+    (row.mode & 0o077) !== 0
+  )
+    throw new Error("Editing backend retained cleanup owner differs");
+  return {
+    directory,
+    manifestPath,
+    device: decimal(row.device),
+    inode: decimal(row.inode),
+    uid: decimal(row.uid),
+    mode: row.mode,
+  };
+}
+function captureCleanupOwner(env: NodeJS.ProcessEnv): CleanupOwner {
+  const manifest = env.DAW_E2E_CLEANUP_MANIFEST;
+  if (!manifest) throw new Error("E2E cleanup manifest is required");
+  const stores = ownedE2eAuthStores(manifest);
+  const capture = (): CleanupOwner => {
+    const info = fs.statSync(stores.directory, { bigint: true });
+    return {
+      directory: stores.directory,
+      manifestPath: path.join(stores.directory, "workspaces.json"),
+      device: info.dev.toString(),
+      inode: info.ino.toString(),
+      uid: info.uid.toString(),
+      mode: Number(info.mode & 0o777n),
+    };
+  };
+  const owner = capture();
+  same(
+    [
+      path.resolve(text(env.PODCAST_SHARE_REGISTRY)),
+      path.resolve(text(env.PODCAST_SHARE_IDENTITY)),
+    ],
+    [stores.shareRegistry, stores.shareIdentity],
+    "selected auth paths",
+  );
+  same(ownedE2eAuthStores(manifest), stores, "owner paths during capture");
+  same(capture(), owner, "cleanup owner during capture");
+  return owner;
+}
+function boundIdentity(
+  protocol: ProtocolIdentity,
+  owner: CleanupOwner,
+): BoundIdentity {
+  return {
+    ...protocol,
+    shareRegistry: e2eAuthStores(owner.directory).shareRegistry,
+  };
 }
 function writeOwned(file: string, value: unknown): void {
   const bytes = `${JSON.stringify(value, null, 2)}\n`;
@@ -183,8 +281,7 @@ export function admitImportedBackend(
 function protocolIdentity(
   protocolFile: string,
   protocolHash: string,
-  attempt: string,
-): BoundIdentity {
+): ProtocolIdentity {
   const bytes = fs.readFileSync(protocolFile);
   same(hash(bytes), digest(protocolHash), "protocol bytes");
   const protocol = object(JSON.parse(bytes.toString("utf8")));
@@ -204,25 +301,27 @@ function protocolIdentity(
     sourceHash,
     moduleName: "podcast_mcp.gui.server",
     productionDist: text(protocol.productionDist),
-    shareRegistry: path.join(path.resolve(attempt), "share-registry.sqlite"),
   };
 }
 function requestIdentity(
   protocolFile: string,
   protocolHash: string,
-  attempt: string,
+  owner: CleanupOwner,
   port: number,
 ): BindRequest {
   if (process.platform !== "linux")
     throw new Error("Editing backend listener identity requires Linux");
-  const expected = protocolIdentity(protocolFile, protocolHash, attempt);
+  const expected = boundIdentity(
+    protocolIdentity(protocolFile, protocolHash),
+    owner,
+  );
   const admitted = admitImportedBackend(
     expected.cwd,
     { [sourceKey]: expected.sourceHash },
     expected,
   );
   return {
-    version: 1,
+    version: 2,
     protocolHash,
     host: "127.0.0.1",
     port: integer(port, 65535),
@@ -257,6 +356,24 @@ function parseIdentity(value: unknown): BoundIdentity {
     shareRegistry: text(row.shareRegistry),
   };
 }
+function parseRequest(bytes: string): BindRequest {
+  const row = fields(JSON.parse(bytes), [
+    "version",
+    "protocolHash",
+    "host",
+    "port",
+    "expected",
+  ]);
+  if (row.version !== 2 || row.host !== "127.0.0.1")
+    throw new Error("Editing backend bind request version or host differs");
+  return {
+    version: 2,
+    protocolHash: digest(row.protocolHash),
+    host: row.host,
+    port: integer(row.port, 65535),
+    expected: parseIdentity(row.expected),
+  };
+}
 function parseReceipt(bytes: string): BindReceipt {
   const row = fields(JSON.parse(bytes), [
     "version",
@@ -266,10 +383,10 @@ function parseReceipt(bytes: string): BindReceipt {
     "pid",
     "actual",
   ]);
-  if (row.version !== 1 || row.host !== "127.0.0.1")
+  if (row.version !== 2 || row.host !== "127.0.0.1")
     throw new Error("Editing backend bind receipt version or host differs");
   return {
-    version: 1,
+    version: 2,
     protocolHash: digest(row.protocolHash),
     host: row.host,
     port: integer(row.port, 65535),
@@ -297,21 +414,25 @@ function parseLaunch(bytes: string): LaunchRecord {
     "wrapper",
     "child",
     "command",
+    "requestHash",
+    "cleanupOwner",
   ]);
   if (
-    row.version !== 1 ||
+    row.version !== 2 ||
     !Array.isArray(row.command) ||
     row.command.length === 0
   )
     throw new Error("Editing backend launch record differs");
   return {
-    version: 1,
+    version: 2,
     protocolHash: digest(row.protocolHash),
     attempt: text(row.attempt),
     port: integer(row.port, 65535),
     wrapper: parseProcess(row.wrapper),
     child: parseProcess(row.child),
     command: row.command.map(text),
+    requestHash: digest(row.requestHash),
+    cleanupOwner: parseCleanupOwner(row.cleanupOwner),
   };
 }
 function nativeProcess(pid: number): ProcessIdentity {
@@ -429,6 +550,14 @@ function validateOwnership(
   same([receipt.port, launch.port], [port, port], "leased port");
   same(receipt.actual, expected, "actual factory identity");
   same(receipt.pid, facts.process.pid, "listener PID");
+  same(facts.cleanupOwner, launch.cleanupOwner, "cleanup owner");
+  const stores = e2eAuthStores(launch.cleanupOwner.directory);
+  same(
+    [facts.shareRegistry, facts.shareIdentity],
+    [stores.shareRegistry, stores.shareIdentity],
+    "owned auth paths",
+  );
+  same(expected.shareRegistry, stores.shareRegistry, "factory owner registry");
   same(
     [facts.cwd, facts.executable, facts.productionDist, facts.shareRegistry],
     [
@@ -457,6 +586,7 @@ function validateOwnership(
 async function observe(
   attempt: string,
   request: BindRequest,
+  observerEnv: NodeJS.ProcessEnv,
 ): Promise<Omit<Observation, "phase">> {
   const candidate = census(attempt, request.port);
   const directory = identityDirectory(attempt);
@@ -470,6 +600,14 @@ async function observe(
   );
   const receipt = parseReceipt(receiptBytes);
   const launch = parseLaunch(launchBytes);
+  same(captureCleanupOwner(observerEnv), launch.cleanupOwner, "cleanup owner");
+  const requestFile = path.join(directory, "request.json");
+  same(hash(fs.readFileSync(requestFile)), launch.requestHash, "request bytes");
+  same(
+    parseRequest(fs.readFileSync(requestFile, "utf8")),
+    request,
+    "live request expectations",
+  );
   same(candidate.pid, receipt.pid, "advertised listener PID");
   same(nativeProcess(launch.wrapper.pid), launch.wrapper, "live wrapper");
   same(nativeProcess(launch.child.pid), launch.child, "live direct child");
@@ -489,7 +627,10 @@ async function observe(
     executable: fs.realpathSync(`/proc/${receipt.pid}/exe`),
     productionDist: fs.realpathSync(text(env.PODCAST_GUI_DIST)),
     shareRegistry: path.resolve(text(env.PODCAST_SHARE_REGISTRY)),
+    shareIdentity: path.resolve(text(env.PODCAST_SHARE_IDENTITY)),
+    cleanupOwner: captureCleanupOwner(env),
   };
+  same(nativeFacts.cleanupOwner, launch.cleanupOwner, "cleanup owner");
   const health = await fetch(`http://127.0.0.1:${request.port}/api/health`, {
     signal: AbortSignal.timeout(2000),
     redirect: "error",
@@ -526,8 +667,20 @@ async function observe(
     facts.listenerInode,
     "listener during observation",
   );
+  same(
+    fs.readFileSync(path.join(directory, "launch.json"), "utf8"),
+    launchBytes,
+    "launch during observation",
+  );
+  same(captureCleanupOwner(observerEnv), launch.cleanupOwner, "cleanup owner");
+  same(
+    captureCleanupOwner(environment(receipt.pid)),
+    launch.cleanupOwner,
+    "cleanup owner",
+  );
+  same(hash(fs.readFileSync(requestFile)), launch.requestHash, "request bytes");
   return {
-    version: 1,
+    version: 2,
     protocolHash: request.protocolHash,
     attempt: path.resolve(attempt),
     port: request.port,
@@ -566,6 +719,8 @@ function continuous(before: BackendEvidence, after: BackendEvidence): void {
 
 export class EditingBackendLaunch {
   private readonly request: BindRequest;
+  private readonly cleanupOwner: CleanupOwner;
+  private readonly requestHash: string;
   readonly environment: NodeJS.ProcessEnv;
   constructor(
     attempt: string,
@@ -584,10 +739,11 @@ export class EditingBackendLaunch {
         throw new Error(
           "Editing backend has conflicting sidecar configuration",
         );
+    this.cleanupOwner = captureCleanupOwner(env);
     this.request = requestIdentity(
       protocolFile,
       protocolHash,
-      this.attempt,
+      this.cleanupOwner,
       port,
     );
     same(
@@ -607,6 +763,7 @@ export class EditingBackendLaunch {
       "request.json",
     );
     writeOwned(requestFile, this.request);
+    this.requestHash = hash(fs.readFileSync(requestFile));
     this.environment = { ...env, PODCAST_EDITING_BIND_REQUEST: requestFile };
   }
   private readonly attempt: string;
@@ -615,14 +772,30 @@ export class EditingBackendLaunch {
     const child = nativeProcess(pid);
     same(child.parentPid, wrapper.pid, "spawned child parent");
     const launch: LaunchRecord = {
-      version: 1,
+      version: 2,
       protocolHash: this.request.protocolHash,
       attempt: this.attempt,
       port: this.request.port,
       wrapper,
       child,
       command,
+      requestHash: this.requestHash,
+      cleanupOwner: this.cleanupOwner,
     };
+    same(
+      captureCleanupOwner(this.environment),
+      this.cleanupOwner,
+      "cleanup owner",
+    );
+    same(
+      hash(
+        fs.readFileSync(
+          path.join(identityDirectory(this.attempt), "request.json"),
+        ),
+      ),
+      this.requestHash,
+      "request bytes",
+    );
     writeOwned(
       path.join(identityDirectory(this.attempt), "launch.json"),
       launch,
@@ -640,11 +813,15 @@ export class EditingBackendLaunch {
     while (Date.now() < deadline) {
       same(nativeProcess(launch.child.pid), launch.child, "startup child");
       try {
-        const observation = await observe(this.attempt, this.request);
-        writeOwned(
-          path.join(identityDirectory(this.attempt), "ready.json"),
-          identityEvidence(observation),
+        const observation = await observe(
+          this.attempt,
+          this.request,
+          this.environment,
         );
+        writeOwned(path.join(identityDirectory(this.attempt), "ready.json"), {
+          version: 2,
+          ...identityEvidence(observation),
+        });
         return;
       } catch (error) {
         failure = error;
@@ -660,15 +837,16 @@ export class EditingBackendLaunch {
 export async function verifyEditingBackend(
   attempt: string,
   selectedPort: string | undefined,
-  input: { protocolFile: string; protocolHash: string } & (
-    | { phase: "before" }
-    | { phase: "after"; previous: BackendEvidence }
-  ),
+  input: {
+    protocolFile: string;
+    protocolHash: string;
+    environment: NodeJS.ProcessEnv;
+  } & ({ phase: "before" } | { phase: "after"; previous: BackendEvidence }),
 ): Promise<BackendEvidence> {
   const request = requestIdentity(
     input.protocolFile,
     input.protocolHash,
-    attempt,
+    captureCleanupOwner(input.environment),
     Number(selectedPort),
   );
   census(attempt, request.port);
@@ -681,6 +859,7 @@ export async function verifyEditingBackend(
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   const ready = fields(JSON.parse(fs.readFileSync(readyFile, "utf8")), [
+    "version",
     "protocolHash",
     "pid",
     "startTime",
@@ -688,8 +867,10 @@ export async function verifyEditingBackend(
     "receiptHash",
     "launchHash",
   ]);
+  if (ready.version !== 2)
+    throw new Error("Editing backend ready version differs");
   const observation: Observation = {
-    ...(await observe(attempt, request)),
+    ...(await observe(attempt, request, input.environment)),
     phase: input.phase,
   };
   const bytes = `${JSON.stringify(observation, null, 2)}\n`;
@@ -717,6 +898,8 @@ function retainedObservation(
   expected: BoundIdentity,
   protocolHash: string,
   port: number,
+  currentLaunch: LaunchRecord,
+  requestHash: string,
 ): BackendEvidence {
   const bytes = fs.readFileSync(
     path.join(identityDirectory(attempt), `${phase}.json`),
@@ -732,7 +915,7 @@ function retainedObservation(
     "launch",
     "facts",
   ]);
-  if (row.version !== 1 || row.phase !== phase)
+  if (row.version !== 2 || row.phase !== phase)
     throw new Error("Editing backend observation phase differs");
   same(row.attempt, path.resolve(attempt), "retained attempt");
   same(row.protocolHash, protocolHash, "retained protocol");
@@ -748,6 +931,8 @@ function retainedObservation(
       "executable",
       "productionDist",
       "shareRegistry",
+      "shareIdentity",
+      "cleanupOwner",
       "health",
     ]);
   const receiptBytes = text(receipt.bytes),
@@ -768,13 +953,18 @@ function retainedObservation(
     executable: text(raw.executable),
     productionDist: text(raw.productionDist),
     shareRegistry: text(raw.shareRegistry),
+    shareIdentity: text(raw.shareIdentity),
+    cleanupOwner: parseCleanupOwner(raw.cleanupOwner),
     health: { status: 200, ok: true },
   };
   if (!/^\d+$/.test(facts.listenerInode) || !/^\d+$/.test(facts.listenerFd))
     throw new Error("Editing backend retained socket facts differ");
+  const retainedLaunch = parseLaunch(launchBytes);
+  same(retainedLaunch, currentLaunch, "retained launch");
+  same(retainedLaunch.requestHash, requestHash, "request bytes");
   validateOwnership(
     parseReceipt(receiptBytes),
-    parseLaunch(launchBytes),
+    retainedLaunch,
     facts,
     expected,
     protocolHash,
@@ -783,7 +973,7 @@ function retainedObservation(
   );
   return evidence(
     {
-      version: 1,
+      version: 2,
       phase,
       protocolHash,
       attempt: path.resolve(attempt),
@@ -801,17 +991,24 @@ export function admitRetainedBackend(
   protocolHash: string,
 ): BackendAdmission {
   try {
-    const expected = protocolIdentity(protocolFile, protocolHash, attempt);
-    const request = fields(
-      JSON.parse(
-        fs.readFileSync(
-          path.join(identityDirectory(attempt), "request.json"),
-          "utf8",
-        ),
+    const launch = parseLaunch(
+      fs.readFileSync(
+        path.join(identityDirectory(attempt), "launch.json"),
+        "utf8",
       ),
-      ["version", "protocolHash", "host", "port", "expected"],
     );
-    const requested = parseIdentity(request.expected);
+    const expected = boundIdentity(
+      protocolIdentity(protocolFile, protocolHash),
+      launch.cleanupOwner,
+    );
+    const requestBytes = fs.readFileSync(
+      path.join(identityDirectory(attempt), "request.json"),
+      "utf8",
+    );
+    const requestHash = hash(requestBytes);
+    same(requestHash, launch.requestHash, "request bytes");
+    const request = parseRequest(requestBytes);
+    const requested = request.expected;
     same(
       requested,
       {
@@ -822,15 +1019,15 @@ export function admitRetainedBackend(
       "retained request expectations",
     );
     same(request.protocolHash, protocolHash, "retained request protocol");
-    if (request.version !== 1 || request.host !== "127.0.0.1")
-      throw new Error("Editing backend retained request differs");
-    const port = integer(request.port, 65535);
+    const port = request.port;
     const before = retainedObservation(
       attempt,
       "before",
       requested,
       protocolHash,
       port,
+      launch,
+      requestHash,
     );
     const after = retainedObservation(
       attempt,
@@ -838,6 +1035,8 @@ export function admitRetainedBackend(
       requested,
       protocolHash,
       port,
+      launch,
+      requestHash,
     );
     continuous(before, after);
     const trial = object(

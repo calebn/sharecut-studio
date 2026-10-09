@@ -232,6 +232,18 @@ helper, keymap listener, and WebMCP adapter.
 
 ## Testing
 
+Run GUI browser tests through `npm run test:e2e` or `npm run test:e2e:compat`.
+The wrapper owns private registry and identity files under its cleanup manifest.
+Direct Playwright GUI startup without that manifest is refused. Dedicated editing
+identity uses the same validated physical owner and both selected auth paths.
+It retains private wire2 launch and phase facts for admission after native cleanup,
+without reopening the deleted manifest or stores. The identity-store path proves
+selected environment only; retained interpreter and distribution paths still must
+exist. Mutable workspace registration does not invalidate the owner.
+`make ux-demo-screens` copies the existing showcase project and seeds guest shares
+through the same launcher and registry. It leaves caller fixture and token files
+unchanged. `UX_DEMO_SCREENS_DIR` can place generated PNGs outside the UX assets.
+
 | Kind | Where | Notes |
 |------|-------|-------|
 | Unit | `src/**/*.test.ts` | Pure utils, session dedupe, share mode, theme init/resolution |

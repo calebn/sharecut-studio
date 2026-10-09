@@ -549,6 +549,7 @@ export async function runEditingTask(
   const backendInput = {
     protocolFile: process.env.EDITING_PROTOCOL_FILE!,
     protocolHash: process.env.EDITING_PROTOCOL_HASH!,
+    environment: process.env,
   };
   try {
     try {

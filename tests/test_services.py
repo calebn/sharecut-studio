@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.models import (
+    Clip,
     CombinedTranscript,
     CombinedUtterance,
     EditMode,
@@ -29,6 +30,37 @@ def test_edit_service_list_applied_and_render_status(minimal_project):
     assert applied["count"] == 0
     status = svc.render_status()
     assert "needs_rerender" in status
+
+
+def test_edit_service_list_clips_acquires_a_fresh_secret_per_call(minimal_project, monkeypatch):
+    registry = MagicMock()
+    registry.recording_key_secret.side_effect = [b"a" * 32, b"b" * 32]
+    monkeypatch.setattr("podcast_mcp.services.document.edit.get_share_registry", lambda: registry)
+    workspace = ProjectWorkspace.open(minimal_project)
+    workspace.project.timeline.tracks = [
+        Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=1.0))
+    ]
+    workspace.project.timeline.clips = [
+        Clip(id="clip", track_id="host", source_start=0, source_end=1, timeline_start=0)
+    ]
+    service = EditService(workspace)
+
+    first = service.list_clips()
+    second = service.list_clips()
+    first_rows = [row for rows in first["tracks"].values() for row in rows]
+    second_rows = [row for rows in second["tracks"].values() for row in rows]
+
+    assert registry.recording_key_secret.call_count == 2
+    assert first_rows[0]["recording_key"] != second_rows[0]["recording_key"]
+
+
+def test_edit_service_list_clips_propagates_secret_storage_failure(minimal_project, monkeypatch):
+    registry = MagicMock()
+    registry.recording_key_secret.side_effect = OSError("registry unavailable")
+    monkeypatch.setattr("podcast_mcp.services.document.edit.get_share_registry", lambda: registry)
+
+    with pytest.raises(OSError, match="registry unavailable"):
+        EditService(ProjectWorkspace.open(minimal_project)).list_clips()
 
 
 def test_edit_service_search_and_impact(minimal_project):

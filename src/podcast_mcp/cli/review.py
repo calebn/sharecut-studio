@@ -325,10 +325,10 @@ def review_backup_registry_cmd(
     dest: Path | None = typer.Option(
         None,
         "--dest",
-        help="Backup file path (default: sibling timestamped .bak.sqlite)",
+        help="New backup file in an existing trusted private directory (default: timestamp + random suffix)",
     ),
 ) -> None:
-    """Copy the host share registry sqlite DB (WAL-safe online backup)."""
+    """Create a new private standalone registry backup; existing destinations are refused."""
     from podcast_mcp.edits.share_registry import (
         backup_share_registry,
         default_share_registry_db_path,

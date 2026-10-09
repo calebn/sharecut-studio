@@ -292,6 +292,13 @@ Share token algorithm (coolname, active + cooldown pools): [share-tokens.md](sha
 **Extend an existing store** instead of inventing a parallel JSON index or DB.
 Recording sessions reuse the share registry (`kind`) and prefixed session-sync
 sqlite tables (`record_*`) rather than a new plane — see [recording-session.md](recording-session.md).
+`EditService.list_clips` acquires the host-local recording-key secret from the
+share registry once per call; `edits.timeline_ops.list_clips` passes it to pure
+HMAC derivation in `edits.clips_ops.recording_key`. Registry and session SQLite owners share
+`util/sqlite_wal.ensure_wal` for the bounded WAL transition; session setup retains
+its per-path locks and timing controls. A failed registry secret transaction closes
+its connection. The process-wide getter and each registry operation recover from
+durable state before token lookup, including directly injected registry owners.
 
 ### Service contexts
 
@@ -465,6 +472,13 @@ Never key a cache on object identity (`id()`) of mutable project data.
 
 `edits/transcript_timing.py` owns raw transcript identity, dependency guards, source bounds, overlap warnings and evidence invalidation. `services/document/transcript_timing.py` resolves the existing recording and current waveform metadata; `EditService` supplies the transaction and single history mutation. The Wordbar receives an on-demand context through a thin GUI route and saves through `SetTranscriptWordTiming`. Its raw preview is a local owned descriptor in the existing transport slice/controller, with separate source progress and no session transport publication. The shared waveform renderer accepts an explicit viewport for local source-clock editors. Existing timeline mapping and public raw/processed/mix semantics are unchanged.
 
+### Captured fade dependencies
+
+`edits/clip_fades.py` owns the immutable saved fade pair and its comparison.
+`EditService.set_clip_fade` checks it under the workspace transaction before
+history capture. The document payload requires the baseline. Local host MCP
+can deliberately set both fades unconditionally through the same service.
+
 ### Document projection authority
 
 `services/document_sync/projection_delta.py` compares the named projections built by `gui/assembler.py`. It emits closed section operations with bounded row, word, and text splices. It does not persist another document model. The assembler owns the dependency census for the process-local immutable snapshot cache. The cache holds at most four entries and 16 MiB, and command admission follows SQLite commit while project ownership is held.
@@ -492,8 +506,18 @@ module and selected static root. `run_gui_server` compares those facts and publi
 a private receipt only after acquiring the exact socket supplied to uvicorn. The
 existing E2E wrapper records its actual child and requires owned listener identity
 plus health. Browser checks precede mutation and follow final observation work.
-Producer admission joins retained before/after proof after process shutdown,
-independently of assets and semantics. Dedicated certification requires Linux native
+The existing cleanup manifest remains the auth lifecycle owner. `runtimeEnv.ts`
+selects both auth child paths through one validated physical-directory projection.
+Private wire2 launch and observation records retain the physical cleanup owner and
+exact request hash. Live checks compare observer and serving process manifests
+around native health; valid workspace registration may replace manifest bytes.
+Producer admission joins retained before/after proof after process shutdown
+and native owner deletion, using strict recorded owner metadata and pure path
+relations without reading deleted auth resources. Identity-store environment
+selection does not prove database access. Canonical interpreter and distribution
+existence remain retained requirements. These hashes do not authenticate a
+same-user writer or prove compiled execution closure. Admission stays independent
+of assets and semantics. Dedicated certification requires Linux native
 process and socket facts. Ordinary GUI launch behavior remains available elsewhere.
 The route registry declares cancellation recipes consumed by input execution and assessment.
 The canonical `twoBrowserPages.ts` helper closes acquired cancellation contexts after
@@ -524,3 +548,25 @@ Stored duration retains fully removed lane extent, including moved media.
 orchestration for islands and silence; domain code owns geometry and validation.
 Selected segments bake staging gain, so their mix adds fader gain only. Full
 Bounce stems retain the ordinary output-gain path.
+
+### Registry backup boundary
+
+`edits/share_registry.py` owns the current main/WAL/SHM/journal privacy scope,
+connection recovery, and durable secret. `util/registry_privacy.py` selects the
+native operation-scoped admission check. Source and backup reuse the same native
+ACL predicates and ancestry walk in `registry_backup_posix.py` and
+`registry_backup_windows.py`. The publisher alone owns snapshot names, staging,
+and no-replace publication. Backend workspace, created-file, and reader contexts
+own acquisition and cleanup before metadata, validation, or CRT conversion.
+The publisher borrows paths and descriptors without recapturing creation identity.
+`util/registry_cleanup.py` preserves initiating errors and drains independent
+releases, including snapshot SQLite close. Unknown creation identity permits
+resource release but not name deletion. Completed final backups are never cleanup targets.
+
+`edits/share_registry.py` owns the online SQLite snapshot and registry transaction
+recovery. Its narrow `util/registry_backup.py` publisher creates a private disk
+snapshot, then streams bytes into a new single-file backup. Platform helpers pin
+and verify POSIX directory descriptors/ACLs or Windows NTFS handles/DACLs. SQLite
+never opens a destination staging pathname. Publication is atomic no-replace on
+the destination filesystem; the helper does not manage other stores or review
+leases. See [backup/restore](share-tokens.md#backup--restore) for operator rules.

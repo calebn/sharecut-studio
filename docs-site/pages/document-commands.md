@@ -54,7 +54,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RestoreAppliedEdit` | `id` (string) | — |
 | `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
-| `SetClipFade` | `clip_id` (string), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
+| `SetClipFade` | `clip_id` (string), `expected` (object), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
 | `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |

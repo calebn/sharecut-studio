@@ -648,7 +648,6 @@ try {
       EDITING_PROTOCOL_FILE: path.join(output, "protocol.json"),
       DAW_PROFILE_OUT: path.join(attempt, "profiler"),
       PODCAST_GUI_DIST: dist,
-      PODCAST_SHARE_REGISTRY: path.join(attempt, "share-registry.sqlite"),
       DAW_PROFILE_TRACE: values.diagnostic ? "1" : "",
     });
     delete process.env.DAW_E2E_PROJECT;

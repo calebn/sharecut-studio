@@ -9,6 +9,8 @@ from contextlib import contextmanager
 
 _BUSY_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
 
+SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
+
 # Busy timeout every sqlite store sets on its connection: wait up to 5 s for another
 # connection's write lock before raising SQLITE_BUSY (sqlite3.connect's default).
 DEFAULT_BUSY_TIMEOUT_PRAGMA = "PRAGMA busy_timeout=5000"
@@ -31,9 +33,10 @@ def immediate_transaction(conn: sqlite3.Connection) -> Iterator[None]:
 
     ``BEGIN IMMEDIATE`` takes the database write lock up front, so every connection to
     the file (other processes included) serializes on it. If the body raises or ``COMMIT``
-    fails (SQLITE_FULL, IOERR, BUSY), it rolls back, so the connection never stays inside
-    an open transaction. A failing ``ROLLBACK`` is suppressed so the original error
-    propagates. Not re-entrant: callers that nest keep their own depth count.
+    fails (SQLITE_FULL, IOERR, BUSY), it attempts rollback. A failing ``ROLLBACK``
+    with a SQLite error is suppressed so the original error propagates; the owner must
+    close a connection that remains in a transaction after failure. Not re-entrant:
+    callers that nest keep their own depth count.
     """
     conn.execute("BEGIN IMMEDIATE")
     try:

@@ -1045,7 +1045,7 @@ def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, samp
     assert loaded.clips[0].mute_regions
     from podcast_mcp.edits.timeline_ops import list_clips
 
-    listed = list_clips(loaded, track_id="host")
+    listed = list_clips(loaded, track_id="host", secret=bytes(32))
     assert listed["tracks"]["host"][0]["mute_regions"][0]["start_s"] == pytest.approx(0.2)
 
 

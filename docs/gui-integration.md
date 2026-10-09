@@ -198,6 +198,19 @@ Any HTTP route that does not map `project_commit_lock` / `render_lock` contentio
 
 Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation.
 
+Fade gestures capture both saved fades and submit that pair with `SetClipFade`.
+The server refuses a stale pair before history capture, including a draft made
+while an Undo reply was delayed. The current project shows "This clip changed.
+Nothing was saved. Adjust the fade again." Timeline handles and phone nudges
+announce it visibly; Clip Inspector shows it inline. A fresh gesture uses the
+restored pair. On a coded `clip_fade_changed` refusal, the shared command queue
+refreshes the current project through `refreshDocumentProject` before reporting
+the refusal, even when a peer's WebSocket projection is delayed. This also applies
+to host and guest offline replay. The rejected command keeps its original
+baseline and identity, leaves the queue permanently, and remains in **Needs
+attention**. A failed refresh preserves the original refusal. A delayed refresh
+cannot apply to a switched project or a reopened project generation.
+
 ### Pointer draft ownership
 
 A clip body keeps its existing pointer selection and focus policy. Its key

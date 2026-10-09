@@ -235,6 +235,13 @@ Undo keeps its own entry even when it waits behind a Mod+Z. A refusal is announc
 offline-queued undo keeps its expected head, so a replay after other edits is refused
 (and listed in **Needs attention**) instead of reverting them.
 
+A fade drafted before an Undo projection arrives retains its original saved
+fade pair. `EditService.set_clip_fade` compares that pair in the same project
+transaction, before `mutate()` captures history. A mismatch changes neither
+fades, history head, redo entries, nor the document journal. A fresh gesture can
+save against the restored pair. This target guard leaves the save-before-Undo
+wait and unseen-peer history-head refusal unchanged.
+
 ## MCP tools
 
 - `history_list` — entries, cursor, and grouped mutations

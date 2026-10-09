@@ -144,7 +144,10 @@ describe("ClipInspector fades", () => {
     expect(screen.getByLabelText("Fade in ms")).toHaveAttribute("max", "40");
     expect(screen.getByText("max 40 ms")).toBeInTheDocument();
     await dragFade("in", 40);
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 40, 0);
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 40, 0, {
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+    });
     await expectNoA11yViolations(container);
   });
 
@@ -156,7 +159,10 @@ describe("ClipInspector fades", () => {
     );
     render(<ClipInspector clip={shortClip} />);
     await dragFade("in", 200);
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 200, 0);
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 200, 0, {
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+    });
   });
 
   it("previews a fade edge, commits one pair, and preserves the stationary edge", async () => {
@@ -174,7 +180,10 @@ describe("ClipInspector fades", () => {
     expect(setClipFade).not.toHaveBeenCalled();
     fireEvent.pointerUp(fadeIn, { pointerId: 1 });
     await waitFor(() => {
-      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 150, 30);
+      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 150, 30, {
+        fade_in_ms: 0,
+        fade_out_ms: 30,
+      });
     });
   });
 
@@ -223,6 +232,51 @@ describe("ClipInspector fades", () => {
     expect(screen.getByLabelText("Fade in ms")).toHaveValue("7");
   });
 
+  it("shows a stale fade refusal after recovery and saves a fresh gesture", async () => {
+    const old = { ...clip, fade_in_ms: 1 };
+    hydrateClipProject(sampleTrack(), old);
+    let refuse!: (error: Error) => void;
+    vi.mocked(setClipFade).mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          refuse = reject;
+        }),
+    );
+    const view = render(<ClipInspector clip={old} />);
+    await dragFade("out", 1);
+    expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep.json", "c1", 1, 1, {
+      fade_in_ms: 1,
+      fade_out_ms: 0,
+    });
+    const current = useDawStore.getState().project!;
+    act(() =>
+      useDawStore.setState({
+        project: {
+          ...current,
+          clips: { ...current.clips, tracks: { host: [clip] } },
+        },
+      }),
+    );
+    view.rerender(<ClipInspector clip={clip} />);
+    await act(async () =>
+      refuse(
+        new Error(
+          "This clip changed. Nothing was saved. Adjust the fade again.",
+        ),
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Adjust the fade again.",
+    );
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue("0");
+    expect(screen.getByLabelText("Fade out ms")).toHaveValue("0");
+    await dragFade("out", 1);
+    expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep.json", "c1", 0, 1, {
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+    });
+  });
+
   it("keeps the typed value when the save fails", async () => {
     hydrateClipProject(sampleTrack({ fade_max_ms: 40 }));
     vi.mocked(setClipFade).mockRejectedValueOnce(new Error("boom"));
@@ -266,7 +320,10 @@ describe("ClipInspector fades", () => {
     expect(setClipFade).not.toHaveBeenCalled();
     fireEvent.keyUp(fadeIn, { key: "ArrowRight" });
     await waitFor(() => {
-      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 1, 0);
+      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 1, 0, {
+        fade_in_ms: 0,
+        fade_out_ms: 0,
+      });
     });
   });
 
@@ -580,7 +637,10 @@ describe("ClipInspector join", () => {
       screen.getByText(/Fade out ignored.* · max 40 ms/),
     ).toBeInTheDocument();
     await dragFade("in", 40);
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 40, 0);
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 40, 0, {
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+    });
   });
 
   it("sends the ignored fade-out unchanged", async () => {
@@ -589,7 +649,10 @@ describe("ClipInspector join", () => {
     vi.mocked(setClipFade).mockClear();
     render(<ClipInspector clip={left} />);
     await dragFade("in", 20);
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30);
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30, {
+      fade_in_ms: 0,
+      fade_out_ms: 30,
+    });
   });
 
   it("preserves the stationary fade while the available edge range shrinks", async () => {
@@ -599,7 +662,10 @@ describe("ClipInspector join", () => {
     render(<ClipInspector clip={left} />);
     expect(screen.getByLabelText("Fade in ms")).toHaveAttribute("max", "20");
     await dragFade("in", 20);
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30);
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30, {
+      fade_in_ms: 0,
+      fade_out_ms: 30,
+    });
   });
 
   it("uses a typed length once, then the mode default", async () => {

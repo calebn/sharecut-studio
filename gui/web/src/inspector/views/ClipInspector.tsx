@@ -285,6 +285,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
         capture.clipId,
         pair.inMs,
         pair.outMs,
+        { fade_in_ms: capture.fadeInMs, fade_out_ms: capture.fadeOutMs },
       );
       const currentGesture = fadeGestureRef.current;
       if (
@@ -299,7 +300,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
         currentGesture.kind === "committing" &&
         currentGesture.operation === operation
       ) {
-        if (savedPairIsCurrent(capture)) {
+        if (identityIsCurrent(capture)) {
           setFadeError(errorMessage(error));
         }
         changeFadeGesture(IDLE_FADE_GESTURE);

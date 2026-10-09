@@ -44,7 +44,10 @@ async function send(
   fresh: () => boolean,
 ): Promise<boolean> {
   if (change.kind === "fade") {
-    await setClipFade(projectPath, clip.id, change.inMs, change.outMs);
+    await setClipFade(projectPath, clip.id, change.inMs, change.outMs, {
+      fade_in_ms: clip.fade_in_ms,
+      fade_out_ms: clip.fade_out_ms,
+    });
     return true;
   }
   const { id, source_start, source_end, timeline_start, source_id } = clip;

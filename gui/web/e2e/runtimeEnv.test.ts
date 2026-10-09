@@ -1,13 +1,27 @@
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { e2eRuntimeEnv } from "./runtimeEnv";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  createE2eCleanupManifest,
+  type E2eCleanupManifest,
+  ownedE2eManifestDirectory,
+} from "./cleanupManifest";
+import { e2eAuthStores, e2eRuntimeEnv, ownedE2eAuthStores } from "./runtimeEnv";
 
 describe("e2eRuntimeEnv", () => {
+  let manifest: E2eCleanupManifest;
+  beforeEach(() => {
+    manifest = createE2eCleanupManifest();
+  });
+  afterEach(() => {
+    fs.rmSync(manifest.manifestDir, { recursive: true, force: true });
+  });
   it("removes every relay and object-store deployment setting", () => {
     const env = e2eRuntimeEnv(
       {
         PODCAST_EDITING_BIND_REQUEST: "/tmp/stale-private-bind-request.json",
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
         PODCAST_RELAY_CONFIG: "/Users/developer/.config/podcast_mcp/relay.yaml",
         PODCAST_RELAY_URL: "https://relay.example.test",
         PODCAST_RELAY_HOST_TOKEN: "relay-secret",
@@ -46,6 +60,7 @@ describe("e2eRuntimeEnv", () => {
   it("does not allow a developer relay config to override isolation", () => {
     const env = e2eRuntimeEnv(
       {
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
         PODCAST_RELAY_CONFIG: "/tmp/developer-relay.yaml",
         PODCAST_E2E_RELAY_CONFIG: "/tmp/unsupported-override.yaml",
       },
@@ -54,5 +69,86 @@ describe("e2eRuntimeEnv", () => {
     expect(env.PODCAST_RELAY_CONFIG).toBe(
       path.join(os.tmpdir(), "sharecut-e2e-relay-test-run.yaml"),
     );
+  });
+
+  it("derives auth stores from the physical directory of a validated invocation manifest", () => {
+    const physical = fs.realpathSync(manifest.manifestDir);
+    const env = e2eRuntimeEnv(
+      {
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
+        PODCAST_SHARE_REGISTRY: "/host/registry.sqlite",
+        PODCAST_SHARE_IDENTITY: "/host/identity.sqlite",
+        UX_DEMO_SCREENSHOTS: "1",
+      },
+      "physical-owner",
+    );
+
+    expect(ownedE2eManifestDirectory(manifest.manifestPath)).toBe(physical);
+    expect(env.PODCAST_SHARE_REGISTRY).toBe(
+      path.join(physical, "share_registry.sqlite"),
+    );
+    expect(env.PODCAST_SHARE_IDENTITY).toBe(
+      path.join(physical, "share_identity.sqlite"),
+    );
+    expect(env.UX_DEMO_GUEST_TOKENS).toBe(
+      path.join(physical, "guest-tokens.json"),
+    );
+  });
+
+  it("refuses invalid invocation metadata before choosing auth paths", () => {
+    const host = fs.mkdtempSync(
+      path.join(os.tmpdir(), "sharecut-e2e-host-sentinel-"),
+    );
+    const registry = path.join(host, "registry.sqlite");
+    const identity = path.join(host, "identity.sqlite");
+    fs.writeFileSync(registry, "host registry sentinel");
+    fs.writeFileSync(identity, "host identity sentinel");
+    const invalidManifest = '{"workspaces":[17]}\n';
+    fs.writeFileSync(manifest.manifestPath, invalidManifest);
+
+    try {
+      expect(() =>
+        e2eRuntimeEnv(
+          {
+            DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
+            PODCAST_SHARE_REGISTRY: registry,
+            PODCAST_SHARE_IDENTITY: identity,
+            UX_DEMO_SCREENSHOTS: "1",
+          },
+          "invalid-owner",
+        ),
+      ).toThrow("E2E cleanup manifest is invalid");
+
+      expect(fs.readFileSync(registry, "utf8")).toBe("host registry sentinel");
+      expect(fs.readFileSync(identity, "utf8")).toBe("host identity sentinel");
+      expect(fs.readFileSync(manifest.manifestPath, "utf8")).toBe(
+        invalidManifest,
+      );
+    } finally {
+      fs.rmSync(host, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("owned auth projection", () => {
+  it("keeps the selected physical child-path relation after native owner deletion", () => {
+    const manifest = createE2eCleanupManifest();
+    const physical = fs.realpathSync(manifest.manifestDir);
+    try {
+      expect(ownedE2eAuthStores(manifest.manifestPath)).toEqual({
+        directory: physical,
+        shareRegistry: path.join(physical, "share_registry.sqlite"),
+        shareIdentity: path.join(physical, "share_identity.sqlite"),
+      });
+      fs.rmSync(manifest.manifestDir, { recursive: true });
+      expect(e2eAuthStores(physical)).toEqual({
+        directory: physical,
+        shareRegistry: path.join(physical, "share_registry.sqlite"),
+        shareIdentity: path.join(physical, "share_identity.sqlite"),
+      });
+      expect(() => ownedE2eAuthStores(manifest.manifestPath)).toThrow();
+    } finally {
+      fs.rmSync(manifest.manifestDir, { recursive: true, force: true });
+    }
   });
 });

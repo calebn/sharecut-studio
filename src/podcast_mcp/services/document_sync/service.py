@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from podcast_mcp.edits.clip_fades import ClipFadeChangedError
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
 from podcast_mcp.edits.range_edits import RangeChangedError
@@ -69,6 +70,7 @@ STALE_TARGET_ERRORS: tuple[type[ValueError], ...] = (
     StaleHistoryError,
     RangeChangedError,
     PendingEditChangedError,
+    ClipFadeChangedError,
     TranscriptTextChangedError,
     TranscriptTimingChangedError,
 )

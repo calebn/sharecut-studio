@@ -18,6 +18,7 @@ import {
 import {
   applyDocumentResult,
   refreshDocumentDisplay,
+  refreshDocumentProject,
 } from "../document/applyDocumentUpdate";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -30,7 +31,7 @@ import {
 import type { QueuedCommand } from "../state/offlineStore";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import { parseHistoryEntryId } from "../types/project";
-import { isRetryLater } from "../utils/apiError";
+import { ApiError, isRetryLater } from "../utils/apiError";
 import {
   documentClientId,
   newCommandId,
@@ -145,6 +146,9 @@ export async function submitQueuedDocumentCommand(
     if (active && isCurrentDocumentScope(scope)) {
       finishDocumentDraft(commandId);
       refreshDocumentDisplay();
+      if (error instanceof ApiError && error.code === "clip_fade_changed") {
+        await refreshDocumentProject(projectPath).catch(() => undefined);
+      }
     }
     throw error;
   }

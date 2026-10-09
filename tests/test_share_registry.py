@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -31,6 +32,15 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService, lookup_share
 from sqlite_helpers import FailingConnection
+
+
+def _registry_secret_process(db_path: str, barrier, queue) -> None:
+    registry = SqliteShareRegistry(Path(db_path))
+    try:
+        barrier.wait(timeout=10)
+        queue.put(registry.recording_key_secret())
+    finally:
+        registry.close()
 
 
 def _iso(dt: datetime) -> str:
@@ -647,6 +657,7 @@ def test_claim_with_mint_retry_on_collision(registry: SqliteShareRegistry):
 def test_backup_share_registry(registry: SqliteShareRegistry, tmp_path: Path):
     from podcast_mcp.edits.share_registry import backup_share_registry
 
+    secret = registry.recording_key_secret()
     now = datetime.now(UTC)
     registry.claim_active(
         {
@@ -660,12 +671,104 @@ def test_backup_share_registry(registry: SqliteShareRegistry, tmp_path: Path):
         }
     )
     dest = tmp_path / "copies" / "reg.bak.sqlite"
+    dest.parent.mkdir(mode=0o700)
     out = backup_share_registry(dest, registry=registry)
     assert out == dest.resolve()
     assert dest.is_file()
     restored = SqliteShareRegistry(dest)
     assert restored.get_active("backup-me-slug") is not None
+    assert restored.recording_key_secret() == secret
     restored.close()
+
+
+def test_recording_key_secret_persists_and_is_install_local(tmp_path: Path) -> None:
+    first_path = tmp_path / "first.sqlite"
+    first = SqliteShareRegistry(first_path)
+    secret = first.recording_key_secret()
+    assert isinstance(secret, bytes) and len(secret) == 32
+    first.close()
+    reopened = SqliteShareRegistry(first_path)
+    assert reopened.recording_key_secret() == secret
+    separate = SqliteShareRegistry(tmp_path / "second.sqlite")
+    assert separate.recording_key_secret() != secret
+    reopened.close()
+    separate.close()
+
+
+def test_recording_key_secret_concurrent_process_initialization(tmp_path: Path) -> None:
+    path = tmp_path / "shared.sqlite"
+    ctx = multiprocessing.get_context("spawn")
+    barrier = ctx.Barrier(4)
+    queue = ctx.Queue()
+    processes = [
+        ctx.Process(target=_registry_secret_process, args=(str(path), barrier, queue))
+        for _ in range(4)
+    ]
+    started = []
+    try:
+        for process in processes:
+            process.start()
+            started.append(process)
+        secrets_seen = [queue.get(timeout=20) for _ in processes]
+        for process in processes:
+            process.join(timeout=20)
+            assert process.exitcode == 0
+        assert len(set(secrets_seen)) == 1
+        assert len(secrets_seen[0]) == 32
+    finally:
+        for process in started:
+            if process.is_alive():
+                process.terminate()
+            process.join()
+            process.close()
+        queue.close()
+        queue.join_thread()
+
+
+def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
+    registry: SqliteShareRegistry,
+) -> None:
+    with patch(
+        "podcast_mcp.edits.share_registry.secrets.token_bytes",
+        side_effect=OSError("entropy unavailable"),
+    ):
+        with pytest.raises(OSError, match="entropy unavailable"):
+            registry.recording_key_secret()
+    with sqlite3.connect(registry.db_path) as observer:
+        assert observer.execute("SELECT * FROM recording_key_secret").fetchall() == []
+        assert observer.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    assert len(registry.recording_key_secret()) == 32
+
+
+def test_recording_key_secret_refuses_malformed_stored_value(registry: SqliteShareRegistry) -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    registry._conn.execute(
+        "INSERT INTO recording_key_secret (singleton, secret) VALUES (1, ?)", (b"short",)
+    )
+    with pytest.raises(CodedValueError) as exc:
+        registry.recording_key_secret()
+    assert exc.value.code == "recording_key_secret_invalid"
+
+
+def test_recording_key_secret_reads_committed_updates_from_another_connection(
+    registry: SqliteShareRegistry,
+) -> None:
+    replacement = b"z" * 32
+    second = sqlite3.connect(registry.db_path)
+    try:
+        second.execute(
+            "UPDATE recording_key_secret SET secret = ? WHERE singleton = 1",
+            (registry.recording_key_secret(),),
+        )
+        second.commit()
+        second.execute(
+            "UPDATE recording_key_secret SET secret = ? WHERE singleton = 1", (replacement,)
+        )
+        second.commit()
+    finally:
+        second.close()
+    assert registry.recording_key_secret() == replacement
 
 
 def test_release_claim(registry: SqliteShareRegistry):
@@ -904,12 +1007,10 @@ def test_failed_commit_rolls_back_release_claim(registry: SqliteShareRegistry):
     )
     real = registry._conn
     registry._conn = FailingConnection(real, "COMMIT")  # type: ignore[assignment]
-    try:
-        with pytest.raises(sqlite3.OperationalError):
-            registry.release_claim("commit-fail-token")
-    finally:
-        registry._conn = real
-    assert not real.in_transaction
+    with pytest.raises(sqlite3.OperationalError):
+        registry.release_claim("commit-fail-token")
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        real.execute("SELECT 1")
     assert registry.get_active("commit-fail-token") is not None
     assert registry.release_claim("commit-fail-token") is True
 

@@ -444,6 +444,7 @@ export async function saveNudge(
           clip.id,
           field.edge === "in" ? value : clip.fade_in_ms,
           field.edge === "out" ? value : clip.fade_out_ms,
+          { fade_in_ms: clip.fade_in_ms, fade_out_ms: clip.fade_out_ms },
         );
         return true;
       }

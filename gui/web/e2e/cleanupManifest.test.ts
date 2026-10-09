@@ -6,6 +6,7 @@ import {
   cleanupE2eManifest,
   createE2eCleanupManifest,
   managedTmpWorkspace,
+  ownedE2eManifestDirectory,
   registerE2eCleanupWorkspace,
 } from "./cleanupManifest";
 import { removeAfterTest, tempWorkspace } from "./testWorkspace";
@@ -56,6 +57,29 @@ describe("E2E cleanup manifest", () => {
     expect(JSON.parse(fs.readFileSync(manifest.manifestPath, "utf8"))).toEqual({
       workspaces: [retained],
     });
+  });
+
+  it("refuses a symlink alias before deriving a physical owned directory", () => {
+    const manifest = createE2eCleanupManifest();
+    const alias = path.join(
+      os.tmpdir(),
+      `sharecut-e2e-cleanup-alias-${process.pid}`,
+    );
+    fs.symlinkSync(manifest.manifestDir, alias, "dir");
+    const aliasedManifest = path.join(alias, "workspaces.json");
+    try {
+      expect(managedTmpWorkspace(alias)).toBe(path.resolve(alias));
+      expect(() => ownedE2eManifestDirectory(aliasedManifest)).toThrow(
+        "private invocation",
+      );
+      expect(fs.realpathSync(alias)).toBe(
+        fs.realpathSync(manifest.manifestDir),
+      );
+      expect(fs.existsSync(manifest.manifestPath)).toBe(true);
+    } finally {
+      fs.rmSync(alias, { recursive: true, force: true });
+      fs.rmSync(manifest.manifestDir, { recursive: true, force: true });
+    }
   });
 
   it("surfaces and retains a corrupt manifest", async () => {

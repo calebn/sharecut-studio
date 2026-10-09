@@ -170,15 +170,8 @@ ux-demo:
 
 # Capture Sharecut Studio screenshots into ux/assets/screens for the UX site.
 # Uses port 8777 by default so a local :8766 GUI does not block Playwright.
-# Prepares guest share tokens, captures host + guest PNGs, restores fixture JSON.
-ux-demo-screens: ux-demo
-	@rm -f /tmp/podcast_ux_demo_shares.sqlite /tmp/podcast_ux_demo_shares.sqlite-wal /tmp/podcast_ux_demo_shares.sqlite-shm
-	PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite \
-		uv run python scripts/ux_demo_prepare_shares.py --base-url http://127.0.0.1:$(or $(DAW_E2E_PORT),8777)
+ux-demo-screens:
 	cd gui/web && npm run build && \
-		PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite \
 		DAW_E2E_PORT=$(or $(DAW_E2E_PORT),8777) \
 		UX_DEMO_SCREENSHOTS=1 \
-		npx playwright test e2e/ux-demo-screenshots.spec.ts
-	git checkout -- tests/fixtures/sharecut_ux_demo/episode.project.json
-	@rm -f ux/assets/screens/.guest-tokens.json
+		npm run test:e2e -- e2e/ux-demo-screenshots.spec.ts

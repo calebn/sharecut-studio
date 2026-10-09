@@ -14,6 +14,7 @@ import socket
 import stat
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
@@ -119,7 +120,7 @@ def _editing_identity(app: Any, host: str, port: int) -> tuple[Path, dict[str, A
             raise ValueError("invalid expected identity")
         if (
             type(request["version"]) is not int
-            or request["version"] != 1
+            or request["version"] != 2
             or type(request["port"]) is not int
             or not 1 <= request["port"] <= 65535
             or request["host"] != "127.0.0.1"
@@ -136,11 +137,15 @@ def _editing_identity(app: Any, host: str, port: int) -> tuple[Path, dict[str, A
             raise ValueError("conflicting sidecar configuration")
         module = app.state.editing_factory_module
         if (
-            module.__name__ != "podcast_mcp.gui.server"
+            not isinstance(module, ModuleType)
+            or module.__name__ != "podcast_mcp.gui.server"
             or sys.modules.get(module.__name__) is not module
         ):
             raise ValueError("unregistered factory module")
-        module_path = Path(module.__file__).resolve(strict=True)
+        module_file = module.__file__
+        if not isinstance(module_file, str) or not module_file:
+            raise ValueError("factory module has no source file")
+        module_path = Path(module_file).resolve(strict=True)
         from podcast_mcp.edits.share_registry import default_share_registry_db_path
 
         actual = {
@@ -158,7 +163,7 @@ def _editing_identity(app: Any, host: str, port: int) -> tuple[Path, dict[str, A
         if receipt_path.exists():
             raise ValueError("live receipt already exists")
         return receipt_path, {
-            "version": 1,
+            "version": 2,
             "protocolHash": request["protocolHash"],
             "actual": actual,
         }

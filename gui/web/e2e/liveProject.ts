@@ -5,6 +5,7 @@ import {
   deferE2eWorkspaceCleanup,
   managedTmpWorkspace,
   registerE2eCleanupWorkspace,
+  registeredE2eCleanupWorkspace,
 } from "./cleanupManifest";
 import { committedE2eProjectPath, repoRoot } from "./env";
 
@@ -159,14 +160,26 @@ function copyDereferenced(src: string, dest: string): void {
  */
 export function copyUxDemoProject(demoProjectPath: string): string {
   const existing = process.env.UX_DEMO_PROJECT;
-  if (existing && fs.existsSync(existing)) {
+  if (
+    existing &&
+    fs.existsSync(existing) &&
+    registeredE2eCleanupWorkspace(path.dirname(existing))
+  ) {
     return existing;
   }
   const workspaceDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "sharecut-e2e-ux-demo-"),
   );
-  copyDereferenced(path.dirname(demoProjectPath), workspaceDir);
-  const projectPath = path.join(workspaceDir, path.basename(demoProjectPath));
-  process.env.UX_DEMO_PROJECT = projectPath;
-  return projectPath;
+  let deferred = false;
+  try {
+    deferred = registerE2eCleanupWorkspace(workspaceDir);
+    copyDereferenced(path.dirname(demoProjectPath), workspaceDir);
+    const projectPath = path.join(workspaceDir, path.basename(demoProjectPath));
+    relocateWorkspaceDir(projectPath, workspaceDir);
+    process.env.UX_DEMO_PROJECT = projectPath;
+    return projectPath;
+  } catch (error) {
+    if (!deferred) fs.rmSync(workspaceDir, { recursive: true, force: true });
+    throw error;
+  }
 }

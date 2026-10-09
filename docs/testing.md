@@ -390,8 +390,28 @@ Tests that need object storage mock `load_object_store_config` / `ObjectStoreCli
 
 `test_review_versions.py` / `test_review_share.py` cover review-media path containment (`..`, absolute, and symlink escapes; guest routes and host `/api/audio?kind=review` return 400), and `tests/test_workspace_paths.py` covers `resolve_within`.
 
-Playwright E2E launches also scrub relay and object-store deployment settings. Its
-server receives an invocation-local, nonexistent `PODCAST_RELAY_CONFIG`; all
+Playwright E2E launches also scrub relay and object-store deployment settings.
+Registry and identity SQLite files live beside the existing invocation cleanup
+manifest in its private directory. `runE2e` supplies both paths to Playwright;
+the Playwright config validates that owned manifest before either fixture helper
+can copy a project, change fixture environment variables, or write the live
+workspace stamp. This also protects direct Playwright commands such as `--list`,
+which do not pass through `runE2e`. The config and GUI launcher derive child
+environment paths from the same manifest. Direct fixture-helper callers may still
+use a missing manifest and clean up their returned copy locally; the wrapper owns
+registered fixture cleanup after confirmed process shutdown, and retains state
+when shutdown is unconfirmed.
+
+`make ux-demo-screens` uses the same npm wrapper and copies the existing demo
+fixture, including a supplied `UX_DEMO_PROJECT`, before changing review state.
+The GUI launcher renders the copied preview and seeds guest shares in that
+invocation's registry before startup.
+Its token JSON stays in the manifest directory. `UX_DEMO_SCREENS_DIR` selects an
+alternative screenshot output directory; the default remains `ux/assets/screens`.
+The target does not rebuild or restore a caller's fixture. Run `make ux-demo`
+separately when the showcase fixture needs rebuilding.
+
+The E2E server receives an invocation-local, nonexistent `PODCAST_RELAY_CONFIG`; all
 `PODCAST_RELAY_*` deployment settings and `PODCAST_OBJECT_STORE_*` values are
 removed. Developer credentials and network storage therefore cannot affect browser
 tests. A fixture that deliberately needs relay configuration must provide it within
@@ -1163,7 +1183,17 @@ admission parses retained proof after shutdown and remains independent of semant
 asset, runner, and duration gates. Stale protocol7 records reject.
 `tests/test_gui_bind.py` exercises real socket ownership and receipt lifetime through
 the public binder. `e2e/editingBackendIdentity.test.ts` rejects a real inert Python
-child and checks a real canonical listener plus retained admission after shutdown.
+child and checks a real canonical listener with a validated native owner. The
+canonical control registers a workspace between live phases, rejects exact
+request-byte mutation and a renamed original owner replaced at the same path,
+then confirms listener shutdown and removes the actual manifest owner before
+retained admission. Private request, receipt, launch, readiness and observation
+records require wire2; protocol8 remains current. Retained checks derive child
+paths from strict recorded physical owner metadata without opening deleted auth
+resources. The identity-store path is observed environment selection, not database
+access. Canonical interpreter and distribution existence remain required. Hashes
+and historical native observations do not authenticate a same-user artifact
+rewrite or establish compiled execution closure.
 These bounded tests do not replace installed CI and local UV browser controls or
 a same-interpreter alternate factory control. The producer fixture partially mocks
 only retained backend admission for its synthetic runner and supplies no serving proof.
@@ -2137,6 +2167,34 @@ are fingerprinted.
 
 `test_transcript_timing.py` covers exact primary/extra source keys, primary aliases, unplaced words, no-op history, stale sequence/flags/neighbors/media, measured waveform duration, automatic evidence versus locked choices, and exact Undo. `test_word_timing_adapters.py` covers the host adapter and source audio boundary. Frontend Wordbar tests exercise one save per pointer release, cancellation, explicit keyboard/numeric Apply, exact raw preview identity, local waveform viewport, stale recovery and axe. Transport/session tests cover ownership, unchanged timeline position, player reuse and suppression of pending WebSocket fallback writes. Browser checks must verify actual saved timing and Undo, source URLs/clocks and populated local waveforms; an artifact trace does not certify perceptual listening.
 
+### Captured fade regression coverage
+
+`test_clip_fade_baseline.py` sends raw document commands, saves `(1, 0)`, undoes
+to `(0, 0)`, and refuses stale `(1, 1)` without changing persisted project bytes,
+history, redo, or journal sequence. It also checks accepted-command replay and a
+fresh `(0, 1)` retry. `test_clip_fades.py` checks both edges, missing targets,
+foreign-writer reload, unrelated changes, and required complete integer baselines.
+Focused caller tests exercise captured pairs, visible refusal, and fresh gestures.
+`e2e/fade-history-races.spec.ts` holds real server Undo's HTTP reply and WebSocket
+messages, checks literal persisted refusal invariants, then retries successfully.
+Both fade browser regressions use separate disposable projects and keep
+WebSocket messages withheld through the fresh retry. `e2e/fade-peer-recovery.spec.ts` sends a real peer Undo, verifies visible
+refusal and refreshed handle values, and saves `(0, 1)` with a fresh `(0, 0)`
+baseline. `services/commandQueue.fadeRecovery.integration.test.ts` exercises the
+canonical refresh for live and replay host/guest commands, refresh failure with
+the original refusal retained, continued replay after permanent conflict, and
+scope/generation guards for switched or reopened projects. It checks unchanged
+rejected baselines and identities, dequeue and Needs attention records, and no
+refresh for inactive projects or unrelated conflicts.
+The existing history ordering and peer-head refusal tests remain required.
+Shared touch fixtures also submit the saved fade pair from their project snapshot.
+
+The responsive inspector's long-title test uses Playwright native `selectOption`
+after pointer geometry admission because End/Enter did not commit the macOS
+Chromium popup. Other keyboard-only inspector tests remain. The recording preview
+fixture serves `/api/record/state` from the current injected fake-room snapshot
+and waits for session initialization. It forwards document and session traffic.
+
 ### Sequenced browser fixtures
 
 Browser fixtures that alter project view data intercept `/api/document/state` and
@@ -2195,3 +2253,32 @@ explicit release.
 Generated unequal-audio-stream M4A and video-with-short-audio MOV files exercise receiving and peer selected-stream bounds. M4A multiple-stream extents refuse conservatively, while a known MOV audio interior remains eligible. Unknown and estimated audio extents refuse.
 
 `tests/test_media_probe.py` verifies distinct container and first-audio duration policies over shared successful probe metadata, revision invalidation, copied results and failed-probe retries. Discovery separately verifies failed-probe memoization per receiving lane and retry on the next call. Full recording auditions supplement these regressions. Short reviewed excerpts are checked in under `tests/fixtures/lab_bleed/`; neither the excerpts nor the auditions prove automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
+
+The focused `registry-backup-windows` CI job runs real NTFS backup, cancellation,
+collision, reparse-point and DACL tests, including read denial under a disposable
+second local account. That account is created and removed only on the isolated CI
+runner. macOS runs a native extended ACL grant refusal test. HMAC tests pin both
+POSIX canonical workspace literals and compare the actual listing API with its
+platform's canonical workspace oracle.
+
+### Native registry storage privacy
+
+`registry-backup-windows` runs the source-privacy, portable inheritance policy,
+backup, denial, collision, restore, and lifecycle tests on Windows. The job first
+records production admission diagnostics for ordinary runner ancestry. It then
+creates a fresh run-owned NTFS VHDX on a free drive letter, installs an exact
+protected trusted root DACL with `OI|CI` inheritance, and runs production ancestry
+and source admission. Pytest base storage, identity, and cache are on that volume.
+The other Windows Python jobs in `desktop.yml` use the same provisioning script.
+An `always()` step detaches and removes only the recorded owned image, including
+when setup or pytest fails. Shared system-root ACLs are never changed.
+
+The disposable account uses `New-LocalUser` with a strong random credential sent
+through stdin and converted to `SecureString`. The credential holder hides its
+password from repr, failure diagnostics redact it, and teardown removes only that
+run's account. The denial test impersonates that account against the live source
+main/WAL/SHM/journal family, snapshot, stage, and published backup. Source ACL
+regressions install unsafe grants after fixture setup so the fixture cannot erase their trigger.
+Portable policy mocks and macOS ACL tests do not prove NTFS or native Windows
+account denial. Retain failed setup and test receipts and require an actual
+successful Windows run before claiming those guarantees.

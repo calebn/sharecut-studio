@@ -174,6 +174,7 @@ describe("prepareLiveE2eProject", () => {
 
 describe("copyUxDemoProject", () => {
   const saved = process.env.UX_DEMO_PROJECT;
+  const savedManifest = process.env.DAW_E2E_CLEANUP_MANIFEST;
 
   afterEach(() => {
     if (saved === undefined) {
@@ -181,10 +182,16 @@ describe("copyUxDemoProject", () => {
     } else {
       process.env.UX_DEMO_PROJECT = saved;
     }
+    if (savedManifest === undefined)
+      delete process.env.DAW_E2E_CLEANUP_MANIFEST;
+    else process.env.DAW_E2E_CLEANUP_MANIFEST = savedManifest;
   });
 
   it("copies media behind symlinks and reuses the copy", () => {
     delete process.env.UX_DEMO_PROJECT;
+    const manifest = createE2eCleanupManifest();
+    process.env.DAW_E2E_CLEANUP_MANIFEST = manifest.manifestPath;
+    removeAfterTest(manifest.manifestDir);
     const src = tempWorkspace("ux-demo-src-");
     const media = path.join(src, "real.wav");
     fs.writeFileSync(media, "RIFF");
@@ -201,5 +208,32 @@ describe("copyUxDemoProject", () => {
     expect(copyUxDemoProject("/nowhere/episode.project.json")).toBe(
       projectPath,
     );
+  });
+
+  it("copies a caller-supplied UX project before share preparation can change it", async () => {
+    const manifest = createE2eCleanupManifest();
+    process.env.DAW_E2E_CLEANUP_MANIFEST = manifest.manifestPath;
+    const source = path.join(
+      tempWorkspace("ux-demo-caller-"),
+      "episode.project.json",
+    );
+    const original = '{"meta":{"workspace_dir":"caller-owned"}}';
+    fs.writeFileSync(source, original);
+    process.env.UX_DEMO_PROJECT = source;
+    try {
+      const copied = copyUxDemoProject(source);
+      expect(copied).not.toBe(source);
+      expect(
+        JSON.parse(fs.readFileSync(copied, "utf8")).meta.workspace_dir,
+      ).toBe(path.dirname(copied));
+      fs.writeFileSync(copied, '{"review":{"versions":["owned-share"]}}');
+      expect(fs.readFileSync(source, "utf8")).toBe(original);
+      expect(copyUxDemoProject(source)).toBe(copied);
+      await cleanupE2eManifest(manifest);
+      expect(fs.existsSync(copied)).toBe(false);
+      expect(fs.readFileSync(source, "utf8")).toBe(original);
+    } finally {
+      fs.rmSync(manifest.manifestDir, { recursive: true, force: true });
+    }
   });
 });
