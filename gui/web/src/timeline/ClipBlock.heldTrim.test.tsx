@@ -1,4 +1,5 @@
 import { act, fireEvent, render } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { rollClipJoin } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
@@ -6,6 +7,20 @@ import { useNudgeRun } from "../inspector/useNudgeRun";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { ClipBlock } from "./ClipBlock";
+
+const clipBlockDefaults = {
+  role: "dialogue",
+  zoomPxPerSec: 50,
+  color: "var(--color-clip-dialogue-0)",
+  selected: true,
+  nextClip: null,
+  neighborSourceHi: 60,
+  rollPreview: null,
+  onRollPreview: () => {},
+  onSelect: () => {},
+  onHit: () => {},
+  canMove: true,
+} satisfies Partial<ComponentProps<typeof ClipBlock>>;
 
 vi.mock("../api/boundary", () => ({
   loadBoundaryContext: vi.fn(async () => ({ token: "boundary-token" })),
@@ -70,22 +85,12 @@ it("refuses preview-only roll joins and saves an original join", async () => {
   ).toEqual(["wide"]);
   const view = render(
     <ClipBlock
+      {...clipBlockDefaults}
       clip={tail}
       trackId="guest"
-      role="dialogue"
-      zoomPxPerSec={50}
-      color="var(--clip-dialogue-0)"
-      selected={true}
       mediaRef="track:guest"
       prevClip={head}
-      nextClip={null}
       neighborSourceLo={head.source_end}
-      neighborSourceHi={60}
-      rollPreview={null}
-      onRollPreview={() => {}}
-      onSelect={() => {}}
-      onHit={() => {}}
-      canMove={true}
     />,
   );
   const handle = view.container.querySelector(
@@ -128,22 +133,12 @@ it("refuses preview-only roll joins and saves an original join", async () => {
   );
   const original = render(
     <ClipBlock
+      {...clipBlockDefaults}
       clip={right}
       trackId="guest"
-      role="dialogue"
-      zoomPxPerSec={50}
-      color="var(--clip-dialogue-0)"
-      selected={true}
       mediaRef="track:guest"
       prevClip={left}
-      nextClip={null}
       neighborSourceLo={left.source_end}
-      neighborSourceHi={60}
-      rollPreview={null}
-      onRollPreview={() => {}}
-      onSelect={() => {}}
-      onHit={() => {}}
-      canMove={true}
     />,
   );
   const originalHandle = original.container.querySelector(
@@ -232,22 +227,12 @@ it("does not save a roll when its partners change during boundary loading", asyn
   );
   const view = render(
     <ClipBlock
+      {...clipBlockDefaults}
       clip={right}
       trackId="host"
-      role="dialogue"
-      zoomPxPerSec={50}
-      color="var(--clip-dialogue-0)"
-      selected={true}
       mediaRef="track:host"
       prevClip={left}
-      nextClip={null}
       neighborSourceLo={left.source_end}
-      neighborSourceHi={60}
-      rollPreview={null}
-      onRollPreview={() => {}}
-      onSelect={() => {}}
-      onHit={() => {}}
-      canMove={true}
     />,
   );
   const handle = view.container.querySelector(

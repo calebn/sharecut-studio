@@ -47,7 +47,6 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
 # 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
-# 14: saved-neighbor crossfades extend connected components before independent mixing.
 RENDER_SEMANTICS_REV = 14
 
 
@@ -82,12 +81,6 @@ def _source_audio_path(
 def _room_tone_under_mutes(
     project: EpisodeProject, track: Track, clip: Clip, src_start: float, src_end: float
 ) -> list[At]:
-    """Room-tone tiles for ``clip``'s filled mutes in the segment ``[src_start, src_end)``.
-
-    Each tile is placed inside its owner piece and mixed over
-    the hole: the fill fades in while the clip fades out at the region's start and
-    fades out while the clip fades back in at its end.
-    """
     seg_dur = src_end - src_start
     tiles: list[At] = []
     for env, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
@@ -331,7 +324,6 @@ def _render_placed_track(
         pieces: list[Audio] = []
         for si, (src_start, src_end) in enumerate(contributing):
             if window is not None and si == len(contributing) - 1 and timeline_end == window[1]:
-                # The old window trim bounded fractional terminal samples to this extent.
                 rate = eng.probe(src).sample_rate
                 seek = MediaSeek.at(min(start for start, _end in contributing))
                 first_sample = seek.first_sample(src_start, rate)
