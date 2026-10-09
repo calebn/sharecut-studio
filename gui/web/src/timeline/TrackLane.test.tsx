@@ -271,6 +271,7 @@ describe("TrackLane join badges", () => {
   const left: ClipRow = {
     ...clip,
     id: "c0",
+    source_duration_sec: 10,
     source_start: 0,
     source_end: 5,
     timeline_start: 0,
@@ -285,8 +286,16 @@ describe("TrackLane join badges", () => {
     timeline_end: 10,
     join_left_clip_id: "c0",
   };
-  const lane = (props: Partial<ComponentProps<typeof TrackLane>> = {}) =>
-    render(
+  const lane = (props: Partial<ComponentProps<typeof TrackLane>> = {}) => {
+    const clips = props.clips ?? [left, right];
+    useDawStore.setState({
+      projectPath: baseProps.projectPath,
+      project: minimalProject({
+        tracks: [props.track ?? track],
+        clips: { tracks: { host: [...clips] }, clip_count: clips.length },
+      }),
+    });
+    return render(
       <TrackLane
         {...baseProps}
         clips={[left, right]}
@@ -295,6 +304,11 @@ describe("TrackLane join badges", () => {
         {...props}
       />,
     );
+  };
+
+  afterEach(() => {
+    useDawStore.setState({ project: null, projectPath: "" });
+  });
 
   it("draws one badge at the seam", () => {
     const { container } = lane();

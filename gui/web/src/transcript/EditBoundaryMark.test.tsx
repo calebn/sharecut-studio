@@ -8,6 +8,7 @@ import {
   registerHistoryCommands,
   runHistoryAction,
 } from "../commands/history";
+import { rollJoinInterval } from "../edit/rollLimits";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -44,7 +45,7 @@ function clip(overrides: Partial<ClipRow> & Pick<ClipRow, "id">): ClipRow {
     fade_out_ms: 0,
     join_in_mode: "fade",
     source_id: null,
-    source_duration_sec: null,
+    source_duration_sec: 80,
     recording_key: null,
     ...overrides,
   };
@@ -78,6 +79,22 @@ const boundary: EditBoundaryView = {
     },
   ],
 };
+
+const getRollInterval = () =>
+  rollJoinInterval(
+    [
+      clip({ id: "left", source_end: 20 }),
+      clip({
+        id: "right",
+        source_start: 25,
+        source_end: 40,
+        timeline_start: 10,
+        timeline_end: 25,
+      }),
+    ],
+    "left",
+    "right",
+  );
 
 beforeEach(() => {
   loadBoundaryContext.mockReset();
@@ -436,6 +453,96 @@ describe("EditBoundaryMark", () => {
     },
   );
 
+  it.each([
+    {
+      name: "left-only predecessor",
+      predecessorSource: "left-take",
+      requested: -3,
+      expected: -3,
+    },
+    {
+      name: "right-only predecessor",
+      predecessorSource: "right-take",
+      requested: -3,
+      expected: -1,
+    },
+  ])(
+    "captures the recording-aware interval for $name",
+    async ({ predecessorSource, requested, expected }) => {
+      const left = clip({
+        id: "left",
+        source_id: "left-take",
+        source_start: 6,
+        source_end: 10,
+        timeline_start: 4,
+        timeline_end: 8,
+      });
+      const right = clip({
+        id: "right",
+        source_id: "right-take",
+        source_start: 10,
+        source_end: 14,
+        timeline_start: 8,
+        timeline_end: 12,
+      });
+      const predecessor = clip({
+        id: "prev",
+        source_id: predecessorSource,
+        source_start: 5,
+        source_end: 9,
+        timeline_start: 0,
+        timeline_end: 4,
+      });
+      useDawStore.setState({
+        project: minimalProject({
+          clips: {
+            tracks: { host: [right, left, predecessor] },
+            clip_count: 3,
+          },
+        }),
+      });
+      const view = render(
+        <EditBoundaryMark
+          boundary={boundary}
+          leftClip={left}
+          rightClip={right}
+        />,
+      );
+      const mark = view.getByRole("button");
+      loadBoundaryContext.mockClear();
+      fireEvent.pointerDown(mark, { pointerId: 1, clientX: 400 });
+      expect(loadBoundaryContext).not.toHaveBeenCalled();
+      fireEvent.pointerMove(window, {
+        pointerId: 1,
+        clientX: 400 + requested * 80,
+      });
+      expect(document.querySelector(".edit-boundary-delta")).toHaveTextContent(
+        `${expected.toFixed(2)}s`,
+      );
+      useDawStore.setState({
+        project: minimalProject({
+          clips: {
+            tracks: { host: [{ ...left, source_duration_sec: null }, right] },
+            clip_count: 2,
+          },
+        }),
+      });
+      fireEvent.pointerUp(window, {
+        pointerId: 1,
+        clientX: 400 + requested * 80,
+      });
+      await waitFor(() =>
+        expect(api.rollClipJoin).toHaveBeenCalledWith(
+          "/tmp/ep",
+          "left",
+          "right",
+          expected,
+          "a".repeat(64),
+        ),
+      );
+    },
+  );
+
   it("clamps a roll to the project as it is at drag start", async () => {
     const left = clip({ id: "left", source_end: 20 });
     const right = clip({
@@ -464,10 +571,12 @@ describe("EditBoundaryMark", () => {
       project: {
         ...project,
         clips: {
-          tracks: { host: [left, right, after] },
+          tracks: {
+            host: [{ ...left, source_duration_sec: 20.5 }, right, after],
+          },
           clip_count: 3,
         },
-        tracks: project.tracks.map((t) => ({ ...t, duration_sec: 20.5 })),
+        tracks: project.tracks.map((t) => ({ ...t, duration_sec: 80 })),
       },
     });
     const mark = getByRole("button");
@@ -479,12 +588,6 @@ describe("EditBoundaryMark", () => {
 });
 
 describe("EditBoundaryMarkView", () => {
-  const getRollBounds = () => ({
-    prevSourceEnd: 0,
-    nextSourceStart: 80,
-    mediaEnd: 80,
-  });
-
   it("previews restored words and commits a roll through onRoll", async () => {
     const left = clip({ id: "left", source_end: 20 });
     const right = clip({
@@ -501,7 +604,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={right}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={onRoll}
         onTrim={onTrim}
       />,
@@ -537,7 +640,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}
         rightClip={null}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={vi.fn()}
         onTrim={onTrim}
       />,
@@ -561,7 +664,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={null}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={onRoll}
         onTrim={onTrim}
       />,
@@ -596,7 +699,7 @@ describe("EditBoundaryMarkView", () => {
       boundary,
       leftClip: left,
       rightClip: right,
-      getRollBounds,
+      getRollInterval,
       onRoll: vi.fn(),
       onTrim: vi.fn(),
     };
@@ -649,7 +752,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={right}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={vi.fn()}
         onTrim={vi.fn()}
       />,
@@ -671,7 +774,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={right}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={vi.fn()}
         onTrim={vi.fn()}
       />,
@@ -702,13 +805,13 @@ describe("EditBoundaryMarkView", () => {
       timeline_start: 10,
       timeline_end: 25,
     });
-    const bounds = vi.fn(getRollBounds);
+    const bounds = vi.fn(getRollInterval);
     const { getByRole, rerender } = render(
       <EditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={right}
-        getRollBounds={bounds}
+        getRollInterval={bounds}
         onRoll={vi.fn()}
         onTrim={vi.fn()}
       />,
@@ -718,7 +821,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={right}
-        getRollBounds={bounds}
+        getRollInterval={bounds}
         onRoll={vi.fn()}
         onTrim={vi.fn()}
       />,
@@ -737,7 +840,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={null}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={vi.fn()}
         onTrim={vi.fn()}
       />,
@@ -782,7 +885,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={null}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={vi.fn()}
         onTrim={onTrim}
       />,
@@ -809,7 +912,7 @@ describe("EditBoundaryMarkView", () => {
         boundary={boundary}
         leftClip={left}
         rightClip={null}
-        getRollBounds={getRollBounds}
+        getRollInterval={getRollInterval}
         onRoll={vi.fn()}
         onTrim={vi.fn()}
       />,
@@ -832,11 +935,7 @@ describe("boundary gesture lifecycle", () => {
           boundary={boundary}
           leftClip={clip({ id: "left", source_end: 20 })}
           rightClip={null}
-          getRollBounds={() => ({
-            prevSourceEnd: 0,
-            nextSourceStart: 80,
-            mediaEnd: 80,
-          })}
+          getRollInterval={getRollInterval}
           onRoll={vi.fn()}
           onTrim={onTrim}
         />
@@ -937,11 +1036,7 @@ describe("boundary gesture lifecycle", () => {
         boundary={boundary}
         leftClip={null}
         rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
-        getRollBounds={() => ({
-          prevSourceEnd: 0,
-          nextSourceStart: 80,
-          mediaEnd: 80,
-        })}
+        getRollInterval={getRollInterval}
         onRoll={vi.fn()}
         onTrim={onTrim}
       />,
@@ -964,17 +1059,27 @@ describe("boundary gesture lifecycle", () => {
 
   it("freezes legal movement and reports the reached limit", async () => {
     const onRoll = vi.fn();
-    const bounds = () => ({
-      prevSourceEnd: 0,
-      nextSourceStart: 80,
-      mediaEnd: 20.5,
-    });
+    const bounds = () =>
+      rollJoinInterval(
+        [
+          clip({ id: "left", source_end: 20, source_duration_sec: 20.5 }),
+          clip({
+            id: "right",
+            source_start: 25,
+            source_end: 40,
+            timeline_start: 10,
+            timeline_end: 25,
+          }),
+        ],
+        "left",
+        "right",
+      );
     const view = render(
       <EditBoundaryMarkView
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}
         rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
-        getRollBounds={bounds}
+        getRollInterval={bounds}
         onRoll={onRoll}
         onTrim={vi.fn()}
       />,
@@ -1008,11 +1113,7 @@ describe("boundary gesture lifecycle", () => {
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}
         rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
-        getRollBounds={() => ({
-          prevSourceEnd: 0,
-          nextSourceStart: 80,
-          mediaEnd: 80,
-        })}
+        getRollInterval={getRollInterval}
         onRoll={onRoll}
         onTrim={vi.fn()}
       />,
@@ -1052,11 +1153,22 @@ describe("boundary gesture lifecycle", () => {
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}
         rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
-        getRollBounds={() => ({
-          prevSourceEnd: 0,
-          nextSourceStart: 30,
-          mediaEnd: 20.1,
-        })}
+        getRollInterval={() =>
+          rollJoinInterval(
+            [
+              clip({ id: "left", source_end: 20, source_duration_sec: 20.1 }),
+              clip({
+                id: "right",
+                source_start: 25,
+                source_end: 40,
+                timeline_start: 10,
+                timeline_end: 25,
+              }),
+            ],
+            "left",
+            "right",
+          )
+        }
         onRoll={onRoll}
         onTrim={vi.fn()}
       />,

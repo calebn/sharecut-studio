@@ -13,7 +13,7 @@ import {
   type BoundaryTarget,
   loadBoundaryContext,
 } from "../api/boundary";
-import { clampRollDelta, type RollPreview } from "../edit/clipEdgePreview";
+import { type RollPreview } from "../edit/clipEdgePreview";
 import {
   type ClipMovePointerInfo,
   type ClipSelectMods,
@@ -21,6 +21,11 @@ import {
 } from "../edit/clipMove";
 import { isHandleDrag, ROLL_COMMIT_MIN_PX } from "../edit/dragThreshold";
 import { rippleTrimOf } from "../edit/ripplePreview";
+import {
+  clampToRollInterval,
+  type RollJoinInterval,
+  rollJoinInterval,
+} from "../edit/rollLimits";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
@@ -66,10 +71,6 @@ export interface ClipBlockProps {
   neighborSourceLo: number;
   /** Source clamp: next clip source_start (or media end / Infinity). */
   neighborSourceHi: number;
-  /** For roll: source_end of clip before prevClip (or 0). */
-  leftNeighborSourceEnd: number;
-  /** Media duration for roll clamp (or Infinity). */
-  mediaDurationSec: number;
   /**
    * Lane-owned roll preview so both abutting clips stay flush while dragging.
    * Only the two clips of the join get it; the rest get null.
@@ -103,15 +104,7 @@ export interface ClipBlockProps {
 
 type RollDrag = {
   originX: number;
-  leftClipId: string;
-  rightClipId: string;
-  leftSourceStart: number;
-  leftSourceEnd: number;
-  rightSourceStart: number;
-  rightSourceEnd: number;
-  prevSourceEnd: number;
-  nextSourceStart: number;
-  mediaEnd: number;
+  interval: RollJoinInterval;
   expectedGeometry: BoundaryGeometryClip[];
   projectPath: string;
   projectEpoch: number;
@@ -147,8 +140,6 @@ export function ClipBlockLive({
   nextClip,
   neighborSourceLo,
   neighborSourceHi,
-  leftNeighborSourceEnd,
-  mediaDurationSec,
   rollPreview,
   onRollPreview,
   onSelect,
@@ -333,15 +324,7 @@ export function ClipBlockLive({
 
   const commitRoll = async (state: RollDrag, clientX: number) => {
     const dxSec = (clientX - state.originX) / zoomPxPerSec;
-    const delta = clampRollDelta(dxSec, {
-      leftSourceStart: state.leftSourceStart,
-      leftSourceEnd: state.leftSourceEnd,
-      rightSourceStart: state.rightSourceStart,
-      rightSourceEnd: state.rightSourceEnd,
-      prevSourceEnd: state.prevSourceEnd,
-      nextSourceStart: state.nextSourceStart,
-      mediaEnd: state.mediaEnd,
-    });
+    const delta = clampToRollInterval(dxSec, state.interval);
     try {
       // A click (under the drag threshold) only selects; a roll the clamp
       // shrinks under ROLL_COMMIT_MIN_PX is a no-op.
@@ -353,8 +336,8 @@ export function ClipBlockLive({
         const path = state.projectPath;
         const target: BoundaryTarget = {
           kind: "roll",
-          left_clip_id: state.leftClipId,
-          right_clip_id: state.rightClipId,
+          left_clip_id: state.interval.left.id,
+          right_clip_id: state.interval.right.id,
         };
         await trackEditSave(
           path,
@@ -368,8 +351,8 @@ export function ClipBlockLive({
             if (useDawStore.getState().joinMutationInFlight) return;
             await rollClipJoin(
               path,
-              state.leftClipId,
-              state.rightClipId,
+              state.interval.left.id,
+              state.interval.right.id,
               delta,
               token,
             );
@@ -391,6 +374,13 @@ export function ClipBlockLive({
     ) {
       return;
     }
+    const project = useDawStore.getState();
+    const interval = rollJoinInterval(
+      project.project?.clips.tracks[clip.track_id] ?? [],
+      prevClip.id,
+      clip.id,
+    );
+    if (!interval) return;
     e.stopPropagation();
     e.preventDefault();
     try {
@@ -398,19 +388,10 @@ export function ClipBlockLive({
     } catch {
       // optional
     }
-    const project = useDawStore.getState();
     rollDragRef.current = {
       originX: e.clientX,
-      leftClipId: prevClip.id,
-      rightClipId: clip.id,
-      leftSourceStart: prevClip.source_start,
-      leftSourceEnd: prevClip.source_end,
-      rightSourceStart: clip.source_start,
-      rightSourceEnd: clip.source_end,
-      prevSourceEnd: leftNeighborSourceEnd,
-      nextSourceStart: nextClip?.source_start ?? mediaDurationSec,
-      mediaEnd: mediaDurationSec,
-      expectedGeometry: boundaryGeometry(prevClip, clip),
+      interval,
+      expectedGeometry: boundaryGeometry(interval.left, interval.right),
       projectPath: project.projectPath,
       projectEpoch: project.projectEpoch,
     };
@@ -429,17 +410,9 @@ export function ClipBlockLive({
     }
     const dxSec = (e.clientX - d.originX) / zoomPxPerSec;
     onRollPreview({
-      leftClipId: d.leftClipId,
-      rightClipId: d.rightClipId,
-      deltaSec: clampRollDelta(dxSec, {
-        leftSourceStart: d.leftSourceStart,
-        leftSourceEnd: d.leftSourceEnd,
-        rightSourceStart: d.rightSourceStart,
-        rightSourceEnd: d.rightSourceEnd,
-        prevSourceEnd: d.prevSourceEnd,
-        nextSourceStart: d.nextSourceStart,
-        mediaEnd: d.mediaEnd,
-      }),
+      leftClipId: d.interval.left.id,
+      rightClipId: d.interval.right.id,
+      deltaSec: clampToRollInterval(dxSec, d.interval),
     });
   };
 

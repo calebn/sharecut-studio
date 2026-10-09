@@ -330,8 +330,6 @@ export function TrackLaneView({
         {clips.map((clip, i) => {
           const prev = clips[i - 1];
           const next = clips[i + 1];
-          const grandPrev = clips[i - 2];
-          const mediaDur = track.duration_sec ?? Number.POSITIVE_INFINITY;
           const trimBounds = trimNeighborBounds(clips, i, TRIM_MODE);
           const originId = originTrackId(clip);
           const identityTrack = clipIdentityTrack({ clip, tracks }) ?? track;
@@ -359,8 +357,6 @@ export function TrackLaneView({
               nextClip={next ?? null}
               neighborSourceLo={trimBounds.neighborLo}
               neighborSourceHi={trimBounds.neighborHi}
-              leftNeighborSourceEnd={grandPrev?.source_end ?? 0}
-              mediaDurationSec={mediaDur}
               rollPreview={
                 rollPreview &&
                 (rollPreview.leftClipId === clip.id ||
@@ -451,8 +447,6 @@ export function TrackLaneView({
             nextClip={null}
             neighborSourceLo={0}
             neighborSourceHi={Number.POSITIVE_INFINITY}
-            leftNeighborSourceEnd={0}
-            mediaDurationSec={Number.POSITIVE_INFINITY}
             rollPreview={null}
             onRollPreview={NOOP}
             onSelect={NOOP}

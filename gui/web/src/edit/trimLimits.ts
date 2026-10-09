@@ -11,6 +11,7 @@ import {
   MIN_EDGE_SPAN_SEC,
   type TrimEdge,
 } from "./clipEdgePreview";
+import { sameRecording } from "./recordingIdentity";
 
 /** `trim_edge_limits`' own tolerance when it looks for the next or previous clip in time. */
 const EPS = TIME_EPS_SEC;
@@ -19,18 +20,6 @@ const EPS = TIME_EPS_SEC;
 export interface TrimLimits {
   lo: number;
   hi: number;
-}
-
-/**
- * Two clips on one lane play the same recording when they name the same source
- * or their files are the same (`clips_ops._same_recording`): a trim edge stops
- * at a neighbour's source position only then.
- */
-function sameRecording(a: ClipRow, b: ClipRow): boolean {
-  return (
-    a.source_id === b.source_id ||
-    (a.recording_key != null && a.recording_key === b.recording_key)
-  );
 }
 
 /**

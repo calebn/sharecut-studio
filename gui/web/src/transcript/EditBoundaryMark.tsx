@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { rollClipJoin, trimClipEdge } from "../api";
 import type { BoundaryGeometryClip, BoundaryTarget } from "../api/boundary";
-import { rollNeighborBounds } from "../edit/clipEdgePreview";
 import { clipsAbut } from "../edit/joinRender";
+import { rollJoinInterval } from "../edit/rollLimits";
 import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
@@ -69,8 +69,15 @@ export function EditBoundaryMark({
       boundary={boundary}
       leftClip={leftClip}
       rightClip={rightClip}
-      getRollBounds={() =>
-        rollNeighborBounds(useDawStore.getState().project, leftClip, rightClip)
+      getRollInterval={() =>
+        leftClip && rightClip
+          ? rollJoinInterval(
+              useDawStore.getState().project?.clips.tracks[leftClip.track_id] ??
+                [],
+              leftClip.id,
+              rightClip.id,
+            )
+          : null
       }
       onRoll={(l, r, d, token) => rollClipJoin(projectPath, l, r, d, token)}
       onTrim={(id, edge, sec, mode, token) =>

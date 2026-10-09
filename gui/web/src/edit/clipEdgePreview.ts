@@ -1,7 +1,5 @@
 /** Shared clip-edge trim / roll preview math (timeline + transcript). */
 
-import type { ClipRow, ProjectView } from "../types/project";
-
 export type TrimEdge = "in" | "out";
 /** What an edit does to the time after it: ripple closes or opens it on every dialogue track; gap moves nothing else. */
 export type EditMode = "ripple" | "gap";
@@ -16,19 +14,6 @@ export type ClipEdgePreview = {
   sourceSec: number;
   sourceStart: number;
   sourceEnd: number;
-};
-
-export type RollClampBounds = {
-  leftSourceStart: number;
-  leftSourceEnd: number;
-  rightSourceStart: number;
-  rightSourceEnd: number;
-  /** Previous clip source_end before left, or 0. */
-  prevSourceEnd: number;
-  /** Next clip source_start after right, or media end / Infinity. */
-  nextSourceStart: number;
-  mediaEnd?: number;
-  minSpan?: number;
 };
 
 export function clampTrimSourceSec(
@@ -60,30 +45,6 @@ export function sourceSecFromTimelineDelta(
   dxTimelineSec: number,
 ): number {
   return baseSourceSec + dxTimelineSec;
-}
-
-/**
- * Clamp a roll delta so both clips keep min span and stay within neighbor /
- * media source bounds (mirrors ``roll_clip_join`` in clips_ops.py).
- */
-export function clampRollDelta(
-  deltaSec: number,
-  bounds: RollClampBounds,
-): number {
-  const minSpan = bounds.minSpan ?? MIN_EDGE_SPAN_SEC;
-  const mediaEnd = bounds.mediaEnd ?? Number.POSITIVE_INFINITY;
-  let maxPos = Math.min(
-    mediaEnd - bounds.leftSourceEnd,
-    bounds.rightSourceEnd - bounds.rightSourceStart - minSpan,
-  );
-  maxPos = Math.min(maxPos, bounds.nextSourceStart - bounds.rightSourceStart);
-  let maxNeg = Math.min(
-    bounds.leftSourceEnd - bounds.leftSourceStart - minSpan,
-    bounds.rightSourceStart - bounds.prevSourceEnd,
-  );
-  maxPos = Math.max(0, maxPos);
-  maxNeg = Math.max(0, maxNeg);
-  return Math.min(Math.max(deltaSec, -maxNeg), maxPos);
 }
 
 export type RollPreview = {
@@ -127,46 +88,6 @@ export function clipGeometryDuringRoll(
     sourceStart: clip.source_start,
     sourceEnd: clip.source_end,
     timelineStart: clip.timeline_start,
-  };
-}
-
-export type RollNeighborBounds = {
-  /** source_end of the clip before the left clip, or 0. */
-  prevSourceEnd: number;
-  /** source_start of the clip after the right clip, or media end. */
-  nextSourceStart: number;
-  mediaEnd: number;
-};
-
-/** Roll clamp neighbours for a join, from the left clip's track (sorted by timeline). */
-export function rollNeighborBounds(
-  project: Pick<ProjectView, "clips" | "tracks"> | null,
-  leftClip: ClipRow | null,
-  rightClip: ClipRow | null,
-): RollNeighborBounds {
-  if (!leftClip || !rightClip || !project) {
-    return {
-      prevSourceEnd: 0,
-      nextSourceStart: Number.POSITIVE_INFINITY,
-      mediaEnd: Number.POSITIVE_INFINITY,
-    };
-  }
-  const trackClips = [...(project.clips.tracks[leftClip.track_id] ?? [])].sort(
-    (a, b) => a.timeline_start - b.timeline_start,
-  );
-  const leftIdx = trackClips.findIndex((c) => c.id === leftClip.id);
-  const prev = leftIdx > 0 ? trackClips[leftIdx - 1] : null;
-  const rightIdx = trackClips.findIndex((c) => c.id === rightClip.id);
-  const next =
-    rightIdx >= 0 && rightIdx + 1 < trackClips.length
-      ? trackClips[rightIdx + 1]
-      : null;
-  const track = project.tracks.find((t) => t.id === leftClip.track_id);
-  const mediaEnd = track?.duration_sec ?? Number.POSITIVE_INFINITY;
-  return {
-    prevSourceEnd: prev?.source_end ?? 0,
-    nextSourceStart: next?.source_start ?? mediaEnd,
-    mediaEnd,
   };
 }
 
