@@ -19,7 +19,7 @@ import secrets
 import sqlite3
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -28,7 +28,12 @@ from coolname import generate_slug
 
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.registry_backup import publish_registry_backup
-from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA, immediate_transaction
+from podcast_mcp.util.registry_privacy import registry_privacy
+from podcast_mcp.util.sqlite_tx import (
+    DEFAULT_BUSY_TIMEOUT_PRAGMA,
+    SQLITE_SIDECARS,
+    immediate_transaction,
+)
 from podcast_mcp.util.sqlite_wal import ensure_wal
 
 # Invariant for agents / scale: public /r/{token} and /rec/{token} IDs must not
@@ -185,36 +190,45 @@ class SqliteShareRegistry:
     """Sqlite active + cooldown pools for public share tokens."""
 
     def __init__(self, db_path: Path | None = None) -> None:
-        self.db_path = Path(db_path) if db_path else default_share_registry_db_path()
+        self.db_path = (
+            Path(os.path.abspath(db_path)) if db_path else default_share_registry_db_path()
+        )
         self._lock = threading.RLock()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with contextlib.suppress(OSError):
-            os.chmod(self.db_path.parent, 0o700)
         self._conn = self._open_connection()
         self._connection_failed = False
 
+    @contextlib.contextmanager
+    def _private_files(self, *, create: bool = False) -> Iterator[Callable[[], None]]:
+        names = tuple(self.db_path.name + suffix for suffix in ("", *SQLITE_SIDECARS))
+        with registry_privacy(self.db_path.parent, names, create=create) as verify:
+            yield verify
+
     def _open_connection(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(
-            str(self.db_path),
-            check_same_thread=False,
-            isolation_level=None,
-            timeout=0,
-        )
+        connection = None
         try:
-            connection.row_factory = sqlite3.Row
-            with contextlib.suppress(OSError):
-                os.chmod(self.db_path, 0o600)
-            ensure_wal(connection, monotonic=time.monotonic, sleep=time.sleep)
-            connection.execute("PRAGMA synchronous=NORMAL")
-            connection.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
-            connection.executescript(_SCHEMA)
-            with immediate_transaction(connection):
-                _ensure_columns(connection, "active_shares", _ACTIVE_SHARE_COLUMN_MIGRATIONS)
+            with self._private_files(create=True) as verify:
+                connection = sqlite3.connect(
+                    str(self.db_path),
+                    check_same_thread=False,
+                    isolation_level=None,
+                    timeout=0,
+                )
+                verify()
+                connection.row_factory = sqlite3.Row
+                ensure_wal(connection, monotonic=time.monotonic, sleep=time.sleep)
+                verify()
+                connection.execute("PRAGMA synchronous=NORMAL")
+                connection.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
+                connection.executescript(_SCHEMA)
+                with immediate_transaction(connection):
+                    _ensure_columns(connection, "active_shares", _ACTIVE_SHARE_COLUMN_MIGRATIONS)
+                verify()
+            return connection
         except BaseException:
-            with contextlib.suppress(BaseException):
-                connection.close()
+            if connection is not None:
+                with contextlib.suppress(BaseException):
+                    connection.close()
             raise
-        return connection
 
     def close(self) -> None:
         with self._lock:
@@ -226,7 +240,8 @@ class SqliteShareRegistry:
             if self._connection_failed:
                 self._conn = self._open_connection()
                 self._connection_failed = False
-            yield
+            with self._private_files():
+                yield
 
     @contextlib.contextmanager
     def _write_transaction(self) -> Iterator[None]:

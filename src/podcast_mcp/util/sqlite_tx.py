@@ -9,6 +9,8 @@ from contextlib import contextmanager
 
 _BUSY_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
 
+SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
+
 # Busy timeout every sqlite store sets on its connection: wait up to 5 s for another
 # connection's write lock before raising SQLITE_BUSY (sqlite3.connect's default).
 DEFAULT_BUSY_TIMEOUT_PRAGMA = "PRAGMA busy_timeout=5000"

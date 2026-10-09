@@ -2206,3 +2206,25 @@ second local account. That account is created and removed only on the isolated C
 runner. macOS runs a native extended ACL grant refusal test. HMAC tests pin both
 POSIX canonical workspace literals and compare the actual listing API with its
 platform's canonical workspace oracle.
+
+### Native registry storage privacy
+
+`registry-backup-windows` runs the source-privacy, portable inheritance policy,
+backup, denial, collision, restore, and lifecycle tests on Windows. The job first
+records production admission diagnostics for ordinary runner ancestry. It then
+creates a fresh run-owned NTFS VHDX on a free drive letter, installs an exact
+protected trusted root DACL with `OI|CI` inheritance, and runs production ancestry
+and source admission. Pytest base storage, identity, and cache are on that volume.
+The other Windows Python jobs in `desktop.yml` use the same provisioning script.
+An `always()` step detaches and removes only the recorded owned image, including
+when setup or pytest fails. Shared system-root ACLs are never changed.
+
+The disposable account uses `New-LocalUser` with a strong random credential sent
+through stdin and converted to `SecureString`. The credential holder hides its
+password from repr, failure diagnostics redact it, and teardown removes only that
+run's account. The denial test impersonates that account against the live source
+main/WAL/SHM/journal family, snapshot, stage, and published backup. Source ACL
+regressions install unsafe grants after fixture setup so the fixture cannot erase their trigger.
+Portable policy mocks and macOS ACL tests do not prove NTFS or native Windows
+account denial. Retain failed setup and test receipts and require an actual
+successful Windows run before claiming those guarantees.

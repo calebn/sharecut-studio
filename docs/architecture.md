@@ -522,6 +522,14 @@ Bounce stems retain the ordinary output-gain path.
 
 ### Registry backup boundary
 
+`edits/share_registry.py` owns the current main/WAL/SHM/journal privacy scope,
+connection recovery, and durable secret. `util/registry_privacy.py` selects the
+native operation-scoped admission check. Source and backup reuse the same native
+ACL predicates and ancestry walk in `registry_backup_posix.py` and
+`registry_backup_windows.py`. The publisher alone owns snapshot names, staging,
+and no-replace publication. `util/registry_cleanup.py` applies one error-preserving
+cleanup rule to native handle chains and publisher directory exits.
+
 `edits/share_registry.py` owns the online SQLite snapshot and registry transaction
 recovery. Its narrow `util/registry_backup.py` publisher creates a private disk
 snapshot, then streams bytes into a new single-file backup. Platform helpers pin

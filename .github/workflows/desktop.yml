@@ -123,8 +123,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[gui,dev]"
+      - &provision-windows-storage
+        name: Provision owned NTFS proof storage
+        shell: pwsh
+        run: ./scripts/registry_windows_storage.ps1
       - name: Pinned media tests
-        run: python -m pytest -q --no-cov tests/test_pinned_media.py
+        run: python -m pytest -q --no-cov --basetemp "${{ env.SHARECUT_PROOF_ROOT }}/pinned-pytest" tests/test_pinned_media.py
+      - &cleanup-windows-storage
+        name: Detach owned NTFS proof storage
+        if: always()
+        shell: pwsh
+        run: ./scripts/registry_windows_storage.ps1 -Cleanup
 
   ffmpeg-resolver-windows:
     runs-on: windows-latest
@@ -138,9 +147,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[gui,dev]"
+      - *provision-windows-storage
       - name: Resolver and acceptance boundary tests
         run: >-
           python -m pytest -q --no-cov
+          --basetemp "${{ env.SHARECUT_PROOF_ROOT }}/resolver-pytest"
           tests/test_binaries.py::test_native_prefix_routes_pair_and_single_command_consumers
           tests/test_binaries.py::test_pair_availability_checks_each_selected_command
           tests/test_binaries.py::test_windows_pair_uses_exe_suffix
@@ -150,6 +161,7 @@ jobs:
           tests/test_bootstrap_gui.py::test_first_run_readiness_checks_bare_and_nonexecutable_explicit_commands
           tests/test_verify_ffmpeg_baseline.py
           tests/test_ffmpeg_diagnostics.py
+      - *cleanup-windows-storage
 
   # Run the cross-process project commit-lock tests (history + commit transaction,
   # review publication) on real Windows: review publication needs FFmpeg and fails
@@ -169,8 +181,10 @@ jobs:
       - name: Check FFmpeg on PATH
         run: ffmpeg -version
       - *install-python-dev-deps
+      - *provision-windows-storage
       # Two separate steps: pwsh only fails the job on the last command's exit code.
       - name: Project commit-lock and history tests
-        run: python -m pytest --no-cov -q -rs tests/test_project_commit_lock.py tests/test_history.py --timeout=180
+        run: python -m pytest --no-cov -q -rs --basetemp "${{ env.SHARECUT_PROOF_ROOT }}/history-pytest" tests/test_project_commit_lock.py tests/test_history.py --timeout=180
       - name: Review publication tests
-        run: python -m pytest --no-cov -q -rs tests/test_review_versions.py --timeout=180
+        run: python -m pytest --no-cov -q -rs --basetemp "${{ env.SHARECUT_PROOF_ROOT }}/review-pytest" tests/test_review_versions.py --timeout=180
+      - *cleanup-windows-storage

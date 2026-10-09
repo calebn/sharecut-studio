@@ -301,3 +301,36 @@ def test_windows_private_source_below_replaceable_ancestor_is_refused(tmp_path, 
         subprocess.run(
             [program, str(ancestor), "/remove:g", "*S-1-1-0"], check=True, capture_output=True
         )
+
+
+def test_sidecar_disappearance_is_not_a_privacy_failure(tmp_path, monkeypatch):
+    path = tmp_path / "source" / "registry.sqlite"
+    with closing(share_registry.SqliteShareRegistry(path)) as owner:
+        secret = owner.recording_key_secret()
+        journal = Path(str(path) + "-journal")
+        journal.touch(mode=0o600)
+        original = os.stat
+        disappeared = []
+
+        def stat_after_checkpoint(name, *args, **kwargs):
+            if name == journal.name and kwargs.get("dir_fd") is not None and not disappeared:
+                journal.unlink()
+                disappeared.append(True)
+            return original(name, *args, **kwargs)
+
+        if os.name == "nt":
+            from podcast_mcp.util.registry_backup_windows import _WindowsAPI
+
+            open_file = _WindowsAPI.open_file
+
+            def open_after_checkpoint(api, candidate):
+                if candidate == journal and not disappeared:
+                    journal.unlink()
+                    disappeared.append(True)
+                return open_file(api, candidate)
+
+            monkeypatch.setattr(_WindowsAPI, "open_file", open_after_checkpoint)
+        else:
+            monkeypatch.setattr(os, "stat", stat_after_checkpoint)
+        assert owner.recording_key_secret() == secret
+        assert disappeared == [True]
