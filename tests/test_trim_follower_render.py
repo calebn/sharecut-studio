@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from contract_project_helpers import contract_project
+from podcast_mcp.edits.clips_ops import update_timeline_duration
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.session_timeline import same_source_timeline_overlaps
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
@@ -23,6 +24,14 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
+
+
+def _write_mono_pcm_wav(path: Path, audio: bytes) -> None:
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(48_000)
+        output.writeframes(audio)
 
 
 def _trimmed_nested_project(tmp_path: Path) -> EpisodeProject:
@@ -102,11 +111,7 @@ def test_saved_ripple_trim_renders_single_source_at_saved_positions(tmp_path: Pa
         + struct.pack("<h", 15_000) * (10 * 48_000)
         + bytes(10 * 48_000 * 2)
     )
-    with wave.open(str(raw / "host.wav"), "wb") as source:
-        source.setnchannels(1)
-        source.setsampwidth(2)
-        source.setframerate(48_000)
-        source.writeframes(audio)
+    _write_mono_pcm_wav(raw / "host.wav", audio)
 
     project = _trimmed_nested_project(tmp_path)
     project.timeline.clips[0].source_end = 10
@@ -153,4 +158,104 @@ def test_saved_ripple_trim_renders_single_source_at_saved_positions(tmp_path: Pa
     assert (actual_frames, actual_samples) == (
         expected_frames,
         expected_samples,
+    ), f"rendered {actual_frames} frames and sampled {actual_samples}"
+
+
+def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
+    tmp_path: Path,
+) -> None:
+    if not FFmpegEngine().check_available()[0]:
+        pytest.skip("ffmpeg not available")
+
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    audio = (
+        struct.pack("<h", 3000) * (10 * 48_000)
+        + bytes(10 * 48_000 * 2)
+        + struct.pack("<h", 10_000) * (20 * 48_000)
+        + struct.pack("<h", 15_000) * (2 * 48_000)
+        + bytes(18 * 48_000 * 2)
+    )
+    _write_mono_pcm_wav(raw / "host.wav", audio)
+
+    project = contract_project(
+        [{"id": "host", "role": "dialogue", "media_path": "raw/host.wav", "duration_sec": 60}],
+        clips=[
+            Clip(
+                id="anchor",
+                track_id="host",
+                timeline_start=5,
+                source_start=0,
+                source_end=10,
+                fade_in_ms=0,
+                fade_out_ms=100,
+                join_in_mode=ClipJoinMode.CUT,
+                mute_regions=[ClipMuteRegion(start_s=0, end_s=10)],
+            ),
+            Clip(
+                id="follower",
+                track_id="host",
+                timeline_start=6,
+                source_start=20,
+                source_end=40,
+                fade_in_ms=0,
+                fade_out_ms=0,
+                join_in_mode=ClipJoinMode.CUT,
+                mute_regions=[ClipMuteRegion(start_s=29, end_s=40)],
+            ),
+            Clip(
+                id="later",
+                track_id="host",
+                timeline_start=15,
+                source_start=40,
+                source_end=42,
+                fade_in_ms=100,
+                fade_out_ms=0,
+                join_in_mode=ClipJoinMode.CROSSFADE,
+            ),
+        ],
+    )
+    project.workspace_dir = str(tmp_path)
+    update_timeline_duration(project)
+    assert project.timeline.duration_sec == 26
+
+    project_path = save_project(project)
+    workspace = ProjectWorkspace.open(project_path)
+    target = TrimBoundaryTarget(clip_id="anchor", edge="out", mode=EditMode.RIPPLE)
+    EditService(workspace).trim_clip_edge(
+        "anchor",
+        "out",
+        6,
+        mode=EditMode.RIPPLE,
+        expected_token=boundary_context(workspace.project, target).token,
+        confirm_cut_speech=True,
+    )
+
+    saved = load_project(project_path)
+    clips = {clip.id: clip for clip in saved.clips}
+    assert [
+        (clip.timeline_start, clip.timeline_end)
+        for clip in (clips["anchor"], clips["follower"], clips["later"])
+    ] == [(5, 11), (2, 22), (11, 13)]
+    assert (clips["anchor"].source_start, clips["anchor"].source_end) == (0, 6)
+    assert (clips["follower"].source_start, clips["follower"].source_end) == (20, 40)
+    assert (clips["later"].source_start, clips["later"].source_end) == (40, 42)
+    assert clips["later"].join_in_mode is ClipJoinMode.CROSSFADE
+    assert same_source_timeline_overlaps(saved) == []
+
+    output = tmp_path / "after-crossfade.wav"
+    engine = FFmpegEngine()
+    render_track_from_timeline(saved, saved.tracks[0], output, {}, engine=engine)
+
+    with wave.open(str(output), "rb") as rendered:
+        actual_frames = rendered.getnframes()
+        sample_positions = (10.5, 11.5, 12.5, 14.5, 21.5)
+        actual_samples = []
+        for second in sample_positions:
+            rendered.setpos(round(second * rendered.getframerate()))
+            actual_samples.append(struct.unpack("<h", rendered.readframes(1))[0])
+
+    assert (actual_frames, actual_samples) == (
+        22 * 48_000,
+        [10_000, 15_000, 15_000, 0, 0],
     ), f"rendered {actual_frames} frames and sampled {actual_samples}"
