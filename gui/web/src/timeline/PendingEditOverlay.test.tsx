@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
@@ -1237,8 +1238,9 @@ function mount() {
       onCommitSpan={vi.fn()}
       onReviewAction={onReviewAction}
     />,
+    { wrapper: StrictMode },
   );
-  return { root, panel, chrome, view };
+  return { root, panel, chrome, view, onReviewAction };
 }
 async function undock(panel: HTMLElement) {
   panel.classList.remove("bottom-sheet--compact");
@@ -1264,6 +1266,12 @@ it("retains a waiver draft and textarea focus when the portal destination change
 
     expect(moved).toHaveValue("Reviewed every flagged transcript word");
     expect(moved).toHaveFocus();
+    expect(moved).toBe(reason);
+    panel.classList.add("bottom-sheet--compact");
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(chrome.contains(reason)).toBe(true));
+    expect(reason).toHaveValue("Reviewed every flagged transcript word");
+    expect(reason).toHaveFocus();
   } finally {
     view.unmount();
     root.remove();
@@ -1303,5 +1311,75 @@ it("retains focus in an external control during portal destination change", asyn
     view.unmount();
     root.remove();
     outside.remove();
+  }
+});
+
+it("recovers the same review subtree after compact chrome is detached and replaced", async () => {
+  const { root, panel, chrome, view, onReviewAction } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const reason = await screen.findByRole("textbox", {
+      name: "Waiver reason",
+    });
+    await userEvent.type(reason, "Reviewed audio before resize");
+    chrome.remove();
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(document.body.contains(reason)).toBe(true));
+    expect(reason).toHaveValue("Reviewed audio before resize");
+    expect(document.body).toHaveFocus();
+    const replacement = document.createElement("div");
+    replacement.className = "bottom-sheet-chrome";
+    panel.append(replacement);
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(replacement.contains(reason)).toBe(true));
+    expect(reason).toHaveValue("Reviewed audio before resize");
+    expect(document.body).toHaveFocus();
+    expect(onReviewAction).toHaveBeenCalledTimes(1);
+    view.unmount();
+    expect(document.querySelector(".pending-actionbar-host")).toBeNull();
+  } finally {
+    view.unmount();
+    root.remove();
+  }
+});
+
+it("keeps a waiver save busy across relocation and shows its failure on the same form", async () => {
+  const saving = deferred<void>();
+  vi.mocked(waiveTranscriptRefine).mockClear();
+  vi.mocked(waiveTranscriptRefine).mockReturnValueOnce(saving.promise);
+  const { root, panel, chrome, view } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const reason = await screen.findByRole("textbox", {
+      name: "Waiver reason",
+    });
+    await userEvent.type(reason, "Reviewed audio before saving");
+    const save = screen.getByRole("button", { name: "Waive with reason" });
+    await userEvent.click(save);
+    expect(save).toBeDisabled();
+    await undock(panel);
+    expect(screen.getByRole("textbox", { name: "Waiver reason" })).toBe(reason);
+    expect(reason).toHaveValue("Reviewed audio before saving");
+    expect(reason).toBeDisabled();
+    expect(save).toBeDisabled();
+    await act(async () =>
+      saving.reject(new Error("Waiver could not be saved")),
+    );
+    expect(await screen.findByText("Waiver could not be saved")).toBeVisible();
+    expect(reason).toBeEnabled();
+    expect(save).toBeEnabled();
+    expect(waiveTranscriptRefine).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      "Reviewed audio before saving",
+    );
+  } finally {
+    view.unmount();
+    root.remove();
   }
 });

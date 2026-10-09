@@ -758,6 +758,11 @@ sideways compact layouts, the selected action card portals into the compact
 inspector's pinned header, so Approve and Reject remain available while the
 inspector body scrolls. Timing stays in the peek strip or expanded inspector.
 Outside compact mode, the card floats beside the selected timeline region.
+The card keeps the same portal host across relocation, preserving recovery
+drafts and busy/error state. Relocation restores the currently focused control
+only if it was inside the card; body and external control focus stay unchanged.
+The host falls back to the body when compact chrome is absent and is removed
+when the region unmounts.
 Long supplementary errors scroll within the pinned card.
 
 ### Provisional recording timeline

@@ -744,6 +744,10 @@ button.join-seam:focus-visible {
   pointer-events: none;
 }
 
+.pending-actionbar-host {
+  display: contents;
+}
+
 .pending-actionbar {
   position: fixed;
   z-index: var(--z-timeline-popover);
