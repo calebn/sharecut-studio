@@ -483,10 +483,9 @@ export async function saveNudge(
     }
     case "envelope-time":
     case "envelope-level": {
-      // Echo the saved points verbatim: the host compares floats exactly.
-      const raw =
+      const expectedPoints =
         findVolumeEnvelope(origin.envelopes, field.trackId)?.points ?? [];
-      const point = raw.find((p) => p.id === field.pointId);
+      const point = expectedPoints.find((p) => p.id === field.pointId);
       if (!point) throw new Error("The envelope point is gone.");
       const next: AutomationPoint =
         field.kind === "envelope-time"
@@ -495,8 +494,8 @@ export async function saveNudge(
       await setEnvelope(
         projectPath,
         field.trackId,
-        replaceEnvelopePoint(raw, next),
-        raw,
+        replaceEnvelopePoint(expectedPoints, next),
+        expectedPoints,
       );
       return true;
     }

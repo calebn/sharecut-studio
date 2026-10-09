@@ -84,9 +84,7 @@ export function useNudgeRun() {
   const [saving, setSaving] = useState(false);
   const [bump, setBump] = useState<NudgeBump | null>(null);
   const bumps = useRef(0);
-  /** When the last run ended: the browser's click that follows is swallowed. */
   const endedAt = useRef(Number.NEGATIVE_INFINITY);
-  /** A canceled pointer still owns its synthesized release click. */
   const stalePointerClick = useRef(false);
 
   const discardStale = (r: Run) => {
@@ -267,17 +265,15 @@ export function useNudgeRun() {
       !r.trimToken || ownsSavingTrim(useDawStore.getState(), r.trimToken);
     setSaving(true);
     try {
-      if (
-        !(await saveNudge(
-          r.projectPath,
-          r.origin,
-          r.field,
-          r.value,
-          fresh,
-          settle,
-        ))
-      ) {
-        // The host asked first and changed nothing; its dialog speaks.
+      const didSave = await saveNudge(
+        r.projectPath,
+        r.origin,
+        r.field,
+        r.value,
+        fresh,
+        settle,
+      );
+      if (!didSave) {
         revert();
         return;
       }
@@ -296,21 +292,17 @@ export function useNudgeRun() {
     }
   };
 
-  // A run still going when the strip unmounts (a new selection) saves.
   const endRef = useRef(end);
   useLayoutEffect(() => {
     endRef.current = end;
   });
   useEffect(() => () => void endRef.current(), []);
 
-  /** Props for one nudge button: `name` is its target's, `delta` its step. */
   const buttonProps = (field: NudgeField, delta: number, name: string) => ({
     "aria-disabled": saving || undefined,
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
       stalePointerClick.current = false;
-      // A touch is captured by the button it pressed: release it, so sliding
-      // off the button ends the run.
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
@@ -343,8 +335,6 @@ export function useNudgeRun() {
         event.preventDefault();
         return;
       }
-      // Pointer and key presses ran already; a click with neither (assistive
-      // technology activating the button) steps once.
       if (run.current || withinGhostClick(endedAt.current)) return;
       event.preventDefault();
       if (begin(field, delta, name, "key")) void end();
