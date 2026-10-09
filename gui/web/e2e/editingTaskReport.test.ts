@@ -880,3 +880,58 @@ it.each([undefined, -10, NaN, Infinity, "10", null])(
     expect(assessEditingTrial(definition, t).status).toBe("fail");
   },
 );
+
+describe("owned phase oracle regressions", () => {
+  it.each(["cancel", "undo"] as const)(
+    "fails a failed %s activation without relabeling Save",
+    (phase) => {
+      const t = trial();
+      const event = t.journal.find(
+        (row) => row.kind === "activation" && row.phase === phase,
+      )!;
+      Object.assign(event, {
+        outcome: "failed",
+        error: "literal native input failure",
+      });
+      expect(assessEditingTrial(definition, t)).toMatchObject({
+        status: "fail",
+        completedWork: 0,
+        observations:
+          phase === "cancel"
+            ? { save: "pass", cancel: "fail", undo: "pass" }
+            : { save: "pass", cancel: "pass", undo: "fail" },
+      });
+    },
+  );
+  it.each(["http", "history"])(
+    "fails Undo %s evidence without relabeling Save",
+    (fault) => {
+      const t = trial();
+      if (fault === "http") Object.assign(t.journal[6], { status: 500 });
+      else Object.assign(t.history!.undone!, { cursor: 1, headId: "changed" });
+      expect(assessEditingTrial(definition, t)).toMatchObject({
+        status: "fail",
+        completedWork: 0,
+        observations: { save: "pass", cancel: "pass", undo: "fail" },
+      });
+    },
+  );
+  it.each(["missing", "duplicate"])(
+    "rejects %s named cancellation coverage",
+    (fault) => {
+      const t = trial();
+      t.cancellations =
+        fault === "missing"
+          ? []
+          : [
+              { probe: "cancel", state: start },
+              { probe: "cancel", state: start },
+            ];
+      expect(assessEditingTrial(definition, t)).toMatchObject({
+        status: "fail",
+        completedWork: 0,
+        observations: { save: "pass", cancel: "fail", undo: "pass" },
+      });
+    },
+  );
+});

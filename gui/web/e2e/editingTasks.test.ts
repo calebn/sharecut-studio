@@ -92,3 +92,29 @@ it("counts every Tab and Enter to open the shipped header", async () => {
     inputs: ["Tab", "Tab", "Tab", "Enter"],
   });
 });
+
+it("retains command body failure as one typed terminal with status captured before await", async () => {
+  let status = 201;
+  const response = {
+    status: () => status,
+    text: async () => {
+      status = 503;
+      throw new Error("native getter failed");
+    },
+  } as unknown as Response;
+  expect(
+    await editingResponseOutcome(response, {
+      id: 77,
+      phase: "action",
+      kind: "command",
+    }),
+  ).toEqual({
+    owner: "main",
+    phase: "action",
+    kind: "command-body-failed",
+    requestId: 77,
+    status: 201,
+    error: "Error: native getter failed",
+    errorName: "Error",
+  });
+});

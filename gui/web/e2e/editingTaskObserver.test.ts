@@ -580,3 +580,72 @@ it("bounds unavailable bodies without a journal writer after timeout", async () 
     unchanged: true,
   });
 }, 10000);
+
+it("retains an admitted clone command body failure with its full original owner", async () => {
+  const page = observedPage(),
+    canceled = observedPage(),
+    output = fixture();
+  const body = deferred<string>();
+  let status = 201;
+  const context = {
+    newPage: async () => canceled,
+    newCDPSession: async () => ({}),
+    close: async () => {},
+  };
+  Object.assign(page, {
+    context: () => ({ browser: () => ({ newContext: async () => context }) }),
+  });
+  canceled.setViewportSize = async () => {
+    const request = {
+      url: () => "http://localhost/api/document/command",
+      method: () => "POST",
+      postData: () => '{"type":"LiteralCloneCommand"}',
+    };
+    canceled.emit("request", request);
+    canceled.emit("response", {
+      url: request.url,
+      request: () => request,
+      status: () => status,
+      text: () => body.promise,
+    });
+    throw new Error("literal cancel workflow stop");
+  };
+  const result = run(page, output, "trim", "handle-keyboard");
+  await nextTurn();
+  status = 503;
+  body.reject(new Error("literal clone body unavailable"));
+  const t = await result;
+  expect(
+    t.journal.filter(
+      (row) => row.kind === "request" || row.kind === "command-body-failed",
+    ),
+  ).toEqual([
+    {
+      seq: 1,
+      owner: "cancel",
+      probe: "cancel",
+      phase: "setup",
+      kind: "request",
+      requestId: 1,
+      type: "LiteralCloneCommand",
+      body: '{"type":"LiteralCloneCommand"}',
+    },
+    {
+      seq: 2,
+      owner: "cancel",
+      probe: "cancel",
+      phase: "setup",
+      kind: "command-body-failed",
+      requestId: 1,
+      status: 201,
+      error: "Error: literal clone body unavailable",
+      errorName: "Error",
+    },
+  ]);
+  expect(
+    assessEditingTrial(
+      editingTaskRegistry.find((row) => row.id === "trim")!,
+      t,
+    ),
+  ).toMatchObject({ status: "fail", completedWork: 0 });
+});
