@@ -393,9 +393,14 @@ Tests that need object storage mock `load_object_store_config` / `ObjectStoreCli
 Playwright E2E launches also scrub relay and object-store deployment settings.
 Registry and identity SQLite files live beside the existing invocation cleanup
 manifest in its private directory. `runE2e` supplies both paths to Playwright;
-config and GUI launcher transforms derive the same paths from the required owned
-manifest. Missing or unowned manifests fail before GUI startup. Ordinary failures
-remove state after confirmed process shutdown; unconfirmed shutdown retains it.
+the Playwright config validates that owned manifest before either fixture helper
+can copy a project, change fixture environment variables, or write the live
+workspace stamp. This also protects direct Playwright commands such as `--list`,
+which do not pass through `runE2e`. The config and GUI launcher derive child
+environment paths from the same manifest. Direct fixture-helper callers may still
+use a missing manifest and clean up their returned copy locally; the wrapper owns
+registered fixture cleanup after confirmed process shutdown, and retains state
+when shutdown is unconfirmed.
 
 `make ux-demo-screens` uses the same npm wrapper and copies the existing demo
 fixture, including a supplied `UX_DEMO_PROJECT`, before changing review state.
