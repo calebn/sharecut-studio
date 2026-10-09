@@ -30,7 +30,6 @@ export interface RippleTrim {
   deltaSec: number;
 }
 
-/** The operation a ripple applies to one lane. */
 export type LaneRipple =
   | {
       kind: "edge";
