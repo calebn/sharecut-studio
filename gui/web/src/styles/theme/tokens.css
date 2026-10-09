@@ -1,5 +1,5 @@
 /**
- * Sharecut Studio-only scale + legacy aliases.
+ * Sharecut Studio-only scales, motion, elevation, layout, and paint recipes.
  * Shared type/space/brand colors: brand-tokens.css.
  * Functional colors: theme-dark.css / theme-light.css (same light/dark contract).
  * Lane/ruler heights stay CSS px for timeline canvas math (see utils/layout.ts).

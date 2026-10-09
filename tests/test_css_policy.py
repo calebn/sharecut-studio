@@ -8,9 +8,12 @@ are allowed only when a matching `stylelint-disable` includes
 from __future__ import annotations
 
 import re
+import sys
 from bisect import bisect_right
 from pathlib import Path
 from typing import NamedTuple
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 _CSS_ROOTS: tuple[Path, ...] = (
@@ -426,8 +429,8 @@ _CUSTOM_PROP_DEF = re.compile(r"(--[\w-]+)\s*:")
 _CUSTOM_PROP_USE = re.compile(r"var\(\s*(--[\w-]+)")
 _TS_PROP_READ = re.compile(r"getPropertyValue\(\s*[\"'](--[\w-]+)[\"']")
 _TS_PROP_SET = re.compile(r"[\"'](--[\w-]+)[\"']\s*:|setProperty\(\s*[\"'](--[\w-]+)")
-# Template prefixes composed at runtime (e.g. `--presence-${i}`).
-_DYNAMIC_PROP_PREFIXES = ("--color-", "--presence-")
+# Template prefixes composed at runtime (e.g. `--color-bg-${rung}`).
+_DYNAMIC_PROP_PREFIXES = ("--color-",)
 
 
 def test_studio_references_only_defined_custom_properties() -> None:
@@ -461,6 +464,21 @@ def test_studio_references_only_defined_custom_properties() -> None:
                 continue
             missing.append(f"{path.relative_to(ROOT)}: {name}")
     assert not missing, "undefined custom properties:\n" + "\n".join(missing)
+
+
+def test_presence_namespace_concatenation_is_not_exempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    (source_root / "colors.ts").write_text(
+        'const color = "var(--presence-" + index + ")";\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
+    monkeypatch.setattr(sys.modules[__name__], "_JS_ROOT", source_root)
+
+    with pytest.raises(AssertionError, match="--presence-"):
+        test_studio_references_only_defined_custom_properties()
 
 
 def test_studio_color_aliases_are_removed_after_consumers_migrate() -> None:
