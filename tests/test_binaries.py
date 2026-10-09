@@ -175,5 +175,5 @@ def test_probe_failure_is_actionable_and_cannot_return_pair(tmp_path, monkeypatc
         raise failure
 
     monkeypatch.setattr("podcast_mcp.util.binaries.run", failed)
-    with pytest.raises(FFmpegPairResolutionError, match="Cannot run.*Install matching"):
+    with pytest.raises(FFmpegPairResolutionError, match=r"Cannot run.*Install matching"):
         resolve_ffmpeg_pair(*map(str, paths))
