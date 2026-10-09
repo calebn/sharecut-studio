@@ -12,8 +12,8 @@ description: >-
 - Python 3.11+
 - Matching FFmpeg and FFprobe 9.0.2 or later 9.x from a supported system package,
   or build the pinned sources with `python scripts/build_ffmpeg.py --output <directory>` and set the existing executable overrides
-- Pair selection prefers the native Homebrew keg on macOS. See the tested release
-  policy in [docs/setup.md](../../../docs/setup.md#ffmpeg-version-and-pair-policy).
+- After explicit overrides and a declared bundle, source discovery prefers the
+  native Homebrew keg on macOS. See the tested release policy in [docs/setup.md](../../../docs/setup.md#ffmpeg-version-and-pair-policy).
 - [uv](https://github.com/astral-sh/uv) (recommended — `pip install uv` if not already on PATH)
 - Node.js 24+ only if building the Sharecut Studio viewer (`gui/web`)
 

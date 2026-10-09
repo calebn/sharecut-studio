@@ -27,6 +27,7 @@ ACCEPTANCE_TESTS = (
     "tests/test_review_versions.py",
     "tests/test_track_mix.py",
     "tests/test_waveform_pyramid.py",
+    "tests/test_bleed_gate_channels.py",
 )
 _VERSION_RE = re.compile(r"^(?:ffmpeg|ffprobe) version ([^\s]+)", re.IGNORECASE)
 

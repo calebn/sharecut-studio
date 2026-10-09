@@ -295,9 +295,11 @@ candidates are rejected before a later supported candidate can be selected.
 Single-command helpers use the same validated pair.
 
 The authoritative [source recipe](../contracts/ffmpeg-build.json) pins FFmpeg
-9.0.2, static LAME 4.0 and static zlib 1.3.2 by independently expected SHA256.
+9.0.2, static LAME 4.0, static zlib 1.3.2 and static Opus 1.6.1 by independently
+expected SHA256.
 The recipe keeps built-in media codecs and filters, enables MP3 through LAME and
-PNG through zlib, and enables neither GPL nor nonfree dependencies. Standalone
+PNG through zlib and Opus through libopus. It enables neither GPL nor nonfree
+dependencies. Standalone
 x86 assembly is disabled, so native jobs do not need NASM. CI and desktop release
 jobs run this builder and execute the resulting pair. Source archives alone are
 cached and rechecked before extraction. Binary hashes detect corruption after a
@@ -317,8 +319,9 @@ unknown or different release before tests start. The runner removes inherited
 Cross-platform behavioral resolver tests mock OS selection and executable
 lookup policy while keeping the test host's real path semantics. Focused
 resolver/readiness tests run on real Windows in the desktop workflow, but do
-not constitute Windows media acceptance. Full media acceptance evidence
-currently comes from actual macOS runs against the selected Homebrew pair.
+not constitute Windows media acceptance. Native payload jobs separately build
+and execute the pinned recipe on every release target. Full media acceptance
+must name the exact pair and preserve the runner’s JSON and JUnit evidence.
 
 ## Reproducible installs
 

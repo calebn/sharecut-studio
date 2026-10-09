@@ -163,6 +163,7 @@ def media_proof(directory: Path) -> dict[str, Any]:
             ("flac", "flac", "flac"),
             ("aac", "m4a", "aac"),
             ("libmp3lame", "mp3", "mp3"),
+            ("libopus", "opus", "opus"),
         ):
             encoded = output / f"{codec}.{extension}"
             _run([*base, "-c:a", codec, str(encoded)], env=environment)
@@ -200,7 +201,7 @@ def media_proof(directory: Path) -> dict[str, Any]:
         if png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
             raise ValueError("PNG waveform proof failed")
     return {
-        "codecs": ["pcm_s16le", "pcm_f32le", "flac", "aac", "libmp3lame"],
+        "codecs": ["pcm_s16le", "pcm_f32le", "flac", "aac", "libmp3lame", "libopus"],
         "resampling": "48000 to 44100",
         "filters": ["ebur128", "loudnorm", "showwavespic"],
     }
@@ -309,26 +310,21 @@ def build_payload(
                     or file.name in {"LICENSE", "LICENSE.md", "README"}
                 ):
                     shutil.copy2(file, notices / file.name)
-        lame = work / policy["sources"]["lame"]["directory"]
-        flags = [*policy["lame_configure"], f"--prefix={prefix.as_posix()}"]
-        logs["lame-configure"] = _run(
-            ["sh", "configure", *flags], cwd=lame, env=environment, timeout=300
-        )
-        logs["lame-build"] = _run(
-            ["make", f"-j{min(max(jobs, 1), 8)}"], cwd=lame, env=environment, timeout=1800
-        )
-        logs["lame-install"] = _run(["make", "install"], cwd=lame, env=environment, timeout=300)
-        zlib = work / policy["sources"]["zlib"]["directory"]
-        logs["zlib-configure"] = _run(
-            ["sh", "configure", *policy["zlib_configure"], f"--prefix={prefix.as_posix()}"],
-            cwd=zlib,
-            env=environment,
-            timeout=300,
-        )
-        logs["zlib-build"] = _run(
-            ["make", f"-j{min(max(jobs, 1), 8)}"], cwd=zlib, env=environment, timeout=600
-        )
-        logs["zlib-install"] = _run(["make", "install"], cwd=zlib, env=environment, timeout=300)
+        for name, build_timeout in (("lame", 1800), ("zlib", 600), ("opus", 1800)):
+            source = work / policy["sources"][name]["directory"]
+            flags = [*policy[f"{name}_configure"], f"--prefix={prefix.as_posix()}"]
+            logs[f"{name}-configure"] = _run(
+                ["sh", "configure", *flags], cwd=source, env=environment, timeout=300
+            )
+            logs[f"{name}-build"] = _run(
+                ["make", f"-j{min(max(jobs, 1), 8)}"],
+                cwd=source,
+                env=environment,
+                timeout=build_timeout,
+            )
+            logs[f"{name}-install"] = _run(
+                ["make", "install"], cwd=source, env=environment, timeout=300
+            )
         ffmpeg = work / policy["sources"]["ffmpeg"]["directory"]
         flags = [
             *policy["ffmpeg_configure"],
