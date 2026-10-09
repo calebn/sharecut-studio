@@ -462,7 +462,12 @@ def test_document_set_clip_fade_join_and_recommendations(minimal_project):
     faded = svc.submit(
         DocumentCommand(
             type="SetClipFade",
-            payload={"clip_id": "c2", "fade_in_ms": 40, "fade_out_ms": 8},
+            payload={
+                "clip_id": "c2",
+                "fade_in_ms": 40,
+                "fade_out_ms": 8,
+                "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
+            },
             client_id="c1",
             role="viewer",
             client_seq=1,

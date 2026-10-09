@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import PendingEditBaseline
 from podcast_mcp.models import EditMode
@@ -52,6 +53,7 @@ def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         p["clip_id"],
         int(p["fade_in_ms"]),
         int(p["fade_out_ms"]),
+        expected=ClipFadeBaseline(**p["expected"]),
     )
 
 

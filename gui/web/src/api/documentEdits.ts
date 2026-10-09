@@ -354,16 +354,23 @@ export async function restoreAppliedEdit(
   await submitDocumentCommand(projectPath, "RestoreAppliedEdit", { id });
 }
 
+export type ClipFadeBaseline = Readonly<{
+  fade_in_ms: number;
+  fade_out_ms: number;
+}>;
+
 export async function setClipFade(
   projectPath: string,
   clipId: string,
   fadeInMs: number,
   fadeOutMs: number,
+  expected: ClipFadeBaseline,
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "SetClipFade", {
     clip_id: clipId,
     fade_in_ms: fadeInMs,
     fade_out_ms: fadeOutMs,
+    expected: { ...expected },
   });
 }
 

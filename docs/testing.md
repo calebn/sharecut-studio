@@ -2113,6 +2113,24 @@ are fingerprinted.
 
 `test_transcript_timing.py` covers exact primary/extra source keys, primary aliases, unplaced words, no-op history, stale sequence/flags/neighbors/media, measured waveform duration, automatic evidence versus locked choices, and exact Undo. `test_word_timing_adapters.py` covers the host adapter and source audio boundary. Frontend Wordbar tests exercise one save per pointer release, cancellation, explicit keyboard/numeric Apply, exact raw preview identity, local waveform viewport, stale recovery and axe. Transport/session tests cover ownership, unchanged timeline position, player reuse and suppression of pending WebSocket fallback writes. Browser checks must verify actual saved timing and Undo, source URLs/clocks and populated local waveforms; an artifact trace does not certify perceptual listening.
 
+### Captured fade regression coverage
+
+`test_clip_fade_baseline.py` sends raw document commands, saves `(1, 0)`, undoes
+to `(0, 0)`, and refuses stale `(1, 1)` without changing persisted project bytes,
+history, redo, or journal sequence. It also checks accepted-command replay and a
+fresh `(0, 1)` retry. `test_clip_fades.py` checks both edges, missing targets,
+foreign-writer reload, unrelated changes, and required complete integer baselines.
+Focused caller tests exercise captured pairs, visible refusal, and fresh gestures.
+`e2e/fade-history-races.spec.ts` holds real server Undo's HTTP reply and WebSocket
+messages, checks literal persisted refusal invariants, then retries successfully.
+The existing history ordering and peer-head refusal tests remain required.
+
+The responsive inspector's long-title test uses Playwright native `selectOption`
+after pointer geometry admission because End/Enter did not commit the macOS
+Chromium popup. Other keyboard-only inspector tests remain. The recording preview
+fixture serves `/api/record/state` from the current injected fake-room snapshot
+and waits for session initialization. It forwards document and session traffic.
+
 ### Sequenced browser fixtures
 
 Browser fixtures that alter project view data intercept `/api/document/state` and

@@ -12,10 +12,31 @@ for (const phone of [false, true]) {
     await page.setViewportSize(
       phone ? { width: 390, height: 844 } : { width: 1280, height: 900 },
     );
+    let snapshot = {
+      session_id: "visual-preview",
+      state: "lobby",
+      take_index: 2,
+      recording_ms: 3600000,
+      timeline_start_sec: 7,
+      server_time_ns: 0,
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+    };
+    await page.route(
+      (url) => url.pathname === "/api/record/state",
+      (route) => route.fulfill({ json: snapshot }),
+    );
     let socket: WebSocketRoute | undefined;
+    let connected = false;
     await page.routeWebSocket(/\/api\/host\/ws/, (route) => {
       socket = route;
-      route.connectToServer();
+      const server = route.connectToServer();
+      server.onMessage((message) => {
+        const payload = JSON.parse(String(message)) as { plane?: string };
+        if (payload.plane === "record") return;
+        route.send(message);
+        if (payload.plane === "session") connected = true;
+      });
     });
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     if (phone) await openPhoneTimeline(page);
@@ -23,7 +44,7 @@ for (const phone of [false, true]) {
     await expect(
       page.locator('.timeline-scroll .track-headers:not([aria-busy="true"])'),
     ).toBeVisible();
-    await expect.poll(() => Boolean(socket)).toBe(true);
+    await expect.poll(() => Boolean(socket) && connected).toBe(true);
     const scroller = page.locator(".timeline-scroll");
     const before = await scroller.evaluate((el) => ({
       left: el.scrollLeft,
@@ -33,23 +54,12 @@ for (const phone of [false, true]) {
       .locator(".timeline-time")
       .evaluate((el) => el.getBoundingClientRect().width);
     const clipCount = await page.locator(".clip-block").count();
-    const send = (state: string, time: number) =>
+    const send = (state: string, time: number) => {
+      snapshot = { ...snapshot, state, server_time_ns: time };
       socket!.send(
-        JSON.stringify({
-          plane: "record",
-          type: "Snapshot",
-          snapshot: {
-            session_id: "visual-preview",
-            state,
-            take_index: 2,
-            recording_ms: 3600000,
-            timeline_start_sec: 7,
-            server_time_ns: time,
-            participants: [],
-            caps: { recorded: 4, producers: 2 },
-          },
-        }),
+        JSON.stringify({ plane: "record", type: "Snapshot", snapshot }),
       );
+    };
     send("lobby", 0);
     await page.waitForFunction(async () =>
       (await navigator.mediaDevices.enumerateDevices()).some(

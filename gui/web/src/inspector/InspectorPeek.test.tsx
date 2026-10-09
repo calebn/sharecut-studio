@@ -144,10 +144,66 @@ describe("InspectorPeek nudges", () => {
     fireEvent.pointerUp(button("Fade in 10 ms longer"));
     fireEvent.click(button("Fade in 10 ms longer"));
     await flush();
-    expect(api.setClipFade.mock.calls).toEqual([["/tmp/p.json", "c2", 310, 0]]);
+    expect(api.setClipFade.mock.calls).toEqual([
+      ["/tmp/p.json", "c2", 310, 0, { fade_in_ms: 300, fade_out_ms: 0 }],
+    ]);
     expect(announce).toHaveBeenLastCalledWith("Fade saved");
     vi.useRealTimers();
     await expectNoA11yViolations(group);
+  });
+
+  it("retains its saved baseline and reports refusal after restored fades arrive", async () => {
+    open(FADE);
+    let refuse!: (error: Error) => void;
+    api.setClipFade.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          refuse = reject;
+        }),
+    );
+    const plus = button("Fade in 1 ms longer");
+    fireEvent.pointerDown(plus, { button: 0 });
+    fireEvent.pointerUp(plus);
+    await flush();
+    expect(api.setClipFade.mock.calls[0]).toEqual([
+      "/tmp/p.json",
+      "c2",
+      301,
+      0,
+      { fade_in_ms: 300, fade_out_ms: 0 },
+    ]);
+    const restored = { ...clip, fade_in_ms: 0 };
+    act(() =>
+      useDawStore.setState({
+        project: {
+          ...project,
+          clips: { tracks: { host: [left, restored] }, clip_count: 2 },
+        },
+      }),
+    );
+    await act(async () =>
+      refuse(
+        new Error(
+          "This clip changed. Nothing was saved. Adjust the fade again.",
+        ),
+      ),
+    );
+    expect(fadeIn()).toBe(0);
+    expect(announce).toHaveBeenLastCalledWith(
+      "Fade in not saved: This clip changed. Nothing was saved. Adjust the fade again.",
+    );
+    advance(500);
+    fireEvent.pointerDown(button("Fade in 1 ms longer"), { button: 0 });
+    fireEvent.pointerUp(button("Fade in 1 ms longer"));
+    await flush();
+    expect(api.setClipFade.mock.calls.at(-1)).toEqual([
+      "/tmp/p.json",
+      "c2",
+      1,
+      0,
+      { fade_in_ms: 0, fade_out_ms: 0 },
+    ]);
+    expect(fadeIn()).toBe(1);
   });
 
   it("repeats while held, after the hold, faster after a few steps, and saves the run once", async () => {
@@ -169,7 +225,9 @@ describe("InspectorPeek nudges", () => {
     fireEvent.pointerUp(plus);
     advance(1000);
     await flush();
-    expect(api.setClipFade.mock.calls).toEqual([["/tmp/p.json", "c2", 309, 0]]);
+    expect(api.setClipFade.mock.calls).toEqual([
+      ["/tmp/p.json", "c2", 309, 0, { fade_in_ms: 300, fade_out_ms: 0 }],
+    ]);
   });
 
   it("stops repeating when the finger leaves the button or the press is cancelled", async () => {
@@ -180,7 +238,9 @@ describe("InspectorPeek nudges", () => {
     fireEvent.pointerLeave(plus);
     advance(1000);
     await flush();
-    expect(api.setClipFade.mock.calls).toEqual([["/tmp/p.json", "c2", 302, 0]]);
+    expect(api.setClipFade.mock.calls).toEqual([
+      ["/tmp/p.json", "c2", 302, 0, { fade_in_ms: 300, fade_out_ms: 0 }],
+    ]);
 
     fireEvent.pointerDown(plus, { button: 0 });
     fireEvent.pointerCancel(plus);
@@ -191,6 +251,7 @@ describe("InspectorPeek nudges", () => {
       "c2",
       303,
       0,
+      { fade_in_ms: 302, fade_out_ms: 0 },
     ]);
   });
 
@@ -227,14 +288,18 @@ describe("InspectorPeek nudges", () => {
     fireEvent.keyUp(plus, { key: "Enter" });
     fireEvent.click(plus);
     await flush();
-    expect(api.setClipFade.mock.calls).toEqual([["/tmp/p.json", "c2", 304, 0]]);
+    expect(api.setClipFade.mock.calls).toEqual([
+      ["/tmp/p.json", "c2", 304, 0, { fade_in_ms: 300, fade_out_ms: 0 }],
+    ]);
   });
 
   it("steps once for an assistive-technology click with no press", async () => {
     open(FADE);
     fireEvent.click(button("Fade in 1 ms shorter"));
     await flush();
-    expect(api.setClipFade.mock.calls).toEqual([["/tmp/p.json", "c2", 299, 0]]);
+    expect(api.setClipFade.mock.calls).toEqual([
+      ["/tmp/p.json", "c2", 299, 0, { fade_in_ms: 300, fade_out_ms: 0 }],
+    ]);
   });
 
   it("stops a held run at a neighbouring clip edge with a cue; a fresh press goes past", async () => {

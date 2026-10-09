@@ -465,6 +465,13 @@ Never key a cache on object identity (`id()`) of mutable project data.
 
 `edits/transcript_timing.py` owns raw transcript identity, dependency guards, source bounds, overlap warnings and evidence invalidation. `services/document/transcript_timing.py` resolves the existing recording and current waveform metadata; `EditService` supplies the transaction and single history mutation. The Wordbar receives an on-demand context through a thin GUI route and saves through `SetTranscriptWordTiming`. Its raw preview is a local owned descriptor in the existing transport slice/controller, with separate source progress and no session transport publication. The shared waveform renderer accepts an explicit viewport for local source-clock editors. Existing timeline mapping and public raw/processed/mix semantics are unchanged.
 
+### Captured fade dependencies
+
+`edits/clip_fades.py` owns the immutable saved fade pair and its comparison.
+`EditService.set_clip_fade` checks it under the workspace transaction before
+history capture. The document payload requires the baseline. Local host MCP
+can deliberately set both fades unconditionally through the same service.
+
 ### Document projection authority
 
 `services/document_sync/projection_delta.py` compares the named projections built by `gui/assembler.py`. It emits closed section operations with bounded row, word, and text splices. It does not persist another document model. The assembler owns the dependency census for the process-local immutable snapshot cache. The cache holds at most four entries and 16 MiB, and command admission follows SQLite commit while project ownership is held.

@@ -1091,6 +1091,26 @@
         "title": "Clip",
         "type": "object"
       },
+      "ClipFadeBaseline": {
+        "properties": {
+          "fade_in_ms": {
+            "minimum": 0.0,
+            "title": "Fade In Ms",
+            "type": "integer"
+          },
+          "fade_out_ms": {
+            "minimum": 0.0,
+            "title": "Fade Out Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fade_in_ms",
+          "fade_out_ms"
+        ],
+        "title": "ClipFadeBaseline",
+        "type": "object"
+      },
       "ClipGeometry": {
         "properties": {
           "id": {
@@ -4031,6 +4051,10 @@
             "title": "Clip Id",
             "type": "string"
           },
+          "expected": {
+            "$ref": "#/components/schemas/ClipFadeBaseline",
+            "description": "Both saved fades captured when the edit began. A changed pair returns clip_fade_changed without changing fades, history, or the journal."
+          },
           "fade_in_ms": {
             "title": "Fade In Ms",
             "type": "integer"
@@ -4043,7 +4067,8 @@
         "required": [
           "clip_id",
           "fade_in_ms",
-          "fade_out_ms"
+          "fade_out_ms",
+          "expected"
         ],
         "title": "SetClipFadePayload",
         "type": "object"

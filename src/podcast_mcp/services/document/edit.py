@@ -47,6 +47,7 @@ from podcast_mcp.edits.chapters import (
     remove_chapter,
     update_chapter,
 )
+from podcast_mcp.edits.clip_fades import ClipFadeBaseline, require_clip_fade_baseline
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     SpeechClearance,
@@ -1050,18 +1051,29 @@ class EditService:
             },
         )
 
-    def set_clip_fade(self, clip_id: str, fade_in_ms: int, fade_out_ms: int) -> dict:
-        return self.ws.mutate(
-            "before set clip fade",
-            "after set clip fade",
-            lambda p: set_clip_fade(p, clip_id, fade_in_ms, fade_out_ms),
-            operation="set_clip_fade",
-            params={
-                "clip_id": clip_id,
-                "fade_in_ms": fade_in_ms,
-                "fade_out_ms": fade_out_ms,
-            },
-        )
+    def set_clip_fade(
+        self,
+        clip_id: str,
+        fade_in_ms: int,
+        fade_out_ms: int,
+        *,
+        expected: ClipFadeBaseline | None = None,
+    ) -> dict:
+        with self.ws.transaction() as project:
+            if expected is not None:
+                require_clip_fade_baseline(project, clip_id, expected)
+            return self.ws.mutate(
+                "before set clip fade",
+                "after set clip fade",
+                lambda p: set_clip_fade(p, clip_id, fade_in_ms, fade_out_ms),
+                operation="set_clip_fade",
+                params={
+                    "clip_id": clip_id,
+                    "fade_in_ms": fade_in_ms,
+                    "fade_out_ms": fade_out_ms,
+                    **({"expected": asdict(expected)} if expected is not None else {}),
+                },
+            )
 
     def move_clips(self, clips: list[dict]) -> dict:
         return self.ws.mutate(

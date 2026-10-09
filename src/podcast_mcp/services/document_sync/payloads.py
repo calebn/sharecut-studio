@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
+from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.decisions import PendingEditBaseline
 from podcast_mcp.models.episode import (
@@ -174,6 +175,10 @@ class SetClipFadePayload(BaseModel):
     clip_id: str
     fade_in_ms: int
     fade_out_ms: int
+    expected: ClipFadeBaseline = Field(
+        description="Both saved fades captured when the edit began. A changed pair "
+        "returns clip_fade_changed without changing fades, history, or the journal."
+    )
 
 
 class TrimClipEdgePayload(BaseModel):

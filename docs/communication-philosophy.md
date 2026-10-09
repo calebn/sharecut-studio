@@ -242,6 +242,9 @@ the empty state, not a separate discovery task.
   was redone."), so it never reverses the edit before the slow one. Tighten apply, skip and Apply
   eligible, track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
+- A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
+  fade again." Timeline handles and phone nudges use the visible announcement;
+  Clip Inspector shows the error inline. Repeat the gesture against current values.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.

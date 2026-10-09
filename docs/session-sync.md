@@ -304,6 +304,22 @@ returns HTTP 409 without changing the project, history, or command journal.
 Offline replay keeps the baseline and reports a conflict in **Needs attention**.
 Deliberate unconditional agent nudges can omit `expected`.
 
+### Captured clip fade commands
+
+`SetClipFade.expected` is required and contains only `fade_in_ms` and
+`fade_out_ms`, both nonnegative integers. The pair is captured from saved values
+when drafting starts. The service compares both values under the existing project
+transaction before history capture. A changed or missing clip returns HTTP 409
+with `X-Sharecut-Error-Code: clip_fade_changed`. No fade, history, redo, or journal
+change is recorded. Missing baselines fail validation with no fallback.
+Host and guest durable queues replay the original baseline and command identity.
+A refused replay is dequeued and retained in **Needs attention**. An already
+accepted identity returns its original acceptance before checking the baseline.
+
+The local host MCP `set_clip_fade_tool` explicitly sets both current fades through
+`EditService.set_clip_fade` without a baseline. That deliberate local workflow
+remains unconditional. Every document-command handler supplies the required pair.
+
 ### Command identity and retries
 
 An explicit `client_seq` (>= 1) plus `client_id` names one edit (#377).
