@@ -761,52 +761,66 @@ test("a pending edit's Approve and Reject sit above the strip, upright and sidew
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   const rows: Record<string, unknown>[] = [];
-  for (const size of ["portrait-390", "landscape-844"] as const) {
-    await open(page, size);
-    const at = await clearOfScrollbars(
-      page,
-      await centerOf(page, `${lane} [data-pending-id] >> nth=0`),
-    );
-    await finger.down(at);
-    await page.waitForTimeout(60);
-    await finger.up();
-    const card = page.locator(".pending-actionbar");
-    await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
-    await page.waitForTimeout(700);
-    await frame(page, info, `pending-card-${size}-${browserName}`);
-    rows.push({
-      size,
-      ...(await page.evaluate(() => {
-        const bar = document.querySelector(".pending-actionbar");
-        const stripTop =
-          document
-            .querySelector(".bottom-sheet--compact")
-            ?.getBoundingClientRect().top ?? null;
-        const reach = (name: string) => {
-          const button = [...(bar?.querySelectorAll("button") ?? [])].find(
-            (b) => b.textContent?.trim() === name,
-          );
-          if (!button || stripTop === null) return null;
-          const r = button.getBoundingClientRect();
-          const hit = document.elementFromPoint(
-            r.left + r.width / 2,
-            r.top + r.height / 2,
-          );
-          return {
-            aboveStrip: r.bottom <= stripTop,
-            onScreen: r.top >= 0,
-            onTop: hit?.closest(".pending-actionbar") === bar,
+  for (const rootFont of [16, 20, 22, 24, 32]) {
+    for (const size of ["portrait-390", "landscape-844"] as const) {
+      await open(page, size);
+      const at = await clearOfScrollbars(
+        page,
+        await centerOf(page, `${lane} [data-pending-id] >> nth=0`),
+      );
+      await finger.down(at);
+      await page.waitForTimeout(60);
+      await finger.up();
+      await page.evaluate((font) => {
+        document.documentElement.style.fontSize = `${font}px`;
+      }, rootFont);
+      const card = page.locator(".pending-actionbar");
+      await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
+      await page.waitForTimeout(700);
+      await frame(
+        page,
+        info,
+        `pending-card-${size}-${rootFont}-${browserName}`,
+      );
+      rows.push({
+        size,
+        rootFont,
+        ...(await page.evaluate(() => {
+          const bar = document.querySelector(".pending-actionbar");
+          const stripTop =
+            document
+              .querySelector(".bottom-sheet--compact")
+              ?.getBoundingClientRect().top ?? null;
+          const reach = (name: string) => {
+            const button = [...(bar?.querySelectorAll("button") ?? [])].find(
+              (b) => b.textContent?.trim() === name,
+            );
+            if (!button || stripTop === null) return null;
+            const r = button.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              r.left + r.width / 2,
+              r.top + r.height / 2,
+            );
+            return {
+              aboveStrip: r.bottom <= stripTop,
+              onScreen:
+                r.top >= 0 &&
+                r.bottom <= innerHeight &&
+                r.left >= 0 &&
+                r.right <= innerWidth,
+              onTop: hit?.closest(".pending-actionbar") === bar,
+            };
           };
-        };
-        return {
-          approve: reach("Approve"),
-          reject: reach("Reject"),
-          editTiming: [...(bar?.querySelectorAll("button") ?? [])].filter(
-            (b) => b.textContent?.trim() === "Edit timing",
-          ).length,
-        };
-      })),
-    });
+          return {
+            approve: reach("Approve"),
+            reject: reach("Reject"),
+            editTiming: [...(bar?.querySelectorAll("button") ?? [])].filter(
+              (b) => b.textContent?.trim() === "Edit timing",
+            ).length,
+          };
+        })),
+      });
+    }
   }
   json(info, `pending-card-${browserName}`, rows);
   const reachable = { aboveStrip: true, onScreen: true, onTop: true };
