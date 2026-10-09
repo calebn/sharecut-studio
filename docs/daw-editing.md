@@ -316,6 +316,7 @@ evidence:
 - #1135 trim-mode design audit, #1137
 - #1208 built-GUI regression on edited and moving-peer lanes
 - #1208 authoritative document and project changes cancel a held trim nudge
+- #1208 unsequenced comment merges cancel a held trim and remove only its owned clip preview
 - #1208 FFmpeg proof showed a newly negative follower rendered 19 seconds against an authored end of 18 seconds
 enforced-by:
 - tests/test_edit_modes.py::test_ripple_trim_shortening_moves_every_dialogue_track_by_the_same_amount
@@ -332,6 +333,9 @@ enforced-by:
 - gui/web/e2e/ripple-overlap-proof.spec.ts::refuses a large overlap trim on the edited lane and saves the last valid draft
 - gui/web/src/inspector/useNudgeRun.test.tsx::keeps and saves the last valid %s lane preview
 - gui/web/src/inspector/useNudgeRun.test.tsx::keeps an authoritative %s update through repeat and release
+- gui/web/src/inspector/useNudgeRun.test.tsx::removes only its trim preview after a local %s merge on repeat and release
+- gui/web/src/inspector/useNudgeRun.test.tsx::removes its preview after a local %s merge before delayed pointer cancel and click
+- gui/web/src/inspector/useNudgeRun.test.tsx::preserves replacement geometry after %s instead of rolling back
 - gui/web/src/inspector/useNudgeRun.test.tsx::discards a replacement snapshot at the current document sequence
 - gui/web/src/inspector/useNudgeRun.test.tsx::cancels a pending pointer repeat when a snapshot replaces the project
 - gui/web/src/inspector/useNudgeRun.test.tsx::does not save on release when an update arrives before the next repeat
@@ -369,7 +373,11 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
 - A held trim strip nudge belongs to the document snapshot and project
   generation where it began. A newer authoritative snapshot cancels pending
   repeats and release without saving or restoring the old preview. The current
-  document remains displayed. A same-document run still saves on release or
+  document remains displayed. An unsequenced comment or metadata merge also
+  cancels the run. If that merge retains the run's exact clip preview and the
+  project generation, sequence, and authority are unchanged, cancellation
+  restores only the original clips and preserves all merged fields. Replaced
+  geometry stays displayed. A same-document run still saves on release or
   when its inspector unmounts because selection changed.
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
   moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut

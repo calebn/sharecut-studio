@@ -90,23 +90,26 @@ export function useNudgeRun() {
   /** A canceled pointer still owns its synthesized release click. */
   const stalePointerClick = useRef(false);
 
-  const current = (r: Run) => {
+  const discardStale = (r: Run) => {
     const s = useDawStore.getState();
-    return (
+    const sameDocument =
       s.projectPath === r.projectPath &&
       s.projectEpoch === r.projectEpoch &&
       currentDocumentSeq() === r.seq &&
-      documentAuthority.project === r.authorityProject &&
-      s.project === r.expectedProject
-    );
-  };
-
-  const discardStale = (r: Run) => {
-    if (current(r)) return false;
+      documentAuthority.project === r.authorityProject;
+    if (sameDocument && s.project === r.expectedProject) return false;
     if (r.input === "pointer") stalePointerClick.current = true;
     if (r.timer) clearTimeout(r.timer);
     r.timer = null;
     if (run.current === r) run.current = null;
+    if (
+      sameDocument &&
+      r.preview &&
+      s.project &&
+      s.project.clips === r.preview.clips
+    ) {
+      s.setProject({ ...s.project, clips: r.origin.clips });
+    }
     return true;
   };
 

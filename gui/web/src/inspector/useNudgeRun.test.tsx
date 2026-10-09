@@ -1,11 +1,20 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
-import { resetDocumentSeqForTests } from "../document/cursor";
+import {
+  applyDocumentSnapshot,
+  mergeGuestActionDone,
+  mergeReturnedComment,
+} from "../document/applyDocumentUpdate";
+import { documentAuthority } from "../document/authorityState";
+import {
+  currentDocumentSeq,
+  resetDocumentSeqForTests,
+} from "../document/cursor";
 import { type NudgeField, saveNudge } from "../edit/nudge";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import type { TimelineComment } from "../types/project";
 import { useNudgeRun } from "./useNudgeRun";
 
 vi.mock("../edit/nudge", async (importOriginal) => ({
@@ -161,6 +170,221 @@ describe("trim nudge document lifetime", () => {
       },
     });
   }
+
+  function initializeCommentProject(followerStart = 9.9996) {
+    const comment: TimelineComment = {
+      id: "review",
+      body: "Keep this phrase",
+      author: "Guest",
+      created_at: "2026-10-09T18:00:00Z",
+      updated_at: null,
+      timeline_start: 2,
+      timeline_end: null,
+      track_ids: ["host"],
+      action_items: [
+        {
+          id: "action",
+          text: "Check the join",
+          done: false,
+          completed_at: null,
+          completed_by: null,
+        },
+      ],
+      replies: [],
+      resolved: false,
+      resolved_at: null,
+      resolved_by: null,
+    };
+    const origin = { ...project(), comments: [comment] };
+    origin.clips.tracks.host[1]!.timeline_start = followerStart;
+    origin.clips.tracks.host[1]!.timeline_end = followerStart + 10;
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    applyDocumentSnapshot({ server_seq: 4, project: origin });
+    return { origin, comment };
+  }
+
+  const localMerges = ["action", "returned comment", "metadata"] as const;
+  function mergeLocal(
+    change: (typeof localMerges)[number],
+    comment: TimelineComment,
+  ) {
+    if (change === "action") mergeGuestActionDone("review", "action", true);
+    else if (change === "returned comment") {
+      mergeReturnedComment({ ...comment, body: "Keep the whole phrase" });
+    } else {
+      applyDocumentSnapshot({
+        patch: { meta: { name: "Updated name", workspace_dir: "/tmp/new" } },
+      });
+    }
+  }
+
+  it.each(localMerges)(
+    "removes only its trim preview after a local %s merge on repeat and release",
+    async (change) => {
+      const { origin, comment } = initializeCommentProject();
+      const authority = documentAuthority.project;
+      const button = render(<Harness />).getByRole("button");
+      fireEvent.keyDown(button, { key: "Enter" });
+      expect(
+        useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+      ).toBe(9.99);
+      mergeLocal(change, comment);
+      const merged = useDawStore.getState().project;
+      expect(currentDocumentSeq()).toBe(4);
+      expect(documentAuthority.project).toBe(authority);
+      fireEvent.keyDown(button, { key: "Enter", repeat: true });
+      await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+      expect(useDawStore.getState().project).toEqual({
+        ...merged,
+        clips: origin.clips,
+      });
+      expect(useDawStore.getState().project?.clips.tracks.host).toMatchObject([
+        { id: "anchor", source_end: 10, timeline_end: 10 },
+        {
+          id: "follower",
+          source_start: 10,
+          source_end: 20,
+          timeline_start: 9.9996,
+          timeline_end: 19.9996,
+        },
+      ]);
+      if (change === "action")
+        expect(
+          useDawStore.getState().project?.comments[0]?.action_items[0]?.done,
+        ).toBe(true);
+      else if (change === "returned comment")
+        expect(useDawStore.getState().project?.comments[0]?.body).toBe(
+          "Keep the whole phrase",
+        );
+      else
+        expect(useDawStore.getState().project?.meta.name).toBe("Updated name");
+      expect(saveNudge).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["release", "unmount"])(
+    "removes its preview on %s without a repeat after a returned comment",
+    async (ending) => {
+      const { origin, comment } = initializeCommentProject();
+      const { getByRole, unmount } = render(<Harness />);
+      const button = getByRole("button");
+      fireEvent.keyDown(button, { key: "Enter" });
+      mergeReturnedComment({ ...comment, body: "Keep the whole phrase" });
+      await act(async () => {
+        if (ending === "release") fireEvent.keyUp(button, { key: "Enter" });
+        else unmount();
+      });
+      expect(useDawStore.getState().project?.clips).toEqual(origin.clips);
+      expect(useDawStore.getState().project?.comments[0]?.body).toBe(
+        "Keep the whole phrase",
+      );
+      expect(saveNudge).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["action", "returned comment"] as const)(
+    "removes its preview after a local %s merge before delayed pointer cancel and click",
+    async (change) => {
+      const { origin, comment } = initializeCommentProject();
+      const button = render(<Harness />).getByRole("button");
+      const user = userEvent.setup();
+      await user.pointer({ target: button, keys: "[MouseLeft>]" });
+      expect(
+        useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+      ).toBe(9.99);
+      mergeLocal(change, comment);
+      const merged = useDawStore.getState().project;
+      await act(
+        async () => new Promise((resolve) => setTimeout(resolve, 1100)),
+      );
+      fireEvent.pointerCancel(button, { pointerId: 1 });
+      await user.pointer({ target: button, keys: "[/MouseLeft]" });
+      expect(useDawStore.getState().project).toEqual({
+        ...merged,
+        clips: origin.clips,
+      });
+      expect(
+        useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+      ).toBe(10);
+      expect(saveNudge).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps comments after an initially refused negative trim without an owned preview", async () => {
+    const { origin, comment } = initializeCommentProject(0.005);
+    const button = render(<Harness />).getByRole("button");
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(useDawStore.getState().statusAnnouncement).toContain(
+      "before the timeline starts",
+    );
+    expect(
+      useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+    ).toBe(10);
+    mergeGuestActionDone(comment.id, "action", true);
+    await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+    expect(useDawStore.getState().project?.clips).toEqual(origin.clips);
+    expect(
+      useDawStore.getState().project?.comments[0]?.action_items[0]?.done,
+    ).toBe(true);
+    expect(saveNudge).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "local geometry",
+    "new sequence",
+    "same-sequence authority",
+    "project generation",
+  ])(
+    "preserves replacement geometry after %s instead of rolling back",
+    async (change) => {
+      const { origin, comment } = initializeCommentProject();
+      const button = render(<Harness />).getByRole("button");
+      fireEvent.keyDown(button, { key: "Enter" });
+      const preview = useDawStore.getState().project!;
+      const fresh = {
+        ...preview,
+        meta: { ...preview.meta, name: "Fresh geometry" },
+      };
+      if (change === "local geometry") {
+        applyDocumentSnapshot({
+          patch: {
+            clips: {
+              ...origin.clips,
+              tracks: {
+                host: [
+                  clipRow({ id: "anchor", source_end: 8, timeline_end: 8 }),
+                ],
+              },
+            },
+          },
+        });
+      } else if (change === "project generation") {
+        act(() => {
+          useDawStore.getState().hydrate("/tmp/two.json", origin);
+          useDawStore.getState().hydrate("/tmp/one.json", fresh);
+        });
+      } else {
+        applyDocumentSnapshot({
+          server_seq: change === "new sequence" ? 5 : 4,
+          project: fresh,
+        });
+      }
+      mergeReturnedComment({
+        ...comment,
+        body: "New comment with fresh geometry",
+      });
+      const replacement = useDawStore.getState().project;
+      await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+      expect(useDawStore.getState().project).toBe(replacement);
+      expect(
+        useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+      ).toBe(change === "local geometry" ? 8 : 9.99);
+      expect(useDawStore.getState().project?.comments[0]?.body).toBe(
+        "New comment with fresh geometry",
+      );
+      expect(saveNudge).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["metadata", "follower geometry"])(
     "keeps an authoritative %s update through repeat and release",

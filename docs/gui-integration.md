@@ -216,7 +216,12 @@ A held trim nudge in the inspector captures its project path, project epoch,
 document sequence and authoritative project. An incoming document snapshot or
 project change cancels its repeat timer and run before another preview or save;
 the newly received project stays displayed. Releasing or unmounting a stale run
-does not restore its old preview. A current run still saves on release and on
+does not restore its old preview over a newer authoritative document. A local
+unsequenced comment or metadata merge can retain the run's clip preview. When
+the path, epoch, sequence, and authority still match, cancellation restores
+only the original clips if the displayed clips are still that exact preview.
+Comments, action-item updates, and other merged fields remain. Replaced clips
+are never rolled back. A current run still saves on release and on
 the normal selection-change unmount. A save rejection cannot replace a newer
 authoritative display.
 
