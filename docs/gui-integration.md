@@ -753,6 +753,13 @@ Rejected commits show a scrollable alert with Dismiss and focus restoration.
 Focused component tests, live-project touch and geometry tests, and word-bearing
 Storybook browser tests cover these behaviors at desktop and phone widths.
 
+Pending edit review actions keep one state and command owner. On phones and
+sideways compact layouts, the selected action card portals into the compact
+inspector's pinned header, so Approve and Reject remain available while the
+inspector body scrolls. Timing stays in the peek strip or expanded inspector.
+Outside compact mode, the card floats beside the selected timeline region.
+Long supplementary errors scroll within the pinned card.
+
 ### Provisional recording timeline
 
 A dedicated timeline leaf shows an aggregate current-take band and recording

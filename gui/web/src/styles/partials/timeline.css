@@ -762,6 +762,25 @@ button.join-seam:focus-visible {
   box-shadow: var(--shadow-floating);
 }
 
+.pending-actionbar--docked {
+  position: static;
+  inline-size: auto;
+  max-inline-size: none;
+  max-block-size: none;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.pending-actionbar--docked [role="alert"],
+.pending-actionbar--docked .transcript-refine-recovery {
+  display: block;
+  max-block-size: var(--pending-review-feedback-max-height);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 .pending-actionbar[data-coarse-pointer="true"] .pending-timing-action {
   min-inline-size: var(--touch-min);
   inline-size: 100%;

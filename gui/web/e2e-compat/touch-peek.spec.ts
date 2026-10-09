@@ -752,13 +752,14 @@ test("Expand is remembered for the next selection, and so is Collapse: landscape
 }, info) =>
   expandRemembered("landscape-844", { page, context, browserName }, info));
 
-test("a pending edit's Approve and Reject sit above the strip, upright and sideways", async ({
+test("a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes", async ({
   page,
   context,
   browserName,
 }, info) => {
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
+  const commands = watchCommands(page);
   const finger = await newFinger(context, page, browserName);
   const rows: Record<string, unknown>[] = [];
   for (const rootFont of [16, 20, 22, 24, 32]) {
@@ -776,6 +777,16 @@ test("a pending edit's Approve and Reject sit above the strip, upright and sidew
       }, rootFont);
       const card = page.locator(".pending-actionbar");
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
+      const compact = page.locator(".bottom-sheet--compact");
+      await expect(
+        compact.getByRole("button", { name: "Expand to half height" }),
+      ).toBeVisible();
+      await expect(
+        compact.getByRole("button", { name: "Close" }),
+      ).toBeVisible();
+      await expect(
+        compact.locator(".nudge-row").filter({ hasText: "Start" }),
+      ).toBeVisible();
       await page.waitForTimeout(700);
       await frame(
         page,
@@ -787,28 +798,28 @@ test("a pending edit's Approve and Reject sit above the strip, upright and sidew
         rootFont,
         ...(await page.evaluate(() => {
           const bar = document.querySelector(".pending-actionbar");
-          const stripTop =
-            document
-              .querySelector(".bottom-sheet--compact")
-              ?.getBoundingClientRect().top ?? null;
           const reach = (name: string) => {
             const button = [...(bar?.querySelectorAll("button") ?? [])].find(
               (b) => b.textContent?.trim() === name,
             );
-            if (!button || stripTop === null) return null;
+            if (!button) return null;
             const r = button.getBoundingClientRect();
             const hit = document.elementFromPoint(
               r.left + r.width / 2,
               r.top + r.height / 2,
             );
             return {
-              aboveStrip: r.bottom <= stripTop,
               onScreen:
                 r.top >= 0 &&
                 r.bottom <= innerHeight &&
                 r.left >= 0 &&
                 r.right <= innerWidth,
               onTop: hit?.closest(".pending-actionbar") === bar,
+              minTarget: r.width >= 44 && r.height >= 44,
+              docked: Boolean(
+                bar?.closest(".bottom-sheet-chrome") &&
+                  bar.closest(".bottom-sheet--compact"),
+              ),
             };
           };
           return {
@@ -823,7 +834,12 @@ test("a pending edit's Approve and Reject sit above the strip, upright and sidew
     }
   }
   json(info, `pending-card-${browserName}`, rows);
-  const reachable = { aboveStrip: true, onScreen: true, onTop: true };
+  const reachable = {
+    onScreen: true,
+    onTop: true,
+    minTarget: true,
+    docked: true,
+  };
   for (const row of rows) {
     expect(row, JSON.stringify(row)).toMatchObject({
       approve: reachable,
@@ -831,6 +847,30 @@ test("a pending edit's Approve and Reject sit above the strip, upright and sidew
       editTiming: 0,
     });
   }
+  const compact = page.locator(".bottom-sheet--compact");
+  await compact.getByRole("button", { name: "Expand to half height" }).click();
+  await expect(
+    compact.getByRole("button", { name: "Collapse to strip" }),
+  ).toBeVisible();
+  await expect(compact.getByRole("button", { name: "Close" })).toBeVisible();
+  await expect(compact.getByLabel("Source start")).toBeVisible();
+  await compact.getByRole("button", { name: "Collapse to strip" }).click();
+  const previousIds = (await projectJson(page, projectPath)).pending_edits.map(
+    (edit) => edit.id,
+  );
+  await page
+    .locator(".pending-actionbar")
+    .getByRole("button", { name: "Reject" })
+    .click();
+  await expect
+    .poll(
+      async () => (await projectJson(page, projectPath)).pending_edits.length,
+    )
+    .toBe(previousIds.length - 1);
+  expect(commands).toContainEqual({
+    type: "RejectEdits",
+    payload: { ids: [expect.any(String)] },
+  });
 });
 
 test("axe, both themes and reduced motion with the strip open", async ({

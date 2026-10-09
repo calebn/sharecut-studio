@@ -73,6 +73,9 @@ state**, most significant first.
 **Space** — `--space-<step>` (`--space-0…--space-6`) on a 4px rhythm: 2, 4, 8, 12, 16, and 24px. The legacy `--space-2` / `--space-05` / `--space-45` names are gone (they duplicated space-3/4/5); use `--space-0/1/3/4/5/6`. Chrome geometry that
 repeats becomes a layout token (`--header-width`); one-off element sizes stay
 literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
+The pinned pending-review card uses `--pending-review-feedback-max-height`
+to cap scrollable supplementary errors at 30dvh. Review buttons keep their
+touch-target size.
 
 **Type** — `--font-size-<role>` (`--font-size-ui`, `--font-size-body`, …),
 `--font-family-<role>`. `line-height` stays a unitless literal;

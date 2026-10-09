@@ -1,5 +1,12 @@
 import type { CSSProperties } from "react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
@@ -198,9 +205,9 @@ function PendingEditRegion({
   const [portalReady, setPortalReady] = useState(false);
   const [overlayHeightPx, setOverlayHeightPx] = useState(0);
   const [labelActive, setLabelActive] = useState(false);
-  // Docked: a compact inspector sheet is open below, so the card sits above
-  // it, and its timing lives in that sheet rather than in Edit timing.
   const [docked, setDocked] = useState(false);
+  const focusedActionRef = useRef<string | null>(null);
+  const previousDockedRef = useRef(false);
   const edgeHintId = useId();
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const pointerKind = useDawStore((state) => state.pointerKind);
@@ -545,6 +552,23 @@ function PendingEditRegion({
     };
   }, [labelInPortal, selected, left, width]);
 
+  useLayoutEffect(() => {
+    if (previousDockedRef.current !== docked) {
+      previousDockedRef.current = docked;
+      if (
+        document.activeElement === document.body &&
+        focusedActionRef.current
+      ) {
+        actionbarRef.current
+          ?.querySelector<HTMLButtonElement>(
+            `[data-pending-action="${focusedActionRef.current}"]`,
+          )
+          ?.focus();
+      }
+      focusedActionRef.current = null;
+    }
+  }, [docked]);
+
   useEffect(
     () => () => {
       if (currentGesture.current.kind !== "idle") {
@@ -879,9 +903,18 @@ function PendingEditRegion({
   const actionbarStyle: CSSProperties & {
     "--pending-actionbar-max-height": string;
   } = {
-    left: portalReady && actionbarPlacement ? actionbarPlacement.left : -10000,
-    top: portalReady && actionbarPlacement ? actionbarPlacement.top : 0,
-    visibility: portalReady && actionbarPlacement ? "visible" : "hidden",
+    left: docked
+      ? undefined
+      : portalReady && actionbarPlacement
+        ? actionbarPlacement.left
+        : -10000,
+    top: docked
+      ? undefined
+      : portalReady && actionbarPlacement
+        ? actionbarPlacement.top
+        : 0,
+    visibility:
+      docked || (portalReady && actionbarPlacement) ? "visible" : "hidden",
     "--pending-actionbar-max-height": `${actionbarPlacement?.maxHeight ?? 0}px`,
   };
   const actionPortal =
@@ -892,13 +925,24 @@ function PendingEditRegion({
       ? createPortal(
           <div
             ref={actionbarRef}
-            className="pending-actionbar"
+            className={`pending-actionbar${docked ? " pending-actionbar--docked" : ""}`}
             style={actionbarStyle}
-            aria-hidden={!portalReady || actionbarPlacement === null}
+            aria-hidden={
+              !docked && (!portalReady || actionbarPlacement === null)
+            }
             role="region"
             aria-label="Pending edit actions"
             data-coarse-pointer={coarsePointer ? "true" : undefined}
             onPointerDown={(event) => event.stopPropagation()}
+            onFocusCapture={(event) => {
+              const button =
+                event.target instanceof HTMLElement
+                  ? event.target.closest<HTMLButtonElement>(
+                      "[data-pending-action]",
+                    )
+                  : null;
+              focusedActionRef.current = button?.dataset.pendingAction ?? null;
+            }}
           >
             {width < LABEL_INLINE_WIDTH_REM * rootRem() ? (
               <span className="pending-label">{regionLabel}</span>
@@ -915,6 +959,7 @@ function PendingEditRegion({
               <div className="pending-actions">
                 <Button
                   variant="primary"
+                  data-pending-action="approve"
                   disabled={
                     !canApply ||
                     actionState.kind === "busy" ||
@@ -931,6 +976,7 @@ function PendingEditRegion({
                 </Button>
                 <Button
                   variant="danger"
+                  data-pending-action="reject"
                   disabled={
                     !canApply ||
                     actionState.kind === "busy" ||
@@ -995,7 +1041,11 @@ function PendingEditRegion({
               <span role="alert">{actionState.message}</span>
             ) : null}
           </div>,
-          document.body,
+          docked
+            ? (compactSheetPanel()?.querySelector<HTMLElement>(
+                ".bottom-sheet-chrome",
+              ) ?? document.body)
+            : document.body,
         )
       : null;
 
