@@ -24,6 +24,7 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
+    postorder,
     sources,
 )
 from podcast_mcp.engines.mastering import (
@@ -871,6 +872,7 @@ class FFmpegEngine:
             seg_labels.append(f"[a{i}]")
 
         leaf_labels = iter(seg_labels)
+        node_labels: list[str] = []
         next_label = 0
         silence_probe: AudioProbe | None = None
 
@@ -881,52 +883,65 @@ class FFmpegEngine:
             filters.append(f"{inputs}{operation}{label}")
             return label
 
-        def compile_audio(node: Audio) -> str:
+        def compile_audio() -> str:
             nonlocal silence_probe
-            match node:
-                case SourceAudio():
-                    return next(leaf_labels)
-                case SequenceAudio():
-                    labels = [compile_audio(child) for child in (node.head, *node.tail)]
-                    return emit("".join(labels), f"concat=n={len(labels)}:v=0:a=1")
-                case CrossfadeAudio():
-                    left = compile_audio(node.left)
-                    right = compile_audio(node.right)
-                    return emit(
-                        left + right,
-                        f"acrossfade=d={node.overlap_sec}:c1={crossfade_curve}:c2={crossfade_curve}",
-                    )
-                case MixAudio():
-                    labels = []
-                    for at in (node.head, *node.tail):
-                        label = compile_audio(at.audio)
-                        if at.start_sec > 0:
-                            label = emit(label, _delay_filter(at.start_sec))
-                        labels.append(label)
-                    if len(labels) == 1:
-                        return labels[0]
-                    # Longest mixes can emit long frames after a shorter input ends.
-                    return emit(
-                        "".join(labels),
-                        f"amix=inputs={len(labels)}:duration=longest:normalize=0,asetpts=N/SR/TB,"
-                        "asetnsamples=n=1024:p=0",
-                    )
-                case SilenceAudio():
-                    if silence_probe is None:
-                        silence_probe = (
-                            self.probe(source_paths[0])
-                            if source_paths
-                            else AudioProbe(0.0, 48000, 2)
+            for node in postorder(audio):
+                match node:
+                    case SourceAudio():
+                        node_labels.append(next(leaf_labels))
+                    case SequenceAudio():
+                        child_count = len(node.tail) + 1
+                        labels = node_labels[-child_count:]
+                        del node_labels[-child_count:]
+                        node_labels.append(emit("".join(labels), f"concat=n={len(labels)}:v=0:a=1"))
+                    case CrossfadeAudio():
+                        right = node_labels.pop()
+                        left = node_labels.pop()
+                        node_labels.append(
+                            emit(
+                                left + right,
+                                f"acrossfade=d={node.overlap_sec}:c1={crossfade_curve}:c2={crossfade_curve}",
+                            )
                         )
-                    probe = silence_probe
-                    layout = f"{probe.channels}c"
-                    return emit(
-                        "",
-                        f"anullsrc=r={probe.sample_rate}:cl={layout},"
-                        f"atrim=end_sample={int(node.duration_sec * probe.sample_rate)}",
-                    )
+                    case MixAudio():
+                        ats = (node.head, *node.tail)
+                        child_labels = node_labels[-len(ats) :]
+                        del node_labels[-len(ats) :]
+                        labels = []
+                        for at, label in zip(ats, child_labels, strict=True):
+                            if at.start_sec > 0:
+                                label = emit(label, _delay_filter(at.start_sec))
+                            labels.append(label)
+                        if len(labels) == 1:
+                            node_labels.append(labels[0])
+                        else:
+                            # Longest mixes can emit long frames after a shorter input ends.
+                            node_labels.append(
+                                emit(
+                                    "".join(labels),
+                                    f"amix=inputs={len(labels)}:duration=longest:normalize=0,asetpts=N/SR/TB,"
+                                    "asetnsamples=n=1024:p=0",
+                                )
+                            )
+                    case SilenceAudio():
+                        if silence_probe is None:
+                            silence_probe = (
+                                self.probe(source_paths[0])
+                                if source_paths
+                                else AudioProbe(0.0, 48000, 2)
+                            )
+                        probe = silence_probe
+                        layout = f"{probe.channels}c"
+                        node_labels.append(
+                            emit(
+                                "",
+                                f"anullsrc=r={probe.sample_rate}:cl={layout},"
+                                f"atrim=end_sample={int(node.duration_sec * probe.sample_rate)}",
+                            )
+                        )
+            return node_labels[0]
 
-        combined = compile_audio(audio)
+        combined = compile_audio()
         filters.append(f"{combined}{af_chain or 'anull'}[out]")
 
         cmd = [self.ffmpeg, "-y"]

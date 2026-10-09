@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -91,29 +92,62 @@ class SilenceAudio:
 Audio = SourceAudio | SequenceAudio | CrossfadeAudio | MixAudio | SilenceAudio
 
 
-def duration(audio: Audio) -> float:
+def _audio_children(audio: Audio) -> tuple[Audio, ...]:
     match audio:
-        case SourceAudio():
-            return audio.src_end - audio.src_start
+        case SourceAudio() | SilenceAudio():
+            return ()
         case SequenceAudio():
-            return duration(audio.head) + sum(duration(child) for child in audio.tail)
+            return (audio.head, *audio.tail)
         case CrossfadeAudio():
-            return duration(audio.left) + duration(audio.right) - audio.overlap_sec
+            return audio.left, audio.right
         case MixAudio():
-            return max(at.start_sec + duration(at.audio) for at in (audio.head, *audio.tail))
-        case SilenceAudio():
-            return audio.duration_sec
+            return (audio.head.audio, *(at.audio for at in audio.tail))
+
+
+def postorder(audio: Audio) -> Iterator[Audio]:
+    pending: list[tuple[Audio, bool]] = [(audio, False)]
+    while pending:
+        node, expanded = pending.pop()
+        if expanded:
+            yield node
+            continue
+        pending.append((node, True))
+        pending.extend((child, False) for child in reversed(_audio_children(node)))
+
+
+def duration(audio: Audio) -> float:
+    durations: list[float] = []
+    for node in postorder(audio):
+        match node:
+            case SourceAudio():
+                durations.append(node.src_end - node.src_start)
+            case SequenceAudio():
+                child_count = len(node.tail) + 1
+                child_durations = durations[-child_count:]
+                del durations[-child_count:]
+                durations.append(sum(child_durations))
+            case CrossfadeAudio():
+                right = durations.pop()
+                left = durations.pop()
+                durations.append(left + right - node.overlap_sec)
+            case MixAudio():
+                ats = (node.head, *node.tail)
+                child_durations = durations[-len(ats) :]
+                del durations[-len(ats) :]
+                durations.append(
+                    max(
+                        at.start_sec + child_duration
+                        for at, child_duration in zip(ats, child_durations, strict=True)
+                    )
+                )
+            case SilenceAudio():
+                durations.append(node.duration_sec)
+    return durations[0]
 
 
 def sources(audio: Audio) -> list[SourceAudio]:
-    match audio:
-        case SourceAudio():
-            return [audio]
-        case SequenceAudio():
-            return [leaf for child in (audio.head, *audio.tail) for leaf in sources(child)]
-        case CrossfadeAudio():
-            return sources(audio.left) + sources(audio.right)
-        case MixAudio():
-            return [leaf for at in (audio.head, *audio.tail) for leaf in sources(at.audio)]
-        case SilenceAudio():
-            return []
+    leaves: list[SourceAudio] = []
+    for node in postorder(audio):
+        if isinstance(node, SourceAudio):
+            leaves.append(node)
+    return leaves

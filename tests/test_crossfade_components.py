@@ -3,6 +3,7 @@ from __future__ import annotations
 import struct
 import wave
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -72,15 +73,15 @@ def test_deep_connected_chain_traverses_and_compiles_in_order(tmp_path: Path):
     assert duration(chain) == pytest.approx(198.02)
     assert [leaf.path for leaf in sources(chain)] == [leaf.path for leaf in leaves]
 
-    with pytest.MonkeyPatch.context() as patcher:
-        run = patcher.patch("podcast_mcp.engines.ffmpeg.run")
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
         FFmpegEngine().render_timeline(tmp_path / "deep.wav", chain, "anull")
 
     command = run.call_args.args[0]
     expression = command[command.index("-filter_complex") + 1]
     assert expression.count("acrossfade=d=0.02:c1=tri:c2=tri") == 1099
     assert "[a1099]acrossfade=d=0.02:c1=tri:c2=tri[node1098]" in expression
-    assert command[-2:] == ["-map", "[out]"]
+    map_index = command.index("-map")
+    assert command[map_index : map_index + 2] == ["-map", "[out]"]
 
 
 def _read(path: Path) -> tuple[int, ...]:
