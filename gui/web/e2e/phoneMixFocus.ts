@@ -1,6 +1,6 @@
-import { expect, type Page, type TestInfo, test } from "@playwright/test";
-import { openPhoneMix } from "../e2e/phoneMix";
-import { withShareableProject } from "../e2e/shareableProject";
+import { expect, type Page, type TestInfo } from "@playwright/test";
+import { openPhoneMix } from "./phoneMix";
+import { withShareableProject } from "./shareableProject";
 
 async function openMixAfterKeyboardFocus(page: Page) {
   const nav = page.getByRole("navigation", { name: "Primary" });
@@ -42,36 +42,34 @@ async function attachCloseFocus(page: Page, info: TestInfo) {
   await page.screenshot({ path: info.outputPath("focus-after-close.png") });
 }
 
-test("phone Mix restores literal Mix focus after a pointer opens it from keyboard focus", async ({
-  page,
-}, info) => {
-  await page.setViewportSize({ width: 360, height: 740 });
+async function inFreshPhoneProject(
+  page: Page,
+  viewportHeight: number,
+  check: () => Promise<void>,
+) {
+  await page.setViewportSize({ width: 360, height: viewportHeight });
   await withShareableProject(async (projectPath) => {
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await check();
+  });
+}
+
+export async function checkPhoneMixFocus(page: Page, info: TestInfo) {
+  await inFreshPhoneProject(page, 740, async () => {
     const mix = await openMixAfterKeyboardFocus(page);
     await mix.getByRole("button", { name: "Close", exact: true }).click();
     await attachCloseFocus(page, info);
     await expectDismissedWithMixFocus(page);
   });
-});
 
-test("phone Mix restores literal Mix focus after Escape", async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 740 });
-  await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await inFreshPhoneProject(page, 740, async () => {
     const mix = await openMixAfterKeyboardFocus(page);
     await page.keyboard.press("Escape");
     await expect(mix).toHaveCount(0);
     await expectDismissedWithMixFocus(page);
   });
-});
 
-test("phone Mix restores literal Mix focus after scrim dismissal", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 360, height: 1100 });
-  await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await inFreshPhoneProject(page, 1100, async () => {
     const mix = await openMixAfterKeyboardFocus(page);
     await page
       .getByRole("button", { name: "Dismiss", exact: true })
@@ -79,14 +77,8 @@ test("phone Mix restores literal Mix focus after scrim dismissal", async ({
     await expect(mix).toHaveCount(0);
     await expectDismissedWithMixFocus(page);
   });
-});
 
-test("phone Mix navigation invalidates the sheet and does not reopen it in More", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 360, height: 740 });
-  await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await inFreshPhoneProject(page, 740, async () => {
     await openPhoneMix(page);
     await expect(page.getByRole("dialog")).toHaveCount(1);
 
@@ -110,4 +102,4 @@ test("phone Mix navigation invalidates the sheet and does not reopen it in More"
       page.getByRole("button", { name: "Mix", exact: true }),
     ).toBeVisible();
   });
-});
+}

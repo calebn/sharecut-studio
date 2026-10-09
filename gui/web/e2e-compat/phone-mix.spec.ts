@@ -4,6 +4,7 @@ import {
   checkNativeMixEdits,
   openPhoneMix,
 } from "../e2e/phoneMix";
+import { checkPhoneMixFocus } from "../e2e/phoneMixFocus";
 import { withShareableProject } from "../e2e/shareableProject";
 
 test("phone Mix native edits and touch geometry across engines", async ({
@@ -16,4 +17,5 @@ test("phone Mix native edits and touch geometry across engines", async ({
     await openPhoneMix(page);
     await checkMixGeometry(page, info);
   });
+  await checkPhoneMixFocus(page, info);
 });
