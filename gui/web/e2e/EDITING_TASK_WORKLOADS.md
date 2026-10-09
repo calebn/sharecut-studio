@@ -4,9 +4,11 @@ Run from `gui/web` on the workload branch. Choose a new evidence directory. The 
 
 ```sh
 node node_modules/vite-node/dist/cli.mjs scripts/profile-editing-tasks.ts \
-  --app-base ee885da9a596afd6c44c117422888e9ba2e69e28 \
+  --app-base "$(git rev-parse HEAD)" \
   --trials 5 --out /tmp/editing-task-baseline
 ```
+
+The application revision must match the committed checkout's enumerated inputs, including compiler configuration. To measure another revision, use a checkout and production build whose inputs match that revision; changing the revision argument alone does not create a comparison.
 
 The default build sets `NODE_ENV=production` for the `npm run build` child and removes `VITE_SHARECUT_E2E`. The runner keeps its own environment unchanged and records its `NODE_ENV` in `protocol.json`. It writes the child environment, command, exit code, product revision, and exact asset hashes to `build.json`. The source inventory in `source.json` uses `productRevision` and records hashes of the enumerated tracked application inputs. To reuse a retained build, pass those files with `--production-dist`, `--build-receipt`, and `--source-receipt`. The runner rejects a build receipt unless its child environment records production `NODE_ENV` and an absent `VITE_SHARECUT_E2E`. It also checks the asset inventory and hashes against the retained distribution.
 
