@@ -1,4 +1,5 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { resetDocumentSeqForTests } from "../document/cursor";
@@ -263,6 +264,82 @@ describe("trim nudge document lifetime", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("swallows the release click after a repeated pointer run becomes stale", async () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const { getByRole } = render(<Harness />);
+    const button = getByRole("button");
+    const user = userEvent.setup();
+    await user.pointer({ target: button, keys: "[MouseLeft>]" });
+    const fresh = { ...origin, meta: { ...origin.meta, name: "Fresh" } };
+    applyDocumentSnapshot({ server_seq: 1, project: fresh });
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 1100)));
+    const authoritative = useDawStore.getState().project;
+    expect(authoritative?.meta.name).toBe("Fresh");
+    await user.pointer({ target: button, keys: "[/MouseLeft]" });
+    expect(useDawStore.getState().project).toBe(authoritative);
+    expect(saveNudge).not.toHaveBeenCalled();
+  });
+
+  it("swallows a stale pointer release click after switching projects", async () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const { getByRole } = render(<Harness />);
+    const button = getByRole("button");
+    const user = userEvent.setup();
+    await user.pointer({ target: button, keys: "[MouseLeft>]" });
+    const fresh = { ...project(), meta: { ...origin.meta, name: "Other" } };
+    act(() => useDawStore.getState().hydrate("/tmp/two.json", fresh));
+    await user.pointer({ target: button, keys: "[/MouseLeft]" });
+    expect(useDawStore.getState().project).toBe(fresh);
+    expect(saveNudge).not.toHaveBeenCalled();
+  });
+
+  it("saves valid pointer and assistive click nudges once", async () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const { getByRole, unmount } = render(<Harness />);
+    const button = getByRole("button");
+    const user = userEvent.setup();
+    await user.pointer({ target: button, keys: "[MouseLeft>]" });
+    await user.pointer({ target: button, keys: "[/MouseLeft]" });
+    expect(saveNudge).toHaveBeenCalledOnce();
+    expect(saveNudge).toHaveBeenCalledWith(
+      "/tmp/one.json",
+      origin,
+      field,
+      9.99,
+    );
+
+    vi.mocked(saveNudge).mockClear();
+    unmount();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const assistive = render(<Harness />).getByRole("button");
+    fireEvent.click(assistive, { detail: 0 });
+    await waitFor(() => expect(saveNudge).toHaveBeenCalledOnce());
+    expect(saveNudge).toHaveBeenCalledWith(
+      "/tmp/one.json",
+      origin,
+      field,
+      9.99,
+    );
+  });
+
+  it("saves a keyboard nudge once without restarting from its generated click", async () => {
+    const origin = project();
+    useDawStore.getState().hydrate("/tmp/one.json", origin);
+    const button = render(<Harness />).getByRole("button");
+    button.focus();
+    await userEvent.setup().keyboard("{Enter}");
+    await waitFor(() => expect(saveNudge).toHaveBeenCalledOnce());
+    expect(saveNudge).toHaveBeenCalledWith(
+      "/tmp/one.json",
+      origin,
+      field,
+      9.99,
+    );
   });
 
   it("does not restore its preview when a pending save rejects after an update", async () => {

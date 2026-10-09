@@ -87,6 +87,8 @@ export function useNudgeRun() {
   const bumps = useRef(0);
   /** When the last run ended: the browser's click that follows is swallowed. */
   const endedAt = useRef(Number.NEGATIVE_INFINITY);
+  /** A canceled pointer still owns its synthesized release click. */
+  const stalePointerClick = useRef(false);
 
   const current = (r: Run) => {
     const s = useDawStore.getState();
@@ -101,6 +103,7 @@ export function useNudgeRun() {
 
   const discardStale = (r: Run) => {
     if (current(r)) return false;
+    if (r.input === "pointer") stalePointerClick.current = true;
     if (r.timer) clearTimeout(r.timer);
     r.timer = null;
     if (run.current === r) run.current = null;
@@ -252,6 +255,7 @@ export function useNudgeRun() {
     "aria-disabled": saving || undefined,
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
+      stalePointerClick.current = false;
       // A touch is captured by the button it pressed: release it, so sliding
       // off the button ends the run.
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
@@ -281,6 +285,11 @@ export function useNudgeRun() {
     },
     onBlur: (_event: FocusEvent<HTMLButtonElement>) => void end(),
     onClick: (event: MouseEvent<HTMLButtonElement>) => {
+      if (stalePointerClick.current && event.detail > 0) {
+        stalePointerClick.current = false;
+        event.preventDefault();
+        return;
+      }
       // Pointer and key presses ran already; a click with neither (assistive
       // technology activating the button) steps once.
       if (run.current || withinGhostClick(endedAt.current)) return;
