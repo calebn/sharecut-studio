@@ -132,3 +132,48 @@ def test_bare_commands_are_fixed_before_path_changes(tmp_path, monkeypatch):
     admitted_again = resolve_ffmpeg_pair(pair.ffmpeg, pair.ffprobe)
     assert admitted_again.version == (9, 0, 2)
     assert admitted_again.ffmpeg == str(selected[0])
+
+
+def test_automatic_discovery_skips_unsupported_pair_and_keeps_source(tmp_path, monkeypatch):
+    old = executable_pair(tmp_path / "old", "6.1.1")
+    supported = executable_pair(tmp_path / "supported", "9.1.3")
+    monkeypatch.setenv("PATH", os.pathsep.join(map(str, (old[0].parent, supported[0].parent))))
+    pair = resolve_ffmpeg_pair()
+    assert pair.ffmpeg == str(supported[0])
+    assert pair.version == (9, 1, 3)
+    assert pair.source == "path"
+
+
+def test_native_homebrew_pair_precedes_path(tmp_path, monkeypatch):
+    native = executable_pair(tmp_path / "native", "9.0.2")
+    path_pair = executable_pair(tmp_path / "path", "9.1.3")
+    monkeypatch.setattr(
+        "podcast_mcp.util.binaries._native_homebrew_pair", lambda: tuple(map(str, native))
+    )
+    monkeypatch.setenv("PATH", str(path_pair[0].parent))
+    assert resolve_ffmpeg_pair().source == "homebrew"
+
+
+def test_source_cache_pair_is_last_candidate(tmp_path, monkeypatch):
+    cached = executable_pair(tmp_path / "cache" / "bin", "9.0.2")
+    pair = resolve_ffmpeg_pair()
+    assert pair.ffmpeg == str(cached[0])
+    assert pair.source == "cache"
+    cached[1].unlink()
+    assert not pair.is_available()
+    with pytest.raises(FFmpegPairResolutionError, match="not found"):
+        resolve_ffmpeg_pair()
+
+
+@pytest.mark.parametrize(
+    "failure", [FileNotFoundError("missing"), subprocess.TimeoutExpired("ffmpeg", 10)]
+)
+def test_probe_failure_is_actionable_and_cannot_return_pair(tmp_path, monkeypatch, failure):
+    paths = executable_pair(tmp_path / "explicit", "9.0.2")
+
+    def failed(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr("podcast_mcp.util.binaries.run", failed)
+    with pytest.raises(FFmpegPairResolutionError, match="Cannot run.*Install matching"):
+        resolve_ffmpeg_pair(*map(str, paths))
