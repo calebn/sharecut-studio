@@ -42,6 +42,25 @@ type BackendCall = {
   cwd: string;
   encoding: "utf8";
 };
+type ProcessFault =
+  | {
+      phase: "backend" | "build";
+      kind:
+        | "spawn-error"
+        | "nonzero"
+        | "signal"
+        | "missing-stdout"
+        | "missing-stderr";
+    }
+  | { phase: "backend"; kind: "invalid-json" }
+  | { phase: "backend"; kind: "invalid-metadata"; metadata: unknown };
+type BuildCall = {
+  command: "npm";
+  argv: readonly ["run", "build"];
+  encoding: "utf8";
+  nodeEnv: "production";
+  viteSharecutE2e: null;
+};
 type ActualChildProcess = typeof import("node:child_process") & {
   default: typeof import("node:child_process");
 };
@@ -61,6 +80,10 @@ const control = vi.hoisted(() => ({
   restored: [] as (() => void)[],
   failLedgerWrite: false,
   backendCalls: [] as BackendCall[],
+  processFault: null as ProcessFault | null,
+  processResult: null as ReturnType<ActualChildProcess["spawnSync"]> | null,
+  missingExecutable: "",
+  buildCalls: [] as BuildCall[],
 }));
 
 vi.mock("node:child_process", async () => {
@@ -68,6 +91,63 @@ vi.mock("node:child_process", async () => {
     await vi.importActual<ActualChildProcess>("node:child_process");
   const importCommand =
     "import json,os,sys,podcast_mcp.gui.server; print(json.dumps({'cwd':os.getcwd(),'executable':sys.executable,'module':podcast_mcp.gui.server.__file__}))";
+  function faultResult(
+    fault: ProcessFault,
+    stdout: string,
+  ): ReturnType<typeof actual.spawnSync> {
+    let result: ReturnType<typeof actual.spawnSync>;
+    switch (fault.kind) {
+      case "spawn-error":
+        result = actual.spawnSync(control.missingExecutable, [], {
+          cwd: control.repo,
+          encoding: "utf8",
+        });
+        break;
+      case "nonzero":
+        result = actual.spawnSync(
+          process.execPath,
+          [
+            "-e",
+            'process.stderr.write("literal process boundary failure\\n"); process.exit(23);',
+          ],
+          { cwd: control.repo, encoding: "utf8" },
+        );
+        break;
+      case "signal":
+        result = actual.spawnSync(
+          process.execPath,
+          [
+            "-e",
+            'process.stderr.write("literal process signal failure\\n", () => process.kill(process.pid, "SIGTERM"));',
+          ],
+          { cwd: control.repo, encoding: "utf8" },
+        );
+        break;
+      default: {
+        if (fault.kind === "invalid-json") stdout = "literal invalid JSON\n";
+        if (fault.kind === "invalid-metadata")
+          stdout = `${JSON.stringify(fault.metadata)}\n`;
+        result = {
+          pid: 0,
+          status: 0,
+          signal: null,
+          stdout,
+          stderr: "",
+          output: [null, stdout, ""],
+        };
+        if (fault.kind === "missing-stdout") {
+          result.stdout = null as unknown as string;
+          result.output[1] = null;
+        }
+        if (fault.kind === "missing-stderr") {
+          result.stderr = null as unknown as string;
+          result.output[2] = null;
+        }
+      }
+    }
+    control.processResult = result;
+    return result;
+  }
   const spawnSync = (
     ...args: Parameters<typeof actual.spawnSync>
   ): ReturnType<typeof actual.spawnSync> => {
@@ -93,6 +173,8 @@ vi.mock("node:child_process", async () => {
         executable: "controlled-backend-import-boundary",
         module,
       })}\n`;
+      if (control.processFault?.phase === "backend")
+        return faultResult(control.processFault, stdout);
       return {
         pid: 0,
         status: 0,
@@ -101,6 +183,24 @@ vi.mock("node:child_process", async () => {
         stderr: "",
         output: [null, stdout, ""],
       };
+    }
+    if (
+      control.processFault?.phase === "build" &&
+      command === "npm" &&
+      Array.isArray(argv) &&
+      JSON.stringify(argv) === JSON.stringify(["run", "build"]) &&
+      options?.encoding === "utf8" &&
+      options.env?.NODE_ENV === "production" &&
+      !Object.hasOwn(options.env, "VITE_SHARECUT_E2E")
+    ) {
+      control.buildCalls.push({
+        command,
+        argv: [...argv] as BuildCall["argv"],
+        encoding: options.encoding,
+        nodeEnv: options.env.NODE_ENV,
+        viteSharecutE2e: null,
+      });
+      return faultResult(control.processFault, "");
     }
     return actual.spawnSync(...args);
   };
@@ -409,6 +509,23 @@ function readJson<T>(file: string): T | null {
     : null;
 }
 
+function errorMetadata(error: unknown): unknown {
+  if (error === null || typeof error !== "object") return error;
+  const fields = [
+    "name",
+    "message",
+    "stack",
+    "code",
+    "errno",
+    "syscall",
+    "path",
+    "spawnargs",
+  ];
+  return Object.fromEntries(
+    fields.map((field) => [field, Reflect.get(error, field)]),
+  );
+}
+
 function setup() {
   const web = process.cwd();
   if (!fs.existsSync(path.join(web, "scripts/profile-editing-tasks.ts")))
@@ -522,6 +639,7 @@ async function invoke(
     trials?: number;
     cleanupAt?: number;
     failLedgerWrite?: boolean;
+    processFault?: ProcessFault;
   } = {},
 ) {
   const fixture = setup();
@@ -535,6 +653,15 @@ async function invoke(
   control.rejectedLifecycle = null;
   control.removalAttempts = 0;
   control.backendCalls = [];
+  control.processFault = options.processFault ?? null;
+  control.processResult = null;
+  control.missingExecutable = path.join(
+    fixture.root,
+    "absent-process-executable",
+  );
+  control.buildCalls = [];
+  if (control.processFault?.phase === "build")
+    process.env.VITE_SHARECUT_E2E = "literal inherited E2E flag";
   process.exitCode = undefined;
   process.argv = [
     process.execPath,
@@ -547,21 +674,27 @@ async function invoke(
     "trim",
     "--route",
     "handle-keyboard",
-    "--production-dist",
-    fixture.dist,
-    "--build-receipt",
-    fixture.build,
-    "--source-receipt",
-    fixture.source,
+    ...(control.processFault?.phase === "build"
+      ? []
+      : [
+          "--production-dist",
+          fixture.dist,
+          "--build-receipt",
+          fixture.build,
+          "--source-receipt",
+          fixture.source,
+        ]),
     "--out",
     control.out,
   ];
   vi.resetModules();
   let rejection: string | null = null;
+  let caughtError: unknown = null;
   try {
     await import("./profile-editing-tasks.ts");
   } catch (error) {
     rejection = String(error);
+    caughtError = error;
   }
   for (const restore of control.restored.reverse()) restore();
   control.restored = [];
@@ -569,13 +702,30 @@ async function invoke(
     ...call,
     argv: [...call.argv] as BackendCall["argv"],
   }));
+  const buildCalls = control.buildCalls.map((call) => ({
+    ...call,
+    argv: [...call.argv] as BuildCall["argv"],
+  }));
+  const processResult = control.processResult;
   fs.writeFileSync(
     path.join(fixture.root, "test-invocation.json"),
     JSON.stringify(
       {
         argv: process.argv,
         rejection,
+        caughtError: errorMetadata(caughtError),
+        cause: errorMetadata(
+          caughtError !== null && typeof caughtError === "object"
+            ? Reflect.get(caughtError, "cause")
+            : null,
+        ),
+        processFault: control.processFault,
+        processResult: processResult
+          ? { ...processResult, error: errorMetadata(processResult.error) }
+          : null,
+        missingExecutable: control.missingExecutable,
         backendCalls,
+        buildCalls,
         processExitCode: process.exitCode ?? null,
         launched: control.launched,
         rejectedLifecycle: control.rejectedLifecycle,
@@ -615,7 +765,29 @@ async function invoke(
           },
         ],
   );
-  return { rejection, summary, attempts, selected, backendCalls };
+  expect(buildCalls).toEqual(
+    control.processFault?.phase === "build"
+      ? [
+          {
+            command: "npm",
+            argv: ["run", "build"],
+            encoding: "utf8",
+            nodeEnv: "production",
+            viteSharecutE2e: null,
+          },
+        ]
+      : [],
+  );
+  return {
+    rejection,
+    caughtError,
+    summary,
+    attempts,
+    selected,
+    backendCalls,
+    buildCalls,
+    processResult,
+  };
 }
 
 const passingSemantics = {
@@ -1016,3 +1188,222 @@ it("still writes the final summary and truthful statuses when final ledger reten
     "literal final attempt ledger unavailable",
   );
 }, 120000);
+
+const processPhases = [
+  {
+    phase: "backend",
+    diagnostic: "Backend import provenance",
+    command: "uv run python -c",
+  },
+  {
+    phase: "build",
+    diagnostic: "Production build",
+    command: "npm run build",
+  },
+] as const;
+
+function expectRejectedBeforeAdmission(
+  result: Awaited<ReturnType<typeof invoke>>,
+  phase: "backend" | "build",
+  retainedBackendText = false,
+) {
+  expect(result.summary).toBe(null);
+  expect(result.attempts).toBe(null);
+  expect(control.launched).toEqual([]);
+  expect(fs.existsSync(path.join(control.out, "protocol.json"))).toBe(false);
+  expect(fs.existsSync(path.join(control.out, "protocol.sha256"))).toBe(false);
+  expect(fs.existsSync(path.join(control.out, "build.json"))).toBe(false);
+  expect(fs.existsSync(path.join(control.out, "production-dist"))).toBe(false);
+  expect(fs.existsSync(path.join(control.out, "production-build.log"))).toBe(
+    false,
+  );
+  if (phase === "backend")
+    expect(fs.existsSync(path.join(control.out, "backend-import.log"))).toBe(
+      retainedBackendText,
+    );
+  else
+    expect(readJson(path.join(control.out, "backend-import.log"))).toEqual({
+      cwd: control.repo,
+      executable: "controlled-backend-import-boundary",
+      module: path.join(control.repo, "src/podcast_mcp/gui/server.py"),
+    });
+}
+
+it.each(processPhases)(
+  "retains the actual ENOENT cause for $phase spawn failure before log retention",
+  async ({ phase, diagnostic, command }) => {
+    const result = await invoke("complete", {
+      processFault: { phase, kind: "spawn-error" },
+    });
+    expect(result.processResult).toMatchObject({
+      status: null,
+      signal: null,
+      error: { code: "ENOENT", path: control.missingExecutable, spawnargs: [] },
+    });
+    expect(result.processResult!.stdout).toBeUndefined();
+    expect(result.processResult!.stderr).toBeUndefined();
+    expect(result.rejection).toContain(diagnostic);
+    expect(result.rejection).toContain(command);
+    expect(result.rejection).toContain("ENOENT");
+    expect(result.caughtError).toBeInstanceOf(Error);
+    expect((result.caughtError as Error).cause).toBe(
+      result.processResult!.error,
+    );
+    expectRejectedBeforeAdmission(result, phase);
+  },
+  120000,
+);
+
+it.each(processPhases)(
+  "retains native status 23 and literal stderr for $phase failure before log retention",
+  async ({ phase, diagnostic, command }) => {
+    const result = await invoke("complete", {
+      processFault: { phase, kind: "nonzero" },
+    });
+    expect(result.rejection).toContain(diagnostic);
+    expect(result.rejection).toContain(command);
+    expect(result.rejection).toMatch(/status\s*[:=]?\s*23/i);
+    expect(result.rejection).toContain("literal process boundary failure");
+    expect(result.processResult).toMatchObject({
+      status: 23,
+      signal: null,
+      stdout: "",
+      stderr: "literal process boundary failure\n",
+    });
+    expect(result.processResult!.error).toBeUndefined();
+    expectRejectedBeforeAdmission(result, phase);
+  },
+  120000,
+);
+
+it.each(processPhases)(
+  "retains native SIGTERM and literal stderr for $phase failure before log retention",
+  async ({ phase, diagnostic, command }) => {
+    const result = await invoke("complete", {
+      processFault: { phase, kind: "signal" },
+    });
+    expect(result.rejection).toContain(diagnostic);
+    expect(result.rejection).toContain(command);
+    expect(result.rejection).toContain("SIGTERM");
+    expect(result.rejection).toMatch(/status\s*[:=]?\s*null/i);
+    expect(result.rejection).toContain("literal process signal failure");
+    expect(result.processResult).toMatchObject({
+      status: null,
+      signal: "SIGTERM",
+      stdout: "",
+      stderr: "literal process signal failure\n",
+    });
+    expect(result.processResult!.error).toBeUndefined();
+    expectRejectedBeforeAdmission(result, phase);
+  },
+  120000,
+);
+
+it.each(processPhases)(
+  "rejects missing UTF8 stdout from nominal $phase success before log retention",
+  async ({ phase, diagnostic, command }) => {
+    const result = await invoke("complete", {
+      processFault: { phase, kind: "missing-stdout" },
+    });
+    expect(result.rejection).toContain(diagnostic);
+    expect(result.rejection).toContain(command);
+    expect(result.rejection).toContain("expected UTF8 stdout/stderr");
+    expect(result.processResult).toMatchObject({
+      status: 0,
+      signal: null,
+      stdout: null,
+      stderr: "",
+    });
+    expectRejectedBeforeAdmission(result, phase);
+  },
+  120000,
+);
+
+it.each(processPhases)(
+  "rejects missing UTF8 stderr from nominal $phase success before log retention",
+  async ({ phase, diagnostic, command }) => {
+    const result = await invoke("complete", {
+      processFault: { phase, kind: "missing-stderr" },
+    });
+    expect(result.rejection).toContain(diagnostic);
+    expect(result.rejection).toContain(command);
+    expect(result.rejection).toContain("expected UTF8 stdout/stderr");
+    expect(result.processResult).toMatchObject({
+      status: 0,
+      signal: null,
+      stderr: null,
+    });
+    expect(typeof result.processResult!.stdout).toBe("string");
+    expectRejectedBeforeAdmission(result, phase);
+  },
+  120000,
+);
+
+it("rejects invalid backend JSON through the actual producer parser and retains the text log", async () => {
+  const result = await invoke("complete", {
+    processFault: { phase: "backend", kind: "invalid-json" },
+  });
+  expect(result.caughtError).toBeInstanceOf(SyntaxError);
+  expect(result.rejection).toMatch(/SyntaxError:.*JSON/i);
+  expect(
+    fs.readFileSync(path.join(control.out, "backend-import.log"), "utf8"),
+  ).toBe("literal invalid JSON\n");
+  expectRejectedBeforeAdmission(result, "backend", true);
+}, 120000);
+
+it.each([
+  { label: "null record", metadata: () => null },
+  { label: "array record", metadata: () => [] },
+  {
+    label: "nontext cwd",
+    metadata: (repo: string) => ({
+      cwd: 23,
+      executable: "literal executable",
+      module: path.join(repo, "src/podcast_mcp/gui/server.py"),
+    }),
+  },
+  {
+    label: "missing executable",
+    metadata: (repo: string) => ({
+      cwd: repo,
+      module: path.join(repo, "src/podcast_mcp/gui/server.py"),
+    }),
+  },
+  {
+    label: "empty executable",
+    metadata: (repo: string) => ({
+      cwd: repo,
+      executable: "",
+      module: path.join(repo, "src/podcast_mcp/gui/server.py"),
+    }),
+  },
+  {
+    label: "nontext module",
+    metadata: (repo: string) => ({
+      cwd: repo,
+      executable: "literal executable",
+      module: null,
+    }),
+  },
+])(
+  "rejects backend $label as invalid metadata before protocol admission",
+  async ({ metadata }) => {
+    const repo = path.resolve(process.cwd(), "../..");
+    const record = metadata(repo);
+    const result = await invoke("complete", {
+      processFault: {
+        phase: "backend",
+        kind: "invalid-metadata",
+        metadata: record,
+      },
+    });
+    expect(result.rejection).toContain(
+      "Backend import provenance returned invalid metadata",
+    );
+    expect(
+      fs.readFileSync(path.join(control.out, "backend-import.log"), "utf8"),
+    ).toBe(`${JSON.stringify(record)}\n`);
+    expectRejectedBeforeAdmission(result, "backend", true);
+  },
+  120000,
+);
