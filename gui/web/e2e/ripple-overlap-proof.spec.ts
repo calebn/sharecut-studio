@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import { createRelocatedE2eProject } from "./liveProject";
 import { silenceWav, withShareableProject } from "./shareableProject";
+import { zoomTimelineIn } from "./timelineZoom";
 
 function overlapProject(
   prefix: string,
@@ -80,11 +81,31 @@ for (const placement of ["edited", "peer"] as const) {
             '[data-clip-id="overlap-host"] .trim-handle.out',
           );
           await expect(target).toBeVisible();
+          await zoomTimelineIn(page, { maxSteps: 1 });
+          const followerBlock = page.locator('[data-clip-id="overlap-next"]');
+          const followerLane = page
+            .locator(".lane-row")
+            .filter({ has: followerBlock });
           await target.focus();
           await page.keyboard.down("ArrowLeft");
           await page.keyboard.down("ArrowLeft");
           await page.keyboard.down("ArrowLeft");
-          await expect(page.locator(".ripple-arrow")).not.toHaveCount(0);
+          const zoom = await followerBlock.evaluate(
+            (el) => Number.parseFloat((el as HTMLElement).style.width) / 10,
+          );
+          const arrow = followerLane.locator(".lane-inner > .ripple-arrow");
+          await expect(arrow).toHaveCount(1);
+          const endpoints = await arrow.evaluate((el) => {
+            const style = (el as SVGSVGElement).style;
+            return {
+              left: Number.parseFloat(style.left),
+              width: Number.parseFloat(style.width),
+            };
+          });
+          expect(Math.abs(endpoints.left - 9.9696 * zoom)).toBeLessThan(0.001);
+          expect(
+            Math.abs(endpoints.left + endpoints.width - 9.9996 * zoom),
+          ).toBeLessThan(0.001);
           await page.keyboard.up("ArrowLeft");
 
           await expect
@@ -112,6 +133,13 @@ for (const placement of ["edited", "peer"] as const) {
               follower.source_end -
               follower.source_start,
           ).toBeCloseTo(19.9696, 8);
+          await expect
+            .poll(() =>
+              followerBlock.evaluate((el) =>
+                Number.parseFloat((el as HTMLElement).style.left),
+              ),
+            )
+            .toBeCloseTo(endpoints.left, 6);
         },
         undefined,
         (prefix) => overlapProject(prefix, placement),
