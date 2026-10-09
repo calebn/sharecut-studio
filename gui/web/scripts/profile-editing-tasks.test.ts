@@ -36,6 +36,16 @@ type ProfileFault =
   | "mismatched-route"
   | "failed-semantics";
 
+type BackendCall = {
+  command: "uv";
+  argv: readonly ["run", "python", "-c", string];
+  cwd: string;
+  encoding: "utf8";
+};
+type ActualChildProcess = typeof import("node:child_process") & {
+  default: typeof import("node:child_process");
+};
+
 const control = vi.hoisted(() => ({
   kind: "complete" as ProfileFault,
   repo: "",
@@ -50,47 +60,54 @@ const control = vi.hoisted(() => ({
   removalAttempts: 0,
   restored: [] as (() => void)[],
   failLedgerWrite: false,
-  backendImports: 0,
+  backendCalls: [] as BackendCall[],
 }));
 
 vi.mock("node:child_process", async () => {
   const actual =
-    await vi.importActual<typeof import("node:child_process")>(
-      "node:child_process",
-    );
+    await vi.importActual<ActualChildProcess>("node:child_process");
   const importCommand =
     "import json,os,sys,podcast_mcp.gui.server; print(json.dumps({'cwd':os.getcwd(),'executable':sys.executable,'module':podcast_mcp.gui.server.__file__}))";
+  const spawnSync = (
+    ...args: Parameters<typeof actual.spawnSync>
+  ): ReturnType<typeof actual.spawnSync> => {
+    const [command, argv, options] = args;
+    if (
+      command === "uv" &&
+      Array.isArray(argv) &&
+      JSON.stringify(argv) ===
+        JSON.stringify(["run", "python", "-c", importCommand]) &&
+      options?.cwd === control.repo &&
+      options.encoding === "utf8"
+    ) {
+      control.backendCalls.push({
+        command,
+        argv: [...argv] as BackendCall["argv"],
+        cwd: options.cwd,
+        encoding: options.encoding,
+      });
+      const module = path.join(control.repo, "src/podcast_mcp/gui/server.py");
+      fs.readFileSync(module);
+      const stdout = `${JSON.stringify({
+        cwd: control.repo,
+        executable: "controlled-backend-import-boundary",
+        module,
+      })}\n`;
+      return {
+        pid: 0,
+        status: 0,
+        signal: null,
+        stdout,
+        stderr: "",
+        output: [null, stdout, ""],
+      };
+    }
+    return actual.spawnSync(...args);
+  };
   return {
     ...actual,
-    spawnSync: (...args: Parameters<typeof actual.spawnSync>) => {
-      const [command, argv, options] = args;
-      if (
-        command === "uv" &&
-        Array.isArray(argv) &&
-        JSON.stringify(argv) ===
-          JSON.stringify(["run", "python", "-c", importCommand]) &&
-        options?.cwd === control.repo &&
-        options.encoding === "utf8"
-      ) {
-        control.backendImports++;
-        const module = path.join(control.repo, "src/podcast_mcp/gui/server.py");
-        fs.readFileSync(module);
-        const stdout = `${JSON.stringify({
-          cwd: control.repo,
-          executable: "controlled-backend-import-boundary",
-          module,
-        })}\n`;
-        return {
-          pid: 0,
-          status: 0,
-          signal: null,
-          stdout,
-          stderr: "",
-          output: [null, stdout, ""],
-        };
-      }
-      return actual.spawnSync(...args);
-    },
+    spawnSync,
+    default: { ...actual.default, spawnSync },
   };
 });
 
@@ -517,7 +534,7 @@ async function invoke(
   control.cleanupManifest = "";
   control.rejectedLifecycle = null;
   control.removalAttempts = 0;
-  control.backendImports = 0;
+  control.backendCalls = [];
   process.exitCode = undefined;
   process.argv = [
     process.execPath,
@@ -548,12 +565,17 @@ async function invoke(
   }
   for (const restore of control.restored.reverse()) restore();
   control.restored = [];
+  const backendCalls = control.backendCalls.map((call) => ({
+    ...call,
+    argv: [...call.argv] as BackendCall["argv"],
+  }));
   fs.writeFileSync(
     path.join(fixture.root, "test-invocation.json"),
     JSON.stringify(
       {
         argv: process.argv,
         rejection,
+        backendCalls,
         processExitCode: process.exitCode ?? null,
         launched: control.launched,
         rejectedLifecycle: control.rejectedLifecycle,
@@ -576,7 +598,24 @@ async function invoke(
   const selected = summary?.routes.find(
     (row) => row.task === "trim" && row.route === "handle-keyboard",
   );
-  return { rejection, summary, attempts, selected };
+  expect(backendCalls).toEqual(
+    (options.trials ?? 5) < 5
+      ? []
+      : [
+          {
+            command: "uv",
+            argv: [
+              "run",
+              "python",
+              "-c",
+              "import json,os,sys,podcast_mcp.gui.server; print(json.dumps({'cwd':os.getcwd(),'executable':sys.executable,'module':podcast_mcp.gui.server.__file__}))",
+            ],
+            cwd: control.repo,
+            encoding: "utf8",
+          },
+        ],
+  );
+  return { rejection, summary, attempts, selected, backendCalls };
 }
 
 const passingSemantics = {
@@ -588,8 +627,9 @@ const passingSemantics = {
 };
 
 it("admits five complete canonical profiles with matching served bytes and real assessed semantics", async () => {
-  const { rejection, summary, selected } = await invoke("complete");
-  expect(control.backendImports).toBe(1);
+  const { rejection, summary, selected, backendCalls } =
+    await invoke("complete");
+  expect(backendCalls).toHaveLength(1);
   expect(readJson(path.join(control.out, "backend-import.log"))).toEqual({
     cwd: control.repo,
     executable: "controlled-backend-import-boundary",
@@ -786,8 +826,8 @@ it.each(["nonfinite-duration", "failed-semantics"] as const)(
 );
 
 it("preserves the five-trial baseline threshold at the actual CLI parser", async () => {
-  const { rejection } = await invoke("complete", { trials: 4 });
-  expect(control.backendImports).toBe(0);
+  const { rejection, backendCalls } = await invoke("complete", { trials: 4 });
+  expect(backendCalls).toEqual([]);
   expect(rejection).toBe(
     "Error: Use --app-base SHA --trials N --out NEW_DIRECTORY; baseline requires at least five trials",
   );
