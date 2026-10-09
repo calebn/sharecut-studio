@@ -107,6 +107,10 @@ function runner(failedPhase: "action" | "undo" | null) {
   const body = new Promise<string>((_, reject) => {
     rejectBody = reject;
   });
+  let bodyRequested!: () => void;
+  const bodyReady = new Promise<void>((resolve) => {
+    bodyRequested = resolve;
+  });
   let status = 201;
   const page = new EventEmitter();
   class Locator {
@@ -132,8 +136,11 @@ function runner(failedPhase: "action" | "undo" | null) {
       url: request.url,
       request: () => request,
       status: () => (failed ? status : 200),
-      text: () =>
-        failed ? body : Promise.resolve('{"ok":true,"type":"Applied"}'),
+      text: () => {
+        if (!failed) return Promise.resolve('{"ok":true,"type":"Applied"}');
+        bodyRequested();
+        return body;
+      },
     });
   };
   const active = Object.assign(page, {
@@ -160,9 +167,7 @@ function runner(failedPhase: "action" | "undo" | null) {
           entries: simulation.history!.entries,
         };
         if (failedPhase !== null) {
-          // Yield through the response adapter so its status precedes the native rejection.
-          await Promise.resolve();
-          await Promise.resolve();
+          await bodyReady;
           status = 503;
           rejectBody(new Error("literal native body unavailable"));
         }

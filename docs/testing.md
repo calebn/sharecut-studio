@@ -1158,6 +1158,9 @@ checks literal Save, independent cancellation clones, and Undo evidence.
 Protocol version 7 requires source-owned journal, UI, and failure records.
 One pure assessment supplies both whole-trial admission and phase observations.
 A failed attempt retains its evidence and completed work stays zero.
+The oracle suites separate durable state, retained journal, History, phase projection,
+and statistics. Reader and actual runner regressions cover malformed saved cursors,
+ignored frontend inputs, and partial cancellation setup with context close failures.
 The focused oracle and observer tests do not replace production browser correctness,
 five valid baseline trials per eligible route, or limiter and noise evidence.
 

@@ -525,6 +525,7 @@ it("finishes cancellation observation before its owned context closes", async ()
       ).journal;
     },
   };
+  Object.assign(canceled, { context: () => context });
   Object.assign(page, {
     context: () => ({ browser: () => ({ newContext: async () => context }) }),
   });
@@ -649,6 +650,7 @@ it("retains an admitted clone command body failure with its full original owner"
     newCDPSession: async () => ({}),
     close: async () => {},
   };
+  Object.assign(canceled, { context: () => context });
   Object.assign(page, {
     context: () => ({ browser: () => ({ newContext: async () => context }) }),
   });

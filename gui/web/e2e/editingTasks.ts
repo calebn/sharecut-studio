@@ -31,6 +31,7 @@ import {
 import { savedStateDifferences } from "./editingTaskState";
 import { createEditorProfiler } from "./editorProfile";
 import { switchE2eProject } from "./shareableProject";
+import { withBrowserPages } from "./twoBrowserPages";
 
 function nativeErrorName(error: unknown): string | null {
   return error !== null &&
@@ -537,66 +538,24 @@ export async function runEditingTask(
         probe: chosen.cancellation[0].id,
       };
       origin = cancelOrigin;
-      const canceledFixture = createEditingFixture(task, output);
-      let activeCancelFixture = canceledFixture;
-      const context = await page
-        .context()
-        .browser()!
-        .newContext({
-          viewport: task.viewport,
-          hasTouch: chosen.input === "cdp-touch" || task.id === "mix",
-        });
-      const cancelPage = await context.newPage();
-      const cancelCdp = await context.newCDPSession(cancelPage);
-      pageOrigins.set(cancelPage, () => cancelOrigin);
-      const cancelObservation = observe(cancelPage, () => cancelOrigin);
-      try {
-        for (const [index, recipe] of chosen.cancellation.entries()) {
-          const probe = recipe.id;
-          cancelOrigin = { owner: "cancel", phase: "setup", probe };
-          origin = cancelOrigin;
-          const clone =
-            index === 0 ? canceledFixture : createEditingFixture(task, output);
-          activeCancelFixture = clone;
-          fs.copyFileSync(
-            clone.projectPath,
-            path.join(output, `canceled-${probe}-initial-project.json`),
-          );
-          await prepare(cancelPage, clone.projectPath, cancelOrigin);
-          cancelOrigin = { owner: "cancel", phase: "cancel", probe };
-          origin = cancelOrigin;
-          await captureUi(cancelPage, `cancel-${probe}-initiation`);
-          await performEditingInput(
-            {
-              active: cancelPage,
-              session: cancelCdp,
-              task,
-              route: chosen,
-              intent: { kind: "cancel", probe: recipe },
-            },
-            inputRecorder,
-          );
-          await cancelObservation.flush();
-          await captureUi(cancelPage, `cancel-${probe}-recovery`);
-          trial.cancellations.push({
-            probe,
-            outcome: "completed",
-            state: readEditingState(clone.projectPath),
-          });
-          fs.copyFileSync(
-            clone.projectPath,
-            path.join(output, `canceled-${probe}-project.json`),
-          );
-          retain();
-        }
-      } catch (error) {
+      let activeCancelFixture:
+        | ReturnType<typeof createEditingFixture>
+        | undefined;
+      let cancellationOutcome: "completed" | "failed" | undefined;
+      const retainCancellationFailure = (error: unknown) => {
         const failedOrigin = cancelOrigin;
         fail(error, failedOrigin, "cancel: ");
         let state: EditingTrial["cancellations"][number]["state"] = null;
-        try {
-          state = readEditingState(activeCancelFixture.projectPath);
-        } catch (error) {
-          fail(error, failedOrigin, "cancel recovery state: ");
+        if (activeCancelFixture) {
+          try {
+            state = readEditingState(activeCancelFixture.projectPath);
+          } catch (stateError) {
+            fail(stateError, failedOrigin, "cancel recovery state: ");
+          }
+          fs.copyFileSync(
+            activeCancelFixture.projectPath,
+            path.join(output, "failed-cancel-project.json"),
+          );
         }
         if (
           failedOrigin.owner === "cancel" &&
@@ -607,27 +566,103 @@ export async function runEditingTask(
             outcome: "failed",
             state,
           });
-        fs.copyFileSync(
-          activeCancelFixture.projectPath,
-          path.join(output, "failed-cancel-project.json"),
-        );
-        await captureUi(cancelPage, "failed-cancel-recovery");
         retain();
-      } finally {
-        await cancelObservation
-          .finish()
-          .catch((error) =>
-            fail(error, cancelOrigin, "cancel response drain: "),
-          );
-        await context
-          .close()
-          .catch((error) =>
+      };
+      try {
+        const canceledFixture = createEditingFixture(task, output);
+        activeCancelFixture = canceledFixture;
+        await withBrowserPages(
+          page.context().browser()!,
+          [
+            {
+              viewport: task.viewport,
+              hasTouch: chosen.input === "cdp-touch" || task.id === "mix",
+            },
+          ],
+          async ([cancelPage]) => {
+            pageOrigins.set(cancelPage, () => cancelOrigin);
+            let cancelObservation: ReturnType<typeof observe> | undefined;
+            try {
+              const cancelCdp = await cancelPage
+                .context()
+                .newCDPSession(cancelPage);
+              cancelObservation = observe(cancelPage, () => cancelOrigin);
+              for (const [index, recipe] of chosen.cancellation.entries()) {
+                const probe = recipe.id;
+                cancelOrigin = { owner: "cancel", phase: "setup", probe };
+                origin = cancelOrigin;
+                const clone =
+                  index === 0
+                    ? canceledFixture
+                    : createEditingFixture(task, output);
+                activeCancelFixture = clone;
+                fs.copyFileSync(
+                  clone.projectPath,
+                  path.join(output, `canceled-${probe}-initial-project.json`),
+                );
+                await prepare(cancelPage, clone.projectPath, cancelOrigin);
+                cancelOrigin = { owner: "cancel", phase: "cancel", probe };
+                origin = cancelOrigin;
+                await captureUi(cancelPage, `cancel-${probe}-initiation`);
+                await performEditingInput(
+                  {
+                    active: cancelPage,
+                    session: cancelCdp,
+                    task,
+                    route: chosen,
+                    intent: { kind: "cancel", probe: recipe },
+                  },
+                  inputRecorder,
+                );
+                await cancelObservation.flush();
+                await captureUi(cancelPage, `cancel-${probe}-recovery`);
+                trial.cancellations.push({
+                  probe,
+                  outcome: "completed",
+                  state: readEditingState(clone.projectPath),
+                });
+                fs.copyFileSync(
+                  clone.projectPath,
+                  path.join(output, `canceled-${probe}-project.json`),
+                );
+                retain();
+              }
+              cancellationOutcome = "completed";
+            } catch (error) {
+              cancellationOutcome = "failed";
+              try {
+                retainCancellationFailure(error);
+                if (cancelObservation)
+                  await captureUi(cancelPage, "failed-cancel-recovery");
+              } catch (recoveryError) {
+                fail(
+                  recoveryError,
+                  { owner: "global", blocks: "all-proofs" },
+                  "cancel recovery retention: ",
+                );
+              }
+              throw error;
+            } finally {
+              await cancelObservation
+                ?.finish()
+                .catch((error) =>
+                  fail(error, cancelOrigin, "cancel response drain: "),
+                );
+            }
+          },
+          (error) => {
             fail(
               error,
               { owner: "cancel", phase: "cancel", probe: null },
               "cancel context close: ",
-            ),
-          );
+            );
+          },
+        );
+      } catch (error) {
+        if (cancellationOutcome === undefined) {
+          cancellationOutcome = "failed";
+          retainCancellationFailure(error);
+        }
       }
     }
     origin = mainOrigin;

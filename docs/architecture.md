@@ -487,6 +487,10 @@ The editing task workload keeps browser observation in `gui/web/e2e/editingTasks
 `editingTaskReport.ts` parses retained evidence and derives the shared strict assessment.
 `editingTaskState.ts` owns the durable-state types, parser, and comparison.
 The route registry declares cancellation recipes consumed by input execution and assessment.
+The canonical `twoBrowserPages.ts` helper closes acquired cancellation contexts after
+partial page or CDP setup. The runner retains clone setup and close failures separately
+and continues independent main work.
+Oracle tests follow state, journal, History, phase projection, and statistics ownership.
 See [the editing task proof protocol](../gui/web/e2e/EDITING_TASK_WORKLOADS.md).
 
 ## Agent bundle

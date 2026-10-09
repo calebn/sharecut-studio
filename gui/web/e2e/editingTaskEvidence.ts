@@ -539,7 +539,7 @@ export function createEditingFixture(
 export function readEditingHistory(projectPath: string): HistoryIdentity {
   const project = object(JSON.parse(fs.readFileSync(projectPath, "utf8")));
   const saved = object(project.history);
-  const cursor = Number(saved.cursor);
+  const cursor = saved.cursor;
   const entries = array(saved.entries).map((entry) => {
     const row = object(entry);
     if (
@@ -550,7 +550,12 @@ export function readEditingHistory(projectPath: string): HistoryIdentity {
       throw new Error("Malformed saved history entry");
     return { id: row.id, label: row.label, operation: row.operation };
   });
-  if (!Number.isSafeInteger(cursor) || cursor < -1 || cursor >= entries.length)
+  if (
+    typeof cursor !== "number" ||
+    !Number.isSafeInteger(cursor) ||
+    cursor < -1 ||
+    cursor >= entries.length
+  )
     throw new Error("Malformed saved history cursor");
   return { cursor, headId: cursor >= 0 ? entries[cursor].id : null, entries };
 }

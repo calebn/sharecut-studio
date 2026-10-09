@@ -30,6 +30,7 @@ export async function withBrowserPages<T>(
   browser: Pick<Browser, "newContext">,
   contextOptions: BrowserContextOptions[],
   run: (pages: Page[]) => Promise<T>,
+  onCloseFailure?: (error: unknown) => void,
 ): Promise<T> {
   const contexts: BrowserContext[] = [];
   let primaryFailed = false;
@@ -50,6 +51,15 @@ export async function withBrowserPages<T>(
   const closed = await Promise.allSettled(
     contexts.reverse().map(async (context) => context.close()),
   );
+  if (onCloseFailure)
+    await Promise.allSettled(
+      closed
+        .filter(
+          (close): close is PromiseRejectedResult =>
+            close.status === "rejected",
+        )
+        .map(async (close) => onCloseFailure(close.reason)),
+    );
   // Cleanup must not obscure the scenario failure that triggered it.
   if (primaryFailed) throw primaryError;
   const closeFailure = closed.find(

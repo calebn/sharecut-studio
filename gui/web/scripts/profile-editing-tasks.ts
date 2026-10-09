@@ -113,6 +113,9 @@ const productPaths = git("ls-tree", "-r", "--name-only", appBase)
 const additions = [
   ...git("ls-files").split("\n"),
   ...git("ls-files", "--others", "--exclude-standard").split("\n"),
+  ...git("ls-files", "--others", "--ignored", "--exclude-standard")
+    .split("\n")
+    .filter((file) => !file.startsWith("src/podcast_mcp/")),
 ].filter((file) => isProductPath(file) && !productPaths.includes(file));
 if (additions.length)
   throw new Error(
@@ -144,6 +147,7 @@ const harnessFiles = Object.fromEntries(
     "e2e/editingTaskCases.ts",
     "e2e/editingTaskEvidence.ts",
     "e2e/editingTaskInputs.ts",
+    "e2e/twoBrowserPages.ts",
     "e2e/editing-tasks.spec.ts",
     "scripts/profile-editing-tasks.ts",
     "e2e/editorProfile.ts",
