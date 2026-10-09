@@ -584,3 +584,165 @@ it("retains null recovery for a later clone acquisition failure without borrowin
     observations: { save: "pass", cancel: "fail", undo: "pass" },
   });
 }, 10000);
+
+it.each([false, true])(
+  "retains the failed named cancellation when recovery copy fails with stateFailure=%s",
+  async (stateFailure) => {
+    const { active, task, root } = runner(null);
+    const route = task.routes[0];
+    if ("pending" in route)
+      throw new Error("literal runner route must be supported");
+    route.cancellation = [
+      { id: "copy-failure", input: { kind: "route-cancel" } },
+    ];
+    const clone = {
+      projectPath: path.join(root, "failed-clone.project.json"),
+      workspaceDir: root,
+    };
+    fs.writeFileSync(clone.projectPath, '{"clone":"literal-failed-clone"}\n');
+    simulation.states.set(clone.projectPath, task.start);
+    simulation.fixtureSequence = [simulation.fixture, clone];
+    if (stateFailure)
+      simulation.readState = (projectPath) => {
+        if (projectPath === clone.projectPath)
+          throw new Error("literal cancel recovery state unavailable");
+        return simulation.state!;
+      };
+    const cancelPage = new EventEmitter();
+    const context = {
+      newPage: async () => cancelPage,
+      newCDPSession: async () => ({}),
+      close: async () => {},
+    };
+    Object.assign(cancelPage, {
+      context: () => context,
+      setViewportSize: async () => {
+        throw new Error("literal cancellation preparation unavailable");
+      },
+      waitForLoadState: active.waitForLoadState,
+      locator: active.locator,
+      screenshot: active.screenshot,
+    });
+    Object.assign(active, {
+      context: () => ({ browser: () => ({ newContext: async () => context }) }),
+    });
+    const output = path.join(root, "out");
+    const copyFile = fs.copyFileSync;
+    const copyFault = vi
+      .spyOn(fs, "copyFileSync")
+      .mockImplementation((source, target, flags) => {
+        if (String(target) === path.join(output, "failed-cancel-project.json"))
+          throw new Error("literal failed clone copy unavailable");
+        return copyFile(source, target, flags);
+      });
+    let produced: Awaited<ReturnType<typeof runEditingTask>>;
+    try {
+      produced = await runEditingTask(
+        active as unknown as Page,
+        {} as CDPSession,
+        {
+          outputPath: () => path.join(root, "profile.json"),
+        } as unknown as TestInfo,
+        task,
+        "literal-runner",
+        output,
+        "validity-only",
+      );
+    } finally {
+      copyFault.mockRestore();
+    }
+    const retained = JSON.parse(
+      fs.readFileSync(path.join(output, "trial.json"), "utf8"),
+    );
+    const assessment = assessEditingTrial(task, produced);
+    if (process.env.POTETO_CANCELLATION_OUT) {
+      fs.mkdirSync(process.env.POTETO_CANCELLATION_OUT, { recursive: true });
+      const evidence = fs.mkdtempSync(
+        path.join(
+          process.env.POTETO_CANCELLATION_OUT,
+          stateFailure ? "copy-and-state-failure-" : "copy-failure-",
+        ),
+      );
+      fs.cpSync(root, evidence, { recursive: true });
+      fs.writeFileSync(
+        path.join(evidence, "returned-trial.json"),
+        JSON.stringify(produced, null, 2),
+      );
+      fs.writeFileSync(
+        path.join(evidence, "returned-assessment.json"),
+        JSON.stringify(assessment, null, 2),
+      );
+    }
+    expect({
+      returnedFailures: produced.failures.map((failure) => ({
+        message: failure.error.split("Error: ").at(-1),
+        errorName: failure.errorName,
+      })),
+      returnedCancellations: produced.cancellations.map((row) => ({
+        probe: row.probe,
+        outcome: row.outcome,
+        state: row.state === null ? "unavailable" : "retained",
+      })),
+      retainedCancellations: retained.cancellations.map(
+        (row: { probe: string; outcome: string; state: unknown }) => ({
+          probe: row.probe,
+          outcome: row.outcome,
+          state: row.state === null ? "unavailable" : "retained",
+        }),
+      ),
+      retainedFailureMessages: retained.failures.map(
+        (failure: { error: string }) => failure.error.split("Error: ").at(-1),
+      ),
+      semantic: assessment,
+    }).toMatchObject({
+      returnedFailures: [
+        {
+          message: "literal cancellation preparation unavailable",
+          errorName: "Error",
+        },
+        ...(stateFailure
+          ? [
+              {
+                message: "literal cancel recovery state unavailable",
+                errorName: "Error",
+              },
+            ]
+          : []),
+        {
+          message: "literal failed clone copy unavailable",
+          errorName: "Error",
+        },
+      ],
+      returnedCancellations: [
+        {
+          probe: "copy-failure",
+          outcome: "failed",
+          state: stateFailure ? "unavailable" : "retained",
+        },
+      ],
+      retainedCancellations: [
+        {
+          probe: "copy-failure",
+          outcome: "failed",
+          state: stateFailure ? "unavailable" : "retained",
+        },
+      ],
+      retainedFailureMessages: [
+        "literal cancellation preparation unavailable",
+        ...(stateFailure ? ["literal cancel recovery state unavailable"] : []),
+        "literal failed clone copy unavailable",
+      ],
+      semantic: {
+        status: "fail",
+        completedWork: 0,
+        observations: { save: "pass", cancel: "fail", undo: "pass" },
+      },
+    });
+    expect(produced.after).toEqual(task.expected);
+    expect(produced.undone).toEqual(task.start);
+    expect(fs.readFileSync(clone.projectPath, "utf8")).toBe(
+      '{"clone":"literal-failed-clone"}\n',
+    );
+  },
+  10000,
+);
