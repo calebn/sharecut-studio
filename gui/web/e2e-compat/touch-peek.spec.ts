@@ -101,9 +101,9 @@ const sheet = (page: Page) => page.locator(".bottom-sheet");
 async function cutAnyway(page: Page, finger: Finger): Promise<void> {
   const dialog = page.getByRole("dialog", { name: "Cut guest's speech too?" });
   await expect(dialog).toBeVisible();
-  const button = await centerOfBox(
-    dialog.getByRole("button", { name: "Cut anyway" }),
-  );
+  const target = dialog.getByRole("button", { name: "Cut anyway" });
+  await target.click({ trial: true });
+  const button = await centerOfBox(target);
   await finger.down(button);
   await finger.up();
   await expect(dialog).toBeHidden();
