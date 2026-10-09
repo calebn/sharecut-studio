@@ -32,7 +32,9 @@ def test_ux_seed_refuses_raw_registry_alias_before_token_output(tmp_path, monkey
     unsafe = tmp_path / "replaceable"
     unsafe.mkdir(mode=0o700)
     unsafe.chmod(0o777)
-    raw_registry = unsafe / "registry.sqlite"
+    private_child = unsafe / "private-child"
+    private_child.mkdir(mode=0o700)
+    raw_registry = private_child / "registry.sqlite"
     raw_registry.symlink_to(target)
     project = tmp_path / "project.json"
     project.write_text("{}", encoding="utf-8")
@@ -76,6 +78,7 @@ def test_ux_seed_refuses_raw_registry_alias_before_token_output(tmp_path, monkey
         main()
 
     assert not tokens_out.exists(), "refusal must happen before the UX token manifest is written"
+    assert stat.S_IMODE(unsafe.stat().st_mode) == 0o777
     assert (
         target.stat().st_ino,
         target.read_bytes(),

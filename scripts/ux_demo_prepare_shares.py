@@ -21,6 +21,8 @@ import os
 import sys
 from pathlib import Path
 
+from podcast_mcp.util.registry_backup import _anchor_path
+
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "tests" / "fixtures" / "sharecut_ux_demo" / "episode.project.json"
 DEFAULT_REGISTRY = Path("/tmp/podcast_ux_demo_shares.sqlite")
@@ -58,7 +60,8 @@ def main() -> int:
         print(f"missing project: {args.project}", file=sys.stderr)
         return 1
 
-    os.environ["PODCAST_SHARE_REGISTRY"] = str(args.registry.resolve())
+    registry_path = _anchor_path(args.registry)
+    os.environ["PODCAST_SHARE_REGISTRY"] = str(registry_path)
 
     from podcast_mcp.edits.share_capabilities import capabilities_for_role
     from podcast_mcp.services.app import ProjectWorkspace
@@ -86,7 +89,7 @@ def main() -> int:
     )
 
     manifest = {
-        "share_registry": str(args.registry.resolve()),
+        "share_registry": str(registry_path),
         "project": str(args.project.resolve()),
         "review_version_id": ver_id,
         "daw_guest": {
@@ -100,7 +103,7 @@ def main() -> int:
     args.tokens_out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(manifest, indent=2))
     print(f"\nWrote {args.tokens_out}", file=sys.stderr)
-    print(f"PODCAST_SHARE_REGISTRY={args.registry.resolve()}", file=sys.stderr)
+    print(f"PODCAST_SHARE_REGISTRY={registry_path}", file=sys.stderr)
     return 0
 
 

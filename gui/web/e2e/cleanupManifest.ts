@@ -83,7 +83,7 @@ export function ownedE2eManifestDirectory(manifestPath: string): string {
     throw new Error("E2E cleanup manifest must belong to a private invocation");
   }
   requiredManifest(manifestPath);
-  return directory;
+  return fs.realpathSync(directory);
 }
 
 export function registeredE2eCleanupWorkspace(workspaceDir: string): boolean {

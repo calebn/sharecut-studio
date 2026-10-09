@@ -27,7 +27,7 @@ from typing import Any, Protocol, runtime_checkable
 from coolname import generate_slug
 
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.registry_backup import publish_registry_backup
+from podcast_mcp.util.registry_backup import _anchor_path, publish_registry_backup
 from podcast_mcp.util.registry_cleanup import cleanup
 from podcast_mcp.util.registry_privacy import registry_privacy
 from podcast_mcp.util.sqlite_tx import (
@@ -116,8 +116,7 @@ def _iso(dt: datetime) -> str:
 
 
 def _resolve_registry_path(path: str | Path) -> Path:
-    """Normalize a registry path. The path is used verbatim (no suffix rewrite)."""
-    return Path(path).expanduser().resolve()
+    return _anchor_path(Path(path).expanduser())
 
 
 def _recording_secret(row: sqlite3.Row) -> bytes:
@@ -136,7 +135,7 @@ def default_share_registry_db_path() -> Path:
     Prefer pinning with ``PODCAST_SHARE_REGISTRY``; the override is used
     verbatim (whatever its suffix) so every caller opens the same file.
     """
-    override = os.environ.get("PODCAST_SHARE_REGISTRY", "").strip()
+    override = os.environ.get("PODCAST_SHARE_REGISTRY", "")
     if override:
         return _resolve_registry_path(override)
     return _resolve_registry_path(Path.home() / ".podcast_mcp" / "share_registry.sqlite")
@@ -192,7 +191,7 @@ class SqliteShareRegistry:
 
     def __init__(self, db_path: Path | None = None) -> None:
         self.db_path = (
-            Path(os.path.abspath(db_path)) if db_path else default_share_registry_db_path()
+            _anchor_path(db_path) if db_path is not None else default_share_registry_db_path()
         )
         self._lock = threading.RLock()
         self._conn = self._open_connection()
@@ -534,7 +533,7 @@ def reset_share_registry_for_tests() -> None:
 def get_share_registry(db_path: Path | None = None) -> ShareRegistryProtocol:
     """Process-wide registry for the default path; ephemeral for any other *db_path*.
 
-    *db_path* is used verbatim (no suffix rewrite). When it resolves to
+    *db_path* is used verbatim (no suffix rewrite). When its anchored spelling matches
     :func:`default_share_registry_db_path` the process singleton is returned so
     lookups do not open a second connection to the same file.
     """
@@ -546,9 +545,16 @@ def get_share_registry(db_path: Path | None = None) -> ShareRegistryProtocol:
             return SqliteShareRegistry(requested)
     with _registry_lock:
         if _registry_singleton is None or _registry_singleton.db_path != path:
-            if _registry_singleton is not None:
-                _registry_singleton.close()
-            _registry_singleton = SqliteShareRegistry(path)
+            current = _registry_singleton
+            candidate = SqliteShareRegistry(path)
+            try:
+                if current is not None:
+                    current.close()
+                _registry_singleton = candidate
+            except BaseException:
+                _registry_singleton = current
+                cleanup([candidate.close])
+                raise
         with _registry_singleton._ready_connection():
             return _registry_singleton
 

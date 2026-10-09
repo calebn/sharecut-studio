@@ -153,7 +153,9 @@ def test_cli_backup_refuses_raw_default_registry_alias_before_copy(tmp_path, mon
     unsafe = tmp_path / "replaceable"
     unsafe.mkdir(mode=0o700)
     unsafe.chmod(0o777)
-    alias = unsafe / "registry.sqlite"
+    private_child = unsafe / "private-child"
+    private_child.mkdir(mode=0o700)
+    alias = private_child / "registry.sqlite"
     alias.symlink_to(target)
     output = tmp_path / "backups"
     output.mkdir(mode=0o700)
@@ -163,6 +165,7 @@ def test_cli_backup_refuses_raw_default_registry_alias_before_copy(tmp_path, mon
 
     result = CliRunner().invoke(app, ["review", "backup-registry", "--dest", str(destination)])
 
+    assert stat.S_IMODE(unsafe.stat().st_mode) == 0o777
     assert result.exit_code == 1, result.output
     assert not result.stdout.strip().startswith("{")
     assert not destination.exists()
