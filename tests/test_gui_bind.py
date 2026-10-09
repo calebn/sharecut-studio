@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import stat
 import sys
 from pathlib import Path
@@ -99,17 +100,49 @@ def _patch_uvicorn_server(monkeypatch: pytest.MonkeyPatch, seen: dict[str, objec
     monkeypatch.setattr(uvicorn, "Server", FakeServer)
 
 
-def test_run_gui_server_without_listen_file(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(LISTEN_FILE_ENV, raising=False)
+def test_public_bind_passes_the_open_listener_and_closes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import uvicorn
+
     monkeypatch.delenv(EPHEMERAL_ENV, raising=False)
-    seen: dict[str, object] = {}
-    _patch_uvicorn_server(monkeypatch, seen)
+    monkeypatch.delenv(LISTEN_FILE_ENV, raising=False)
     app = object()
+    observed: dict[str, Any] = {}
+
+    class Config:
+        def __init__(self, supplied_app: object, **options: object) -> None:
+            observed["app"] = supplied_app
+            observed["options"] = options
+
+    class Server:
+        def __init__(self, config: Config) -> None:
+            self.config = config
+
+        def run(self, *, sockets: list[socket.socket]) -> None:
+            assert len(sockets) == 1
+            listener = sockets[0]
+            observed["listener"] = listener
+            observed["host"] = listener.getsockname()[0]
+            observed["accepts"] = listener.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN)
+            contender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                with pytest.raises(OSError):
+                    contender.bind(listener.getsockname())
+            finally:
+                contender.close()
+
+    monkeypatch.setattr(uvicorn, "Config", Config)
+    monkeypatch.setattr(uvicorn, "Server", Server)
     run_gui_server(app, host="127.0.0.1", port=0, log_level="warning")
-    assert seen["app"] is app
-    sockets = seen["sockets"]
-    assert isinstance(sockets, list) and len(sockets) == 1
-    assert "fd" not in seen
+    assert observed["app"] is app
+    assert observed["host"] == "127.0.0.1"
+    assert observed["accepts"] == 1
+    assert observed["options"] == {
+        "log_level": "warning",
+        "ws_per_message_deflate": True,
+    }
+    assert observed["listener"].fileno() == -1
 
 
 def test_exclusive_listen_second_bind_fails() -> None:
@@ -407,3 +440,19 @@ def test_cors_allows_only_listed_origins_with_credentials(
     assert preflight(_EVIL_ORIGIN)["origin"] is None
     refused = client.get("/api/health", headers={"Origin": _EVIL_ORIGIN})
     assert "access-control-allow-origin" not in refused.headers
+
+
+@pytest.mark.parametrize("request_text", ["", "[]"])
+def test_run_gui_server_refuses_invalid_editing_request_before_serving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request_text: str
+) -> None:
+    request = tmp_path / "editing-request.json"
+    request.write_text(request_text, encoding="utf-8")
+    monkeypatch.setenv("PODCAST_EDITING_BIND_REQUEST", str(request))
+    monkeypatch.delenv(EPHEMERAL_ENV, raising=False)
+    monkeypatch.delenv(LISTEN_FILE_ENV, raising=False)
+    seen: dict[str, object] = {}
+    _patch_uvicorn_server(monkeypatch, seen)
+    with pytest.raises(ValueError, match=r"[Ee]diting"):
+        run_gui_server(object(), host="127.0.0.1", port=0, log_level="warning")
+    assert seen == {}
