@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
@@ -724,6 +725,66 @@ describe("PendingEditOverlayView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("moves the single review actionbar into pinned compact chrome and restores focus when it closes", async () => {
+    const root = document.createElement("div");
+    root.className = "bottom-sheet-root";
+    const panel = document.createElement("div");
+    panel.className = "bottom-sheet bottom-sheet--compact bottom-sheet--peek";
+    const chrome = document.createElement("div");
+    chrome.className = "bottom-sheet-chrome";
+    panel.append(chrome);
+    root.append(panel);
+    document.body.append(root);
+    selectPending();
+    const onReviewAction = vi.fn(async () => ({ queued: false }));
+    const { container, unmount } = render(
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        timelineWidthPx={1000}
+        selectedId="cut_1"
+        projectPath="/tmp/p.json"
+        clipsByTrack={{}}
+        canAdjust
+        canApply
+        onSelect={vi.fn()}
+        onCommitSpan={vi.fn()}
+        onReviewAction={onReviewAction}
+      />,
+    );
+    await waitFor(() => {
+      const bar = chrome.querySelector<HTMLElement>(
+        ".pending-actionbar--docked",
+      );
+      expect(bar).not.toBeNull();
+      return bar;
+    });
+    await expectNoA11yViolations(chrome);
+    const approve = screen.getByRole("button", { name: "Approve" });
+    expect(chrome.contains(approve)).toBe(true);
+    approve.focus();
+    panel.classList.remove("bottom-sheet--compact");
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).toBeNull(),
+    );
+    const floatingApprove = screen.getByRole("button", { name: "Approve" });
+    expect(container.ownerDocument.body.contains(floatingApprove)).toBe(true);
+    await waitFor(() => expect(floatingApprove).toHaveFocus());
+    await userEvent.click(floatingApprove);
+    await waitFor(() =>
+      expect(onReviewAction).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        expect.any(Number),
+        "cut_1",
+        "approve",
+      ),
+    );
+    unmount();
+    root.remove();
+  });
+
   it("commits an end-handle drag as mapped source seconds", async () => {
     const onSelect = vi.fn();
     const onCommitSpan = vi.fn();
@@ -1141,4 +1202,184 @@ describe("PendingEditOverlayView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(onReviewAction).toHaveBeenCalledTimes(2));
   });
+});
+
+function mount() {
+  const root = document.createElement("div");
+  root.className = "bottom-sheet-root";
+  const panel = document.createElement("div");
+  panel.className = "bottom-sheet bottom-sheet--compact bottom-sheet--peek";
+  const chrome = document.createElement("div");
+  chrome.className = "bottom-sheet-chrome";
+  panel.append(chrome);
+  root.append(panel);
+  document.body.append(root);
+  useDawStore
+    .getState()
+    .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+  useDawStore.setState({
+    selection: { kind: "pending", id: edit.id, trackId: "host" },
+  });
+  const onReviewAction = vi.fn(async () => {
+    throw new ApiError("refine first", TRANSCRIPT_REFINE_REQUIRED_CODE, 409);
+  });
+  const view = render(
+    <PendingEditOverlayView
+      edits={[edit]}
+      trackId="host"
+      zoomPxPerSec={10}
+      timelineWidthPx={1000}
+      selectedId={edit.id}
+      projectPath="/tmp/p.json"
+      clipsByTrack={{}}
+      canAdjust
+      canApply
+      onSelect={vi.fn()}
+      onCommitSpan={vi.fn()}
+      onReviewAction={onReviewAction}
+    />,
+    { wrapper: StrictMode },
+  );
+  return { root, panel, chrome, view, onReviewAction };
+}
+async function undock(panel: HTMLElement) {
+  panel.classList.remove("bottom-sheet--compact");
+  await act(() => window.dispatchEvent(new Event("resize")));
+  await waitFor(() =>
+    expect(document.querySelector(".pending-actionbar--docked")).toBeNull(),
+  );
+}
+it("retains a waiver draft and textarea focus when the portal destination changes", async () => {
+  const { root, panel, chrome, view } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const reason = await screen.findByRole("textbox", {
+      name: "Waiver reason",
+    });
+    await userEvent.type(reason, "Reviewed every flagged transcript word");
+    expect(reason).toHaveFocus();
+    await undock(panel);
+    const moved = screen.getByRole("textbox", { name: "Waiver reason" });
+
+    expect(moved).toHaveValue("Reviewed every flagged transcript word");
+    expect(moved).toHaveFocus();
+    expect(moved).toBe(reason);
+    panel.classList.add("bottom-sheet--compact");
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(chrome.contains(reason)).toBe(true));
+    expect(reason).toHaveValue("Reviewed every flagged transcript word");
+    expect(reason).toHaveFocus();
+  } finally {
+    view.unmount();
+    root.remove();
+  }
+});
+it("does not steal focus from body after the user has left a review button", async () => {
+  const { root, panel, chrome, view } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    const approve = screen.getByRole("button", { name: "Approve" });
+    approve.focus();
+    approve.blur();
+    expect(document.body).toHaveFocus();
+    await undock(panel);
+
+    expect(document.body).toHaveFocus();
+  } finally {
+    view.unmount();
+    root.remove();
+  }
+});
+it("retains focus in an external control during portal destination change", async () => {
+  const { root, panel, chrome, view } = mount();
+  const outside = document.createElement("input");
+  document.body.append(outside);
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    screen.getByRole("button", { name: "Approve" }).focus();
+    outside.focus();
+    await undock(panel);
+    expect(outside).toHaveFocus();
+  } finally {
+    view.unmount();
+    root.remove();
+    outside.remove();
+  }
+});
+
+it("recovers the same review subtree after compact chrome is detached and replaced", async () => {
+  const { root, panel, chrome, view, onReviewAction } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const reason = await screen.findByRole("textbox", {
+      name: "Waiver reason",
+    });
+    await userEvent.type(reason, "Reviewed audio before resize");
+    chrome.remove();
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(document.body.contains(reason)).toBe(true));
+    expect(reason).toHaveValue("Reviewed audio before resize");
+    expect(document.body).toHaveFocus();
+    const replacement = document.createElement("div");
+    replacement.className = "bottom-sheet-chrome";
+    panel.append(replacement);
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(replacement.contains(reason)).toBe(true));
+    expect(reason).toHaveValue("Reviewed audio before resize");
+    expect(document.body).toHaveFocus();
+    expect(onReviewAction).toHaveBeenCalledTimes(1);
+    view.unmount();
+    expect(document.querySelector(".pending-actionbar-host")).toBeNull();
+  } finally {
+    view.unmount();
+    root.remove();
+  }
+});
+
+it("keeps a waiver save busy across relocation and shows its failure on the same form", async () => {
+  const saving = deferred<void>();
+  vi.mocked(waiveTranscriptRefine).mockClear();
+  vi.mocked(waiveTranscriptRefine).mockReturnValueOnce(saving.promise);
+  const { root, panel, chrome, view } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const reason = await screen.findByRole("textbox", {
+      name: "Waiver reason",
+    });
+    await userEvent.type(reason, "Reviewed audio before saving");
+    const save = screen.getByRole("button", { name: "Waive with reason" });
+    await userEvent.click(save);
+    expect(save).toBeDisabled();
+    await undock(panel);
+    expect(screen.getByRole("textbox", { name: "Waiver reason" })).toBe(reason);
+    expect(reason).toHaveValue("Reviewed audio before saving");
+    expect(reason).toBeDisabled();
+    expect(save).toBeDisabled();
+    await act(async () =>
+      saving.reject(new Error("Waiver could not be saved")),
+    );
+    expect(await screen.findByText("Waiver could not be saved")).toBeVisible();
+    expect(reason).toBeEnabled();
+    expect(save).toBeEnabled();
+    expect(waiveTranscriptRefine).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      "Reviewed audio before saving",
+    );
+  } finally {
+    view.unmount();
+    root.remove();
+  }
 });

@@ -1,5 +1,12 @@
 import type { CSSProperties } from "react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
@@ -198,9 +205,13 @@ function PendingEditRegion({
   const [portalReady, setPortalReady] = useState(false);
   const [overlayHeightPx, setOverlayHeightPx] = useState(0);
   const [labelActive, setLabelActive] = useState(false);
-  // Docked: a compact inspector sheet is open below, so the card sits above
-  // it, and its timing lives in that sheet rather than in Edit timing.
   const [docked, setDocked] = useState(false);
+  const [actionbarHost] = useState(() => {
+    if (typeof document === "undefined") return null;
+    const host = document.createElement("div");
+    host.className = "pending-actionbar-host";
+    return host;
+  });
   const edgeHintId = useId();
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const pointerKind = useDawStore((state) => state.pointerKind);
@@ -545,6 +556,29 @@ function PendingEditRegion({
     };
   }, [labelInPortal, selected, left, width]);
 
+  useLayoutEffect(() => {
+    if (!actionbarHost) return;
+    if (!actionbarRef.current) {
+      actionbarHost.remove();
+      return;
+    }
+    const destination = docked
+      ? (compactSheetPanel()?.querySelector<HTMLElement>(
+          ".bottom-sheet-chrome",
+        ) ?? document.body)
+      : document.body;
+    if (actionbarHost.parentElement === destination) return;
+    const active = document.activeElement;
+    const focused =
+      active instanceof HTMLElement && actionbarHost.contains(active)
+        ? active
+        : null;
+    destination.append(actionbarHost);
+    if (focused?.isConnected) focused.focus({ preventScroll: true });
+  });
+
+  useLayoutEffect(() => () => actionbarHost?.remove(), [actionbarHost]);
+
   useEffect(
     () => () => {
       if (currentGesture.current.kind !== "idle") {
@@ -879,22 +913,30 @@ function PendingEditRegion({
   const actionbarStyle: CSSProperties & {
     "--pending-actionbar-max-height": string;
   } = {
-    left: portalReady && actionbarPlacement ? actionbarPlacement.left : -10000,
-    top: portalReady && actionbarPlacement ? actionbarPlacement.top : 0,
-    visibility: portalReady && actionbarPlacement ? "visible" : "hidden",
+    left: docked
+      ? undefined
+      : portalReady && actionbarPlacement
+        ? actionbarPlacement.left
+        : -10000,
+    top: docked
+      ? undefined
+      : portalReady && actionbarPlacement
+        ? actionbarPlacement.top
+        : 0,
+    visibility:
+      docked || (portalReady && actionbarPlacement) ? "visible" : "hidden",
     "--pending-actionbar-max-height": `${actionbarPlacement?.maxHeight ?? 0}px`,
   };
   const actionPortal =
-    selected &&
-    isOriginLane &&
-    spanIndex === 0 &&
-    typeof document !== "undefined"
+    selected && isOriginLane && spanIndex === 0 && actionbarHost
       ? createPortal(
           <div
             ref={actionbarRef}
-            className="pending-actionbar"
+            className={`pending-actionbar${docked ? " pending-actionbar--docked" : ""}`}
             style={actionbarStyle}
-            aria-hidden={!portalReady || actionbarPlacement === null}
+            aria-hidden={
+              !docked && (!portalReady || actionbarPlacement === null)
+            }
             role="region"
             aria-label="Pending edit actions"
             data-coarse-pointer={coarsePointer ? "true" : undefined}
@@ -995,7 +1037,7 @@ function PendingEditRegion({
               <span role="alert">{actionState.message}</span>
             ) : null}
           </div>,
-          document.body,
+          actionbarHost,
         )
       : null;
 

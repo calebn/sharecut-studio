@@ -40,7 +40,9 @@ Pending edit regions fill their lane. Select one to reveal its label and review
 actions above or below the lane; they stay clear of the edge controls, and a
 narrow region does not make the timeline wider. In a dense set of cuts, point
 to or keyboard-focus one small region to see its label without labels stacking
-over each other.
+over each other. When the compact inspector is open, the same review actions
+dock in its pinned header, with Approve and Reject visible while the inspector
+body scrolls. Outside compact mode, the card stays beside the selected region.
 On the matching track, you can drag a cut's outer start or end edge while the
 other edge stays in place. The moving edge follows nearby waveform ticks and
 stays inside its source clip. Audition manually adjusted cuts before approval.
@@ -51,7 +53,7 @@ In Timeline, tap a clip or track header to open its inspector in a bottom sheet.
 Selecting a word in Text can open a word sheet. The Listen comment list seeks to
 the comment; use **More → Comments** for comment actions.
 
-An inspector stays open while the timeline remains interactive behind it. Fine pointers can drag pending-cut edges. On touch, selected cuts show 44px edge targets only when the drawn region is at least 44px wide and the lane fits both targets; otherwise choose **Edit timing** in the selected action card to focus Source start in the inspector. On a phone's timeline the peek strip's Start and End rows take its place, and the card's Approve and Reject sit above the strip. The strip stands above the tool rail, so Undo and Redo stay visible and tappable while it is open. The Impact panel lists every pending edit for selection. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
+An inspector stays open while the timeline remains interactive behind it. Fine pointers can drag pending-cut edges. On touch, selected cuts show 44px edge targets only when the drawn region is at least 44px wide and the lane fits both targets; otherwise choose **Edit timing** in the selected action card to focus Source start in the inspector. In compact mode, the peek strip's Start and End rows hold timing. The review card docks in the pinned header, and **Expand**, **Collapse**, and **Close** remain available there. The strip stands above the tool rail, so Undo and Redo stay visible and tappable while it is open. The Impact panel lists every pending edit for selection. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
 
 The selection sheet groups actions in this order:
 

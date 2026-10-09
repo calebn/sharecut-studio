@@ -137,6 +137,7 @@
   --tabs-height: 12.5rem;
   --mobile-nav-height: 3.25rem;
   --menu-available-height: 90dvh;
+  --pending-review-feedback-max-height: 30dvh;
 
   --shadow-playhead-playing: 0 0 0.5rem var(--color-timeline-playhead);
   --bg-ruler-glow: radial-gradient(
