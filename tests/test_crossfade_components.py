@@ -12,6 +12,7 @@ from podcast_mcp.engines.audio import (
     MixAudio,
     SourceAudio,
     duration,
+    sources,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import (
@@ -60,6 +61,26 @@ def _constant(path: Path, seconds: float, pcm: int, *, floating: bool = False) -
         output.setframerate(48000)
         output.writeframes(struct.pack("<h", pcm) * round(seconds * 48000))
     return SourceAudio(path, 0.0, seconds)
+
+
+def test_deep_connected_chain_traverses_and_compiles_in_order(tmp_path: Path):
+    leaves = [SourceAudio(tmp_path / f"source-{index}.wav", 0.0, 0.2) for index in range(1100)]
+    chain = leaves[0]
+    for leaf in leaves[1:]:
+        chain = CrossfadeAudio(chain, leaf, 0.02)
+
+    assert duration(chain) == pytest.approx(198.02)
+    assert [leaf.path for leaf in sources(chain)] == [leaf.path for leaf in leaves]
+
+    with pytest.MonkeyPatch.context() as patcher:
+        run = patcher.patch("podcast_mcp.engines.ffmpeg.run")
+        FFmpegEngine().render_timeline(tmp_path / "deep.wav", chain, "anull")
+
+    command = run.call_args.args[0]
+    expression = command[command.index("-filter_complex") + 1]
+    assert expression.count("acrossfade=d=0.02:c1=tri:c2=tri") == 1099
+    assert "[a1099]acrossfade=d=0.02:c1=tri:c2=tri[node1098]" in expression
+    assert command[-2:] == ["-map", "[out]"]
 
 
 def _read(path: Path) -> tuple[int, ...]:
