@@ -168,37 +168,36 @@ export async function runEditingTask(
           body: string;
         }
       | { kind: "read-failed"; requestId: number; error: string },
+    eventPhase: Phase = phase,
   ) => {
-    trial.journal.push({ ...event, seq: ++sequence, phase } as JournalEvent);
+    trial.journal.push({
+      ...event,
+      seq: ++sequence,
+      phase: eventPhase,
+    } as JournalEvent);
     retain();
   };
-  const responses: Promise<void>[] = [];
-  const pending = new Map<Page, Set<Request>>();
-  const flush = async (active: Page) => {
-    try {
-      await active.waitForLoadState("networkidle", { timeout: 5000 });
-      await expect
-        .poll(() => pending.get(active)?.size ?? 0, {
-          timeout: 5000,
-          message: "Pending editing requests did not reach terminal outcomes",
-        })
-        .toBe(0);
-    } finally {
-      await Promise.all(responses);
-    }
-  };
   const observe = (observedPage: Page) => {
-    const inflight = new Set<Request>();
-    pending.set(observedPage, inflight);
-    observedPage.on("requestfinished", (request) => inflight.delete(request));
+    const awaitingTerminal = new Set<Request>();
+    const bodies = new Set<Promise<void>>();
     const requests = new Map<
       Request,
       { id: number; phase: Phase; kind: "command" | "read" }
     >();
-    observedPage.on("pageerror", (error) =>
-      append({ kind: "error", message: error.message }),
-    );
-    observedPage.on("request", (request) => {
+    const recordBody = (operation: () => Promise<void>) => {
+      const body = Promise.resolve()
+        .then(operation)
+        .catch((error) =>
+          trial.errors!.push(`response journal: ${String(error)}`),
+        )
+        .then(() => {
+          bodies.delete(body);
+        });
+      bodies.add(body);
+    };
+    const onPageError = (error: Error) =>
+      append({ kind: "error", message: error.message });
+    const onRequest = (request: Request) => {
       const url = new URL(request.url());
       if (
         request.method() === "GET" &&
@@ -207,7 +206,7 @@ export async function runEditingTask(
       ) {
         const id = sequence + 1;
         requests.set(request, { id, phase, kind: "read" });
-        inflight.add(request);
+        awaitingTerminal.add(request);
         append({
           kind: "read-request",
           requestId: id,
@@ -236,46 +235,57 @@ export async function runEditingTask(
       } catch {}
       const id = sequence + 1;
       requests.set(request, { id, phase, kind: "command" });
-      inflight.add(request);
+      awaitingTerminal.add(request);
       append({ kind: "request", requestId: id, type, body });
-    });
-    observedPage.on("response", (response) => {
+    };
+    const onResponse = (response: Response) => {
+      const origin = requests.get(response.request());
+      const responsePhase = origin?.phase ?? phase;
       const url = new URL(response.url());
       if (
         ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
         response.status() >= 400
       ) {
-        append({
-          kind: "error",
-          message: `HTTP ${response.status()} ${response.request().method()} ${response.url()}`,
-        });
-        responses.push(
+        append(
+          {
+            kind: "error",
+            message: `HTTP ${response.status()} ${response.request().method()} ${response.url()}`,
+          },
+          responsePhase,
+        );
+        recordBody(() =>
           editingResponseBody(response)
             .then((body) =>
-              append({
-                kind: "error",
-                message: `HTTP error body ${response.url()} ${body}`,
-              }),
+              append(
+                {
+                  kind: "error",
+                  message: `HTTP error body ${response.url()} ${body}`,
+                },
+                responsePhase,
+              ),
             )
             .catch((error) =>
-              append({
-                kind: "error",
-                message: `HTTP error body unavailable ${response.url()} ${String(error)}`,
-              }),
+              append(
+                {
+                  kind: "error",
+                  message: `HTTP error body unavailable ${response.url()} ${String(error)}`,
+                },
+                responsePhase,
+              ),
             ),
         );
       }
       const request = requests.get(response.request());
       if (!request) return;
-      responses.push(
+      recordBody(() =>
         editingResponseOutcome(response, request).then((outcome) => {
           trial.journal.push({ ...outcome, seq: ++sequence });
           retain();
+          awaitingTerminal.delete(response.request());
         }),
       );
-    });
-    observedPage.on("requestfailed", (request) => {
-      inflight.delete(request);
+    };
+    const onRequestFailed = (request: Request) => {
       const read = requests.get(request);
       if (read?.kind === "read") {
         trial.journal.push({
@@ -286,6 +296,7 @@ export async function runEditingTask(
           error: request.failure()?.errorText ?? "unknown",
         });
         retain();
+        awaitingTerminal.delete(request);
         return;
       }
       if (
@@ -293,11 +304,49 @@ export async function runEditingTask(
           new URL(request.url()).hostname,
         )
       )
-        append({
-          kind: "error",
-          message: `request failed ${request.method()} ${request.url()} ${request.failure()?.errorText}`,
-        });
-    });
+        append(
+          {
+            kind: "error",
+            message: `request failed ${request.method()} ${request.url()} ${request.failure()?.errorText}`,
+          },
+          read?.phase ?? phase,
+        );
+      awaitingTerminal.delete(request);
+    };
+    const detach = () => {
+      observedPage.off("request", onRequest);
+      observedPage.off("response", onResponse);
+      observedPage.off("requestfailed", onRequestFailed);
+      observedPage.off("pageerror", onPageError);
+    };
+    const drain = async (finish: boolean) => {
+      try {
+        await observedPage.waitForLoadState("networkidle", { timeout: 5000 });
+        await expect
+          .poll(
+            () => {
+              const pending = awaitingTerminal.size + bodies.size;
+              if (pending === 0 && finish) detach();
+              return pending;
+            },
+            {
+              timeout: 5000,
+              message:
+                "Pending editing requests did not reach terminal outcomes",
+            },
+          )
+          .toBe(0);
+      } catch (error) {
+        if (finish) detach();
+        await Promise.allSettled(bodies);
+        throw error;
+      }
+    };
+    observedPage.on("request", onRequest);
+    observedPage.on("response", onResponse);
+    observedPage.on("requestfailed", onRequestFailed);
+    observedPage.on("pageerror", onPageError);
+    return { flush: () => drain(false), finish: () => drain(true) };
   };
   const act = async (
     verb: string,
@@ -408,7 +457,7 @@ export async function runEditingTask(
     0,
     true,
   );
-  observe(page);
+  const mainObservation = observe(page);
   try {
     if (chosen.cancel) {
       const canceledFixture = createEditingFixture(task, output);
@@ -422,7 +471,7 @@ export async function runEditingTask(
         });
       const cancelPage = await context.newPage();
       const cancelCdp = await context.newCDPSession(cancelPage);
-      observe(cancelPage);
+      const cancelObservation = observe(cancelPage);
       try {
         const probes =
           task.id === "comment"
@@ -450,7 +499,7 @@ export async function runEditingTask(
             },
             inputRecorder,
           );
-          await flush(cancelPage);
+          await cancelObservation.flush();
           await captureUi(cancelPage, `cancel-${probe}-recovery`);
           trial.canceled = readEditingState(clone.projectPath);
           (trial.cancellations ??= []).push({ probe, state: trial.canceled });
@@ -470,9 +519,11 @@ export async function runEditingTask(
         await captureUi(cancelPage, "failed-cancel-recovery");
         retain();
       } finally {
-        await flush(cancelPage).catch((error) =>
-          trial.errors!.push(`cancel response drain: ${String(error)}`),
-        );
+        await cancelObservation
+          .finish()
+          .catch((error) =>
+            trial.errors!.push(`cancel response drain: ${String(error)}`),
+          );
         await context.close();
       }
     }
@@ -546,7 +597,7 @@ export async function runEditingTask(
       });
     else await measureAction();
     trial.durationMs = profiler.report.samples[0]?.driverWallMs;
-    await flush(page);
+    await mainObservation.flush();
     trial.history!.after = history();
     fs.copyFileSync(
       fixture.projectPath,
@@ -594,7 +645,7 @@ export async function runEditingTask(
       await expect
         .poll(() => readEditingState(fixture.projectPath))
         .toEqual(task.start);
-      await flush(page);
+      await mainObservation.flush();
       trial.undone = readEditingState(fixture.projectPath);
       trial.history!.undone = history();
       fs.copyFileSync(
@@ -623,10 +674,14 @@ export async function runEditingTask(
       trial.errors!.push(`saved state: ${String(error)}`);
     }
   } finally {
-    await flush(page).catch((error) =>
-      trial.errors!.push(`main response drain: ${String(error)}`),
-    );
-    await profiler.finish();
+    try {
+      await profiler.finish();
+    } finally {
+      await mainObservation.finish().catch((error) => {
+        trial.errors!.push(`main response drain: ${String(error)}`);
+        retain();
+      });
+    }
     trial.profiler = process.env.DAW_PROFILE_OUT
       ? path.join(process.env.DAW_PROFILE_OUT, "report.json")
       : info.outputPath("editor-profile", "report.json");
