@@ -1604,7 +1604,12 @@ independent actor contribution, the connected short-middle chain, and the first
 retained source-piece overlap cap. It also saves and reloads authored windows
 with source cuts and local fades. `tests/test_bleed_review.py` retains the
 half-sample window count and mute-origin checks. Envelope tests reject stems
-from render revisions 10 and 13 under revision 14.
+from render revisions 10, 13, and 14 under revision 15.
+`tests/test_render_precision.py` checks saved ordinary CUT boundaries and
+fractional requested-window extents against literal frames and PCM.
+`useNudgeRun.handoff.test.tsx` uses the real trim save with deferred boundary
+loading to check clean geometry, foreign comments, drafts, stale submission,
+synthetic roll refusal, and token-specific settlement.
 
 ## Render regression fingerprints
 

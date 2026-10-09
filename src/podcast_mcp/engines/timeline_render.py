@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from heapq import heappop, heappush
 from pathlib import Path
 
 from podcast_mcp.edits.clips_ops import (
@@ -20,13 +21,12 @@ from podcast_mcp.engines.audio import (
     Audio,
     CrossfadeAudio,
     MixAudio,
+    RequestedExtent,
     SequenceAudio,
-    SilenceAudio,
     SourceAudio,
     duration,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
 from podcast_mcp.util.coded_error import CodedValueError
@@ -47,7 +47,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
 # 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
-RENDER_SEMANTICS_REV = 14
+RENDER_SEMANTICS_REV = 15
 
 
 def resolve_clip_audio_path(
@@ -237,42 +237,70 @@ class _PreparedClip:
     content: _ClipContent | None
 
 
-def _place_clips(prepared: list[_PreparedClip], *, window_length: float | None = None) -> Audio:
-    components: list[At] = []
+@dataclass
+class _Component:
+    start: float
+    audio: Audio
+    end: float
+
+
+@dataclass(frozen=True)
+class _PlacedTrack:
+    audio: Audio
+    extent: RequestedExtent | None
+
+
+def _place_clips(
+    prepared: list[_PreparedClip], *, window_length: float | None = None
+) -> _PlacedTrack:
+    components: list[_Component] = []
+    ends: list[tuple[float, int]] = []
     previous_component: int | None = None
     authored_frontier = 0.0
     clock_shift = 0.0
+    frontier = 0.0
     for index, item in enumerate(prepared):
         content = item.content
         if content is None:
             previous_component = None
             continue
+        body = content.body
+        body_duration = duration(body)
         prev = prepared[index - 1].clip if index else None
         crossfade = crossfade_ms_at_join(prev, item.clip) / 1000.0 if prev else 0.0
         if crossfade > 0 and previous_component is not None:
             left = components[previous_component]
             overlap = max(0.001, min(crossfade, duration(content.head) * 0.5))
-            components[previous_component] = At(
-                left.start_sec, CrossfadeAudio(left.audio, content.body, overlap)
-            )
+            left.audio = CrossfadeAudio(left.audio, body, overlap)
+            left.end += body_duration - overlap
         else:
             start = max(0.0, content.timeline_start - clock_shift)
-            if components:
-                frontier = max(at.start_sec + duration(at.audio) for at in components)
-                if abs(start - frontier) <= JOIN_GAP_TOLERANCE_SEC:
-                    start = frontier
-            elif start <= JOIN_GAP_TOLERANCE_SEC:
-                start = 0.0
-            components.append(At(start, content.body))
-            previous_component = len(components) - 1
+            if abs(start - frontier) <= JOIN_GAP_TOLERANCE_SEC:
+                start = frontier
+            if (
+                previous_component is not None
+                and abs(start - components[previous_component].end) < 1e-9
+            ):
+                left = components[previous_component]
+                left.audio = SequenceAudio(left.audio, (body,))
+                left.end += body_duration
+            else:
+                components.append(_Component(start, body, start + body_duration))
+                previous_component = len(components) - 1
+        component = components[previous_component]
+        heappush(ends, (-component.end, previous_component))
+        while ends and -ends[0][0] != components[ends[0][1]].end:
+            heappop(ends)
+        frontier = -ends[0][0]
         authored_frontier = max(authored_frontier, content.timeline_end)
-        frontier = max(at.start_sec + duration(at.audio) for at in components)
         clock_shift = authored_frontier - frontier
     if not components:
         raise ValueError("no clips to render")
-    if window_length is not None:
-        components.append(At(0.0, SilenceAudio(window_length - clock_shift)))
-    return MixAudio(components[0], tuple(components[1:]))
+    ats = [At(component.start, component.audio) for component in components]
+    return _PlacedTrack(
+        MixAudio(ats[0], tuple(ats[1:])),
+        RequestedExtent(window_length - clock_shift) if window_length is not None else None,
+    )
 
 
 def _render_placed_track(
@@ -323,12 +351,6 @@ def _render_placed_track(
         nxt = sorted_clips[index + 1] if index + 1 < len(sorted_clips) else None
         pieces: list[Audio] = []
         for si, (src_start, src_end) in enumerate(contributing):
-            if window is not None and si == len(contributing) - 1 and timeline_end == window[1]:
-                rate = eng.probe(src).sample_rate
-                seek = MediaSeek.at(min(start for start, _end in contributing))
-                first_sample = seek.first_sample(src_start, rate)
-                selected_samples = int((src_end - src_start) * rate + 1e-6)
-                src_end = min(src_end, (first_sample + selected_samples) / rate)
             leaf = SourceAudio(
                 path=src,
                 src_start=src_start,
@@ -359,8 +381,14 @@ def _render_placed_track(
                 ),
             )
         )
-    audio = _place_clips(prepared, window_length=window[1] - window[0] if window else None)
-    eng.render_timeline(output_path, audio, af, crossfade_curve=crossfade_curve)
+    placed = _place_clips(prepared, window_length=window[1] - window[0] if window else None)
+    eng.render_timeline(
+        output_path,
+        placed.audio,
+        af,
+        crossfade_curve=crossfade_curve,
+        requested_extent=placed.extent,
+    )
     if track.transcript_gate and window is None:
         from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
 

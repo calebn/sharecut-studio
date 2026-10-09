@@ -123,7 +123,7 @@ def test_envelope_filter_rejects_invalid_timeline_origin(origin):
         FFmpegEngine().build_track_filter(None, None, timeline_origin_sec=origin)
 
 
-@pytest.mark.parametrize("previous_revision", [10, 13])
+@pytest.mark.parametrize("previous_revision", [10, 13, 14])
 def test_previous_envelope_render_revision_cannot_reuse_stem(
     tmp_path: Path, monkeypatch, previous_revision
 ):

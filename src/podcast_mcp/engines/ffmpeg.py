@@ -21,6 +21,7 @@ from podcast_mcp.engines.audio import (
     CrossfadeAudio,
     MixAudio,
     MuteEnvelope,
+    RequestedExtent,
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
@@ -808,6 +809,7 @@ class FFmpegEngine:
         af_chain: str,
         *,
         crossfade_curve: str = "tri",
+        requested_extent: RequestedExtent | None = None,
     ) -> Path:
         """Compile prepared audio with grouped bounded inputs and continuous track FX."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -942,7 +944,11 @@ class FFmpegEngine:
             return node_labels[0]
 
         combined = compile_audio()
-        filters.append(f"{combined}{af_chain or 'anull'}[out]")
+        final_chain = af_chain or "anull"
+        if requested_extent is not None:
+            seconds = requested_extent.seconds
+            final_chain += f",apad=whole_dur={seconds},atrim=duration={seconds}"
+        filters.append(f"{combined}{final_chain}[out]")
 
         cmd = [self.ffmpeg, "-y"]
         for path, (_start, end) in source_ranges.items():
