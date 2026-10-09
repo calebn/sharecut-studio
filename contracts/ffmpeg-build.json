@@ -49,7 +49,8 @@
     "--enable-libmp3lame",
     "--disable-x86asm",
     "--enable-zlib",
-    "--enable-libopus"
+    "--enable-libopus",
+    "--pkg-config-flags=--static"
   ],
   "release_targets": [
     "x86_64-unknown-linux-gnu",

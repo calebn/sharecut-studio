@@ -299,7 +299,8 @@ The authoritative [source recipe](../contracts/ffmpeg-build.json) pins FFmpeg
 expected SHA256.
 The recipe keeps built-in media codecs and filters, enables MP3 through LAME and
 PNG through zlib and Opus through libopus. It enables neither GPL nor nonfree
-dependencies. Standalone
+dependencies. Static pkg-config resolution includes private system libraries
+required by dependencies, such as Opus’s math library on Linux. Standalone
 x86 assembly is disabled, so native jobs do not need NASM. CI and desktop release
 jobs run this builder and execute the resulting pair. Source archives alone are
 cached and rechecked before extraction. Binary hashes detect corruption after a
