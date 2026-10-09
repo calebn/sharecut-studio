@@ -24,9 +24,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { documentAuthority } from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
+import { TRIM_MODE } from "../edit/clipEdgeSave";
 import {
   NUDGE_KINDS,
   type NudgeField,
@@ -58,10 +58,8 @@ interface Run {
   /** The project as saved when the run began; the save is checked against it. */
   origin: ProjectView;
   projectPath: string;
-  projectEpoch: number;
   seq: number;
-  authorityProject: ProjectView | null;
-  expectedProject: ProjectView;
+  trimToken: symbol | null;
   value: number;
   /** Steps that moved the value. */
   moved: number;
@@ -92,24 +90,19 @@ export function useNudgeRun() {
 
   const discardStale = (r: Run) => {
     const s = useDawStore.getState();
-    const sameDocument =
-      s.projectPath === r.projectPath &&
-      s.projectEpoch === r.projectEpoch &&
-      currentDocumentSeq() === r.seq &&
-      documentAuthority.project === r.authorityProject;
-    if (sameDocument && s.project === r.expectedProject) return false;
+    if (
+      !r.trimToken ||
+      s.changeHeldTrim({
+        kind: "value",
+        token: r.trimToken,
+        sourceSec: r.value,
+      }).kind === "accepted"
+    )
+      return false;
     if (r.input === "pointer") stalePointerClick.current = true;
     if (r.timer) clearTimeout(r.timer);
     r.timer = null;
     if (run.current === r) run.current = null;
-    if (
-      sameDocument &&
-      r.preview &&
-      s.project &&
-      s.project.clips === r.preview.clips
-    ) {
-      s.setProject({ ...s.project, clips: r.origin.clips });
-    }
     return true;
   };
 
@@ -130,16 +123,25 @@ export function useNudgeRun() {
     const next = nudgeStep(axis, boundaries, r.value, r.delta, held);
     if (next.value !== r.value) {
       try {
-        const preview = withNudge(
-          r.field.kind === "trim" ? r.origin : store.project,
-          r.field,
-          next.value,
-        );
+        if (r.trimToken) {
+          const result = store.changeHeldTrim({
+            kind: "value",
+            token: r.trimToken,
+            sourceSec: next.value,
+          });
+          if (result.kind !== "accepted") {
+            discardStale(r);
+            return;
+          }
+        } else {
+          const basis = store.projectEditBasis();
+          if (!basis) return;
+          const preview = withNudge(basis, r.field, next.value);
+          r.preview = preview;
+          store.setProject(preview);
+        }
         r.value = next.value;
         r.moved += 1;
-        r.preview = preview;
-        r.expectedProject = preview;
-        store.setProject(preview);
       } catch (error) {
         r.stopped = true;
         if (r.timer) clearTimeout(r.timer);
@@ -181,20 +183,38 @@ export function useNudgeRun() {
     input: Run["input"],
   ): Run | null => {
     const s = useDawStore.getState();
-    if (run.current || saving || !s.project) return null;
+    if (run.current || saving) return null;
+    const origin = s.projectEditBasis();
+    if (!origin) return null;
+    const value = nudgeAxis(origin, field)?.value ?? Number.NaN;
+    if (Number.isNaN(value)) return null;
+    const trimToken = field.kind === "trim" ? Symbol("held trim") : null;
+    if (
+      trimToken &&
+      field.kind === "trim" &&
+      s.changeHeldTrim({
+        kind: "begin",
+        token: trimToken,
+        target: {
+          trackId: field.trackId,
+          clipId: field.clipId,
+          edge: field.edge,
+          mode: TRIM_MODE,
+        },
+      }).kind !== "accepted"
+    )
+      return null;
     setBump(null);
     const r: Run = {
       field,
       delta,
       name,
       input,
-      origin: s.project,
+      origin,
       projectPath: s.projectPath,
-      projectEpoch: s.projectEpoch,
       seq: currentDocumentSeq(),
-      authorityProject: documentAuthority.project,
-      expectedProject: s.project,
-      value: nudgeAxis(s.project, field)?.value ?? Number.NaN,
+      trimToken,
+      value,
       moved: 0,
       repeats: 0,
       stopped: false,
@@ -202,7 +222,6 @@ export function useNudgeRun() {
       preview: null,
       timer: null,
     };
-    if (Number.isNaN(r.value)) return null;
     run.current = r;
     step(r, false);
     return r;
@@ -215,6 +234,18 @@ export function useNudgeRun() {
     run.current = null;
     endedAt.current = Date.now();
     if (r.timer) clearTimeout(r.timer);
+    if (r.trimToken) {
+      const result = useDawStore.getState().changeHeldTrim({
+        kind: "finish",
+        token: r.trimToken,
+        disposition: save && r.moved > 0 ? "handoff" : "discard",
+      });
+      if (result.kind !== "handoff") return;
+      r.origin = result.origin;
+      r.preview = result.preview;
+      r.projectPath = result.path;
+      r.value = result.value;
+    }
     if (r.moved === 0) return;
     const revert = () => {
       if (r.preview) {

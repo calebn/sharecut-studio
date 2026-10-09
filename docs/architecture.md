@@ -546,6 +546,8 @@ Document ownership uses ctime-inclusive file certificates and can force a worksp
 
 The frontend document authority owns the immutable server view and project generation. Pending command drafts produce the displayed view and cannot become the next delta basis. All server document input uses that authority, including detail hydration and HTTP recovery. See [session-sync.md](session-sync.md#document-plane) for recovery and retry semantics.
 
+Held inspector trims have one detachable display layer in the existing project store. The layer retains a clean origin and accepted preview; token and document lifetime establish ownership. Transformation writers read `projectEditBasis()` before building replacements or rollback baselines. Ordinary publication and hydration retire the layer atomically. Repeats use the existing pure `trimDraft` kernel; the store does not import runtime nudge or API modules. Discard composes current pending drafts over origin. Invalid lifetime uses only ready current authority, or refuses until replacement. Save handoff preserves the exact accepted preview and the existing pending-save rollback contract.
+
 Host realtime delivery uses one `/api/host/ws` connection with independent session,
 document and recording planes. The route owns admission and lifecycle, delegates
 mutations and snapshots to services on worker threads, and serializes output through

@@ -1,9 +1,8 @@
 import { loadDocumentState } from "../api/project";
 import { isShareProjectKey } from "../shareMode";
-import { useDawStore, zoomReclampPatch } from "../state/dawStore";
+import { useDawStore } from "../state/dawStore";
 import { flushInbound } from "../sync/inboundQueue";
 import type { ProjectView, TimelineComment } from "../types/project";
-import { sessionSecOf } from "../utils/zoom";
 import {
   activateDocumentScope,
   type DocumentScope,
@@ -31,14 +30,7 @@ let recovery: {
 } | null = null;
 function show(project: ProjectView): ProjectView {
   const displayed = overlayDocumentDrafts(project);
-  useDawStore.setState((state) =>
-    displayed === state.project
-      ? state
-      : {
-          project: displayed,
-          ...zoomReclampPatch(state, sessionSecOf({ project: displayed })),
-        },
-  );
+  useDawStore.getState().setProject(displayed);
   return displayed;
 }
 export function refreshDocumentDisplay(): void {
@@ -128,7 +120,7 @@ export function applyDocumentSnapshot(
     return useDawStore.getState().project;
   if (snap.server_seq === undefined) {
     const next = projectFromDocumentSnapshot(
-      useDawStore.getState().project,
+      useDawStore.getState().projectEditBasis(),
       snap,
     );
     return next ? show(next) : null;
@@ -232,7 +224,7 @@ export async function refreshDocumentProject(
 }
 
 export function mergeReturnedComment(comment: TimelineComment): void {
-  const previous = useDawStore.getState().project;
+  const previous = useDawStore.getState().projectEditBasis();
   if (!previous) return;
   const comments = [...previous.comments];
   const index = comments.findIndex((value) => value.id === comment.id);
@@ -245,7 +237,7 @@ export function mergeGuestActionDone(
   actionId: string,
   done: boolean,
 ): void {
-  const previous = useDawStore.getState().project;
+  const previous = useDawStore.getState().projectEditBasis();
   if (!previous) return;
   applyDocumentSnapshot(
     {

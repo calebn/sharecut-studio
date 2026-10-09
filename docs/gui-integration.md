@@ -212,18 +212,31 @@ Any HTTP route that does not map `project_commit_lock` / `render_lock` contentio
 
 Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation.
 
-A held trim nudge in the inspector captures its project path, project epoch,
-document sequence and authoritative project. An incoming document snapshot or
-project change cancels its repeat timer and run before another preview or save;
-the newly received project stays displayed. Releasing or unmounting a stale run
-does not restore its old preview over a newer authoritative document. A local
-unsequenced comment or metadata merge can retain the run's clip preview. When
-the path, epoch, sequence, and authority still match, cancellation restores
-only the original clips if the displayed clips are still that exact preview.
-Comments, action-item updates, and other merged fields remain. Replaced clips
-are never rolled back. A current run still saves on release and on
-the normal selection-change unmount. A save rejection cannot replace a newer
-authoritative display.
+A held trim nudge in the inspector has one detachable display layer in the
+project store. Its run token and captured path, epoch, document generation,
+sequence and authoritative project establish ownership. Every accepted step
+computes `trimDraft` from the clean origin and publishes the layer, preview and
+zoom clamp together. A refused step leaves the last accepted value unchanged.
+
+Transformation writers use `projectEditBasis()` before constructing a result
+or rollback baseline. The basis excludes the held trim and retains current
+pending drafts and local results received before the hold. Ordinary
+`setProject()` publications and hydration retire the layer atomically. Returned
+comments, action updates, moves, track metadata, reorder, mix and queued
+envelopes therefore cancel the trim while keeping their own changes. An
+unchanged pending mix publishes nothing and permits the hold to continue.
+A splice's synthetic tails disappear and deleted original rows return when
+only the trim layer is discarded. Clip commands reject targets absent from
+the clean basis before submission; Copy and Cut also read that basis.
+
+A same-lifetime discard reapplies current pending drafts over the origin.
+A lifetime mismatch can use only ready authority for the current path, with
+its pending drafts. Otherwise the clean reader returns null until replacement
+or hydration; it never supplies the contaminated old display as clean data.
+Releasing or unmounting a stale run saves nothing. Its pointer release click
+remains consumed even after a delay. A current release or normal selection
+unmount hands off the exact accepted preview and saves once. The existing
+pending-save rejection guard cannot replace a newer display.
 
 Fade gestures capture both saved fades and submit that pair with `SetClipFade`.
 The server refuses a stale pair before history capture, including a draft made

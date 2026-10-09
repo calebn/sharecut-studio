@@ -704,20 +704,14 @@ function applyQueuedEnvelope(
   trackId: string,
   points: AutomationPoint[],
 ): void {
-  useDawStore.setState((state) =>
-    state.projectPath === projectPath && state.project
-      ? {
-          project: {
-            ...state.project,
-            envelopes: withVolumeEnvelopePoints(
-              state.project.envelopes,
-              trackId,
-              points,
-            ),
-          },
-        }
-      : state,
-  );
+  const state = useDawStore.getState();
+  if (state.projectPath !== projectPath) return;
+  const project = state.projectEditBasis();
+  if (!project) return;
+  state.setProject({
+    ...project,
+    envelopes: withVolumeEnvelopePoints(project.envelopes, trackId, points),
+  });
 }
 
 export async function addChapter(

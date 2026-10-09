@@ -19,6 +19,11 @@ import type {
 import type { CompactInspectorView } from "../utils/compactInspectorPref";
 import type { LaneHeightMode } from "../utils/laneHeightPref";
 import type { WaveformScaleMode } from "../waveform/types";
+import type {
+  HeldTrimEvent,
+  HeldTrimLayer,
+  HeldTrimResult,
+} from "./projectSlice";
 
 export type { AuditionMode } from "../types/session";
 export type { LaneHeightMode } from "../utils/laneHeightPref";
@@ -153,6 +158,9 @@ export interface DawState {
   sourcePreviewError: SourcePreviewError | null;
 
   project: ProjectView | null;
+  heldTrim: HeldTrimLayer | null;
+  projectEditBasis: () => ProjectView | null;
+  changeHeldTrim: (event: HeldTrimEvent) => HeldTrimResult;
   projectPath: string;
   /** Changes when the viewer opens a different project, even if it later returns. */
   projectEpoch: number;

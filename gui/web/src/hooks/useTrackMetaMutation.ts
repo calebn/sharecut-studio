@@ -10,12 +10,11 @@ export function useTrackMetaMutation(trackId: string) {
   const saveMetaFields = async (
     fields: Parameters<typeof setTrackMetaCommand>[2],
   ) => {
-    const previous = useDawStore.getState().project;
+    const previous = useDawStore.getState().projectEditBasis();
+    if (!previous) return;
     const seqAtStart = currentDocumentSeq();
-    const optimistic = previous
-      ? patchTrackMeta(previous, trackId, fields)
-      : null;
-    if (optimistic) useDawStore.getState().setProject(optimistic);
+    const optimistic = patchTrackMeta(previous, trackId, fields);
+    useDawStore.getState().setProject(optimistic);
     return mutation.run(async () => {
       try {
         const result = await setTrackMetaCommand(
@@ -33,13 +32,12 @@ export function useTrackMetaMutation(trackId: string) {
         }
         return true;
       } catch (error) {
-        if (previous && optimistic)
-          revertOptimisticIfUnchanged(
-            previous,
-            seqAtStart,
-            mutation.projectPath,
-            optimistic,
-          );
+        revertOptimisticIfUnchanged(
+          previous,
+          seqAtStart,
+          mutation.projectPath,
+          optimistic,
+        );
         throw error;
       }
     });
