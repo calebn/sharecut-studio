@@ -433,26 +433,36 @@ single-threaded behavior. `master_loudness` is not parallelized
 Each track stem is assembled in **one** `ffmpeg` invocation
 (`engines/ffmpeg.py::render_timeline`, driven by `render_track_from_timeline`)
 rather than rendering one part file per clip and concatenating. A single
-`-filter_complex` graph trims every source range, applies per-clip fades, and
-joins them, handling every inter-segment relationship in the same graph:
+`-filter_complex` graph prepares source pieces and compiles their audio expression.
+Full tracks and authored seek windows share source-aware preparation and placement
+in `engines/timeline_render.py::_render_placed_track`.
 
-Full tracks and seek windows share source-aware placement in
-`engines/timeline_render.py::_render_placed_track`, regardless of how many
-recordings the clips select. It compares placement with the accumulated output
-end, so a nested clip cannot reset the placement frontier. Source removals
-and joins retain their intentional contraction. FFmpeg groups clips that select
-the same resolved recording into one input.
+A clip's retained pieces form a sequence. Its room tone stays inside the piece
+it fills. A crossfade extends only the connected component ending in the saved
+predecessor, using native sequential `acrossfade`. Independent actors retain their
+placement and are summed afterwards. The maximum natural component end is the
+lane frontier. Source removals and joins keep their intentional contraction.
+The crossfade cap uses the first retained right piece, including the local
+selected piece in a window. FFmpeg groups selected leaves from the same resolved
+recording into one bounded MediaSeek input.
 
-| Relationship | Filter used |
-|--------------|-------------|
-| Abutting (gapless) clips | `concat` |
-| Timeline gap between clips | `apad` (silence) + `concat` |
-| Soft clip join (both sides faded) | `acrossfade` (curve from `render.crossfade_curve`) |
-| Genuine timeline overlap | `adelay` + `amix` (summed over the overlap) |
-| First clip starting after t=0 | leading `adelay` |
+| Operation | Filter used |
+|-----------|-------------|
+| Retained source-piece sequence | `concat` |
+| Connected soft clip join | `acrossfade` with `render.crossfade_curve` |
+| Independent placed actors, including gaps and overlaps | `adelay` + unnormalized longest `amix` |
+| Requested-window uncovered extent | Zero audio mixed at the contracted requested extent |
+
+Authored windows select source intersections before applying source removes.
+They retain local edge-fade policy and are not guaranteed to equal slices of a
+cached full stem. Their terminal selected source bound keeps the existing
+whole-sample requested extent. Full tracks follow their natural frontier without
+forced padding or output trimming.
 
 Every `adelay` is followed by `asetpts=N/SR/TB`. After `atrim` cuts a seeked input,
-`adelay` would emit its silence untimestamped and the final `apad`/`atrim` would drop it.
+`adelay` would otherwise emit its silence without timestamps. Completed mixes
+are reframed without padding so frame-evaluated track effects and envelopes keep
+advancing through gaps and after shorter actors end.
 
 It then runs the track FX chain **once** over the fully assembled audio. Besides
 collapsing N+1 subprocess spawns into one, this keeps stateful filters

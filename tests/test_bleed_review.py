@@ -411,8 +411,8 @@ def test_unavailable_named_peer_raw_mapping_refuses_review(tmp_path: Path, layou
 def test_shared_source_seek_and_trim_envelope_uses_actual_ramp_origin(
     tmp_path: Path, seek_start: float, source_start: float
 ) -> None:
-    from podcast_mcp.edits.mute_regions import MuteEnvelope
-    from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
+    from podcast_mcp.engines.audio import MuteEnvelope, SequenceAudio, SourceAudio
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
     raw = tmp_path / "ramp.wav"
     ramp = np.column_stack((np.arange(48000) % 30000, -(np.arange(48000) % 30000))).astype("<i2")
@@ -423,16 +423,21 @@ def test_shared_source_seek_and_trim_envelope_uses_actual_ramp_origin(
         audio.writeframes(ramp.tobytes())
     count = 4655
     placed = [
-        PlacedSegment(src_start=seek_start, src_end=seek_start + 0.001, source_path=raw),
-        PlacedSegment(src_start=source_start, src_end=0.6, source_path=raw),
+        SourceAudio(raw, seek_start, seek_start + 0.001),
+        SourceAudio(raw, source_start, 0.6),
     ]
     before = tmp_path / "ramp-before.wav"
-    FFmpegEngine().render_timeline(raw, before, placed, "anull")
+    FFmpegEngine().render_timeline(before, SequenceAudio(placed[0], (placed[1],)), "anull")
     plain = read_pcm(before)
     assert plain[48, 0] == 24145
-    placed[1].mute_spans = (MuteEnvelope(0.5 - source_start, 0.6 - source_start, 0.005, 0.005),)
+    placed[1] = SourceAudio(
+        raw,
+        source_start,
+        0.6,
+        mute_spans=(MuteEnvelope(0.5 - source_start, 0.6 - source_start, 0.005, 0.005),),
+    )
     after = tmp_path / "ramp-after.wav"
-    FFmpegEngine().render_timeline(raw, after, placed, "anull")
+    FFmpegEngine().render_timeline(after, SequenceAudio(placed[0], (placed[1],)), "anull")
     muted = read_pcm(after)
     assert len(muted) == len(plain) == count + 48
     np.testing.assert_array_equal(muted[:48], plain[:48])

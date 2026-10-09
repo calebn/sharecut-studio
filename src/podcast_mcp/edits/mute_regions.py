@@ -15,57 +15,16 @@ over one recording the union of their regions, so a mute the join crosses stays 
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
+from podcast_mcp.engines.audio import MuteEnvelope, MuteSampleEnvelope
 from podcast_mcp.models import Clip, ClipMuteRegion, EpisodeProject, RoomToneFill
 
 
 def _with_span(region: ClipMuteRegion, start: float, end: float) -> ClipMuteRegion:
     return region.model_copy(update={"start_s": start, "end_s": end})
-
-
-@dataclass(frozen=True)
-class MuteSampleEnvelope:
-    """A render envelope on its source sample grid."""
-
-    first: int
-    last: int
-    fade_out: int
-    fade_in: int
-
-    def silent_span(self) -> tuple[int, int]:
-        """Half-open sample run whose generated gain is exactly zero."""
-        if self.fade_out + self.fade_in > self.last - self.first:
-            return self.first, self.last
-        return self.first + self.fade_out, self.last - self.fade_in + 1
-
-
-@dataclass(frozen=True)
-class MuteEnvelope:
-    """One muted region's gain, in seconds from a render window's start.
-
-    The gain falls to zero over the first ``fade_out_sec`` of ``[start, end)``, stays
-    there and rises back to one over its last ``fade_in_sec``.
-    """
-
-    start: float
-    end: float
-    fade_out_sec: float
-    fade_in_sec: float
-
-    def samples(
-        self, sample_rate: int, *, source_start: float = 0.0, origin: int = 0
-    ) -> MuteSampleEnvelope:
-        return MuteSampleEnvelope(
-            math.floor((self.start + source_start) * sample_rate + 0.5) - origin,
-            math.floor((self.end + source_start) * sample_rate + 0.5) - origin,
-            math.floor(self.fade_out_sec * sample_rate + 0.5),
-            math.floor(self.fade_in_sec * sample_rate + 0.5),
-        )
 
 
 def sample_mute_envelopes(

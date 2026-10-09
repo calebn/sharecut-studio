@@ -317,18 +317,8 @@ def test_volume_expression_variants():
     assert "if(lt(t,2.0)" in expr
 
 
-def test_render_timeline_no_segments_raises(sample_wav: Path, tmp_path: Path):
-    from podcast_mcp.engines.ffmpeg import PlacedSegment
-
-    eng = FFmpegEngine()
-    with pytest.raises(ValueError, match="no segments"):
-        eng.render_timeline(sample_wav, tmp_path / "out.wav", [], "anull")
-
-    assert PlacedSegment(0.0, 1.0).crossfade_prev_sec == 0.0
-
-
 def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_path: Path):
-    from podcast_mcp.engines.ffmpeg import PlacedSegment
+    from podcast_mcp.engines.audio import SourceAudio
 
     eng = FFmpegEngine()
     if not eng.check_available()[0]:
@@ -345,9 +335,8 @@ def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_pa
 
     with patch.object(ff, "run", side_effect=capture_run):
         eng.render_timeline(
-            sample_wav,
             out,
-            [PlacedSegment(0.0, 0.5, fade_in_sec=0.05, fade_out_sec=0.05)],
+            SourceAudio(sample_wav, 0.0, 0.5, fade_in_sec=0.05, fade_out_sec=0.05),
             "highpass=f=80",
         )
     assert len(commands) == 1
@@ -1296,19 +1285,21 @@ def test_measure_loudness_blocks_parses_framelog(tmp_path: Path):
 def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
     sample_wav: Path, tmp_path: Path
 ) -> None:
-    from podcast_mcp.engines.ffmpeg import PlacedSegment
+    from podcast_mcp.engines.audio import SequenceAudio, SourceAudio
 
     engine = FFmpegEngine()
     other = tmp_path / "other.wav"
     placed = [
-        PlacedSegment(0.0, 0.1, source_path=sample_wav),
-        PlacedSegment(0.1, 0.2, source_path=other),
-        PlacedSegment(0.2, 0.3, source_path=sample_wav),
-        PlacedSegment(0.3, 0.4, source_path=other),
-        PlacedSegment(0.4, 0.5),
+        SourceAudio(sample_wav, 0.0, 0.1),
+        SourceAudio(other, 0.1, 0.2),
+        SourceAudio(sample_wav, 0.2, 0.3),
+        SourceAudio(other, 0.3, 0.4),
+        SourceAudio(sample_wav, 0.4, 0.5),
     ]
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        engine.render_timeline(sample_wav, tmp_path / "out.wav", placed, "anull")
+        engine.render_timeline(
+            tmp_path / "out.wav", SequenceAudio(placed[0], tuple(placed[1:])), "anull"
+        )
     command = run.call_args.args[0]
     input_paths = [
         Path(command[index + 1]).resolve()
@@ -1350,16 +1341,14 @@ def test_render_timeline_bounded_seek_keeps_nonzero_source_ranges(tmp_path: Path
         handle.setframerate(rate)
         handle.writeframes(samples.tobytes())
 
-    from podcast_mcp.engines.ffmpeg import PlacedSegment
+    from podcast_mcp.engines.audio import At, MixAudio, SourceAudio
 
     output = tmp_path / "bounded-output.wav"
     engine.render_timeline(
-        source,
         output,
-        [
-            PlacedSegment(1.0, 1.25, source_path=source),
-            PlacedSegment(2.5, 2.75, gap_before_sec=1.25, source_path=source),
-        ],
+        MixAudio(
+            At(0.0, SourceAudio(source, 1.0, 1.25)), (At(1.5, SourceAudio(source, 2.5, 2.75)),)
+        ),
         "anull",
     )
     with wave.open(str(output), "rb") as handle:

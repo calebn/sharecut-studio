@@ -17,7 +17,8 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
+from podcast_mcp.engines.audio import At, Audio, MixAudio, SilenceAudio, SourceAudio
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.models import (
@@ -183,17 +184,8 @@ LEAD_IN_SAMPLES = 48_000
 CLICK_AFTER_2S = SPEECH_CLICK - 2 * SR
 
 
-def _render_placed(
-    path: Path,
-    out: Path,
-    placed: list[PlacedSegment],
-    *,
-    lead_in_sec: float,
-    duration_sec: float,
-) -> np.ndarray:
-    FFmpegEngine().render_timeline(
-        path, out, placed, "anull", lead_in_sec=lead_in_sec, output_duration_sec=duration_sec
-    )
+def _render_audio(out: Path, audio: Audio) -> np.ndarray:
+    FFmpegEngine().render_timeline(out, audio, "anull")
     return _decode(out)
 
 
@@ -205,12 +197,9 @@ def _assert_silent_until(samples: np.ndarray, end: int) -> None:
 def test_render_timeline_lead_in_before_a_seeked_segment_is_exact(
     media: dict[str, Path], tmp_path: Path, ext: str
 ) -> None:
-    rendered = _render_placed(
-        media[ext],
+    rendered = _render_audio(
         tmp_path / "out.wav",
-        [PlacedSegment(src_start=2.0, src_end=4.0)],
-        lead_in_sec=LEAD_IN_SEC,
-        duration_sec=4.0,
+        MixAudio(At(LEAD_IN_SEC, SourceAudio(media[ext], 2.0, 4.0)), (At(0.0, SilenceAudio(4.0)),)),
     )
     assert len(rendered) == 192_000
     _assert_silent_until(rendered, LEAD_IN_SAMPLES)
@@ -221,15 +210,12 @@ def test_render_timeline_lead_in_before_a_seeked_segment_is_exact(
 def test_render_timeline_lead_in_then_gap_keeps_both_silences_exact(
     media: dict[str, Path], tmp_path: Path, ext: str
 ) -> None:
-    rendered = _render_placed(
-        media[ext],
+    rendered = _render_audio(
         tmp_path / "out.wav",
-        [
-            PlacedSegment(src_start=2.0, src_end=2.5),
-            PlacedSegment(src_start=3.0, src_end=4.0, gap_before_sec=0.25),
-        ],
-        lead_in_sec=LEAD_IN_SEC,
-        duration_sec=3.0,
+        MixAudio(
+            At(LEAD_IN_SEC, SourceAudio(media[ext], 2.0, 2.5)),
+            (At(LEAD_IN_SEC + 0.75, SourceAudio(media[ext], 3.0, 4.0)), At(0.0, SilenceAudio(3.0))),
+        ),
     )
     assert len(rendered) == 144_000
     _assert_silent_until(rendered, LEAD_IN_SAMPLES)
@@ -243,15 +229,12 @@ def test_render_timeline_lead_in_then_gap_keeps_both_silences_exact(
 def test_render_timeline_lead_in_then_overlap_keeps_the_overlap_start_exact(
     media: dict[str, Path], tmp_path: Path, ext: str
 ) -> None:
-    rendered = _render_placed(
-        media[ext],
+    rendered = _render_audio(
         tmp_path / "out.wav",
-        [
-            PlacedSegment(src_start=2.0, src_end=3.0),
-            PlacedSegment(src_start=3.0, src_end=4.0, overlap_prev_sec=0.5),
-        ],
-        lead_in_sec=LEAD_IN_SEC,
-        duration_sec=3.0,
+        MixAudio(
+            At(LEAD_IN_SEC, SourceAudio(media[ext], 2.0, 3.0)),
+            (At(LEAD_IN_SEC + 0.5, SourceAudio(media[ext], 3.0, 4.0)), At(0.0, SilenceAudio(3.0))),
+        ),
     )
     assert len(rendered) == 144_000
     _assert_silent_until(rendered, LEAD_IN_SAMPLES)

@@ -12,10 +12,20 @@ from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any
+from typing import IO, Any
 
 import numpy as np
 
+from podcast_mcp.engines.audio import (
+    Audio,
+    CrossfadeAudio,
+    MixAudio,
+    MuteEnvelope,
+    SequenceAudio,
+    SilenceAudio,
+    SourceAudio,
+    sources,
+)
 from podcast_mcp.engines.mastering import (
     LIMITER_MARGIN_DB,
     LIMITER_MAX_RENDERS,
@@ -51,9 +61,6 @@ from podcast_mcp.util.process import (
     run,
 )
 from podcast_mcp.util.progress import raise_if_cancel_requested
-
-if TYPE_CHECKING:
-    from podcast_mcp.edits.mute_regions import MuteEnvelope
 
 # Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows). The
 # timeouts are watchdogs armed only while waiting on ffmpeg for one chunk, so
@@ -268,40 +275,6 @@ def _annotate_vf(
 class RenderSegment:
     start: float
     end: float
-
-
-@dataclass
-class PlacedSegment:
-    """One source range placed on the output timeline for single-pass rendering.
-
-    `src_start`/`src_end` are seconds into the source file. The three inter-segment
-    relationships are mutually exclusive:
-
-    - `gap_before_sec` - silence to insert before this segment (hard timeline gap).
-    - `crossfade_prev_sec` - equal-power `acrossfade` overlap into the previous
-      audio (a soft clip join where both sides have fades).
-    - `overlap_prev_sec` - this segment starts before the previous audio ends and
-      is summed (mixed) over the overlapping region. Used for genuine timeline
-      overlaps that are not soft joins.
-
-    With all three at 0 the segment simply abuts the previous one (hard concat).
-    `source_path` selects a per-segment media input when a timeline contains clips
-    from multiple recordings; unset segments use the render call's input path.
-    """
-
-    src_start: float
-    src_end: float
-    fade_in_sec: float = 0.0
-    fade_out_sec: float = 0.0
-    gap_before_sec: float = 0.0
-    crossfade_prev_sec: float = 0.0
-    overlap_prev_sec: float = 0.0
-    # Clip-local mute holes (seconds from src_start) rendered as silence.
-    mute_spans: tuple[MuteEnvelope, ...] = ()
-    source_path: Path | None = None
-    # Summed under this segment before its fades and mutes: the same source range of a
-    # file on the media's clock (a track's gate fill, edits/gate_fill.py).
-    fill_path: Path | None = None
 
 
 @dataclass
@@ -829,33 +802,19 @@ class FFmpegEngine:
 
     def render_timeline(
         self,
-        input_path: Path,
         output_path: Path,
-        placed: list[PlacedSegment],
+        audio: Audio,
         af_chain: str,
         *,
         crossfade_curve: str = "tri",
-        lead_in_sec: float = 0.0,
-        output_duration_sec: float | None = None,
     ) -> Path:
-        """Assemble placed source segments into the output in a single ffmpeg pass.
-
-        Builds one `-filter_complex` graph that trims each source range, applies
-        per-segment fades, and joins every inter-segment relationship: hard concat,
-        silence-padded concat for gaps, `acrossfade` for soft joins, and
-        `adelay`+`amix` for genuine timeline overlaps. Segments are grouped by
-        resolved path; each input is read once through a ``MediaSeek`` over its
-        selected source bounds and split for reuse. Track FX run once over the assembled audio so
-        stateful filters keep continuous state across joins.
-        """
+        """Compile prepared audio with grouped bounded inputs and continuous track FX."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        if not placed:
-            raise ValueError("no segments to render")
-
-        n = len(placed)
-        source_paths = [(seg.source_path or input_path).resolve() for seg in placed]
+        leaves = sources(audio)
+        n = len(leaves)
+        source_paths = [leaf.path.resolve() for leaf in leaves]
         source_ranges: dict[Path, tuple[float, float]] = {}
-        for path, seg in zip(source_paths, placed, strict=True):
+        for path, seg in zip(source_paths, leaves, strict=True):
             start, end = source_ranges.get(path, (seg.src_start, seg.src_end))
             source_ranges[path] = (min(start, seg.src_start), max(end, seg.src_end))
         seeks = {path: MediaSeek.at(start) for path, (start, _end) in source_ranges.items()}
@@ -871,7 +830,7 @@ class FFmpegEngine:
             for segment_index, label in zip(segment_indices, labels, strict=True):
                 split_labels[segment_index] = label
 
-        for i, seg in enumerate(placed):
+        for i, seg in enumerate(leaves):
             seek = seeks[source_paths[i]]
             filters.append(
                 f"{split_labels[i]}atrim=start={seek.offset(seg.src_start)}:"
@@ -880,7 +839,7 @@ class FFmpegEngine:
 
         src_labels = [f"[src{i}]" for i in range(n)]
         fill_args = self._mix_fills(
-            placed,
+            leaves,
             filters,
             src_labels,
             source_paths=source_paths,
@@ -890,7 +849,7 @@ class FFmpegEngine:
 
         seg_labels: list[str] = []
         source_rates: dict[Path, int] = {}
-        for i, seg in enumerate(placed):
+        for i, seg in enumerate(leaves):
             path = source_paths[i]
             seek = seeks[path]
             dur = seg.src_end - seg.src_start
@@ -911,66 +870,64 @@ class FFmpegEngine:
             filters.append(f"{src_labels[i]}{body}[a{i}]")
             seg_labels.append(f"[a{i}]")
 
-        needs_pairwise = lead_in_sec > 0 or any(
-            seg.gap_before_sec > 0 or seg.crossfade_prev_sec > 0 or seg.overlap_prev_sec > 0
-            for seg in placed[1:]
-        )
+        leaf_labels = iter(seg_labels)
+        next_label = 0
+        silence_probe: AudioProbe | None = None
 
-        if n == 1:
-            combined = seg_labels[0]
-            if lead_in_sec > 0:
-                filters.append(f"{combined}{_delay_filter(lead_in_sec)}[asm]")
-                combined = "[asm]"
-        elif not needs_pairwise:
-            cat_in = "".join(seg_labels)
-            filters.append(f"{cat_in}concat=n={n}:v=0:a=1[asm]")
-            combined = "[asm]"
-        else:
-            acc = seg_labels[0]
-            running_end = lead_in_sec + (placed[0].src_end - placed[0].src_start)
-            if lead_in_sec > 0:
-                filters.append(f"{acc}{_delay_filter(lead_in_sec)}[acc0]")
-                acc = "[acc0]"
-            for i in range(1, n):
-                seg = placed[i]
-                cur = seg_labels[i]
-                out_label = f"[acc{i}]"
-                seg_dur = seg.src_end - seg.src_start
-                if seg.crossfade_prev_sec > 0:
-                    cf = max(0.001, min(seg.crossfade_prev_sec, seg_dur * 0.5))
-                    filters.append(
-                        f"{acc}{cur}acrossfade=d={cf}:c1={crossfade_curve}:"
-                        f"c2={crossfade_curve}{out_label}"
-                    )
-                    running_end += seg_dur - cf
-                elif seg.overlap_prev_sec > 0:
-                    overlap = min(seg.overlap_prev_sec, running_end)
-                    delay_sec = max(0.0, running_end - overlap)
-                    delayed = f"[ov{i}]"
-                    filters.append(f"{cur}{_delay_filter(delay_sec)}{delayed}")
-                    filters.append(
-                        f"{acc}{delayed}amix=inputs=2:duration=longest:normalize=0,asetpts=N/SR/TB{out_label}"
-                    )
-                    running_end = max(running_end, delay_sec + seg_dur)
-                elif seg.gap_before_sec > 0:
-                    pad_label = f"[pad{i}]"
-                    filters.append(f"{acc}apad=pad_dur={seg.gap_before_sec}{pad_label}")
-                    filters.append(f"{pad_label}{cur}concat=n=2:v=0:a=1{out_label}")
-                    running_end += seg.gap_before_sec + seg_dur
-                else:
-                    filters.append(f"{acc}{cur}concat=n=2:v=0:a=1{out_label}")
-                    running_end += seg_dur
-                acc = out_label
-            combined = acc
+        def emit(inputs: str, operation: str) -> str:
+            nonlocal next_label
+            label = f"[node{next_label}]"
+            next_label += 1
+            filters.append(f"{inputs}{operation}{label}")
+            return label
 
-        final = af_chain if af_chain else "anull"
-        if output_duration_sec is not None:
-            if output_duration_sec <= 0:
-                raise ValueError("output_duration_sec must be positive")
-            final = (
-                f"{final},apad=whole_dur={output_duration_sec},atrim=duration={output_duration_sec}"
-            )
-        filters.append(f"{combined}{final}[out]")
+        def compile_audio(node: Audio) -> str:
+            nonlocal silence_probe
+            match node:
+                case SourceAudio():
+                    return next(leaf_labels)
+                case SequenceAudio():
+                    labels = [compile_audio(child) for child in (node.head, *node.tail)]
+                    return emit("".join(labels), f"concat=n={len(labels)}:v=0:a=1")
+                case CrossfadeAudio():
+                    left = compile_audio(node.left)
+                    right = compile_audio(node.right)
+                    return emit(
+                        left + right,
+                        f"acrossfade=d={node.overlap_sec}:c1={crossfade_curve}:c2={crossfade_curve}",
+                    )
+                case MixAudio():
+                    labels = []
+                    for at in (node.head, *node.tail):
+                        label = compile_audio(at.audio)
+                        if at.start_sec > 0:
+                            label = emit(label, _delay_filter(at.start_sec))
+                        labels.append(label)
+                    if len(labels) == 1:
+                        return labels[0]
+                    # Longest mixes can emit long frames after a shorter input ends.
+                    return emit(
+                        "".join(labels),
+                        f"amix=inputs={len(labels)}:duration=longest:normalize=0,asetpts=N/SR/TB,"
+                        "asetnsamples=n=1024:p=0",
+                    )
+                case SilenceAudio():
+                    if silence_probe is None:
+                        silence_probe = (
+                            self.probe(source_paths[0])
+                            if source_paths
+                            else AudioProbe(0.0, 48000, 2)
+                        )
+                    probe = silence_probe
+                    layout = f"{probe.channels}c"
+                    return emit(
+                        "",
+                        f"anullsrc=r={probe.sample_rate}:cl={layout},"
+                        f"atrim=end_sample={int(node.duration_sec * probe.sample_rate)}",
+                    )
+
+        combined = compile_audio(audio)
+        filters.append(f"{combined}{af_chain or 'anull'}[out]")
 
         cmd = [self.ffmpeg, "-y"]
         for path, (_start, end) in source_ranges.items():
@@ -990,7 +947,7 @@ class FFmpegEngine:
 
     def _mix_fills(
         self,
-        placed: list[PlacedSegment],
+        leaves: list[SourceAudio],
         filters: list[str],
         src_labels: list[str],
         *,
@@ -1007,7 +964,7 @@ class FFmpegEngine:
         without the fill.
         """
         groups: dict[tuple[Path, Path], list[int]] = {}
-        for i, seg in enumerate(placed):
+        for i, seg in enumerate(leaves):
             if seg.fill_path is not None:
                 groups.setdefault((seg.fill_path, source_paths[i]), []).append(i)
         first_input = len(source_ranges)
@@ -1023,7 +980,7 @@ class FFmpegEngine:
                 formats[media] = self.probe(media).sample_fmt
             restore = f",aformat=sample_fmts={formats[media]}" if formats[media] else ""
             for i, label in zip(indices, labels, strict=True):
-                seg = placed[i]
+                seg = leaves[i]
                 filters.append(
                     f"{label}atrim=start={seek.offset(seg.src_start)}:"
                     f"end={seek.offset(seg.src_end)},asetpts=PTS-STARTPTS[fill{i}]"
@@ -1693,15 +1650,8 @@ class FFmpegEngine:
             # Same atrim + asetpts + volume graph as render_timeline so `t` in
             # the mute expression matches output samples (plain -ss/-af does not).
             return self.render_timeline(
-                src,
                 output_path,
-                [
-                    PlacedSegment(
-                        src_start=max(0.0, start_sec),
-                        src_end=end_sec,
-                        mute_spans=mute_spans,
-                    )
-                ],
+                SourceAudio(src, max(0.0, start_sec), end_sec, mute_spans=mute_spans),
                 "anull",
             )
         seek = MediaSeek.at(max(0.0, start_sec))

@@ -12,7 +12,6 @@ from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, reject_
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.mute_regions import (
     IgnoredWordRegions,
-    MuteEnvelope,
     add_source_mute,
     merge_mute_regions,
     mute_regions_overlapping,
@@ -23,6 +22,7 @@ from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_correct import set_words_ignored
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.audio import MuteEnvelope
 from podcast_mcp.engines.audio_audit import measure_window_rms_db
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment

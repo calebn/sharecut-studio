@@ -6,7 +6,8 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
+from podcast_mcp.engines.audio import At, MixAudio, SourceAudio
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.session_clock import file_time_for_session
 from podcast_mcp.engines.transcript_align import (
     offset_turn_taking_score,
@@ -277,11 +278,9 @@ def render_comparison_waveforms(
                 # Track starts later on the session clock: silence before its audio.
                 lead = min(-trim, max(0.0, window_duration_sec - 0.01))
                 eng.render_timeline(
-                    src,
                     window_wav,
-                    [PlacedSegment(src_start=0.0, src_end=window_duration_sec - lead)],
+                    MixAudio(At(lead, SourceAudio(src, 0.0, window_duration_sec - lead)), ()),
                     "anull",
-                    lead_in_sec=lead,
                 )
             else:
                 eng.extract_segment(

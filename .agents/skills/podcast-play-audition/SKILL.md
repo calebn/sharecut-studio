@@ -161,3 +161,9 @@ After proposing NL cuts, offer: *"Want to hear that section?"* → `play_pending
 After `analyze_cleanup_tool` or `gate_overreach_tool`, audition flagged spans:
 - `play_audio_tool` with `source=processed:<track_id>` and `start_sec` / `end_sec` from the report
 - Compare to `source=track:<track_id>` on the same range to hear raw vs processed
+
+Authored segment renders select source intersections before source removes. Their
+crossfade cap uses the first selected right piece, and ordinary fades apply only
+when selected content reaches an actual clip edge. Do not infer that a fresh
+segment render equals a cached stem slice. Connected native crossfades use the
+saved predecessor; unrelated overlapping actors keep their own placement.

@@ -9,6 +9,7 @@ import pytest
 
 from contract_project_helpers import contract_project
 from podcast_mcp.edits.clips_ops import update_timeline_duration
+from podcast_mcp.engines.audio import MixAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.session_timeline import same_source_timeline_overlaps
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
@@ -75,7 +76,7 @@ def _trimmed_nested_project(tmp_path: Path) -> EpisodeProject:
     return project
 
 
-def test_single_source_nested_follower_uses_accumulated_render_clock(tmp_path: Path) -> None:
+def test_single_source_nested_follower_has_independent_authored_placement(tmp_path: Path) -> None:
     project = _trimmed_nested_project(tmp_path)
     engine = MagicMock(spec=FFmpegEngine)
     engine.segments_after_edits.side_effect = lambda duration, *_args: [
@@ -86,16 +87,14 @@ def test_single_source_nested_follower_uses_accumulated_render_clock(tmp_path: P
         project, project.tracks[0], tmp_path / "render.wav", {}, engine=engine
     )
 
-    rendered_source, _, segments = engine.render_timeline.call_args.args[:3]
-    assert rendered_source == tmp_path / "raw/host.wav"
-    assert [(segment.src_start, segment.src_end) for segment in segments] == [
-        (20, 40),
-        (0, 6),
-        (40, 50),
-    ]
-    assert engine.render_timeline.call_args.kwargs["lead_in_sec"] == 2
-    assert segments[1].overlap_prev_sec == 17
-    assert segments[2].gap_before_sec == 4
+    output, audio, _af = engine.render_timeline.call_args.args
+    assert output == tmp_path / "render.wav"
+    path = tmp_path / "raw/host.wav"
+    assert isinstance(audio, MixAudio)
+    assert [
+        (at.start_sec, at.audio.src_start, at.audio.src_end) for at in (audio.head, *audio.tail)
+    ] == [(2, 20, 40), (5, 0, 6), (26, 40, 50)]
+    assert [at.audio.path for at in (audio.head, *audio.tail)] == [path, path, path]
 
 
 def test_saved_ripple_trim_renders_single_source_at_saved_positions(tmp_path: Path) -> None:
@@ -249,7 +248,7 @@ def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
 
     with wave.open(str(output), "rb") as rendered:
         actual_frames = rendered.getnframes()
-        sample_positions = (10.5, 11.5, 12.5, 14.5, 21.5)
+        sample_positions = (10.5, 10.95, 11.5, 12.5, 14.5, 21.5)
         actual_samples = []
         for second in sample_positions:
             rendered.setpos(round(second * rendered.getframerate()))
@@ -257,5 +256,5 @@ def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
 
     assert (actual_frames, actual_samples) == (
         22 * 48_000,
-        [10_000, 15_000, 15_000, 0, 0],
+        [10_000, 17_500, 15_000, 15_000, 0, 0],
     ), f"rendered {actual_frames} frames and sampled {actual_samples}"

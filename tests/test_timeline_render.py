@@ -7,7 +7,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
+from podcast_mcp.engines.audio import (
+    At,
+    Audio,
+    CrossfadeAudio,
+    MixAudio,
+    SequenceAudio,
+    SilenceAudio,
+    SourceAudio,
+    sources,
+)
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import (
     edits_for_clip_source,
     render_track_from_timeline,
@@ -651,7 +661,7 @@ def test_render_gap_between_clips_pads_silence(sample_wav: Path, tmp_path: Path)
 
     render_cmds = [c for c in commands if "filter_complex" in c]
     assert len(render_cmds) == 1
-    assert "apad=pad_dur=0.5" in render_cmds[0]
+    assert "adelay=1000:all=1" in render_cmds[0]
     dur = eng.probe(out).duration_sec
     assert 1.4 < dur < 1.6
 
@@ -855,17 +865,11 @@ def _two_clip_project(ws: Path, sample_wav: Path, gap: float, mode: ClipJoinMode
     return project
 
 
-def _capture_segment_placement(project: EpisodeProject, out: Path) -> list[PlacedSegment]:
-    captured: list[PlacedSegment] = []
-
-    def fake_render(_src, output_path, placed, *_args, **_kwargs):
-        captured.extend(placed)
-        return output_path
-
+def _capture_segment_placement(project: EpisodeProject, out: Path) -> Audio:
     eng = FFmpegEngine()
-    with patch.object(eng, "render_timeline", side_effect=fake_render):
+    with patch.object(eng, "render_timeline", return_value=out) as render:
         render_track_segment(project, "host", 0.0, 1.0, out, {}, engine=eng)
-    return captured
+    return render.call_args.args[1]
 
 
 def test_render_track_segment_crossfades_sub_tolerance_gap(sample_wav: Path, tmp_path: Path):
@@ -875,8 +879,10 @@ def test_render_track_segment_crossfades_sub_tolerance_gap(sample_wav: Path, tmp
 
     placed = _capture_segment_placement(project, tmp_path / "seg.wav")
 
-    assert placed[1].crossfade_prev_sec == pytest.approx(0.02)
-    assert placed[1].gap_before_sec == 0.0
+    assert isinstance(placed, MixAudio)
+    assert placed.head.start_sec == 0.0
+    assert isinstance(placed.head.audio, CrossfadeAudio)
+    assert placed.head.audio.overlap_sec == pytest.approx(0.02)
 
 
 def test_render_track_segment_keeps_gap_beyond_tolerance(sample_wav: Path, tmp_path: Path):
@@ -885,8 +891,10 @@ def test_render_track_segment_keeps_gap_beyond_tolerance(sample_wav: Path, tmp_p
 
     placed = _capture_segment_placement(project, tmp_path / "seg.wav")
 
-    assert placed[1].crossfade_prev_sec == 0.0
-    assert placed[1].gap_before_sec == pytest.approx(gap)
+    assert isinstance(placed, MixAudio)
+    assert isinstance(placed.head.audio, SourceAudio)
+    assert isinstance(placed.tail[0].audio, SourceAudio)
+    assert placed.tail[0].start_sec == pytest.approx(0.4 + gap)
 
 
 def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_path: Path):
@@ -1623,7 +1631,7 @@ def test_cut_join_drops_only_the_fades_at_that_join(tmp_path: Path) -> None:
     eng = MagicMock(spec=FFmpegEngine)
     eng.segments_after_edits.side_effect = lambda dur, *_a: [MagicMock(start=0.0, end=dur)]
     render_track_from_timeline(project, project.tracks[0], tmp_path / "out.wav", {}, engine=eng)
-    placed = eng.render_timeline.call_args.args[2]
+    placed = sources(eng.render_timeline.call_args.args[1])
     fades = [(s.fade_in_sec, s.fade_out_sec) for s in placed]
     # a->b is a cut: a's fade-out and b's fade-in go; b->c is a fade: both stay.
     assert fades == [(0.0, 0.0), (0.0, pytest.approx(0.03)), (pytest.approx(0.03), 0.0)]
@@ -1663,7 +1671,7 @@ def test_first_clip_cut_mode_keeps_its_fade_in(tmp_path: Path) -> None:
     eng = MagicMock(spec=FFmpegEngine)
     eng.segments_after_edits.side_effect = lambda dur, *_a: [MagicMock(start=0.0, end=dur)]
     render_track_from_timeline(project, project.tracks[0], tmp_path / "out.wav", {}, engine=eng)
-    placed = eng.render_timeline.call_args.args[2]
+    placed = sources(eng.render_timeline.call_args.args[1])
     # The first clip has no join, so its leftover cut mode drops nothing.
     assert placed[0].fade_in_sec == pytest.approx(0.02)
 
@@ -1964,19 +1972,13 @@ def test_render_timeline_resets_mixed_sample_clock_before_concat(
     )
 
     output = tmp_path / f"overlap-then-concat-{sample_rate}-{gap_before_sec}.wav"
+    mixed = MixAudio(
+        At(0.0, SourceAudio(source, 0.0, 1.0)), (At(0.5, SourceAudio(source, 0.0, 1.0)),)
+    )
+    tail = (SilenceAudio(gap_before_sec),) if gap_before_sec else ()
     engine.render_timeline(
-        source,
         output,
-        [
-            PlacedSegment(0.0, 1.0, source_path=source),
-            PlacedSegment(0.0, 1.0, overlap_prev_sec=0.5, source_path=source),
-            PlacedSegment(
-                0.0,
-                1.0,
-                gap_before_sec=gap_before_sec,
-                source_path=following,
-            ),
-        ],
+        SequenceAudio(mixed, (*tail, SourceAudio(following, 0.0, 1.0))),
         "anull",
     )
 
