@@ -52,7 +52,7 @@ def _check_acl(fd: int) -> None:
                     raise PermissionError("backup paths must not have extended ACL grants")
                 selector = -1
         finally:
-            libc.acl_free(acl)
+            cleanup([partial(libc.acl_free, acl)])
     elif sys.platform.startswith("linux"):
         if any(name.startswith("system.posix_acl_") for name in os.listxattr(fd)):
             raise PermissionError("backup paths must not have extended ACL grants")
@@ -119,6 +119,80 @@ def _check_file(fd: int, *, tighten: bool = False) -> None:
         raise PermissionError("registry file must be owned and private (0600)")
 
 
+def _remove_file(parent: int, name: str, expected: Identity) -> None:
+    try:
+        current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if identity(current) != expected:
+        raise PermissionError("refusing to remove a substituted backup file")
+    os.unlink(name, dir_fd=parent)
+
+
+class _CreatedFile:
+    def __init__(
+        self, path: Path, parent: int, name: str, remove: Callable[[str, Identity], None]
+    ) -> None:
+        self.parent, self.name, self._remove = parent, name, remove
+        self.path = path / name
+        self._fd: int | None = None
+        self._identity: Identity | None = None
+        self._created = False
+
+    @property
+    def fd(self) -> int:
+        if self._fd is None:
+            raise RuntimeError("registry file descriptor is closed")
+        return self._fd
+
+    @property
+    def identity(self) -> Identity:
+        if self._identity is None:
+            raise RuntimeError("registry file identity is unknown")
+        return self._identity
+
+    def acquire(self, *, allow_existing: bool = False) -> bool:
+        try:
+            self._fd = os.open(
+                self.name,
+                os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+                dir_fd=self.parent,
+            )
+        except FileExistsError:
+            if allow_existing:
+                return False
+            raise
+        self._created = True
+        self._identity = identity(os.fstat(self.fd))
+        return True
+
+    def close_descriptor(self) -> None:
+        fd, self._fd = self._fd, None
+        if fd is not None:
+            os.close(fd)
+
+    def retain_name(self) -> None:
+        self._created = False
+
+    def remove_name(self) -> None:
+        if self._created:
+            if self._identity is None:
+                raise OSError("registry cleanup retained a private entry with unknown identity")
+            self._remove(self.name, self._identity)
+
+
+@contextmanager
+def _new_file(
+    path: Path, parent: int, name: str, remove: Callable[[str, Identity], None]
+) -> Iterator[_CreatedFile]:
+    created = _CreatedFile(path, parent, name, remove)
+    try:
+        yield created
+    finally:
+        cleanup([created.close_descriptor, created.remove_name])
+
+
 @contextmanager
 def registry_scope(
     path: Path, names: tuple[str, ...], *, create: bool
@@ -153,20 +227,13 @@ def registry_scope(
     try:
         verify()
         if create:
-            try:
-                fd = os.open(
-                    names[0],
-                    os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                    0o600,
-                    dir_fd=parent,
-                )
-            except FileExistsError:
-                pass
-            else:
-                try:
-                    _check_file(fd)
-                finally:
-                    cleanup([partial(os.close, fd)])
+            with _new_file(path, parent, names[0], partial(_remove_file, parent)) as created:
+                if created.acquire(allow_existing=True):
+                    _check_file(created.fd)
+                    allow_missing_main = False
+                    verify()
+                    created.close_descriptor()
+                    created.retain_name()
         allow_missing_main = False
         verify()
         yield verify
@@ -194,23 +261,37 @@ class BackupDirectory:
         except FileNotFoundError:
             return False
 
-    def create_workspace(self, name: str) -> Identity:
+    @contextmanager
+    def workspace(self, name: str) -> Iterator[BackupDirectory]:
         self.verify()
-        os.mkdir(name, 0o700, dir_fd=self.fd)
-        return identity(os.stat(name, dir_fd=self.fd, follow_symlinks=False))
+        created = False
+        expected = None
+        private = None
 
-    def create_file(self, name: str) -> int:
-        self.verify()
-        fd = os.open(
-            name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=self.fd
-        )
+        def remove() -> None:
+            if created:
+                if expected is None:
+                    raise OSError(
+                        "registry cleanup retained a private workspace with unknown identity"
+                    )
+                self.remove_workspace(name, expected)
+
         try:
-            self.verify_file(name, identity(os.fstat(fd)))
-            return fd
-        except BaseException:
-            info = identity(os.fstat(fd))
-            cleanup([partial(os.close, fd), partial(self.remove_file, name, info)])
-            raise
+            os.mkdir(name, 0o700, dir_fd=self.fd)
+            created = True
+            expected = identity(os.stat(name, dir_fd=self.fd, follow_symlinks=False))
+            private = BackupDirectory(self.path / name)
+            yield private
+        finally:
+            cleanup(([private.close] if private is not None else []) + [remove])
+
+    @contextmanager
+    def created_file(self, name: str) -> Iterator[_CreatedFile]:
+        self.verify()
+        with _new_file(self.path, self.fd, name, self.remove_file) as created:
+            created.acquire()
+            self.verify_file(name, created.identity)
+            yield created
 
     def verify_file(self, name: str, expected: Identity) -> None:
         self.verify()
@@ -223,32 +304,26 @@ class BackupDirectory:
         finally:
             cleanup([partial(os.close, fd)])
 
-    def open_snapshot(self, name: str, expected: Identity) -> int:
+    @contextmanager
+    def snapshot_reader(self, name: str, expected: Identity) -> Iterator[int]:
         self.verify_file(name, expected)
         fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=self.fd)
         try:
             if identity(os.fstat(fd)) != expected:
                 raise PermissionError("backup snapshot changed before streaming")
-            return fd
-        except BaseException:
+            yield fd
+        finally:
             cleanup([partial(os.close, fd)])
-            raise
 
     def publish(self, staged: str, final: str, expected: Identity, fd: int) -> None:
         self.verify_file(staged, expected)
         os.link(staged, final, src_dir_fd=self.fd, dst_dir_fd=self.fd, follow_symlinks=False)
 
-    def sync(self) -> None:
+    def check_published_directory(self) -> None:
         os.fsync(self.fd)
 
     def remove_file(self, name: str, expected: Identity) -> None:
-        try:
-            current = os.stat(name, dir_fd=self.fd, follow_symlinks=False)
-        except FileNotFoundError:
-            return
-        if identity(current) != expected:
-            raise PermissionError("refusing to remove a substituted backup file")
-        os.unlink(name, dir_fd=self.fd)
+        _remove_file(self.fd, name, expected)
 
     def remove_workspace(self, name: str, expected: Identity) -> None:
         current = os.stat(name, dir_fd=self.fd, follow_symlinks=False)

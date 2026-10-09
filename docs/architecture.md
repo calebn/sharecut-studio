@@ -527,8 +527,12 @@ connection recovery, and durable secret. `util/registry_privacy.py` selects the
 native operation-scoped admission check. Source and backup reuse the same native
 ACL predicates and ancestry walk in `registry_backup_posix.py` and
 `registry_backup_windows.py`. The publisher alone owns snapshot names, staging,
-and no-replace publication. `util/registry_cleanup.py` applies one error-preserving
-cleanup rule to native handle chains and publisher directory exits.
+and no-replace publication. Backend workspace, created-file, and reader contexts
+own acquisition and cleanup before metadata, validation, or CRT conversion.
+The publisher borrows paths and descriptors without recapturing creation identity.
+`util/registry_cleanup.py` preserves initiating errors and drains independent
+releases, including snapshot SQLite close. Unknown creation identity permits
+resource release but not name deletion. Completed final backups are never cleanup targets.
 
 `edits/share_registry.py` owns the online SQLite snapshot and registry transaction
 recovery. Its narrow `util/registry_backup.py` publisher creates a private disk

@@ -51,7 +51,7 @@ def test_private_directory_child_grants_are_limited_to_trusted_accounts(flags, t
         assert api.verify_handle(123, private=True, directory=True).index_low == 1
 
 
-def test_private_directory_creation_descriptor_protects_future_children(tmp_path):
+def test_private_directory_creation_descriptor_protects_future_children(tmp_path, monkeypatch):
     api = object.__new__(windows._WindowsAPI)
     api.user_sid = "S-1-5-21-101-102-103-1001"
     supplied = []
@@ -62,15 +62,26 @@ def test_private_directory_creation_descriptor_protects_future_children(tmp_path
         return True
 
     api.security = SimpleNamespace(ConvertStringSecurityDescriptorToSecurityDescriptorW=convert)
-    api.kernel = SimpleNamespace(
-        LocalFree=lambda descriptor: None, CreateDirectoryW=lambda *args: True
-    )
+
+    def create(path, attributes):
+        child.mkdir(mode=0o700)
+        return True
+
+    api.kernel = SimpleNamespace(LocalFree=lambda descriptor: None, CreateDirectoryW=create)
+    api.open_directory = lambda path: path
+    api.file_identity = lambda path: (path.stat().st_dev, path.stat().st_ino)
+    api.close = lambda handle: None
+    monkeypatch.setattr(windows, "_WindowsAPI", lambda: api)
+    monkeypatch.setattr(windows, "_open_chain", lambda *args, **kwargs: [])
+    monkeypatch.setattr(windows, "_verify_chain", lambda *args, **kwargs: None)
     directory = object.__new__(windows.BackupDirectory)
     directory._api, directory.path = api, tmp_path
     directory.verify = lambda: None
     child = tmp_path / "private-workspace"
-    child.mkdir()
-    assert directory.create_workspace(child.name) == (child.stat().st_dev, child.stat().st_ino)
+    with directory.workspace(child.name) as private:
+        info = private.path.stat()
+        assert (info.st_dev, info.st_ino) == (child.stat().st_dev, child.stat().st_ino)
+    assert not child.exists()
     assert supplied == [
         "O:S-1-5-21-101-102-103-1001D:P"
         "(A;OICI;FA;;;S-1-5-21-101-102-103-1001)"

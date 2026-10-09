@@ -1,12 +1,25 @@
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  createE2eCleanupManifest,
+  type E2eCleanupManifest,
+} from "./cleanupManifest";
 import { e2eRuntimeEnv } from "./runtimeEnv";
 
 describe("e2eRuntimeEnv", () => {
+  let manifest: E2eCleanupManifest;
+  beforeEach(() => {
+    manifest = createE2eCleanupManifest();
+  });
+  afterEach(() => {
+    fs.rmSync(manifest.manifestDir, { recursive: true, force: true });
+  });
   it("removes every relay and object-store deployment setting", () => {
     const env = e2eRuntimeEnv(
       {
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
         PODCAST_RELAY_CONFIG: "/Users/developer/.config/podcast_mcp/relay.yaml",
         PODCAST_RELAY_URL: "https://relay.example.test",
         PODCAST_RELAY_HOST_TOKEN: "relay-secret",
@@ -44,6 +57,7 @@ describe("e2eRuntimeEnv", () => {
   it("does not allow a developer relay config to override isolation", () => {
     const env = e2eRuntimeEnv(
       {
+        DAW_E2E_CLEANUP_MANIFEST: manifest.manifestPath,
         PODCAST_RELAY_CONFIG: "/tmp/developer-relay.yaml",
         PODCAST_E2E_RELAY_CONFIG: "/tmp/unsupported-override.yaml",
       },

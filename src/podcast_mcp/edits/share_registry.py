@@ -28,6 +28,7 @@ from coolname import generate_slug
 
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.registry_backup import publish_registry_backup
+from podcast_mcp.util.registry_cleanup import cleanup
 from podcast_mcp.util.registry_privacy import registry_privacy
 from podcast_mcp.util.sqlite_tx import (
     DEFAULT_BUSY_TIMEOUT_PRAGMA,
@@ -492,7 +493,7 @@ class SqliteShareRegistry:
             if str(mode).lower() != "delete":
                 raise OSError("registry snapshot cannot be made standalone")
         finally:
-            connection.close()
+            cleanup([connection.close])
 
     @staticmethod
     def _active_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:

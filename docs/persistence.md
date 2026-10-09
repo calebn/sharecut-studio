@@ -130,6 +130,12 @@ or `artifacts/` without updating this catalog, AGENTS.md, and tests.
 
 ## Design notes
 
+Registry source creation and backup temporaries use native acquisition contexts.
+Close authority is separate from cached identity-based name removal. Failed
+initial identity capture leaves private residue instead of deleting an unknown
+entry. A validated, closed new source main is retained before SQLite receives its
+path; later initialization failure does not erase that durable authority.
+
 Introducing the share registry is the start of intentional **host-local durable
 registries** beyond episode JSON. Session sync remains the reference for
 append-only / command-log sqlite. Share registry is the reference for

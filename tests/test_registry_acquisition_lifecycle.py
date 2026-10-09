@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import stat
-from contextlib import closing, suppress
+from contextlib import closing, contextmanager, suppress
 
 import pytest
 
@@ -106,9 +106,8 @@ def test_public_created_file_identity_failure_closes_native_resource(
     def inspect(fd):
         nonlocal metadata_calls, injected
         info = fstat(fd)
-        if (
-            stat.S_ISREG(info.st_mode)
-            and fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDWR
+        if stat.S_ISREG(info.st_mode) and (
+            not first or fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDWR
         ):
             paths = list(source.db_path.parent.glob(".registry-snapshot-*/registry.sqlite"))
             paths += list(destination.parent.glob("*.partial"))
@@ -170,16 +169,17 @@ def test_public_initial_snapshot_close_attempt_is_not_retried_and_names_drain(
 ):
     source, destination, secret = owned_backup
     failure = kind("initial snapshot descriptor close failed")
-    create, close, fstat = posix.BackupDirectory.create_file, os.close, os.fstat
+    create, close, fstat = posix.BackupDirectory.created_file, os.close, os.fstat
     target = []
     attempts = []
 
+    @contextmanager
     def capture(directory, name):
-        fd = create(directory, name)
-        if name == "registry.sqlite":
-            info = fstat(fd)
-            target.append((fd, (info.st_dev, info.st_ino)))
-        return fd
+        with create(directory, name) as created:
+            if name == "registry.sqlite":
+                info = fstat(created.fd)
+                target.append((created.fd, (info.st_dev, info.st_ino)))
+            yield created
 
     def interrupt(fd):
         if target and fd == target[0][0]:
@@ -191,7 +191,7 @@ def test_public_initial_snapshot_close_attempt_is_not_retried_and_names_drain(
 
     try:
         with monkeypatch.context() as patch:
-            patch.setattr(posix.BackupDirectory, "create_file", capture)
+            patch.setattr(posix.BackupDirectory, "created_file", capture)
             patch.setattr(os, "close", interrupt)
             with pytest.raises(BaseException) as caught:
                 source.backup_to_new(destination)
@@ -264,14 +264,14 @@ def test_public_workspace_unknown_identity_retains_private_entry_with_note(
 def test_public_known_workspace_open_failure_removes_only_creation(owned_backup, monkeypatch, kind):
     source, destination, secret = owned_backup
     failure = kind("workspace open interrupted")
-    directory = publisher._directory
+    initialize = posix.BackupDirectory.__init__
 
-    def open_directory(path):
+    def open_directory(directory, path):
         if path.name.startswith(".registry-snapshot-"):
             raise failure
-        return directory(path)
+        initialize(directory, path)
 
-    monkeypatch.setattr(publisher, "_directory", open_directory)
+    monkeypatch.setattr(posix.BackupDirectory, "__init__", open_directory)
     with pytest.raises(BaseException) as caught:
         source.backup_to_new(destination)
     assert caught.value is failure
@@ -527,15 +527,17 @@ def test_public_reader_metadata_failure_closes_reader_and_drains_names(
 ):
     source, destination, secret = owned_backup
     failure = kind("reader metadata interrupted")
-    reader, fstat, close = posix.BackupDirectory.open_snapshot, os.fstat, os.close
+    reader, fstat, close = posix.BackupDirectory.snapshot_reader, os.fstat, os.close
     active = False
     target = []
     calls = 0
 
+    @contextmanager
     def open_reader(directory, *args):
         nonlocal active
         active = True
-        return reader(directory, *args)
+        with reader(directory, *args) as fd:
+            yield fd
 
     def inspect(fd):
         nonlocal calls
@@ -550,7 +552,7 @@ def test_public_reader_metadata_failure_closes_reader_and_drains_names(
 
     try:
         with monkeypatch.context() as patch:
-            patch.setattr(posix.BackupDirectory, "open_snapshot", open_reader)
+            patch.setattr(posix.BackupDirectory, "snapshot_reader", open_reader)
             patch.setattr(os, "fstat", inspect)
             with pytest.raises(BaseException) as caught:
                 source.backup_to_new(destination)

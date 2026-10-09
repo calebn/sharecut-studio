@@ -56,6 +56,12 @@ Canonical showcase fixture: [`tests/fixtures/sharecut_ux_demo/`](../tests/fixtur
 - Open: `podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json`
 - Site gallery: [See the UI](https://ux.sharecut.studio/#/demo) (`make ux-demo-screens` refreshes PNGs under `assets/screens/`, including the guest Sharecut Studio share)
 
+Screenshot capture copies the existing demo project into a disposable workspace.
+The npm E2E wrapper owns its registry, identity, and guest-token manifest; guest
+shares are prepared before GUI startup. A supplied `UX_DEMO_PROJECT` is copied
+before review changes. Run `make ux-demo` separately to rebuild the showcase
+fixture, and set `UX_DEMO_SCREENS_DIR` to capture proof outside the site assets.
+
 ## Local preview
 
 ```bash

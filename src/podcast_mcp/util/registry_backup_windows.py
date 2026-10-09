@@ -3,7 +3,6 @@ from __future__ import annotations
 import ctypes
 import importlib
 import os
-import stat
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from ctypes import wintypes
@@ -11,7 +10,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.util.registry_backup_posix import Identity, identity
+from podcast_mcp.util.registry_backup_posix import Identity
 from podcast_mcp.util.registry_cleanup import cleanup
 
 _native_ctypes: Any = ctypes
@@ -237,7 +236,6 @@ class _WindowsAPI:
         finally:
             cleanup([partial(self.close, token)])
         self.trusted = {self.user_sid, "S-1-5-18", "S-1-5-32-544"}
-        # The Windows servicing identity owns ordinary system ancestry.
         sid_size, domain_size, kind = wintypes.DWORD(), wintypes.DWORD(), wintypes.DWORD()
         self.security.LookupAccountNameW(
             None,
@@ -261,7 +259,8 @@ class _WindowsAPI:
                 ctypes.byref(kind),
             )
         )
-        self.ancestry_trusted = self.trusted | {self.sid_string(sid_buffer)}
+        trusted_installer_sid = self.sid_string(sid_buffer)
+        self.ancestry_trusted = self.trusted | {trusted_installer_sid}
 
     @staticmethod
     def check(result: Any) -> None:
@@ -277,7 +276,7 @@ class _WindowsAPI:
         try:
             return ctypes.wstring_at(output)
         finally:
-            self.kernel.LocalFree(output)
+            cleanup([partial(self.kernel.LocalFree, output)])
 
     def private_descriptor(self, *, directory: bool = False) -> ctypes.c_void_p:
         descriptor = ctypes.c_void_p()
@@ -350,38 +349,53 @@ class _WindowsAPI:
                 forbidden = (
                     _PRIVATE_UNTRUSTED_ACCESS_MASK if private else _ANCESTOR_UNTRUSTED_ACCESS_MASK
                 )
-                if sid not in trusted and ace.mask & forbidden:
+                effective_sid = owner_sid if sid == "S-1-3-4" else sid
+                if effective_sid not in trusted and ace.mask & forbidden:
                     raise PermissionError(
                         f"registry path {path} grants another account unsafe access; "
                         f"owner={owner_sid} sid={sid} flags=0x{ace.flags & 0xFF:02X} "
                         f"mask=0x{ace.mask:08X} intersection=0x{ace.mask & forbidden:08X}"
                     )
         finally:
-            self.kernel.LocalFree(descriptor)
+            cleanup([partial(self.kernel.LocalFree, descriptor)])
         return info
 
     def close(self, handle: Any) -> None:
         self.check(self.kernel.CloseHandle(handle))
 
-    def create_directory(self, path: Path) -> None:
+    def create_directory(self, path: Path, acquired: Callable[[], None]) -> None:
         descriptor = self.private_descriptor(directory=True)
         try:
             attributes = _SecurityAttributes(ctypes.sizeof(_SecurityAttributes), descriptor, False)
             self.check(self.kernel.CreateDirectoryW(str(path), ctypes.byref(attributes)))
+            acquired()
         finally:
-            self.kernel.LocalFree(descriptor)
+            cleanup([partial(self.kernel.LocalFree, descriptor)])
 
-    def create_file(self, path: Path) -> Any:
+    def create_file(self, owned: _OwnedFile, *, allow_existing: bool = False) -> bool:
         descriptor = self.private_descriptor()
         try:
             attributes = _SecurityAttributes(ctypes.sizeof(_SecurityAttributes), descriptor, False)
             handle = self.kernel.CreateFileW(
-                str(path), 0xC0030000, 3, ctypes.byref(attributes), 1, 0x00200000, None
+                str(owned.path), 0xC0030000, 3, ctypes.byref(attributes), 1, 0x00200000, None
             )
-            self.check(handle != ctypes.c_void_p(-1).value)
-            return handle
+            try:
+                self.check(handle != ctypes.c_void_p(-1).value)
+            except FileExistsError:
+                if allow_existing:
+                    return False
+                raise
+            owned.handle, owned.created = handle, True
+            return True
         finally:
-            self.kernel.LocalFree(descriptor)
+            cleanup([partial(self.kernel.LocalFree, descriptor)])
+
+    def file_identity(self, handle: Any) -> Identity:
+        info = _FileInformation()
+        self.check(self.kernel.GetFileInformationByHandle(handle, ctypes.byref(info)))
+        if not info.index_high and not info.index_low:
+            raise PermissionError("backup filesystem must provide persistent file identities")
+        return info.volume, (info.index_high << 32) | info.index_low
 
     def open_file(self, path: Path) -> Any:
         handle = self.kernel.CreateFileW(str(path), 0x20080, 7, None, 3, 0x00200000, None)
@@ -407,7 +421,7 @@ def _open_chain(
         for part in [*reversed(path.parents), path]:
             if create and part != Path(path.anchor):
                 with suppress(FileExistsError):
-                    api.create_directory(part)
+                    api.create_directory(part, lambda: None)
             handle = api.open_directory(part)
             try:
                 info = api.verify_handle(handle, private=part == path, directory=True, path=part)
@@ -438,6 +452,78 @@ def _verify_chain(
             cleanup([partial(api.close, reopened)])
 
 
+class _OwnedFile:
+    def __init__(
+        self, api: _WindowsAPI, path: Path, remove: Callable[[Identity], None] | None = None
+    ) -> None:
+        self.api, self.path, self._remove = api, path, remove
+        self.handle: Any = None
+        self._fd: int | None = None
+        self._identity: Identity | None = None
+        self.created = False
+
+    @property
+    def identity(self) -> Identity:
+        if self._identity is None:
+            raise RuntimeError("registry file identity is unknown")
+        return self._identity
+
+    @property
+    def fd(self) -> int:
+        if self._fd is None:
+            raise RuntimeError("registry file descriptor is closed")
+        return self._fd
+
+    def capture_identity(self) -> None:
+        self._identity = self.api.file_identity(self.handle)
+
+    def to_descriptor(self, flags: int) -> None:
+        self._fd = self.api.crt.open_osfhandle(self.handle, flags | 0x8000)
+        self.handle = None
+
+    def close_descriptor(self) -> None:
+        fd, handle = self._fd, self.handle
+        self._fd, self.handle = None, None
+        if fd is not None:
+            os.close(fd)
+        elif handle is not None:
+            self.api.close(handle)
+
+    def retain_name(self) -> None:
+        self.created = False
+
+    def remove_name(self) -> None:
+        if self.created:
+            if self._identity is None:
+                raise OSError("registry cleanup retained a private entry with unknown identity")
+            if self._remove is not None:
+                self._remove(self._identity)
+
+
+@contextmanager
+def _owned_file(
+    api: _WindowsAPI, path: Path, remove: Callable[[Identity], None] | None = None
+) -> Iterator[_OwnedFile]:
+    owned = _OwnedFile(api, path, remove)
+    try:
+        yield owned
+    finally:
+        cleanup([owned.close_descriptor, owned.remove_name])
+
+
+def _remove_file(api: _WindowsAPI, path: Path, expected: Identity) -> None:
+    try:
+        handle = api.open_file(path)
+    except FileNotFoundError:
+        return
+    try:
+        if api.file_identity(handle) != expected:
+            raise PermissionError("refusing to remove a substituted backup file")
+        path.unlink()
+    finally:
+        cleanup([partial(api.close, handle)])
+
+
 @contextmanager
 def registry_scope(
     path: Path, names: tuple[str, ...], *, create: bool
@@ -446,7 +532,6 @@ def registry_scope(
         _validate_name(name)
     api = _WindowsAPI()
     handles = _open_chain(api, path, create=create)
-
     allow_missing_main = create
 
     def verify() -> None:
@@ -467,15 +552,15 @@ def registry_scope(
     try:
         verify()
         if create:
-            try:
-                handle = api.create_file(path / names[0])
-            except FileExistsError:
-                pass
-            else:
-                try:
-                    api.verify_handle(handle, private=True, directory=False, path=path / names[0])
-                finally:
-                    cleanup([partial(api.close, handle)])
+            child = path / names[0]
+            with _owned_file(api, child, partial(_remove_file, api, child)) as owned:
+                if api.create_file(owned, allow_existing=True):
+                    owned.capture_identity()
+                    api.verify_handle(owned.handle, private=True, directory=False, path=child)
+                    allow_missing_main = False
+                    verify()
+                    owned.close_descriptor()
+                    owned.retain_name()
         allow_missing_main = False
         verify()
         yield verify
@@ -496,55 +581,73 @@ class BackupDirectory:
         _validate_name(name)
         return os.path.lexists(self.path / name)
 
-    def create_workspace(self, name: str) -> Identity:
+    @contextmanager
+    def workspace(self, name: str) -> Iterator[BackupDirectory]:
         _validate_name(name)
         self.verify()
-        self._api.create_directory(self.path / name)
-        return identity((self.path / name).stat(follow_symlinks=False))
+        path = self.path / name
+        created = False
+        expected = None
+        private = None
 
-    def create_file(self, name: str) -> int:
-        _validate_name(name)
-        self.verify()
-        handle = self._api.create_file(self.path / name)
+        def acquired() -> None:
+            nonlocal created
+            created = True
+
+        def remove() -> None:
+            if created:
+                if expected is None:
+                    raise OSError(
+                        "registry cleanup retained a private workspace with unknown identity"
+                    )
+                self.remove_workspace(name, expected)
+
         try:
-            self._api.verify_handle(handle, private=True, directory=False, path=self.path / name)
-            return self._api.crt.open_osfhandle(handle, os.O_RDWR | 0x8000)
-        except BaseException:
-            cleanup([partial(self._api.close, handle)])
-            raise
+            self._api.create_directory(path, acquired)
+            handle = self._api.open_directory(path)
+            try:
+                expected = self._api.file_identity(handle)
+            finally:
+                cleanup([partial(self._api.close, handle)])
+            private = BackupDirectory(path)
+            yield private
+        finally:
+            cleanup(([private.close] if private is not None else []) + [remove])
 
-    def open_snapshot(self, name: str, expected: Identity) -> int:
+    @contextmanager
+    def created_file(self, name: str) -> Iterator[_OwnedFile]:
+        _validate_name(name)
+        self.verify()
+        with _owned_file(self._api, self.path / name, partial(self.remove_file, name)) as owned:
+            self._api.create_file(owned)
+            owned.capture_identity()
+            self._api.verify_handle(owned.handle, private=True, directory=False, path=owned.path)
+            owned.to_descriptor(os.O_RDWR)
+            yield owned
+
+    @contextmanager
+    def snapshot_reader(self, name: str, expected: Identity) -> Iterator[int]:
         self.verify_file(name, expected)
-        handle = self._api.kernel.CreateFileW(
-            str(self.path / name), 0x80020000, 3, None, 3, 0x00200000, None
-        )
-        if handle == ctypes.c_void_p(-1).value:
-            raise _native_ctypes.WinError()
-        try:
-            self._api.verify_handle(handle, private=True, directory=False, path=self.path / name)
-            fd = self._api.crt.open_osfhandle(handle, os.O_RDONLY | 0x8000)
-        except BaseException:
-            cleanup([partial(self._api.close, handle)])
-            raise
-        try:
-            if identity(os.fstat(fd)) != expected:
+        with _owned_file(self._api, self.path / name) as owned:
+            owned.handle = self._api.kernel.CreateFileW(
+                str(owned.path), 0x80020000, 3, None, 3, 0x00200000, None
+            )
+            if owned.handle == ctypes.c_void_p(-1).value:
+                owned.handle = None
+                raise _native_ctypes.WinError()
+            self._api.verify_handle(owned.handle, private=True, directory=False, path=owned.path)
+            owned.to_descriptor(os.O_RDONLY)
+            if self._api.file_identity(self._api.crt.get_osfhandle(owned.fd)) != expected:
                 raise PermissionError("backup snapshot identity changed")
-            return fd
-        except BaseException:
-            cleanup([partial(os.close, fd)])
-            raise
+            yield owned.fd
 
     def verify_file(self, name: str, expected: Identity) -> None:
         _validate_name(name)
         self.verify()
-        if identity((self.path / name).stat(follow_symlinks=False)) != expected:
-            raise PermissionError("backup file identity changed")
-        handle = self._api.kernel.CreateFileW(
-            str(self.path / name), 0x20080, 7, None, 3, 0x00200000, None
-        )
-        if handle == ctypes.c_void_p(-1).value:
-            raise _native_ctypes.WinError()
+        handle = self._api.open_file(self.path / name)
         try:
+            if self._api.file_identity(handle) != expected:
+                raise PermissionError("backup file identity changed")
             self._api.verify_handle(handle, private=True, directory=False, path=self.path / name)
         finally:
             cleanup([partial(self._api.close, handle)])
@@ -563,27 +666,24 @@ class BackupDirectory:
             )
         )
 
-    def sync(self) -> None:
-        # Win32 has no portable directory fsync. File data is flushed before native rename.
+    def check_published_directory(self) -> None:
         self.verify()
 
     def remove_file(self, name: str, expected: Identity) -> None:
         _validate_name(name)
-        path = self.path / name
-        if not os.path.lexists(path):
-            return
-        if identity(path.stat(follow_symlinks=False)) != expected or path.is_symlink():
-            raise PermissionError("refusing to remove a substituted backup file")
-        path.unlink()
+        _remove_file(self._api, self.path / name, expected)
 
     def remove_workspace(self, name: str, expected: Identity) -> None:
         _validate_name(name)
         path = self.path / name
-        if identity(path.stat(follow_symlinks=False)) != expected or not stat.S_ISDIR(
-            path.stat(follow_symlinks=False).st_mode
-        ):
-            raise PermissionError("refusing to remove a substituted backup workspace")
-        path.rmdir()
+        handle = self._api.open_directory(path)
+        try:
+            if self._api.file_identity(handle) != expected:
+                raise PermissionError("refusing to remove a substituted backup workspace")
+        except BaseException:
+            cleanup([partial(self._api.close, handle)])
+            raise
+        cleanup([partial(self._api.close, handle), path.rmdir])
 
     def close(self) -> None:
         handles, self._handles = self._handles, []

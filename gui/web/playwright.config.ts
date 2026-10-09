@@ -9,12 +9,9 @@ const uxDemoPath = path.join(
   "tests/fixtures/sharecut_ux_demo/episode.project.json",
 );
 const capturingUxScreens = !!process.env.UX_DEMO_SCREENSHOTS;
-const guiProject =
-  capturingUxScreens && process.env.UX_DEMO_PROJECT
-    ? process.env.UX_DEMO_PROJECT
-    : capturingUxScreens
-      ? copyUxDemoProject(uxDemoPath)
-      : prepareLiveE2eProject();
+const guiProject = capturingUxScreens
+  ? copyUxDemoProject(process.env.UX_DEMO_PROJECT ?? uxDemoPath)
+  : prepareLiveE2eProject();
 if (!capturingUxScreens) {
   process.env.DAW_E2E_PROJECT = guiProject;
 }
@@ -49,11 +46,6 @@ export default defineConfig({
       ...e2eRuntimeEnv(process.env, `${process.pid}-${e2ePort}`),
       DAW_E2E_PROJECT: guiProject,
       DAW_E2E_PIN_PROJECT: capturingUxScreens ? "1" : "",
-      ...(process.env.PODCAST_SHARE_REGISTRY
-        ? {
-            PODCAST_SHARE_REGISTRY: process.env.PODCAST_SHARE_REGISTRY,
-          }
-        : {}),
     },
   },
 });

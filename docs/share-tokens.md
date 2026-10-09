@@ -185,10 +185,19 @@ disk workspace beside the host registry. The snapshot is normalized to DELETE
 journal mode, closed, and checked for leftover sidecars. A fixed-size buffer streams
 its bytes through an owned private destination descriptor before no-replace atomic
 publication. Source and destination can reside on different filesystems. Temporary
-entries are cleaned up by identity on failure or cancellation. Cleanup attempts every acquired directory
-handle even if another close fails. Cleanup preserves the original failure
+entries are removed on failure or cancellation only when their captured creation
+identity still matches. If initial identity acquisition fails, cleanup attempts
+the resource close and leaves the private unknown entry with a generic note.
+Cleanup attempts each acquired resource close once, even if another close fails.
+Cleanup preserves the original failure
 or cancellation, and reports the first cleanup failure when the operation succeeded.
 A directory durability error after publication reports an error but retains the completed backup.
+
+Native acquisition scopes own handles, descriptors, and temporary names before
+validation or descriptor conversion. A newly created source main becomes durable
+authority after full source-family admission and successful close, before SQLite
+opens it. Windows OWNER RIGHTS grants bind to each inspected object's trusted
+owner; admission checks every existing child independently.
 
 The publisher pins and validates directory ancestry. POSIX requires an owned `0700`
 parent, `0600` files, no extended ACL grants, and no untrusted nonsticky writable
