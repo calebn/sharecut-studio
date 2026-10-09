@@ -18,6 +18,7 @@ import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
+import { trimDraft } from "../edit/ripplePreview";
 import { trimNeighborBounds } from "../edit/trimLimits";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -253,7 +254,29 @@ export function useClipEdgeHandles(context: Context) {
       publish(null);
       return;
     }
-    publish(projectEdge(d, candidate));
+    const next = projectEdge(d, candidate);
+    const project = useDawStore.getState().project;
+    try {
+      if (next.kind === "trim" && project) {
+        trimDraft(
+          project,
+          next.capture.trackId,
+          next.capture.clip.id,
+          next.edge,
+          next.edge === "in"
+            ? next.preview.sourceStart
+            : next.preview.sourceEnd,
+          next.preview.mode,
+        );
+      }
+      publish(next);
+      return true;
+    } catch (error) {
+      useDawStore
+        .getState()
+        .announceStatus(`Clip edit failed: ${errorMessage(error)}`);
+      return false;
+    }
   };
   /**
    * A pointer drag to `candidate`: past a hard limit (the source's start or
@@ -407,7 +430,11 @@ export function useClipEdgeHandles(context: Context) {
       direction * step,
       action.held,
     );
-    update(d, next.value);
+    if (update(d, next.value) === false) {
+      keyStopped.current = true;
+      setBumped(handle);
+      return { status: "ok" as const };
+    }
     if (next.stop && action.held) {
       keyStopped.current = true;
       setBumped(handle);

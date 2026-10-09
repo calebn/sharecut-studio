@@ -5,13 +5,19 @@ Both edit modes and the speech guard are covered in ``test_edit_modes.py``."""
 from __future__ import annotations
 
 import json
+import struct
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
+from contract_project_helpers import contract_project
 from podcast_mcp.cli.main import app
+from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import (
     Clip,
@@ -27,9 +33,15 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import EditService
-from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
+from podcast_mcp.services.document.boundary import (
+    TrimBoundaryEdit,
+    TrimBoundaryTarget,
+    boundary_context,
+)
+from podcast_mcp.services.document.play import PlayService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
+from podcast_mcp.util.coded_error import CodedValueError
 from ripple_helpers import trim
 
 
@@ -123,7 +135,9 @@ def test_document_trim_clip_edge(minimal_project):
     assert c2.timeline_start == pytest.approx(10.0)
 
 
-def test_document_trim_preserves_a_follower_that_moves_before_zero(minimal_project):
+@pytest.mark.parametrize("lane", ["host", "guest"])
+@pytest.mark.parametrize("edge", ["in", "out"])
+def test_document_trim_refuses_a_follower_before_zero(minimal_project, lane, edge):
     project = load_project(minimal_project)
     project.timeline.tracks = [
         Track(
@@ -133,12 +147,20 @@ def test_document_trim_preserves_a_follower_that_moves_before_zero(minimal_proje
             media=MediaAsset(path="raw/host.wav", duration_sec=30.0),
         )
     ]
+    project.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=30.0),
+        )
+    )
     project.sources = [SourceRecording(id="alt", path="raw/alt.wav", duration_sec=30.0)]
     project.timeline.clips = [
         Clip(id="anchor", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
         Clip(
             id="follower",
-            track_id="host",
+            track_id=lane,
             source_id="alt",
             source_start=0.0,
             source_end=19.0,
@@ -149,34 +171,123 @@ def test_document_trim_preserves_a_follower_that_moves_before_zero(minimal_proje
             mute_regions=[ClipMuteRegion(start_s=2.0, end_s=3.0, fade_out_ms=2, fade_in_ms=4)],
         ),
     ]
+    if edge == "in":
+        project.clips[0].source_start = 10.0
+        project.clips[0].source_end = 20.0
+    if lane == "guest":
+        project.clips.append(
+            project.clips[0].model_copy(update={"id": "peer", "track_id": "guest"})
+        )
     save_project(project)
     ws = ProjectWorkspace.open(minimal_project)
-    token = boundary_context(
-        ws.project,
-        TrimBoundaryTarget(clip_id="anchor", edge="out", mode=EditMode.RIPPLE),
-    ).token
+    target = TrimBoundaryTarget(clip_id="anchor", edge=edge, mode=EditMode.RIPPLE)
+    token = boundary_context(ws.project, target).token
+    before = ws.project.model_dump()
+    saved_before = minimal_project.read_bytes()
+    history_before = ws.project.history.model_dump()
+    history_files = {
+        path.relative_to(ws.project.history_dir()): path.read_bytes()
+        for path in ws.project.history_dir().rglob("*")
+        if path.is_file()
+    }
+    with pytest.raises(CodedValueError) as caught:
+        EditService(ws).trim_clip_edge(
+            "anchor",
+            edge,
+            12.0 if edge == "in" else 8.0,
+            mode=EditMode.RIPPLE,
+            expected_token=token,
+            confirm_cut_speech=True,
+        )
+    assert caught.value.code == "ripple_before_zero"
+    assert ws.project.model_dump() == before
+    assert minimal_project.read_bytes() == saved_before
+    assert ws.project.history.model_dump() == history_before
+    assert boundary_context(ws.project, target).token == token
+    assert load_project(minimal_project).model_dump() == before
+    with pytest.raises(CodedValueError, match="before the timeline starts"):
+        PlayService(ws).audition_boundary(
+            target,
+            TrimBoundaryEdit(
+                clip_id="anchor",
+                edge=edge,
+                mode=EditMode.RIPPLE,
+                source_sec=12.0 if edge == "in" else 8.0,
+            ),
+            token,
+        )
+    svc = DocumentSyncService.open(minimal_project)
+    journal_before = svc.store.get_snapshot()
+    with pytest.raises(CodedValueError) as rejected:
+        svc.submit(
+            DocumentCommand(
+                type="TrimClipEdge",
+                client_id="negative-trim",
+                role="host",
+                client_seq=1,
+                payload={
+                    "clip_id": "anchor",
+                    "edge": edge,
+                    "source_sec": 12.0 if edge == "in" else 8.0,
+                    "mode": "ripple",
+                    "expected_token": token,
+                    "confirm_cut_speech": True,
+                },
+            )
+        )
+    assert rejected.value.code == "ripple_before_zero"
+    assert svc.store.get_snapshot() == journal_before
+    assert {
+        path.relative_to(ws.project.history_dir()): path.read_bytes()
+        for path in ws.project.history_dir().rglob("*")
+        if path.is_file()
+    } == history_files
+    assert minimal_project.read_bytes() == saved_before
+    assert ws.project.history.model_dump() == history_before
 
-    EditService(ws).trim_clip_edge(
-        "anchor",
-        "out",
-        8.0,
-        mode=EditMode.RIPPLE,
-        expected_token=token,
-        confirm_cut_speech=True,
-    )
 
-    saved = load_project(minimal_project)
-    follower = next(clip for clip in saved.clips if clip.id == "follower")
-    assert follower.timeline_start == -1.0
-    assert (follower.source_start, follower.source_end, follower.source_id) == (0.0, 19.0, "alt")
-    assert (follower.fade_in_ms, follower.fade_out_ms, follower.join_in_mode) == (
-        17,
-        23,
-        ClipJoinMode.CROSSFADE,
+def test_refused_trim_preserves_rendered_clock_and_source_audio(tmp_path):
+    for name, data in (
+        ("host", bytes(30 * 48_000 * 2)),
+        ("alt", struct.pack("<h", 10_000) * 48_000 + struct.pack("<h", 20_000) * (29 * 48_000)),
+    ):
+        with wave.open(str(tmp_path / f"{name}.wav"), "wb") as source:
+            source.setnchannels(1)
+            source.setsampwidth(2)
+            source.setframerate(48_000)
+            source.writeframes(data)
+    project = contract_project(
+        [{"id": "host", "role": "dialogue", "media_path": "host.wav", "duration_sec": 30}],
+        [{"id": "alt", "path": "alt.wav", "duration_sec": 30}],
+        [
+            Clip(id="anchor", track_id="host", timeline_start=0, source_start=0, source_end=10),
+            Clip(
+                id="follower",
+                track_id="host",
+                source_id="alt",
+                timeline_start=1,
+                source_start=0,
+                source_end=19,
+            ),
+        ],
     )
-    assert follower.mute_regions == [
-        ClipMuteRegion(start_s=2.0, end_s=3.0, fade_out_ms=2, fade_in_ms=4)
-    ]
+    project.workspace_dir = str(tmp_path)
+    before = project.model_dump()
+    sources = {name: (tmp_path / f"{name}.wav").read_bytes() for name in ("host", "alt")}
+    with pytest.raises(CodedValueError, match="before the timeline starts"):
+        apply_trim_geometry(project, plan_trim(project, "anchor", "out", 8, EditMode.RIPPLE))
+    assert project.model_dump() == before
+    output = tmp_path / "render.wav"
+    render_track_from_timeline(project, project.tracks[0], output, {}, engine=FFmpegEngine())
+    assert FFmpegEngine().probe(output).duration_sec == pytest.approx(20, abs=0.001)
+    with wave.open(str(output)) as rendered:
+        assert rendered.getsampwidth() == 2
+        for sec, expected in ((0.5, 0), (1.5, 10_000), (2.5, 20_000)):
+            rendered.setpos(round(sec * rendered.getframerate()))
+            assert struct.unpack("<h", rendered.readframes(1)[:2])[0] == pytest.approx(
+                expected, abs=1
+            )
+    assert {name: (tmp_path / f"{name}.wav").read_bytes() for name in sources} == sources
 
 
 runner = CliRunner()

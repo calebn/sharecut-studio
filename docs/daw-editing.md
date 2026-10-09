@@ -315,6 +315,7 @@ decided-by: calebn
 evidence:
 - #1135 trim-mode design audit, #1137
 - #1208 built-GUI regression on edited and moving-peer lanes
+- #1208 FFmpeg proof showed a newly negative follower rendered 19 seconds against an authored end of 18 seconds
 enforced-by:
 - tests/test_edit_modes.py::test_ripple_trim_shortening_moves_every_dialogue_track_by_the_same_amount
 - tests/test_edit_modes.py::test_ripple_trim_over_another_speakers_words_asks_first_and_changes_nothing
@@ -323,9 +324,13 @@ enforced-by:
 - tests/test_edit_modes.py::test_a_commenters_ripple_suggestion_records_that_approval_must_confirm
 - tests/test_edit_modes.py::test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech
 - tests/test_ripple_scope_contract.py::test_trim_lanes
-- tests/test_trim_clip_edge.py::test_document_trim_preserves_a_follower_that_moves_before_zero
+- tests/test_trim_clip_edge.py::test_document_trim_refuses_a_follower_before_zero
+- tests/test_trim_clip_edge.py::test_refused_trim_preserves_rendered_clock_and_source_audio
 - gui/web/src/edit/ripplePreview.test.ts::a trim preview matches what the trim saves (contracts/ripple-scope.json)
 - gui/web/src/edit/ripplePreview.test.ts::keeps the follower source and audio metadata while translating it
+- gui/web/e2e/ripple-overlap-proof.spec.ts::refuses a large overlap trim on the edited lane and saves the last valid draft
+- gui/web/src/inspector/useNudgeRun.test.tsx::keeps and saves the last valid %s lane preview
+- gui/web/src/timeline/ClipBlock.test.tsx::keeps the last valid %s %s drag through pointer release
 - gui/web/src/layout/CutSpeechDialog.test.tsx::asks before a ripple delete cuts another speaker, naming who, when and what
 -->
 
@@ -348,8 +353,12 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   applies to the edited lane and a lane with a moving peer. Nested clips,
   equal-start overlays, predecessors, and clips ending at the old edge stay put.
   Do not normalize overlaps by duration; the 1 ms peer-edge match does not set
-  follower membership. A long overlap can move a clip before timeline zero, and
-  `TrimClipEdge` saves that placement. A lane without a moving edge keeps the
+  follower membership. If a candidate moves a previously nonnegative follower
+  below timeline zero by more than 1 ns, refuse the whole trim with
+  `ripple_before_zero` before changing any lane. Preserve source audio,
+  project state, history, and the document journal. Drag, held keyboard, and
+  strip nudge previews keep their last valid geometry and arrows and show the
+  error. Release saves only the last valid value. A lane without a moving edge keeps the
   existing time-splice behavior.
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
   moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut

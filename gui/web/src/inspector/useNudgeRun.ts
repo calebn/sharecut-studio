@@ -99,10 +99,25 @@ export function useNudgeRun() {
       : [];
     const next = nudgeStep(axis, boundaries, r.value, r.delta, held);
     if (next.value !== r.value) {
-      r.value = next.value;
-      r.moved += 1;
-      r.preview = withNudge(store.project, r.field, r.value);
-      store.setProject(r.preview);
+      try {
+        const preview = withNudge(
+          r.field.kind === "trim" ? r.origin : store.project,
+          r.field,
+          next.value,
+        );
+        r.value = next.value;
+        r.moved += 1;
+        r.preview = preview;
+        store.setProject(preview);
+      } catch (error) {
+        r.stopped = true;
+        if (r.timer) clearTimeout(r.timer);
+        r.timer = null;
+        bumps.current += 1;
+        setBump({ key: nudgeKey(r.field), n: bumps.current });
+        store.announceStatus(`${r.name} failed: ${errorMessage(error)}`);
+        return;
+      }
     }
     if (!next.stop) return;
     r.stopped = true;

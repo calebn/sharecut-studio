@@ -29,7 +29,7 @@ type Contract = {
   }[];
   trim_tracks: ContractTrack[];
   trim_sources: ContractSource[];
-  trim_cases: {
+  trim_cases: ({
     name: string;
     clips: Record<string, ContractClip[]>;
     trim: {
@@ -38,12 +38,17 @@ type Contract = {
       source_sec: number;
       mode: EditMode;
     };
-    lanes: Record<string, [number, number, number, number][]>;
-    arrows: Record<string, [number, number][]>;
-    cuts: Record<string, [number, number]>;
     clip_ids?: Record<string, string[]>;
     source_ids?: Record<string, (string | null)[]>;
-  }[];
+  } & (
+    | { error: string }
+    | {
+        error?: never;
+        lanes: Record<string, [number, number, number, number][]>;
+        arrows: Record<string, [number, number][]>;
+        cuts: Record<string, [number, number]>;
+      }
+  ))[];
 };
 
 const CONTRACT = JSON.parse(
@@ -90,6 +95,16 @@ describe("a trim preview matches what the trim saves (contracts/ripple-scope.jso
     )!;
     const clip = project.clips.tracks[trackId].find((r) => r.id === clip_id)!;
 
+    if (c.error !== undefined) {
+      const before = structuredClone(project);
+      expect(() =>
+        trimDraft(project, trackId, clip_id, edge, source_sec, mode),
+      ).toThrow(
+        "This trim would move a following clip before the timeline starts. Try a smaller trim.",
+      );
+      expect(project).toEqual(before);
+      return;
+    }
     const drafted = trimDraft(
       project,
       trackId,
