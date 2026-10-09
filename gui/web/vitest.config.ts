@@ -7,7 +7,11 @@ export default defineConfig({
     // per-file isolation and bounded parallelism for the jsdom suite.
     pool: "threads",
     maxWorkers: 4,
-    include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.test.ts"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "e2e/**/*.test.ts",
+      "scripts/**/*.test.ts",
+    ],
     setupFiles: ["./src/test/setup.ts"],
   },
 });
