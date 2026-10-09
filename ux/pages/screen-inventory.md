@@ -245,6 +245,11 @@ enough to restore a complete word brings its text and suppression choices back
 with the audio. Partial words remain archived. Existing older cuts without a
 word archive require History recovery.
 
+When neighboring clips have a gap above the existing 50 ms abutment tolerance,
+the mark explains that this pair has no roll seam and identifies the left
+clip's end trim. The host precision dialog repeats that reason before its
+controls. Gaps within the tolerance and overlaps continue to roll.
+
 Timeline and transcript join rolls use the same recording limits. Rolling later
 stops at the left recording's end; an unknown duration allows no later expansion.
 Outer neighbors constrain the drag only when they play the right recording, so

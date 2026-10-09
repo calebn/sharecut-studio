@@ -6,6 +6,7 @@ import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { useDawStore } from "../state/dawStore";
 import { clipRow } from "../test/fixtures";
 import type { EditBoundaryView } from "../types/project";
+import { resolveBoundaryPresentation } from "./boundaryPresentation";
 import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
 import { TRANSCRIPT_EDIT_BOUNDARY_TIP } from "./transcriptModeCopy";
 
@@ -79,6 +80,7 @@ const meta: Meta<typeof EditBoundaryMarkView> = {
   ],
   args: {
     boundary,
+    presentation: resolveBoundaryPresentation(left, right),
     leftClip: left,
     rightClip: right,
     getRollInterval: () => rollJoinInterval([left, right], left.id, right.id),
@@ -127,6 +129,7 @@ export const RollDragPreview: Story = {
 
 export const TrimEdge: Story = {
   args: {
+    presentation: resolveBoundaryPresentation(left, null),
     rightClip: null,
     boundary: { ...boundary, right_clip_id: null },
   },
