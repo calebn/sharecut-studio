@@ -40,7 +40,11 @@
   "trim_sources": [
     { "id": "guest_t1", "path": "raw/guest.wav", "duration_sec": 60 },
     { "id": "guest_t2", "path": "raw/guest_t2.wav", "duration_sec": 11 },
-    { "id": "guest_t3", "path": "raw/guest_t3.wav", "duration_sec": 100 }
+    { "id": "guest_t3", "path": "raw/guest_t3.wav", "duration_sec": 100 },
+    {"id": "anchor_t","path": "raw/anchor.wav","duration_sec": 100},
+    {"id": "follower_t","path": "raw/follower.wav","duration_sec": 100},
+    {"id": "peer_t","path": "raw/peer.wav","duration_sec": 100},
+    {"id": "overlay_t","path": "raw/overlay.wav","duration_sec": 100}
   ],
   "trim_cases": [
     {
@@ -282,6 +286,66 @@
       },
       "arrows": { "host": [], "guest": [] },
       "cuts": { "guest": [10, 11] }
+    },
+    {
+      "name": "a 0.4 ms edited-lane overlap moves as a whole clip",
+      "clips": {"host": [["anchor",0,0,10,"anchor_t"],["follower",9.9996,9.9996,19.9996,"follower_t"]],"guest": [],"music": []},
+      "trim": {"clip_id": "anchor","edge": "out","source_sec": 9.97,"mode": "ripple"},
+      "lanes": {"host": [[0,9.97,0,9.97],[9.9696,19.9696,9.9996,19.9996]],"guest": [],"music": []},
+      "arrows": {"host": [[9.9996,9.9696]]},
+      "cuts": {},
+      "clip_ids": {"host": ["anchor","follower"]},
+      "source_ids": {"host": ["anchor_t","follower_t"]}
+    },
+    {
+      "name": "a 0.4 ms overlap after a moving peer moves as a whole clip",
+      "clips": {"host": [["anchor",0,0,10,"anchor_t"]],"guest": [["peer",0,0,10,"peer_t"],["follower",9.9996,9.9996,19.9996,"follower_t"]],"music": []},
+      "trim": {"clip_id": "anchor","edge": "out","source_sec": 9.97,"mode": "ripple"},
+      "lanes": {"host": [[0,9.97,0,9.97]],"guest": [[0,9.97,0,9.97],[9.9696,19.9696,9.9996,19.9996]],"music": []},
+      "arrows": {"guest": [[9.9996,9.9696]]},
+      "cuts": {},
+      "clip_ids": {"guest": ["peer","follower"]},
+      "source_ids": {"guest": ["peer_t","follower_t"]}
+    },
+    {
+      "name": "a two-second intentional overlap follows a shortened edge",
+      "clips": {"host": [["anchor",0,0,10,"anchor_t"],["follower",8,8,18,"follower_t"]],"guest": [],"music": []},
+      "trim": {"clip_id": "anchor","edge": "out","source_sec": 8,"mode": "ripple"},
+      "lanes": {"host": [[0,8,0,8],[6,16,8,18]],"guest": [],"music": []},
+      "arrows": {"host": [[8,6]]},
+      "cuts": {},
+      "clip_ids": {"host": ["anchor","follower"]},
+      "source_ids": {"host": ["anchor_t","follower_t"]}
+    },
+    {
+      "name": "a 0.4 ms overlap follows a growing edge",
+      "clips": {"host": [["anchor",0,0,10,"anchor_t"],["follower",9.9996,9.9996,19.9996,"follower_t"]],"guest": [],"music": []},
+      "trim": {"clip_id": "anchor","edge": "out","source_sec": 12,"mode": "ripple"},
+      "lanes": {"host": [[0,12,0,12],[11.9996,21.9996,9.9996,19.9996]],"guest": [],"music": []},
+      "arrows": {"host": [[9.9996,11.9996]]},
+      "cuts": {},
+      "clip_ids": {"host": ["anchor","follower"]},
+      "source_ids": {"host": ["anchor_t","follower_t"]}
+    },
+    {
+      "name": "a 0.4 ms overlap follows an in-edge shortening",
+      "clips": {"host": [["anchor",0,10,20,"anchor_t"],["follower",9.9996,9.9996,19.9996,"follower_t"]],"guest": [],"music": []},
+      "trim": {"clip_id": "anchor","edge": "in","source_sec": 12,"mode": "ripple"},
+      "lanes": {"host": [[0,8,12,20],[7.9996,17.9996,9.9996,19.9996]],"guest": [],"music": []},
+      "arrows": {"host": [[9.9996,7.9996]]},
+      "cuts": {},
+      "clip_ids": {"host": ["anchor","follower"]},
+      "source_ids": {"host": ["anchor_t","follower_t"]}
+    },
+    {
+      "name": "nested, predecessor, equal-start and old-end clips stay in place",
+      "clips": {"host": [["anchor",4,4,10,"anchor_t"],["nested",6,6,9,"overlay_t"],["predecessor",2,2,12,"overlay_t"],["equal",4,4,12,"overlay_t"],["ends-at-edge",8,8,10,"overlay_t"],["follower",10,10,20,"follower_t"]],"guest": [],"music": []},
+      "trim": {"clip_id": "anchor","edge": "out","source_sec": 8,"mode": "ripple"},
+      "lanes": {"host": [[2,12,2,12],[4,8,4,8],[4,12,4,12],[6,9,6,9],[8,10,8,10],[8,18,10,20]],"guest": [],"music": []},
+      "arrows": {"host": [[10,8]]},
+      "cuts": {},
+      "clip_ids": {"host": ["predecessor","anchor","equal","nested","ends-at-edge","follower"]},
+      "source_ids": {"host": ["overlay_t","anchor_t","overlay_t","overlay_t","overlay_t","follower_t"]}
     },
     {
       "name": "a music trim ripples the dialogue tracks with it",

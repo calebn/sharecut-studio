@@ -63,3 +63,7 @@ def test_trim_lanes(case: dict) -> None:
         assert len(lanes[tid]) == len(rows), tid
         for got, want in zip(lanes[tid], rows, strict=True):
             assert got == pytest.approx(want, abs=1e-9), tid
+    for tid, ids in case.get("clip_ids", {}).items():
+        output = sorted((c for c in p.clips if c.track_id == tid), key=lambda c: c.timeline_start)
+        assert [c.id for c in output] == ids
+        assert [c.source_id for c in output] == case["source_ids"][tid]
