@@ -329,6 +329,8 @@ it.each([
   "gui/web/index.html",
   ".agents/defaults/pipeline.yaml",
   "contracts/timeline-zoom.json",
+  "gui/web/public/é-source.txt",
+  "gui/web/public/line\nsource.txt",
 ])(
   "rejects changed production input %s through the actual CLI before launch",
   (inputPath) => {
@@ -346,6 +348,7 @@ it.each([
       const git = (...args: string[]) =>
         execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
       git("init", "-q");
+      git("config", "core.quotePath", "true");
       git("add", ".");
       git(
         "-c",
@@ -357,6 +360,14 @@ it.each([
         "fixture",
       );
       const base = git("rev-parse", "HEAD");
+      expect(
+        execFileSync("git", ["ls-tree", "-r", "-z", "--name-only", base], {
+          cwd: dir,
+          encoding: "utf8",
+        })
+          .split("\0")
+          .filter(Boolean),
+      ).toContain(inputPath);
       fs.writeFileSync(index, "changed HTML");
       const result = spawnSync(
         process.execPath,
@@ -709,6 +720,8 @@ it.each(["0", false, null])(
 );
 it.each([
   "gui/web/public/ignored-input.wav",
+  "gui/web/public/é-ignored.wav",
+  "gui/web/public/line\nignored.wav",
   "gui/web/src/ignored-input.ts",
   "src/podcast_mcp/__pycache__/server.cpython-313.pyc",
   "node_modules/ignored-dependencies",
@@ -723,10 +736,14 @@ it.each([
       fs.mkdirSync(raw, { recursive: true });
       for (const id of ["reference", "guest"])
         fs.writeFileSync(path.join(raw, `${id}.wav`), id);
-      fs.writeFileSync(path.join(dir, ".gitignore"), `${inputPath}\n`);
+      fs.writeFileSync(
+        path.join(dir, ".gitignore"),
+        inputPath.includes("\n") ? "*.wav\n" : `${inputPath}\n`,
+      );
       const git = (...args: string[]) =>
         execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
       git("init", "-q");
+      git("config", "core.quotePath", "true");
       git("add", ".");
       git(
         "-c",
@@ -766,7 +783,31 @@ it.each([
             : "export const ignoredInput = 1;",
         );
       }
-      expect(git("check-ignore", inputPath)).toBe(inputPath);
+      expect(
+        execFileSync("git", ["check-ignore", "-z", "--stdin"], {
+          cwd: dir,
+          encoding: "utf8",
+          input: `${inputPath}\0`,
+        }),
+      ).toBe(`${inputPath}\0`);
+      if (inputPath.startsWith("gui/web/public/"))
+        expect(
+          execFileSync(
+            "git",
+            [
+              "ls-files",
+              "-z",
+              "--others",
+              "--ignored",
+              "--exclude-standard",
+              "--",
+              "gui/web/public/",
+            ],
+            { cwd: dir, encoding: "utf8" },
+          )
+            .split("\0")
+            .filter(Boolean),
+        ).toContain(inputPath);
       const result = spawnSync(
         process.execPath,
         [
@@ -798,6 +839,75 @@ it.each([
           `App source paths absent from app-base ${inputPath}`,
         );
       }
+      expect(fs.existsSync(path.join(dir, "evidence/source.json"))).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+it.each([
+  "gui/web/public/é-untracked.txt",
+  "gui/web/public/line\nuntracked.txt",
+])(
+  "rejects ordinary untracked public input %s through the actual CLI before launch",
+  (inputPath) => {
+    const dir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "editing-cli-untracked-"),
+    );
+    try {
+      const web = path.join(dir, "gui/web");
+      fs.mkdirSync(web, { recursive: true });
+      const raw = path.join(dir, "tests/fixtures/aligned_dialogue/raw");
+      fs.mkdirSync(raw, { recursive: true });
+      for (const id of ["reference", "guest"])
+        fs.writeFileSync(path.join(raw, `${id}.wav`), id);
+      const git = (...args: string[]) =>
+        execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+      git("init", "-q");
+      git("config", "core.quotePath", "true");
+      git("add", ".");
+      git(
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-qm",
+        "fixture",
+      );
+      const base = git("rev-parse", "HEAD");
+      const disk = path.join(dir, inputPath);
+      fs.mkdirSync(path.dirname(disk), { recursive: true });
+      fs.writeFileSync(disk, "literal undeclared public asset");
+      expect(
+        execFileSync(
+          "git",
+          ["ls-files", "-z", "--others", "--exclude-standard"],
+          { cwd: dir, encoding: "utf8" },
+        )
+          .split("\0")
+          .filter(Boolean),
+      ).toContain(inputPath);
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.resolve("node_modules/vite-node/dist/cli.mjs"),
+          path.resolve("scripts/profile-editing-tasks.ts"),
+          "--app-base",
+          base,
+          "--validity-only",
+          "--trials",
+          "1",
+          "--out",
+          path.join(dir, "evidence"),
+        ],
+        { cwd: web, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout + result.stderr).toContain(
+        `App source paths absent from app-base ${inputPath}`,
+      );
       expect(fs.existsSync(path.join(dir, "evidence/source.json"))).toBe(false);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

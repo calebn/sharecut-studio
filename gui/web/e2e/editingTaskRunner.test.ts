@@ -15,12 +15,22 @@ import { runEditingTask } from "./editingTasks";
 
 const simulation = vi.hoisted(() => ({
   fixture: { projectPath: "", workspaceDir: "" },
+  fixtureSequence: [] as (
+    | { projectPath: string; workspaceDir: string }
+    | Error
+  )[],
+  states: new Map<string, DurableState>(),
   state: undefined as DurableState | undefined,
   history: undefined as HistoryIdentity | undefined,
 }));
 vi.mock("./editingTaskEvidence", () => ({
-  createEditingFixture: () => simulation.fixture,
-  readEditingState: () => simulation.state,
+  createEditingFixture: () => {
+    const next = simulation.fixtureSequence.shift();
+    if (next instanceof Error) throw next;
+    return next ?? simulation.fixture;
+  },
+  readEditingState: (projectPath: string) =>
+    simulation.states.get(projectPath) ?? simulation.state,
   readEditingHistory: () => simulation.history,
   verifyEditingBackend: () => {},
 }));
@@ -28,7 +38,11 @@ vi.mock("./shareableProject", () => ({ switchE2eProject: async () => {} }));
 vi.mock("./editingTaskInputs", () => ({
   navigateEditingTimeline: async () => {},
   performEditingInput: async (
-    context: { active: EventEmitter; task: TaskDefinition },
+    context: {
+      active: EventEmitter;
+      task: TaskDefinition;
+      intent: { kind: "action" | "cancel"; probe?: { id: string } };
+    },
     recorder: {
       act(
         verb: string,
@@ -36,8 +50,14 @@ vi.mock("./editingTaskInputs", () => ({
         action: () => Promise<void>,
       ): Promise<void>;
     },
-  ) =>
-    recorder.act("key", "literal saved edit", async () => {
+  ) => {
+    if (context.intent.kind === "cancel")
+      return recorder.act(
+        "key",
+        `literal ${context.intent.probe!.id} cancellation`,
+        async () => {},
+      );
+    return recorder.act("key", "literal saved edit", async () => {
       const request = {
         url: () => "http://localhost/api/document/command",
         method: () => "POST",
@@ -63,7 +83,8 @@ vi.mock("./editingTaskInputs", () => ({
           },
         ],
       };
-    }),
+    });
+  },
 }));
 vi.mock("./editorProfile", () => ({
   createEditorProfiler: async () => ({
@@ -77,6 +98,8 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true });
 });
 function runner(failedPhase: "action" | "undo" | null) {
+  simulation.fixtureSequence = [];
+  simulation.states.clear();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "editing-runner-"));
   roots.push(root);
   fs.mkdirSync(path.join(root, "raw"));
@@ -334,3 +357,118 @@ it.each([
   },
   10000,
 );
+
+it("retains null recovery for a later clone acquisition failure without borrowing the completed probe", async () => {
+  const { active, task, root } = runner(null);
+  const route = task.routes[0];
+  if ("pending" in route)
+    throw new Error("literal runner route must be supported");
+  route.cancellation = [
+    { id: "short", input: { kind: "route-cancel" } },
+    { id: "vertical", input: { kind: "route-cancel" } },
+  ];
+  const priorClone = {
+    projectPath: path.join(root, "short-clone.project.json"),
+    workspaceDir: root,
+  };
+  const priorCloneBytes =
+    '{"clone":"literal-short-clone","project":"literal-short-project","recipe":"short"}\n';
+  fs.writeFileSync(priorClone.projectPath, priorCloneBytes);
+  simulation.states.set(priorClone.projectPath, task.start);
+  simulation.fixtureSequence = [
+    simulation.fixture,
+    priorClone,
+    new Error("literal vertical clone preparation unavailable"),
+  ];
+  const cancelPage = new EventEmitter();
+  let closeCount = 0;
+  const context = {
+    newPage: async () => cancelPage,
+    newCDPSession: async () => ({}),
+    close: async () => {
+      closeCount++;
+    },
+  };
+  Object.assign(cancelPage, {
+    context: () => context,
+    setViewportSize: active.setViewportSize,
+    emulateMedia: active.emulateMedia,
+    goto: active.goto,
+    evaluate: active.evaluate,
+    waitForLoadState: active.waitForLoadState,
+    locator: active.locator,
+    getByRole: active.getByRole,
+    screenshot: active.screenshot,
+    keyboard: active.keyboard,
+  });
+  Object.assign(active, {
+    context: () => ({ browser: () => ({ newContext: async () => context }) }),
+  });
+  const output = path.join(root, "out");
+  const trial = await runEditingTask(
+    active as unknown as Page,
+    {} as CDPSession,
+    {
+      outputPath: () => path.join(root, "profile.json"),
+    } as unknown as TestInfo,
+    task,
+    "literal-runner",
+    output,
+    "validity-only",
+  );
+  expect(trial.failures).toEqual([
+    {
+      origin: { owner: "cancel", phase: "setup", probe: "vertical" },
+      error: "cancel: Error: literal vertical clone preparation unavailable",
+      errorName: "Error",
+    },
+  ]);
+  expect(trial.cancellations).toEqual([
+    { probe: "short", outcome: "completed", state: task.start },
+    { probe: "vertical", outcome: "failed", state: null },
+  ]);
+  expect({
+    priorClone: fs.readFileSync(priorClone.projectPath, "utf8"),
+    initialReceipt: fs.readFileSync(
+      path.join(output, "canceled-short-initial-project.json"),
+      "utf8",
+    ),
+    completedReceipt: fs.readFileSync(
+      path.join(output, "canceled-short-project.json"),
+      "utf8",
+    ),
+    failedRecoveryExists: fs.existsSync(
+      path.join(output, "failed-cancel-project.json"),
+    ),
+    verticalInitialExists: fs.existsSync(
+      path.join(output, "canceled-vertical-initial-project.json"),
+    ),
+  }).toEqual({
+    priorClone:
+      '{"clone":"literal-short-clone","project":"literal-short-project","recipe":"short"}\n',
+    initialReceipt:
+      '{"clone":"literal-short-clone","project":"literal-short-project","recipe":"short"}\n',
+    completedReceipt:
+      '{"clone":"literal-short-clone","project":"literal-short-project","recipe":"short"}\n',
+    failedRecoveryExists: false,
+    verticalInitialExists: false,
+  });
+  expect(
+    JSON.parse(fs.readFileSync(path.join(output, "trial.json"), "utf8")),
+  ).toMatchObject({
+    cancellations: [
+      { probe: "short", outcome: "completed", state: task.start },
+      { probe: "vertical", outcome: "failed", state: null },
+    ],
+  });
+  expect(trial.after).toEqual(task.expected);
+  expect(trial.undone).toEqual(task.start);
+  expect(closeCount).toBe(1);
+  expect(assessEditingTrial(task, trial)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    mutations: 1,
+    accidentalCommands: 0,
+    observations: { save: "pass", cancel: "fail", undo: "pass" },
+  });
+}, 10000);
