@@ -22,6 +22,10 @@ const simulation = vi.hoisted(() => ({
   states: new Map<string, DurableState>(),
   state: undefined as DurableState | undefined,
   history: undefined as HistoryIdentity | undefined,
+  readState: undefined as
+    | typeof import("./editingTaskEvidence").readEditingState
+    | undefined,
+  persistState: undefined as ((state: DurableState) => void) | undefined,
 }));
 vi.mock("./editingTaskEvidence", () => ({
   createEditingFixture: () => {
@@ -29,8 +33,12 @@ vi.mock("./editingTaskEvidence", () => ({
     if (next instanceof Error) throw next;
     return next ?? simulation.fixture;
   },
-  readEditingState: (projectPath: string) =>
-    simulation.states.get(projectPath) ?? simulation.state,
+  readEditingState: (
+    ...args: Parameters<typeof import("./editingTaskEvidence").readEditingState>
+  ) =>
+    simulation.readState
+      ? simulation.readState(...args)
+      : (simulation.states.get(args[0]) ?? simulation.state),
   readEditingHistory: () => simulation.history,
   verifyEditingBackend: () => {},
 }));
@@ -41,6 +49,7 @@ vi.mock("./editingTaskInputs", () => ({
     context: {
       active: EventEmitter;
       task: TaskDefinition;
+      route: { command: string | null };
       intent: { kind: "action" | "cancel"; probe?: { id: string } };
     },
     recorder: {
@@ -61,7 +70,7 @@ vi.mock("./editingTaskInputs", () => ({
       const request = {
         url: () => "http://localhost/api/document/command",
         method: () => "POST",
-        postData: () => '{"type":"TrimClipEdge"}',
+        postData: () => JSON.stringify({ type: context.route.command }),
       };
       context.active.emit("request", request);
       context.active.emit("response", {
@@ -71,15 +80,20 @@ vi.mock("./editingTaskInputs", () => ({
         text: async () => '{"ok":true,"type":"Applied"}',
       });
       simulation.state = context.task.expected;
+      simulation.persistState?.(context.task.expected);
       simulation.history = {
         cursor: 1,
         headId: "changed",
         entries: [
-          { id: "baseline", label: "before trim clip edge", operation: null },
+          {
+            id: "baseline",
+            label: context.task.historyLabels!.before,
+            operation: null,
+          },
           {
             id: "changed",
-            label: "after trim clip edge",
-            operation: "trim_clip_edge",
+            label: context.task.historyLabels!.after,
+            operation: context.task.historyOperation ?? null,
           },
         ],
       };
@@ -95,9 +109,11 @@ vi.mock("./editorProfile", () => ({
 }));
 const roots: string[] = [];
 afterEach(() => {
+  simulation.readState = undefined;
+  simulation.persistState = undefined;
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true });
 });
-function runner(failedPhase: "action" | "undo" | null) {
+function runner(failedPhase: "action" | "undo" | null, taskId = "trim") {
   simulation.fixtureSequence = [];
   simulation.states.clear();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "editing-runner-"));
@@ -110,14 +126,17 @@ function runner(failedPhase: "action" | "undo" | null) {
     workspaceDir: root,
   };
   fs.writeFileSync(simulation.fixture.projectPath, "{}");
-  const registered = editingTaskRegistry.find((row) => row.id === "trim")!;
+  const registered = editingTaskRegistry.find((row) => row.id === taskId)!;
+  const registeredRoute = registered.routes[0];
+  if ("pending" in registeredRoute)
+    throw new Error("literal runner route must be supported");
   const task: TaskDefinition = {
     ...registered,
     routes: [
       {
         id: "literal-runner",
         input: "keyboard",
-        command: "TrimClipEdge",
+        command: registeredRoute.command,
         mutations: 1,
         cancellation: [],
         undo: "history",
@@ -184,6 +203,7 @@ function runner(failedPhase: "action" | "undo" | null) {
         if (value !== "ControlOrMeta+z") return;
         command("UndoHistory", failedPhase === "undo");
         simulation.state = task.start;
+        simulation.persistState?.(task.start);
         simulation.history = {
           cursor: 0,
           headId: "baseline",
@@ -199,6 +219,98 @@ function runner(failedPhase: "action" | "undo" | null) {
   });
   return { active, task, root };
 }
+it("retains committed raw split identities after successful range-cut Save and Undo", async () => {
+  const { active, task, root } = runner(null, "range-cut");
+  const { readEditingState } = await vi.importActual<
+    typeof import("./editingTaskEvidence")
+  >("./editingTaskEvidence");
+  simulation.readState = readEditingState;
+  simulation.persistState = (state) => {
+    fs.writeFileSync(
+      simulation.fixture.projectPath,
+      JSON.stringify({
+        sources: state.sources,
+        timeline: {
+          duration_sec: state.duration_sec,
+          clips: state.clips.map((clip) => ({
+            ...clip,
+            id:
+              clip.id === "cut-left"
+                ? "literal-generated-left"
+                : clip.id === "cut-right"
+                  ? "literal-generated-right"
+                  : clip.id,
+          })),
+          tracks: state.tracks.map(({ invariants, ...track }) => ({
+            ...track,
+            ...(invariants as object),
+          })),
+        },
+        editorial: {
+          chapters: [],
+          speaker_splits: [],
+          retained_bleed_alignments: [],
+        },
+        mix: { automation_envelopes: [], processing_chains: [] },
+        social: { clip_candidates: [] },
+        review: { comments: [], versions: [], active_version_id: null },
+      }),
+    );
+  };
+  simulation.persistState(task.start);
+  const output = path.join(root, "out");
+  const trial = await runEditingTask(
+    active as unknown as Page,
+    {} as CDPSession,
+    {
+      outputPath: () => path.join(root, "profile.json"),
+    } as unknown as TestInfo,
+    task,
+    "literal-runner",
+    output,
+    "validity-only",
+  );
+  expect(assessEditingTrial(task, trial)).toMatchObject({
+    status: "pass",
+    completedWork: 1,
+    observations: { save: "pass", cancel: "not-applicable", undo: "pass" },
+  });
+  expect(trial.after?.clips.map((clip) => clip.id)).toEqual([
+    "first-copy",
+    "cut-left",
+    "cut-right",
+    "peer",
+  ]);
+  expect(
+    readEditingState(path.join(output, "committed-project.json")).clips.map(
+      (clip) => clip.id,
+    ),
+  ).toEqual([
+    "first-copy",
+    "literal-generated-left",
+    "literal-generated-right",
+    "peer",
+  ]);
+  expect({
+    undone: trial.undone?.clips.map((clip) => clip.id),
+    final: readEditingState(path.join(output, "saved-project.json")).clips.map(
+      (clip) => clip.id,
+    ),
+  }).toEqual({
+    undone: ["first-copy", "second-copy", "peer"],
+    final: ["first-copy", "second-copy", "peer"],
+  });
+  expect(
+    JSON.parse(
+      fs.readFileSync(path.join(output, "clip-identities.json"), "utf8"),
+    ),
+  ).toEqual({
+    "first-copy": "first-copy",
+    "literal-generated-left": "cut-left",
+    "literal-generated-right": "cut-right",
+    peer: "peer",
+  });
+});
 it("retains a command admitted during action after the runner advances into Undo", async () => {
   const { active, task, root } = runner("action");
   const trial = await runEditingTask(
