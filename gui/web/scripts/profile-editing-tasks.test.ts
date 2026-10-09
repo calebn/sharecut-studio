@@ -50,6 +50,7 @@ const control = vi.hoisted(() => ({
   removalAttempts: 0,
   restored: [] as (() => void)[],
   failLedgerWrite: false,
+  backendImports: 0,
 }));
 
 vi.mock("node:child_process", async () => {
@@ -71,6 +72,7 @@ vi.mock("node:child_process", async () => {
         options?.cwd === control.repo &&
         options.encoding === "utf8"
       ) {
+        control.backendImports++;
         const module = path.join(control.repo, "src/podcast_mcp/gui/server.py");
         fs.readFileSync(module);
         const stdout = `${JSON.stringify({
@@ -515,6 +517,7 @@ async function invoke(
   control.cleanupManifest = "";
   control.rejectedLifecycle = null;
   control.removalAttempts = 0;
+  control.backendImports = 0;
   process.exitCode = undefined;
   process.argv = [
     process.execPath,
@@ -586,6 +589,15 @@ const passingSemantics = {
 
 it("admits five complete canonical profiles with matching served bytes and real assessed semantics", async () => {
   const { rejection, summary, selected } = await invoke("complete");
+  expect(control.backendImports).toBe(1);
+  expect(readJson(path.join(control.out, "backend-import.log"))).toEqual({
+    cwd: control.repo,
+    executable: "controlled-backend-import-boundary",
+    module: path.join(control.repo, "src/podcast_mcp/gui/server.py"),
+  });
+  expect(readJson(path.join(control.out, "protocol.json"))).toMatchObject({
+    backend: { executable: "controlled-backend-import-boundary" },
+  });
   expect({
     rejection,
     exitCode: process.exitCode,
@@ -775,6 +787,7 @@ it.each(["nonfinite-duration", "failed-semantics"] as const)(
 
 it("preserves the five-trial baseline threshold at the actual CLI parser", async () => {
   const { rejection } = await invoke("complete", { trials: 4 });
+  expect(control.backendImports).toBe(0);
   expect(rejection).toBe(
     "Error: Use --app-base SHA --trials N --out NEW_DIRECTORY; baseline requires at least five trials",
   );
