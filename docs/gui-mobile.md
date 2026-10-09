@@ -229,13 +229,24 @@ truncate only in their column; many rows scroll together with the explanatory
 copy. Text scaling can move Volume onto a second row without clipping controls.
 
 Opening Mix clears the prior selection and armed range. Close, Escape, and
-scrim dismissal leave More open and restore its Mix trigger while mounted.
+scrim dismissal leave More open and restore focus to its literal Mix trigger.
+Close initially receives focus when the sheet opens. The shared
+`openerControl` fallback uses the last clicked control when a browser leaves
+focus on the page body or a container around that control. The existing
+`e2e-compat/phone-mix.spec.ts` core flow also checks the pointer case where
+Search commands held keyboard focus.
 Navigation keeps focus on the chosen nav control. Project, follow, destination,
 selection, or range changes invalidate Mix permanently; returning to More does
 not reopen it. Mix and Inspector share one keyed sheet. Gestures closes Mix
 before opening its existing dialog. Other global dialogs, including Bounce, also
 invalidate Mix. Committed writes continue through the shared
 mix queue after closing. A swipe overlay remains deferred.
+
+`e2e-compat/phone-mix.spec.ts` checks pointer opening after Search commands has
+keyboard focus, the initial Close focus, restoration after Close, Escape, or
+scrim dismissal, and keyboard navigation away from and back to More. These
+focus scenarios run in the existing core flow alongside its native mix edit
+and touch geometry checks.
 
 Inspector sheets keep the timeline interactive behind them: their background scrim is decorative and pointer-transparent, so a phone user can drag a pending edge or tap the ruler without closing the inspector. A blank ruler tap seeks and clears the current selection. Confirmation sheets, including the blade-cut confirmation, keep a dismissible outside scrim; Close and Escape remain available for both sheet types.
 

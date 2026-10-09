@@ -27,6 +27,12 @@ Repo root:
 - `make test-web-e2e` — E2E-flagged build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI runs the suites concurrently on separate runners behind the `frontend-e2e` gate). Ordinary `npm run build` rejects emitted E2E hooks.
 - `npm run test:e2e:compat` — focused Chromium/WebKit compatibility matrix only (`npm run test:e2e:install` installs both engines)
 
+The `e2e-compat/phone-mix.spec.ts` core flow runs in both engines. Alongside
+native mix edits and touch geometry, it checks pointer opening Mix after Search
+commands has keyboard focus, initial Close focus, focus return after Close,
+Escape, and scrim dismissal, and keyboard navigation that invalidates Mix.
+The navigation check uses Tab in Chromium and Alt/Option-Tab in WebKit.
+
 Storybook uses the real `src/ui/` components and theme tokens. See
 [`docs/design-system.md`](../../docs/design-system.md) for story conventions and
 the GitHub Pages publishing setup. Pull requests build the catalog without
@@ -242,6 +248,10 @@ helper, keymap listener, and WebMCP adapter.
 `e2e-compat/timeline-scroll-end.spec.ts` checks that short desktop lanes can
 reach the horizontal end with a rem-sized classic scrollbar on Chromium and
 WebKit. `e2e/scroll.ts` permits only 2 px of fractional scroll rounding.
+`e2e-compat/phone-mix.spec.ts` checks phone Mix focus restoration after a
+pointer opening from keyboard focus, Escape, and scrim dismissal, plus keyboard
+navigation that invalidates the sheet, in Chromium and WebKit. The same core
+flow retains the native mix edit and touch geometry checks.
 
 Keep component state, validation and mocked error recovery in Vitest. Browser
 specs should protect layout/native input/media/storage/network seams or complete
