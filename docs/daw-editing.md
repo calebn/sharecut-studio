@@ -381,8 +381,9 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   and authority where it began. Every repeat uses its clean origin. Document
   publication or hydration cancels the hold immediately, preserving supplied
   geometry, comments and pending edits. Writers read the clean editing basis
-  before transforming or capturing rollback inputs. Timeline edge handles also
-  validate against that basis and refuse synthetic preview tails. A canceled
+  before transforming or capturing rollback inputs. Timeline trim, fade and roll handles also
+  validate against that basis and refuse synthetic preview tails. Roll joins
+  recheck their captured partners after loading the boundary token. A canceled
   splice removes synthetic tails and restores deleted rows without reconstructing source,
   fade, join or mute fields. An unchanged pending mix does not cancel a hold;
   a genuine mix publication does. Republishing the same project without an

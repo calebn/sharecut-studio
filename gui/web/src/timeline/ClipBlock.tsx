@@ -303,23 +303,38 @@ export function ClipBlockLive({
       }),
     );
 
-  const boundaryToken = async (
-    path: string,
-    target: BoundaryTarget,
-    expectedGeometry: BoundaryGeometryClip[],
-    projectEpoch: number,
-  ): Promise<string> => {
-    const beforeRequest = useDawStore.getState();
+  const rollIsCurrent = (drag: RollDrag): boolean => {
+    const state = useDawStore.getState();
     if (
-      beforeRequest.projectPath !== path ||
-      beforeRequest.projectEpoch !== projectEpoch
+      state.projectPath !== drag.projectPath ||
+      state.projectEpoch !== drag.projectEpoch
     )
-      throw new Error("Project changed during the boundary drag");
-    const context = await loadBoundaryContext(path, target, expectedGeometry);
-    const project = useDawStore.getState();
-    if (project.projectPath !== path || project.projectEpoch !== projectEpoch)
-      throw new Error("Project changed during the boundary drag");
-    return context.token;
+      return false;
+    const interval = rollJoinInterval(
+      state.projectEditBasis()?.clips.tracks[drag.interval.right.track_id] ??
+        [],
+      drag.interval.left.id,
+      drag.interval.right.id,
+    );
+    if (
+      !interval ||
+      interval.lo !== drag.interval.lo ||
+      interval.hi !== drag.interval.hi
+    )
+      return false;
+    return boundaryGeometry(interval.left, interval.right).every(
+      (clip, index) => {
+        const captured = drag.expectedGeometry[index];
+        return (
+          captured !== undefined &&
+          clip.id === captured.id &&
+          clip.source_start === captured.source_start &&
+          clip.source_end === captured.source_end &&
+          clip.timeline_start === captured.timeline_start &&
+          clip.source_id === captured.source_id
+        );
+      },
+    );
   };
 
   const commitRoll = async (state: RollDrag, clientX: number) => {
@@ -330,6 +345,7 @@ export function ClipBlockLive({
       // shrinks under ROLL_COMMIT_MIN_PX is a no-op.
       if (
         !useDawStore.getState().joinMutationInFlight &&
+        rollIsCurrent(state) &&
         isHandleDrag(state.originX, clientX) &&
         Math.abs(delta) * zoomPxPerSec >= ROLL_COMMIT_MIN_PX
       ) {
@@ -342,19 +358,22 @@ export function ClipBlockLive({
         await trackEditSave(
           path,
           (async () => {
-            const token = await boundaryToken(
+            const context = await loadBoundaryContext(
               path,
               target,
               state.expectedGeometry,
-              state.projectEpoch,
             );
-            if (useDawStore.getState().joinMutationInFlight) return;
+            if (
+              useDawStore.getState().joinMutationInFlight ||
+              !rollIsCurrent(state)
+            )
+              return;
             await rollClipJoin(
               path,
               state.interval.left.id,
               state.interval.right.id,
               delta,
-              token,
+              context.token,
             );
           })(),
         );
@@ -376,7 +395,7 @@ export function ClipBlockLive({
     }
     const project = useDawStore.getState();
     const interval = rollJoinInterval(
-      project.project?.clips.tracks[clip.track_id] ?? [],
+      project.projectEditBasis()?.clips.tracks[clip.track_id] ?? [],
       prevClip.id,
       clip.id,
     );
@@ -406,6 +425,11 @@ export function ClipBlockLive({
   const onDragMove = (e: ReactPointerEvent) => {
     const d = rollDragRef.current;
     if (!d) {
+      return;
+    }
+    if (!rollIsCurrent(d)) {
+      rollDragRef.current = null;
+      onRollPreview(null);
       return;
     }
     const dxSec = (e.clientX - d.originX) / zoomPxPerSec;
