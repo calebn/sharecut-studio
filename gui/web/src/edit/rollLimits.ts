@@ -10,7 +10,6 @@ export interface RollJoinInterval {
   hi: number;
 }
 
-/** Resolve one lane snapshot, mirroring `clips_ops.roll_join_limits`. */
 export function rollJoinInterval(
   lane: readonly ClipRow[],
   leftClipId: string,
