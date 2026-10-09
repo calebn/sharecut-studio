@@ -116,7 +116,7 @@ function overlayPending(): void {
     return;
   }
   const s = useDawStore.getState();
-  let project = s.project;
+  let project = s.projectEditBasis();
   if (!project) {
     return;
   }
@@ -219,17 +219,18 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
       // Put back the saved value, unless a newer change is on its way or
       // someone else's change has replaced ours.
       const s = useDawStore.getState();
+      const project = s.projectEditBasis();
       if (
         lane.latest === undefined &&
         s.projectPath === lane.projectPath &&
-        s.project &&
-        readField(s.project, lane.trackId, lane.field) === value
+        project &&
+        readField(project, lane.trackId, lane.field) === value
       ) {
         overlaying = true;
         try {
           s.setProject(
             patchTrackMix(
-              s.project,
+              project,
               lane.trackId,
               fieldsOf(lane.field, lane.confirmed),
             ),
@@ -274,7 +275,7 @@ function commitMixField(
       trackId,
       field,
       send,
-      confirmed: readField(s.project, trackId, field) ?? value,
+      confirmed: readField(s.projectEditBasis(), trackId, field) ?? value,
       scheduled: false,
       waiters: [],
     };

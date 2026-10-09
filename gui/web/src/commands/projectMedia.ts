@@ -84,10 +84,10 @@ async function applyTrackReorder(
   if (!Number.isFinite(index) || !Number.isInteger(index)) {
     return { status: "disabled", reason: "index must be an integer" };
   }
-  if (!s.project?.tracks.some((t) => t.id === trackId)) {
+  const previous = s.projectEditBasis();
+  if (!previous?.tracks.some((t) => t.id === trackId)) {
     return { status: "disabled", reason: "Unknown track" };
   }
-  const previous = s.project;
   const seqAtStart = currentDocumentSeq();
   const optimistic = patchTracksOrder(previous, trackId, index);
   s.setProject(optimistic);

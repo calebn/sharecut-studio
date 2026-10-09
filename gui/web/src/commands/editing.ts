@@ -86,6 +86,15 @@ async function runDeleteClip(
   if (!canSuggestStructuralFor(s)) {
     return { status: "disabled", reason: "Structural edits not allowed" };
   }
+  const project = s.projectEditBasis();
+  if (
+    !project ||
+    !Object.values(project.clips.tracks).some((lane) =>
+      lane.some((clip) => clip.id === clipId),
+    )
+  ) {
+    return { status: "disabled", reason: "Unknown clip" };
+  }
   try {
     if (ripple) {
       if ((await rippleDeleteClips(s.projectPath, [clipId])).asked)
@@ -217,7 +226,10 @@ export function registerClipboardCommands(): void {
     if (!s.project) {
       return { status: "disabled", reason: "No project" };
     }
-    const payload = payloadFromSelection(s.project, s.selection, "copy");
+    const project = s.projectEditBasis();
+    const payload = project
+      ? payloadFromSelection(project, s.selection, "copy")
+      : null;
     if (!payload) {
       return { status: "disabled", reason: "Nothing to copy" };
     }
@@ -258,9 +270,10 @@ export function registerClipboardCommands(): void {
         reason: "Use Select mode for media cut (Correct is ASR-only)",
       };
     }
+    const project = s.projectEditBasis();
     const payload =
-      s.selection?.kind === "clip"
-        ? payloadFromSelection(s.project, s.selection, "cut")
+      project && s.selection?.kind === "clip"
+        ? payloadFromSelection(project, s.selection, "cut")
         : null;
     if (s.selection?.kind !== "clip" || !payload) {
       return { status: "disabled", reason: "Nothing to cut" };
@@ -362,7 +375,8 @@ export function registerClipMoveCommands(): void {
       if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
         return { status: "disabled", reason: "Edits not allowed" };
       }
-      if (!s.project) {
+      const previous = s.projectEditBasis();
+      if (!previous) {
         return { status: "disabled", reason: "No project" };
       }
       const raw = args.clips;
@@ -396,7 +410,20 @@ export function registerClipMoveCommands(): void {
           track_id: rec.track_id,
         });
       }
-      const previous = s.project;
+      const existing = new Set(
+        Object.values(previous.clips.tracks)
+          .flat()
+          .map((clip) => clip.id),
+      );
+      if (
+        clips.some(
+          (clip) =>
+            !existing.has(clip.clip_id) ||
+            !previous.tracks.some((track) => track.id === clip.track_id),
+        )
+      ) {
+        return { status: "disabled", reason: "Unknown clip or track" };
+      }
       const seqAtStart = currentDocumentSeq();
       const optimistic = patchClipsMove(previous, clips);
       s.setProject(optimistic);

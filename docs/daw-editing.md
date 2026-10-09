@@ -316,7 +316,7 @@ evidence:
 - #1135 trim-mode design audit, #1137
 - #1208 built-GUI regression on edited and moving-peer lanes
 - #1208 authoritative document and project changes cancel a held trim nudge
-- #1208 unsequenced comment merges cancel a held trim and remove only its owned clip preview
+- #1208 accepted Architect synthesis removes a detachable held-trim layer on foreign publication, including pending moves and unsequenced comments
 - #1208 FFmpeg proof showed a newly negative follower rendered 19 seconds against an authored end of 18 seconds
 enforced-by:
 - tests/test_edit_modes.py::test_ripple_trim_shortening_moves_every_dialogue_track_by_the_same_amount
@@ -332,6 +332,12 @@ enforced-by:
 - gui/web/src/edit/ripplePreview.test.ts::keeps the follower source and audio metadata while translating it
 - gui/web/e2e/ripple-overlap-proof.spec.ts::refuses a large overlap trim on the edited lane and saves the last valid draft
 - gui/web/src/inspector/useNudgeRun.test.tsx::keeps and saves the last valid %s lane preview
+- gui/web/src/inspector/useNudgeRun.test.tsx::removes held trim through $actor and $ending while retaining the comment and pending edit
+- gui/web/src/inspector/useNudgeRun.test.tsx::queued envelope response publishes clean geometry and cancels the hold before WS
+- gui/web/src/inspector/useNudgeRun.test.tsx::a real %s writer removes trim geometry and uses a clean rollback baseline
+- gui/web/src/inspector/useNudgeRun.test.tsx::detaches a splice with delta %s while retaining a same-lane absolute move and source payloads
+- gui/web/src/state/dawStore.test.ts::rejects a second owner and stale token endings cannot remove a newer hold
+- gui/web/src/state/dawStore.test.ts::refuses a negative first or later step atomically and hands off the exact last accepted preview
 - gui/web/src/inspector/useNudgeRun.test.tsx::keeps an authoritative %s update through repeat and release
 - gui/web/src/inspector/useNudgeRun.test.tsx::removes only its trim preview after a local %s merge on repeat and release
 - gui/web/src/inspector/useNudgeRun.test.tsx::removes its preview after a local %s merge before delayed pointer cancel and click
@@ -370,15 +376,17 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   strip nudge previews keep their last valid geometry and arrows and show the
   error. Release saves only the last valid value. A lane without a moving edge keeps the
   existing time-splice behavior.
-- A held trim strip nudge belongs to the document snapshot and project
-  generation where it began. A newer authoritative snapshot cancels pending
-  repeats and release without saving or restoring the old preview. The current
-  document remains displayed. An unsequenced comment or metadata merge also
-  cancels the run. If that merge retains the run's exact clip preview and the
-  project generation, sequence, and authority are unchanged, cancellation
-  restores only the original clips and preserves all merged fields. Replaced
-  geometry stays displayed. A same-document run still saves on release or
-  when its inspector unmounts because selection changed.
+- A held trim strip nudge has a run token and a detachable project-store
+  display layer. It belongs to the path, epoch, document generation, sequence
+  and authority where it began. Every repeat uses its clean origin. Document
+  publication or hydration cancels the hold immediately, preserving supplied
+  geometry, comments and pending edits. Writers read the clean editing basis
+  before transforming or capturing rollback inputs. A canceled splice removes
+  synthetic tails and restores deleted rows without reconstructing source,
+  fade, join or mute fields. An unchanged pending mix does not cancel a hold;
+  a genuine mix publication does. A current release or selection-change
+  unmount hands off the exact preview and saves once. Stale tokens cannot
+  remove a newer hold. Invalid document lifetime never restores old geometry.
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
   moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut
   leaves silence on the edited tracks. A gap paste replaces the pasted span on the
