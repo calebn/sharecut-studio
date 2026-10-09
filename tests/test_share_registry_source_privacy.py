@@ -318,6 +318,74 @@ def test_windows_private_source_below_replaceable_ancestor_is_refused(tmp_path, 
         )
 
 
+@pytest.mark.skipif(os.name != "nt", reason="native Windows reparse-point ancestry")
+@pytest.mark.parametrize("caller", ["default", "getter", "constructor"])
+def test_native_registry_junction_alias_is_refused_without_switching_source(
+    tmp_path, monkeypatch, caller
+):
+    target = tmp_path / "trusted" / "registry.sqlite"
+    with closing(share_registry.SqliteShareRegistry(target)) as owner:
+        secret = owner.recording_key_secret()
+        owner.claim_active(
+            {
+                "token": "junction-source-sentinel",
+                "id": "junction-source-sentinel",
+                "project_workspace": str(tmp_path),
+                "review_version_id": "version",
+            }
+        )
+    before = target.stat().st_ino, target.read_bytes(), stat.S_IMODE(target.stat().st_mode)
+    alias_parent = tmp_path / "source-junction"
+    subprocess.run(
+        [
+            str(Path(os.environ["SYSTEMROOT"]) / "System32" / "cmd.exe"),
+            "/c",
+            "mklink",
+            "/J",
+            str(alias_parent),
+            str(target.parent),
+        ],
+        check=True,
+        capture_output=True,
+        env=powershell_environment(),
+    )
+    raw_path = alias_parent / target.name
+
+    if caller == "default":
+        monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(raw_path))
+        share_registry.reset_share_registry_for_tests()
+        operation = share_registry.get_share_registry
+    elif caller == "getter":
+
+        def operation():
+            return share_registry.get_share_registry(raw_path)
+    else:
+
+        def operation():
+            return share_registry.SqliteShareRegistry(raw_path)
+
+    try:
+        with pytest.raises(PermissionError):
+            result = operation()
+            if isinstance(result, share_registry.SqliteShareRegistry):
+                result.close()
+        assert (
+            target.stat().st_ino,
+            target.read_bytes(),
+            stat.S_IMODE(target.stat().st_mode),
+        ) == before
+        with closing(sqlite3.connect(target)) as observer:
+            assert observer.execute(
+                "SELECT token FROM active_shares ORDER BY token"
+            ).fetchall() == [("junction-source-sentinel",)]
+            assert observer.execute("SELECT secret FROM recording_key_secret").fetchone() == (
+                secret,
+            )
+    finally:
+        share_registry.reset_share_registry_for_tests()
+        alias_parent.rmdir()
+
+
 def test_sidecar_disappearance_is_not_a_privacy_failure(tmp_path, monkeypatch):
     path = tmp_path / "source" / "registry.sqlite"
     with closing(share_registry.SqliteShareRegistry(path)) as owner:
@@ -349,3 +417,323 @@ def test_sidecar_disappearance_is_not_a_privacy_failure(tmp_path, monkeypatch):
             monkeypatch.setattr(os, "stat", stat_after_checkpoint)
         assert owner.recording_key_secret() == secret
         assert disappeared == [True]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX no-follow namespace")
+@pytest.mark.parametrize("alias_kind", ["parent", "leaf"])
+@pytest.mark.parametrize("caller", ["default", "getter", "constructor"])
+def test_raw_registry_alias_is_refused_before_target_initialization(
+    tmp_path, monkeypatch, alias_kind, caller
+):
+    target_parent = tmp_path / "trusted"
+    target_parent.mkdir(mode=0o700)
+    target = target_parent / "registry.sqlite"
+    unsafe = tmp_path / "replaceable"
+    unsafe.mkdir(mode=0o700)
+    unsafe.chmod(0o777)
+    if alias_kind == "parent":
+        alias_parent = unsafe / "directory-alias"
+        alias_parent.symlink_to(target_parent, target_is_directory=True)
+        raw_path = alias_parent / target.name
+        alias_object = alias_parent
+    else:
+        private_child = unsafe / "private-child"
+        private_child.mkdir(mode=0o700)
+        raw_path = private_child / target.name
+        raw_path.symlink_to(target)
+        alias_object = raw_path
+    link_before = alias_object.lstat()
+
+    if caller == "default":
+        monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(raw_path))
+        share_registry.reset_share_registry_for_tests()
+        operation = share_registry.get_share_registry
+    elif caller == "getter":
+
+        def operation():
+            return share_registry.get_share_registry(raw_path)
+    else:
+
+        def operation():
+            return share_registry.SqliteShareRegistry(raw_path)
+
+    with pytest.raises(PermissionError):
+        result = operation()
+        if isinstance(result, share_registry.SqliteShareRegistry):
+            result.close()
+
+    assert not target.exists(), "refusing a raw alias must happen before SQLite creates its target"
+    assert alias_object.is_symlink()
+    assert alias_object.lstat().st_ino == link_before.st_ino
+    assert raw_path.resolve() == target
+    assert stat.S_IMODE(unsafe.stat().st_mode) == 0o777
+
+    safe_control = tmp_path / "safe-control" / "registry.sqlite"
+    with closing(share_registry.SqliteShareRegistry(safe_control)) as owner:
+        assert len(owner.recording_key_secret()) == 32
+    assert safe_control.is_file()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX filenames may end in whitespace")
+def test_default_registry_override_preserves_literal_path_whitespace(tmp_path, monkeypatch):
+    literal = tmp_path / " registry.sqlite "
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(literal))
+    share_registry.reset_share_registry_for_tests()
+
+    registry = share_registry.get_share_registry()
+    try:
+        assert registry.db_path == literal
+        assert len(registry.recording_key_secret()) == 32
+        assert literal.is_file()
+        assert not (tmp_path / " registry.sqlite").exists()
+    finally:
+        registry.close()
+        share_registry.reset_share_registry_for_tests()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX no-follow ancestry")
+@pytest.mark.parametrize("caller", ["default", "getter", "constructor"])
+def test_raw_dotdot_path_is_refused_before_unsafe_ancestry_is_erased(tmp_path, monkeypatch, caller):
+    replaceable = tmp_path / "replaceable"
+    replaceable.mkdir(mode=0o700)
+    replaceable.chmod(0o777)
+    target_parent = tmp_path / "trusted"
+    target_parent.mkdir(mode=0o700)
+    raw_path = replaceable / ".." / target_parent.name / "registry.sqlite"
+    target = target_parent / raw_path.name
+    assert ".." in raw_path.parts
+
+    if caller == "default":
+        monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(raw_path))
+        share_registry.reset_share_registry_for_tests()
+        operation = share_registry.get_share_registry
+    elif caller == "getter":
+
+        def operation():
+            return share_registry.get_share_registry(raw_path)
+    else:
+
+        def operation():
+            return share_registry.SqliteShareRegistry(raw_path)
+
+    with pytest.raises(PermissionError):
+        result = operation()
+        if isinstance(result, share_registry.SqliteShareRegistry):
+            result.close()
+
+    assert not target.exists(), "unsafe canceled ancestry must not initialize a registry"
+    assert stat.S_IMODE(replaceable.stat().st_mode) == 0o777
+    with closing(share_registry.SqliteShareRegistry(target)) as owner:
+        assert len(owner.recording_key_secret()) == 32
+    assert target.is_file()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX singleton path alias")
+def test_default_singleton_reread_rejects_alias_swap_without_switching_authority(
+    tmp_path, monkeypatch
+):
+    from datetime import UTC, datetime
+
+    def seed(path: Path, token: str) -> tuple[bytes, tuple[int, int, bytes, int]]:
+        with closing(share_registry.SqliteShareRegistry(path)) as owner:
+            secret = owner.recording_key_secret()
+            owner.claim_active(
+                {
+                    "token": token,
+                    "id": token,
+                    "project_workspace": str(path.parent),
+                    "review_version_id": "version",
+                    "created_at": datetime.now(UTC).isoformat(),
+                }
+            )
+        info = path.stat()
+        return secret, (info.st_ino, info.st_size, path.read_bytes(), stat.S_IMODE(info.st_mode))
+
+    first_path = tmp_path / "first" / "registry.sqlite"
+    second_path = tmp_path / "second" / "registry.sqlite"
+    first_secret, first_before = seed(first_path, "first-token")
+    second_secret, second_before = seed(second_path, "second-token")
+    unsafe = tmp_path / "replaceable"
+    unsafe.mkdir(mode=0o700)
+    unsafe.chmod(0o777)
+    alias = unsafe / "registry.sqlite"
+    alias.symlink_to(first_path)
+
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(first_path))
+    share_registry.reset_share_registry_for_tests()
+    singleton = share_registry.get_share_registry()
+    assert singleton.recording_key_secret() == first_secret
+    original_connection = singleton._conn
+
+    refused: list[bool] = []
+    for target_path in (first_path, second_path):
+        if alias.exists() or alias.is_symlink():
+            alias.unlink()
+        alias.symlink_to(target_path)
+        alias_inode = alias.lstat().st_ino
+        monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(alias))
+        try:
+            returned = share_registry.get_share_registry()
+        except PermissionError:
+            refused.append(True)
+        else:
+            refused.append(False)
+            returned.close() if returned is not singleton else None
+        assert alias.is_symlink()
+        assert alias.lstat().st_ino == alias_inode
+        assert alias.resolve() == target_path
+        assert singleton._conn is original_connection
+        assert original_connection.execute("SELECT 1").fetchone()[0] == 1
+        assert singleton.recording_key_secret() == first_secret
+        assert singleton.get_active("first-token")["token"] == "first-token"
+
+    assert refused == [True, True], "each reread must re-admit the original alias namespace"
+    assert share_registry._registry_singleton is singleton
+    assert singleton.recording_key_secret() == first_secret
+    for path, secret, before, token in (
+        (first_path, first_secret, first_before, "first-token"),
+        (second_path, second_secret, second_before, "second-token"),
+    ):
+        info = path.stat()
+        assert (info.st_ino, info.st_size, path.read_bytes(), stat.S_IMODE(info.st_mode)) == before
+        with closing(sqlite3.connect(path)) as observer:
+            assert observer.execute(
+                "SELECT token FROM active_shares ORDER BY token"
+            ).fetchall() == [(token,)]
+            assert observer.execute("SELECT secret FROM recording_key_secret").fetchone() == (
+                secret,
+            )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX directory privacy admission")
+def test_default_registry_rejected_replacement_keeps_original_connection_usable(
+    tmp_path, monkeypatch
+):
+    original_path = tmp_path / "original" / "registry.sqlite"
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(original_path))
+    share_registry.reset_share_registry_for_tests()
+    singleton = share_registry.get_share_registry()
+    original_connection = singleton._conn
+    secret = singleton.recording_key_secret()
+    singleton.claim_active(
+        {
+            "token": "kept-owner-token",
+            "id": "kept-owner-token",
+            "project_workspace": str(tmp_path),
+            "review_version_id": "version",
+        }
+    )
+    before = (
+        original_path.stat().st_ino,
+        original_path.read_bytes(),
+        stat.S_IMODE(original_path.stat().st_mode),
+    )
+    unsafe = tmp_path / "replaceable"
+    unsafe.mkdir(mode=0o700)
+    unsafe.chmod(0o777)
+    private_child = unsafe / "private-child"
+    private_child.mkdir(mode=0o700)
+    rejected_path = private_child / "registry.sqlite"
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(rejected_path))
+
+    try:
+        with pytest.raises(PermissionError):
+            share_registry.get_share_registry()
+
+        assert share_registry._registry_singleton is singleton
+        assert singleton._conn is original_connection
+        assert original_connection.execute("SELECT 1").fetchone()[0] == 1
+        assert not rejected_path.exists(), "refusal must precede target initialization"
+        assert stat.S_IMODE(unsafe.stat().st_mode) == 0o777
+        assert singleton.recording_key_secret() == secret
+        assert singleton.get_active("kept-owner-token")["token"] == "kept-owner-token"
+        assert (
+            original_path.stat().st_ino,
+            original_path.read_bytes(),
+            stat.S_IMODE(original_path.stat().st_mode),
+        ) == before
+    finally:
+        share_registry.reset_share_registry_for_tests()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX default path lifecycle")
+def test_default_replacement_publishes_only_its_owned_default_and_keeps_explicit_ephemeral(
+    tmp_path, monkeypatch
+):
+    original_path = tmp_path / "original" / "registry.sqlite"
+    explicit_path = tmp_path / "explicit" / "registry.sqlite"
+    replacement_path = tmp_path / "replacement" / "registry.sqlite"
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(original_path))
+    share_registry.reset_share_registry_for_tests()
+    try:
+        original = share_registry.get_share_registry()
+        original_secret = original.recording_key_secret()
+
+        explicit = share_registry.get_share_registry(explicit_path)
+        try:
+            assert explicit is not original
+            assert explicit.db_path == explicit_path
+            assert share_registry._registry_singleton is original
+            assert original.recording_key_secret() == original_secret
+        finally:
+            explicit.close()
+
+        monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(replacement_path))
+        replacement = share_registry.get_share_registry()
+        assert replacement is share_registry._registry_singleton
+        assert replacement is not original
+        assert replacement.db_path == replacement_path
+        assert replacement.recording_key_secret() != original_secret
+        assert replacement_path.is_file()
+    finally:
+        share_registry.reset_share_registry_for_tests()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX default path lifecycle")
+@pytest.mark.parametrize("failure_type", [OSError, KeyboardInterrupt])
+def test_default_replacement_close_failure_consumes_candidate_and_preserves_error(
+    tmp_path, monkeypatch, failure_type
+):
+    original_path = tmp_path / "original" / "registry.sqlite"
+    replacement_path = tmp_path / "replacement" / "registry.sqlite"
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(original_path))
+    share_registry.reset_share_registry_for_tests()
+    original = share_registry.get_share_registry()
+    original_failure = failure_type("old registry close failed")
+
+    def fail_old_close():
+        raise original_failure
+
+    monkeypatch.setattr(original, "close", fail_old_close)
+    constructor = share_registry.SqliteShareRegistry
+    candidates = []
+
+    def create_candidate(path):
+        candidate = constructor(path)
+        candidates.append(candidate)
+        close = candidate.close
+
+        def close_candidate():
+            close()
+            raise OSError("candidate release failed")
+
+        monkeypatch.setattr(candidate, "close", close_candidate)
+        return candidate
+
+    monkeypatch.setattr(share_registry, "SqliteShareRegistry", create_candidate)
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(replacement_path))
+    try:
+        with pytest.raises(failure_type) as caught:
+            share_registry.get_share_registry()
+
+        assert caught.value is original_failure
+        assert share_registry._registry_singleton is original
+        assert len(candidates) == 1
+        candidate = candidates[0]
+        assert replacement_path.is_file(), "a valid admitted target is not removed by name"
+        with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+            candidate._conn.execute("SELECT 1")
+        assert any("cleanup" in note.lower() for note in caught.value.__notes__)
+    finally:
+        monkeypatch.undo()
+        share_registry.reset_share_registry_for_tests()
