@@ -711,6 +711,7 @@ it.each([
   "gui/web/public/ignored-input.wav",
   "gui/web/src/ignored-input.ts",
   "src/podcast_mcp/__pycache__/server.cpython-313.pyc",
+  "node_modules/ignored-dependencies",
 ])(
   "rejects ignored untracked production input %s through the actual CLI before launch",
   (inputPath) => {
@@ -739,12 +740,32 @@ it.each([
       const base = git("rev-parse", "HEAD");
       const disk = path.join(dir, inputPath);
       fs.mkdirSync(path.dirname(disk), { recursive: true });
-      fs.writeFileSync(
-        disk,
-        inputPath.endsWith(".wav")
-          ? "RIFFliteral ignored public audio"
-          : "export const ignoredInput = 1;",
-      );
+      if (inputPath.startsWith("node_modules/")) {
+        fs.mkdirSync(disk);
+        for (let index = 0; index < 5000; index++)
+          fs.writeFileSync(
+            path.join(disk, `${"dependency".repeat(22)}-${index}`),
+            "",
+          );
+        expect(
+          execFileSync(
+            "git",
+            ["ls-files", "--others", "--ignored", "--exclude-standard"],
+            {
+              cwd: dir,
+              encoding: "utf8",
+              maxBuffer: 2 * 1024 * 1024,
+            },
+          ).length,
+        ).toBeGreaterThan(1024 * 1024);
+      } else {
+        fs.writeFileSync(
+          disk,
+          inputPath.endsWith(".wav")
+            ? "RIFFliteral ignored public audio"
+            : "export const ignoredInput = 1;",
+        );
+      }
       expect(git("check-ignore", inputPath)).toBe(inputPath);
       const result = spawnSync(
         process.execPath,
@@ -762,7 +783,10 @@ it.each([
         { cwd: web, encoding: "utf8" },
       );
       expect(result.status).toBe(1);
-      if (inputPath.includes("__pycache__")) {
+      if (
+        inputPath.includes("__pycache__") ||
+        inputPath.startsWith("node_modules/")
+      ) {
         expect(result.stdout + result.stderr).toContain(
           "e2e/editingTaskReport.ts",
         );
