@@ -181,3 +181,97 @@ it("refuses preview-only roll joins and saves an original join", async () => {
     ["/tmp/one.json", "left", "right", 0.1, "boundary-token"],
   ]);
 });
+
+it("does not save a roll when its partners change during boundary loading", async () => {
+  const left = clipRow({
+    id: "left",
+    track_id: "host",
+    source_start: 20,
+    source_end: 22,
+    timeline_start: 8,
+    timeline_end: 10,
+    source_duration_sec: 60,
+  });
+  const right = clipRow({
+    id: "right",
+    track_id: "host",
+    source_start: 22,
+    source_end: 24,
+    timeline_start: 10,
+    timeline_end: 12,
+    source_duration_sec: 60,
+  });
+  const project = minimalProject({
+    tracks: [sampleTrack({ id: "host" })],
+    clips: { tracks: { host: [left, right] }, clip_count: 2 },
+  });
+  useDawStore.getState().hydrate("/tmp/one.json", project);
+  let release!: () => void;
+  vi.mocked(loadBoundaryContext).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = () =>
+          resolve({
+            target: {
+              kind: "roll",
+              left_clip_id: "left",
+              right_clip_id: "right",
+            },
+            token: "boundary-token",
+            track_id: "host",
+            geometry: [],
+            current: { source_sec: 22, timeline_sec: 10 },
+            limits: {
+              min: -1,
+              max: 1,
+              fine_step_sec: 0.001,
+              regular_step_sec: 0.01,
+            },
+          });
+      }),
+  );
+  const view = render(
+    <ClipBlock
+      clip={right}
+      trackId="host"
+      role="dialogue"
+      zoomPxPerSec={50}
+      color="var(--clip-dialogue-0)"
+      selected={true}
+      mediaRef="track:host"
+      prevClip={left}
+      nextClip={null}
+      neighborSourceLo={left.source_end}
+      neighborSourceHi={60}
+      rollPreview={null}
+      onRollPreview={() => {}}
+      onSelect={() => {}}
+      onHit={() => {}}
+      canMove={true}
+    />,
+  );
+  const handle = view.container.querySelector(
+    "button.join-seam",
+  ) as HTMLElement;
+  await act(async () => {
+    fireEvent.pointerDown(handle, { pointerId: 7, clientX: 150 });
+    fireEvent.pointerUp(handle, { pointerId: 7, clientX: 155 });
+  });
+  expect(loadBoundaryContext).toHaveBeenCalledTimes(1);
+  act(() =>
+    useDawStore.getState().setProject({
+      ...project,
+      clips: {
+        tracks: {
+          host: [left, { ...right, source_end: 25, timeline_end: 13 }],
+        },
+        clip_count: 2,
+      },
+    }),
+  );
+  await act(async () => release());
+  expect(rollClipJoin).not.toHaveBeenCalled();
+  expect(useDawStore.getState().project!.clips.tracks.host[1]!.source_end).toBe(
+    25,
+  );
+});
