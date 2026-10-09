@@ -253,8 +253,8 @@ to preview yet.
 `Templates/EditBoundaryMark` renders the production `EditBoundaryMarkView`
 inline in a transcript row: a roll join, a live roll drag previewing
 restored words, a single-clip trim edge and a 360px row. The live
-`EditBoundaryMark` adapter supplies roll clamps read from the store when a
-drag starts (`getRollBounds` → `rollNeighborBounds`) and commits
+`EditBoundaryMark` adapter resolves the roll pair and interval from the store
+when a drag starts (`getRollInterval` calls `rollJoinInterval`) and commits
 `RollClipJoin` / `TrimClipEdge`; story callbacks are `fn()`.
 The boundary button keeps `aria-grabbed` while dragging, as before the
 extraction, even though ARIA 1.2 deprecates it; axe lists it as needs-review

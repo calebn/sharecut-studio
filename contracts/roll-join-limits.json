@@ -1,0 +1,1095 @@
+{
+  "$comment": "Signed legal roll intervals and clamped deltas. Python roll_join_limits and the client rollJoinInterval consume these literal expectations. Clip rows are [id, timeline_start, source_start, source_end, source_id]. Null source IDs play primary track media. Both outer neighbors compare to RIGHT recording; positive room uses LEFT recording duration. Unknown duration gives zero positive room. Gaps up to 0.05 seconds and overlaps count as abutting. error cases are ineligible pairs.",
+  "tracks": [
+    {
+      "id": "host",
+      "role": "dialogue",
+      "duration_sec": 11
+    }
+  ],
+  "sources": [
+    {
+      "id": "long",
+      "path": "raw/long.wav",
+      "duration_sec": 30
+    },
+    {
+      "id": "short",
+      "path": "raw/short.wav",
+      "duration_sec": 11
+    },
+    {
+      "id": "ended",
+      "path": "raw/ended.wav",
+      "duration_sec": 10
+    },
+    {
+      "id": "past",
+      "path": "raw/past.wav",
+      "duration_sec": 9
+    },
+    {
+      "id": "unknown",
+      "path": "raw/unknown.wav",
+      "duration_sec": null
+    },
+    {
+      "id": "right",
+      "path": "raw/right.wav",
+      "duration_sec": 40
+    },
+    {
+      "id": "right-alias",
+      "path": "raw/right.wav",
+      "duration_sec": 40
+    },
+    {
+      "id": "other",
+      "path": "raw/other.wav",
+      "duration_sec": 40
+    },
+    {
+      "id": "primary-alias",
+      "path": "raw/host.wav",
+      "duration_sec": 11
+    }
+  ],
+  "cases": [
+    {
+      "name": "longer-left-recording",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          -9,
+          -3.95
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          9,
+          3.95
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "shorter-left-recording",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "short"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        1
+      ],
+      "clamps": [
+        [
+          3,
+          1
+        ],
+        [
+          -3,
+          -3
+        ]
+      ]
+    },
+    {
+      "name": "unknown-left-duration",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "unknown"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0
+      ],
+      "clamps": [
+        [
+          3,
+          0
+        ],
+        [
+          -3,
+          -3
+        ]
+      ]
+    },
+    {
+      "name": "left-recording-already-at-end",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "ended"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0
+      ],
+      "clamps": [
+        [
+          3,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "left-recording-past-end",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "past"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0
+      ],
+      "clamps": [
+        [
+          3,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "unrelated-following",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ],
+        [
+          "next",
+          8,
+          11,
+          15,
+          "other"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          3,
+          3
+        ],
+        [
+          9,
+          3.95
+        ]
+      ]
+    },
+    {
+      "name": "right-recording-following",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ],
+        [
+          "next",
+          8,
+          11,
+          15,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        1
+      ],
+      "clamps": [
+        [
+          3,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "alias-following",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ],
+        [
+          "next",
+          8,
+          11,
+          15,
+          "right-alias"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        1
+      ],
+      "clamps": [
+        [
+          3,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "left-only-predecessor",
+      "clips": [
+        [
+          "prev",
+          0,
+          5,
+          9,
+          "long"
+        ],
+        [
+          "left",
+          4,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          8,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          -3
+        ]
+      ]
+    },
+    {
+      "name": "right-only-predecessor",
+      "clips": [
+        [
+          "prev",
+          0,
+          5,
+          9,
+          "right"
+        ],
+        [
+          "left",
+          4,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          8,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -1,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "alias-predecessor",
+      "clips": [
+        [
+          "prev",
+          0,
+          5,
+          9,
+          "right-alias"
+        ],
+        [
+          "left",
+          4,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          8,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -1,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "unrelated-predecessor",
+      "clips": [
+        [
+          "prev",
+          0,
+          6,
+          10,
+          "other"
+        ],
+        [
+          "left",
+          4,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          8,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          -3
+        ]
+      ]
+    },
+    {
+      "name": "both-neighbors",
+      "clips": [
+        [
+          "prev",
+          0,
+          5,
+          9,
+          "right"
+        ],
+        [
+          "left",
+          4,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          8,
+          10,
+          14,
+          "right"
+        ],
+        [
+          "next",
+          12,
+          11,
+          15,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -1,
+        1
+      ],
+      "clamps": [
+        [
+          -3,
+          -1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          0.5,
+          0.5
+        ]
+      ]
+    },
+    {
+      "name": "null-primary-media",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          null
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          null
+        ],
+        [
+          "next",
+          8,
+          11,
+          15,
+          "primary-alias"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        1
+      ],
+      "clamps": [
+        [
+          3,
+          1
+        ],
+        [
+          -3,
+          -3
+        ]
+      ]
+    },
+    {
+      "name": "null-primary-predecessor",
+      "clips": [
+        [
+          "prev",
+          0,
+          5,
+          9,
+          "primary-alias"
+        ],
+        [
+          "left",
+          4,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          8,
+          10,
+          14,
+          null
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -1,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "unrelated-null-neighbor",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ],
+        [
+          "next",
+          8,
+          11,
+          15,
+          null
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "right-floor-zero",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          0.4,
+          4.4,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -0.4,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          -0.4
+        ],
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "short-left-span",
+      "clips": [
+        [
+          "left",
+          0,
+          9.9,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          0.1,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -0.05,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          -0.05
+        ]
+      ]
+    },
+    {
+      "name": "short-right-span",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          10.1,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0.05
+      ],
+      "clamps": [
+        [
+          3,
+          0.05
+        ]
+      ]
+    },
+    {
+      "name": "minimum-spans",
+      "clips": [
+        [
+          "left",
+          0,
+          0,
+          0.05,
+          "long"
+        ],
+        [
+          "right",
+          0.05,
+          1,
+          1.05,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        0,
+        0
+      ],
+      "clamps": [
+        [
+          -3,
+          0
+        ],
+        [
+          3,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "neighbor-leaves-zero-room",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ],
+        [
+          "next",
+          8,
+          9,
+          13,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0
+      ],
+      "clamps": [
+        [
+          3,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "predecessor-leaves-zero-room",
+      "clips": [
+        [
+          "prev",
+          0,
+          7,
+          11,
+          "right"
+        ],
+        [
+          "left",
+          4,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          8,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        0,
+        3.95
+      ],
+      "clamps": [
+        [
+          -3,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "near-abutment",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4.049,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "overlap-counts-as-abutting",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          3.9,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "unsorted-lane",
+      "clips": [
+        [
+          "next",
+          8,
+          11,
+          15,
+          "right"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ],
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        1
+      ],
+      "clamps": [
+        [
+          3,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "gap-beyond-tolerance",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4.051,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "error": true
+    },
+    {
+      "name": "not-adjacent",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "middle",
+          4,
+          1,
+          2,
+          "other"
+        ],
+        [
+          "right",
+          5,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "error": true
+    },
+    {
+      "name": "missing-left",
+      "clips": [
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "error": true
+    },
+    {
+      "name": "missing-right",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "error": true
+    },
+    {
+      "name": "exact-abut-tolerance",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4.05,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        3.95
+      ],
+      "clamps": [
+        [
+          3,
+          3
+        ]
+      ]
+    }
+  ]
+}

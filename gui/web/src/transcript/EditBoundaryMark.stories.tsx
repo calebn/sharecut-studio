@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, fn, waitFor, within } from "storybook/test";
 import { capabilityTooltip } from "../capabilities/copy";
+import { rollJoinInterval } from "../edit/rollLimits";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { useDawStore } from "../state/dawStore";
 import { clipRow } from "../test/fixtures";
@@ -47,6 +48,7 @@ const boundary: EditBoundaryView = {
 
 const left = clipRow({
   id: "left",
+  source_duration_sec: 80,
   source_start: 10,
   source_end: 20,
   timeline_start: 0,
@@ -79,11 +81,7 @@ const meta: Meta<typeof EditBoundaryMarkView> = {
     boundary,
     leftClip: left,
     rightClip: right,
-    getRollBounds: () => ({
-      prevSourceEnd: 0,
-      nextSourceStart: 80,
-      mediaEnd: 80,
-    }),
+    getRollInterval: () => rollJoinInterval([left, right], left.id, right.id),
     onRoll: fn(),
     onTrim: fn(),
   },

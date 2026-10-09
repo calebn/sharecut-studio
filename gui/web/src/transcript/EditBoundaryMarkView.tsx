@@ -13,9 +13,7 @@ import type {
 import { loadBoundaryContext } from "../api/boundary";
 import { capabilityTooltip } from "../capabilities/copy";
 import {
-  clampRollDelta,
   clampTrimSourceSec,
-  type RollNeighborBounds,
   sourceSecFromTimelineDelta,
   type TrimEdge,
 } from "../edit/clipEdgePreview";
@@ -24,6 +22,7 @@ import {
   ghostPlacementForExpand,
   ghostWordsForExpandPreview,
 } from "../edit/ghostPreview";
+import { clampToRollInterval, type RollJoinInterval } from "../edit/rollLimits";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/hostSendOrder";
 import type { ClipRow, EditBoundaryView } from "../types/project";
@@ -36,8 +35,7 @@ export interface EditBoundaryMarkViewProps {
   boundary: EditBoundaryView;
   leftClip: ClipRow | null;
   rightClip: ClipRow | null;
-  /** Roll clamp neighbours (`rollNeighborBounds`), read when a roll drag starts. */
-  getRollBounds: () => RollNeighborBounds;
+  getRollInterval: () => RollJoinInterval | null;
   onRoll: (
     leftClipId: string,
     rightClipId: string,
@@ -73,15 +71,7 @@ type TrimDragState = {
 type RollDragState = {
   kind: "roll";
   originX: number;
-  leftClipId: string;
-  rightClipId: string;
-  leftSourceStart: number;
-  leftSourceEnd: number;
-  rightSourceStart: number;
-  rightSourceEnd: number;
-  prevSourceEnd: number;
-  nextSourceStart: number;
-  mediaEnd: number;
+  interval: RollJoinInterval;
   pointerId: number;
 };
 
@@ -123,7 +113,7 @@ type Lifecycle =
 
 function deltaForDrag(drag: DragState, clientX: number) {
   const proposed = (clientX - drag.originX) / BOUNDARY_PX_PER_SEC;
-  if (drag.kind === "roll") return clampRollDelta(proposed, drag);
+  if (drag.kind === "roll") return clampToRollInterval(proposed, drag.interval);
   return (
     clampTrimSourceSec(
       drag.edge,
@@ -170,7 +160,7 @@ export function EditBoundaryMarkView({
   boundary,
   leftClip,
   rightClip,
-  getRollBounds,
+  getRollInterval,
   onRoll,
   onTrim,
   target,
@@ -277,17 +267,13 @@ export function EditBoundaryMarkView({
     const pointerId = event.pointerId;
     let drag: DragState;
     if (leftClip && rightClip) {
+      const interval = getRollInterval();
+      if (!interval) return;
       drag = {
         kind: "roll",
         originX: event.clientX,
         pointerId,
-        leftClipId: leftClip.id,
-        rightClipId: rightClip.id,
-        leftSourceStart: leftClip.source_start,
-        leftSourceEnd: leftClip.source_end,
-        rightSourceStart: rightClip.source_start,
-        rightSourceEnd: rightClip.source_end,
-        ...getRollBounds(),
+        interval,
       };
     } else {
       const clip = leftClip ?? rightClip;
@@ -322,11 +308,20 @@ export function EditBoundaryMarkView({
         (drag.kind === "roll"
           ? {
               kind: "roll",
-              left_clip_id: drag.leftClipId,
-              right_clip_id: drag.rightClipId,
+              left_clip_id: drag.interval.left.id,
+              right_clip_id: drag.interval.right.id,
             }
           : { kind: "trim", clip_id: drag.clipId, edge: drag.edge }),
-      expectedGeometry: resolvedGeometry.map((clip) => ({ ...clip })),
+      expectedGeometry: (drag.kind === "roll"
+        ? [drag.interval.left, drag.interval.right]
+        : resolvedGeometry
+      ).map(({ id, source_start, source_end, timeline_start, source_id }) => ({
+        id,
+        source_start,
+        source_end,
+        timeline_start,
+        source_id,
+      })),
       projectPath,
       projectEpoch: project.projectEpoch,
       lastClientX: drag.originX,
@@ -417,8 +412,8 @@ export function EditBoundaryMarkView({
             throw new Error("Project changed during the boundary drag");
           if (drag.kind === "roll") {
             await onRoll(
-              drag.leftClipId,
-              drag.rightClipId,
+              drag.interval.left.id,
+              drag.interval.right.id,
               deltaSec,
               context.token,
             );
@@ -526,13 +521,13 @@ export function EditBoundaryMarkView({
                     edge: drag.kind === "trim" ? drag.edge : undefined,
                     leftSourceEnd:
                       drag.kind === "roll"
-                        ? drag.leftSourceEnd
+                        ? drag.interval.left.source_end
                         : drag.edge === "out"
                           ? drag.baseSourceSec
                           : gesture.boundary.cutaway_source_start,
                     rightSourceStart:
                       drag.kind === "roll"
-                        ? drag.rightSourceStart
+                        ? drag.interval.right.source_start
                         : drag.edge === "in"
                           ? drag.baseSourceSec
                           : gesture.boundary.cutaway_source_end,

@@ -1,6 +1,15 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  type ContractClip,
+  type ContractSource,
+  type ContractTrack,
+  contractClipRow,
+} from "../test/contractProject";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
-import { clampRollDelta, rollNeighborBounds } from "./clipEdgePreview";
+import { SRC_ROOT } from "../test/sourceFiles";
+import { clampToRollInterval, rollJoinInterval } from "./rollLimits";
 
 describe("recording-aware roll regressions", () => {
   const left = clipRow({
@@ -70,14 +79,76 @@ describe("recording-aware roll regressions", () => {
         clip_count: following ? 3 : 2,
       },
     });
+    const interval = rollJoinInterval(
+      project.clips.tracks[l.track_id] ?? [],
+      l.id,
+      right.id,
+    );
+    if (!interval) throw new Error("missing roll pair");
+    expect(clampToRollInterval(3, interval)).toBe(expected);
+  });
+});
+
+type RollContract = {
+  tracks: ContractTrack[];
+  sources: ContractSource[];
+  cases: {
+    name: string;
+    clips: ContractClip[];
+    left_clip_id: string;
+    right_clip_id: string;
+    limits?: [number, number];
+    clamps?: [number, number][];
+    error?: boolean;
+  }[];
+};
+
+const CONTRACT = JSON.parse(
+  readFileSync(
+    join(SRC_ROOT, "../../../contracts/roll-join-limits.json"),
+    "utf8",
+  ),
+) as RollContract;
+
+describe("roll interval and clamp parity with Python", () => {
+  it.each(CONTRACT.cases)("$name", (c) => {
+    const track = CONTRACT.tracks[0];
+    if (!track) throw new Error("no contract track");
+    const lane = c.clips.map((row) =>
+      contractClipRow(track, CONTRACT.sources, row),
+    );
+    const interval = rollJoinInterval(lane, c.left_clip_id, c.right_clip_id);
+    if (c.error) {
+      expect(interval).toBeNull();
+      return;
+    }
+    if (!interval || !c.limits || !c.clamps)
+      throw new Error("missing contract interval");
+    expect([interval.lo, interval.hi]).toEqual(
+      c.limits.map((v) => expect.closeTo(v, 9)),
+    );
+    for (const [requested, expected] of c.clamps) {
+      expect(clampToRollInterval(requested, interval)).toBeCloseTo(expected, 9);
+    }
+    expect(interval.left.id).toBe(c.left_clip_id);
+    expect(interval.right.id).toBe(c.right_clip_id);
+  });
+
+  it("refuses a pair on different lanes", () => {
     expect(
-      clampRollDelta(3, {
-        leftSourceStart: l.source_start,
-        leftSourceEnd: l.source_end,
-        rightSourceStart: right.source_start,
-        rightSourceEnd: right.source_end,
-        ...rollNeighborBounds(project, l, right),
-      }),
-    ).toBe(expected);
+      rollJoinInterval(
+        [
+          clipRow({
+            id: "left",
+            track_id: "host",
+            timeline_start: 0,
+            timeline_end: 4,
+          }),
+          clipRow({ id: "right", track_id: "guest", timeline_start: 4 }),
+        ],
+        "left",
+        "right",
+      ),
+    ).toBeNull();
   });
 });

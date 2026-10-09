@@ -240,6 +240,12 @@ enough to restore a complete word brings its text and suppression choices back
 with the audio. Partial words remain archived. Existing older cuts without a
 word archive require History recovery.
 
+Timeline and transcript join rolls use the same recording limits. Rolling later
+stops at the left recording's end; an unknown duration allows no later expansion.
+Outer neighbors constrain the drag only when they play the right recording, so
+an unrelated take does not shorten the preview. Releasing saves the previewed
+offset after a fresh check that the join still matches.
+
 Keyboard word actions: in Navigate mode, Enter on a focused timed word seeks
 through its native button action. F2 opens inline correction for a hydrated
 host project. F2 does nothing in Correct or Select mode, on guest shares, or

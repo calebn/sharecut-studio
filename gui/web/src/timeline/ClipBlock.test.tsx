@@ -111,8 +111,6 @@ describe("ClipBlock waveform", () => {
     nextClip: null,
     neighborSourceLo: 0,
     neighborSourceHi: 10,
-    leftNeighborSourceEnd: 0,
-    mediaDurationSec: 10,
     rollPreview: null,
     onRollPreview: vi.fn(),
     onSelect: vi.fn(),
@@ -1836,12 +1834,16 @@ describe("ClipBlock waveform", () => {
       timeline_end: 4,
     };
     const rollBy = (zoom: number, dxPx: number) => {
+      useDawStore.setState({
+        project: projectWithClip(right, {
+          clips: { tracks: { host: [prevClip, right] }, clip_count: 2 },
+        }),
+      });
       const { container } = render(
         <ClipBlock
           {...base}
           clip={right}
           prevClip={prevClip}
-          leftNeighborSourceEnd={0}
           zoomPxPerSec={zoom}
         />,
       );
@@ -1852,7 +1854,101 @@ describe("ClipBlock waveform", () => {
 
     beforeEach(() => {
       vi.mocked(rollClipJoin).mockClear();
+      loadBoundaryContext.mockClear();
     });
+
+    it.each([
+      {
+        name: "longer recording",
+        duration: 30,
+        neighborSource: "other",
+        expected: 3,
+      },
+      {
+        name: "shorter recording",
+        duration: 3,
+        neighborSource: "other",
+        expected: 1,
+      },
+      {
+        name: "same-recording successor",
+        duration: 30,
+        neighborSource: "right",
+        expected: 1,
+      },
+      {
+        name: "unknown recording",
+        duration: null,
+        neighborSource: "other",
+        expected: 0,
+      },
+    ])(
+      "previews and submits the same recording limit for $name",
+      async ({ duration, neighborSource, expected }) => {
+        const left = {
+          ...prevClip,
+          source_id: "left",
+          source_duration_sec: duration,
+        };
+        const r = {
+          ...right,
+          source_id: "right",
+          source_end: 10,
+          timeline_end: 8,
+        };
+        const next = {
+          ...clip,
+          id: "next",
+          source_id: neighborSource,
+          source_start: 5,
+          source_end: 9,
+          timeline_start: 8,
+          timeline_end: 12,
+        };
+        useDawStore.setState({
+          project: projectWithClip(r, {
+            clips: { tracks: { host: [next, r, left] }, clip_count: 3 },
+          }),
+          projectPath: "/tmp/roll.project.json",
+        });
+        const preview = vi.fn();
+        const { container } = render(
+          <ClipBlock
+            {...base}
+            clip={r}
+            prevClip={left}
+            nextClip={next}
+            onRollPreview={preview}
+          />,
+        );
+        const seam = container.querySelector("button.join-seam");
+        if (!seam) throw new Error("missing seam");
+        fireEvent.pointerDown(seam, { clientX: 100, pointerId: 7 });
+        expect(loadBoundaryContext).not.toHaveBeenCalled();
+        fireEvent.pointerMove(seam, { clientX: 250, pointerId: 7 });
+        expect(preview).toHaveBeenLastCalledWith({
+          leftClipId: "c0",
+          rightClipId: "c1",
+          deltaSec: expected,
+        });
+        fireEvent.pointerUp(seam, { clientX: 250, pointerId: 7 });
+        if (expected === 0) {
+          expect(rollClipJoin).not.toHaveBeenCalled();
+          expect(preview).toHaveBeenLastCalledWith(null);
+        } else {
+          await waitFor(() =>
+            expect(rollClipJoin).toHaveBeenCalledWith(
+              "/tmp/roll.project.json",
+              "c0",
+              "c1",
+              expected,
+              "boundary-token",
+            ),
+          );
+          expect(preview).toHaveBeenLastCalledWith(null);
+        }
+      },
+    );
 
     it("commits a 3 px roll at deep zoom (a 62 µs join move)", async () => {
       rollBy(48000, 3);
@@ -1919,8 +2015,6 @@ describe("ClipBlock snap points", () => {
     nextClip: null,
     neighborSourceLo: 0,
     neighborSourceHi: 10,
-    leftNeighborSourceEnd: 0,
-    mediaDurationSec: 10,
     rollPreview: null,
     onRollPreview: vi.fn(),
     onSelect: vi.fn(),
