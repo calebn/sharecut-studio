@@ -414,9 +414,13 @@ export async function visibleFocus(
     await expect
       .poll(async () => {
         const geometry = await controlGeometry(control);
-        return geometry.focusIndicator.state === "outline"
-          ? geometry.focusIndicator.full
-          : geometry.fullyVisible;
+        if (geometry.focusIndicator.state !== "outline")
+          return geometry.fullyVisible;
+        return (
+          geometry.focusIndicator.full &&
+          (geometry.focusIndicator.subject === "detent-grabber" ||
+            geometry.fullyVisible)
+        );
       })
       .toBe(true);
   } finally {

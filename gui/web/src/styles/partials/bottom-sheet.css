@@ -104,7 +104,7 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
    selection stays in view (the inspector scrolls inside). */
 .bottom-sheet--compact.bottom-sheet--half,
 .bottom-sheet--compact.bottom-sheet--half:has(.modifier-inspector) {
-  height: max(min(50%, 26.25rem, 100% - 13rem), min(100%, 9rem));
+  height: max(min(50%, 26.25rem, 100% - 13.625rem), min(100%, 9rem));
 }
 
 /* The compact inspector keeps its name, Collapse and Close in reach. A new

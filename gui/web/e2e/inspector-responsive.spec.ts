@@ -23,6 +23,7 @@ import { rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
 import { setTheme } from "./theme";
+import { json } from "./touchTimeline";
 
 const viewports = [
   { width: 360, height: 740 },
@@ -436,6 +437,10 @@ test.describe("independent keyboard envelope root32 phone", () => {
             ),
           ).toBeVisible();
           await setTheme(page, "dark");
+          await expect(page.locator("html")).toHaveAttribute(
+            "data-theme",
+            "dark",
+          );
           await page.locator("html").evaluate((html) => {
             html.style.fontSize = "32px";
           });
@@ -460,6 +465,122 @@ test.describe("independent keyboard envelope root32 phone", () => {
             exact: true,
           });
           await visibleFocus(time, receipts, "native-add-visible-time");
+          await page.setViewportSize({ width: 360, height: 560 });
+          const negativeViewport = await page.evaluate(() => ({
+            width: innerWidth,
+            height: innerHeight,
+          }));
+          expect(negativeViewport).toEqual({ width: 360, height: 560 });
+          await expect(page.locator("html")).toHaveAttribute(
+            "data-theme",
+            "dark",
+          );
+          const clipLabelWhileInputFits = async () => {
+            const attempts = [];
+            for (let step = 0; step < 60; step++) {
+              const geometry = await controlGeometry(time);
+              const label = geometry.measured[1];
+              if (
+                geometry.focusIndicator.state === "outline" &&
+                geometry.focusIndicator.full &&
+                geometry.measured[0].full &&
+                label?.tag === "LABEL" &&
+                !label.full
+              )
+                return { geometry, attempts };
+              attempts.push({
+                step,
+                input: geometry.measured[0].rect,
+                inputFull: geometry.measured[0].full,
+                label: label?.rect,
+                labelFull: label?.full,
+                clip: geometry.measured[0].clip,
+                scrollAncestors: geometry.measured[0].ancestors.map(
+                  ({
+                    tag,
+                    class: className,
+                    overflowY,
+                    rect,
+                    scrollTop,
+                    scrollHeight,
+                    clientHeight,
+                  }) => ({
+                    tag,
+                    className,
+                    overflowY,
+                    rect,
+                    scrollTop,
+                    scrollHeight,
+                    clientHeight,
+                  }),
+                ),
+                focusIndicator: geometry.focusIndicator,
+              });
+              await wheelInspector(page, receipts, 8);
+            }
+            json(info, "clipped-label-search-failed", attempts);
+            return null;
+          };
+          const foundLabel = await clipLabelWhileInputFits();
+          const clippedLabel = foundLabel?.geometry;
+          expect(clippedLabel).not.toBeNull();
+          if (!clippedLabel)
+            throw new Error("real sheet scrolling did not clip only the label");
+          expect(clippedLabel.focusIndicator).toMatchObject({
+            state: "outline",
+            full: true,
+          });
+          expect(clippedLabel.measured[0].full).toBe(true);
+          expect(clippedLabel.measured[1].full).toBe(false);
+          expect(clippedLabel.fullyVisible).toBe(false);
+          const clippedLabelAppearance = await page
+            .locator("html")
+            .evaluate((html) => ({
+              fontSize: getComputedStyle(html).fontSize,
+              theme: html.dataset.theme,
+              viewport: { width: innerWidth, height: innerHeight },
+            }));
+          expect(clippedLabelAppearance).toEqual({
+            fontSize: "32px",
+            theme: "dark",
+            viewport: { width: 360, height: 560 },
+          });
+          json(info, "clipped-label-appearance", clippedLabelAppearance);
+          json(info, "clipped-label-real-wheel", {
+            steps: foundLabel.attempts.length,
+            geometry: clippedLabel,
+          });
+          await info.attach("clipped-label-fitting-envelope-input", {
+            body: await page.screenshot(),
+            contentType: "image/png",
+          });
+          await expect(
+            visibleFocus(time, receipts, "clipped-label-must-not-pass"),
+          ).rejects.toThrow();
+          const stillClipped = await controlGeometry(time);
+          expect(stillClipped.focusIndicator).toMatchObject({
+            state: "outline",
+            full: true,
+          });
+          expect(stillClipped.measured[0].full).toBe(true);
+          expect(stillClipped.measured[1].full).toBe(false);
+          await wheelInspector(page, receipts, -120);
+          await visibleFocus(time, receipts, "restored-label-visible-time");
+          await page.setViewportSize({ width: 360, height: 740 });
+          const restoredViewport = await page.evaluate(() => ({
+            width: innerWidth,
+            height: innerHeight,
+          }));
+          expect(restoredViewport).toEqual({ width: 360, height: 740 });
+          json(info, "clipped-label-viewport-restoration", {
+            negativeCase: negativeViewport,
+            restored: restoredViewport,
+          });
+          await visibleFocus(
+            time,
+            receipts,
+            "restored-phone-viewport-visible-time",
+          );
           await page.keyboard.press("ControlOrMeta+A");
           await page.keyboard.type("-1");
           await enter("Save point");
@@ -487,6 +608,10 @@ test.describe("independent keyboard envelope root32 phone", () => {
           });
           await assertPrimaryFocusPaint();
           await setTheme(page, "light");
+          await expect(page.locator("html")).toHaveAttribute(
+            "data-theme",
+            "light",
+          );
           await visibleFocus(save, receipts, "invalid-save-light-focus");
           await info.attach("invalid-save-light-native-focus-paint", {
             body: await page.screenshot(),
