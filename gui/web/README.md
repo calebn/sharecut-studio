@@ -24,7 +24,7 @@ npm run format:check
 Repo root:
 
 - `make test-web` — lint + format:check + typecheck + vitest + build (CI `frontend` job)
-- `make test-web-e2e` — E2E-flagged build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI runs the suites concurrently on separate runners behind the `frontend-e2e` gate). Ordinary `npm run build` rejects emitted E2E hooks.
+- `make test-web-e2e` — E2E-flagged build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI runs the main shards and each complete compatibility engine concurrently on separate runners behind the `frontend-e2e` gate). Ordinary `npm run build` rejects emitted E2E hooks.
 - `npm run test:e2e:compat` — focused Chromium/WebKit compatibility matrix only (`npm run test:e2e:install` installs both engines)
 
 The `e2e-compat/phone-mix.spec.ts` core flow runs in both engines. Alongside
@@ -265,9 +265,10 @@ specs should protect layout/native input/media/storage/network seams or complete
 user outcomes. Before pruning a browser case, name its remaining coverage owner.
 See [Browser test scope and runtime](../../docs/testing.md#browser-test-scope-and-runtime)
 for placement rules and the CI `playwright-reports-<name>` timing artifacts
-(`main-1of4` ... `main-4of4`, `compat`). Each suite's live project is shared,
-so Playwright requires one worker. CI shards the main suite and runs the compat
-suite on separate runners; the existing `frontend-e2e` check requires every one
+(`main-1of4` ... `main-4of4`, `compat-chromium`, `compat-webkit`). Each suite's live project is shared,
+so Playwright requires one worker. CI shards the main suite and runs the full
+compatibility suite once per engine on separate runners, with zero retries and
+20-minute job limits; the existing `frontend-e2e` check requires every one
 to succeed.
 
 Transcript word lookup and inclusive timeline ranges for clipboard, inspector, and

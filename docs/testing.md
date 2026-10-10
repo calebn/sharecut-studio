@@ -512,7 +512,9 @@ server, project, share registry and output directory. Retries are failure
 recovery, not a runtime optimization.
 
 CI runs the main suite as four shards (`main-1of4` ... `main-4of4`, each
-`npm run test:e2e -- --shard=i/4`) and the compatibility suite concurrently in
+`npm run test:e2e -- --shard=i/4`) and the compatibility suite as two complete
+engine jobs (`compat-chromium`, `compat-webkit`, each
+`npm run test:e2e:compat -- --project=<engine>`) concurrently in
 separate `frontend-e2e-suites` matrix jobs. Each runner owns its checkout,
 server, project and artifacts, so the serial-within-one-server assumption above
 holds inside every shard. With `fullyParallel: false` Playwright shards by spec
@@ -526,6 +528,15 @@ every `i/n` present) before any shard nears the job timeout. Specs must not
 depend on state left by another spec: which specs share a shard changes with
 the shard count.
 
+Each compatibility job runs every spec for its engine with one worker, no
+parallel tests, no retries and the existing 20-minute job limit. The two engine
+jobs replace the combined serial job that exceeded that limit after the suite
+grew to 186 cases. `tests/test_browser_acceptance_matrix.py` rejects missing,
+duplicate or filtered engine selections and checks their disjoint coverage.
+The compact history reach test attaches each control's name, rectangle and
+center hit stack, plus a screenshot, before asserting ownership. These receipts
+preserve the covering element even when a later assertion fails.
+
 The existing required `frontend-e2e` check waits for every matrix job and fails
 for any failed, cancelled or skipped one. `fail-fast: false` lets all of them
 finish and report failures. Local wrappers still run sequentially within one
@@ -533,7 +544,7 @@ checkout.
 
 CI uploads one `playwright-reports-<name>` artifact per matrix job
 (`playwright-reports-main-1of4` ... `playwright-reports-main-4of4` and
-`playwright-reports-compat`) on successful and failed runs. Each holds
+`playwright-reports-compat-chromium` and `playwright-reports-compat-webkit`) on successful and failed runs. Each holds
 `<name>.json` with per-test durations, retries and errors. The matrix sets
 `PLAYWRIGHT_JSON_OUTPUT_FILE` for each job. Download them all with
 `gh run download <run-id> --pattern 'playwright-reports-*'` and sum durations

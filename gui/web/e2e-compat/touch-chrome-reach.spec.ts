@@ -46,9 +46,12 @@ const original = [
   { id: "env-c", time: 16, value: 1 },
   { id: "env-join", time: 40, value: 1.2 },
 ];
-const edited = original.map((point) =>
-  point.id === "env-c" ? { ...point, time: 16.01 } : point,
-);
+const edited = [
+  { id: "env-a", time: 5, value: 1 },
+  { id: "env-edge", time: 10, value: 0.8 },
+  { id: "env-c", time: 16.01, value: 1 },
+  { id: "env-join", time: 40, value: 1.2 },
+];
 
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 240_000 });
@@ -95,7 +98,24 @@ async function reach(target: Locator) {
       r.left + r.width / 2,
       r.top + r.height / 2,
     );
+    const identify = (node: Element) => ({
+      tag: node.tagName,
+      id: node.id,
+      className: node.getAttribute("class"),
+      name:
+        node.getAttribute("aria-label") ??
+        node.getAttribute("title") ??
+        node.textContent,
+      rect: node.getBoundingClientRect().toJSON(),
+      position: getComputedStyle(node).position,
+      zIndex: getComputedStyle(node).zIndex,
+      pointerEvents: getComputedStyle(node).pointerEvents,
+    });
     return {
+      control: identify(el),
+      stack: document
+        .elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        .map(identify),
       inView:
         r.left >= 0 &&
         r.top >= 0 &&
@@ -236,6 +256,13 @@ async function undoStaysReachable(
   const seen: Record<string, Awaited<ReturnType<typeof measure>>> = {};
   const check = async (step: string, controls: Locator) => {
     seen[step] = await measure(controls);
+    await receipt(info, `hit-${name}-${rootPx}-${theme}-${step}`, seen[step]);
+    await info.attach(`hit-${step}`, {
+      body: await page.screenshot({
+        path: info.outputPath(`hit-${step}.png`),
+      }),
+      contentType: "image/png",
+    });
   };
   await check("rail", railHistory(page));
 
