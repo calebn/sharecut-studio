@@ -319,7 +319,9 @@ preserves the existing card, focus and guarded Undo when the sheet opens,
 closes or stows. A saved edit preserves the focused or just-pressed control.
 Ordinary body scrolling exposes feedback when a full native label and the card
 cannot fit together. The single Toast pauses its remaining visible lifetime
-while clipped and preserves it through host movement. See
+while clipped and preserves it through host movement. Compact half and full
+detents keep their outer height when feedback appears; Dismiss removes the card
+without changing detent height or lane room. See
 [Feedback toast](gui-mobile.md#feedback-toast) for the geometry contract.
 
 `MobileShell` and `StudioShell` are memoized live adapters over the props-only
@@ -349,8 +351,8 @@ On a touch screen the phone and tablet shells are `position: fixed` and pad them
 Compact headers retain the strip's vertical spacing at half and full height,
 so enlarged history controls leave room for scrolled form fields on short
 screens. Focus reveal includes the field's label when the label fits below the
-pinned header. The existing scroll-padding measurement follows the wrapped
-chrome height.
+pinned header. The bounded body scroller reveals that field and label below the
+pinned header without measuring or changing scroll padding.
 
 Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
 

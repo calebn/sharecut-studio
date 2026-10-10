@@ -10,6 +10,7 @@ import {
 import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
 import { e2eProjectPath } from "../e2e/env";
 import { type Finger, newFinger, type Point } from "../e2e/finger";
+import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -640,40 +641,29 @@ async function dragStowsStrip(
   await page.waitForTimeout(900);
   const released = await sheetState(page);
   await frame(page, info, `stow-${size}-3-released-${browserName}`);
-  let restoredHeader = null;
+  const restoredHeader = page.locator(
+    ".bottom-sheet-header button:focus-visible",
+  );
   for (let step = 0; step < 80; step++) {
     await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
-    restoredHeader = await page.evaluate(() => {
-      const element = document.activeElement;
-      if (
-        !(element instanceof HTMLButtonElement) ||
-        !element.closest(".bottom-sheet-header")
-      )
-        return null;
-      const rect = element.getBoundingClientRect();
-      const hit = document.elementFromPoint(
-        rect.x + rect.width / 2,
-        rect.y + rect.height / 2,
-      );
-      return {
-        label: element.getAttribute("aria-label"),
-        rect: rect.toJSON(),
-        owns: hit === element || element.contains(hit),
-        full:
-          rect.top >= 0 &&
-          rect.bottom <= innerHeight &&
-          rect.left >= 0 &&
-          rect.right <= innerWidth,
-        inert: !!element.closest("[inert]"),
-      };
-    });
-    if (restoredHeader) break;
+    if (await restoredHeader.count()) break;
   }
-  json(info, `restored-focus-${size}-${browserName}`, restoredHeader);
-  expect(restoredHeader).toMatchObject({
-    owns: true,
+  await expect(restoredHeader).toHaveCount(1);
+  await expect(restoredHeader).toBeFocused();
+  const restoredGeometry = await controlGeometry(restoredHeader);
+  json(info, `restored-focus-${size}-${browserName}`, restoredGeometry);
+  await frame(page, info, `restored-focus-${size}-${browserName}`);
+  expect(restoredGeometry.fullyVisible).toBe(true);
+  expect(restoredGeometry.hitsControl).toBe(true);
+  expect(
+    restoredGeometry.measured.every(
+      (measurement) => measurement.admission.state === "admitted",
+    ),
+  ).toBe(true);
+  expect(restoredGeometry.focusIndicator).toMatchObject({
+    state: "outline",
     full: true,
-    inert: false,
+    admission: { state: "admitted" },
   });
 
   // The selected trim's own handle under one moving finger: the grammar

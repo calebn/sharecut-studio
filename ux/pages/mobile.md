@@ -157,8 +157,11 @@ The timeline gutter keeps its identity-only layout. Swipe-to-mix is deferred.
 
 The inspector header keeps Undo, Redo, resize and Close visible while its body
 scrolls. Feedback and fields share that one scroll order. At large text sizes,
-a full native label and a long message may need separate views. Scroll back to
-the message and its Dismiss or guarded Undo action. Clipped feedback pauses its
-remaining visible lifetime. A saved edit preserves the focused or just-pressed
-control, and Close or a timeline drag returns the same card to its floating
-host.
+a full native label and a long message may need separate views. Field focus
+reveals the field and its complete label below the pinned header when the label
+fits. Half and full detents keep the same outer height with or without the
+feedback card; Dismiss removes the card without changing detent height or lane
+room. Ordinary body scrolling exposes the message and its Dismiss or guarded
+Undo action. Clipped feedback pauses its remaining visible lifetime. A saved
+edit preserves the focused or just-pressed control, and Close or a timeline drag
+returns the same card to its floating host.
