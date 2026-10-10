@@ -130,6 +130,11 @@ Accent identifies actions and focus; small links use the darker `--color-accent-
 
 Prefer layout that wraps from leftover space (`flex-wrap` + `gap` + `flex-basis`) over width breakpoints. Named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`) when leftover-space wrap is not enough; any fluid type still includes a rem term. Do not use viewport-size `@media` (`min/max-width/height`) for chrome density — shell phone/tablet/desktop stays JS `useViewportClass`. Capability media (`hover`, `pointer`, `prefers-*`) may stay `@media`.
 
+Compact inspector controls draw their focus outlines inside their border boxes.
+The native detent range draws its indicator on the visible grabber. Feedback
+uses the same bounded body as fields and preserves selected half and full heights.
+
+
 ## Images
 
 `max-inline-size: 100%`. Screenshots keep aspect ratio (`object-fit: cover` in a ratio box). Never a forced `height` that squashes.

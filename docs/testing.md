@@ -1368,11 +1368,11 @@ test; other rows are whole tests.
 | #1135: a long-press at a join offers the ripple trim, which shows where later clips go | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a plain mouse grab at a join rolls it, as on main | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| clipped saved feedback pauses its remaining visible lifetime | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| compact header handles Undo while a save is pending | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | Core flow | Pass | Pass | Not run |
-| unavailable compact history keeps geometry | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| clipped saved feedback pauses its remaining visible lifetime | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| compact header handles Undo while a save is pending | `gui/web/e2e-compat/compact-save-refusal.spec.ts` | Core flow | Pass | Pass | Not run |
+| unavailable compact history keeps geometry | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 32px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -2356,6 +2356,17 @@ outside its actual body clip, and waits nine seconds without card hover or
 focus. It then exposes Dismiss and verifies expiry within the remaining visible
 time. Unit tests cover portal continuity, focus, remaining time and guarded
 Undo through host movement. Run `npm run test:e2e:compat --
-touch-chrome-reach.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
+compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedback-lifetime.spec.ts touch-chrome-reach.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
 building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
+
+The feedback detent matrix compares half and full height before and during a
+real history refusal for Envelope and Pending selections. It covers phone and
+short-tablet viewports, both text sizes and themes. Ruler ownership must remain
+when the baseline detent permits it. Short-slot minimum chrome can make ruler
+room impossible at enlarged text. The painted-focus matrix visits every native
+compact Tab target, measures outline width and offset against canonical clip
+bounds, and captures each indicator. It measures the visible grabber for the
+hidden detent range. The floating lifetime case removes a genuinely long named
+track through the production confirmation, then closes a compact selection while
+that same guarded card remains clipped. Browser RED receipts precede repairs.

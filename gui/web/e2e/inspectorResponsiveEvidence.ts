@@ -22,49 +22,40 @@ export async function controlGeometry(control: Locator, identity = false) {
     const row = element.closest(".track-header-row");
     const chip = row?.querySelector(".track-chip");
     const title = row?.querySelector(".track-title");
-    const visible = (node: Element | null | undefined) => {
-      if (!node) return false;
-      const box = node.getBoundingClientRect();
-      return (
-        box.width > 0 &&
-        box.height > 0 &&
-        getComputedStyle(node).visibility === "visible"
-      );
-    };
-    const subject = useIdentity
-      ? visible(chip)
-        ? chip!
-        : visible(title)
-          ? title!
-          : element
-      : element;
-    const rect = element.getBoundingClientRect();
-    const labels = label ? [label] : [];
-    const measured = [
-      element,
-      ...(useIdentity && subject !== element ? [subject] : []),
-      ...labels,
-    ].map((node) => {
+    const measure = (node: Element, paintExtent = 0) => {
       const box = node.getBoundingClientRect();
       let left = 0,
         top = 0,
         right = innerWidth,
         bottom = innerHeight;
       const ancestors = [];
+      let reason:
+        | "detached"
+        | "inert"
+        | "hidden"
+        | "display-none"
+        | "visibility-hidden"
+        | "no-box"
+        | undefined;
+      if (!node.isConnected) reason = "detached";
+      else if (node.closest("[inert]")) reason = "inert";
+      else if (node.closest("[hidden]")) reason = "hidden";
+      else if (!box.width || !box.height) reason = "no-box";
       for (
-        let ancestor = node.parentElement;
+        let ancestor: Element | null = node;
         ancestor;
         ancestor = ancestor.parentElement
       ) {
         const style = getComputedStyle(ancestor);
+        if (style.display === "none") reason ??= "display-none";
+        if (style.visibility !== "visible") reason ??= "visibility-hidden";
+        if (ancestor === node) continue;
         const clipsX = /hidden|clip|auto|scroll/.test(style.overflowX);
         const clipsY = /hidden|clip|auto|scroll/.test(style.overflowY);
         if (!clipsX && !clipsY) continue;
         const area = ancestor.getBoundingClientRect();
         const clipLeft = area.left + ancestor.clientLeft;
         const clipTop = area.top + ancestor.clientTop;
-        const clipRight = clipLeft + ancestor.clientWidth;
-        const clipBottom = clipTop + ancestor.clientHeight;
         ancestors.push({
           ...describe(ancestor),
           rect: area.toJSON(),
@@ -76,27 +67,102 @@ export async function controlGeometry(control: Locator, identity = false) {
         });
         if (clipsX) {
           left = Math.max(left, clipLeft);
-          right = Math.min(right, clipRight);
+          right = Math.min(right, clipLeft + ancestor.clientWidth);
         }
         if (clipsY) {
           top = Math.max(top, clipTop);
-          bottom = Math.min(bottom, clipBottom);
+          bottom = Math.min(bottom, clipTop + ancestor.clientHeight);
         }
       }
+      const admission = reason
+        ? { state: "excluded" as const, reason }
+        : { state: "admitted" as const };
+      const bounds = {
+        left: box.left - paintExtent,
+        right: box.right + paintExtent,
+        top: box.top - paintExtent,
+        bottom: box.bottom + paintExtent,
+      };
+      const intersection = {
+        left: Math.max(left, bounds.left),
+        right: Math.min(right, bounds.right),
+        top: Math.max(top, bounds.top),
+        bottom: Math.min(bottom, bounds.bottom),
+      };
+      const visibleArea =
+        !reason &&
+        intersection.right > intersection.left &&
+        intersection.bottom > intersection.top
+          ? { state: "positive" as const, bounds: intersection }
+          : { state: "empty" as const };
       return {
         ...describe(node),
         rect: box.toJSON(),
         ancestors,
         clip: { left, top, right, bottom },
+        admission,
+        visibleArea,
         full:
-          box.width > 0 &&
-          box.height > 0 &&
-          box.left >= left - 1 &&
-          box.right <= right + 1 &&
-          box.top >= top - 1 &&
-          box.bottom <= bottom + 1,
+          !reason &&
+          bounds.left >= left - 1 &&
+          bounds.right <= right + 1 &&
+          bounds.top >= top - 1 &&
+          bounds.bottom <= bottom + 1,
       };
-    });
+    };
+    const admitted = (node: Element | null | undefined) =>
+      !!node && measure(node).admission.state === "admitted";
+    const subject = useIdentity
+      ? admitted(chip)
+        ? chip!
+        : admitted(title)
+          ? title!
+          : element
+      : element;
+    const rect = element.getBoundingClientRect();
+    const measured = [
+      element,
+      ...(useIdentity && subject !== element ? [subject] : []),
+      ...(label ? [label] : []),
+    ].map((node) => measure(node));
+    const focused = document.activeElement === element;
+    const focusIndicator = (() => {
+      if (!focused) return { state: "not-focused" as const };
+      if (!element.matches(":focus-visible"))
+        return { state: "not-focus-visible" as const };
+      const surrogate =
+        element.matches(".bottom-sheet-detent") &&
+        label?.matches(".bottom-sheet-grabber")
+          ? label
+          : null;
+      const node = surrogate ?? element;
+      const style = getComputedStyle(node);
+      const outline = {
+        style: style.outlineStyle,
+        width: Number.parseFloat(style.outlineWidth),
+        offset: Number.parseFloat(style.outlineOffset),
+        color: style.outlineColor,
+      };
+      if (outline.style === "none" || outline.width <= 0)
+        return { state: "no-outline" as const, outline };
+      const extent = Math.max(0, outline.width + outline.offset);
+      const paint = measure(node, extent);
+      return {
+        state: "outline" as const,
+        subject: surrogate ? ("detent-grabber" as const) : ("control" as const),
+        node: describe(node),
+        outline,
+        bounds: {
+          left: paint.rect.left - extent,
+          right: paint.rect.right + extent,
+          top: paint.rect.top - extent,
+          bottom: paint.rect.bottom + extent,
+        },
+        admission: paint.admission,
+        visibleArea: paint.visibleArea,
+        full: paint.full,
+      };
+    })();
     const hitRect = subject.getBoundingClientRect();
     const point = {
       x: hitRect.left + hitRect.width / 2,
@@ -119,7 +185,9 @@ export async function controlGeometry(control: Locator, identity = false) {
         measured.every((item) => item.full) && identityInsideControl,
       hitsControl: hit === element || (!!hit && element.contains(hit)),
       hit: hit ? describe(hit) : null,
-      focused: document.activeElement === element,
+      hitStack: document.elementsFromPoint(point.x, point.y).map(describe),
+      focused,
+      focusIndicator,
     };
   }, identity);
 }
@@ -154,55 +222,34 @@ export async function wheelInspector(
   const body = (await sheetBody.count())
     ? sheetBody
     : page.locator(".inspector .modifier-body");
-  const anchor = await body.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    let left = Math.max(0, box.left),
-      right = Math.min(innerWidth, box.right);
-    let top = Math.max(0, box.top),
-      bottom = Math.min(innerHeight, box.bottom);
-    for (
-      let ancestor = element.parentElement;
-      ancestor;
-      ancestor = ancestor.parentElement
-    ) {
-      const style = getComputedStyle(ancestor),
-        rect = ancestor.getBoundingClientRect();
-      if (/hidden|clip|auto|scroll/.test(style.overflowX)) {
-        left = Math.max(left, rect.left + ancestor.clientLeft);
-        right = Math.min(
-          right,
-          rect.left + ancestor.clientLeft + ancestor.clientWidth,
-        );
-      }
-      if (/hidden|clip|auto|scroll/.test(style.overflowY)) {
-        top = Math.max(top, rect.top + ancestor.clientTop);
-        bottom = Math.min(
-          bottom,
-          rect.top + ancestor.clientTop + ancestor.clientHeight,
-        );
-      }
-    }
-    const panel =
-      element.closest(".bottom-sheet") ?? element.closest(".inspector");
-    const fallback = panel?.getBoundingClientRect();
-    const visibleBody = right > left && bottom > top;
-    if (!visibleBody && fallback) {
-      left = Math.max(0, fallback.left);
-      right = Math.min(innerWidth, fallback.right);
-      top = Math.max(0, fallback.top);
-      bottom = Math.min(innerHeight, fallback.bottom);
-    }
-    const point = { x: left + (right - left) / 2, y: top + (bottom - top) / 2 };
-    const hit = document.elementFromPoint(point.x, point.y);
-    return {
-      point,
-      body: box.toJSON(),
-      visibleBody,
-      usable: right > left && bottom > top,
-      visibleRect: { left, top, right, bottom },
-      hit: hit?.outerHTML.slice(0, 250),
-    };
-  });
+  const geometry = await controlGeometry(body);
+  const area = geometry.measured[0].visibleArea;
+  const visibleBody = area.state === "positive";
+  const fallback = visibleBody
+    ? null
+    : await controlGeometry(
+        page.locator(".bottom-sheet, .inspector").filter({ has: body }),
+      );
+  const bounds = visibleBody ? area.bounds : fallback?.measured[0].visibleArea;
+  const visibleRect =
+    bounds && "state" in bounds
+      ? bounds.state === "positive"
+        ? bounds.bounds
+        : null
+      : bounds;
+  const anchor = {
+    point: visibleRect
+      ? {
+          x: (visibleRect.left + visibleRect.right) / 2,
+          y: (visibleRect.top + visibleRect.bottom) / 2,
+        }
+      : geometry.point,
+    body: geometry.rect,
+    visibleBody,
+    usable: !!visibleRect,
+    visibleRect,
+    hit: geometry.hit,
+  };
   receipts.push({
     checkpoint: "ordinary-body-wheel",
     observation: { ...anchor, delta },
@@ -357,7 +404,13 @@ export async function visibleFocus(
   try {
     await expect(control).toBeFocused();
     await expect
-      .poll(async () => (await controlGeometry(control)).fullyVisible)
+      .poll(async () => {
+        const geometry = await controlGeometry(control);
+        return geometry.focusIndicator.state === "outline" &&
+          geometry.focusIndicator.subject === "detent-grabber"
+          ? geometry.focusIndicator.full
+          : geometry.fullyVisible;
+      })
       .toBe(true);
   } finally {
     receipts.push({
@@ -378,18 +431,29 @@ export async function nativeTabTo(
       await target.evaluate((element) => element === document.activeElement)
     ) {
       await visibleFocus(target, receipts, "native-tab-visible-target");
+      const geometry = await controlGeometry(target);
+      expect(geometry.focusIndicator, JSON.stringify(geometry)).toMatchObject({
+        state: "outline",
+        full: true,
+      });
       return;
     }
     await page.keyboard.press(tabKey);
     const focusedField = page.locator(
-      ".bottom-sheet--compact :is(input, select, textarea):focus:not(.sr-only)",
+      ".bottom-sheet--compact :is(button, input, select, textarea):focus",
     );
-    if (await focusedField.count())
+    if (await focusedField.count()) {
       await visibleFocus(
         focusedField,
         receipts,
         "native-tab-intermediate-field",
       );
+      const geometry = await controlGeometry(focusedField);
+      expect(geometry.focusIndicator, JSON.stringify(geometry)).toMatchObject({
+        state: "outline",
+        full: true,
+      });
+    }
   }
   throw new Error("Native Tab traversal did not reach target");
 }

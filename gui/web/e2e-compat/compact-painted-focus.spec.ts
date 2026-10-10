@@ -107,44 +107,17 @@ for (const width of [667, 844]) {
               seen.add(id);
               await expect(active).toBeFocused();
               await page.waitForTimeout(50);
-              const surrogate = await active.evaluate((element) =>
-                element.matches(".bottom-sheet-detent"),
-              );
-              const indicator = surrogate
-                ? page.locator(".bottom-sheet-grabber")
-                : active;
-              const geometry = await controlGeometry(indicator);
-              const style = await indicator.evaluate((element) => {
-                const css = getComputedStyle(element);
-                return {
-                  width: Number.parseFloat(css.outlineWidth),
-                  offset: Number.parseFloat(css.outlineOffset),
-                  outlineStyle: css.outlineStyle,
-                  color: css.outlineColor,
-                  focusVisible:
-                    document.activeElement?.matches(":focus-visible"),
-                };
-              });
-              const extent = Math.max(0, style.width + style.offset);
-              const box = geometry.measured[0].rect;
-              const clip = geometry.measured[0].clip;
-              const paint = {
-                left: box.left - extent,
-                right: box.right + extent,
-                top: box.top - extent,
-                bottom: box.bottom + extent,
-              };
+              const geometry = await controlGeometry(active);
+              const paint = geometry.focusIndicator;
+              const surrogate =
+                paint.state === "outline" && paint.subject === "detent-grabber";
               const visible =
-                style.focusVisible &&
-                style.outlineStyle !== "none" &&
-                style.width > 0 &&
-                paint.left >= clip.left &&
-                paint.right <= clip.right &&
-                paint.top >= clip.top &&
-                paint.bottom <= clip.bottom;
+                paint.state === "outline" &&
+                paint.full &&
+                paint.visibleArea.state === "positive";
               receipts.push({
                 checkpoint: "native-painted-indicator",
-                observation: { id, surrogate, geometry, style, paint, visible },
+                observation: { id, surrogate, geometry, visible },
               });
               if (!visible) clipped.push(id);
               await info.attach(id, {

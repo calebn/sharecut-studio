@@ -59,7 +59,7 @@ enforced-by:
 - gui/web/src/inspector/InspectorPeek.test.tsx::rolls a held run back, saving nothing, when the router cancels it for a second finger
 - gui/web/src/timeline/hitRouting.grammar.test.ts::arms from its body near an end whose trim and fade targets are click-through, as on an unselected clip
 - gui/web/src/timeline/hitCandidates.test.ts::is still the one candidate when every target in reach is out of reach
-- gui/web/e2e-compat/touch-chrome-reach.spec.ts::compact history ${name} root${rootPx} ${theme}
+- gui/web/e2e-compat/compact-history-persistence.spec.ts::compact history ${name} root${rootPx} ${theme}
 - gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
 - gui/web/e2e-compat/touch-chrome-reach.spec.ts::the Cut button of the blade confirmation can be tapped at 32px text: landscape
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
@@ -626,7 +626,7 @@ evidence:
 - #1205: at 844x390 with 32 px text, a tap on the rail Undo hit the envelope nudge and saved an unintended edit
 - #1205 design synthesis: the same history controls move into the compact header while lane space returns
 enforced-by:
-- gui/web/e2e-compat/touch-chrome-reach.spec.ts::compact history ${name} root${rootPx} ${theme}
+- gui/web/e2e-compat/compact-history-persistence.spec.ts::compact history ${name} root${rootPx} ${theme}
 - gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
 -->
 
@@ -854,3 +854,9 @@ reveals its full fitting native label and control. The single Toast retains its
 remaining visible lifetime while clipped and through host movement. Initial
 header reachability is asserted before any recovery scroll. No short-height
 rule may make those header controls scroll away.
+
+Feedback does not override half or full detent geometry. Compact controls paint
+focus outlines inside their border boxes. The visually hidden detent range
+keeps the grabber as its visible focus indicator. Visibility observation follows
+the same feedback card through compact and floating hosts, so both presentations
+pause the single remaining lifetime when the whole card is clipped.

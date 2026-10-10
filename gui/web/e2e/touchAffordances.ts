@@ -159,10 +159,7 @@ export async function exerciseTouchSheetAffordances(
     sheet.locator(".bottom-sheet-body"),
   );
   const bodyArea = bodyGeometry.measured[0];
-  expect(
-    Math.min(bodyArea.rect.bottom, bodyArea.clip.bottom) -
-      Math.max(bodyArea.rect.top, bodyArea.clip.top),
-  ).toBeGreaterThan(0);
+  expect(bodyArea.visibleArea.state).toBe("positive");
   if (viewport.textScale) {
     const titleBox = before.titleBox;
     if (titleBox === null) throw new Error("The scaled sheet title is missing");
