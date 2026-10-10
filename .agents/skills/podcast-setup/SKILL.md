@@ -134,6 +134,12 @@ See `docs/nl-editing.md`, `docs/timeline-comments.md`, `docs/inaudible-cuts.md`,
 
 Pipeline thresholds live in `.agents/defaults/pipeline.yaml`. Skills reference those values; change them to tune behavior repo-wide.
 
+Source-only acquisition uses `python scripts/build_ffmpeg.py --acquire-sources
+--source-cache /absolute/path/ffmpeg-sources`. To build without source downloads,
+pass `--source-archives /absolute/path/ffmpeg-sources` with `--output`. The complete
+archive set must match the current contract hashes, including before payload
+reuse. CI uses a same-run original-source artifact and builds each target natively.
+
 ## Troubleshooting
 
 See `docs/setup.md`. If `podcast` is not found, activate `.venv` or use `uv run`.

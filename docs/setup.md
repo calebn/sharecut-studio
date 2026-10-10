@@ -259,6 +259,33 @@ then use the `.exe` paths. Linux requires a C compiler, make, pkg-config and cur
 macOS requires the Xcode command-line tools, make, pkg-config and curl. The builder
 compiles native sources. It does not run during normal startup or bootstrap.
 
+To acquire only the original archives, without extraction or compiler tools, run:
+
+```bash
+python scripts/build_ffmpeg.py --acquire-sources --source-cache /absolute/path/ffmpeg-sources
+python scripts/build_ffmpeg.py --output /absolute/path/sharecut-ffmpeg --source-archives /absolute/path/ffmpeg-sources
+```
+
+`--source-cache` permits bounded downloads from the contract's official HTTPS
+URLs. Downloads go to unique temporary siblings, pass the expected SHA256 check,
+and replace the final cache entry atomically. Failed downloads never publish a
+final archive. Existing cache entries are rehashed and corruption fails closed.
+`--source-archives` requires the complete set and never downloads missing files.
+It is mutually exclusive with `--source-cache`. Supplied archives must pass
+admission even when an existing native payload can be reused. Before extracting
+any source, the builder copies every archive into its owned payload `sources/`
+directory and hashes those exact copies. The payload retains these original
+archives, notices, build logs and a runnable `rebuild/` tree.
+
+Each desktop, registry, test and release workflow invokes
+`.github/workflows/ffmpeg-sources.yml` once. It checks out the exact source SHA,
+acquires only original archives and publishes a one-day, same-run artifact.
+Each native consumer independently checks the current contract hashes through
+`--source-archives`. Release acquisition follows `verify-source` and receives
+only the optional read-only source checkout key, never signing material.
+Source acquisition proves archive delivery. Native compilation, system linkage
+and media execution remain separate required checks on each target.
+
 ### FFmpeg version and pair policy
 
 #### Decision: Bundle the pinned FFmpeg 9 pair
@@ -304,8 +331,8 @@ PNG through zlib and Opus through libopus. It enables neither GPL nor nonfree
 dependencies. Static pkg-config resolution includes private system libraries
 required by dependencies, such as Opus’s math library on Linux. Standalone
 x86 assembly is disabled, so native jobs do not need NASM. CI and desktop release
-jobs run this builder and execute the resulting pair. Source archives alone are
-cached and rechecked before extraction. Binary hashes detect corruption after a
+jobs run this builder and execute the resulting pair. Original source archives
+are transported in same-run artifacts and rechecked by every consumer. Binary hashes detect corruption after a
 trusted source build, and do not authenticate arbitrary binary downloads.
 
 Windows linkage validation admits audited direct imports from Windows SDK DLLs,

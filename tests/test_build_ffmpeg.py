@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import io
 import tarfile
+from pathlib import Path
 
 import pytest
 
@@ -202,6 +203,8 @@ def test_windows_builder_requests_and_stages_executable_targets(tmp_path, monkey
     commands = []
 
     def native_tool(argv, *, cwd=None, **kwargs):
+        if argv[0] == "curl":
+            pytest.fail("supplied sources triggered a download")
         if cwd and cwd.name == policy["sources"]["ffmpeg"]["directory"]:
             if argv[:2] == ["sh", "configure"]:
                 (cwd / "config.h").write_text("#define CONFIG_GPL 0\n#define CONFIG_NONFREE 0\n")
@@ -216,10 +219,20 @@ def test_windows_builder_requests_and_stages_executable_targets(tmp_path, monkey
     monkeypatch.setattr(builder, "_run", native_tool)
     output = tmp_path / "payload"
     output.mkdir()
-    builder.build_payload(output, source_cache=cache)
+    builder.build_payload(output, source_archives=cache)
     assert commands == [["make", "-j2", "ffmpeg.exe", "ffprobe.exe"]]
     assert (output / "bin/ffmpeg.exe").read_bytes() == b"native executable"
     assert (output / "bin/ffprobe.exe").read_bytes() == b"native executable"
+    for source in policy["sources"].values():
+        assert (output / "sources" / source["archive"]).read_bytes() == (
+            cache / source["archive"]
+        ).read_bytes()
+    rebuild = output / "rebuild"
+    assert (rebuild / "scripts/build_ffmpeg.py").read_bytes() == Path(builder.__file__).read_bytes()
+    for name in ("atomic_file.py", "ffmpeg_policy.py", "hashing.py"):
+        assert (rebuild / "src/podcast_mcp/util" / name).read_bytes() == (
+            builder.ROOT / "src/podcast_mcp/util" / name
+        ).read_bytes()
 
 
 def test_windows_linkage_accepts_native_recipe_sdk_imports(tmp_path, monkeypatch, capsys):
@@ -277,3 +290,141 @@ def test_windows_linkage_rejects_missing_import_evidence(tmp_path, monkeypatch):
     monkeypatch.setattr(builder, "_run", lambda *_a, **_k: "no import table\n")
     with pytest.raises(ValueError, match="non-system native linkage"):
         builder._linkage(tmp_path / "ffmpeg.exe")
+
+
+@pytest.fixture
+def source_delivery(tmp_path, monkeypatch):
+    builder = load_script("build_ffmpeg")
+    policy = copy.deepcopy(builder.ffmpeg_policy())
+    cache = tmp_path / "archives"
+    cache.mkdir()
+    for source in policy["sources"].values():
+        archive = cache / source["archive"]
+        archive.write_bytes(b"original pinned source " + archive.name.encode())
+        source["sha256"] = builder.sha256_file(archive)
+    monkeypatch.setattr(builder, "ffmpeg_policy", lambda: policy)
+    return builder, policy, cache
+
+
+def test_source_only_cli_never_extracts_or_compiles(source_delivery, monkeypatch):
+    builder, _, cache = source_delivery
+    monkeypatch.setattr(builder, "safe_extract", lambda *_: pytest.fail("extracted"))
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("compiled or downloaded"))
+    assert builder.main(["--acquire-sources", "--source-cache", str(cache)]) == 0
+    assert len(list(cache.iterdir())) == 4
+
+
+@pytest.mark.parametrize("damage", ["missing", "corrupt", "misnamed"])
+def test_supplied_sources_rejected_before_payload_reuse(source_delivery, monkeypatch, damage):
+    builder, policy, cache = source_delivery
+    archive = cache / policy["sources"]["opus"]["archive"]
+    if damage == "missing":
+        archive.unlink()
+    elif damage == "misnamed":
+        archive.rename(cache / "wrong-name.tar.gz")
+    else:
+        archive.write_bytes(b"corrupt")
+    monkeypatch.setattr(builder, "verify_payload", lambda *_a, **_k: pytest.fail("reused"))
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("download fallback"))
+    with pytest.raises((ValueError, FileNotFoundError)):
+        builder.ensure_payload(cache.parent / "payload", source_archives=cache)
+
+
+def test_supplied_source_copy_change_refused_before_any_extraction(source_delivery, monkeypatch):
+    builder, policy, cache = source_delivery
+    original = builder.shutil.copy2
+
+    def changed_copy(src, dst, **kwargs):
+        result = original(src, dst, **kwargs)
+        if Path(dst).name == policy["sources"]["opus"]["archive"]:
+            Path(dst).write_bytes(b"changed while copied")
+        return result
+
+    monkeypatch.setattr(builder.shutil, "copy2", changed_copy)
+    monkeypatch.setattr(builder, "safe_extract", lambda *_: pytest.fail("extracted"))
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("download fallback"))
+    output = cache.parent / "payload"
+    output.mkdir()
+    with pytest.raises(ValueError, match="sha256"):
+        builder.build_payload(output, source_archives=cache)
+
+
+@pytest.mark.parametrize("failure", ["partial", "corrupt", "none"])
+def test_source_acquisition_atomic_publication(source_delivery, monkeypatch, failure):
+    builder, policy, cache = source_delivery
+    source = policy["sources"]["opus"]
+    archive = cache / source["archive"]
+    content = archive.read_bytes()
+    archive.unlink()
+    commands = []
+
+    def download(argv, **kwargs):
+        commands.append(argv)
+        destination = Path(argv[argv.index("--output") + 1])
+        assert destination.parent == cache
+        assert not archive.exists()
+        destination.write_bytes(b"partial" if failure != "none" else content)
+        if failure == "partial":
+            raise RuntimeError("interrupted transfer")
+        return "downloaded"
+
+    monkeypatch.setattr(builder, "_run", download)
+    if failure == "none":
+        assert builder.main(["--acquire-sources", "--source-cache", str(cache)]) == 0
+        assert archive.read_bytes() == content
+    else:
+        with pytest.raises((ValueError, RuntimeError)):
+            builder.main(["--acquire-sources", "--source-cache", str(cache)])
+        assert not archive.exists()
+    assert sorted(p.name for p in cache.iterdir()) == sorted(
+        s["archive"] for s in policy["sources"].values() if failure == "none" or s is not source
+    )
+    assert commands[0][-1] == source["url"]
+    assert "--proto-redir" in commands[0]
+    assert "=https" in commands[0]
+
+
+def test_valid_supplied_sources_admitted_before_reuse(source_delivery, monkeypatch):
+    builder, _, cache = source_delivery
+    monkeypatch.setattr(builder, "verify_payload", lambda *_a, **_k: {"version": "9.0.2"})
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("network or compiler"))
+    assert builder.ensure_payload(cache.parent / "payload", source_archives=cache) == {
+        "version": "9.0.2"
+    }
+
+
+def test_local_build_acquires_and_checks_complete_set_before_extraction(
+    source_delivery, monkeypatch
+):
+    builder, policy, cache = source_delivery
+    source = policy["sources"]["opus"]
+    archive = cache / source["archive"]
+    content = archive.read_bytes()
+    archive.unlink()
+
+    def download(argv, **kwargs):
+        assert argv[0] == "curl"
+        Path(argv[argv.index("--output") + 1]).write_bytes(content)
+        return "original source"
+
+    def extraction(archive, destination):
+        assert archive.parent.name == "sources"
+        assert archive.read_bytes() == (cache / archive.name).read_bytes()
+        raise RuntimeError("reached extraction with admitted sources")
+
+    monkeypatch.setattr(builder, "_run", download)
+    monkeypatch.setattr(builder, "safe_extract", extraction)
+    output = cache.parent / "payload"
+    output.mkdir()
+    with pytest.raises(RuntimeError, match="reached extraction"):
+        builder.build_payload(output, source_cache=cache)
+    assert archive.read_bytes() == content
+
+
+@pytest.mark.parametrize("filename", ["../escape.tar", "/outside.tar", "..", "nested\\archive.tar"])
+def test_source_archive_names_are_checked_at_boundary(source_delivery, monkeypatch, filename):
+    builder, policy, cache = source_delivery
+    policy["sources"]["opus"]["archive"] = filename
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("download"))
+    with pytest.raises(ValueError, match="unsafe source archive name"):
+        builder.main(["--acquire-sources", "--source-cache", str(cache)])

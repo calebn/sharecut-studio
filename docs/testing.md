@@ -185,9 +185,17 @@ The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, 
 ### CI dependency downloads
 
 The `pytest` and browser matrix jobs build the pinned native FFmpeg source
-recipe through `.github/actions/setup-ffmpeg`. Source archives are the only
-FFmpeg cache entries. The builder verifies expected SHA256 before safe extraction
-on every use, checks system-only linkage, and executes codec, resampling,
+recipe through `.github/actions/setup-ffmpeg`. Each independent workflow first
+calls the shared source-only producer, which downloads official pinned archives
+without extraction or compilation. A one-day same-run artifact transports the
+original archives to every native consumer. The action requires that artifact
+and has no source-cache or network fallback. Consumers rehash the complete set
+before payload reuse and verify the owned copies before any extraction. Failed
+or partial producer downloads never publish final cache entries. Release source
+production follows the exact repository/SHA trust gate, and failed acquisition
+blocks both extension preparation and bundling. A skipped optional extension job
+still permits an ordinary bundle after successful source production.
+The builder checks system-only linkage, and executes codec, resampling,
 loudness and PNG probes before exporting the absolute pair paths. Codec probes
 include actual libopus encode/decode. The acceptance verifier also runs
 multichannel bleed behavior across PCM and lossy AAC/Opus. A damaged
@@ -204,7 +212,7 @@ Node packages are not cached by this change. Playwright still installs Chromium
 and WebKit with `--with-deps` for both existing suites.
 
 Run the archive boundary and workflow checks with
-`.venv/bin/python -m pytest -q --no-cov tests/test_ci_dependency_cache.py tests/test_browser_acceptance_matrix.py`.
+`.venv/bin/python -m pytest -q --no-cov tests/test_build_ffmpeg.py tests/test_build_sidecar.py tests/test_ci_dependency_cache.py tests/test_release_desktop_workflows.py tests/test_browser_acceptance_matrix.py`.
 
 ### FFmpeg release acceptance
 

@@ -21,7 +21,7 @@ Choose a downloaded Whisper model for one standalone transcription with `podcast
 
 `podcast transcribe` reports the number of tracks processed by that run. When there are no dialogue tracks to process, it reports `Transcribed 0 track(s).` and warns on stderr.
 
-No supported system pair? Build the pinned sources with the [shared native builder](docs/setup.md#build-ffmpeg-from-source). Pair selection and the tested release policy are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
+No supported system pair? Build the pinned sources with the [shared native builder](docs/setup.md#build-ffmpeg-from-source). That builder also supports source-only acquisition and offline consumption of the complete pinned archive set. Pair selection and the tested release policy are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
 
 Agent config is tool-agnostic under [.agents/](.agents/) (skills, rules, MCP template). Register MCP per [docs/setup.md](docs/setup.md). With `podcast gui` running on loopback, **Connect agent…** (home or Menu) copies `http://127.0.0.1:8765/mcp` for URL-only clients. Use the `podcast-setup` skill when onboarding.
 

@@ -1,5 +1,8 @@
 """Select and validate a supported FFmpeg 9 executable pair.
 
+Build-time source archive delivery belongs to scripts/build_ffmpeg.py and never
+participates in application runtime pair selection.
+
 Explicit commands win, followed by a declared desktop bundle, native Homebrew,
 a complete PATH directory, and the existing source-use cache. Selection runs
 bounded version probes and never downloads tools.

@@ -17,6 +17,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.hashing import sha256_file
 
@@ -27,6 +28,57 @@ def verify_archive(archive: Path, expected: str) -> None:
     actual = sha256_file(archive)
     if actual != expected:
         raise ValueError(f"sha256 mismatch for {archive.name}: expected {expected}, got {actual}")
+
+
+def _prepare_sources(directory: Path, *, download: bool) -> dict[str, Path]:
+    sources = ffmpeg_policy()["sources"]
+    if download:
+        directory.mkdir(parents=True, exist_ok=True)
+    archives = {}
+    for name, source in sources.items():
+        filename = source["archive"]
+        if Path(filename).name != filename or filename in {".", ".."} or "\\" in filename:
+            raise ValueError(f"unsafe source archive name {filename!r}")
+        archive = directory / filename
+        if not archive.is_file() and download:
+            with tempfile.NamedTemporaryFile(
+                prefix=f".{filename}-", dir=directory, delete=False
+            ) as handle:
+                partial = Path(handle.name)
+            try:
+                _run(
+                    [
+                        "curl",
+                        "--fail",
+                        "--location",
+                        "--proto",
+                        "=https",
+                        "--proto-redir",
+                        "=https",
+                        "--max-time",
+                        "120",
+                        "--retry",
+                        "2",
+                        "--max-filesize",
+                        "104857600",
+                        "--output",
+                        str(partial),
+                        source["url"],
+                    ],
+                    timeout=400,
+                )
+                verify_archive(partial, source["sha256"])
+                publish_completed_file(partial, archive)
+            finally:
+                partial.unlink(missing_ok=True)
+        verify_archive(archive, source["sha256"])
+        archives[name] = archive
+    return archives
+
+
+def acquire_sources(directory: Path) -> None:
+    """Acquire the complete pinned archive set without extracting or compiling."""
+    _prepare_sources(directory, download=True)
 
 
 def safe_extract(archive: Path, destination: Path) -> None:
@@ -286,14 +338,25 @@ def verify_payload(directory: Path, *, target: str | None = None) -> dict[str, A
 
 
 def build_payload(
-    directory: Path, *, source_cache: Path | None = None, target: str | None = None, jobs: int = 2
+    directory: Path,
+    *,
+    source_cache: Path | None = None,
+    source_archives: Path | None = None,
+    target: str | None = None,
+    jobs: int = 2,
 ) -> dict[str, Any]:
     target = target or _target()
     if target != _target():
         raise ValueError(f"native builder target {target} differs from host {_target()}")
     policy = ffmpeg_policy()
-    source_cache = source_cache or directory / "download-cache"
-    source_cache.mkdir(parents=True, exist_ok=True)
+    if source_cache is not None and source_archives is not None:
+        raise ValueError("choose source cache or supplied source archives")
+    archives = _prepare_sources(
+        source_archives
+        if source_archives is not None
+        else source_cache or directory / "download-cache",
+        download=source_archives is None,
+    )
     (directory / "sources").mkdir()
     (directory / "notices").mkdir()
     (directory / "bin").mkdir()
@@ -306,35 +369,11 @@ def build_payload(
             environment["MACOSX_DEPLOYMENT_TARGET"] = policy["macos_deployment_target"]
         logs: dict[str, str] = {}
         for name, source in policy["sources"].items():
-            archive = source_cache / source["archive"]
-            if not archive.is_file():
-                partial = work / source["archive"]
-                _run(
-                    [
-                        "curl",
-                        "--fail",
-                        "--location",
-                        "--proto",
-                        "=https",
-                        "--proto-redir",
-                        "=https",
-                        "--max-time",
-                        "120",
-                        "--retry",
-                        "2",
-                        "--max-filesize",
-                        "104857600",
-                        "--output",
-                        str(partial),
-                        source["url"],
-                    ],
-                    timeout=400,
-                )
-                verify_archive(partial, source["sha256"])
-                shutil.copy2(partial, archive)
+            archive = directory / "sources" / source["archive"]
+            shutil.copy2(archives[name], archive)
             verify_archive(archive, source["sha256"])
-            shutil.copy2(archive, directory / "sources" / archive.name)
-            safe_extract(archive, work)
+        for name, source in policy["sources"].items():
+            safe_extract(directory / "sources" / source["archive"], work)
             source_dir = work / source["directory"]
             notices = directory / "notices" / name
             notices.mkdir()
@@ -394,7 +433,7 @@ def build_payload(
         modules.mkdir(parents=True)
         (modules.parent / "__init__.py").write_text("")
         (modules / "__init__.py").write_text("")
-        for module in ("ffmpeg_policy.py", "hashing.py"):
+        for module in ("atomic_file.py", "ffmpeg_policy.py", "hashing.py"):
             shutil.copy2(ROOT / "src/podcast_mcp/util" / module, modules / module)
         shutil.copy2(Path(__file__), rebuild / "scripts/build_ffmpeg.py")
         shutil.copy2(ROOT / "contracts/ffmpeg-build.json", rebuild / "contracts/ffmpeg-build.json")
@@ -416,8 +455,17 @@ def build_payload(
 
 
 def ensure_payload(
-    output: Path, *, source_cache: Path | None = None, target: str | None = None, jobs: int = 2
+    output: Path,
+    *,
+    source_cache: Path | None = None,
+    source_archives: Path | None = None,
+    target: str | None = None,
+    jobs: int = 2,
 ) -> dict[str, Any]:
+    if source_cache is not None and source_archives is not None:
+        raise ValueError("choose source cache or supplied source archives")
+    if source_archives is not None:
+        _prepare_sources(source_archives, download=False)
     try:
         return verify_payload(output, target=target)
     except (OSError, ValueError, KeyError, RuntimeError):
@@ -426,7 +474,13 @@ def ensure_payload(
     with tempfile.TemporaryDirectory(prefix=f".{output.name}-", dir=output.parent) as temp:
         stage = Path(temp) / "payload"
         stage.mkdir()
-        build_payload(stage, source_cache=source_cache, target=target, jobs=jobs)
+        build_payload(
+            stage,
+            source_cache=source_cache,
+            source_archives=source_archives,
+            target=target,
+            jobs=jobs,
+        )
         manifest = verify_payload(stage, target=target)
         previous = Path(temp) / "previous"
         if output.exists():
@@ -442,13 +496,24 @@ def ensure_payload(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--source-cache", type=Path)
+    parser.add_argument("--output", type=Path)
+    sources = parser.add_mutually_exclusive_group()
+    sources.add_argument("--source-cache", type=Path)
+    sources.add_argument("--source-archives", type=Path)
+    parser.add_argument("--acquire-sources", action="store_true")
     parser.add_argument("--target")
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--refresh-integrity", action="store_true")
     parser.add_argument("--verify-only", action="store_true")
     args = parser.parse_args(argv)
+    if args.acquire_sources:
+        if args.source_cache is None or args.output or args.verify_only or args.refresh_integrity:
+            parser.error("--acquire-sources requires --source-cache and no payload operation")
+        acquire_sources(args.source_cache.absolute())
+        print(f"Verified original FFmpeg sources at {args.source_cache}")
+        return 0
+    if args.output is None:
+        parser.error("--output is required for payload operations")
     if args.verify_only:
         verify_payload(args.output, target=args.target)
         return 0
@@ -457,7 +522,11 @@ def main(argv: list[str] | None = None) -> int:
         verify_payload(args.output, target=args.target)
         return 0
     ensure_payload(
-        args.output.absolute(), source_cache=args.source_cache, target=args.target, jobs=args.jobs
+        args.output.absolute(),
+        source_cache=args.source_cache,
+        source_archives=args.source_archives,
+        target=args.target,
+        jobs=args.jobs,
     )
     print(f"Verified FFmpeg {ffmpeg_policy()['version']} native payload at {args.output}")
     return 0
