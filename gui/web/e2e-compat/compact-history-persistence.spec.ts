@@ -150,6 +150,7 @@ async function undoStaysReachable(
             .toJSON(),
           shell: document.documentElement.dataset.shell,
           layout: document.documentElement.dataset.layout,
+          detent: document.querySelector(".bottom-sheet")?.className,
         };
       }),
     };
@@ -313,16 +314,18 @@ async function undoStaysReachable(
   await expect(page.locator(".guest-attention")).not.toBeVisible();
   await check("strip-open-after-edit", headerHistory);
   for (const detent of ["half", "full", "peek"] as const) {
-    await page
-      .getByRole("button", {
-        name:
-          detent === "half"
-            ? "Expand to half height"
-            : detent === "full"
-              ? "Expand to full height"
-              : "Collapse to strip",
-      })
-      .click();
+    if (!(await page.locator(`.bottom-sheet--${detent}`).count())) {
+      await page
+        .getByRole("button", {
+          name:
+            detent === "half"
+              ? "Expand to half height"
+              : detent === "full"
+                ? "Expand to full height"
+                : "Collapse to strip",
+        })
+        .click();
+    }
     await check(`feedback-${detent}`, headerHistory);
   }
   await page
