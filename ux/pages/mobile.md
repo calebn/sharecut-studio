@@ -57,7 +57,8 @@ An inspector stays open while the timeline remains interactive behind it. Fine p
 
 While the compact inspector is open, keyboard navigation skips the covered tool
 row and reaches Undo and Redo in the visible header. Closing the inspector or
-dragging a timeline target restores the tool row.
+dragging a timeline target restores the tool row. While the inspector is
+stowed, its hidden controls are skipped too.
 
 On a short screen with enlarged text, scroll the expanded inspector to reach
 its fields. The compact header keeps its close spacing at every height, and

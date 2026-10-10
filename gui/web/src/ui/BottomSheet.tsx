@@ -192,6 +192,7 @@ export function BottomSheet({
   return createPortal(
     <div
       className={`bottom-sheet-root${stowed ? " is-stowed" : ""}`}
+      inert={stowed}
       role="presentation"
     >
       {backgroundPolicy === "interactive" ? (

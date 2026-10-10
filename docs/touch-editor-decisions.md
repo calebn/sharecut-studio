@@ -782,6 +782,8 @@ chooser lab until the owner made it the default (2026-10-07).
 - **Drawer.** The compact inspector swipes between peek (the strip), half
   and full. Its covered editing rail stays inert while the drawer is visible;
   closing or stowing restores the rail without changing its layout height.
+  The stowed sheet is inert until it returns, so native keys reach only the
+  visible controls.
   Expand and Collapse step between detents, and the visually hidden
   "Inspector height" range does it for keys and screen readers. The owner's
   round-5 phone test found the swipe followed the finger but lagged: each
