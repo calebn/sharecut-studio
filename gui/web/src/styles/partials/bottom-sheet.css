@@ -342,6 +342,6 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   overflow: visible;
 }
 
-.bottom-sheet--compact :focus-visible:not(.sr-only) {
+.bottom-sheet :focus-visible:not(.sr-only) {
   outline-offset: calc(-1 * var(--focus-ring-width));
 }
