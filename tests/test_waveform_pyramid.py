@@ -949,7 +949,7 @@ def test_read_pcm_minmax_ffmpeg_window(tmp_path):
 
 
 def test_decode_window_f32_validates_and_short_circuits(tmp_path):
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     assert eng.decode_window_f32(tmp_path / "x.wav", 0, 0, 8000, 2).shape == (0, 2)
     with pytest.raises(ValueError):
         eng.decode_window_f32(tmp_path / "x.wav", -1, 10, 8000, 2)
@@ -1016,7 +1016,7 @@ def _probe(*_a, **_k):
 def test_complete_decode_requires_final_timestamp_evidence(tmp_path, progress):
     proc = _FakeProc(np.ones(16000, dtype="<f4").tobytes())
     proc.wait = MagicMock(wraps=proc.wait)
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
 
     def spawn(_argv, *, stdout, stderr):
         stderr.write(progress)
@@ -1043,7 +1043,7 @@ def test_complete_decode_requires_final_timestamp_evidence(tmp_path, progress):
 def test_stream_timer_kills_stuck_process(tmp_path):
     proc = _FakeProc()
     _ImmediateTimer.instances.clear()
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
         patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc) as popen,
@@ -1080,7 +1080,7 @@ def test_window_trims_by_timestamp_and_uses_short_timer(tmp_path):
         def start(self):
             pass
 
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc) as popen,
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
@@ -1104,7 +1104,7 @@ def test_stream_close_kills_running_process(tmp_path):
         def start(self):
             pass
 
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
         patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
@@ -1124,7 +1124,7 @@ def test_stream_watchdog_is_disarmed_while_the_consumer_holds_a_chunk(tmp_path):
         def start(self):
             pass
 
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
         patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
@@ -1156,7 +1156,7 @@ def test_stream_watchdog_that_fires_after_the_read_is_ignored(tmp_path, code):
             self.fn()
             super().cancel()
 
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
         patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
@@ -1183,7 +1183,7 @@ def test_stream_stale_watchdog_after_the_next_arm_is_ignored(tmp_path):
             if len(_ImmediateTimer.instances) > 1:
                 _ImmediateTimer.instances[-2].fn()
 
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
         patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
@@ -1204,7 +1204,7 @@ def test_stream_failure_reports_the_stderr_tail(tmp_path):
         def start(self):
             pass
 
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
         patch("podcast_mcp.engines.ffmpeg.popen", side_effect=_popen),
@@ -1227,7 +1227,7 @@ def test_stream_clean_eof_and_missing_pipe(tmp_path):
         def start(self):
             pass
 
-    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    eng = FFmpegEngine()
     with (
         patch.object(FFmpegEngine, "probe", side_effect=_probe),
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),

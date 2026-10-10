@@ -530,7 +530,16 @@ same `scripts/ffmpeg_payload.py` importer and target catalog. Complete archive
 SHA256 admission happens before extraction or execution. The pinned producer
 manifest defines a closed file inventory. Pair, source, notices and rebuild
 materials must match it. Failure clears `.freeze-complete`. A replacement stages
-one complete payload before publication. Normal app startup does not fetch.
+one complete payload before publication. During replacement, the old directory
+stays in a durable sibling `.<output>.previous` until publication succeeds.
+Caught interruption restores it when the output is absent. The next importer
+call recovers an interrupted rename or proves the published output before
+discarding the previous directory. Disposable `.<output>.work` holds only the
+archive and candidate. Unsafe publication roots and unrecognized work members
+fail without cleanup. Explicit archive admission precedes recovery changes.
+Builds isolate output directories and write them sequentially. Replacement has
+a brief missing-path interval between two renames, without a portable atomic
+exchange or a power-loss durability guarantee. Normal app startup does not fetch.
 
 The production catalog in `contracts/ffmpeg-artifacts.json` pins the hosted
 archive and original producer manifest for each target. CI and desktop packaging
@@ -544,6 +553,9 @@ archives, upstream notices, rebuild tree, configure logs and SHA256 inventory.
 Ordinary consumers do not compile it. Source pins establish correspondence to
 reviewed inputs, without a signature-verification or byte-reproducibility claim.
 
+Acquisition and macOS signing require the original producer bytes. An existing
+signed-byte receipt cannot authorize acquisition reuse or a signing input;
+acquisition replaces it with the pinned origin before executing the pair.
 macOS signing admits the payload first and signs the pair through the importer.
 The immutable origin manifest stays unchanged. A separate signed-byte receipt
 records both executable hashes and retains the admitted archive and manifest

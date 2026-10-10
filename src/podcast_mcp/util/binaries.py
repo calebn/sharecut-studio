@@ -49,7 +49,14 @@ _INSTALL_HINT = (
     "with `python scripts/build_ffmpeg.py --output <directory>` and set "
     "PODCAST_MCP_FFMPEG and PODCAST_MCP_FFPROBE to its bin executables."
 )
-_VERSION = re.compile(r"^(ffmpeg|ffprobe) version (\d+)\.(\d+)(?:\.(\d+))?(?:\s|$)")
+_VERSION = re.compile(
+    r"^(ffmpeg|ffprobe) version (\d+)\.(\d+)(?:\.(\d+))?"
+    r"(?:-([A-Za-z0-9][A-Za-z0-9._+-]*))?(?:\s|$)"
+)
+_DEVELOPMENT_SUFFIX = re.compile(
+    r"^(?:dev(?:elopment)?|alpha|beta|rc)(?:[._+-]|\d|$)|\d+-g[0-9a-f]+$",
+    re.IGNORECASE,
+)
 
 
 def _version(command: str, name: str) -> tuple[int, int, int]:
@@ -58,7 +65,12 @@ def _version(command: str, name: str) -> tuple[int, int, int]:
     except (OSError, TimeoutExpired) as exc:
         raise FFmpegPairResolutionError(f"Cannot run {command!r}: {exc}. {_INSTALL_HINT}") from exc
     match = _VERSION.match(result.stdout or "")
-    if result.returncode or match is None or match[1] != name:
+    if (
+        result.returncode
+        or match is None
+        or match[1] != name
+        or (match[5] is not None and _DEVELOPMENT_SUFFIX.match(match[5]))
+    ):
         raise FFmpegPairResolutionError(
             f"{command!r} did not report a numeric {name} 9 release. {_INSTALL_HINT}"
         )

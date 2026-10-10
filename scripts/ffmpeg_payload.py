@@ -185,13 +185,21 @@ def _integrity(directory: Path, artifact: Artifact, *, signed: bool = True) -> d
         if not signed or not artifact.target.endswith("apple-darwin") or receipt.is_symlink():
             raise ValueError("unexpected signing receipt")
         data = json.loads(receipt.read_text())
+        if not isinstance(data, dict) or not isinstance(data.get("files"), dict):
+            raise ValueError("invalid signing receipt")
+        files = data["files"]
+        if any(
+            not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest)
+            for digest in files.values()
+        ):
+            raise ValueError("invalid signing receipt file digest")
         if (
-            data["archive_sha256"] != artifact.sha256
-            or data["manifest_sha256"] != artifact.manifest_sha256
-            or data["files"].keys() != pair
+            data.get("archive_sha256") != artifact.sha256
+            or data.get("manifest_sha256") != artifact.manifest_sha256
+            or files.keys() != pair
         ):
             raise ValueError("signing receipt differs from admitted origin")
-        installed.update(data["files"])
+        installed.update(files)
     inventory = set()
     for file in directory.rglob("*"):
         if file.is_symlink() or not (file.is_file() or file.is_dir()):
@@ -254,33 +262,60 @@ def ensure_payload(
     artifact = artifact_for(target or _target(), catalog)
     if archive is not None:
         verify_archive(archive, artifact.sha256)
+    previous = output.with_name(f".{output.name}.previous")
+    work = output.with_name(f".{output.name}.work")
+    for directory in (output, previous, work):
+        if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+            raise ValueError(f"unsafe payload publication directory {directory}")
+    if work.exists():
+        if any(child.name not in {"payload.tar.xz", "payload"} for child in work.iterdir()):
+            raise ValueError(f"unexpected payload work member in {work}")
+        shutil.rmtree(work)
+    if previous.exists():
+        if output.exists():
+            try:
+                manifest = _integrity(output, artifact, signed=False)
+                prove_payload(output, artifact.target)
+            except (OSError, ValueError, KeyError, RuntimeError):
+                shutil.rmtree(output)
+            else:
+                shutil.rmtree(previous)
+                return manifest
+        previous.rename(output)
     try:
-        manifest = _integrity(output, artifact)
+        manifest = _integrity(output, artifact, signed=False)
         prove_payload(output, artifact.target)
         return manifest
     except (OSError, ValueError, KeyError, RuntimeError):
         pass
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=f".{output.name}-", dir=output.parent) as temp:
-        selected_archive = Path(temp) / "payload.tar.xz"
+    work.mkdir()
+    try:
+        selected_archive = work / "payload.tar.xz"
         if archive is None:
             _download(artifact, selected_archive)
         else:
             shutil.copyfile(archive, selected_archive)
-        stage = Path(temp) / "payload"
+        stage = work / "payload"
         stage.mkdir()
         _extract(selected_archive, stage, artifact)
         manifest = _integrity(stage, artifact, signed=False)
         prove_payload(stage, artifact.target)
-        previous = Path(temp) / "previous"
-        if output.exists():
-            output.rename(previous)
         try:
+            if output.exists():
+                output.rename(previous)
             stage.rename(output)
-        except OSError:
-            if previous.exists():
-                previous.rename(output)
+        except BaseException as failure:
+            if previous.exists() and not output.exists():
+                try:
+                    previous.rename(output)
+                except BaseException as recovery:
+                    failure.add_note(f"Previous payload retained at {previous}: {recovery}")
             raise
+        if previous.exists():
+            shutil.rmtree(previous)
+    finally:
+        shutil.rmtree(work)
     return manifest
 
 
@@ -290,7 +325,7 @@ def sign_payload(
     artifact = artifact_for(target or _target(), catalog)
     if not artifact.target.endswith("apple-darwin") or not identity.strip():
         raise ValueError("payload signing requires a macOS target and identity")
-    _integrity(directory, artifact)
+    _integrity(directory, artifact, signed=False)
     prove_payload(directory, artifact.target)
     pair = ("bin/ffmpeg", "bin/ffprobe")
     for relative in pair:

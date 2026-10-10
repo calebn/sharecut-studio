@@ -145,7 +145,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
           {!ffmpegOk ? (
             <p>
               Reinstall Sharecut Studio, or follow the{" "}
-              <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#build-ffmpeg-from-source">
+              <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair">
                 source setup guide
               </a>
               .

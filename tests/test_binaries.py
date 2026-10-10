@@ -46,8 +46,11 @@ def isolate(monkeypatch, tmp_path):
         "N-123",
         "garbage",
         "9.0.2-dev",
+        "9.0.2-rc1",
         "9.0.2-10-gabcd",
         "9.0.2+snapshot",
+        "9..2",
+        "9.0.2.1",
     ],
 )
 def test_unsupported_release_fails_before_return(tmp_path, version):
@@ -69,6 +72,15 @@ def test_supported_pair_records_release_and_source(tmp_path, version, expected):
     assert pair.version == expected
     assert pair.source == "explicit"
     assert (pair.ffmpeg, pair.ffprobe) == tuple(map(str, paths))
+
+
+@pytest.mark.parametrize("suffix", ["1ubuntu1", "essentials_build"])
+def test_supported_pair_accepts_package_suffixes(tmp_path, suffix):
+    release = f"9.0.2-{suffix}"
+    paths = executable_pair(tmp_path / "explicit", release)
+    pair = resolve_ffmpeg_pair(*map(str, paths))
+    assert pair.version == (9, 0, 2)
+    assert pair.source == "explicit"
 
 
 def test_single_command_rejects_bad_companion(tmp_path, monkeypatch):
@@ -137,7 +149,7 @@ def test_bare_commands_are_fixed_before_path_changes(tmp_path, monkeypatch):
 
 def test_automatic_discovery_skips_unsupported_pair_and_keeps_source(tmp_path, monkeypatch):
     old = executable_pair(tmp_path / "old", "6.1.1")
-    supported = executable_pair(tmp_path / "supported", "9.1.3")
+    supported = executable_pair(tmp_path / "supported", "9.1.3-1ubuntu1")
     monkeypatch.setenv("PATH", os.pathsep.join(map(str, (old[0].parent, supported[0].parent))))
     pair = resolve_ffmpeg_pair()
     assert pair.ffmpeg == str(supported[0])

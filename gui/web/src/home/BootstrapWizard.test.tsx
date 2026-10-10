@@ -67,7 +67,7 @@ describe("BootstrapWizard", () => {
       screen.getByRole("link", { name: "source setup guide" }),
     ).toHaveAttribute(
       "href",
-      "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#build-ffmpeg-from-source",
+      "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair",
     );
     await expectNoA11yViolations(container);
   });

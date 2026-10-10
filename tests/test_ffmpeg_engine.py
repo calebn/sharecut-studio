@@ -64,7 +64,7 @@ def test_probe_sample_wav(sample_wav: Path):
 
 
 def test_probe_untrusted_adds_protocol_whitelist(tmp_path: Path):
-    eng = FFmpegEngine(ffprobe="ffprobe")
+    eng = FFmpegEngine()
     fake = {
         "streams": [{"codec_type": "audio", "sample_rate": "48000", "channels": 1}],
         "format": {"duration": "1.0"},
@@ -78,7 +78,7 @@ def test_probe_untrusted_adds_protocol_whitelist(tmp_path: Path):
 
 
 def test_probe_keeps_container_duration_when_audio_duration_is_unknown(tmp_path: Path):
-    eng = FFmpegEngine(ffprobe="ffprobe")
+    eng = FFmpegEngine()
     fake = {
         "streams": [
             {"codec_type": "audio", "sample_rate": "8000", "channels": 1, "duration": "N/A"}
