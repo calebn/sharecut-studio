@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import tarfile
 import zipfile
@@ -79,3 +80,18 @@ def test_editable_install_does_not_snapshot_web_build(tmp_path: Path) -> None:
     names = _wheel_names(root, tmp_path / "out", version="editable")
     assert "_editable_impl_podcast_mcp.pth" in names
     assert not [name for name in names if "web_dist" in name]
+
+
+def test_sdist_excludes_installed_frontend_dependencies(tmp_path):
+    root = _source_tree(tmp_path / "src-tree", web_build=True)
+    shutil.copy(_ROOT / ".gitignore", root / ".gitignore")
+    dependency = root / "gui/web/node_modules/demo/a.js"
+    dependency.parent.mkdir(parents=True)
+    dependency.write_text("generated dependency\n")
+    os.link(dependency, dependency.with_name("b.js"))
+    sdist = next(SdistBuilder(str(root)).build(directory=str(tmp_path / "sdist")))
+    with tarfile.open(sdist) as archive:
+        members = archive.getmembers()
+    assert not [member.name for member in members if "/node_modules/" in member.name]
+    assert not [member.name for member in members if member.islnk()]
+    assert any(member.name.endswith("/gui/web/dist/index.html") for member in members)

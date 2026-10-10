@@ -53,6 +53,7 @@ def safe_extract(archive: Path, destination: Path) -> None:
                 with source, path.open("wb") as output:
                     shutil.copyfileobj(source, output, length=1024 * 1024)
                 path.chmod(member.mode & 0o755)
+                os.utime(path, (member.mtime, member.mtime))
 
 
 def _run(
@@ -132,6 +133,7 @@ def _linkage(binary: Path) -> str:
         allowed = {
             "libc.so.6",
             "libm.so.6",
+            "libmvec.so.1",
             "libpthread.so.0",
             "libdl.so.2",
             "librt.so.1",
@@ -140,7 +142,21 @@ def _linkage(binary: Path) -> str:
             "linux-vdso.so.1",
         }
         dependencies = [line.strip().split()[0] for line in text.splitlines() if line.strip()]
-        invalid = [item for item in dependencies if Path(item).name not in allowed]
+        invalid = []
+        for line in text.splitlines():
+            fields = line.strip().split()
+            if not fields:
+                continue
+            name = Path(fields[0]).name
+            location = fields[2] if len(fields) > 2 and fields[1] == "=>" else fields[0]
+            if name == "linux-vdso.so.1":
+                continue
+            if (
+                name not in allowed
+                or ".." in location.split("/")
+                or not location.startswith(("/lib/", "/lib64/", "/usr/lib/", "/usr/lib64/"))
+            ):
+                invalid.append(line.strip())
     if not dependencies or invalid:
         raise ValueError(f"non-system native linkage for {binary}: {invalid or text}")
     return text

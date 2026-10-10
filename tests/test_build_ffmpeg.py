@@ -140,3 +140,44 @@ def test_safe_extract_rejects_nonregular_members(tmp_path, kind):
 def test_static_recipe_requests_private_pkg_config_dependencies():
     builder = load_script("build_ffmpeg")
     assert "--pkg-config-flags=--static" in builder.ffmpeg_policy()["ffmpeg_configure"]
+
+
+def test_safe_extract_preserves_generated_source_timestamps(tmp_path):
+    builder = load_script("build_ffmpeg")
+    archive = tmp_path / "source.tar"
+    with tarfile.open(archive, "w") as handle:
+        for name, timestamp in (("config.h.in", 1768341846), ("aclocal.m4", 1768341843)):
+            entry = tarfile.TarInfo("source/" + name)
+            entry.size = 1
+            entry.mtime = timestamp
+            handle.addfile(entry, io.BytesIO(b"x"))
+    builder.safe_extract(archive, tmp_path / "unpacked")
+    source = tmp_path / "unpacked/source"
+    assert (source / "config.h.in").stat().st_mtime == 1768341846
+    assert (source / "aclocal.m4").stat().st_mtime == 1768341843
+
+
+@pytest.mark.parametrize("directory", ["/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu"])
+def test_linux_linkage_accepts_system_glibc_vector_math(tmp_path, monkeypatch, directory):
+    builder = load_script("build_ffmpeg")
+    monkeypatch.setattr(builder.platform, "system", lambda: "Linux")
+    evidence = f"libmvec.so.1 => {directory}/libmvec.so.1 (0x1234)\n"
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: evidence)
+    assert builder._linkage(tmp_path / "ffmpeg") == evidence
+
+
+@pytest.mark.parametrize(
+    "dependency",
+    [
+        "libmvec.so.1 => /tmp/libmvec.so.1 (0x1234)",
+        "libmvec.so.1 => /usr/lib/../../tmp/libmvec.so.1 (0x1234)",
+        "libopus.so.0 => /usr/lib/libopus.so.0 (0x1234)",
+        "libmvec.so.1 => not found",
+    ],
+)
+def test_linux_linkage_rejects_external_or_missing_dependencies(tmp_path, monkeypatch, dependency):
+    builder = load_script("build_ffmpeg")
+    monkeypatch.setattr(builder.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: dependency + "\n")
+    with pytest.raises(ValueError, match="non-system native linkage"):
+        builder._linkage(tmp_path / "ffmpeg")

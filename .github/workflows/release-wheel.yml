@@ -9,6 +9,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths: &wheel-paths
+      - ".gitignore"
       - "pyproject.toml"
       - "hatch_build.py"
       - "src/podcast_mcp/gui/static_assets.py"
@@ -59,6 +60,72 @@ jobs:
         run: |
           uv --version
           uv build --verbose --out-dir dist
+
+      - name: Inspect source archives
+        if: always()
+        run: |
+          python - <<'PYTHON'
+          import hashlib
+          import json
+          import tarfile
+          from pathlib import Path
+
+          root = Path.cwd()
+          dist = root / "dist"
+          dist.mkdir(exist_ok=True)
+          reports = []
+          for archive in sorted(dist.glob("*.tar.gz")):
+              with archive.open("rb") as source:
+                  digest = hashlib.file_digest(source, "sha256").hexdigest()
+              with tarfile.open(archive) as source:
+                  members = source.getmembers()
+              links = [member for member in members if member.islnk() or member.issym()]
+              evidence = []
+              for member in links:
+                  path = (root / Path(*Path(member.name).parts[1:])).resolve()
+                  item = {
+                      "name": member.name,
+                      "type": member.type.decode("ascii"),
+                      "linkname": member.linkname,
+                      "offset": member.offset,
+                      "data_offset": member.offset_data,
+                  }
+                  if path.is_relative_to(root) and path.is_file():
+                      info = path.stat()
+                      item["checkout_file"] = {
+                          "path": str(path.relative_to(root)),
+                          "device": info.st_dev,
+                          "inode": info.st_ino,
+                          "links": info.st_nlink,
+                      }
+                  evidence.append(item)
+              generated = [member.name for member in members if "/node_modules/" in member.name]
+              reports.append({
+                  "archive": str(archive.relative_to(root)),
+                  "sha256": digest,
+                  "compressed_bytes": archive.stat().st_size,
+                  "expanded_member_bytes": sum(member.size for member in members),
+                  "member_count": len(members),
+                  "generated_dependencies": generated,
+                  "links": evidence,
+              })
+          report = {"archives": reports, "dist_files": sorted(str(path.relative_to(root)) for path in dist.iterdir())}
+          (dist / "archive-diagnostics.json").write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report, indent=2))
+          if any(
+              item["generated_dependencies"] or any(link["type"] == "1" for link in item["links"])
+              for item in reports
+          ):
+              raise SystemExit("source archive contains generated dependencies or hardlinks")
+          PYTHON
+
+      - name: Preserve failed wheel build archives
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheel-build-diagnostics-${{ github.run_attempt }}
+          path: dist/
+          if-no-files-found: error
 
       - name: Install the wheel into a clean venv
         run: |
