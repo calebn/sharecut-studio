@@ -260,7 +260,11 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
         useSheetInspector
           ? {
               kind: "tablet",
-              tools: <EditingToolRail />,
+              tools: (
+                <EditingToolRail
+                  inert={sheetOpen && compact != null && !compact.stowed}
+                />
+              ),
               sheet: {
                 open: sheetOpen,
                 expanded: sheetExpanded,

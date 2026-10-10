@@ -6,6 +6,7 @@ import { HistoryControls } from "./HistoryControls";
 import type { HistoryAvailability } from "./useHistoryControls";
 
 export interface EditingToolRailViewProps {
+  inert?: boolean;
   bladeAllowed: boolean;
   mayIngest: boolean;
   toolMode: ToolMode;
@@ -28,6 +29,7 @@ export interface EditingToolRailViewProps {
 
 /** Store-free Ferrite-style bottom tool rail + blade confirm sheet (phone/tablet). */
 export function EditingToolRailView({
+  inert = false,
   bladeAllowed,
   mayIngest,
   toolMode,
@@ -54,6 +56,7 @@ export function EditingToolRailView({
     <>
       <div
         className="editing-tool-rail"
+        inert={inert}
         role="group"
         aria-label="Editing tools"
       >

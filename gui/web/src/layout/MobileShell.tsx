@@ -498,27 +498,6 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     ) : (
       <PipelinePanel />
     );
-  const screen: MobileScreen =
-    mobileMode === "listen"
-      ? { kind: "listen", content: <ListenMode guestShare={guestShare} /> }
-      : mobileMode === "timeline"
-        ? {
-            kind: "timeline",
-            canvas: <TimelineView fixedPlayhead headerSlot={headerSlot} />,
-            tools: <EditingToolRail />,
-          }
-        : mobileMode === "text"
-          ? { kind: "text", content: <TranscriptPanel /> }
-          : {
-              kind: "more",
-              destination: moreDestination,
-              content: moreContent,
-              onBack: () => {
-                setMixRequest(null);
-                setMoreDestination("hub");
-              },
-            };
-
   const inspectorOpen =
     rangeArmed ||
     (selection != null &&
@@ -534,6 +513,36 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
         (mobileMode === "more" &&
           moreDestination === "impact" &&
           selection.kind === "pending")));
+  const screen: MobileScreen =
+    mobileMode === "listen"
+      ? { kind: "listen", content: <ListenMode guestShare={guestShare} /> }
+      : mobileMode === "timeline"
+        ? {
+            kind: "timeline",
+            canvas: <TimelineView fixedPlayhead headerSlot={headerSlot} />,
+            tools: (
+              <EditingToolRail
+                inert={
+                  inspectorOpen &&
+                  !rangeArmed &&
+                  compact != null &&
+                  !compact.stowed
+                }
+              />
+            ),
+          }
+        : mobileMode === "text"
+          ? { kind: "text", content: <TranscriptPanel /> }
+          : {
+              kind: "more",
+              destination: moreDestination,
+              content: moreContent,
+              onBack: () => {
+                setMixRequest(null);
+                setMoreDestination("hub");
+              },
+            };
+
   const strip = compact?.view === "peek" ? compact.peek : null;
   const sheet: MobileSheet = inspectorOpen
     ? {

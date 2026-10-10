@@ -8,7 +8,7 @@ import { ToolModeToggle } from "./ToolModeToggle";
 import { useHistoryControls } from "./useHistoryControls";
 
 /** Ferrite-style bottom tool rail + blade confirm sheet (phone/tablet). */
-export function EditingToolRail() {
+export function EditingToolRail({ inert = false }: { inert?: boolean }) {
   const { toolMode, commentMode, projectPath, guestMode, shareCapabilities } =
     useDaw((s) => ({
       toolMode: s.toolMode,
@@ -24,6 +24,7 @@ export function EditingToolRail() {
 
   return (
     <EditingToolRailView
+      inert={inert}
       bladeAllowed={allowed}
       mayIngest={mayIngest}
       toolMode={toolMode}

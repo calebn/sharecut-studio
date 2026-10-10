@@ -105,3 +105,79 @@ for (const viewport of [
     });
   }
 }
+
+for (const viewport of [
+  { width: 390, height: 844 },
+  { width: 844, height: 390 },
+]) {
+  for (const detent of ["peek", "half", "full"] as const) {
+    test.describe(`covered rail ${viewport.width}x${viewport.height} ${detent}`, () => {
+      test.use({ viewport, reducedMotion: "reduce" });
+      test("native traversal skips covered tools and Close restores them", async ({
+        page,
+        browserName,
+      }) => {
+        await withShareableProject(
+          async (projectPath) => {
+            await rememberInspectorDetent(page, detent);
+            await openHostShare(page, projectPath);
+            if (viewport.width < 768) {
+              await page
+                .getByRole("navigation", { name: "Primary" })
+                .getByRole("button", { name: "Timeline", exact: true })
+                .click();
+            }
+            await expect(
+              page.locator(
+                '.timeline-scroll .track-headers:not([aria-busy="true"])',
+              ),
+            ).toBeVisible();
+            const rail = page.locator(".editing-tool-rail");
+            const before = await rail.boundingBox();
+            await page
+              .locator(".lane-row .clip-hit")
+              .first()
+              .click({ position: { x: 20, y: 20 } });
+            await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
+            await expect(rail).toHaveAttribute("inert", "");
+            expect((await rail.boundingBox())?.height).toBe(before?.height);
+            const key = browserName === "webkit" ? "Alt+Tab" : "Tab";
+            let visitedHeader = false;
+            for (let step = 0; step < 80; step++) {
+              await page.keyboard.press(key);
+              const focus = await page.evaluate(() => ({
+                rail: !!document.activeElement?.closest(".editing-tool-rail"),
+                header: !!document.activeElement?.closest(
+                  ".bottom-sheet-header",
+                ),
+              }));
+              expect(focus.rail).toBe(false);
+              visitedHeader ||= focus.header;
+            }
+            expect(visitedHeader).toBe(true);
+            await page
+              .locator(".bottom-sheet-header")
+              .getByRole("button", { name: "Close", exact: true })
+              .click();
+            await expect(rail).not.toHaveAttribute("inert");
+            const undo = rail.getByRole("button", {
+              name: "Undo",
+              exact: true,
+            });
+            let reachedUndo = false;
+            for (let step = 0; step < 100; step++) {
+              await page.keyboard.press(key);
+              reachedUndo = await undo.evaluate(
+                (element) => element === document.activeElement,
+              );
+              if (reachedUndo) break;
+            }
+            expect(reachedUndo).toBe(true);
+          },
+          undefined,
+          emptyEnvelopeProject,
+        );
+      });
+    });
+  }
+}
