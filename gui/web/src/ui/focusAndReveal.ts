@@ -20,8 +20,18 @@ export function revealBelowChrome(
 ): void {
   if (chrome.contains(target) || scroller.scrollHeight <= scroller.clientHeight)
     return;
-  const covered =
-    chrome.getBoundingClientRect().bottom - target.getBoundingClientRect().top;
+  const chromeBottom = chrome.getBoundingClientRect().bottom;
+  const visibleHeight =
+    scroller.getBoundingClientRect().top +
+    scroller.clientTop +
+    scroller.clientHeight -
+    chromeBottom;
+  const labelRect = target.closest("label")?.getBoundingClientRect();
+  const rect =
+    labelRect && labelRect.height <= visibleHeight
+      ? labelRect
+      : target.getBoundingClientRect();
+  const covered = chromeBottom - rect.top;
   if (covered > 0) scroller.scrollTop -= covered;
 }
 

@@ -144,6 +144,16 @@ describe("revealBelowChrome", () => {
     expect(sheet.scrollTop).toBe(298);
   });
 
+  it("reveals the field alone when its label is taller than the area below chrome", () => {
+    const { sheet, chrome, field } = pinned(100, 98);
+    const label = document.createElement("label");
+    label.getBoundingClientRect = () => bounds(50, 160);
+    field.replaceWith(label);
+    label.append(field);
+    revealBelowChrome(sheet, chrome, field);
+    expect(sheet.scrollTop).toBe(298);
+  });
+
   it("leaves a field already clear of the header, and the header's own controls, alone", () => {
     const clear = pinned(100, 100);
     revealBelowChrome(clear.sheet, clear.chrome, clear.field);

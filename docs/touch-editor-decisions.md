@@ -60,6 +60,7 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.grammar.test.ts::arms from its body near an end whose trim and fade targets are click-through, as on an unselected clip
 - gui/web/src/timeline/hitCandidates.test.ts::is still the one candidate when every target in reach is out of reach
 - gui/web/e2e-compat/touch-chrome-reach.spec.ts::compact history ${name} root${rootPx} ${theme}
+- gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
 - gui/web/e2e-compat/touch-chrome-reach.spec.ts::the Cut button of the blade confirmation can be tapped at 32px text: landscape
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
@@ -626,6 +627,7 @@ evidence:
 - #1205 design synthesis: the same history controls move into the compact header while lane space returns
 enforced-by:
 - gui/web/e2e-compat/touch-chrome-reach.spec.ts::compact history ${name} root${rootPx} ${theme}
+- gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
 -->
 
 The strip covers the tool rail again. Its header keeps the shared Undo and
@@ -648,8 +650,10 @@ sheet, which carried Collapse and Close out of view above the timeline. The
 owner's Collapse never reached the button, so the next selection still opened
 expanded. The compact sheet's chrome (name, Expand or Collapse, Close) is now
 pinned at the top of the sheet's single scroller, and `ui/focusAndReveal.ts`
-reveals a field below pinned chrome rather than under it. The sheet still has
-one scroll owner. `e2e-compat/touch-peek.spec.ts` taps Expand and Collapse
+reveals a field below pinned chrome rather than under it. The compact header keeps the strip's vertical spacing at every detent, so its
+wrapped actions leave room for enlarged fade fields on a short screen. Native
+focus also reveals the complete field label when it fits below that header.
+The sheet still has one scroll owner. `e2e-compat/touch-peek.spec.ts` taps Expand and Collapse
 with a finger at 360×800 and 844×390 and checks that the finger lands on the
 button; the sideways case failed on the round 3 build.
 

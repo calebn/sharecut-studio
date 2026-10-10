@@ -330,6 +330,12 @@ Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain compon
 
 On a touch screen the phone and tablet shells are `position: fixed` and pad themselves with `env(safe-area-inset-*)` (`index.html` sets `viewport-fit=cover`). The page under them never scrolls. iPhone Safari gives a page no way to hide its bars, so the Home Screen app (`display-mode: standalone`, from `public/assets/app/manifest.webmanifest`) is the phone's full-screen path; a Safari tab shows a dismissible Add to Home Screen banner once per browser. A phone held sideways (at most 40rem tall) gets 72px touch lanes and no empty marker row, and the tool rail carries **Undo** and **Redo** on both touch shells. A selected compact inspector repeats the same controls in its pinned header at every detent and covers the rail, above the nav or status row. Detail: [gui-mobile.md § Browser chrome](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
+Compact headers retain the strip's vertical spacing at half and full height,
+so enlarged history controls leave room for scrolled form fields on short
+screens. Focus reveal includes the field's label when the label fits below the
+pinned header. The existing scroll-padding measurement follows the wrapped
+chrome height.
+
 Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
 
 The desktop/tablet shell is a single-column grid with named areas `banners / follow / transport / main / tabs / status`; the phone shell uses `banners / follow / transport / main / nav`. Banner rows are always `auto` (0 when empty), and layouts change only the `main` / `tabs` track sizes, so a banner or layout never shifts another child. Guarded by `gui/web/src/layout/shellGrid.test.ts`. Desktop/tablet layouts are switched by the transport layout control, View › Layout, and `Mod+1`–`4`; a Restore chip in the transport exits any non-default layout (see `docs/gui-mobile.md` § Desktop — layouts).
