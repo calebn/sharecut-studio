@@ -154,33 +154,32 @@ for (const viewport of [
               const slider = page.getByRole("slider", {
                 name: "Timeline position",
               });
-              if (inspector === "Envelope") {
-                const timeBefore = Number(
-                  await slider.getAttribute("aria-valuenow"),
-                );
-                json(info, "without-feedback-ruler-before-click", {
-                  timeBefore,
-                  ruler: await controlGeometry(slider),
-                });
-                await slider.click({ position: { x: 300, y: 12 } });
-                await expect(panel).not.toBeVisible();
-                await expect(slider).not.toHaveAttribute(
-                  "aria-valuenow",
-                  String(timeBefore),
-                );
-                json(info, "without-feedback-ruler-after-click", {
-                  timeAfter: Number(await slider.getAttribute("aria-valuenow")),
-                  panelVisible: await panel.isVisible(),
-                  ruler: await controlGeometry(slider),
-                });
-              } else {
-                json(
-                  info,
-                  "without-feedback-ruler-click",
-                  await controlGeometry(slider),
-                );
-                await slider.click({ position: { x: 300, y: 12 } });
-              }
+              const timeBefore =
+                inspector === "Envelope"
+                  ? Number(await slider.getAttribute("aria-valuenow"))
+                  : undefined;
+              json(info, "without-feedback-ruler-before-click", {
+                timeBefore,
+                ruler: await controlGeometry(slider),
+              });
+              await slider.click({ position: { x: 300, y: 12 } });
+              await expect(panel).not.toBeVisible();
+              await expect(page.locator(".pending-actionbar")).toHaveCount(0);
+              const timeAfter =
+                inspector === "Envelope"
+                  ? Number(await slider.getAttribute("aria-valuenow"))
+                  : undefined;
+              if (timeBefore !== undefined)
+                expect(timeAfter).not.toBe(timeBefore);
+              json(info, "without-feedback-ruler-after-click", {
+                timeBefore,
+                timeAfter,
+                panelVisible: await panel.isVisible(),
+                pendingActionbarCount: await page
+                  .locator(".pending-actionbar")
+                  .count(),
+                ruler: await controlGeometry(slider),
+              });
               await hit.focus();
               await hit.press("Enter");
               await expect(panel).toHaveClass(/bottom-sheet--half/);
@@ -285,16 +284,26 @@ for (const viewport of [
                 withFeedback.half,
                 0,
               );
-              json(
-                info,
-                "with-feedback-ruler-click",
-                await controlGeometry(
-                  page.getByRole("slider", { name: "Timeline position" }),
-                ),
-              );
-              await page
-                .getByRole("slider", { name: "Timeline position" })
-                .click({ position: { x: 300, y: 12 } });
+              const slider = page.getByRole("slider", {
+                name: "Timeline position",
+              });
+              json(info, "with-feedback-ruler-before-click", {
+                ruler: await controlGeometry(slider),
+                panelVisible: await panel.isVisible(),
+                pendingActionbarCount: await page
+                  .locator(".pending-actionbar")
+                  .count(),
+              });
+              await slider.click({ position: { x: 300, y: 12 } });
+              await expect(panel).not.toBeVisible();
+              await expect(page.locator(".pending-actionbar")).toHaveCount(0);
+              json(info, "with-feedback-ruler-after-click", {
+                ruler: await controlGeometry(slider),
+                panelVisible: await panel.isVisible(),
+                pendingActionbarCount: await page
+                  .locator(".pending-actionbar")
+                  .count(),
+              });
             }
           });
         });

@@ -152,6 +152,8 @@ export async function controlGeometry(control: Locator, identity = false) {
         subject: surrogate ? ("detent-grabber" as const) : ("control" as const),
         node: describe(node),
         outline,
+        foregroundColor: style.color,
+        fillColor: style.backgroundColor,
         bounds: {
           left: paint.rect.left - extent,
           right: paint.rect.right + extent,
@@ -412,8 +414,7 @@ export async function visibleFocus(
     await expect
       .poll(async () => {
         const geometry = await controlGeometry(control);
-        return geometry.focusIndicator.state === "outline" &&
-          geometry.focusIndicator.subject === "detent-grabber"
+        return geometry.focusIndicator.state === "outline"
           ? geometry.focusIndicator.full
           : geometry.fullyVisible;
       })

@@ -421,13 +421,14 @@ test.describe("independent keyboard envelope root32 phone", () => {
           track.id,
           receipts,
         );
+        const tabKey = info.project.name === "webkit" ? "Alt+Tab" : "Tab";
         try {
           await rememberInspectorDetent(page, "full");
           await openHostShare(page, projectPath);
           const timeline = page
             .getByRole("navigation", { name: "Primary" })
             .getByRole("button", { name: "Timeline", exact: true });
-          await nativeTabTo(page, timeline, receipts);
+          await nativeTabTo(page, timeline, receipts, tabKey);
           await page.keyboard.press("Enter");
           await expect(
             page.locator(
@@ -443,6 +444,7 @@ test.describe("independent keyboard envelope root32 phone", () => {
               page,
               page.getByRole("button", { name, exact: true }),
               receipts,
+              tabKey,
             );
             await page.keyboard.press("Enter");
           };
@@ -463,11 +465,34 @@ test.describe("independent keyboard envelope root32 phone", () => {
           await enter("Save point");
           const alert = page.locator(".modifier-inspector").getByRole("alert");
           await expect(alert).toContainText(/non.?negative|at least|zero|0/i);
-          await visibleFocus(
-            page.getByRole("button", { name: "Save point", exact: true }),
-            receipts,
-            "invalid-save-keeps-visible-focus",
-          );
+          const save = page.getByRole("button", {
+            name: "Save point",
+            exact: true,
+          });
+          const assertPrimaryFocusPaint = async () => {
+            const geometry = await controlGeometry(save);
+            const focus = geometry.focusIndicator;
+            expect(focus.state).toBe("outline");
+            if (focus.state === "outline") {
+              expect(focus.full).toBe(true);
+              expect(focus.outline.color).toBe(focus.foregroundColor);
+              expect(focus.outline.color).not.toBe(focus.fillColor);
+              expect(focus.fillColor).not.toBe("rgba(0, 0, 0, 0)");
+            }
+          };
+          await visibleFocus(save, receipts, "invalid-save-dark-focus");
+          await info.attach("invalid-save-dark-native-focus-paint", {
+            body: await page.screenshot(),
+            contentType: "image/png",
+          });
+          await assertPrimaryFocusPaint();
+          await setTheme(page, "light");
+          await visibleFocus(save, receipts, "invalid-save-light-focus");
+          await info.attach("invalid-save-light-native-focus-paint", {
+            body: await page.screenshot(),
+            contentType: "image/png",
+          });
+          await assertPrimaryFocusPaint();
           await page.keyboard.press("Shift+Tab");
           await page.keyboard.press("Shift+Tab");
           await visibleFocus(
