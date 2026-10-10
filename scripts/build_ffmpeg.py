@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Build and verify the pinned native FFmpeg payload from reviewed sources."""
 
 from __future__ import annotations
 
@@ -434,7 +433,7 @@ def ensure_payload(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-cache", type=Path)
     parser.add_argument("--target")
