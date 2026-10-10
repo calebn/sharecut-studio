@@ -9,6 +9,12 @@ import {
 import { e2eProjectPath } from "../e2e/env";
 import { newFinger } from "../e2e/finger";
 import {
+  controlGeometry,
+  exposeControl,
+  wheelInspector,
+} from "../e2e/inspectorResponsiveEvidence";
+import type { InteractionReceipt } from "../e2e/interactionEvidence";
+import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
@@ -172,6 +178,7 @@ async function undoStaysReachable(
   await openAt(page, SIZES[name], 16, theme);
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
+  const discovery: InteractionReceipt[] = [];
   const measure = async (controls: Locator) => {
     const undo = controls.getByRole("button", { name: "Undo" });
     const redo = controls.getByRole("button", { name: "Redo" });
@@ -225,6 +232,52 @@ async function undoStaysReachable(
         const toast = document.querySelector(".ui-toast-region--app .ui-toast");
         if (!(toast instanceof HTMLElement)) return null;
         const feedback = toast.getBoundingClientRect();
+        let feedbackLeft = Math.max(0, feedback.left),
+          feedbackRight = Math.min(innerWidth, feedback.right);
+        let feedbackTop = Math.max(0, feedback.top),
+          feedbackBottom = Math.min(innerHeight, feedback.bottom);
+        const clipping = [];
+        for (
+          let parent = toast.parentElement;
+          parent;
+          parent = parent.parentElement
+        ) {
+          const style = getComputedStyle(parent),
+            rect = parent.getBoundingClientRect();
+          const clipsX = /hidden|clip|auto|scroll/.test(style.overflowX),
+            clipsY = /hidden|clip|auto|scroll/.test(style.overflowY);
+          if (!clipsX && !clipsY) continue;
+          const left = rect.left + parent.clientLeft,
+            top = rect.top + parent.clientTop;
+          if (clipsX) {
+            feedbackLeft = Math.max(feedbackLeft, left);
+            feedbackRight = Math.min(feedbackRight, left + parent.clientWidth);
+          }
+          if (clipsY) {
+            feedbackTop = Math.max(feedbackTop, top);
+            feedbackBottom = Math.min(
+              feedbackBottom,
+              top + parent.clientHeight,
+            );
+          }
+          clipping.push({
+            className: parent.className,
+            rect: rect.toJSON(),
+            overflowX: style.overflowX,
+            overflowY: style.overflowY,
+            scrollTop: parent.scrollTop,
+            clientHeight: parent.clientHeight,
+            scrollHeight: parent.scrollHeight,
+          });
+        }
+        const feedbackVisible = {
+          left: feedbackLeft,
+          right: feedbackRight,
+          top: feedbackTop,
+          bottom: feedbackBottom,
+        };
+        const hasVisibleFeedback =
+          feedbackRight > feedbackLeft && feedbackBottom > feedbackTop;
         const panel = document.querySelector(".bottom-sheet--compact");
         const controls = Array.from(
           panel?.querySelectorAll(
@@ -275,10 +328,11 @@ async function undoStaysReachable(
               rect: rect.toJSON(),
               visible: { left, right, top, bottom },
               overlaps:
-                left < feedback.right &&
-                right > feedback.left &&
-                top < feedback.bottom &&
-                bottom > feedback.top,
+                hasVisibleFeedback &&
+                left < feedbackRight &&
+                right > feedbackLeft &&
+                top < feedbackBottom &&
+                bottom > feedbackTop,
             },
           ];
         });
@@ -292,11 +346,13 @@ async function undoStaysReachable(
           : null;
         return {
           rect: feedback.toJSON(),
+          visible: feedbackVisible,
+          clipping,
           inView:
-            feedback.left >= 0 &&
-            feedback.top >= 0 &&
-            feedback.right <= innerWidth &&
-            feedback.bottom <= innerHeight,
+            feedback.left >= feedbackLeft &&
+            feedback.top >= feedbackTop &&
+            feedback.right <= feedbackRight &&
+            feedback.bottom <= feedbackBottom,
           dismissOnTop:
             dismiss != null &&
             hit != null &&
@@ -350,12 +406,44 @@ async function undoStaysReachable(
       `hit-${name}-${rootPx}-${theme}-${step}-before-header-reveal`,
       beforeReveal,
     );
+    for (const control of [
+      beforeReveal.undo,
+      beforeReveal.redo,
+      ...beforeReveal.otherControls,
+    ]) {
+      expect({ step, ...control }).toMatchObject({
+        step,
+        inView: true,
+        onTop: true,
+      });
+      expect(control.width).toBeGreaterThanOrEqual(44);
+      expect(control.height).toBeGreaterThanOrEqual(44);
+    }
     if (beforeReveal.feedback)
       expect(beforeReveal.feedback.overlaps).toEqual([]);
-    const header = page.locator(
-      ".bottom-sheet--compact .bottom-sheet-header-actions",
-    );
-    if (await header.count()) await header.scrollIntoViewIfNeeded();
+    if (
+      beforeReveal.feedback &&
+      (step === "strip-open-after-edit" ||
+        step.startsWith("feedback-") ||
+        step === "level-saved")
+    ) {
+      await exposeControl(
+        page,
+        page.locator(".ui-toast-region--app .ui-toast"),
+        discovery,
+      );
+      for (const action of await page
+        .locator(".ui-toast-region--app button")
+        .all()) {
+        await exposeControl(page, action, discovery);
+        const geometry = await controlGeometry(action);
+        expect(geometry.fullyVisible).toBe(true);
+        expect(geometry.hitsControl).toBe(true);
+        expect(geometry.rect.width).toBeGreaterThanOrEqual(44);
+        expect(geometry.rect.height).toBeGreaterThanOrEqual(44);
+      }
+      await receipt(info, `feedback-discovery-${step}`, discovery);
+    }
     seen[step] = await measure(controls);
     await receipt(info, `hit-${name}-${rootPx}-${theme}-${step}`, seen[step]);
     await info.attach(`hit-${step}`, {
@@ -912,3 +1000,91 @@ for (const name of ["portrait", "landscape"] as const) {
     });
   }
 }
+
+test("clipped saved feedback pauses its remaining visible lifetime", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await openAt(page, SIZES.landscape);
+  const finger = await newFinger(context, page, browserName);
+  const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
+  await finger.down(at);
+  await page.waitForTimeout(60);
+  await finger.up();
+  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px";
+  });
+  await page.waitForTimeout(600);
+  const discovery: InteractionReceipt[] = [];
+  const commands = watchCommands(page);
+  await page
+    .getByRole("button", { name: "Envelope point 0.01 s later", exact: true })
+    .click();
+  await expect.poll(() => savedEnvelope(page)).toEqual(edited);
+  const card = page.locator(".ui-toast-region--app .ui-toast");
+  const headerUndo = compactHistory(page).getByRole("button", {
+    name: "Undo",
+    exact: true,
+  });
+  const checkHeader = async (stage: string) => {
+    const geometry = await controlGeometry(headerUndo);
+    await receipt(info, stage, geometry);
+    expect(geometry.fullyVisible).toBe(true);
+    expect(geometry.hitsControl).toBe(true);
+    expect(geometry.rect.width).toBeGreaterThanOrEqual(44);
+    expect(geometry.rect.height).toBeGreaterThanOrEqual(44);
+  };
+  await checkHeader("timer-initial-header");
+  await exposeControl(page, card, discovery);
+  await headerUndo.focus();
+  await page.mouse.move(0, 0);
+  const initial = await controlGeometry(card);
+  expect(initial.fullyVisible).toBe(true);
+  await page.waitForTimeout(3000);
+  await wheelInspector(page, discovery, 400);
+  await page.mouse.move(0, 0);
+  const clipped = await controlGeometry(card);
+  expect(clipped.fullyVisible).toBe(false);
+  expect(
+    await card.evaluate((element) => ({
+      hover: element.matches(":hover"),
+      focus: element.contains(document.activeElement),
+    })),
+  ).toEqual({ hover: false, focus: false });
+  await checkHeader("timer-clipped-header");
+  await receipt(info, "timer-actual-clipped-card", clipped);
+  await info.attach("timer-clipped", {
+    body: await page.screenshot({ path: info.outputPath("timer-clipped.png") }),
+    contentType: "image/png",
+  });
+  await page.waitForTimeout(9000);
+  await expect(card).toHaveCount(1);
+  await expect.poll(() => savedEnvelope(page)).toEqual(edited);
+  expect(commands.map((command) => command.type)).toEqual(["SetEnvelope"]);
+  await exposeControl(page, card, discovery);
+  await page.mouse.move(0, 0);
+  const restored = await controlGeometry(card);
+  expect(restored.fullyVisible).toBe(true);
+  const dismiss = card.getByRole("button", { name: "Dismiss" });
+  const action = await controlGeometry(dismiss);
+  expect(action.fullyVisible).toBe(true);
+  expect(action.hitsControl).toBe(true);
+  expect(action.rect.width).toBeGreaterThanOrEqual(44);
+  expect(action.rect.height).toBeGreaterThanOrEqual(44);
+  await receipt(info, "timer-restored-card-and-action", {
+    restored,
+    action,
+    discovery,
+  });
+  await info.attach("timer-restored", {
+    body: await page.screenshot({
+      path: info.outputPath("timer-restored.png"),
+    }),
+    contentType: "image/png",
+  });
+  await expect(card).toHaveCount(0, { timeout: 6500 });
+  await checkHeader("timer-expired-header");
+  await expect.poll(() => savedEnvelope(page)).toEqual(edited);
+});

@@ -250,7 +250,16 @@ export async function exposeControl(
       : first.rect.top < first.clip.top
         ? -1
         : 1;
-    await wheelInspector(page, receipts, direction * 100);
+    const distance = covered
+      ? direction * 100
+      : first.rect.top < first.clip.top
+        ? first.rect.top - first.clip.top
+        : first.rect.bottom - first.clip.bottom;
+    await wheelInspector(
+      page,
+      receipts,
+      Math.max(-100, Math.min(100, distance)),
+    );
   }
   const geometry = await controlGeometry(control);
   receipts.push({
@@ -372,6 +381,15 @@ export async function nativeTabTo(
       return;
     }
     await page.keyboard.press(tabKey);
+    const focusedField = page.locator(
+      ".bottom-sheet--compact :is(input, select, textarea):focus:not(.sr-only)",
+    );
+    if (await focusedField.count())
+      await visibleFocus(
+        focusedField,
+        receipts,
+        "native-tab-intermediate-field",
+      );
   }
   throw new Error("Native Tab traversal did not reach target");
 }

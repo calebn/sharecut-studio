@@ -37,6 +37,9 @@ function atHead(headId: string, cursor = 399) {
   });
 }
 
+let reportVisibility = (_visible: boolean) => {};
+const disconnect = vi.fn();
+
 describe("FeedbackToast", () => {
   it.each(["Time +0.01", "Level +0.01"])(
     "keeps another visible compact control clear after %s by using the flow host",
@@ -57,7 +60,10 @@ describe("FeedbackToast", () => {
     },
   );
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it("keeps the card, focus pause and timer across flow, stow and floating transitions", () => {
     vi.useFakeTimers();
@@ -99,6 +105,40 @@ describe("FeedbackToast", () => {
     unmount();
   });
 
+  it("pauses clipped feedback and retains remaining time across host teardown", () => {
+    vi.useFakeTimers();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const { rerender, unmount } = render(<FeedbackToast host={host} />);
+    act(() =>
+      useDawStore
+        .getState()
+        .announceStatus("Saved Time", { undo: entry("host-reorder") }),
+    );
+    const card = screen.getByText("Saved Time").closest(".ui-toast");
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    act(() => reportVisibility(false));
+    act(() => {
+      vi.advanceTimersByTime(12000);
+    });
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    host.remove();
+    rerender(<FeedbackToast />);
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(screen.getByText("Saved Time").closest(".ui-toast")).toBe(card);
+    act(() => {
+      vi.advanceTimersByTime(4999);
+    });
+    expect(screen.getByText("Saved Time")).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByText("Saved Time")).not.toBeInTheDocument();
+    unmount();
+  });
+
   it("does not restart an unpaused timer when the presentation changes", () => {
     vi.useFakeTimers();
     const host = document.createElement("div");
@@ -122,6 +162,26 @@ describe("FeedbackToast", () => {
   });
 
   beforeEach(() => {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(
+          callback: (
+            entries: { isIntersecting: boolean; intersectionRatio: number }[],
+          ) => void,
+        ) {
+          reportVisibility = (visible) =>
+            callback([
+              { isIntersecting: visible, intersectionRatio: visible ? 1 : 0.5 },
+            ]);
+        }
+        observe() {
+          reportVisibility(true);
+        }
+        disconnect = disconnect;
+      },
+    );
+    disconnect.mockClear();
     clearRegisteredCommands();
     registerHistoryCommands();
     _resetHistoryMovesForTests();

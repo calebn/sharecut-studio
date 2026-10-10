@@ -2333,3 +2333,24 @@ These signals prove rendered behavior, not owner listening acceptance.
 `test_bounded_restore_contract.py` drives saved service, document HTTP, and real owner MCP refusal with the literal `local_restore_requires_history` code and four-sentence guidance. It checks unchanged editable state, project bytes, pending rows, archives, history index, and snapshot IDs. Guarded History Undo recovers parked recording identity, transcript archives, and all peer clip occurrences. Source MUTE Restore remains a positive control through every delivery boundary.
 
 `test_manual_pending_ownership_contract.py` proves transitive manual joining ownership, atomic stale-member refusal, identity and review barriers, and excluded metadata/order preservation. `test_pause_original_placement_contract.py` uses the actual planner to distinguish original lane membership from final pause effect. `test_source_review_final_findings.py` retains disjoint-stale, original MUSIC, RESTORED confirmation, and UNKNOWN primary-error regressions. `test_bounded_restore_owner_details.py` also prevents transient before-history writes for Restore and all-held automatic application, blocks joining across an intervening review barrier, and checks real positive automatic REMOVE/MUTE actions with held rows, render bookkeeping, and guarded whole-action Undo. Applied edit inspector Vitest tests cover MUTE-only Restore, whole-action guidance, access bounds, and navigation without hidden Undo.
+
+### Compact feedback lifetime and discovery
+
+The compact history reach check asserts Undo, Redo, resize and Close before
+any scripted recovery, then repeats those assertions after body scrolling.
+Saved Time and Level edits compare literal whole arrays through exact
+`UndoHistory` and `RedoHistory` commands. Clipping receipts include every
+ancestor while the card is active. Ordinary wheel discovery exposes the whole
+card where it fits, or each feedback action where a long card cannot fit.
+Native Tab checks every intermediate compact field with its complete label.
+The short-form refusal uses explicitly labeled HTTP `history_stale` fault
+injection after a real fade edit, whose successful save is silent.
+
+The clipped saved feedback check measures a fully visible card, scrolls it
+outside its actual body clip, and waits nine seconds without card hover or
+focus. It then exposes Dismiss and verifies expiry within the remaining visible
+time. Unit tests cover portal continuity, focus, remaining time and guarded
+Undo through host movement. Run `npm run test:e2e:compat --
+touch-chrome-reach.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
+building the production app. These browser receipts do not establish physical
+device behavior or Linux CI results.

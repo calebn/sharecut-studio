@@ -240,9 +240,13 @@ region reveal. Vertical geometry remains in `timelineMetrics.ts`. See
 
 Frontend app feedback stays in `feedback/FeedbackToast` and `ui/Toast`.
 Compact shell composition registers an optional DOM host through `DawApp`.
-`BottomSheet` only renders the supplied flow slot. A stable portal container
-moves the single card between floating and compact flow presentations without
-remounting its timer or guarded Undo. Store announcements and command authority
+`BottomSheet` renders the supplied flow slot first inside its body. Compact
+sheets keep chrome outside that one scroller and remove nested inspector
+scrolling. Feedback presentation observes actual card intersection with the
+viewport and clipping ancestors. `Toast` owns the remaining visible lifetime
+and pauses it while clipped. A stable portal container moves the single card
+between floating and compact flow presentations without remounting its timer
+or guarded Undo. Store announcements and command authority
 remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).
 
 Frontend pointer dispatch policy lives in `gui/web/src/commands/pointer.ts`.

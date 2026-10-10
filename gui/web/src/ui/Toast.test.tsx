@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { TOAST_MS, Toast } from "./Toast";
 
 describe("Toast", () => {
+  afterEach(() => vi.useRealTimers());
   it("renders the message in a status region and wires Undo/Dismiss", async () => {
     const user = userEvent.setup();
     const onUndo = vi.fn();
@@ -255,6 +256,42 @@ describe("Toast", () => {
     );
     act(() => {
       vi.advanceTimersByTime(TOAST_MS - 1);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  it("preserves remaining time while clipped and through presentation changes", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    const toast = { id: 1, message: "Time changed" };
+    const { rerender } = render(<Toast toast={toast} onDismiss={onDismiss} />);
+    const card = screen.getByText("Time changed").closest(".ui-toast");
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    rerender(
+      <Toast toast={toast} onDismiss={onDismiss} visibility="clipped" />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(12000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    rerender(
+      <Toast
+        toast={toast}
+        onDismiss={onDismiss}
+        visibility="visible"
+        className="flow"
+      />,
+    );
+    expect(screen.getByText("Time changed").closest(".ui-toast")).toBe(card);
+    act(() => {
+      vi.advanceTimersByTime(4999);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {

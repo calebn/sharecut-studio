@@ -279,31 +279,38 @@ clicked, since Safari does not focus a clicked button).
 ### Feedback toast
 
 The app toast (`feedback/FeedbackToast`) has one message, optional guarded Undo,
-and explicit Dismiss. While a compact inspector is visible, its composition
-supplies a temporary flow row between pinned chrome and the scrolling fields.
-The row exists only while feedback exists. The sheet can grow to its available
-slot while the message is visible; fields scroll below the feedback instead of
-passing behind it. Dismiss restores ordinary detent sizing and lane room.
-At large text sizes some fields need body scrolling. If wrapped chrome and
-a long message fill the slot, ordinary sheet scrolling keeps a minimum native
-control viewport available. In a slot shorter than 15rem, the header also
-participates in that scroll while feedback exists; native traversal and ordinary
-scrolling reveal its actions again. A focused native field or
-just-pressed inspector control is revealed in that body after feedback arrives.
+and explicit Dismiss. Compact composition puts its host first inside the same
+scrolling body as the fields. The pinned header stays outside that scroller.
+The sheet can grow to its available slot while feedback exists. Dismiss restores
+ordinary detent sizing and lane room.
+
+Feedback and a full native label can exceed the available body height at large
+text sizes. They remain in ordinary scroll order rather than sharing a reserved
+row. A saved edit preserves the focused or just-pressed control. Browser scroll
+anchoring can leave the new card clipped, so the user scrolls back to its message
+and actions. Field focus reveals the complete fitting native label and control
+through the same body scroller. Undo, Redo, resize and Close stay fully visible
+and on top before and after feedback, field focus and body scrolling.
 
 `FeedbackToast` moves one stable portal container between this row and its
 ordinary floating host. The same `Toast` card keeps its eight-second timer,
-focus and hover pause, disabled-Undo pause, Dismiss and history freshness. Host
-changes do not restart the timer or remount Undo. Closing or stowing a compact
+focus and hover pause, disabled-Undo pause, Dismiss and history freshness.
+A presentation-boundary intersection observer pauses expiry whenever the card
+is clipped by its actual ancestors. Toast retains the remaining visible time
+through every pause and host move. An oversized card stays paused while the
+user scrolls through its message and actions. Host changes do not restart the
+timer or remount Undo. Closing or stowing a compact
 inspector returns feedback to the floating host, outside the inert rail.
 Other workflows retain the existing floating dock. On phones
 `feedback/toastDock.ts` measures bottom chrome and the latest pressed control;
 its full-sheet fallback can cover scrolling content in those other workflows.
 Desktop and ordinary tablet feedback stays above the status bar.
 
-Regression checks keep feedback visible at every compact detent and compare its
-full rectangle with all visible active controls and native labels, clipped to
-the viewport and actual overflow ancestors. Feedback's own actions are checked
+Regression checks assert header reachability before any recovery scroll at
+every compact detent. They measure feedback and all active controls and native
+labels against the viewport and every overflow ancestor, then compare their
+visible intersections. Ordinary body scroll must expose feedback actions when
+they cannot coexist with a focused field. Feedback's own actions are checked
 for target size and hit ownership separately. Time and Level changes each prove
 complete saved arrays through Undo and Redo. The no-feedback strip retains the
 ordinary lane measurements.

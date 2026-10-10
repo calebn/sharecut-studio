@@ -5,8 +5,6 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { HistoryEntryId } from "../types/project";
 import { Toast } from "../ui";
-import { focusAndReveal } from "../ui/focusAndReveal";
-import { lastPressedControl } from "../ui/pressedControl";
 import { errorMessage } from "../utils/apiError";
 import { usePhoneToastDock } from "./toastDock";
 
@@ -54,24 +52,29 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     focused?.focus({ preventScroll: true });
   }, [host, portal]);
   useLayoutEffect(() => () => portal.remove(), [portal]);
+  const [visibility, setVisibility] = useState<"visible" | "clipped">(
+    "visible",
+  );
   useLayoutEffect(() => {
-    if (!host || !toast) return;
-    const sheet = host.closest<HTMLElement>(".bottom-sheet");
-    const reveal = (target: HTMLElement | null) => {
-      if (target && sheet?.contains(target)) focusAndReveal(target);
-    };
-    const focused = document.activeElement;
-    reveal(
-      focused instanceof HTMLElement && sheet?.contains(focused)
-        ? focused
-        : lastPressedControl(),
+    const card = regionRef.current?.querySelector(".ui-toast");
+    if (!host || !card) {
+      setVisibility("visible");
+      return;
+    }
+    setVisibility("clipped");
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setVisibility(
+          entry?.isIntersecting && entry.intersectionRatio === 1
+            ? "visible"
+            : "clipped",
+        );
+      },
+      { threshold: [0, 1] },
     );
-    const onFocus = (event: FocusEvent) => {
-      if (event.target instanceof HTMLElement) reveal(event.target);
-    };
-    sheet?.addEventListener("focusin", onFocus);
-    return () => sheet?.removeEventListener("focusin", onFocus);
-  }, [host, toast]);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [host, toast?.id]);
   const undoEntry =
     toast?.undo != null && toast.undo === headId ? toast.undo : null;
 
@@ -116,6 +119,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
           : undefined
       }
       undoDisabled={undoing}
+      visibility={visibility}
     />,
     portal,
   );

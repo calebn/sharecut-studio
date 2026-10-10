@@ -26,6 +26,7 @@ type Props = {
   /** Disables Undo and pauses auto-dismiss (Undo must never expire while it cannot be clicked). */
   undoDisabled?: boolean;
   timeoutMs?: number;
+  visibility?: "visible" | "clipped";
   /** Receives focus when the toast closes while focus is inside it, or after focus fell from it to `<body>` (e.g. a focused Undo becoming disabled). */
   returnFocusRef?: RefObject<HTMLElement | null>;
   /** False when another live region already speaks the message (the app-wide status region). */
@@ -85,6 +86,7 @@ function ToastCard({
   onDismiss,
   undoDisabled = false,
   timeoutMs = TOAST_MS,
+  visibility = "visible",
   returnFocusRef,
 }: CardProps) {
   const messageId = useId();
@@ -96,13 +98,30 @@ function ToastCard({
   const focusInside = useRef(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const paused = hovered || focused || (onUndo != null && undoDisabled);
+  const paused =
+    hovered ||
+    focused ||
+    (onUndo != null && undoDisabled) ||
+    visibility === "clipped";
   const toastId = toast.id;
   const dismiss = useEffectEvent(onDismiss);
+  const lifetime = useRef({ id: toastId, remaining: timeoutMs });
   useEffect(() => {
+    if (lifetime.current.id !== toastId)
+      lifetime.current = { id: toastId, remaining: timeoutMs };
     if (paused) return;
-    const timer = window.setTimeout(() => dismiss(), timeoutMs);
-    return () => window.clearTimeout(timer);
+    const started = Date.now();
+    const timer = window.setTimeout(
+      () => dismiss(),
+      lifetime.current.remaining,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      lifetime.current.remaining = Math.max(
+        0,
+        lifetime.current.remaining - (Date.now() - started),
+      );
+    };
   }, [toastId, paused, timeoutMs]);
   useLayoutEffect(() => {
     const el = cardRef.current;
