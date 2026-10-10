@@ -56,17 +56,12 @@ for (const viewport of [
               theme,
             );
             await setZoom(page, 3);
-            if (inspector === "Envelope") {
-              const point = page.locator(`${lane} [data-hit-id="env-c"]`);
-              await point.focus();
-              await point.press("Enter");
-            } else {
-              const pending = page
-                .locator(".pending-overlay .pending-hit")
-                .first();
-              await pending.focus();
-              await pending.press("Enter");
-            }
+            const hit =
+              inspector === "Envelope"
+                ? page.locator(`${lane} [data-hit-id="env-c"]`)
+                : page.locator(".pending-overlay .pending-hit").first();
+            await hit.focus();
+            await hit.press("Enter");
             const panel = page.locator(".bottom-sheet--compact");
             await expect(panel).toBeVisible();
             await page.locator("html").evaluate((html, px) => {
@@ -105,12 +100,6 @@ for (const viewport of [
                   point.y >= area.bounds.top &&
                   point.y <= area.bounds.bottom &&
                   ruler.rect.bottom <= box!.y;
-                if (halfRulerPermitted) {
-                  await page
-                    .getByRole("slider", { name: "Timeline position" })
-                    .click({ position: { x: 300, y: 12 } });
-                  await expect(panel).toHaveClass(/bottom-sheet--half/);
-                }
                 json(info, "half-without-feedback", {
                   ruler,
                   panel: await controlGeometry(panel),
@@ -127,6 +116,25 @@ for (const viewport of [
                 exact: true,
               })
               .click();
+            if (halfRulerPermitted) {
+              json(
+                info,
+                "without-feedback-ruler-click",
+                await controlGeometry(
+                  page.getByRole("slider", { name: "Timeline position" }),
+                ),
+              );
+              await page
+                .getByRole("slider", { name: "Timeline position" })
+                .click({ position: { x: 300, y: 12 } });
+              await hit.focus();
+              await hit.press("Enter");
+              await expect(panel).toHaveClass(/bottom-sheet--half/);
+              expect((await panel.boundingBox())!.height).toBeCloseTo(
+                withoutFeedback.half,
+                0,
+              );
+            }
             await page.route("**/api/document/command*", async (route) => {
               const command = route.request().postDataJSON() as {
                 type: string;
@@ -199,13 +207,8 @@ for (const viewport of [
               );
               if (detent === "half") {
                 if (halfRulerPermitted) {
-                  const area = ruler.measured[0].visibleArea;
-                  expect(area.state).toBe("positive");
+                  expect(ruler.measured[0].visibleArea.state).toBe("positive");
                   expect(ruler.rect.bottom).toBeLessThanOrEqual(box!.y);
-                  await page
-                    .getByRole("slider", { name: "Timeline position" })
-                    .click({ position: { x: 300, y: 12 } });
-                  await expect(panel).toHaveClass(/bottom-sheet--half/);
                 }
                 if (rootPx === 16)
                   expect(box!.y - timeline.rect.top).toBeGreaterThanOrEqual(
@@ -214,6 +217,31 @@ for (const viewport of [
               }
             }
             expect(withFeedback.half).toBeLessThan(withFeedback.full);
+            if (halfRulerPermitted) {
+              await page
+                .getByRole("button", { name: "Collapse to strip", exact: true })
+                .click();
+              await page
+                .getByRole("button", {
+                  name: "Expand to half height",
+                  exact: true,
+                })
+                .click();
+              expect((await panel.boundingBox())!.height).toBeCloseTo(
+                withFeedback.half,
+                0,
+              );
+              json(
+                info,
+                "with-feedback-ruler-click",
+                await controlGeometry(
+                  page.getByRole("slider", { name: "Timeline position" }),
+                ),
+              );
+              await page
+                .getByRole("slider", { name: "Timeline position" })
+                .click({ position: { x: 300, y: 12 } });
+            }
           });
         });
       }
