@@ -2230,8 +2230,8 @@ Generated unequal-audio-stream M4A and video-with-short-audio MOV files exercise
 
 `tests/test_media_probe.py` verifies distinct container and first-audio duration policies over shared successful probe metadata, revision invalidation, copied results and failed-probe retries. Discovery separately verifies failed-probe memoization per receiving lane and retry on the next call. Full recording auditions supplement these regressions. Short reviewed excerpts are checked in under `tests/fixtures/lab_bleed/`; neither the excerpts nor the auditions prove automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
 
-The focused `registry-backup-windows` CI job builds the pinned FFmpeg pair for
-its audio fixtures and runs real NTFS backup, cancellation,
+The focused `registry-backup-windows` CI job acquires and verifies the pinned
+prebuilt FFmpeg pair for its audio fixtures and runs real NTFS backup, cancellation,
 collision, reparse-point and DACL tests, including read denial under a disposable
 second local account. That account is created and removed only on the isolated CI
 runner. macOS runs a native extended ACL grant refusal test. HMAC tests pin both
