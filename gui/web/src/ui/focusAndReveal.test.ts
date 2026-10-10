@@ -134,6 +134,16 @@ describe("revealBelowChrome", () => {
     expect(sheet.scrollTop).toBe(293);
   });
 
+  it("reveals the complete fitting label when its field already clears the header", () => {
+    const { sheet, chrome, field } = pinned(100, 102);
+    const label = document.createElement("label");
+    label.getBoundingClientRect = () => bounds(98, 44);
+    field.replaceWith(label);
+    label.append(field);
+    revealBelowChrome(sheet, chrome, field);
+    expect(sheet.scrollTop).toBe(298);
+  });
+
   it("leaves a field already clear of the header, and the header's own controls, alone", () => {
     const clear = pinned(100, 100);
     revealBelowChrome(clear.sheet, clear.chrome, clear.field);
