@@ -1336,6 +1336,8 @@ test; other rows are whole tests.
 | a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| scrolled fades and pinned actions retain pointer and keyboard ownership | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| native traversal skips covered tools and Close restores them | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | one finger moving never edits; a long-press arms, and the armed point drags in time and level | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | an armed drag holds at a soft boundary, and saves there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -1352,8 +1354,9 @@ test; other rows are whole tests.
 | #1135: a long-press at a join offers the ripple trim, which shows where later clips go | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a plain mouse grab at a join rolls it, as on main | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| compact header handles Undo while a save is pending | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | Core flow | Pass | Pass | Not run |
+| unavailable compact history keeps geometry | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 32px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
