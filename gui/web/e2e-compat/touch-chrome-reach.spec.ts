@@ -221,6 +221,90 @@ async function undoStaysReachable(
         ).map((button) => reach(button)),
       ),
       overlaps,
+      feedback: await page.evaluate(() => {
+        const toast = document.querySelector(".ui-toast-region--app .ui-toast");
+        if (!(toast instanceof HTMLElement)) return null;
+        const feedback = toast.getBoundingClientRect();
+        const panel = document.querySelector(".bottom-sheet--compact");
+        const controls = Array.from(
+          panel?.querySelectorAll(
+            "button, input, select, textarea, label, [role='button']",
+          ) ?? [],
+        ).flatMap((element) => {
+          if (
+            !(element instanceof HTMLElement) ||
+            element.closest("[inert], [hidden]")
+          )
+            return [];
+          const style = getComputedStyle(element);
+          if (style.visibility !== "visible" || style.display === "none")
+            return [];
+          const rect = element.getBoundingClientRect();
+          let left = Math.max(0, rect.left);
+          let right = Math.min(innerWidth, rect.right);
+          let top = Math.max(0, rect.top);
+          let bottom = Math.min(innerHeight, rect.bottom);
+          for (
+            let parent = element.parentElement;
+            parent;
+            parent = parent.parentElement
+          ) {
+            const box = parent.getBoundingClientRect();
+            const parentStyle = getComputedStyle(parent);
+            if (
+              ["hidden", "clip", "auto", "scroll"].includes(
+                parentStyle.overflowX,
+              )
+            ) {
+              left = Math.max(left, box.left);
+              right = Math.min(right, box.right);
+            }
+            if (
+              ["hidden", "clip", "auto", "scroll"].includes(
+                parentStyle.overflowY,
+              )
+            ) {
+              top = Math.max(top, box.top);
+              bottom = Math.min(bottom, box.bottom);
+            }
+          }
+          if (right <= left || bottom <= top) return [];
+          return [
+            {
+              name: element.getAttribute("aria-label") ?? element.textContent,
+              rect: rect.toJSON(),
+              visible: { left, right, top, bottom },
+              overlaps:
+                left < feedback.right &&
+                right > feedback.left &&
+                top < feedback.bottom &&
+                bottom > feedback.top,
+            },
+          ];
+        });
+        const dismiss = toast.querySelector("button:last-child");
+        const dismissRect = dismiss?.getBoundingClientRect();
+        const hit = dismissRect
+          ? document.elementFromPoint(
+              dismissRect.left + dismissRect.width / 2,
+              dismissRect.top + dismissRect.height / 2,
+            )
+          : null;
+        return {
+          rect: feedback.toJSON(),
+          inView:
+            feedback.left >= 0 &&
+            feedback.top >= 0 &&
+            feedback.right <= innerWidth &&
+            feedback.bottom <= innerHeight,
+          dismissOnTop:
+            dismiss != null &&
+            hit != null &&
+            (dismiss === hit || dismiss.contains(hit)),
+          controls,
+          overlaps: controls.filter((control) => control.overlaps),
+        };
+      }),
       visibleLaneHeight: await page.evaluate(() => {
         const lane = document
           .querySelector(".timeline-scroll")
@@ -398,6 +482,17 @@ async function undoStaysReachable(
       expect(control.height).toBeGreaterThanOrEqual(44);
     }
     expect(row.overlaps).toBe(false);
+    if (step === "strip-open-after-edit") {
+      expect(
+        row.feedback,
+        "Saved feedback must still be visible",
+      ).not.toBeNull();
+      expect(row.feedback).toMatchObject({
+        inView: true,
+        dismissOnTop: true,
+        overlaps: [],
+      });
+    }
     if (step !== "rail") {
       expect(row.visibleLaneHeight.strip?.bottom).toBeCloseTo(
         row.visibleLaneHeight.bottomChrome?.top ?? -1,

@@ -12,6 +12,38 @@ const phone = {
 };
 
 describe("toastDockBottomPx (phone)", () => {
+  it.each([
+    {
+      action: "Time +0.01",
+      pressedPx: { top: 434, bottom: 522 },
+      otherControl: { top: 199, bottom: 287 },
+    },
+    {
+      action: "Level +0.01",
+      pressedPx: { top: 628, bottom: 716 },
+      otherControl: { top: 434, bottom: 522 },
+    },
+  ])(
+    "keeps another visible compact control clear after $action",
+    ({ pressedPx, otherControl }) => {
+      const bottom = toastDockBottomPx({
+        viewportHeight: 844,
+        ceilingPx: 104,
+        floorTopsPx: [740, 28],
+        navTopPx: 740,
+        toastHeightPx: 222,
+        gapPx: 16,
+        pressedPx,
+      });
+      expect(Number.isFinite(bottom)).toBe(true);
+      const toastBottom = 844 - bottom;
+      const toastTop = toastBottom - 222;
+      expect(
+        toastTop < otherControl.bottom && toastBottom > otherControl.top,
+      ).toBe(false);
+    },
+  );
+
   it("sits just above the mode nav when nothing else is docked", () => {
     expect(toastDockBottomPx({ ...phone, floorTopsPx: [792] })).toBe(
       844 - 792 + 12,

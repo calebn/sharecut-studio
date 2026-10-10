@@ -293,6 +293,13 @@ those edges every frame while a toast shows (like an open menu) into the
 region's `--toast-dock-bottom`; without it the CSS places the toast above the
 mode nav. Desktop and tablet keep it above the status bar.
 
+The current full-sheet fallback avoids only the latest pressed control. At large
+text sizes it can cover another inspector control, including wrapped Close or
+the other envelope nudge row. Keeping every visible control clear is a required
+fix, not a guarantee of the current docking implementation. Regression checks
+must inspect the toast while it is visible and compare its full rectangle with
+visible control and native label rectangles, after ancestor clipping.
+
 ### Selection sheet: three zones
 
 Every selection sheet follows the same three-zone layout for consistency:
