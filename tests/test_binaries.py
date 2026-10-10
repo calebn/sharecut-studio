@@ -131,7 +131,8 @@ def test_bare_commands_are_fixed_before_path_changes(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(other[0].parent))
     admitted_again = resolve_ffmpeg_pair(pair.ffmpeg, pair.ffprobe)
     assert admitted_again.version == (9, 0, 2)
-    assert admitted_again.ffmpeg == str(selected[0])
+    assert Path(admitted_again.ffmpeg).is_absolute()
+    assert Path(admitted_again.ffmpeg).samefile(selected[0])
 
 
 def test_automatic_discovery_skips_unsupported_pair_and_keeps_source(tmp_path, monkeypatch):

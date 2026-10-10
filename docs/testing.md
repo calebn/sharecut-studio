@@ -178,7 +178,7 @@ The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py
 
 The `pytest` job also runs `actions/setup-node`, so Python tests that invoke Node have the runtime available in CI.
 
-The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. It fails unless the wheel ships `index.html` plus every file it references and the installed `podcast gui` serves that `index.html` at `/`. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
+The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. It fails unless the wheel ships `index.html` plus every file it references and the installed `podcast gui` serves that `index.html` at `/`. The source archive excludes installed frontend dependencies, including hardlinked files under `gui/web/node_modules`. CI inspects archive members and rejects generated dependency trees or hardlinks. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
 
 The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, and a weekly schedule) installs every optional extra into a fresh venv without `uv.lock` and imports its modules (`tests/test_extras_import.py`, marker `extras_install`, enabled by `PODCAST_CHECK_EXTRAS=1`). The locked suite cannot see an upstream release that breaks `pip install "podcast-mcp[extra]"`; the weekly run does. The main `pytest` job skips it because the env var is unset ([setup.md § Pip extras](setup.md#pip-extras)).
 
@@ -2216,7 +2216,8 @@ Generated unequal-audio-stream M4A and video-with-short-audio MOV files exercise
 
 `tests/test_media_probe.py` verifies distinct container and first-audio duration policies over shared successful probe metadata, revision invalidation, copied results and failed-probe retries. Discovery separately verifies failed-probe memoization per receiving lane and retry on the next call. Full recording auditions supplement these regressions. Short reviewed excerpts are checked in under `tests/fixtures/lab_bleed/`; neither the excerpts nor the auditions prove automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
 
-The focused `registry-backup-windows` CI job runs real NTFS backup, cancellation,
+The focused `registry-backup-windows` CI job builds the pinned FFmpeg pair for
+its audio fixtures and runs real NTFS backup, cancellation,
 collision, reparse-point and DACL tests, including read denial under a disposable
 second local account. That account is created and removed only on the isolated CI
 runner. macOS runs a native extended ACL grant refusal test. HMAC tests pin both

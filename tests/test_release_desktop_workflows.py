@@ -520,3 +520,19 @@ def test_public_reusable_workflow_has_no_hosted_release_operations() -> None:
     assert "peter-evans/create-pull-request" not in text
     assert "contents: write" not in text
     assert "pull-requests: write" not in text
+
+
+def test_windows_registry_media_fixtures_use_pinned_pair():
+    job = load_github_yaml(ROOT / ".github/workflows/registry-backup-windows.yml")["jobs"][
+        "native-registry-backup"
+    ]
+    steps = job["steps"]
+    build = next(step for step in steps if step.get("name") == "Build pinned FFmpeg")
+    tests = next(
+        step
+        for step in steps
+        if step.get("name") == "Native handles, private DACLs, second-account denial, and lifecycle"
+    )
+    assert build["uses"] == "./.github/actions/setup-ffmpeg"
+    assert "if" not in build and not build.get("continue-on-error")
+    assert steps.index(build) < steps.index(tests)

@@ -9,11 +9,14 @@ on:
 jobs:
   native-registry-backup:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      - name: Build pinned FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
       - name: Install focused test dependencies
         run: python -m pip install -e ".[dev,gui,relay]"
       - name: Provision owned NTFS proof storage
