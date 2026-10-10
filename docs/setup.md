@@ -30,13 +30,13 @@ The core install includes `filelock` to coordinate transcript-refine status
 decisions between local pipeline, CLI, and MCP processes.
 
 If doctor reports missing or unsupported FFmpeg, install a matching supported pair
-or use the [shared source builder](#build-ffmpeg-from-source). Run `podcast doctor`
+or use the [prebuilt importer](#acquire-the-pinned-ffmpeg-pair). Run `podcast doctor`
 again after setting the executable paths.
 
 Optional next steps:
 
 ```bash
-podcast bootstrap --component all          # whisper model + rnnoise (+ silero check)
+podcast bootstrap --component all
 cd gui/web && npm ci && npm run build && cd ../..   # Sharecut Studio static assets
 make hooks                                          # lint-staged + check-only pre-commit hooks
 make worktree-setup                                 # per git worktree: hooks + venv (incl. pre-commit) + gui/web node_modules
@@ -189,7 +189,7 @@ shasum -a 256 /tmp/pin-check/config.json /tmp/pin-check/model.bin /tmp/pin-check
 Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so RNNoise tries CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
 
 ```bash
-podcast bootstrap --component all      # whisper (large-v3-turbo) + rnnoise + silero check
+podcast bootstrap --component all
 podcast bootstrap --component whisper --whisper-model small.en
 podcast setup --whisper-model medium.en   # persist without downloading
 # Use another downloaded model for one standalone transcription run.
@@ -242,49 +242,33 @@ source .venv/bin/activate
 podcast doctor
 ```
 
-## Build FFmpeg from source
+## Acquire the pinned FFmpeg pair
 
-Desktop releases include audio tools and require no FFmpeg download. For a source
-checkout without a supported system pair, use the same native builder as CI:
+Desktop packaging uses the same prebuilt importer as CI. A source checkout can
+select that pair explicitly after acquiring it:
 
 ```bash
-python scripts/build_ffmpeg.py --output /absolute/path/sharecut-ffmpeg
+python scripts/ffmpeg_payload.py --output /absolute/path/sharecut-ffmpeg
 export PODCAST_MCP_FFMPEG=/absolute/path/sharecut-ffmpeg/bin/ffmpeg
 export PODCAST_MCP_FFPROBE=/absolute/path/sharecut-ffmpeg/bin/ffprobe
 podcast doctor
 ```
 
-On Windows, build in MSYS2 MINGW64 with GCC, make, pkg-config, Python and curl,
-then use the `.exe` paths. Linux requires a C compiler, make, pkg-config and curl.
-macOS requires the Xcode command-line tools, make, pkg-config and curl. The builder
-compiles native sources. It does not run during normal startup or bootstrap.
+Use the `.exe` paths on Windows. No compiler or source download is required by
+the consumer. The production catalog pins hosted archives and their original
+producer manifests. Acquisition fails closed if either digest or native proof fails.
 
-To acquire only the original archives, without extraction or compiler tools, run:
+An offline dependency archive still requires the selected catalog hashes:
 
 ```bash
-python scripts/build_ffmpeg.py --acquire-sources --source-cache /absolute/path/ffmpeg-sources
-python scripts/build_ffmpeg.py --output /absolute/path/sharecut-ffmpeg --source-archives /absolute/path/ffmpeg-sources
+python scripts/ffmpeg_payload.py --output /absolute/path/sharecut-ffmpeg --catalog /absolute/path/catalog.json --archive /absolute/path/payload.tar.xz
 ```
 
-`--source-cache` permits bounded downloads from the contract's official HTTPS
-URLs. Downloads go to unique temporary siblings, pass the expected SHA256 check,
-and replace the final cache entry atomically. Failed downloads never publish a
-final archive. Existing cache entries are rehashed and corruption fails closed.
-`--source-archives` requires the complete set and never downloads missing files.
-It is mutually exclusive with `--source-cache`. Supplied archives must pass
-admission even when an existing native payload can be reused. Before extracting
-any source, the builder copies every archive into its owned payload `sources/`
-directory and hashes those exact copies. The payload retains these original
-archives, notices, build logs and a runnable `rebuild/` tree.
-
-Each desktop, registry, test and release workflow invokes
-`.github/workflows/ffmpeg-sources.yml` once. It checks out the exact source SHA,
-acquires only original archives and publishes a one-day, same-run artifact.
-Each native consumer independently checks the current contract hashes through
-`--source-archives`. Release acquisition follows `verify-source` and receives
-only the optional read-only source checkout key, never signing material.
-Source acquisition proves archive delivery. Native compilation, system linkage
-and media execution remain separate required checks on each target.
+The importer verifies the complete archive SHA256 before extraction. It also
+checks explicit archives before existing payload reuse. Wrong or damaged input
+never falls back to another supplier. The existing native source builder is for
+producing a new dependency release when inputs change. It requires native build
+tools and is absent from ordinary CI and sidecar call graphs.
 
 ### FFmpeg version and pair policy
 
@@ -296,10 +280,10 @@ status: accepted
 date: 2026-10-09
 decided-by: calebn
 evidence:
-- Owner instruction to bundle FFmpeg 9 in desktop releases, use the same version in CI and drop FFmpeg 6 support
+- Owner instruction to bundle a pinned prebuilt FFmpeg 9 pair in desktop releases, use the same pair in CI and drop FFmpeg 6 support
 enforced-by:
 - tests/test_binaries.py::test_unsupported_release_fails_before_return
-- tests/test_build_ffmpeg.py::test_source_hash_failure_does_not_extract
+- tests/test_ffmpeg_payload.py::test_corrupt_archive_fails_before_tar_open_or_execution
 - tests/test_build_sidecar.py::test_payload_is_ensured_before_runtime_completion
 -->
 
@@ -330,16 +314,28 @@ The recipe keeps built-in media codecs and filters, enables MP3 through LAME and
 PNG through zlib and Opus through libopus. It enables neither GPL nor nonfree
 dependencies. Static pkg-config resolution includes private system libraries
 required by dependencies, such as Opus’s math library on Linux. Standalone
-x86 assembly is disabled, so native jobs do not need NASM. CI and desktop release
-jobs run this builder and execute the resulting pair. Original source archives
-are transported in same-run artifacts and rechecked by every consumer. Binary hashes detect corruption after a
-trusted source build, and do not authenticate arbitrary binary downloads.
+x86 assembly is disabled. `scripts/build_ffmpeg.py` is the native dependency
+producer for a new release, rather than an ordinary CI or sidecar prerequisite.
+
+CI and the sidecar use `scripts/ffmpeg_payload.py` to acquire the same target
+archive from `contracts/ffmpeg-artifacts.json`. Archive SHA256 admission precedes
+extraction or executable execution. The catalog also pins the original producer
+manifest. Its closed inventory covers the pair, source archives, notices and
+rebuild materials. Known source pins and semantic configure inputs are checked
+independently. Consumer admission preserves historical producer hashes and does
+not require the current builder script to match them.
+
+The production catalog selects the hosted archive for each supported target.
+Offline validation can supply `--catalog` and `--archive` to the same importer. Sidecar builds forward `PODCAST_FFMPEG_CATALOG` and
+`PODCAST_FFMPEG_ARCHIVE` for this offline workflow. An explicit corrupt archive
+fails even if the installed payload is intact. No consumer source-build fallback
+exists. These environment variables affect build tooling only.
 
 Windows linkage validation admits audited direct imports from Windows SDK DLLs,
 including GDI, OLE Automation, Shell utilities and AVICap used by FFmpeg's native
 capture inputs. API-set imports must be complete DLL basenames with their level
 and version numbers. Paths, malformed names and external codec or toolchain DLLs
-fail validation. The builder prints the complete direct import inventory before
+fail validation. The importer reads the PE import table without a compiler toolchain and prints the direct inventory before
 validation, so CI logs retain it on success or failure. PE import inspection checks
 names. The subsequent media proof executes both programs with only Windows
 System32 on PATH to detect missing runtime dependencies and confirm the required
@@ -347,7 +343,7 @@ codecs and filters.
 
 `podcast bootstrap` downloads model assets only. FFmpeg is a readiness check and
 is absent from CLI and GUI download component lists. Keep supported system tools,
-use explicit paths from the source builder, or reinstall a damaged desktop bundle.
+use explicit paths from the prebuilt importer, or reinstall a damaged desktop bundle.
 
 Run the selected build's media acceptance suite with the
 [`scripts/verify_ffmpeg_baseline.py`](../scripts/verify_ffmpeg_baseline.py).

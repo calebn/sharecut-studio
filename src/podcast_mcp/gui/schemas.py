@@ -71,7 +71,7 @@ class TranscriptVocabularyPutRequest(BaseModel):
 
 
 class BootstrapRunRequest(BaseModel):
-    """Studio asset download (ffmpeg / whisper / optional rnnoise / opt-in word-aligner)."""
+    """Studio model downloads for Whisper, optional RNNoise, and the opt-in word aligner."""
 
     components: list[str] | None = None
     whisper_model: str | None = None

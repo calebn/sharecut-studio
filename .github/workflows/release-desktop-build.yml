@@ -91,17 +91,6 @@ permissions:
   actions: read
 
 jobs:
-  ffmpeg-sources:
-    needs: verify-source
-    uses: ./.github/workflows/ffmpeg-sources.yml
-    permissions:
-      contents: read
-    with:
-      source-repository: ${{ needs.verify-source.outputs.source_repository }}
-      source-sha: ${{ needs.verify-source.outputs.source_sha }}
-    secrets:
-      SOURCE_REPOSITORY_SSH_KEY: ${{ secrets.SOURCE_REPOSITORY_SSH_KEY }}
-
   verify-source:
     name: verify-source-trust
     runs-on: ubuntu-latest
@@ -171,7 +160,7 @@ jobs:
     if: inputs.extension_artifact_name != ''
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
-    needs: [verify-source, ffmpeg-sources]
+    needs: verify-source
     permissions: {}
     strategy:
       fail-fast: false
@@ -219,10 +208,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build pinned native FFmpeg resource
+      - name: Install pinned prebuilt FFmpeg resource
         uses: ./.github/actions/setup-ffmpeg
         with:
-          source-artifact: ${{ needs.ffmpeg-sources.outputs.artifact-name }}
           output: gui/desktop/binaries/sharecut-runtime/ffmpeg
 
       - name: Download private extension wheel
@@ -333,8 +321,8 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
-    if: ${{ !cancelled() && needs.verify-source.result == 'success' && needs.ffmpeg-sources.result == 'success' && (inputs.extension_artifact_name == '' || needs.prepare-extension-runtime.result == 'success') }}
-    needs: [verify-source, ffmpeg-sources, prepare-extension-runtime]
+    if: ${{ !cancelled() && needs.verify-source.result == 'success' && (inputs.extension_artifact_name == '' || needs.prepare-extension-runtime.result == 'success') }}
+    needs: [verify-source, prepare-extension-runtime]
     permissions:
       contents: read
       actions: write
@@ -399,10 +387,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build pinned native FFmpeg resource
+      - name: Install pinned prebuilt FFmpeg resource
         uses: ./.github/actions/setup-ffmpeg
         with:
-          source-artifact: ${{ needs.ffmpeg-sources.outputs.artifact-name }}
           output: gui/desktop/binaries/sharecut-runtime/ffmpeg
 
       - name: Configure distribution profile

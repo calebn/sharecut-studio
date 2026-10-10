@@ -44,8 +44,7 @@ while [ $# -gt 0 ]; do
 done
 
 if command -v uv >/dev/null 2>&1; then
-  # Contributor default: tests + GUI API + relay + prosody.
-  # Omits speaker/joinqc (large torch/CUDA downloads). For those: uv sync --all-extras
+    # Omits speaker/joinqc (large torch/CUDA downloads). For those: uv sync --all-extras
   uv sync --extra dev --extra gui --extra relay --extra prosody
   PODCAST=(uv run podcast)
 else

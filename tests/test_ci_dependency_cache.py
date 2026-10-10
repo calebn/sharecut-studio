@@ -6,10 +6,9 @@ ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github/workflows/test.yml"
 
 
-def test_workflow_keeps_installs_checks_and_only_one_ffmpeg_cache_writer() -> None:
+def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     jobs = load_github_yaml(WORKFLOW)["jobs"]
     assert set(jobs) == {
-        "ffmpeg-sources",
         "pytest",
         "pytest-python-floor",
         "frontend",
@@ -60,39 +59,6 @@ def test_release_wheel_rebuilds_when_ffmpeg_contract_changes() -> None:
         assert "contracts/ffmpeg-build.json" in workflow["on"][event]["paths"]
 
 
-def test_source_cache_never_stores_binaries():
-    action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
-    for step in action["runs"]["steps"]:
-        if step.get("uses", "").startswith("actions/cache/"):
-            assert step["with"]["path"] == "${{ runner.temp }}/ffmpeg-sources"
-            assert "restore-keys" not in step["with"]
-
-
-def test_native_action_exports_absolute_paths_before_cwd_changes():
-    action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
-    windows = next(
-        step for step in action["runs"]["steps"] if step["name"] == "Build native Windows payload"
-    )
-    unix = next(
-        step for step in action["runs"]["steps"] if step["name"] == "Build native Unix payload"
-    )
-    assert 'output="$(cygpath -am ' in windows["run"]
-    assert "pathlib.Path(sys.argv[1]).absolute()" in unix["run"]
-    for step in (windows, unix):
-        assert step["run"].index("output=") < step["run"].index("--output")
-        assert "PODCAST_MCP_FFMPEG=" in step["run"]
-
-
-def test_windows_toolchain_cannot_shadow_downstream_cpython():
-    action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
-    windows = next(
-        step for step in action["runs"]["steps"] if step["name"] == "Build native Windows payload"
-    )
-    assert "PODCAST_FFMPEG_TOOLCHAIN_PATH=" in windows["run"]
-    exported_paths = [line for line in windows["run"].splitlines() if '>> "$GITHUB_PATH"' in line]
-    assert exported_paths == ['echo "$(cygpath -w "$output/bin")" >> "$GITHUB_PATH"']
-
-
 def test_windows_action_executes_standard_python_identity_check():
     action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
     step = next(
@@ -120,78 +86,57 @@ def test_windows_native_payload_repeats_sidecar_verification():
     assert "pythonLocation" in step["run"]
 
 
-def test_every_native_consumer_requires_same_run_original_sources():
+def test_every_native_consumer_uses_catalog_importer_without_compilation():
     consumers = {}
     for path in (ROOT / ".github/workflows").glob("*.yml"):
         workflow = load_github_yaml(path)
         for name, job in workflow.get("jobs", {}).items():
             calls = [
-                s for s in job.get("steps", []) if s.get("uses") == "./.github/actions/setup-ffmpeg"
+                step
+                for step in job.get("steps", [])
+                if step.get("uses") == "./.github/actions/setup-ffmpeg"
             ]
-            if not calls:
-                continue
-            consumers.setdefault(path.name, []).append(name)
-            producer = workflow["jobs"]["ffmpeg-sources"]
-            assert producer["uses"] == "./.github/workflows/ffmpeg-sources.yml"
-            assert "ffmpeg-sources" in job["needs"]
-            for call in calls:
-                assert (
-                    call["with"]["source-artifact"]
-                    == "${{ needs.ffmpeg-sources.outputs.artifact-name }}"
-                )
+            if calls:
+                consumers.setdefault(path.name, []).append(name)
+                for call in calls:
+                    assert set(call.get("with", {})) <= {"output"}
+        assert "ffmpeg-sources" not in workflow.get("jobs", {})
+        assert "scripts/build_ffmpeg.py" not in path.read_text()
+        assert "PODCAST_FFMPEG_TOOLCHAIN_PATH" not in path.read_text()
     assert consumers == {
         "desktop.yml": ["project-commit-lock-windows", "ffmpeg-native-payload"],
         "registry-backup-windows.yml": ["native-registry-backup"],
         "test.yml": ["pytest", "pytest-python-floor", "frontend-e2e-suites"],
         "release-desktop-build.yml": ["prepare-extension-runtime", "bundle"],
     }
-    test = load_github_yaml(WORKFLOW)["jobs"]
-    desktop = load_github_yaml(ROOT / ".github/workflows/desktop.yml")["jobs"]
-    assert "needs" not in test["frontend"]
-    assert "needs" not in desktop["ffmpeg-resolver-windows"]
-
-
-def test_source_producer_has_exact_coordinates_and_no_signing_secrets():
-    workflow = load_github_yaml(ROOT / ".github/workflows/ffmpeg-sources.yml")
-    assert set(workflow["on"]["workflow_call"]["secrets"]) == {"SOURCE_REPOSITORY_SSH_KEY"}
-    job = workflow["jobs"]["acquire"]
-    checkout = job["steps"][0]
-    assert checkout["with"]["repository"] == "${{ inputs.source-repository }}"
-    assert checkout["with"]["ref"] == "${{ inputs.source-sha }}"
-    assert checkout["with"]["persist-credentials"] is False
-    assert job["permissions"] == {"contents": "read"}
-    run = next(s["run"] for s in job["steps"] if s.get("name") == "Acquire original pinned sources")
-    assert "--acquire-sources --source-cache" in run
-    upload = next(
-        s for s in job["steps"] if s.get("uses", "").startswith("actions/upload-artifact@")
-    )
-    assert upload["with"]["if-no-files-found"] == "error"
-    assert upload["with"]["retention-days"] == 1
-    release = load_github_yaml(ROOT / ".github/workflows/release-desktop-build.yml")["jobs"]
-    producer = release["ffmpeg-sources"]
-    assert producer["needs"] == "verify-source"
-    assert (
-        producer["with"]["source-repository"]
-        == "${{ needs.verify-source.outputs.source_repository }}"
-    )
-    assert producer["with"]["source-sha"] == "${{ needs.verify-source.outputs.source_sha }}"
-    assert set(producer["secrets"]) == {"SOURCE_REPOSITORY_SSH_KEY"}
-    assert "needs.ffmpeg-sources.result == 'success'" in release["bundle"]["if"]
-    assert "inputs.extension_artifact_name == ''" in release["bundle"]["if"]
-
-
-def test_native_action_consumes_artifact_without_cache_fallback():
     action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
-    assert action["inputs"]["source-artifact"]["required"] is True
     steps = action["runs"]["steps"]
-    download = next(s for s in steps if s.get("uses", "").startswith("actions/download-artifact@"))
-    assert download["with"] == {
-        "name": "${{ inputs.source-artifact }}",
-        "path": "${{ runner.temp }}/ffmpeg-sources",
-    }
-    assert all(not s.get("uses", "").startswith("actions/cache/") for s in steps)
-    for name in ("Build native Windows payload", "Build native Unix payload"):
-        run = next(s["run"] for s in steps if s.get("name") == name)
-        assert "--source-archives" in run
-        assert "--source-cache" not in run
-        assert "PODCAST_FFMPEG_SOURCE_ARCHIVES=" in run
+    acquire = steps[0]
+    assert (
+        acquire["run"]
+        == 'python scripts/ffmpeg_payload.py --output "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}" --github-env'
+    )
+    assert acquire["shell"] == "bash"
+    assert len(steps) == 2
+    assert not any(step.get("uses") for step in steps)
+
+
+def test_linux_newer_host_verifies_transferred_payload_without_download():
+    job = load_github_yaml(ROOT / ".github/workflows/desktop.yml")["jobs"][
+        "ffmpeg-linux-newer-host"
+    ]
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert job["needs"] == "ffmpeg-native-payload"
+    download = next(
+        step
+        for step in job["steps"]
+        if step.get("uses", "").startswith("actions/download-artifact@")
+    )
+    assert download["with"]["name"] == "ffmpeg-native-ubuntu-22.04"
+    proof = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Execute Ubuntu 22.04 payload on Ubuntu 24.04"
+    )
+    assert 'python scripts/ffmpeg_payload.py --output "$PAYLOAD" --verify-only' in proof["run"]
+    assert all(step.get("uses") != "./.github/actions/setup-ffmpeg" for step in job["steps"])

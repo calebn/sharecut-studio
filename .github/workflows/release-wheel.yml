@@ -13,6 +13,7 @@ on:
       - "pyproject.toml"
       - "hatch_build.py"
       - "contracts/ffmpeg-build.json"
+      - "contracts/ffmpeg-artifacts.json"
       - "src/podcast_mcp/gui/static_assets.py"
       - "scripts/check_wheel_web_build.py"
       - "gui/web/package.json"

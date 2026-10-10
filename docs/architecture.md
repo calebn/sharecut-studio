@@ -207,9 +207,12 @@ PATH directories and the existing source-use cache. Discovery is lazy and
 read-only. Inaccessible optional directories count as unavailable. Version
 validation lives at this executable boundary. Readiness reports retain its failures and source.
 `contracts/ffmpeg-build.json` owns the release and native source recipe.
-`scripts/build_ffmpeg.py` builds, verifies and publishes a complete payload.
-The sidecar builder ensures it before runtime completion on fresh and reused
-builds. The native launcher supplies `PODCAST_MCP_FFMPEG_BUNDLE` in GUI, CLI and
+`scripts/ffmpeg_payload.py` owns catalog admission, bounded closed-inventory
+extraction, native proof, complete payload replacement and pair signing. CI and
+the sidecar call this owner. The native dependency producer in
+`scripts/build_ffmpeg.py` shares its executable proofs and has no ordinary
+consumer workflow. The importer retains the original producer manifest and
+records signed executable hashes separately. The production target catalog pins the hosted archive and original manifest hashes. The native launcher supplies `PODCAST_MCP_FFMPEG_BUNDLE` in GUI, CLI and
 MCP modes. Bootstrap downloads model assets only. See
 [FFmpeg version and pair policy](setup.md#ffmpeg-version-and-pair-policy).
 

@@ -6,16 +6,12 @@ set -euo pipefail
 
 CALLER_DIR="$PWD"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IMAGE="${SHARECUT_LINUX_APPIMAGE_IMAGE:-sharecut-linux-appimage:local}"
+IMAGE="${SHARECUT_LINUX_APPIMAGE_IMAGE:-sharecut-linux-amd64-appimage:local}"
 DOCKERFILE="$ROOT/gui/desktop/Dockerfile.linux-appimage"
 BASE_IMAGE="${SHARECUT_LINUX_BASE_IMAGE:-}"
-CACHE="${TMPDIR:-/tmp}/sharecut-linux-rootfs"
-case "$(uname -m)" in
-  arm64|aarch64) UBUNTU_BASE_ARCH="arm64" ;;
-  x86_64|amd64) UBUNTU_BASE_ARCH="amd64" ;;
-  *) echo "error: unsupported uname -m $(uname -m)" >&2; exit 1 ;;
-esac
-UBUNTU_BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.5-base-${UBUNTU_BASE_ARCH}.tar.gz"
+CACHE="${TMPDIR:-/tmp}/sharecut-linux-amd64-rootfs"
+PLATFORM="linux/amd64"
+UBUNTU_BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.5-base-amd64.tar.gz"
 
 PROFILE_ENV_ARGS=()
 PROFILE_MOUNT_ARGS=()
@@ -46,38 +42,55 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
+image_is_amd64() {
+  [[ "$(docker image inspect --format '{{.Architecture}}' "$1" 2>/dev/null)" == amd64 ]]
+}
+
 ensure_base_image() {
   if [[ -n "$BASE_IMAGE" ]]; then
+    if ! image_is_amd64 "$BASE_IMAGE"; then
+      echo "error: base image must be amd64: $BASE_IMAGE" >&2
+      exit 1
+    fi
     return 0
   fi
-  if docker image inspect ubuntu:22.04 >/dev/null 2>&1; then
+  if image_is_amd64 ubuntu:22.04; then
     BASE_IMAGE="ubuntu:22.04"
     return 0
   fi
   # Docker Hub metadata/layer pulls often hang on this Mac; Ubuntu archive curl works.
-  if ! docker image inspect sharecut-ubuntu:22.04 >/dev/null 2>&1; then
+  if docker image inspect sharecut-ubuntu-amd64:22.04 >/dev/null 2>&1; then
+    if ! image_is_amd64 sharecut-ubuntu-amd64:22.04; then
+      echo "error: cached base image must be amd64: sharecut-ubuntu-amd64:22.04" >&2
+      exit 1
+    fi
+  else
     echo "==> import Ubuntu 22.04 rootfs (Docker Hub pull skipped)"
     mkdir -p "$CACHE"
-    tarball="$CACHE/ubuntu-base-22.04.5-base-${UBUNTU_BASE_ARCH}.tar.gz"
+    tarball="$CACHE/ubuntu-base-22.04.5-base-amd64.tar.gz"
     if [[ ! -s "$tarball" ]]; then
       curl -fL --retry 3 --retry-delay 2 -o "${tarball}.partial" "$UBUNTU_BASE_URL"
       mv -f "${tarball}.partial" "$tarball"
     fi
-    docker import "$tarball" sharecut-ubuntu:22.04
+    docker import --platform "$PLATFORM" "$tarball" sharecut-ubuntu-amd64:22.04
   fi
-  BASE_IMAGE="sharecut-ubuntu:22.04"
+  BASE_IMAGE="sharecut-ubuntu-amd64:22.04"
 }
 
 ensure_base_image
 if [[ "${SHARECUT_LINUX_REBUILD_IMAGE:-}" == "1" ]] || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "==> docker build $IMAGE (FROM $BASE_IMAGE)"
-  docker build --build-arg "BASE_IMAGE=$BASE_IMAGE" -f "$DOCKERFILE" -t "$IMAGE" "$ROOT/gui/desktop"
+  docker build --platform "$PLATFORM" --build-arg "BASE_IMAGE=$BASE_IMAGE" -f "$DOCKERFILE" -t "$IMAGE" "$ROOT/gui/desktop"
 else
+  if ! image_is_amd64 "$IMAGE"; then
+    echo "error: cached AppImage image must be amd64: $IMAGE" >&2
+    exit 1
+  fi
   echo "==> reuse image $IMAGE (set SHARECUT_LINUX_REBUILD_IMAGE=1 to rebuild)"
 fi
 
 mkdir -p "$ROOT/gui/desktop/dist-linux"
-DEB_DIR="${TMPDIR:-/tmp}/sharecut-linux-debs"
+DEB_DIR="${TMPDIR:-/tmp}/sharecut-linux-amd64-debs"
 mkdir -p "$DEB_DIR"
 
 # Architecture: all. Pin SHA-256; GHA uses apt-get instead of these debs.
@@ -100,25 +113,25 @@ download_pinned_deb "$DEB_DIR/sensible-utils_all.deb" \
   "68fa82f5a319ffe48f51ea874117be3d6781c5f6b2ac4f172485fa690ebde4a3"
 
 echo "==> docker run AppImage (Linux volumes for sidecar + cargo; Mac FS is case-insensitive)"
-docker run --rm \
+docker run --platform "$PLATFORM" --rm \
   -e APPIMAGE_EXTRACT_AND_RUN=1 \
   -e NO_STRIP=true \
   -e REBUILD_SIDECAR="${REBUILD_SIDECAR:-}" \
   -e SHARECUT_SIDECAR_OUT=/src/gui/desktop/binaries \
   -e CARGO_TARGET_DIR=/cargo-target \
   -e SHARECUT_APPIMAGE_OUT=/out \
-  "${PROFILE_ENV_ARGS[@]}" \
+  ${PROFILE_ENV_ARGS[@]+"${PROFILE_ENV_ARGS[@]}"} \
   -v "$ROOT:/src" \
-  "${PROFILE_MOUNT_ARGS[@]}" \
+  ${PROFILE_MOUNT_ARGS[@]+"${PROFILE_MOUNT_ARGS[@]}"} \
   -v "$ROOT/gui/desktop/dist-linux:/out" \
   -v "$DEB_DIR:/opt/sharecut-debs:ro" \
-  -v sharecut-linux-sidecar:/src/gui/desktop/binaries \
-  -v sharecut-linux-cargo-registry:/root/.cargo/registry \
-  -v sharecut-linux-cargo-git:/root/.cargo/git \
-  -v sharecut-linux-cargo-target:/cargo-target \
-  -v sharecut-linux-uv:/root/.cache/uv \
-  -v sharecut-linux-npm:/root/.npm \
-  -v sharecut-linux-desktop-node-modules:/src/gui/desktop/node_modules \
+  -v sharecut-linux-amd64-sidecar:/src/gui/desktop/binaries \
+  -v sharecut-linux-amd64-cargo-registry:/root/.cargo/registry \
+  -v sharecut-linux-amd64-cargo-git:/root/.cargo/git \
+  -v sharecut-linux-amd64-cargo-target:/cargo-target \
+  -v sharecut-linux-amd64-uv:/root/.cache/uv \
+  -v sharecut-linux-amd64-npm:/root/.npm \
+  -v sharecut-linux-amd64-desktop-node-modules:/src/gui/desktop/node_modules \
   -w /src \
   "$IMAGE" \
   ./scripts/build_linux_appimage.sh

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import io
+import json
 import tarfile
 from pathlib import Path
 
@@ -30,53 +31,8 @@ def test_archive_cannot_escape_output(tmp_path):
     assert not (tmp_path / "outside").exists()
 
 
-def test_failed_build_leaves_previous_payload(tmp_path, monkeypatch):
-    builder = load_script("build_ffmpeg")
-    output = tmp_path / "payload"
-    output.mkdir()
-    (output / "prior").write_text("complete prior payload")
-    monkeypatch.setattr(
-        builder, "verify_payload", lambda *_a, **_k: (_ for _ in ()).throw(ValueError("broken"))
-    )
-    monkeypatch.setattr(
-        builder,
-        "build_payload",
-        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("configure failed")),
-    )
-    with pytest.raises(RuntimeError, match="configure failed"):
-        builder.ensure_payload(output)
-    assert (output / "prior").read_text() == "complete prior payload"
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["payload"]
-
-
-def test_pair_publication_is_complete_before_replace(tmp_path, monkeypatch):
-    builder = load_script("build_ffmpeg")
-    output = tmp_path / "payload"
-    seen = []
-
-    def build(stage, **kwargs):
-        (stage / "bin").mkdir()
-        for name in ("ffmpeg", "ffprobe"):
-            (stage / "bin" / name).write_text(name)
-        return {"version": "9.0.2"}
-
-    def verify(path, **kwargs):
-        if not path.exists():
-            raise ValueError("missing")
-        seen.append(sorted(p.name for p in (path / "bin").iterdir()))
-        return {"version": "9.0.2"}
-
-    monkeypatch.setattr(builder, "build_payload", build)
-    monkeypatch.setattr(builder, "verify_payload", verify)
-    builder.ensure_payload(output)
-    assert seen == [["ffmpeg", "ffprobe"]]
-    assert (output / "bin" / "ffprobe").read_text() == "ffprobe"
-    builder.ensure_payload(output)
-    assert seen == [["ffmpeg", "ffprobe"], ["ffmpeg", "ffprobe"]]
-
-
 def test_macos_minimum_ignores_linker_tool_version(monkeypatch, tmp_path):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "system", lambda: "Darwin")
 
     def run(argv, **kwargs):
@@ -89,7 +45,7 @@ def test_macos_minimum_ignores_linker_tool_version(monkeypatch, tmp_path):
 
 
 def test_unknown_native_architecture_fails(monkeypatch):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "machine", lambda: "mips")
     with pytest.raises(ValueError, match="unsupported native architecture"):
         builder._target()
@@ -161,7 +117,7 @@ def test_safe_extract_preserves_generated_source_timestamps(tmp_path):
 
 @pytest.mark.parametrize("directory", ["/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu"])
 def test_linux_linkage_accepts_system_glibc_vector_math(tmp_path, monkeypatch, directory):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "system", lambda: "Linux")
     evidence = f"libmvec.so.1 => {directory}/libmvec.so.1 (0x1234)\n"
     monkeypatch.setattr(builder, "_run", lambda *_a, **_k: evidence)
@@ -178,7 +134,7 @@ def test_linux_linkage_accepts_system_glibc_vector_math(tmp_path, monkeypatch, d
     ],
 )
 def test_linux_linkage_rejects_external_or_missing_dependencies(tmp_path, monkeypatch, dependency):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "system", lambda: "Linux")
     monkeypatch.setattr(builder, "_run", lambda *_a, **_k: dependency + "\n")
     with pytest.raises(ValueError, match="non-system native linkage"):
@@ -236,7 +192,7 @@ def test_windows_builder_requests_and_stages_executable_targets(tmp_path, monkey
 
 
 def test_windows_media_proof_uses_canonical_systemroot_for_every_child(tmp_path, monkeypatch):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
     system_root = tmp_path / "Windows"
     original_environment = {
@@ -304,7 +260,7 @@ def test_windows_media_proof_uses_canonical_systemroot_for_every_child(tmp_path,
 
 
 def test_windows_linkage_accepts_native_recipe_sdk_imports(tmp_path, monkeypatch, capsys):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
     evidence = (
         "DLL Name: GDI32.dll\n"
@@ -314,8 +270,14 @@ def test_windows_linkage_accepts_native_recipe_sdk_imports(tmp_path, monkeypatch
         "DLL Name: KERNEL32.dll\n"
         "DLL Name: api-ms-win-crt-runtime-l1-1-0.dll\n"
     )
-    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: evidence)
-    assert builder._linkage(tmp_path / "ffmpeg.exe") == evidence
+    monkeypatch.setattr(
+        builder,
+        "_windows_imports",
+        lambda *_: [line.split(": ", 1)[1] for line in evidence.splitlines()],
+    )
+    assert builder._linkage(tmp_path / "ffmpeg.exe") == "\n".join(
+        line.split(": ", 1)[1] for line in evidence.splitlines()
+    )
     assert capsys.readouterr().out == (
         f"Windows native imports for {tmp_path / 'ffmpeg.exe'}: "
         "['GDI32.dll', 'OLEAUT32.dll', 'SHLWAPI.dll', 'AVICAP32.dll', 'KERNEL32.dll', "
@@ -342,9 +304,9 @@ def test_windows_linkage_accepts_native_recipe_sdk_imports(tmp_path, monkeypatch
 def test_windows_linkage_rejects_external_or_malformed_imports(
     tmp_path, monkeypatch, dependency, capsys
 ):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: "DLL Name: " + dependency + "\n")
+    monkeypatch.setattr(builder, "_windows_imports", lambda *_: [dependency])
     with pytest.raises(ValueError, match="non-system native linkage"):
         builder._linkage(tmp_path / "ffmpeg.exe")
     assert capsys.readouterr().out == (
@@ -353,9 +315,9 @@ def test_windows_linkage_rejects_external_or_malformed_imports(
 
 
 def test_windows_linkage_rejects_missing_import_evidence(tmp_path, monkeypatch):
-    builder = load_script("build_ffmpeg")
+    builder = load_script("ffmpeg_payload", register=True)
     monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: "no import table\n")
+    monkeypatch.setattr(builder, "_windows_imports", lambda *_: [])
     with pytest.raises(ValueError, match="non-system native linkage"):
         builder._linkage(tmp_path / "ffmpeg.exe")
 
@@ -372,30 +334,6 @@ def source_delivery(tmp_path, monkeypatch):
         source["sha256"] = builder.sha256_file(archive)
     monkeypatch.setattr(builder, "ffmpeg_policy", lambda: policy)
     return builder, policy, cache
-
-
-def test_source_only_cli_never_extracts_or_compiles(source_delivery, monkeypatch):
-    builder, _, cache = source_delivery
-    monkeypatch.setattr(builder, "safe_extract", lambda *_: pytest.fail("extracted"))
-    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("compiled or downloaded"))
-    assert builder.main(["--acquire-sources", "--source-cache", str(cache)]) == 0
-    assert len(list(cache.iterdir())) == 4
-
-
-@pytest.mark.parametrize("damage", ["missing", "corrupt", "misnamed"])
-def test_supplied_sources_rejected_before_payload_reuse(source_delivery, monkeypatch, damage):
-    builder, policy, cache = source_delivery
-    archive = cache / policy["sources"]["opus"]["archive"]
-    if damage == "missing":
-        archive.unlink()
-    elif damage == "misnamed":
-        archive.rename(cache / "wrong-name.tar.gz")
-    else:
-        archive.write_bytes(b"corrupt")
-    monkeypatch.setattr(builder, "verify_payload", lambda *_a, **_k: pytest.fail("reused"))
-    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("download fallback"))
-    with pytest.raises((ValueError, FileNotFoundError)):
-        builder.ensure_payload(cache.parent / "payload", source_archives=cache)
 
 
 def test_supplied_source_copy_change_refused_before_any_extraction(source_delivery, monkeypatch):
@@ -438,11 +376,11 @@ def test_source_acquisition_atomic_publication(source_delivery, monkeypatch, fai
 
     monkeypatch.setattr(builder, "_run", download)
     if failure == "none":
-        assert builder.main(["--acquire-sources", "--source-cache", str(cache)]) == 0
+        builder._prepare_sources(cache, download=True)
         assert archive.read_bytes() == content
     else:
         with pytest.raises((ValueError, RuntimeError)):
-            builder.main(["--acquire-sources", "--source-cache", str(cache)])
+            builder._prepare_sources(cache, download=True)
         assert not archive.exists()
     assert sorted(p.name for p in cache.iterdir()) == sorted(
         s["archive"] for s in policy["sources"].values() if failure == "none" or s is not source
@@ -450,15 +388,6 @@ def test_source_acquisition_atomic_publication(source_delivery, monkeypatch, fai
     assert commands[0][-1] == source["url"]
     assert "--proto-redir" in commands[0]
     assert "=https" in commands[0]
-
-
-def test_valid_supplied_sources_admitted_before_reuse(source_delivery, monkeypatch):
-    builder, _, cache = source_delivery
-    monkeypatch.setattr(builder, "verify_payload", lambda *_a, **_k: {"version": "9.0.2"})
-    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("network or compiler"))
-    assert builder.ensure_payload(cache.parent / "payload", source_archives=cache) == {
-        "version": "9.0.2"
-    }
 
 
 def test_local_build_acquires_and_checks_complete_set_before_extraction(
@@ -495,4 +424,17 @@ def test_source_archive_names_are_checked_at_boundary(source_delivery, monkeypat
     policy["sources"]["opus"]["archive"] = filename
     monkeypatch.setattr(builder, "_run", lambda *_a, **_k: pytest.fail("download"))
     with pytest.raises(ValueError, match="unsafe source archive name"):
-        builder.main(["--acquire-sources", "--source-cache", str(cache)])
+        builder._prepare_sources(cache, download=True)
+
+
+def test_producer_inventory_uses_portable_consumer_paths(tmp_path):
+    builder = load_script("build_ffmpeg")
+    payload = tmp_path / "payload"
+    (payload / "bin").mkdir(parents=True)
+    (payload / "bin/ffmpeg.exe").write_bytes(b"native pair fixture")
+    (payload / "manifest.json").write_text("{}")
+    builder._record_producer_integrity(payload)
+    inventory = json.loads((payload / "manifest.json").read_text())["files"]
+    assert inventory == {
+        "bin/ffmpeg.exe": "708a5cd97670574b2c0c54b715df3842e7148ff108e07b2ef57d555983453af7"
+    }

@@ -1,0 +1,25 @@
+{
+  "version": "9.0.2",
+  "targets": {
+    "x86_64-unknown-linux-gnu": {
+      "url": "https://cdn.sharecut.studio/sharecut/dependencies/ffmpeg/9.0.2/prebuilt-1/ffmpeg-9.0.2-linux-x64.tar.xz",
+      "sha256": "3bfd2cf1da636e24d604531357c269c3b2b619436bbd1d3abc64ffe7e9438fa6",
+      "manifest_sha256": "ab0486e965d99fd2564f24ac52a06f2defd1b06865ec331aa86eb8ca805d8748"
+    },
+    "aarch64-apple-darwin": {
+      "url": "https://cdn.sharecut.studio/sharecut/dependencies/ffmpeg/9.0.2/prebuilt-1/ffmpeg-9.0.2-macos-arm64.tar.xz",
+      "sha256": "b20a4f0a5530ae861108f6151ffa5864f28f4a8acc890a78739909707ac5b59d",
+      "manifest_sha256": "3d8654da7df2ecdc2ec316463886b2df8e16b3bf6ed570a1e25759a34cc08b0b"
+    },
+    "x86_64-apple-darwin": {
+      "url": "https://cdn.sharecut.studio/sharecut/dependencies/ffmpeg/9.0.2/prebuilt-1/ffmpeg-9.0.2-macos-x64.tar.xz",
+      "sha256": "b6b7c3e9a0307f8601c15851eadfad52d5d51f2194e926e53a1cdd743e868132",
+      "manifest_sha256": "9d7c348301ee374a3807efe54e32d0d62aa3dfbf2d47bd5db81970cb73a93ca9"
+    },
+    "x86_64-pc-windows-msvc": {
+      "url": "https://cdn.sharecut.studio/sharecut/dependencies/ffmpeg/9.0.2/prebuilt-1/ffmpeg-9.0.2-windows.tar.xz",
+      "sha256": "f130a7ba247d3685f2785dc198367a68b3a01893f94e81596b55194f6fd24651",
+      "manifest_sha256": "2bb13f6dccbd60895419d5b5c57f51bcf3cddcabef23137ed3774adea0034174"
+    }
+  }
+}

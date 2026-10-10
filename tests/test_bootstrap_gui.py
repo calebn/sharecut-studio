@@ -273,7 +273,7 @@ def test_gui_bootstrap_status_and_run(monkeypatch) -> None:
             progress.end("bootstrap", message="Bootstrap complete")
         return {
             "ok": True,
-            "results": {"ffmpeg": {"ok": True}, "whisper": {"ok": True}},
+            "results": {"whisper": {"ok": True}},
             "ready": True,
             "whisper_model": whisper_model,
             "components": {},
@@ -398,7 +398,7 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
             progress.end("bootstrap", message="Bootstrap complete")
         return {
             "ok": True,
-            "results": {"ffmpeg": {"ok": True}},
+            "results": {"whisper": {"ok": True}},
             "ready": True,
             "whisper_model": whisper_model,
             "components": {},
@@ -455,7 +455,7 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
     def fail_run(components=None, *, whisper_model=None, force=False, progress=None):
         return {
             "ok": False,
-            "results": {"ffmpeg": {"ok": False, "error": "download failed"}},
+            "results": {"whisper": {"ok": False, "error": "download failed"}},
             "ready": False,
             "whisper_model": whisper_model,
             "components": {},

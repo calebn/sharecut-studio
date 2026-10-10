@@ -11,7 +11,7 @@ description: >-
 
 - Python 3.11+
 - Matching FFmpeg and FFprobe 9.0.2 or later 9.x from a supported system package,
-  or build the pinned sources with `python scripts/build_ffmpeg.py --output <directory>` and set the existing executable overrides
+  or acquire the pinned prebuilt pair with `python scripts/ffmpeg_payload.py --output <directory>` and set the existing executable overrides
 - After explicit overrides and a declared bundle, source discovery prefers the
   native Homebrew keg on macOS. See the tested release policy in [docs/setup.md](../../../docs/setup.md#ffmpeg-version-and-pair-policy).
 - [uv](https://github.com/astral-sh/uv) (recommended — `pip install uv` if not already on PATH)
@@ -52,13 +52,16 @@ make test
 
 CI and local pytest enforce **95% minimum coverage** (see `docs/testing.md`).
 
-2b. No system FFmpeg (or want a fully offline-ready cache up front)?
+2b. Acquire the pinned FFmpeg pair.
+
+The production catalog pins hosted archives for all supported desktop targets.
+Offline validation uses `--catalog <path> --archive <path>` with the same importer.
+Sidecar tooling forwards `PODCAST_FFMPEG_CATALOG` and `PODCAST_FFMPEG_ARCHIVE`.
 
 ```bash
-python scripts/build_ffmpeg.py --output /absolute/path/sharecut-ffmpeg
+python scripts/ffmpeg_payload.py --output /absolute/path/sharecut-ffmpeg
 export PODCAST_MCP_FFMPEG=/absolute/path/sharecut-ffmpeg/bin/ffmpeg
 export PODCAST_MCP_FFPROBE=/absolute/path/sharecut-ffmpeg/bin/ffprobe
-# Model assets: podcast bootstrap --component all
 ```
 
 See [docs/setup.md](../../../docs/setup.md#optional-downloads-and-extras) for
@@ -134,11 +137,10 @@ See `docs/nl-editing.md`, `docs/timeline-comments.md`, `docs/inaudible-cuts.md`,
 
 Pipeline thresholds live in `.agents/defaults/pipeline.yaml`. Skills reference those values; change them to tune behavior repo-wide.
 
-Source-only acquisition uses `python scripts/build_ffmpeg.py --acquire-sources
---source-cache /absolute/path/ffmpeg-sources`. To build without source downloads,
-pass `--source-archives /absolute/path/ffmpeg-sources` with `--output`. The complete
-archive set must match the current contract hashes, including before payload
-reuse. CI uses a same-run original-source artifact and builds each target natively.
+CI and sidecar builds acquire the same catalog-pinned prebuilt pair. Consumers
+verify archive and manifest digests before extraction or execution. Sources,
+notices and rebuild materials remain inside the admitted archive. Compilation
+belongs only to producing a new dependency release when its inputs change.
 
 ## Troubleshooting
 
