@@ -1,4 +1,4 @@
-import { expect, type Locator, test } from "@playwright/test";
+import { expect, type Locator } from "@playwright/test";
 import {
   compactHistory,
   edited,
@@ -7,10 +7,14 @@ import {
   receipt,
   SIZES,
   savedEnvelope,
+  test,
 } from "../e2e/compactChromeFixture";
 import { newFinger } from "../e2e/finger";
 
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
+
+test.use({ hasTouch: true });
+test.describe.configure({ timeout: 240_000 });
 
 for (const pending of ["wait", "refuse"] as const) {
   test.describe(`pending save ${pending}`, () => {
