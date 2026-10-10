@@ -1,9 +1,9 @@
 import {
+  test as base,
   expect,
   type Page,
   type PlaywrightTestArgs,
   type TestInfo,
-  test,
 } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 
@@ -35,22 +35,22 @@ export const edited = [
   { id: "env-join", time: 40, value: 1.2 },
 ];
 
-test.use({ hasTouch: true });
-test.describe.configure({ timeout: 240_000 });
-
 export let projectPath: string;
-let workspaceDir: string;
-
-test.beforeEach(async () => {
-  const fixture = createRelocatedE2eProject("sharecut-e2e-chrome-reach-");
-  projectPath = fixture.projectPath;
-  workspaceDir = fixture.workspaceDir;
-  await switchE2eProject(projectPath);
-});
-
-test.afterEach(async () => {
-  await switchE2eProject(e2eProjectPath);
-  if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
+export const test = base.extend<{ compactChromeProject: string }>({
+  compactChromeProject: [
+    async ({ page }, provideProject) => {
+      const fixture = createRelocatedE2eProject("sharecut-e2e-chrome-reach-");
+      projectPath = fixture.projectPath;
+      await switchE2eProject(projectPath);
+      try {
+        await provideProject(projectPath);
+      } finally {
+        await switchE2eProject(e2eProjectPath);
+        removeRelocatedE2eProject(fixture.workspaceDir);
+      }
+    },
+    { auto: true },
+  ],
 });
 
 export async function openAt(

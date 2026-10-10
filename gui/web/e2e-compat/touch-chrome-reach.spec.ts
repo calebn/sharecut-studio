@@ -1,9 +1,17 @@
-import { expect, type Locator, type TestInfo, test } from "@playwright/test";
-import { type Fixtures, openAt, SIZES } from "../e2e/compactChromeFixture";
+import { expect, type Locator, type TestInfo } from "@playwright/test";
+import {
+  type Fixtures,
+  openAt,
+  SIZES,
+  test,
+} from "../e2e/compactChromeFixture";
 import { newFinger } from "../e2e/finger";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
 
 import { json, watchCommands } from "../e2e/touchTimeline";
+
+test.use({ hasTouch: true });
+test.describe.configure({ timeout: 240_000 });
 
 /** The blade confirmation's Cut is in view and on top at `rootPx`, and a tap on it cuts. */
 async function cutIsTappable(

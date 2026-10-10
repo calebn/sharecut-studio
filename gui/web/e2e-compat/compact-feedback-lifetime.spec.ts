@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import {
   compactHistory,
   edited,
@@ -8,6 +8,7 @@ import {
   receipt,
   SIZES,
   savedEnvelope,
+  test,
 } from "../e2e/compactChromeFixture";
 import { newFinger } from "../e2e/finger";
 import {
@@ -17,6 +18,9 @@ import {
 } from "../e2e/inspectorResponsiveEvidence";
 import type { InteractionReceipt } from "../e2e/interactionEvidence";
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
+
+test.use({ hasTouch: true });
+test.describe.configure({ timeout: 240_000 });
 
 test("clipped saved feedback pauses its remaining visible lifetime", async ({
   page,

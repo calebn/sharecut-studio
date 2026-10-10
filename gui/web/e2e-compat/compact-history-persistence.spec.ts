@@ -1,4 +1,4 @@
-import { expect, type Locator, type TestInfo, test } from "@playwright/test";
+import { expect, type Locator, type TestInfo } from "@playwright/test";
 import {
   compactHistory,
   edited,
@@ -9,6 +9,7 @@ import {
   receipt,
   SIZES,
   savedEnvelope,
+  test,
 } from "../e2e/compactChromeFixture";
 import { newFinger } from "../e2e/finger";
 import {
@@ -17,6 +18,9 @@ import {
 } from "../e2e/inspectorResponsiveEvidence";
 import type { InteractionReceipt } from "../e2e/interactionEvidence";
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
+
+test.use({ hasTouch: true });
+test.describe.configure({ timeout: 240_000 });
 
 /** Undo and Redo are in view and on top before and after an edit, and a tap on Undo undoes it. */
 async function undoStaysReachable(
