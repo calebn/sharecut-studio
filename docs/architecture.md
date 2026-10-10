@@ -238,6 +238,13 @@ outside the parent hook, so frame updates stay outside arrangement rendering.
 region reveal. Vertical geometry remains in `timelineMetrics.ts`. See
 [GUI render isolation](gui-integration.md#read-only-daw-viewer).
 
+Frontend app feedback stays in `feedback/FeedbackToast` and `ui/Toast`.
+Compact shell composition registers an optional DOM host through `DawApp`.
+`BottomSheet` only renders the supplied flow slot. A stable portal container
+moves the single card between floating and compact flow presentations without
+remounting its timer or guarded Undo. Store announcements and command authority
+remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).
+
 Frontend pointer dispatch policy lives in `gui/web/src/commands/pointer.ts`.
 `gui/web/src/commands/seek.ts` routes transport seeks through that pointer
 adapter and returns the command result so Listen, timeline, and DAW WebMCP share

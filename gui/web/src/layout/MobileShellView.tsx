@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from "react";
+import type { ReactNode, Ref, RefCallback } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab } from "../presence/followSync";
 import type { MobileMode, MoreDestination } from "../state/types";
@@ -41,6 +41,7 @@ export type MobileSheet =
     };
 
 export type MobileShellViewProps = {
+  feedbackHostRef?: RefCallback<HTMLDivElement>;
   appearance: ShellAppearance;
   chrome: {
     notices: ShellNotices;
@@ -63,6 +64,7 @@ export type MobileShellViewProps = {
 };
 
 export function MobileShellView({
+  feedbackHostRef,
   appearance,
   chrome,
   screen,
@@ -148,6 +150,13 @@ export function MobileShellView({
           sheet.kind === "inspector" ? sheet.onExpandedChange : undefined
         }
         {...(sheet.kind === "inspector" ? sheet.compact : undefined)}
+        bodyHeader={
+          sheet.kind === "inspector" &&
+          sheet.compact &&
+          !sheet.compact.stowed ? (
+            <div ref={feedbackHostRef} className="compact-feedback-slot" />
+          ) : null
+        }
       >
         {sheet.kind !== "closed" ? sheet.content : null}
       </BottomSheet>

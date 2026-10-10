@@ -811,7 +811,10 @@ html[data-shell="phone"] .ui-toast-region--app {
   pointer-events: auto;
 }
 
-html[data-shell="phone"] .ui-toast-region--app .ui-toast > .ui-control {
+html:is([data-shell="phone"], [data-shell="tablet"])
+  .ui-toast-region--app
+  .ui-toast
+  > .ui-control {
   min-block-size: var(--touch-min);
 }
 
@@ -1043,4 +1046,20 @@ html[data-shell="phone"] .ui-ask-actions > .ui-control {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-3);
+}
+
+html[data-shell] .ui-toast-region--inspector-flow {
+  position: static;
+  inset: auto;
+  z-index: auto;
+}
+
+.ui-toast-region--inspector-flow .ui-toast {
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+.ui-toast-region--inspector-flow .ui-control {
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
 }

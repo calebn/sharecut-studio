@@ -49,6 +49,8 @@ type Props = {
   /** Size while expanded. */
   expandedSize?: BottomSheetSize;
   children: ReactNode;
+  /** Flow content between pinned chrome and the scrolling body. */
+  bodyHeader?: ReactNode;
   /** When true, show `expandedSize` (user or parent). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -82,6 +84,7 @@ export function BottomSheet({
   size = "half",
   expandedSize = "full",
   children,
+  bodyHeader,
   expanded,
   onExpandedChange,
   resizeLabels,
@@ -253,6 +256,7 @@ export function BottomSheet({
             </div>
           </div>
         </div>
+        {bodyHeader}
         <div className="bottom-sheet-body">{children}</div>
       </div>
     </div>,

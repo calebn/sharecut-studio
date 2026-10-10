@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
 import {
   registerDawCommands,
@@ -83,6 +83,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   } = useDaw(selectDawAppFields);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
+  const [feedbackHost, setFeedbackHost] = useState<HTMLDivElement | null>(null);
   const publishKey = useDawStore(selectPublishKey);
 
   const { error: bootstrapError, retry: retryBootstrap } =
@@ -199,7 +200,10 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
             </Button>
           </div>
         ) : null}
-        <StudioShell guestShare={guestShare} />
+        <StudioShell
+          guestShare={guestShare}
+          feedbackHostRef={setFeedbackHost}
+        />
       </div>
       <CheatsheetDialogs />
       <BounceDialog />
@@ -232,7 +236,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
         onClose={() => setHelpDialogOpen(false)}
       />
       <AskDialog />
-      <FeedbackToast />
+      <FeedbackToast host={feedbackHost} />
     </>
   );
 }

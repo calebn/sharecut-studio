@@ -233,7 +233,7 @@ async function undoStaysReachable(
         ).flatMap((element) => {
           if (
             !(element instanceof HTMLElement) ||
-            element.closest("[inert], [hidden]")
+            element.closest("[inert], [hidden], .ui-toast")
           )
             return [];
           const style = getComputedStyle(element);
@@ -305,6 +305,11 @@ async function undoStaysReachable(
           overlaps: controls.filter((control) => control.overlaps),
         };
       }),
+      feedbackActions: await Promise.all(
+        (await page.locator(".ui-toast-region--app button").all()).map(
+          (button) => reach(button),
+        ),
+      ),
       visibleLaneHeight: await page.evaluate(() => {
         const lane = document
           .querySelector(".timeline-scroll")
@@ -451,6 +456,25 @@ async function undoStaysReachable(
   await page.waitForTimeout(900);
   await expect(page.locator(".guest-attention")).not.toBeVisible();
   await check("strip-open-after-edit", headerHistory);
+  for (const detent of ["half", "full", "peek"] as const) {
+    await page
+      .getByRole("button", {
+        name:
+          detent === "half"
+            ? "Expand to half height"
+            : detent === "full"
+              ? "Expand to full height"
+              : "Collapse to strip",
+      })
+      .click();
+    await check(`feedback-${detent}`, headerHistory);
+  }
+  await page
+    .locator(".ui-toast-region--app")
+    .getByRole("button", { name: "Dismiss" })
+    .click();
+  await expect(page.locator(".ui-toast-region--app .ui-toast")).toHaveCount(0);
+  await check("feedback-dismissed", headerHistory);
   await receipt(
     info,
     `chrome-undo-${name}-${rootPx}-${theme}-${browserName}`,
@@ -482,11 +506,19 @@ async function undoStaysReachable(
       expect(control.height).toBeGreaterThanOrEqual(44);
     }
     expect(row.overlaps).toBe(false);
-    if (step === "strip-open-after-edit") {
+    if (
+      step === "strip-open-after-edit" ||
+      ["feedback-peek", "feedback-half", "feedback-full"].includes(step)
+    ) {
       expect(
         row.feedback,
         "Saved feedback must still be visible",
       ).not.toBeNull();
+      for (const action of row.feedbackActions) {
+        expect(action).toMatchObject({ inView: true, onTop: true });
+        expect(action.width).toBeGreaterThanOrEqual(44);
+        expect(action.height).toBeGreaterThanOrEqual(44);
+      }
       expect(row.feedback).toMatchObject({
         inView: true,
         dismissOnTop: true,
@@ -499,10 +531,7 @@ async function undoStaysReachable(
         0,
       );
     }
-    if (
-      rootPx === 16 &&
-      (step === "peek" || step === "strip-open-after-edit")
-    ) {
+    if (rootPx === 16 && (step === "peek" || step === "feedback-dismissed")) {
       expect(row.visibleLaneHeight.visible).toBeCloseTo(
         name === "portrait" ? 547 : 191,
         0,
@@ -548,6 +577,68 @@ async function undoStaysReachable(
       redoCommands: commands,
     },
   );
+  await undo.click();
+  await expect.poll(() => savedEnvelope(page)).toEqual(original);
+  const levelEdited = [
+    { id: "env-a", time: 5, value: 1 },
+    { id: "env-edge", time: 10, value: 0.8 },
+    { id: "env-c", time: 16, value: 1.01 },
+    { id: "env-join", time: 40, value: 1.2 },
+  ];
+  const level = page.getByRole("button", {
+    name: "Envelope point level 0.01 higher",
+    exact: true,
+  });
+  await level.click();
+  await expect.poll(() => savedEnvelope(page)).toEqual(levelEdited);
+  await check("level-saved", headerHistory);
+  expect(seen["level-saved"].feedback).toMatchObject({
+    inView: true,
+    dismissOnTop: true,
+    overlaps: [],
+  });
+  commands.length = 0;
+  await undo.click();
+  await expect.poll(() => savedEnvelope(page)).toEqual(original);
+  expect(commands.map((c) => c.type)).toEqual(["UndoHistory"]);
+  const levelUndo = await savedEnvelope(page);
+  commands.length = 0;
+  await redo.click();
+  await expect.poll(() => savedEnvelope(page)).toEqual(levelEdited);
+  expect(commands.map((c) => c.type)).toEqual(["RedoHistory"]);
+  await receipt(
+    info,
+    `level-history-${name}-${rootPx}-${theme}-${browserName}`,
+    {
+      original,
+      levelEdited,
+      savedUndo: levelUndo,
+      savedRedo: await savedEnvelope(page),
+      redoCommands: commands,
+    },
+  );
+  const liveCard = page.locator(".ui-toast-region--app .ui-toast");
+  await expect(liveCard).toBeVisible();
+  await liveCard.evaluate((card) =>
+    card.setAttribute("data-host-proof", "same-card"),
+  );
+  await page
+    .locator(".bottom-sheet-header")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await expect(page.locator(".bottom-sheet--compact")).toHaveCount(0);
+  await expect(liveCard).toHaveAttribute("data-host-proof", "same-card");
+  await expect(page.locator(".ui-toast-region--app")).not.toHaveClass(
+    /inspector-flow/,
+  );
+  const floatingDismiss = liveCard.getByRole("button", { name: "Dismiss" });
+  expect(await reach(floatingDismiss)).toMatchObject({
+    inView: true,
+    onTop: true,
+  });
+  await floatingDismiss.click();
+  await expect(liveCard).toHaveCount(0);
+  await expect.poll(() => savedEnvelope(page)).toEqual(levelEdited);
 }
 
 /** The blade confirmation's Cut is in view and on top at `rootPx`, and a tap on it cuts. */

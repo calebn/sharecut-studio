@@ -53,6 +53,26 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("CompactHistoryControls", () => {
+  it.each(["view", "comment"] as const)(
+    "offers no history mutation to a %s guest",
+    (guestMode) => {
+      useDawStore.setState({
+        projectPath: "share:reader",
+        guestMode,
+        shareCapabilities: ["view", "comment"],
+      });
+      render(<CompactHistoryControls />);
+      expect(
+        screen.queryByRole("button", { name: "Undo" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Redo" }),
+      ).not.toBeInTheDocument();
+      expect(undoHistory).not.toHaveBeenCalled();
+      expect(redoHistory).not.toHaveBeenCalled();
+    },
+  );
+
   it("uses authorized guest history availability and the same command path", async () => {
     useDawStore.setState({
       projectPath: "share:editor",

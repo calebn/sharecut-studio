@@ -312,6 +312,13 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ### Responsive shells
 
+Compact-inspector composition supplies a temporary feedback row between pinned
+chrome and scrolling fields. `DawApp` passes that DOM host to the single
+`FeedbackToast`; its stable portal preserves the existing card, lifetime,
+focus pause and guarded Undo when the sheet opens, closes or stows.
+No feedback means no reserved row. Visible feedback may grow the sheet to its
+slot, with fields scrolling beneath it. See [Feedback toast](gui-mobile.md#feedback-toast).
+
 `MobileShell` and `StudioShell` are memoized live adapters over the props-only
 `MobileShellView` and `StudioShellView`. The views own shell layout, navigation,
 guest visibility, ingest chrome, and sheet rendering. The adapters retain DAW

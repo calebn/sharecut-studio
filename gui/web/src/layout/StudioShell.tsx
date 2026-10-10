@@ -1,4 +1,11 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  type RefCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -40,7 +47,13 @@ import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
 import { TransportBar } from "./TransportBar";
 import { compactSheetProps, useCompactInspector } from "./useCompactInspector";
 
-function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
+function StudioShellAdapter({
+  guestShare = false,
+  feedbackHostRef,
+}: {
+  guestShare?: boolean;
+  feedbackHostRef?: RefCallback<HTMLDivElement>;
+}) {
   const importShortcut = displayShortcutFor("media.import") ?? "Menu";
   const {
     project,
@@ -147,7 +160,9 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
   const compact = useCompactInspector(shell === "tablet" ? "tablet" : null);
 
   if (shell === "phone") {
-    return <MobileShell guestShare={guestShare} />;
+    return (
+      <MobileShell guestShare={guestShare} feedbackHostRef={feedbackHostRef} />
+    );
   }
 
   const useSheetInspector = shell === "tablet";
@@ -220,6 +235,7 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
 
   return (
     <StudioShellView
+      feedbackHostRef={feedbackHostRef}
       appearance={{ guestShare, following: Boolean(followingClientId) }}
       layout={layoutMode}
       chrome={{

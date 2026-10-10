@@ -1,4 +1,11 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  type RefCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -367,7 +374,13 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   );
 }
 
-function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
+function MobileShellAdapter({
+  guestShare = false,
+  feedbackHostRef,
+}: {
+  guestShare?: boolean;
+  feedbackHostRef?: RefCallback<HTMLDivElement>;
+}) {
   const {
     rangeArmed,
     setRangeArmed,
@@ -579,6 +592,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
 
   return (
     <MobileShellView
+      feedbackHostRef={feedbackHostRef}
       appearance={{ guestShare, following: Boolean(followingClientId) }}
       chrome={{
         notices: {

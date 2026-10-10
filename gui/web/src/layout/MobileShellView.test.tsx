@@ -34,6 +34,49 @@ function presentation(): MobileShellViewProps {
 }
 
 describe("MobileShellView", () => {
+  it("registers feedback only for an open, unstowed compact inspector", () => {
+    const props = presentation();
+    const ref = vi.fn();
+    const compact = { className: "bottom-sheet--compact", stowed: false };
+    const sheet = {
+      kind: "inspector",
+      content: <p>Fields</p>,
+      expanded: false,
+      onExpandedChange: vi.fn(),
+      onClose: vi.fn(),
+      compact,
+    } satisfies MobileShellViewProps["sheet"];
+    const { rerender } = render(
+      <MobileShellView {...props} sheet={sheet} feedbackHostRef={ref} />,
+    );
+    expect(ref).toHaveBeenLastCalledWith(expect.any(HTMLDivElement));
+    rerender(
+      <MobileShellView
+        {...props}
+        sheet={{ ...sheet, compact: { ...compact, stowed: true } }}
+        feedbackHostRef={ref}
+      />,
+    );
+    expect(ref.mock.calls.at(-1)?.[0]).toBeNull();
+    expect(document.querySelector(".compact-feedback-slot")).toBeNull();
+    rerender(
+      <MobileShellView
+        {...props}
+        sheet={{ ...sheet, compact: undefined }}
+        feedbackHostRef={ref}
+      />,
+    );
+    expect(document.querySelector(".compact-feedback-slot")).toBeNull();
+    rerender(
+      <MobileShellView
+        {...props}
+        sheet={{ kind: "closed" }}
+        feedbackHostRef={ref}
+      />,
+    );
+    expect(document.querySelector(".compact-feedback-slot")).toBeNull();
+  });
+
   it("renders Listen with one heading, recording first, and all primary modes", async () => {
     const props = presentation();
     const { container } = render(<MobileShellView {...props} />);

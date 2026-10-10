@@ -9,6 +9,7 @@
   flex-direction: column;
   justify-content: flex-end;
   pointer-events: none;
+  container: sheet-slot / size;
 }
 
 html[data-shell="phone"] .bottom-sheet-root {
@@ -319,4 +320,28 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   flex: 0 0 auto;
   min-height: auto;
   overflow: visible;
+}
+
+.compact-feedback-slot:has(.ui-toast) {
+  flex: 0 0 auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.bottom-sheet--compact:has(.compact-feedback-slot .ui-toast) {
+  height: auto;
+  overflow: auto;
+}
+
+.bottom-sheet--compact:has(.compact-feedback-slot .ui-toast)
+  .bottom-sheet-body {
+  flex: 1 1 auto;
+  min-height: calc(var(--touch-min) + var(--space-6));
+  overflow: auto;
+}
+
+@container sheet-slot (height < 15rem) {
+  .bottom-sheet--compact:has(.compact-feedback-slot .ui-toast)
+    .bottom-sheet-chrome {
+    position: static;
+  }
 }
