@@ -52,11 +52,6 @@
     "--enable-libopus",
     "--pkg-config-flags=--static"
   ],
-  "release_targets": [
-    "x86_64-unknown-linux-gnu",
-    "x86_64-apple-darwin",
-    "x86_64-pc-windows-msvc"
-  ],
   "zlib_configure": [
     "--static"
   ],
