@@ -185,16 +185,24 @@ def propose_tighten_edits(
         project=project,
     )
 
+    working = project.model_copy(deep=True)
     if retained is not None:
-        project.edit_decisions = retained
+        working.edit_decisions = retained
     # Apply serially, in the same order the candidates were gathered, so decision
     # ordering/coalescing behavior is identical to the fully-serial path.
-    proposed: list[EditDecision] = [_apply_analyzed_cut(project, result) for result in resolved]
+    proposed: list[EditDecision] = [_apply_analyzed_cut(working, result) for result in resolved]
     proposed_ids = {decision.id for decision in proposed}
     # Transcript order, not a set: coalescing moves each track's decisions to the
     # end, so the proposal's order must not depend on string hashing.
     for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
-        coalesce_edits(project, track_id=track_id, defaults=cfg)
+        coalesce_edits(
+            working,
+            track_id=track_id,
+            defaults=cfg,
+            skip_counts=skip_counts,
+            merge_ids=proposed_ids,
+        )
+    project.edit_decisions = working.edit_decisions
     this_run = [e for e in project.edit_decisions if e.id in proposed_ids]
     return TightenProposal(decisions=this_run, skip_counts=dict(skip_counts))
 

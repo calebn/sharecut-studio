@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
+from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope, resolve_cut_scope
 from podcast_mcp.edits.transcript_precorrect import _should_run_speaker
 from podcast_mcp.engines.speaker_id import (
     MockSpeakerBackend,
@@ -267,7 +267,9 @@ def test_resolve_cut_scope_bleed_forces_track_local(tmp_path, sample_wav) -> Non
             return_value={"role": "bleed", "match_home_track": "guest"},
         ),
     ):
-        scope, guard = resolve_cut_scope(proj, "host", 1.0, 1.5)
+        resolved = resolve_cut_scope(proj, "host", 1.0, 1.5)
+        assert isinstance(resolved, ResolvedCutScope)
+        scope, guard = resolved.scope, resolved.guard
     assert scope == "track"
     assert guard is None
 

@@ -6,6 +6,13 @@ Envelope fields on every command: `client_id`, `client_seq` (optional, >= 1; omi
 
 Which product surfaces expose related workflows: [Capabilities](#/capabilities).
 
+`ApproveEdits.allow_review` is transient caller authority for a fresh pause join review.
+It defaults to `true` for selected approval. Safe bulk approval sends `false` and
+holds the whole batch if a current pause join needs review. Turning Avoid harsh
+cuts off retains deliberate review authority. Pauses already marked for one-by-one
+listening remain excluded from bulk approval. `confirm_cut_speech` never widens
+this authority.
+
 <!-- document-commands:generated -->
 
 > **Auto-generated** from [`schemas/document-commands.schema.json`](https://github.com/calebn/sharecut-studio/blob/main/schemas/document-commands.schema.json) / Pydantic `services/document_sync/payloads.py`. Do not edit by hand — run `make schema-export`.
@@ -32,7 +39,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
-| `ApproveEdits` | `ids` (array[string]) | `confirm_cut_speech` (boolean) |
+| `ApproveEdits` | `ids` (array[string]) | `allow_review` (boolean), `confirm_cut_speech` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
 | `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `confirm_cut_speech` (boolean), `track_ids` (array[string]) |

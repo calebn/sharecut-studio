@@ -7,10 +7,6 @@ from typing import Any
 
 from podcast_mcp.edits.clips_ops import (
     clips_for_track,
-    new_clip_id,
-    place_clips_at,
-    set_track_clips,
-    shift_clips_timeline,
     update_timeline_duration,
 )
 from podcast_mcp.edits.mute_regions import subtract_source_mute
@@ -19,13 +15,24 @@ from podcast_mcp.engines.session_timeline import seam_source_clocks_over_clips
 from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
-    ClipJoinMode,
     EditDecision,
     EpisodeProject,
 )
 from podcast_mcp.util.change_summary import change_summary
+from podcast_mcp.util.coded_error import CodedError
 
-_REVERT_SPAN_EPS_SEC = 1e-3
+
+class LocalRestoreRequiresHistory(CodedError, ValueError):
+    code = "local_restore_requires_history"
+
+    def __init__(self, record_id: str) -> None:
+        self.record_id = record_id
+        super().__init__(
+            "This edit cannot be restored individually. "
+            "Use History Undo to restore the whole action. "
+            "History Undo also undoes the other edits in that action. "
+            "You may need to undo later actions first."
+        )
 
 
 def _new_log_id() -> str:
@@ -49,12 +56,16 @@ def archive_decision(
         operation=operation,
         decision_ids=[decision.id],
         track_ids=ids,
-        source_start=decision.start if decision.exact_range is None else None,
-        source_end=decision.end if decision.exact_range is None else None,
+        source_start=(params or {}).get("source_start", decision.start)
+        if decision.exact_range is None
+        else None,
+        source_end=(params or {}).get("source_end", decision.end)
+        if decision.exact_range is None
+        else None,
         timeline_start=timeline_start,
         timeline_end=timeline_end,
         reason=decision.reason,
-        crossfade_ms=decision.crossfade_ms,
+        crossfade_ms=(params or {}).get("crossfade_ms", decision.crossfade_ms),
         boundary_mode=decision.boundary_mode,
         cut_confidence=decision.cut_confidence,
         params=params or {},
@@ -101,8 +112,8 @@ def seam_source_by_track(
     Read from the **pre-edit** clips in timeline order (see
     :func:`seam_source_clocks_over_clips`), so a span crossing a moved clip still
     records the joins the cut makes. The GUI projects applied ticks through the
-    current clips from these clocks (#527). ``revert_applied_edit`` restores ``[pre, post]``
-    only when it spans the record's timeline hole, and otherwise refuses (History undo).
+    current clips from these clocks (#527). MUTE Restore also uses the source spans.
+    These clocks do not identify removed clip material for individual Restore.
     Tracks with no material in the span are omitted.
     """
     out: dict[str, list[float]] = {}
@@ -151,10 +162,7 @@ def _per_track_source_pairs(record: AppliedEditRecord) -> dict[str, tuple[float,
 
 def _revert_mute_archive(project: EpisodeProject, record: AppliedEditRecord) -> dict[str, Any]:
     """Subtract mute spans in place; never ripple or re-insert clips."""
-    if record.source_start is None or record.source_end is None or not record.track_ids:
-        raise ValueError("applied mute lacks source clocks for restore; use History undo instead")
-    if record.source_end <= record.source_start:
-        raise ValueError("applied edit has invalid source range")
+    assert record.source_start is not None and record.source_end is not None
     per_track = _per_track_source_pairs(record)
     restore_tracks = list(record.track_ids)
     for tid in restore_tracks:
@@ -180,98 +188,22 @@ def _revert_mute_archive(project: EpisodeProject, record: AppliedEditRecord) -> 
     )
 
 
-def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, Any]:
-    """Re-insert clip material for one AppliedEditRecord and remove it from the log.
-
-    Mute archives (``params.mute``) subtract intersecting ``Clip.mute_regions``
-    and never shift peers or re-insert source media.
-
-    Cross-track ripples must reopen the same timeline hole on every
-    ``ripple_track_ids`` track (even archives that only listed one ``track_id``);
-    otherwise later clips stay skewed forever. Per-track seam clocks in
-    ``params['per_track_source']`` (``{track_id: [pre, post]}``) are restored as one
-    clip; when any pair does not span the record's timeline hole (a cut across moved
-    or gapped clips), revert raises and points to History undo before anything moves.
-    The pair alone cannot say where a gap sat inside the cut, so no offset is guessed.
-    Track-scope punch archives (``params['scope'] == 'track'``) left a silent hole
-    instead, so they refill it in place on their own tracks and shift nothing.
-    """
-    from podcast_mcp.edits.ripple import ripple_track_ids
-
+def require_applied_edit_restore(project: EpisodeProject, record_id: str) -> AppliedEditRecord:
+    """Refuse unsupported local Restore before the service records history."""
     record = get_applied_edit(project, record_id)
-    if (record.params or {}).get("mute"):
-        return _revert_mute_archive(project, record)
     if (
-        record.timeline_start is None
-        or record.timeline_end is None
+        record.params.get("mute") is not True
+        or "exact_range" in record.params
         or record.source_start is None
         or record.source_end is None
         or not record.track_ids
+        or record.source_end <= record.source_start
     ):
-        raise ValueError(
-            "applied edit lacks source/timeline clocks for restore; use History undo instead"
-        )
-    if record.source_end <= record.source_start:
-        raise ValueError("applied edit has invalid source range")
+        raise LocalRestoreRequiresHistory(record.id)
+    return record
 
-    insert_at = float(record.timeline_start)
-    duration = float(record.timeline_end) - float(record.timeline_start)
-    if duration <= 0:
-        duration = float(record.source_end) - float(record.source_start)
 
-    per_track = _per_track_source_pairs(record)
-
-    for tid, (s0, s1) in per_track.items():
-        if abs((s1 - s0) - duration) > _REVERT_SPAN_EPS_SEC:
-            raise ValueError(
-                f"applied edit's seam clocks on {tid!r} do not span its {duration:.3f}s hole "
-                "(the cut crossed moved or gapped clips); use History undo instead"
-            )
-
-    # A track-scope punch left a silent hole: refill it in place and move nothing.
-    # A session ripple closed the hole: reopen it on every dialogue track first.
-    punch = (record.params or {}).get("scope") == "track"
-    if punch:
-        restore_tracks = list(record.track_ids)
-    else:
-        restore_tracks = ripple_track_ids(project, record.track_ids)
-    for tid in restore_tracks:
-        clips = clips_for_track(project, tid)
-        if not punch:
-            shift_clips_timeline(clips, insert_at, duration)
-        if tid in per_track:
-            s0, s1 = per_track[tid]
-        elif tid in record.track_ids:
-            s0 = float(record.source_start)
-            s1 = float(record.source_end)
-        else:
-            # Keep sync with a silent hole (no foreign-source insert).
-            set_track_clips(project, tid, clips)
-            continue
-        if s1 <= s0:
-            set_track_clips(project, tid, clips)
-            continue
-        restored = Clip(
-            id=new_clip_id(),
-            track_id=tid,
-            source_start=s0,
-            source_end=s1,
-            timeline_start=0.0,
-            fade_in_ms=record.crossfade_ms or 0,
-            fade_out_ms=record.crossfade_ms or 0,
-            join_in_mode=ClipJoinMode.FADE,
-        )
-        merged = place_clips_at(clips, [restored], insert_at)
-        set_track_clips(project, tid, merged)
-
-    project.editorial.edit_log = [r for r in project.editorial.edit_log if r.id != record_id]
-    rebuild_combined(project)
-    update_timeline_duration(project)
-    return change_summary(
-        project,
-        operation="revert_applied_edit",
-        affected_tracks=list(restore_tracks),
-        id=record_id,
-        duration_sec=duration,
-        track_ids=list(restore_tracks),
-    )
+def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, Any]:
+    """Restore a source MUTE archive. Removed clips require whole-action History Undo."""
+    record = require_applied_edit_restore(project, record_id)
+    return _revert_mute_archive(project, record)

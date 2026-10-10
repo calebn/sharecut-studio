@@ -107,8 +107,18 @@ def test_waiver_survives_approving_a_tighten_cut(tmp_path):
     assert edits.approve([pending["filler"]]) == 1
     assert "Um." not in [w.text for w in ws.project.transcript_for_track("caleb").words]
     assert refine.status()["clear"] is True
+    authored_fades = [
+        (clip.track_id, clip.source_start, clip.fade_in_ms)
+        for clip in ws.project.clips
+        if clip.fade_in_ms > 0
+    ]
+    assert len(authored_fades) == 3
     assert edits.approve([pending["pause"]]) == 1
     assert refine.status()["clear"] is True
+    assert all(
+        fade in [(clip.track_id, clip.source_start, clip.fade_in_ms) for clip in ws.project.clips]
+        for fade in authored_fades
+    )
 
 
 @pytest.mark.refine_gate

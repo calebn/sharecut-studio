@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -178,22 +178,28 @@ def _compensate(
     outcome = RollbackOutcome.UNKNOWN
     try:
         outcome = roll_back_history(project, checkpoint)
-    except Exception:
-        log.warning("Could not finish rolling back %s", checkpoint.index_path, exc_info=True)
+    except BaseException:
+        _log_recovery_failure("Could not finish rolling back %s", checkpoint.index_path)
     finally:
         if on_not_landed is not None and outcome is not RollbackOutcome.LANDED:
             try:
                 on_not_landed()
-            except Exception:
-                log.warning(
-                    "Could not restore the in-memory project after a failed mutation",
-                    exc_info=True,
+            except BaseException:
+                if outcome is RollbackOutcome.RESTORED:
+                    outcome = RollbackOutcome.UNKNOWN
+                _log_recovery_failure(
+                    "Could not restore the in-memory project after a failed mutation"
                 )
         if on_failure is not None:
             try:
                 on_failure(outcome)
-            except Exception:
-                log.warning("Could not handle failed mutation outcome", exc_info=True)
+            except BaseException:
+                _log_recovery_failure("Could not handle failed mutation outcome")
+
+
+def _log_recovery_failure(message: str, *args: object) -> None:
+    with suppress(BaseException):
+        log.warning(message, *args, exc_info=True)
 
 
 def _commit_landed(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> bool | None:

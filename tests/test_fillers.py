@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits.breath_detect import (
     BreathSpan,
     PauseAir,
@@ -18,6 +20,7 @@ from podcast_mcp.edits.cut_quality import (
     word_margin_violation_sec,
 )
 from podcast_mcp.edits.fillers import _CutRejected, analyze_fillers_and_pauses
+from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -49,6 +52,21 @@ def _project_with_transcript(words: list[TranscriptWord]) -> EpisodeProject:
         )
     ]
     project.transcripts = [Transcript(track_id="host", words=words)]
+    return project
+
+
+def _pause_audio(project: EpisodeProject, tmp_path: Path) -> EpisodeProject:
+    project.meta.workspace_dir = str(tmp_path)
+    for index, track in enumerate(project.tracks):
+        audio = room(30.0, seed=1220 + index)
+        transcript = next((t for t in project.transcripts if t.track_id == track.id), None)
+        for word in transcript.words if transcript is not None else []:
+            if not word.suppressed and 0 <= word.start < word.end <= 30:
+                voice(audio, word.start, word.end)
+        path = tmp_path / "raw" / f"{track.id}.wav"
+        write_wav(path, audio)
+        assert track.media is not None
+        track.media.path = str(path)
     return project
 
 
@@ -346,7 +364,7 @@ def test_pause_skipped_when_retained_pause_consumes_gap():
     assert project.edit_decisions == []
 
 
-def test_solo_pause_retains_higher_floor_than_turn_pause():
+def test_solo_pause_retains_higher_floor_than_turn_pause(tmp_path: Path):
     """Same-speaker thinking pauses keep more air than peer-covered turn gaps."""
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
@@ -374,7 +392,7 @@ def test_solo_pause_retains_higher_floor_than_turn_pause():
         )
 
     # Solo: only host transcript
-    solo = _project_with_transcript(host_words)
+    solo = _pause_audio(_project_with_transcript(host_words), tmp_path / "solo")
     with (
         patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
         patch(
@@ -398,8 +416,7 @@ def test_solo_pause_retains_higher_floor_than_turn_pause():
     assert len(solo.edit_decisions) == 1
     d = solo.edit_decisions[0]
     assert d.reason == "pause:2.50s:solo"
-    # next.start - retain = 3.7 - 0.55 = 3.15
-    assert d.end == pytest.approx(3.15, abs=0.02)
+    assert d.end == pytest.approx(3.10, abs=0.02)
 
     # Turn: guest speaking in the gap → aggressive floor
     turn = _project_with_transcript(host_words)
@@ -412,6 +429,7 @@ def test_solo_pause_retains_higher_floor_than_turn_pause():
         )
     )
     turn.transcripts.append(Transcript(track_id="guest", words=guest_words))
+    _pause_audio(turn, tmp_path / "turn")
     with (
         patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
         patch(
@@ -434,94 +452,48 @@ def test_solo_pause_retains_higher_floor_than_turn_pause():
         )
     assert len(turn.edit_decisions) == 1
     d2 = turn.edit_decisions[0]
-    assert d2.reason == "pause:2.50s"
+    assert d2.reason == "pause:2.50s:interior_speech:track_local:guest"
     assert ":solo" not in d2.reason
-    # 3.7 - 0.18 = 3.52
-    assert d2.end == pytest.approx(3.52, abs=0.02)
+    assert d2.review_required is True
+    assert d2.scope == "session"
+    assert d2.end == pytest.approx(3.35, abs=0.02)
+    assert d2.end > d.end
 
 
-def test_solo_pause_floor_uses_timeline_mapped_retain():
-    """Prior source holes must not shrink the audible solo floor below target."""
-    from podcast_mcp.edits.fillers import (
-        _contiguous_retain_before_word,
-        _pause_trim_end_for_timeline_floor,
-    )
-    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+def test_solo_pause_crossing_earlier_hole_does_not_propose_cut(tmp_path: Path):
+    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.util.timebase import SourceSec
 
-    # ASR gap 1.0→3.5 (2.5s). Hole 3.0→3.2 sits before the resume clip; contiguous
-    # air into "We" is only 3.2→3.5 (0.3s) < 0.55 floor.
     words = [
         TranscriptWord(text="her", start=0.8, end=1.0),
         TranscriptWord(text="We", start=3.5, end=3.8),
     ]
-    project = _project_with_transcript(words)
+    project = _pause_audio(_project_with_transcript(words), tmp_path)
     project.clips = [
-        Clip(
-            id="a",
-            track_id="host",
-            source_start=0.0,
-            source_end=3.0,
-            timeline_start=0.0,
-        ),
-        Clip(
-            id="b",
-            track_id="host",
-            source_start=3.2,
-            source_end=10.0,
-            timeline_start=3.0,
-        ),
+        Clip(id="a", track_id="host", source_start=0, source_end=3, timeline_start=0),
+        Clip(id="b", track_id="host", source_start=3.2, source_end=10, timeline_start=3),
     ]
-    retain_start, retain_end = _contiguous_retain_before_word(project, "host", 1.0, 3.5)
-    assert retain_start == pytest.approx(3.2)
-    assert retain_end == pytest.approx(3.5)
-    trim = _pause_trim_end_for_timeline_floor(project, "host", 1.0, 3.5, 0.55)
-    assert trim == pytest.approx(3.2)  # cut up to resume-clip head; pad supplies rest
-
-    def fake_opt(*args, **kwargs):
-        start, end = args[2], args[3]
-        return (
-            OptimizedCutRange(
-                start=start,
-                end=end,
-                mode="vocal_transcript_guided",
-                shifted_start_ms=0.0,
-                shifted_end_ms=0.0,
-                confidence=0.9,
-                details={},
-            ),
-            CutRisk(score=0.1, reasons=[]),
-        )
-
-    with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
-        patch(
-            "podcast_mcp.edits.fillers.detect_adjacent_breath",
-            return_value=[],
-        ),
-    ):
-        analyze_fillers_and_pauses(
-            project,
-            project.transcripts[0],
-            {
-                "tighten": {
-                    "filler_words": [],
-                    "max_pause_sec": 1.2,
-                    "min_retained_pause_sec": 0.18,
-                    "min_retained_solo_pause_sec": 0.55,
-                    "leave_in_if_risky": True,
-                }
-            },
-        )
-    assert len(project.edit_decisions) == 1
-    d = project.edit_decisions[0]
-    assert ":solo" in (d.reason or "")
-    assert d.end == pytest.approx(3.2, abs=0.03)
-    # Contiguous head air 0.3s → pad ~0.25s to reach 0.55 floor.
-    assert d.replace_gap_sec is not None
-    assert d.replace_gap_sec == pytest.approx(0.25, abs=0.05)
+    timeline = SessionTimeline(project)
+    assert timeline.exact_source_span("host", SourceSec(1), SourceSec(3.5)) is None
+    assert timeline.exact_source_span("host", SourceSec(3.2), SourceSec(3.5)) == (
+        pytest.approx(3),
+        pytest.approx(3.3),
+    )
+    candidate = _CutCandidate(
+        track_id="host",
+        start=1,
+        end=3.5,
+        reason="pause:2.50s:solo",
+        cut_kind="pause",
+        max_end=3.5,
+    )
+    assert _analyze_candidate(project, candidate, {"tighten": {}}) == (
+        _CutRejected("source_geometry")
+    )
 
 
-def test_pause_max_end_clamps_breath_extension():
+def test_pause_max_end_clamps_breath_extension(tmp_path: Path):
     from podcast_mcp.edits.breath_detect import BreathSpan
     from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
 
@@ -530,6 +502,7 @@ def test_pause_max_end_clamps_breath_extension():
         TranscriptWord(text="We", start=3.7, end=4.0),
     ]
     project = _project_with_transcript(words)
+    _pause_audio(project, tmp_path)
     cand = _CutCandidate(
         track_id="host",
         start=1.2,
@@ -553,7 +526,8 @@ def test_pause_max_end_clamps_breath_extension():
             },
         )
     assert result is not None
-    assert result.end == pytest.approx(3.15)
+    assert result.end <= 3.15
+    assert 3.65 - result.end >= 0.55 - 1e-6
 
 
 def test_pause_across_ripple_deleted_material_is_not_proposed():
@@ -812,7 +786,7 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-            return_value=("session", None),
+            return_value=ResolvedCutScope("session_clear", None),
         ),
     ):
         result = _analyze_candidate(
@@ -896,7 +870,7 @@ def test_repetition_cut_cannot_widen_past_the_duplicate_word():
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-            return_value=("session", None),
+            return_value=ResolvedCutScope("session_clear", None),
         ),
     ):
         result = _analyze_candidate(
@@ -1481,12 +1455,13 @@ def test_fillers_leave_in_when_risky():
     assert project.edit_decisions == []
 
 
-def test_pause_cut_retains_minimum_gap():
+def test_pause_cut_retains_minimum_gap(tmp_path: Path):
     words = [
         TranscriptWord(text="one", start=0.0, end=0.4),
         TranscriptWord(text="two", start=2.0, end=2.4),
     ]
     project = _project_with_transcript(words)
+    _pause_audio(project, tmp_path)
     defaults = {
         "tighten": {
             "filler_words": [],
@@ -1638,57 +1613,15 @@ def test_word_margin_violation_detects_close_boundary():
     assert violation > 0
 
 
-def test_contiguous_retain_and_trim_edge_cases():
-    from podcast_mcp.edits.fillers import (
-        _contiguous_retain_before_word,
-        _pause_trim_end_for_timeline_floor,
-    )
+def test_pause_mapper_distinguishes_implicit_identity_from_explicit_empty():
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.util.timebase import SourceSec
 
-    project = _project_with_transcript([TranscriptWord(text="Hi", start=0.0, end=0.2)])
-    # No clip covers gap_end → empty retain sentinel.
+    project = _project_with_transcript([TranscriptWord(text="Hi", start=0, end=0.2)])
     project.clips = []
-    assert _contiguous_retain_before_word(project, "host", 5.0, 6.0) == (6.0, 6.0)
-
-    # Word sits exactly at clip head → empty contiguous retain.
-    project.clips = [
-        Clip(
-            id="only",
-            track_id="host",
-            source_start=2.0,
-            source_end=5.0,
-            timeline_start=0.0,
-        )
-    ]
-    rs, re = _contiguous_retain_before_word(project, "host", 0.5, 2.0)
-    assert rs == pytest.approx(2.0)
-    assert re == pytest.approx(2.0)
-    assert _pause_trim_end_for_timeline_floor(project, "host", 0.5, 2.0, 0.55) == pytest.approx(
-        1.98, abs=0.01
-    )
-    # Tiny gap → refuse trim.
-    assert _pause_trim_end_for_timeline_floor(project, "host", 1.99, 2.0, 0.55) is None
-    # Contiguous air already equals floor but trim would land at gap start → None.
-    project.clips = [
-        Clip(
-            id="air",
-            track_id="host",
-            source_start=0.0,
-            source_end=5.0,
-            timeline_start=0.0,
-        )
-    ]
-    assert _pause_trim_end_for_timeline_floor(project, "host", 1.0, 1.55, 0.55) is None
-    # Shortfall path: contiguous < floor but trim would be ≤ gap_start → None.
-    project.clips = [
-        Clip(
-            id="short",
-            track_id="host",
-            source_start=1.0,
-            source_end=5.0,
-            timeline_start=0.0,
-        )
-    ]
-    assert _pause_trim_end_for_timeline_floor(project, "host", 1.0, 1.3, 0.55) is None
+    assert SessionTimeline(project).exact_source_span("host", SourceSec(5), SourceSec(6)) == (5, 6)
+    project.tracks[0].timeline_empty = True
+    assert SessionTimeline(project).exact_source_span("host", SourceSec(5), SourceSec(6)) is None
 
 
 def _discourse_defaults(**overrides: object) -> dict:
@@ -1878,7 +1811,7 @@ def test_discourse_first_word_uses_trailing_pause():
     assert skips == {}
 
 
-def test_pause_analyze_skips_junk_words_when_padding_shortfall():
+def test_pause_analyze_retains_original_air_past_junk_words(tmp_path: Path):
     from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
 
     words = [
@@ -1888,14 +1821,16 @@ def test_pause_analyze_skips_junk_words_when_padding_shortfall():
         TranscriptWord(text="two", start=3.0, end=3.4),
     ]
     project = _project_with_transcript(words)
+    _pause_audio(project, tmp_path)
     project.clips = [
+        Clip(id="early", track_id="host", source_start=0, source_end=2.45, timeline_start=0),
         Clip(
             id="late",
             track_id="host",
             source_start=2.6,
             source_end=5.0,
-            timeline_start=0.0,
-        )
+            timeline_start=2.45,
+        ),
     ]
     result = _analyze_candidate(
         project,
@@ -1914,8 +1849,10 @@ def test_pause_analyze_skips_junk_words_when_padding_shortfall():
             }
         },
     )
-    assert result is not None
-    assert result.replace_gap_sec is not None
+    assert not isinstance(result, _CutRejected)
+    assert result.replace_gap_sec is None
+    assert result.start == pytest.approx(0.4)
+    assert result.end <= 2.30 + 1e-6
 
 
 def _pause_candidate(**kwargs):
@@ -1933,7 +1870,7 @@ def _pause_candidate(**kwargs):
     return _CutCandidate(**fields)
 
 
-def test_pause_analyze_skips_pad_without_transcript_or_next_word():
+def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
     from podcast_mcp.edits.fillers import _analyze_candidate
 
@@ -1946,10 +1883,10 @@ def test_pause_analyze_skips_pad_without_transcript_or_next_word():
     }
     empty = _project_with_transcript([])
     empty.transcripts = []
+    _pause_audio(empty, tmp_path / "empty")
     with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(empty, _pause_candidate(), defaults)
-    assert result is not None
-    assert result.replace_gap_sec is None
+    assert result == _CutRejected("no_air")
 
     junk_only = _project_with_transcript(
         [
@@ -1958,13 +1895,28 @@ def test_pause_analyze_skips_pad_without_transcript_or_next_word():
             TranscriptWord(text="y", start=2.2, end=2.4, suppressed=True),
         ]
     )
+    _pause_audio(junk_only, tmp_path / "junk")
     with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(junk_only, _pause_candidate(), defaults)
-    assert result is not None
+    assert result == _CutRejected("no_air")
+
+    valid = _pause_audio(
+        _project_with_transcript(
+            [
+                TranscriptWord(text="one", start=0, end=0.4),
+                TranscriptWord(text="two", start=3, end=3.4),
+            ]
+        ),
+        tmp_path / "valid",
+    )
+    with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
+        result = _analyze_candidate(valid, _pause_candidate(), defaults)
+    assert not isinstance(result, _CutRejected)
+    assert (result.start, result.end) == pytest.approx((0.4, 2))
     assert result.replace_gap_sec is None
 
 
-def test_pause_analyze_does_not_pad_when_next_word_is_flush():
+def test_pause_analyze_contracts_before_a_flush_next_word(tmp_path: Path):
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
     from podcast_mcp.edits.fillers import _analyze_candidate
 
@@ -1973,6 +1925,7 @@ def test_pause_analyze_does_not_pad_when_next_word_is_flush():
         TranscriptWord(text="two", start=2.0, end=2.3),
     ]
     project = _project_with_transcript(words)
+    _pause_audio(project, tmp_path)
     paced = FillerPacingResult(start=0.4, end=2.0)
     with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(
@@ -1985,8 +1938,10 @@ def test_pause_analyze_does_not_pad_when_next_word_is_flush():
                 }
             },
         )
-    assert result is not None
+    assert not isinstance(result, _CutRejected)
     assert result.replace_gap_sec is None
+    assert result.start == pytest.approx(0.4)
+    assert result.end <= 1.45 + 1e-6
 
 
 def test_analyze_rejects_when_max_end_collapses_span():
@@ -2049,7 +2004,7 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
     guard = SimpleNamespace(blocked=True, action="review", blocking_track_ids=["guest"])
     with patch(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-        return_value=("track", guard),
+        return_value=ResolvedCutScope("peer_speech", guard),
     ):
         result = _analyze_candidate(
             project,
@@ -2070,12 +2025,7 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
 
 
 @pytest.mark.parametrize("action", ["track_local", "review"])
-def test_analyze_drops_pause_when_peer_speech_forces_track_local(action):
-    """A track-local punch never ripples, so it can't shorten the timeline.
-
-    Proposing a ``pause`` cut for review only to have it accomplish nothing
-    once approved wastes the reviewer's time; drop it instead (#772).
-    """
+def test_analyze_keeps_peer_conflicted_pause_for_session_review(action, tmp_path: Path):
     from types import SimpleNamespace
 
     from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
@@ -2086,6 +2036,7 @@ def test_analyze_drops_pause_when_peer_speech_forces_track_local(action):
             TranscriptWord(text="anyway", start=5.0, end=5.3),
         ]
     )
+    _pause_audio(project, tmp_path)
     cand = _CutCandidate(
         track_id="host",
         start=1.2,
@@ -2097,24 +2048,26 @@ def test_analyze_drops_pause_when_peer_speech_forces_track_local(action):
     guard = SimpleNamespace(blocked=True, action=action, blocking_track_ids=["guest"])
     with patch(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-        return_value=("track", guard),
+        return_value=ResolvedCutScope("peer_speech", guard),
     ):
         result = _analyze_candidate(project, cand, {"tighten": {}})
-    assert result == _CutRejected("other_speaking")
+    assert not isinstance(result, _CutRejected)
+    assert result.replace_gap_sec is None
+    assert result.scope == "session"
+    assert result.review_required is True
+    assert result.start == pytest.approx(1.2)
+    assert result.end == pytest.approx(4.40)
 
-    # Same candidate with no peer in the way proposes normally (#783): the
-    # drop above is specifically the guard forcing a useless track-local
-    # punch, not some other reason this candidate can never survive analysis.
     with patch(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-        return_value=("session", None),
+        return_value=ResolvedCutScope("session_clear", None),
     ):
         open_result = _analyze_candidate(project, cand, {"tighten": {}})
     assert open_result is not None
     assert open_result.reason == "pause:3.80s"
     assert open_result.scope == "session"
     assert open_result.start == pytest.approx(1.2)
-    assert open_result.end == pytest.approx(5.0)
+    assert open_result.end == pytest.approx(4.40)
 
 
 def test_discourse_trailing_pause_qualifies_like():
@@ -2656,44 +2609,17 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
 
 
 @pytest.mark.parametrize(
-    ("air", "proposed"),
-    [
-        # 0.18 s of air against a 0.45 s pad: approving would add 0.27 s to the timeline.
-        ((1.0, 1.18), False),
-        # The pad eats all but 10 ms of 0.46 s: less than the shortest cut.
-        ((1.0, 1.46), False),
-        # 0.9 s of air against the same pad: the timeline shortens by 0.45 s.
-        ((1.0, 1.9), True),
-    ],
+    ("air_end", "loss"),
+    [(1.18, -0.27), (1.46, 0.01), (1.90, 0.45)],
 )
-def test_a_pause_trim_must_shorten_the_timeline_after_the_pad_it_needs(air, proposed):
-    from podcast_mcp.edits.fillers import _analyze_candidate, _AnalyzedCut, _CutCandidate
+def test_a_replacement_pad_counts_against_actual_played_loss(air_end, loss):
+    from podcast_mcp.edits.filler_pacing import PacedPad
+    from podcast_mcp.edits.fillers import _CutPlan
 
-    # Prior ripples left only 0.1 s of continuous audio before the next word (its clip starts
-    # at 2.9 s), so a session cut pads the shortfall to the 0.55 s a solo pause keeps. A trim
-    # the pad outweighs lengthens the timeline, and one it nearly cancels is under the
-    # shortest cut (#1055).
-    words = [
-        TranscriptWord(text="one", start=0.0, end=0.4),
-        TranscriptWord(text="two", start=3.0, end=3.4),
-    ]
-    project = _project_with_transcript(words)
-    project.clips = [
-        Clip(id="late", track_id="host", source_start=2.9, source_end=5.0, timeline_start=0.0)
-    ]
-    defaults = {"tighten": {"min_retained_pause_sec": 0.55, "min_retained_solo_pause_sec": 0.55}}
-    candidate = _CutCandidate(
-        track_id="host", start=0.4, end=2.45, reason="pause:2.60s", cut_kind="pause", max_end=2.45
-    )
-
-    with patch("podcast_mcp.edits.fillers.pause_air_span", return_value=PauseAir(*air)):
-        got = _analyze_candidate(project, candidate, defaults)
-
-    if proposed:
-        assert isinstance(got, _AnalyzedCut)
-        assert (got.start, got.end, round(got.replace_gap_sec or 0.0, 2)) == (*air, 0.45)
-    else:
-        assert got == _CutRejected("too_short")
+    pad = PacedPad(gap_sec=0.45, min_sec=0.45, retain=1, max_sec=0.45)
+    plan = _CutPlan.for_cut(1, air_end, mute=False, scope="session", pad=pad)
+    assert plan.replace_gap_sec == pytest.approx(0.45)
+    assert plan.end - plan.start - (plan.replace_gap_sec or 0) == pytest.approx(loss)
 
 
 @pytest.mark.parametrize("skip", [PauseAirSkip.NO_AIR, PauseAirSkip.NO_ROOM])
@@ -2713,7 +2639,7 @@ def test_a_pause_trim_with_nothing_to_cut_is_skipped_under_the_reason_it_has(ski
     assert skips == {"acoustic:no_audio": 1, skip.value: 1}
 
 
-def test_a_pause_trim_that_moved_onto_air_is_labelled_not_held_for_review():
+def test_a_pause_trim_that_moved_onto_air_is_labelled_not_held_for_review(tmp_path: Path):
     # A trim is reviewed or applied by the same checks as a filler. ``:air_edges`` only
     # tells the reviewer this one is not the span pacing proposed; it raises no review.
     def shrink(project, track_id, start, end, **kw):
@@ -2724,19 +2650,21 @@ def test_a_pause_trim_that_moved_onto_air_is_labelled_not_held_for_review():
         return hit.reason, hit.review_required
 
     project = _project_with_transcript(_PAUSE_WORDS)
+    _pause_audio(project, tmp_path)
     with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=shrink):
         moved = analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
-    project = _project_with_transcript(_PAUSE_WORDS)
+    project = _pause_audio(_project_with_transcript(_PAUSE_WORDS), tmp_path / "kept")
     kept = analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
 
     assert pause_of(moved) == ("pause:2.00s:solo:air_edges", False)
     assert pause_of(kept) == ("pause:2.00s:solo", False)
 
 
-def test_a_pause_trim_that_fails_a_filler_check_stays_for_review():
+def test_a_pause_trim_that_fails_a_filler_check_stays_for_review(tmp_path: Path):
     from types import SimpleNamespace
 
     project = _project_with_transcript(_PAUSE_WORDS)
+    _pause_audio(project, tmp_path)
     defaults = {
         **_PAUSE_DEFAULTS,
         "tighten": {**_PAUSE_DEFAULTS["tighten"], "join_continuity_gate": True},
@@ -3700,8 +3628,13 @@ def _scope_result(scope: str):
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 
     if scope == "track":
-        return "track", SpeechEnergyGuardResult(blocking_track_ids=("guest",), action="track_local")
-    return "session", SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
+        return ResolvedCutScope(
+            "peer_speech",
+            SpeechEnergyGuardResult(blocking_track_ids=("guest",), action="track_local"),
+        )
+    return ResolvedCutScope(
+        "session_clear", SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
+    )
 
 
 def _analyze_with_scope_flip(first: str, then: str, *, join_verdict: str):
@@ -3790,9 +3723,10 @@ def test_a_scope_that_never_settles_is_not_proposed():
     ],
 )
 def test_a_pause_trim_is_proposed_only_when_a_listener_would_hear_the_pause_shorten(
-    removed, proposed
+    removed, proposed, tmp_path: Path
 ):
     project = _project_with_transcript(_PAUSE_WORDS)
+    _pause_audio(project, tmp_path)
     skips: dict[str, int] = {}
 
     def air(project, track_id, start, end, **kw):
@@ -3825,51 +3759,94 @@ def test_a_pause_trim_is_proposed_only_when_a_listener_would_hear_the_pause_shor
     ],
 )
 def test_a_pause_trim_is_judged_against_the_silence_a_listener_hears_not_the_tracks_own_gap(
-    silence, proposed
+    silence, proposed, tmp_path: Path
 ):
+    from contextlib import nullcontext
+
+    from podcast_mcp.edits.session_air import MeasuredPause, SessionAir
+
     project = _project_with_transcript(_PAUSE_WORDS)
-    skips: dict[str, int] = {}
-
-    def air(project, track_id, start, end, **kw):
-        return PauseAir(start, start + 0.15, silence)
-
-    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air):
-        decisions = analyze_fillers_and_pauses(
-            project, project.transcripts[0], _PAUSE_DEFAULTS, skip_counts=skips
+    if silence == 0.4:
+        project.tracks.append(
+            Track(
+                id="guest",
+                label="Guest",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path="raw/guest.wav", duration_sec=30),
+            )
         )
-
-    assert any(d.reason.startswith("pause:") for d in decisions) == proposed
-    assert skips.get("imperceptible", 0) == (not proposed)
-
-
-@pytest.mark.parametrize(("span_end", "proposed"), [(1.6, False), (1.9, True)])
-def test_the_pad_a_pause_trim_needs_is_not_time_it_removes(span_end, proposed):
-    # An earlier ripple left only 0.1 s of continuous audio before the next word, so the
-    # cut pads 0.45 s back in. Of the 1.7 s pause a 0.6 s span shortens the timeline by
-    # 0.15 s (8.8%), which nobody hears; a 0.9 s span shortens it by 0.45 s.
-    words = [
-        TranscriptWord(text="one", start=0.0, end=0.4),
-        TranscriptWord(text="two", start=3.0, end=3.4),
-    ]
-    project = _project_with_transcript(words)
-    project.clips = [
-        Clip(id="early", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0),
-        Clip(id="late", track_id="host", source_start=2.9, source_end=5.0, timeline_start=2.0),
-    ]
+        project.clips.append(
+            Clip(id="guest", track_id="guest", source_start=0, source_end=30, timeline_start=0)
+        )
+        project.transcripts.append(
+            Transcript(track_id="guest", words=[TranscriptWord(text="peer", start=1.9, end=3.4)])
+        )
+    _pause_audio(project, tmp_path)
+    air = SessionAir(project)
+    assert isinstance(air.pause_observation(1.0, 3.9, acoustic=True), MeasuredPause)
+    assert air.silence_around(1.5, 1.65) == pytest.approx(0.4 if silence == 0.4 else 2.0)
     defaults = {
         "tighten": {
-            "min_retained_pause_sec": 0.55,
-            "min_retained_solo_pause_sec": 0.55,
-            "max_pause_sec": 1.2,
+            **_PAUSE_DEFAULTS["tighten"],
+            "min_retained_pause_sec": 0.18,
+            "min_retained_solo_pause_sec": 0.18,
         }
     }
     skips: dict[str, int] = {}
-
-    with patch("podcast_mcp.edits.fillers.pause_air_span", return_value=PauseAir(1.0, span_end)):
+    unavailable = (
+        patch("podcast_mcp.edits.session_air.SessionAir.silence_around", return_value=None)
+        if silence is None
+        else nullcontext()
+    )
+    with (
+        unavailable,
+        patch(
+            "podcast_mcp.edits.fillers.pause_air_span",
+            side_effect=lambda _p, _t, start, end, **kw: PauseAir(start, start + 0.15),
+        ),
+    ):
         decisions = analyze_fillers_and_pauses(
             project, project.transcripts[0], defaults, skip_counts=skips
         )
-
     pauses = [d for d in decisions if d.reason.startswith("pause:")]
-    assert len(pauses) == proposed
+    assert [(d.start, d.end) for d in pauses] == (
+        [(pytest.approx(1.5), pytest.approx(1.65))] if proposed else []
+    )
     assert skips.get("imperceptible", 0) == (not proposed)
+
+
+@pytest.mark.parametrize(("floor", "proposed"), [(1.8, False), (0.55, True)])
+def test_a_pause_with_a_source_hole_retains_original_air_or_holds(floor, proposed, tmp_path: Path):
+    from podcast_mcp.edits.fillers import _analyze_candidate, _AnalyzedCut, _CutCandidate
+
+    words = [
+        TranscriptWord(text="one", start=0, end=0.4),
+        TranscriptWord(text="two", start=3, end=3.4),
+    ]
+    project = _pause_audio(_project_with_transcript(words), tmp_path)
+    project.clips = [
+        Clip(id="early", track_id="host", source_start=0, source_end=2, timeline_start=0),
+        Clip(id="late", track_id="host", source_start=2.9, source_end=5, timeline_start=2),
+    ]
+    candidate = _CutCandidate(
+        track_id="host",
+        start=1,
+        end=1.9,
+        reason="pause:1.70s",
+        cut_kind="pause",
+        min_start=1,
+        max_end=1.9,
+    )
+    before = project.model_dump(mode="json")
+    result = _analyze_candidate(
+        project,
+        candidate,
+        {"tighten": {"min_retained_pause_sec": floor, "min_retained_solo_pause_sec": floor}},
+    )
+    if proposed:
+        assert isinstance(result, _AnalyzedCut)
+        assert (result.start, result.end) == pytest.approx((1, 1.9))
+        assert result.replace_gap_sec is None
+    else:
+        assert result == _CutRejected("no_air")
+    assert project.model_dump(mode="json") == before

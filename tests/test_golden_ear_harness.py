@@ -14,6 +14,7 @@ from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document.golden_ear import (
     LISTEN_DIRNAME,
+    _equalize_clip_lengths,
     _pair_audio_diagnostics,
     bound_limit,
     build_golden_ear,
@@ -724,12 +725,12 @@ def test_build_serves_equal_length_clips_whichever_side_is_longer(
     project = store.load()
     project.edit_decisions = [
         EditDecision(
-            id="padded-pause",
+            id="padded-filler",
             track_id="reference",
             type=EditDecisionType.REMOVE,
             start=14.0,
             end=14.0 + cut_sec,
-            reason="pause:2.00s",
+            reason="filler:um",
             review_required=True,
             applied=False,
             replace_gap_sec=pad_sec,
@@ -747,7 +748,7 @@ def test_build_serves_equal_length_clips_whichever_side_is_longer(
     monkeypatch.setattr(PlayService, "play_pending_preview", spy)
     monkeypatch.setattr(EditService, "propose_tighten", lambda self, **kwargs: [])
     out = tmp_path / "golden-equal"
-    result = build_golden_ear(source, out, limit=1, seed=0, classes="pause")
+    result = build_golden_ear(source, out, limit=1, seed=0, classes="filler")
     assert result["pair_count"] == 1
     key = json.loads((out / "key.json").read_text(encoding="utf-8"))
     pair = out / LISTEN_DIRNAME / key["pairs"][0]["id"]
@@ -790,7 +791,6 @@ def test_copy_premix_partial_and_project_symlink(tmp_path, sample_wav):
 
 def test_pad_and_workspace_helpers(tmp_path, sample_wav, monkeypatch):
     from podcast_mcp.services.document.golden_ear import (
-        _equalize_clip_lengths,
         _normalize_prefer,
         _out_has_content,
         _publish_pair_dir,

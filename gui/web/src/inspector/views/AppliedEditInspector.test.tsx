@@ -21,11 +21,13 @@ describe("AppliedEditInspector restore", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
   });
 
-  it("restores a host edit with complete clocks and clears a removed selection", async () => {
+  it("restores a host mute with source clocks and clears a removed selection", async () => {
     const user = userEvent.setup();
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
     const { container } = render(
-      <AppliedEditInspector rec={appliedEditRecord()} />,
+      <AppliedEditInspector
+        rec={appliedEditRecord({ params: { mute: true } })}
+      />,
     );
     await expectNoA11yViolations(container);
     await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -35,13 +37,17 @@ describe("AppliedEditInspector restore", () => {
 
   it("explains missing clocks to an owner who can use History", () => {
     render(
-      <AppliedEditInspector rec={appliedEditRecord({ source_start: null })} />,
+      <AppliedEditInspector
+        rec={appliedEditRecord({ source_start: null, params: { mute: true } })}
+      />,
     );
     expect(
       screen.queryByRole("button", { name: "Restore" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText("Unavailable (no source clocks). Use History undo"),
+      screen.getByText(
+        "This mute has no valid source clocks. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/current access/)).not.toBeInTheDocument();
   });
@@ -57,7 +63,9 @@ describe("AppliedEditInspector restore", () => {
         .getState()
         .hydrate("share:token", minimalProject(), "view", capabilities);
       const { container } = render(
-        <AppliedEditInspector rec={appliedEditRecord()} />,
+        <AppliedEditInspector
+          rec={appliedEditRecord({ params: { mute: true } })}
+        />,
       );
       expect(
         screen.queryByRole("button", { name: "Restore" }),
@@ -66,7 +74,7 @@ describe("AppliedEditInspector restore", () => {
         screen.getByText("Restore is unavailable with your current access."),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText(/no source clocks|History undo/),
+        screen.queryByText(/no valid source clocks|History Undo/),
       ).not.toBeInTheDocument();
       expect(restoreAppliedEdit).not.toHaveBeenCalled();
       await expectNoA11yViolations(container);
@@ -78,10 +86,57 @@ describe("AppliedEditInspector restore", () => {
       .getState()
       .hydrate("share:token", minimalProject(), "view", ["edit"]);
     const user = userEvent.setup();
-    render(<AppliedEditInspector rec={appliedEditRecord()} />);
+    render(
+      <AppliedEditInspector
+        rec={appliedEditRecord({ params: { mute: true } })}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(restoreAppliedEdit).toHaveBeenCalledWith("share:token", "edit-1");
     expect(screen.queryByText(/current access/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { operation: "approve_edits", params: {} },
+    { operation: "ripple_delete", params: {} },
+    { operation: "punch_delete", params: { scope: "track" } },
+    {
+      operation: "edit_selected_range",
+      params: { exact_range: {}, mute: true },
+    },
+  ])("directs a cut to whole-action History Undo for %j", async (record) => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AppliedEditInspector rec={appliedEditRecord(record)} />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Restore" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This edit cannot be restored individually. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open History" }));
+    expect(useDawStore.getState().activeTab).toBe("history");
+    expect(restoreAppliedEdit).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("allows a source mute without timeline clocks", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppliedEditInspector
+        rec={appliedEditRecord({
+          params: { mute: true },
+          timeline_start: null,
+          timeline_end: null,
+        })}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(restoreAppliedEdit).toHaveBeenCalledWith("/tmp/p.json", "edit-1");
+    expect(useDawStore.getState().selection).toBeNull();
   });
 
   it("reports restore failure without clearing the selection", async () => {
@@ -90,7 +145,11 @@ describe("AppliedEditInspector restore", () => {
     );
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
     const user = userEvent.setup();
-    render(<AppliedEditInspector rec={appliedEditRecord()} />);
+    render(
+      <AppliedEditInspector
+        rec={appliedEditRecord({ params: { mute: true } })}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Restore failed",

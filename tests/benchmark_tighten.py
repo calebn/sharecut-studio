@@ -221,15 +221,6 @@ def run_tighten_benchmark(
     return result
 
 
-# Approving a decision ripples it once, and applying a batch first runs the whole batch on
-# copies of the project (``_held_back_removes``: a remove that would cut other speech stays
-# pending, and each round that holds one back runs the rest again). Every pass ripples
-# every decision and each ripple rebuilds the combined transcript once, so a decision costs
-# one rebuild per pass: two when nothing is held back (the copy and the real run), three
-# with one held-back round. Measured at 40 to 320 words: pause trims alone 1.9 to 2.1 (one
-# per track pair, since the shared stretch is proposed once), fillers alone 0.5 (the two
-# tracks' fillers coincide and merge into one ripple), the mix 1.1 to 1.7. Linear in the
-# decisions and never in the words (#1129), so the bound is per decision.
 MAX_REBUILDS_PER_DECISION = 3
 
 

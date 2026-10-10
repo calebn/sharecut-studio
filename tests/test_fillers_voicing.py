@@ -1,9 +1,9 @@
 """Tier A pins for voiced speech at tighten cut edges and inside pause spans (#815, #818).
 
-Synthetic tracks: a 180 Hz harmonic "vowel" for voice, digital silence (-200 dBFS,
-Zoom's gate) between words. Breath handling is disabled because these fixtures
-have no measurable room-tone contrast; complete breath protection has its own tests. Word times are what the transcript says; the audio is
-what the listener hears, and the two disagree on purpose where the issues did.
+Synthetic tracks use a 180 Hz harmonic "vowel" for voice. The automatic pause
+and measured edge fixtures retain original room noise between words. Other
+fixtures use digital silence to isolate the voiced checks. Word times are what
+the transcript says. The audio disagrees where the reported issues did.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from pause_policy_public_helpers import room
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.fillers import (
     _check_voiced_speech,
@@ -37,7 +38,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import CommentService
+from podcast_mcp.services.document import CommentService, EditService
 
 RATE = 16_000
 DEFAULTS: dict[str, object] = {
@@ -48,6 +49,14 @@ DEFAULTS: dict[str, object] = {
 EDGE_DEFAULTS: dict[str, object] = {
     "tighten": {
         "breath_handling": {"enabled": False},
+        "max_pause_sec": 1.2,
+        "acoustic_gap_filler": {"enabled": False},
+    }
+}
+
+MEASURED_EDGE_DEFAULTS: dict[str, object] = {
+    "tighten": {
+        "breath_handling": {"enabled": True},
         "max_pause_sec": 1.2,
         "acoustic_gap_filler": {"enabled": False},
     }
@@ -183,7 +192,7 @@ def test_speech_inside_an_asr_gap_never_becomes_an_auto_applicable_pause(tmp_pat
 
 def test_pause_start_inside_a_word_tail_moves_past_the_voice(tmp_path: Path) -> None:
     """#815: the aligner ends "one" at 1.0 s but the vowel runs to 1.25 s."""
-    samples = np.zeros(4 * RATE, dtype=np.float32)
+    samples = room(4).astype(np.float32)
     _voice(samples, 0.2, 1.25)
     _voice(samples, 3.0, 3.2)
     words = [
@@ -192,7 +201,9 @@ def test_pause_start_inside_a_word_tail_moves_past_the_voice(tmp_path: Path) -> 
     ]
     project = _project(tmp_path, samples, words)
 
-    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
+    (decision,) = analyze_fillers_and_pauses(
+        project, project.transcripts[0], MEASURED_EDGE_DEFAULTS
+    )
 
     assert decision.reason == "pause:2.00s:solo:air_edges"
     assert decision.review_required is False
@@ -201,9 +212,9 @@ def test_pause_start_inside_a_word_tail_moves_past_the_voice(tmp_path: Path) -> 
     assert decision.end == pytest.approx(2.45)
 
 
-def test_pause_end_inside_the_next_word_onset_moves_before_the_voice(tmp_path: Path) -> None:
+def test_mistimed_next_word_holds_when_original_room_cannot_be_measured(tmp_path: Path) -> None:
     """Whisper hears "two" start at 3.0 s; the voice starts at 2.3 s, inside the cut."""
-    samples = np.zeros(4 * RATE, dtype=np.float32)
+    samples = room(4).astype(np.float32)
     _voice(samples, 0.2, 0.4)
     _voice(samples, 2.3, 3.2)
     words = [
@@ -212,21 +223,18 @@ def test_pause_end_inside_the_next_word_onset_moves_before_the_voice(tmp_path: P
     ]
     project = _project(tmp_path, samples, words)
 
-    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
+    decisions = analyze_fillers_and_pauses(project, project.transcripts[0], MEASURED_EDGE_DEFAULTS)
 
-    assert decision.reason == "pause:2.60s:solo:air_edges"
-    assert decision.review_required is False
-    assert decision.start == pytest.approx(0.4, abs=0.05)
-    # Voice edge on the frame grid (2.29) minus 60 ms of air.
-    assert decision.end == pytest.approx(2.23, abs=0.011)
+    assert decisions == []
+    assert [(clip.source_start, clip.source_end) for clip in project.clips] == [(0.0, 4.0)]
 
 
 def test_clean_dead_air_is_proposed_to_apply_and_applies_with_the_fillers(tmp_path: Path) -> None:
-    samples = np.zeros(4 * RATE, dtype=np.float32)
+    samples = room(4).astype(np.float32)
     _voice(samples, 0.2, 0.58)
     _voice(samples, 3.0, 3.4)
     words = [
-        TranscriptWord(text="one", start=0.2, end=0.6),
+        TranscriptWord(text="one", start=0.2, end=0.58),
         TranscriptWord(text="two", start=3.0, end=3.4),
     ]
     project = _project(tmp_path, samples, words)
@@ -235,12 +243,15 @@ def test_clean_dead_air_is_proposed_to_apply_and_applies_with_the_fillers(tmp_pa
 
     # Dead air passes the checks a filler passes (#1055): it needs no review and applies
     # with the auto-tighten edits.
-    assert decision.reason == "pause:2.40s:solo"
+    assert decision.reason == "pause:2.42s:solo"
     assert decision.review_required is False
     assert 0.58 <= decision.start <= 0.62
     assert decision.end == pytest.approx(2.45)
     assert apply_tighten_decisions(project) == 1
     assert project.edit_decisions == []
+    assert project.editorial.edit_log[0].params["replace_gap_sec"] is None
+    assert project.editorial.edit_log[0].params["pad_samples"] == []
+    assert all(c.source_id is None for c in project.clips)
 
 
 CONTINUOUS_VOICE_DEFAULTS: dict[str, object] = {
@@ -447,6 +458,37 @@ def test_proposing_without_replacing_never_adds_a_hit_twice(tmp_path: Path) -> N
     assert project.edit_decisions == first.decisions
 
 
+@pytest.mark.parametrize("edit_mode", ["ripple", "mute"])
+def test_real_generated_hits_are_pending_in_studio_and_apply_eligible(tmp_path, edit_mode):
+    project = _filler_and_pause_project(tmp_path)
+    project.timeline.duration_sec = 6
+    ws = ProjectWorkspace.open(save_project(project))
+    proposal = ws.mutate(
+        "before find hits",
+        "after find hits",
+        lambda p: propose_tighten_edits(p, FILLER_AND_PAUSE_DEFAULTS, edit_mode=edit_mode),
+    )
+    expected_reasons = ["filler"] if edit_mode == "mute" else ["filler", "pause"]
+    assert [(d.reason.split(":")[0], d.applied) for d in proposal.decisions] == [
+        (reason, False) for reason in expected_reasons
+    ]
+    view = build_project_view(ws)
+    assert [row["id"] for row in view.pending_edits] == [d.id for d in proposal.decisions]
+    filler = proposal.decisions[0]
+    assert filler.type.value == ("mute" if edit_mode == "mute" else "remove")
+    result = EditService(ws).approve_eligible_tighten([filler.id])
+    assert result["approved_count"] == 1
+    assert result["ids"] == [filler.id]
+    assert [r.decision_ids for r in ws.project.editorial.edit_log] == [[filler.id]]
+    if edit_mode == "mute":
+        assert ws.project.edit_decisions == []
+        assert ws.project.timeline.duration_sec == 6
+        assert len(ws.project.clips[0].mute_regions) == 1
+    else:
+        assert [d.id for d in ws.project.edit_decisions] == [proposal.decisions[1].id]
+        assert ws.project.timeline.duration_sec < 6
+
+
 def test_hit_ids_separate_track_kind_and_span() -> None:
     base = _CutCandidate(track_id="host", start=1.0, end=1.3, reason="filler:um", cut_kind="filler")
     variants = [
@@ -500,12 +542,12 @@ def test_peer_voice_inside_a_session_pause_is_reviewed(tmp_path: Path) -> None:
     assert apply_tighten_decisions(project) == 0
 
 
-def test_peer_onset_at_the_pause_end_moves_the_edge_before_it(tmp_path: Path) -> None:
+def test_mistimed_peer_onset_holds_when_original_room_cannot_be_measured(tmp_path: Path) -> None:
     """The guest starts speaking at 2.42 s, 30 ms before the pause cut would end."""
-    host = np.zeros(4 * RATE, dtype=np.float32)
+    host = room(4).astype(np.float32)
     _voice(host, 0.2, 0.4)
     _voice(host, 3.0, 3.2)
-    guest = np.zeros(4 * RATE, dtype=np.float32)
+    guest = room(4).astype(np.float32)
     _voice(guest, 2.42, 3.2, level_db=-30.0)
     words = [
         TranscriptWord(text="one", start=0.2, end=0.4),
@@ -513,12 +555,13 @@ def test_peer_onset_at_the_pause_end_moves_the_edge_before_it(tmp_path: Path) ->
     ]
     project = _project(tmp_path, host, words, peer=guest)
 
-    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
+    decisions = analyze_fillers_and_pauses(project, project.transcripts[0], MEASURED_EDGE_DEFAULTS)
 
-    assert decision.reason == "pause:2.60s:solo:air_edges"
-    assert decision.review_required is False
-    # Guest voice edge on the frame grid (2.41) minus 60 ms of air.
-    assert decision.end == pytest.approx(2.35, abs=0.011)
+    assert decisions == []
+    assert [(clip.source_start, clip.source_end) for clip in project.clips] == [
+        (0.0, 4.0),
+        (0.0, 4.0),
+    ]
 
 
 def test_unvoiced_material_inside_a_pause_is_not_dead_air(tmp_path: Path) -> None:

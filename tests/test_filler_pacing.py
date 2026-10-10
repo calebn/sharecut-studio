@@ -16,6 +16,8 @@ from podcast_mcp.edits.filler_pacing import (
     shrink_cut_for_min_gap,
 )
 from podcast_mcp.edits.fillers import _CutRejected, analyze_fillers_and_pauses
+from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
+from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.edits.timeline_ops import insert_room_tone_pad
 from podcast_mcp.edits.transcript_cuts import cut_time_range
 from podcast_mcp.models import (
@@ -115,10 +117,11 @@ def test_insert_room_tone_pad_tiles_short_sample():
         ),
     ]
     with patch(
-        "podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(3.0, 3.1, None)
+        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        return_value=OwnQuietSample(Sample(3.0, 3.1, -70.0, None)),
     ) as span:
         insert_room_tone_pad(p, 0.15, 0.4, sample_duration_sec=0.1)
-    span.assert_called_once_with(p, "host", near_sec=0.15, duration_sec=0.1, avoid=())
+    span.assert_called_once_with(p, "host", near_sec=0.15, duration_sec=0.1, avoid=[])
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
     # Multiple pad tiles between left and shifted right
     assert len(host) >= 4
@@ -315,7 +318,7 @@ def test_apply_auto_edits_with_room_tone_pads():
             },
         ),
         patch(
-            "podcast_mcp.edits.decisions.recommend_post_pad_fade_in_ms",
+            "podcast_mcp.edits.source_removals.recommend_post_pad_fade_in_ms",
             return_value=72,
         ),
     ):
@@ -635,7 +638,10 @@ def test_insert_room_tone_pad_fills_gap():
             timeline_start=3.0,
         ),
     ]
-    with patch("podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(5.0, 5.28, None)):
+    with patch(
+        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        return_value=OwnQuietSample(Sample(5.0, 5.28, -70.0, None)),
+    ):
         summary = insert_room_tone_pad(p, 3.0, 0.28)
     assert summary["operation"] == "insert_room_tone_pad"
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
@@ -728,7 +734,10 @@ def test_approve_edits_applies_room_tone_pad_when_configured():
     ]
     with (
         patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="room_tone"),
-        patch("podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(6.0, 6.28, None)),
+        patch(
+            "podcast_mcp.edits.timeline_ops.room_tone_span",
+            return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
+        ),
     ):
         removed = approve_edits(project, ["cut_1"])
     assert removed == 1
@@ -1068,7 +1077,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
         ),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-            return_value=("session", guard),
+            return_value=ResolvedCutScope("session_clear", guard),
         ),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),
     ):
@@ -1115,7 +1124,7 @@ def test_analyze_candidate_track_local_on_blocked_peer() -> None:
         ),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-            return_value=("track", guard),
+            return_value=ResolvedCutScope("peer_speech", guard),
         ),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),
     ):

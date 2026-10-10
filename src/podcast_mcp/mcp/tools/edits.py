@@ -397,7 +397,7 @@ def update_pending_edit_tool(
 
 
 def revert_applied_edit_tool(project_path: str, record_id: str) -> str:
-    """Revert an applied edit by its history record id."""
+    """Restore an ordinary source mute; clip removals require whole-action History Undo."""
     ws = ProjectWorkspace.open(project_path)
     result = EditService(ws).revert_applied(record_id)
     agent_mutated(ws)

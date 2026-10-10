@@ -369,7 +369,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender`; required `expected_head_id`, the history head the client saw (`root` before any entry; refused as invalid when missing, 409 `history_stale` unless it is still the head; [history.md § Guarded undo and redo](history.md#guarded-undo-and-redo-expected-head)) |
 | `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; Approve also takes `confirm_cut_speech?` (needed when a remove's ripple would cut other speech, checked at approval time) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
-| `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |
+| `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (ordinary source MUTE log id). Clip removals and exact ranges refuse with `local_restore_requires_history`; choose guarded `UndoHistory` for the whole action |
 | `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
 | `TrimClipEdge` | `EditService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode, `confirm_cut_speech?` |
 | `RollClipJoin` | `EditService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context. The clips must abut (`clips_abut`); across a gap the command is refused, HTTP 400 with `X-Sharecut-Error-Code: roll_needs_abutting_clips`, before the token is checked |
@@ -552,3 +552,6 @@ Selection, gesture drafts, range arming and Bounce targets stay local. A remote
 region requires explicit adoption with lanes. Guest range Play checks the live
 target and published mix freshness under a workspace transaction, returns full
 mix only, and grants no render or export authority.
+
+
+Speech-review approval returns an unchanged confirmation only after the workspace's registered recovery callback certifies RESTORED. UNKNOWN recovery propagates the primary `UnconfirmedCutSpeech` failure. Neither unchanged project-file bytes nor a confirmation payload establishes recovery. Unsupported local Restore uses the existing coded refusal path and does not append a successful document command.

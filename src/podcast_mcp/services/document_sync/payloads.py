@@ -145,6 +145,14 @@ class RedoHistoryPayload(_HistoryMovePayload):
 
 class ApproveEditsPayload(BaseModel):
     ids: list[str]
+    allow_review: bool = Field(
+        default=True,
+        description=(
+            "Authorize a pause join that currently requires review. Selected approval "
+            "defaults to true. Apply eligible with Avoid harsh cuts on sends false; "
+            "speech confirmation does not change this authority."
+        ),
+    )
     confirm_cut_speech: ConfirmCutSpeech = False
 
 

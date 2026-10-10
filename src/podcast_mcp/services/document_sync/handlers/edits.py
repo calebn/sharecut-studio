@@ -18,6 +18,7 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         ids,
         allow_exact=p.get("_allow_exact") is True,
         confirm_cut_speech=p.get("confirm_cut_speech") is True,
+        allow_review=p.get("allow_review", True) is True,
     )
     if isinstance(outcome, CutSpeechConfirmation):
         return outcome.result("approve_edits")

@@ -11,10 +11,12 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from source_review_helpers import finite_primary_recording
 
 
 def _project(path: Path):
     proj = load_project(path)
+    finite_primary_recording(proj, 22)
     proj.combined_transcript = CombinedTranscript(
         utterances=[
             CombinedUtterance(

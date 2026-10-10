@@ -651,8 +651,11 @@ def test_cut_overlapping_an_applied_decision_is_not_reproposed() -> None:
 # --- coalescing ----------------------------------------------------------------
 
 
-def _coalesced(*decisions: EditDecision) -> list[tuple[str, float, float, bool, bool]]:
-    project = EpisodeProject.create("c", "/tmp/ws")
+def _coalesced(tmp_path, *decisions: EditDecision) -> list[tuple[str, float, float, bool, bool]]:
+    from source_review_helpers import finite_primary_recording
+
+    project = EpisodeProject.create("c", str(tmp_path))
+    finite_primary_recording(project, 3)
     project.edit_decisions = list(decisions)
     coalesce_edits(project, track_id="host")
     return sorted(
@@ -661,40 +664,40 @@ def _coalesced(*decisions: EditDecision) -> list[tuple[str, float, float, bool, 
     )
 
 
-def test_coalesce_keeps_acoustic_proposals_independent() -> None:
+def test_coalesce_keeps_acoustic_proposals_independent(tmp_path) -> None:
     applied_um = _decision("um", 0.30, 0.50, "filler:um", applied=True)
     pending_acoustic = _decision("ac", 0.53, 0.90, "filler:acoustic", review=True)
-    assert _coalesced(applied_um, pending_acoustic) == [
+    assert _coalesced(tmp_path, applied_um, pending_acoustic) == [
         ("filler:acoustic", 0.53, 0.90, False, True),
         ("filler:um", 0.30, 0.50, True, False),
     ]
 
     acoustic = _decision("ac", 0.78, 1.175, "filler:acoustic", review=True)
     auto_um = _decision("um", 1.2, 1.4, "filler:um")
-    assert _coalesced(acoustic, auto_um) == [
+    assert _coalesced(tmp_path, acoustic, auto_um) == [
         ("filler:acoustic", 0.78, 1.175, False, True),
         ("filler:um", 1.2, 1.4, False, False),
     ]
 
     pause = _decision("p", 2.0, 2.5, "pause:1.40s")
     acoustic_after = _decision("ac", 2.52, 2.8, "filler:acoustic", review=True)
-    assert _coalesced(pause, acoustic_after) == [
+    assert _coalesced(tmp_path, pause, acoustic_after) == [
         ("filler:acoustic", 2.52, 2.8, False, True),
         ("pause:1.40s", 2.0, 2.5, False, False),
     ]
 
 
-def test_coalesce_never_merges_across_applied_but_still_merges_ordinary_cuts() -> None:
+def test_coalesce_never_merges_across_applied_but_still_merges_ordinary_cuts(tmp_path) -> None:
     applied = _decision("old", 1.0, 1.3, "filler:um", applied=True)
     pending = _decision("new", 0.98, 1.3, "filler:um")
-    assert _coalesced(applied, pending) == [
+    assert _coalesced(tmp_path, applied, pending) == [
         ("filler:um", 0.98, 1.3, False, False),
         ("filler:um", 1.0, 1.3, True, False),
     ]
 
     left = _decision("a", 1.0, 1.3, "filler:um")
     right = _decision("b", 1.32, 1.5, "filler:uh")
-    assert _coalesced(left, right) == [("filler:um", 1.0, 1.5, False, False)]
+    assert _coalesced(tmp_path, left, right) == [("filler:um", 1.0, 1.5, False, False)]
 
 
 # --- end to end ------------------------------------------------------------------

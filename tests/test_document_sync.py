@@ -354,7 +354,7 @@ def test_document_reject_and_approve_edits(minimal_project):
     assert "d-approve" not in ids
 
 
-def test_document_update_pending_and_restore(minimal_project):
+def test_document_update_pending_restore_refusal_and_guarded_undo(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [
         Track(
@@ -413,19 +413,44 @@ def test_document_update_pending_and_restore(minimal_project):
     assert len(ws2.project.editorial.edit_log) == 1
     rid = ws2.project.editorial.edit_log[0].id
 
-    restored = svc.submit(
+    before = ws2.project.model_dump(mode="json")
+    disk = Path(minimal_project).read_bytes()
+    head = HistoryService(ws2).status()["head_id"]
+    with pytest.raises(ValueError) as refused:
+        svc.submit(
+            DocumentCommand(
+                type="RestoreAppliedEdit",
+                payload={"id": rid},
+                client_id="c1",
+                role="viewer",
+                client_seq=3,
+            )
+        )
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert str(refused.value) == (
+        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
+        "History Undo also undoes the other edits in that action. "
+        "You may need to undo later actions first."
+    )
+    assert Path(minimal_project).read_bytes() == disk
+    assert ProjectWorkspace.open(minimal_project).project.model_dump(mode="json") == before
+    undone = svc.submit(
         DocumentCommand(
-            type="RestoreAppliedEdit",
-            payload={"id": rid},
+            type="UndoHistory",
+            payload={"expected_head_id": head},
             client_id="c1",
             role="viewer",
-            client_seq=3,
+            client_seq=4,
         )
     )
-    assert restored["ok"]
+    assert undone["ok"]
     ws3 = ProjectWorkspace.open(minimal_project)
     assert ws3.project.editorial.edit_log == []
-    assert HistoryService(ws3).status()["can_undo"]
+    assert [(c.id, c.source_start, c.source_end, c.timeline_start) for c in ws3.project.clips] == [
+        ("c1", 0, 10, 0)
+    ]
+    assert [(e.id, e.start, e.end) for e in ws3.project.edit_decisions] == [("d1", 2.1, 3.9)]
+    assert HistoryService(ws3).status()["can_redo"] is True
 
 
 def test_document_set_clip_fade_join_and_recommendations(minimal_project):

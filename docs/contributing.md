@@ -243,9 +243,31 @@ Portable selection hints (any MCP client). Detail: [`.agents/rules/engineering-s
 
 ## Time handling (source vs timeline clock)
 
+Use `util.media_identity.same_recording` for physical recording comparisons.
+Keep source IDs for transcript provenance. Exact removal checks include primary
+media placements on other lanes and hold for matching unclipped playback.
+Ordinary point mappings retain their existing lane semantics. Assign pause
+join mode only on the right edge. The left edge owns the outgoing fade.
+
 Transcript words and ordinary remove/mute decisions use **source-media seconds**; rendered audio uses **timeline seconds**. `EditDecision.exact_range` is the explicit timeline-clock variant: its islands, destination lanes, observed clips and media seals must stay together. See [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
 
 Build reviewed bleed targets with `build_range_target` in `edits/range_edits.py`. `propose_range_mute_tool` accepts timeline intervals in that sealed target. Rendering maps approved mutes to each selected occurrence's source clock and preserves the original envelope endpoints when intersecting a playback window.
+
+Every ordinary SOURCE REMOVE uses `edits/source_removals.py`: use `inspect_source_remove_placement` to check original complete geometry and canonical lane membership before optimization, then prove the actual planned timeline window with `SessionTimeline.exact_timeline_source_span` before consuming it without another optimizer. Append, update and coalescing assess the final row before publication. Pause shortening and perceptibility belong to that final effect check, after actual planning.
+
+Keep pause effect policy in the existing preparation owner. Bind finite fades for every affected source survivor before finishing the operation. Preserve genuine authored fades and replace temporary kernel fades by exact assignment after mutation. A descriptive scalar recommendation must not overwrite these effects. Archive consumed source and timeline footprint facts in the existing applied record params. Recording observations use the actual origin cache and transcript, including parked source media; destination caches cannot substitute. Display hulls cannot authorize removal. Keep ownership by originating recording across lanes; intentional punches must belong to the named lane, and pause reasons never punch. Implicit current primary lanes need finite declared media extent and materialize through `track_media.full_span_clip`; `timeline_empty` means deliberately no audio. Saved batch guarantees belong after workspace rollback, automatic holds leave individual survivors eligible, and Suggested uses its private snapshot.
+
+Keep onset and release evidence independent in recording observations. Acoustic
+collars use every original sample between the adjacent measured release and onset,
+with native whole-corridor filtering and smoothing. Compare complete outer collars
+to copied original reach on the same source frames in both bands. Validate full
+guard samples separately so clipping outside a corridor still preserves the guard.
+Check guard overlaps across all actual same-media lane placements. A public query
+may cover only part of a guard, but its placement must cover the whole guard once.
+Deleted interior remains measurable and contributes no played duration. Final
+source geometry and retained-pause budgets remain the preparation owner's checks.
+
+After strict geometry, check `origin_placement_lanes` against the actual operation's canonical lanes. A session removal uses `ripple_track_ids(project, removal.edited_track_ids)`; do not add a parked destination to its scope. Out-of-operation placement holds as `operation_scope`. Passing geometry still requires fresh speech evidence. Generated REMOVE/MUTE factories set `applied=False`; coalescers bypass every excluded `merge_ids` row unchanged and inspect owned pending singletons too. Manual additions select only the canonical joining component containing the new row through the coalescer's shared private grouping rule. Validate each owned existing source row before widening, then validate the survivor. Preserve excluded metadata and relative order, including generated callers with explicit IDs. Generated `skip_counts` still records final holds once per group. Return the uniquely compatible ordinary survivor selected before publication. Auto-apply owns one held set, discards held trials, and adopts the first complete hold-free copy from the stable post-MUTE state.
 
 When writing new code that deals with time:
 
@@ -263,6 +285,16 @@ When writing new code that deals with time:
    Whole-phrase approval must retain unsupported measured interior evidence.
    Batch corrections must preserve all stationary retained-copy reference regions,
    including secondary peers, as well as nonconflicting direct-phrase footprints.
+   Pause retention policy belongs to `fillers._prepare_candidate`. Count qualified
+   original source pieces on both sides of the finalized removal through exact current
+   forward and reverse mappings. Use complete placed flanking words and actual sound
+   activity, not a right-only suffix or word timing as a quiet certificate. Current
+   playback can connect several clips across deleted source interior. Exclude muted
+   and ignored source, replay, foreign media, registered beds, and known pad samples
+   before taking the disjoint source union. Do not infer historical pad provenance.
+   Bounded contractions rerun preparation and finish with both bounds pinned and the
+   original decision ID. Insufficient or unavailable original support holds the pause.
+   Do not automatically replace its floor with a pad, including configured silence.
 3. **New MCP tool with a seconds parameter?** Add an entry to `TOOL_TIMEBASE` in [`util/tool_timebase.py`](../src/podcast_mcp/util/tool_timebase.py) declaring `"source"` or `"timeline"`; `tests/test_time_conformance.py` fails until you do.
 4. **Search results** carry both clocks via `TranscriptMatch.timeline_start/end` — never re-derive them in a caller.
 5. **Reading a media window with ffmpeg?** Build its arguments with `MediaSeek` in [`engines/media_seek.py`](../src/podcast_mcp/engines/media_seek.py): `input_args()` before `-i`, then `output_args()` after it or `offset()` in an `atrim`. A bare input `-ss` starts an AAC (`.m4a`) read up to about one 1024-sample frame late (a whole frame for `-ss 0`), because ffmpeg's decoder trims the file's encoder priming from the first packet it decodes, which after a seek is real audio. `tests/test_timebase_guards.py` fails CI on `-ss` anywhere else.
@@ -279,14 +311,14 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    - runs the domain mutation on `EpisodeProject`,
    - records a snapshot **after** the change (each `record` and the final record + commit take `project_commit_lock`; the mutation itself runs inside `ProjectWorkspace.transaction()`, which holds the lock from the reload through the commit (#213); `ReviewService.publish` sweeps old media before its state lock, then copies, encodes, and hashes private media before taking the commit lock, and verifies file identity and attaches the promoted version under that lock),
    - commits via `ProjectStore` (updates `episode.project.json` and mirrored `transcripts/*.json` caches).
-   - on failure (any `BaseException`, including one in `record(before)`), removes the history entries and snapshots it recorded, unless the commit landed or another writer recorded on top (then memory adopts the index on disk); unless the commit landed it also restores the in-memory editable state and `project.render` to their pre-`mutate` values (after a `kept` or `unknown` rollback a caller that keeps the project must reload it before committing; `ProjectWorkspace.mutate` does); see [history.md § Storage layout](history.md#storage-layout). A new record-then-commit path takes `history.rollback.take_history_checkpoint` and wraps its steps in `rolled_back_on_failure` instead of its own try/except, passing `on_not_landed` to restore other in-memory state unless the commit landed. Use `on_failure` to consume the resulting `RollbackOutcome` after memory restoration; delete external artifacts only on `restored`. Merged saves use `HistoryRollbackPolicy.LOCKED_CALL` under the uninterrupted commit lock, with saved history as the index fallback and job history as the memory baseline.
+   - on failure (any `BaseException`, including one in `record(before)`), removes the history entries and snapshots it recorded, unless the commit landed or another writer recorded on top (then memory adopts the index on disk); unless the commit landed it attempts to restore the in-memory editable state and `project.render` to their pre-`mutate` values (after a `kept` or `unknown` rollback a caller that keeps the project must reload it before committing; `ProjectWorkspace.mutate` does); see [history.md § Storage layout](history.md#storage-layout). A new record-then-commit path takes `history.rollback.take_history_checkpoint` and wraps its steps in `rolled_back_on_failure` instead of its own try/except, passing `on_not_landed` to restore other in-memory state unless the commit landed. Raw `roll_back_history` reports history only. Use `on_failure` after registered editable/render recovery: certify `restored` only when that hook returns, downgrade failed restoration to `unknown`, and never upgrade `kept`, `unknown`, or `landed`. Preserve the active primary error even if recovery, notification or logging raises a secondary `BaseException`; delete external artifacts only on certified `restored`. Before `record(before)` succeeds, the mutator has changed neither editable nor render state. Merged saves use `HistoryRollbackPolicy.LOCKED_CALL` under the uninterrupted commit lock, with saved history as the index fallback and job history as the memory baseline.
 3. **New features** add a service method that delegates to `mutate`; CLI/MCP handlers stay thin.
 4. **Batch work** (e.g. transcript cleanup, multi-cut approve) should use **one** `mutate` per user-confirmed step so a single undo reverts the whole batch.
    Bulk transcript corrections rebuild the combined transcript once after the batch;
    keep per-step canonical commits for pipeline crash resume. The project store skips
    unchanged mirror writes and trims old undo history toward 400 snapshots without
    removing redo entries.
-5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist.
+5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist. Individual Restore only supports ordinary source MUTE archives. Clip removals and exact ranges use the coded `local_restore_requires_history` refusal before history starts. Whole-action History Undo also undoes other edits in the action and may require undoing later actions first. Do not recreate recordings from archive clocks or perform a hidden Undo.
 
 Applying a pending decision with `boundary_mode` already set must consume its
 stored optimized bounds. A second snap can reopen a protected breath edge.

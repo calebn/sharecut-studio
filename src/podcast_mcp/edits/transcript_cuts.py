@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -212,6 +213,9 @@ def append_remove_decision(
         scope=scope,
         author=author,
     )
+    from podcast_mcp.edits.source_removals import require_source_remove
+
+    require_source_remove(project, decision)
     project.edit_decisions.append(decision)
     return decision
 
@@ -264,8 +268,28 @@ def add_remove_decision(
         raise ValueError("end must be greater than start")
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.filler_pacing import apply_filler_pacing
-    from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
+    from podcast_mcp.edits.source_removals import (
+        CutScopeHold,
+        ScopeChangedAtApproval,
+        inspect_source_remove_placement,
+        require_source_remove,
+    )
+    from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
 
+    placement = inspect_source_remove_placement(
+        project,
+        EditDecision(
+            id="source-request",
+            track_id=track_id,
+            type=EditDecisionType.REMOVE,
+            start=start,
+            end=end,
+            reason=reason,
+            applied=False,
+        ),
+    )
+    if isinstance(placement, CutScopeHold):
+        raise ScopeChangedAtApproval([placement], {})
     cfg = defaults if defaults is not None else load_defaults()
     # Pace from the requested span first so waveform snap cannot pull a boundary
     # onto the next word and then room-tone-expand across real dialogue.
@@ -307,16 +331,21 @@ def add_remove_decision(
     scope = "session"
     review = review_required
     cut_reason = reason
-    try:
-        scope, guard = resolve_cut_scope(
-            project,
-            track_id,
-            cut_start,
-            cut_end,
-            defaults=cfg,
-        )
-    except ValueError:
-        raise
+    decision_id = f"cut_{uuid.uuid4().hex[:8]}"
+    resolved = resolve_cut_scope(
+        project,
+        track_id,
+        cut_start,
+        cut_end,
+        defaults=cfg,
+    )
+    if isinstance(resolved, CutScopeUnavailable):
+        raise ScopeChangedAtApproval([CutScopeHold(decision_id, (), "scope_unavailable")], {})
+    scope, guard = resolved.scope, resolved.guard
+    if guard is not None and guard.action == "skip":
+        from podcast_mcp.edits.speech_energy_guard import PeerSpeechBlocked
+
+        raise PeerSpeechBlocked(guard.blocking_track_ids)
     if guard is not None and guard.blocked:
         peers = ",".join(guard.blocking_track_ids)
         if guard.action == "review":
@@ -328,7 +357,7 @@ def add_remove_decision(
         scope = "track"
 
     decision = EditDecision(
-        id=f"cut_{uuid.uuid4().hex[:8]}",
+        id=decision_id,
         track_id=track_id,
         type=EditDecisionType.REMOVE,
         start=cut_start,
@@ -342,9 +371,87 @@ def add_remove_decision(
         replace_gap_sec=replace_gap,
         scope=scope,
     )
-    project.edit_decisions.append(decision)
-    coalesce_edits(project, track_id=track_id, defaults=cfg)
-    return decision
+    require_source_remove(project, decision)
+    staged = project.model_copy(deep=True)
+    staged.edit_decisions.append(decision)
+    joining_ids = _joining_remove_ids(staged.edit_decisions, decision.id, merge_gap_sec=0.05)
+    coalesce_edits(staged, track_id=track_id, defaults=cfg, merge_ids=joining_ids)
+    same_id = [row for row in staged.edit_decisions if row.id == decision.id]
+    candidates = same_id or [
+        row
+        for row in staged.edit_decisions
+        if row.id in joining_ids
+        and not _keeps_independent_review(row, decision)
+        and _ordinary_remove_survivor(row, decision)
+    ]
+    if len(candidates) != 1 or not _ordinary_remove_survivor(candidates[0], decision):
+        raise RuntimeError("source remove has no unique ordinary survivor")
+    survivor = candidates[0]
+    project.edit_decisions = staged.edit_decisions
+    return survivor
+
+
+def _same_merge_identity(left: EditDecision, right: EditDecision) -> bool:
+    return (
+        left.track_id == right.track_id
+        and left.type == right.type
+        and left.timebase == right.timebase
+        and left.scope == right.scope
+        and left.author == right.author
+        and left.applied == right.applied
+        and left.boundary_mode == right.boundary_mode
+        and left.cut_speech == right.cut_speech
+        and left.exact_range is None
+        and right.exact_range is None
+    )
+
+
+def _ordinary_remove_survivor(row: EditDecision, requested: EditDecision) -> bool:
+    return (
+        row.type == EditDecisionType.REMOVE
+        and row.timebase == "source"
+        and _same_merge_identity(row, requested)
+        and row.start <= requested.start
+        and row.end >= requested.end
+    )
+
+
+def _merge_groups(
+    rows: Sequence[EditDecision], *, merge_gap_sec: float
+) -> tuple[tuple[EditDecision, ...], ...]:
+    by_key: dict[tuple[str, EditDecisionType], list[EditDecision]] = {}
+    for row in rows:
+        if row.type in (EditDecisionType.REMOVE, EditDecisionType.MUTE) and row.exact_range is None:
+            by_key.setdefault((row.track_id, row.type), []).append(row)
+    groups: list[tuple[EditDecision, ...]] = []
+    for edits in by_key.values():
+        ordered = sorted(edits, key=lambda row: row.start)
+        group = [ordered[0]]
+        hull = ordered[0].model_copy(deep=True)
+        for row in ordered[1:]:
+            if (
+                row.start <= hull.end + merge_gap_sec
+                and _same_merge_identity(hull, row)
+                and not _keeps_independent_review(hull, row)
+            ):
+                hull.end = max(hull.end, row.end)
+                hull.review_required = hull.review_required or row.review_required
+                group.append(row)
+            else:
+                groups.append(tuple(group))
+                group = [row]
+                hull = row.model_copy(deep=True)
+        groups.append(tuple(group))
+    return tuple(groups)
+
+
+def _joining_remove_ids(
+    rows: Sequence[EditDecision], new_id: str, *, merge_gap_sec: float
+) -> set[str]:
+    for group in _merge_groups(rows, merge_gap_sec=merge_gap_sec):
+        if any(row.id == new_id for row in group):
+            return {row.id for row in group}
+    raise RuntimeError("source remove has no coalescing group")
 
 
 def coalesce_edits(
@@ -353,53 +460,65 @@ def coalesce_edits(
     track_id: str | None = None,
     merge_gap_sec: float = 0.05,
     defaults: dict[str, Any] | None = None,
+    skip_counts: dict[str, int] | None = None,
+    merge_ids: set[str] | None = None,
 ) -> int:
     """Merge overlapping/adjacent same-track REMOVE/MUTE decisions with matching boundary modes.
 
     A merged cut that any padded cut went into is padded again from the merged span
     (``defaults`` supplies the pacing rule; see :func:`_merged_pad_sec`).
     """
-    mergeable = (EditDecisionType.REMOVE, EditDecisionType.MUTE)
-    by_key: dict[tuple[str, EditDecisionType], list[EditDecision]] = {}
-    other: list[EditDecision] = []
-    for e in project.edit_decisions:
-        if e.type not in mergeable:
-            other.append(e)
-            continue
-        if track_id and e.track_id != track_id:
-            other.append(e)
-            continue
-        by_key.setdefault((e.track_id, e.type), []).append(e)
-
+    if merge_ids == set():
+        return 0
+    owned = [
+        row
+        for row in project.edit_decisions
+        if (merge_ids is None or row.id in merge_ids)
+        and (track_id is None or row.track_id == track_id)
+        and row.type in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
+        and row.exact_range is None
+    ]
+    owned_ids = {row.id for row in owned}
+    result = [row for row in project.edit_decisions if row.id not in owned_ids]
     merged_count = 0
-    result: list[EditDecision] = list(other)
-    for _key, edits in by_key.items():
-        edits.sort(key=lambda x: x.start)
-        if not edits:
-            continue
-        groups: list[list[EditDecision]] = [[edits[0]]]
-        for e in edits[1:]:
-            group = groups[-1]
-            top = group[0]
-            if (
-                e.start <= top.end + merge_gap_sec
-                and top.boundary_mode == e.boundary_mode
-                and not _keeps_independent_review(top, e)
-            ):
-                if e.end > top.end:
-                    # The merged cut ends where ``e`` ends, so its next word is ``e``'s.
-                    top.next_burst_sec = e.next_burst_sec
-                top.end = max(top.end, e.end)
-                if e.review_required:
-                    top.review_required = True
-                group.append(e)
-                merged_count += 1
+    from podcast_mcp.edits.source_removals import (
+        CutScopeHold,
+        inspect_source_remove,
+        require_source_remove,
+    )
+
+    for rows in _merge_groups(owned, merge_gap_sec=merge_gap_sec):
+        if skip_counts is None:
+            for row in rows:
+                if (
+                    row.type == EditDecisionType.REMOVE
+                    and not row.applied
+                    and row.timebase == "source"
+                ):
+                    require_source_remove(project, row)
+        group = [row.model_copy(deep=True) for row in rows]
+        survivor = group[0]
+        for row in group[1:]:
+            if row.end > survivor.end:
+                survivor.next_burst_sec = row.next_burst_sec
+            survivor.end = max(survivor.end, row.end)
+            survivor.review_required = survivor.review_required or row.review_required
+        merged_count += len(group) - 1
+        if len(group) > 1:
+            survivor.replace_gap_sec = _merged_pad_sec(project, group, defaults)
+        if (
+            survivor.type == EditDecisionType.REMOVE
+            and not survivor.applied
+            and survivor.timebase == "source"
+        ):
+            if skip_counts is None:
+                require_source_remove(project, survivor)
             else:
-                groups.append([e])
-        for group in groups:
-            if len(group) > 1:
-                group[0].replace_gap_sec = _merged_pad_sec(project, group, defaults)
-            result.append(group[0])
+                assessment = inspect_source_remove(project, survivor)
+                if isinstance(assessment, CutScopeHold):
+                    skip_counts[assessment.reason] = skip_counts.get(assessment.reason, 0) + 1
+                    continue
+        result.append(survivor)
     project.edit_decisions = result
     return merged_count
 

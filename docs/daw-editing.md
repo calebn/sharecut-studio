@@ -62,7 +62,7 @@ Map tools onto interaction **shapes**. Shared inspector chrome; specialized body
 
 | Shape | Examples (MCP / domain) | Project storage | DAW today |
 |-------|-------------------------|-----------------|-----------|
-| **A. Discrete edit events** | pending `EditDecision`, applied `edit_log`, approve/reject, revert one cut | `editorial.edit_decisions`, `editorial.edit_log` | Pending inspector Approve/Reject/Restore + Impact bulk and Applied edits list; seam/edge ticks (projected through current clips) |
+| **A. Discrete edit events** | pending `EditDecision`, applied `edit_log`, approve/reject, restore one source mute | `editorial.edit_decisions`, `editorial.edit_log` | Pending inspector Approve/Reject + source MUTE Restore and History Undo + Impact bulk and Applied edits list; seam/edge ticks (projected through current clips) |
 | **B. Boundary / join properties** | fade in/out, `join_in_mode`, **clip edge trim** (`TrimClipEdge`) | `timeline.clips[].fade_*`, `join_in_mode`, `source_*` | Trim handles + ghost waveform; fade curves with top-corner fade handles; join mode |
 | **C. Continuous processors** | cleanup / EQ / gate / compressor chains | `mix.processing_chains[]` | Track inspector per-effect bypass; FX vs Raw audition |
 | **D. Content text** | word/phrase correct, suppress flags | `transcripts.per_track[].words[]` | Edit toggle → select word → inspector (correct / suppress) |
@@ -94,7 +94,7 @@ Select on timeline or list
 
 | Shape | Selection | Inspector body | Preview |
 |-------|-----------|----------------|---------|
-| **A Edit point** | Drag handles on cut overlay; click pending/applied band | Range (source + timeline), reason, confidence; Approve / Reject / Restore; Ask thread | Current / Suggested / A/B rendered around the pending band |
+| **A Edit point** | Drag handles on cut overlay; click pending/applied band | Range (source + timeline), reason, confidence; Approve / Reject; source MUTE Restore or Open History; Ask thread | Current / Suggested / A/B rendered around the pending band |
 | **B Join / fade** | Select a clip or join badge / diamond | Paired fade sliders, incoming transition mode and length | Play across join |
 | **C FX** | Track header FX badge → chain list | Per-effect bypass + params; reorder later | FX vs Raw audition; bypass honored in render |
 | **D Transcript** | Double-click word or focus + F2 → inline edit | Word text, confidence, suppressed chip | Play word / utterance |
@@ -126,10 +126,10 @@ Shipped:
 - Pending Approve / Reject (inspector) + Impact **Approve/Reject all review-required**
 - `UpdatePendingEdit` — on an origin-track pending cut, drag only the true outer start or end edge; the moving edge snaps to waveform ticks and stays inside its source clip while the opposite edge stays fixed. A pointer-up under `HANDLE_DRAG_MIN_PX` (3 px net) only selects the edit. Fine pointers keep the narrow edge targets. Touch shows 44px inline edge targets only when the drawn region is at least 44px wide and the lane can fit both targets; otherwise **Edit timing** focuses the existing Source start field in the inspector. The timeline writes the exact displayed range without optimizer snapping; changing a bound clears its previous optimizer boundary mode and confidence, so manually timed cuts need audition before approval. The inspector source nudge still uses inaudible snap; its fields take `m:ss.mmm` (or plain seconds), and an untouched field sends its exact stored time. The Impact pending list selects all pending edits; bulk Approve/Reject still apply only to review-required edits. The inspector shows the reason once in words (codes in `edits/edit_reasons.py`, labels pinned by `tests/test_edit_reasons.py`), the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths).
 - Timeline Approve/Reject uses the same permission policy and queued-review status as the inspector. A host approval stopped by the transcript-refine gate exposes the existing reasoned waiver recovery in the anchored action surface; guests see the safe explanation without host-only waiver controls.
-- `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; a ripple reopens the hole on every `ripple_track_ids` track, while a track-scope punch (`params.scope: "track"`) refills its silent hole in place and shifts nothing; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks, or whose `params.per_track_source` seam clocks do not span the archived timeline hole (a cut across moved or gapped clips), → History undo
+- `RestoreAppliedEdit` / `revert_applied_edit` restores ordinary source MUTE archives by subtracting intersecting `Clip.mute_regions`. It inserts no clips and shifts no timeline time. All clip-removing archives and exact ranges refuse before editable, disk, or history mutation with `local_restore_requires_history`. The Applied edit inspector offers Restore only for an actual source mute with valid source bounds and edit access. Other archives show the whole-action History Undo guidance and an **Open History** control. Open History changes the tab and performs no Undo.
 - Inspector Seek / Play around footers (buttons with seek / play icons) (Current / Suggested / A/B on pending)
 
-**Restore limits:** audio/timeline restore only; hard transcript removes are not fully reversed (reconciliation may go stale). Multi-track `ripple_delete` log rows without `source_*` are not restorable this way.
+**Restore limits:** seam clocks identify numeric cut edges for display, not removed recordings or clip occurrences. Use History Undo to restore a cut's stored editable snapshot. History Undo also undoes other edits in that action. You may need to undo later actions first. Local MUTE Restore retains its existing subtraction behavior and does not promise a full inverse of overlapping mutes.
 
 **Done when:** a pending cut can be approved or rejected from the DAW, and an applied cut can be removed with history intact.
 
@@ -391,12 +391,23 @@ speech it was not told to cut without asking. Moves, duplicates, inserted gaps a
 restores use the same scope rule; they remove no speech, so the guard does not
 apply.
 
-Tighten and NL removes first keep their own scope rule: `resolve_cut_scope`
-measures the same own-sound evidence at propose and approve time and turns a cut over
-speaking peers into a track-local punch. Where a peer's sound cannot be read (no stem
-or source audio), the same word evidence decides instead
-(`speech_energy_guard.speech_words_in`): a peer word in the cut makes it a punch. A remove that still ripples goes through
-`clear_ripple` like every other ripple: an approval asks, and the pipeline's
+Tighten filler and NL proposals use `resolve_cut_scope` to assess their source span.
+Completed peer-speech evidence can select a track punch, require review, or refuse
+the cut according to the conflict policy. A pause remains a session cut. When peer
+assessment raises `OSError` or `ValueError`, it selects no scope. Manual proposals
+raise `cut_scope_changed` before publication; generated candidates publish nothing
+and count one `scope_unavailable`, including acoustic candidates. Generated cuts
+check availability before initial planning and again after edge movement or re-gating.
+
+Unreadable peer media has a separate completed-assessment fallback. Where a peer's
+own sound cannot be read, its unsuppressed voiced words decide instead
+(`speech_energy_guard.speech_words_in`). A readable peer is decided by sound.
+This fallback can supply peer-speech evidence; it is not unavailable assessment.
+
+At approval, saved track scope executes the selected track operation. A saved session
+cut reassesses its actual source span. Unavailable assessment or a fresh scope
+conflict holds it instead of silently selecting a punch. A remove that still ripples
+passes through `clear_ripple`; approval asks about unchosen speech, and the pipeline's
 auto-apply (`apply_prefix_edits`) leaves it pending for review instead of cutting
 the other speaker's words. A remove held back that way chooses nothing for the rest
 of the batch: auto-apply runs the batch on a copy, drops the held-back removes, and

@@ -386,15 +386,20 @@ def test_edit_approve_warns_for_stale_edit(minimal_project, edit_type):
         )
     )
     save_project(proj, project)
-
+    before = project.read_bytes()
     result = runner.invoke(
         app,
         ["edit", "approve", "--project", str(project), "--ids", "stale-edit"],
     )
 
-    assert result.exit_code == 0
-    assert "Approved 0 edit(s)." in result.stdout
-    assert "no edits were approved" in result.stderr
+    if edit_type == EditDecisionType.REMOVE:
+        assert result.exit_code == 1
+        assert "cut_scope_changed" in result.stderr
+        assert project.read_bytes() == before
+    else:
+        assert result.exit_code == 0
+        assert "Approved 0 edit(s)." in result.stdout
+        assert "no edits were approved" in result.stderr
     assert [decision.id for decision in load_project(project).edit_decisions] == ["stale-edit"]
 
 

@@ -16,7 +16,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.decisions import ScopeChangedAtApproval, apply_auto_edits, approve_edits
+from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -91,7 +92,7 @@ def _trim(edit_id: str, start: float, end: float) -> EditDecision:
         type=EditDecisionType.REMOVE,
         start=start,
         end=end,
-        reason="pause:1.0s",
+        reason="filler:ordering",
         review_required=False,
         applied=False,
         scope="session",
@@ -206,45 +207,59 @@ def test_the_approve_tool_refuses_a_held_cut_and_leaves_the_project_as_it_was(
     assert _lane_ends(saved) == {"host": 30.0, "guest": 30.0}
 
 
-def _padded_trims_project(tmp_path: Path) -> EpisodeProject:
-    """Two auto pause trims on the host, a guest's "Uh-huh" between them.
-
-    The host's only quiet run is 10.15 to 13.85 s of its recording, so the pad the later trim
-    needs (0.3 s of room tone) is taken from the end of that run, which the earlier trim
-    (13.0 to 13.9 s) removes. The later trim's air at 20 to 23 s carries bleed, so it has
-    no room tone of its own.
-    """
+def _original_trims_project(tmp_path: Path) -> EpisodeProject:
+    """Two original-only pause trims keep a guest interjection between them."""
     project = _project(tmp_path, burst=(15.0, 15.5))
+
+    def voice(signal, start, end):
+        t = np.arange(round(start * _SR), round(end * _SR)) / _SR
+        signal[round(start * _SR) : round(end * _SR)] += sum(
+            0.05 / k * np.sin(2 * np.pi * 140 * k * t) for k in range(1, 9)
+        )
+
     host = _room(1)
-    _loud(host, 0.0, 10.0)
-    _loud(host, 14.0, 20.0)
-    host[20 * _SR : 23 * _SR] = np.random.default_rng(3).normal(0.0, 0.01, 3 * _SR)
-    _loud(host, 23.0, 30.0)
+    voice(host, 0.0, 10.0)
+    voice(host, 14.0, 20.0)
+    voice(host, 23.0, 30.0)
     _write_wav(tmp_path / "raw" / "host.wav", host)
+    guest = _room(2)
+    for start, end in ((0.0, 0.3), (15.0, 15.5), (29.0, 29.3)):
+        voice(guest, start, end)
+    _write_wav(tmp_path / "raw" / "guest.wav", guest)
     project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="before", start=9.7, end=10),
+                TranscriptWord(text="after", start=14, end=14.2),
+                TranscriptWord(text="before", start=19.7, end=20),
+                TranscriptWord(text="after", start=23, end=23.2),
+            ],
+        ),
         Transcript(
             track_id="guest",
             words=[
+                TranscriptWord(text="reference", start=0.0, end=0.3),
                 TranscriptWord(text="Uh", start=15.0, end=15.2),
                 TranscriptWord(text="-huh.", start=15.2, end=15.5),
+                TranscriptWord(text="reference", start=29.0, end=29.3),
             ],
-        )
+        ),
     ]
     early = _trim("early", 13.0, 13.9)
     late = _trim("late", 21.0, 21.6)
-    late.replace_gap_sec = 0.3
+    early.reason = late.reason = "pause:original"
     project.edit_decisions = [early, late]
     return project
 
 
-def test_the_pad_of_one_auto_trim_is_not_taken_from_the_air_of_another(tmp_path: Path) -> None:
-    # Applied later trim first, the pad would replay 13.55 to 13.85 s of the host's recording
-    # at 21.0 s, so the earlier trim would play at 13.0 to 13.9 s and at 21.0 to 21.3 s and
-    # remove everything between them, the guest's "Uh-huh" at 15.0 s among it.
+def test_original_auto_trims_keep_the_intervening_guest_without_replaying_source(
+    tmp_path: Path,
+) -> None:
     from podcast_mcp.mcp import server as mcp_server
     from podcast_mcp.models import load_project, save_project
 
-    project = _padded_trims_project(tmp_path)
+    project = _original_trims_project(tmp_path)
     path = tmp_path / "episode.project.json"
     save_project(project, path)
 
@@ -254,13 +269,22 @@ def test_the_pad_of_one_auto_trim_is_not_taken_from_the_air_of_another(tmp_path:
     assert result["approved_count"] == 2
     saved = load_project(path)
     assert saved.edit_decisions == []
-    assert _lane_ends(saved) == pytest.approx({"host": 28.8, "guest": 28.8})
+    assert _lane_ends(saved) == pytest.approx({"host": 28.5, "guest": 28.5})
+    assert all(clip.source_id is None for clip in saved.clips)
+    assert all(row.params["replace_gap_sec"] is None for row in saved.editorial.edit_log)
+    assert all(row.params["pad_samples"] == [] for row in saved.editorial.edit_log)
+    assert any(
+        clip.track_id == "guest" and clip.source_start <= 15.0 and clip.source_end >= 15.5
+        for clip in saved.clips
+    )
 
 
 def test_the_pipeline_applies_the_same_auto_trims_apply_all_safe_does(tmp_path: Path) -> None:
-    project = _padded_trims_project(tmp_path)
+    project = _original_trims_project(tmp_path)
 
     assert apply_auto_edits(project) == 2
 
     assert project.edit_decisions == []
-    assert _lane_ends(project) == pytest.approx({"host": 28.8, "guest": 28.8})
+    assert _lane_ends(project) == pytest.approx({"host": 28.5, "guest": 28.5})
+    assert all(row.params["replace_gap_sec"] is None for row in project.editorial.edit_log)
+    assert all(row.params["pad_samples"] == [] for row in project.editorial.edit_log)

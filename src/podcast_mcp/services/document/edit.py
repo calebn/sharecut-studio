@@ -62,7 +62,11 @@ from podcast_mcp.edits.decisions import (
     require_pending_edit_baseline,
     update_pending_edit,
 )
-from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+from podcast_mcp.edits.edit_log import (
+    list_applied_edits,
+    require_applied_edit_restore,
+    revert_applied_edit,
+)
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_DELETE_REASON,
     GUEST_SUGGEST_REASON,
@@ -104,6 +108,7 @@ from podcast_mcp.edits.silence_islands import (
 from podcast_mcp.edits.silence_islands import (
     suggest_handoff_cut as suggest_handoff_cut_bounds,
 )
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.strip_silence import strip_silence
 from podcast_mcp.edits.timeline_ops import (
     copy_segment,
@@ -181,6 +186,8 @@ from podcast_mcp.effects.presets import (
     set_effect_bypass,
 )
 from podcast_mcp.engines.render_status import render_status_report
+from podcast_mcp.history.manager import apply_snapshot_to_project, snapshot_from_project
+from podcast_mcp.history.rollback import RollbackOutcome
 from podcast_mcp.models import EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
@@ -449,6 +456,7 @@ class EditService:
         *,
         allow_exact: bool = False,
         confirm_cut_speech: bool = False,
+        allow_review: bool = True,
     ) -> int | CutSpeechConfirmation:
         """Apply pending edits; a suggested ripple over other speech asks to confirm first."""
 
@@ -462,7 +470,15 @@ class EditService:
                 raise PermissionError(
                     "Only the interactive host or an Editor can approve exact range proposals"
                 )
-            return approve_edits(p, ids, confirm_cut_speech=confirm_cut_speech)
+            return approve_edits(
+                p, ids, confirm_cut_speech=confirm_cut_speech, allow_review=allow_review
+            )
+
+        restored = False
+
+        def on_failure(outcome: RollbackOutcome) -> None:
+            nonlocal restored
+            restored = outcome is RollbackOutcome.RESTORED
 
         try:
             return self.ws.mutate(
@@ -471,9 +487,16 @@ class EditService:
                 mutate,
                 operation="approve_edits",
                 params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
+                on_failure=on_failure,
             )
         except UnconfirmedCutSpeech as asked:
-            return asked.confirmation
+            if restored:
+                return asked.confirmation
+            raise
+        except ScopeChangedAtApproval as held:
+            if restored:
+                raise held.for_delivery("saved") from held
+            raise
 
     def approve_eligible_tighten(
         self, ids: list[str] | None = None, *, confirm_cut_speech: bool = False
@@ -498,7 +521,9 @@ class EditService:
             ]
             eligible = eligible_tighten_ids(listed)
             approved = (
-                self.approve(eligible, confirm_cut_speech=confirm_cut_speech) if eligible else 0
+                self.approve(eligible, confirm_cut_speech=confirm_cut_speech, allow_review=False)
+                if eligible
+                else 0
             )
         skipped = [d.id for d in listed if d.id not in eligible]
         batch = {"ids": eligible, "skipped_harsh": skipped}
@@ -560,18 +585,15 @@ class EditService:
             )
 
     def revert_applied(self, record_id: str) -> dict:
-        def mutate(p) -> dict:
-            if any(r.id == record_id and "exact_range" in r.params for r in p.editorial.edit_log):
-                raise ValueError("Use History Undo to restore a whole range action")
-            return revert_applied_edit(p, record_id)
-
-        return self.ws.mutate(
-            "before revert applied edit",
-            "after revert applied edit",
-            mutate,
-            operation="revert_applied_edit",
-            params={"id": record_id},
-        )
+        with self.ws.transaction() as project:
+            require_applied_edit_restore(project, record_id)
+            return self.ws.mutate(
+                "before revert applied edit",
+                "after revert applied edit",
+                lambda p: revert_applied_edit(p, record_id),
+                operation="revert_applied_edit",
+                params={"id": record_id},
+            )
 
     def impact_report(self, *, markdown: bool = False) -> str | dict:
         report = edit_impact_report(self.ws.project)
@@ -592,17 +614,24 @@ class EditService:
         return self.ws.mutate("before propose edits", "after propose edits", mutate)
 
     def apply_auto(self) -> int:
-        self._require_refine_clear()
+        with self.ws.transaction() as project:
+            self._require_refine_clear()
+            staged = project.model_copy(deep=True)
+            applied = apply_auto_edits(staged)
+            if applied == 0:
+                return 0
+            snapshot = snapshot_from_project(staged)
 
-        def mutate(p) -> int:
-            return apply_auto_edits(p)
+            def mutate(p) -> int:
+                apply_snapshot_to_project(p, snapshot)
+                return applied
 
-        return self.ws.mutate(
-            "before apply auto edits",
-            "after apply auto edits",
-            mutate,
-            operation="apply_auto_edits",
-        )
+            return self.ws.mutate(
+                "before apply auto edits",
+                "after apply auto edits",
+                mutate,
+                operation="apply_auto_edits",
+            )
 
     def transcript_timestamps(self) -> str:
         return format_transcript_timestamps(self.ws.project)
@@ -828,14 +857,14 @@ class EditService:
         audio_caches: dict[str, TrackAudioCache] | None = None,
     ) -> dict:
         tid = self._resolve(track_id, speaker)
-        tb = "timeline" if timebase == "timeline" else "source"
+        tb: Literal["timeline", "source"] = "timeline" if timebase == "timeline" else "source"
         if cut_start is not None and cut_end is not None:
             return assess_proposed_cut(
                 self.ws.project,
                 tid,
                 float(cut_start),
                 float(cut_end),
-                timebase=tb,  # type: ignore[arg-type]
+                timebase=tb,
                 audio_caches=audio_caches,
             ).to_dict()
         if join_sec is None:
@@ -844,7 +873,7 @@ class EditService:
             self.ws.project,
             tid,
             float(join_sec),
-            timebase=tb,  # type: ignore[arg-type]
+            timebase=tb,
         ).to_dict()
 
     def join_qa_sweep(self, *, track_id: str | None = None) -> dict:
@@ -868,6 +897,7 @@ class EditService:
         tid = self._resolve(track_id, speaker)
         if verdict not in ("pass", "fail"):
             raise ValueError("verdict must be pass or fail")
+        label_verdict: Literal["pass", "fail"] = "pass" if verdict == "pass" else "fail"
         features = self.join_quality(
             track_id=tid,
             join_sec=join_sec,
@@ -880,7 +910,7 @@ class EditService:
             self.ws.project,
             track_id=tid,
             join_sec=float(join_sec),
-            verdict=verdict,  # type: ignore[arg-type]
+            verdict=label_verdict,
             timebase=timebase,
             cut_start=cut_start,
             cut_end=cut_end,

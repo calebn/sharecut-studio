@@ -13,6 +13,7 @@ needed: any clip mutation produces a new fingerprint and a fresh index.
 from __future__ import annotations
 
 import itertools
+import math
 from bisect import bisect_right
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
@@ -25,8 +26,10 @@ from podcast_mcp.util.intervals import (
     merge_intervals,
     subtract_intervals,
 )
+from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 DEFAULT_MERGE_GAP_SEC = 0.15
 
@@ -66,8 +69,11 @@ def origin_track_id_for_clip(project: EpisodeProject, clip: Clip) -> str:
     """Track whose media this clip plays (``source_id`` path, else current lane)."""
     path = _clip_source_path(project, clip)
     if path is not None:
+        media = resolve_under_workspace(project, path)
         for track in project.tracks:
-            if track.media is not None and track.media.path == path:
+            if track.media is not None and same_recording(
+                resolve_under_workspace(project, track.media.path), media
+            ):
                 return track.id
     return clip.track_id
 
@@ -461,6 +467,65 @@ class SessionTimeline:
         self._indexes[track_id] = (keys, index)
         return index
 
+    def _recording_clips(self, track_id: str) -> list[Clip]:
+        track = self._project.track_by_id(track_id)
+        if track is None or track.media is None or not track.media.path:
+            return [clip for clip in self._project.clips if clip.track_id == track_id]
+        media = resolve_under_workspace(self._project, track.media.path)
+        placements = []
+        for clip in self._project.clips:
+            if clip.source_id:
+                path = _clip_source_path(self._project, clip)
+            else:
+                lane = self._project.track_by_id(clip.track_id)
+                path = lane.media.path if lane is not None and lane.media is not None else None
+            if not path:
+                continue
+            try:
+                candidate = resolve_under_workspace(self._project, path)
+            except ValueError:
+                if clip.track_id == track_id:
+                    raise
+                continue
+            if same_recording(candidate, media):
+                placements.append(clip)
+        return placements
+
+    def _implicit_recording_lanes(self, track_id: str) -> frozenset[str]:
+        track = self._project.track_by_id(track_id)
+        if track is None or track.media is None or not track.media.path:
+            return frozenset()
+        media = resolve_under_workspace(self._project, track.media.path)
+        stored_lanes = {clip.track_id for clip in self._project.clips}
+        lanes = set()
+        for lane in self._project.tracks:
+            if (
+                lane.id in stored_lanes
+                or lane.timeline_empty
+                or lane.media is None
+                or not lane.media.path
+            ):
+                continue
+            try:
+                candidate = resolve_under_workspace(self._project, lane.media.path)
+            except ValueError:
+                if lane.id == track_id:
+                    raise
+                continue
+            if same_recording(candidate, media):
+                lanes.add(lane.id)
+        return frozenset(lanes)
+
+    def _exact_index(self, track_id: str) -> _TrackIndex | None:
+        keys = tuple(
+            (clip.timeline_start, clip.source_start, clip.source_end)
+            for clip in self._recording_clips(track_id)
+        )
+        track = self._project.track_by_id(track_id)
+        if not keys and track is not None and track.timeline_empty:
+            return _build_index(())
+        return _build_index(keys) if keys else None
+
     # --- Point mapping ---
 
     def source_to_timeline(self, track_id: str, sec: SourceSec) -> TimelineSec | None:
@@ -521,6 +586,134 @@ class SessionTimeline:
         """Map a snapshot batch against one fresh clip index."""
         idx = self._index(track_id)
         return [self._map_source_span(idx, start, end) for start, end in spans]
+
+    def exact_source_span(
+        self, track_id: str, start: SourceSec, end: SourceSec
+    ) -> tuple[TimelineSec, TimelineSec] | None:
+        if end <= start:
+            return None
+        implicit_lanes = self._implicit_recording_lanes(track_id)
+        if implicit_lanes - {track_id} or (implicit_lanes and self._recording_clips(track_id)):
+            # Native playback uses a probed extent unavailable to this census.
+            return None
+        idx = self._exact_index(track_id)
+        if idx is None:
+            track = self._project.track_by_id(track_id)
+            duration = track.media.duration_sec if track and track.media else None
+            if (
+                track is None
+                or track.timeline_empty
+                or any(c.track_id == track_id for c in self._project.clips)
+                or duration is None
+                or not math.isfinite(duration)
+                or start < 0
+                or end > duration
+            ):
+                return None
+            return TimelineSec(float(start)), TimelineSec(float(end))
+        source_cursor = float(start)
+        timeline_start: float | None = None
+        timeline_cursor: float | None = None
+        for span in _candidates_source(idx, float(start), float(end)):
+            lo = max(float(start), span.source_start)
+            hi = min(float(end), span.source_end)
+            if hi <= lo + _EPS:
+                continue
+            if abs(lo - source_cursor) > _EPS:
+                return None
+            tl_start = span.timeline_start + (lo - span.source_start)
+            if timeline_cursor is not None and abs(tl_start - timeline_cursor) > _EPS:
+                return None
+            if timeline_start is None:
+                timeline_start = tl_start
+            source_cursor = hi
+            timeline_cursor = tl_start + (hi - lo)
+        if (
+            abs(source_cursor - float(end)) > _EPS
+            or timeline_start is None
+            or timeline_cursor is None
+        ):
+            return None
+        track = self._project.track_by_id(track_id)
+        if track is None:
+            return None
+        media = resolve_under_workspace(
+            self._project,
+            track.media.path if track.media and track.media.path else f"track:{track_id}",
+        )
+        placement_cursor = timeline_start
+        recording_clips = self._recording_clips(track_id)
+        for clip in sorted(
+            (c for c in self._project.clips if c.track_id == track_id or c in recording_clips),
+            key=lambda c: c.timeline_start,
+        ):
+            lo = max(timeline_start, clip.timeline_start)
+            hi = min(timeline_cursor, clip.timeline_end)
+            if hi <= lo + _EPS:
+                continue
+            if clip not in recording_clips:
+                return None
+            if clip.source_id and _clip_source_path(self._project, clip) is None:
+                return None
+            if abs(lo - placement_cursor) > _EPS or not same_recording(
+                resolve_under_workspace(self._project, clip_media_key(self._project, clip)),
+                media,
+            ):
+                return None
+            source_at_lo = clip_source_at_timeline(clip, lo)
+            expected_source = float(start) + (lo - timeline_start)
+            if abs(source_at_lo - expected_source) > _EPS:
+                return None
+            placement_cursor = hi
+        if abs(placement_cursor - timeline_cursor) > _EPS:
+            return None
+        return TimelineSec(timeline_start), TimelineSec(timeline_cursor)
+
+    def exact_timeline_source_span(
+        self, track_id: str, start: TimelineSec, end: TimelineSec, *, on_origin_lane: bool = False
+    ) -> tuple[SourceSec, SourceSec] | None:
+        """Origin source covering the entire window exactly once, in playback order."""
+        idx = self._exact_index(track_id)
+        if idx is None:
+            source = SourceSec(float(start)), SourceSec(float(end))
+        else:
+            spans = sorted(
+                _candidates_timeline(idx, float(start), float(end)), key=lambda s: s.timeline_start
+            )
+            cursor = float(start)
+            source_start: float | None = None
+            source_end: float | None = None
+            for span in spans:
+                lo, hi = max(float(start), span.timeline_start), min(float(end), span.timeline_end)
+                if hi <= lo + _EPS:
+                    continue
+                if abs(lo - cursor) > _EPS:
+                    return None
+                at_lo = span.source_start + (lo - span.timeline_start)
+                if source_end is not None and abs(at_lo - source_end) > _EPS:
+                    return None
+                if source_start is None:
+                    source_start = at_lo
+                source_end = at_lo + (hi - lo)
+                cursor = hi
+            if source_start is None or source_end is None or abs(cursor - float(end)) > _EPS:
+                return None
+            source = SourceSec(source_start), SourceSec(source_end)
+        mapped = self.exact_source_span(track_id, *source)
+        if (
+            mapped is None
+            or abs(float(mapped[0]) - float(start)) > _EPS
+            or abs(float(mapped[1]) - float(end)) > _EPS
+        ):
+            return None
+        if on_origin_lane and any(
+            clip.track_id != track_id
+            and clip.timeline_start < end - _EPS
+            and clip.timeline_end > start + _EPS
+            for clip in self._recording_clips(track_id)
+        ):
+            return None
+        return source
 
     def map_selected_source_span(
         self, track_id: str, source_id: str | None, start: SourceSec, end: SourceSec
@@ -660,6 +853,22 @@ class SessionTimeline:
             for clip in self._project.clips
             if clip.track_id == track_id
         ]
+
+    def origin_placement_lanes(
+        self, origin_track_id: str, start: TimelineSec, end: TimelineSec
+    ) -> frozenset[str]:
+        """Lanes playing this origin in the window, including proven implicit media."""
+        if end <= start:
+            return frozenset()
+        explicit = self._recording_clips(origin_track_id)
+        lanes = {
+            clip.track_id
+            for clip in explicit
+            if min(float(end), clip.timeline_end) > max(float(start), clip.timeline_start) + _EPS
+        }
+        if float(end) > max(float(start), 0.0) + _EPS:
+            lanes.update(self._implicit_recording_lanes(origin_track_id))
+        return frozenset(lanes)
 
     def source_to_timeline_clamped(self, track_id: str, sec: SourceSec) -> TimelineSec:
         """Best-effort point mapping for boundary math.

@@ -81,6 +81,8 @@ def test_eligible_ids_skip_harsh_applied_and_non_tighten() -> None:
 
 
 def _seed(path: str, sample_wav) -> None:
+    media_path = Path(path).parent / "raw" / "host.wav"
+    media_path.write_bytes(sample_wav.read_bytes())
     proj = load_project(Path(path))
     proj.tracks = [
         Track(
@@ -88,7 +90,7 @@ def _seed(path: str, sample_wav) -> None:
             label="Host",
             role=TrackRole.DIALOGUE,
             speaker="Host",
-            media=MediaAsset(path=str(sample_wav), duration_sec=10.0),
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
         )
     ]
     proj.clips = [

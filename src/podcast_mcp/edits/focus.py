@@ -175,12 +175,16 @@ def propose_focus_cuts(
     defaults: dict[str, Any],
     *,
     replace_existing: bool = True,
+    skip_counts: dict[str, int] | None = None,
 ) -> list[EditDecision]:
     """Heuristic hints only - narrative focus still requires whole-transcript review."""
+    skip_counts = skip_counts if skip_counts is not None else {}
     cfg = defaults.get("focus", {})
     if not cfg.get("enabled", False):
         return []
 
+    original = project
+    project = project.model_copy(deep=True)
     if replace_existing:
         project.edit_decisions = [
             e for e in project.edit_decisions if not (e.reason or "").startswith("focus:")
@@ -192,6 +196,7 @@ def propose_focus_cuts(
         merge_gap_sec=float(cfg.get("segment_merge_gap_sec", 2.5)),
     )
     if not segments:
+        original.edit_decisions = project.edit_decisions
         return []
 
     review_required = bool(cfg.get("review_required", True))
@@ -222,8 +227,10 @@ def propose_focus_cuts(
             return
         if max_remove_sec > 0 and proposed_sec + dur > max_remove_sec + 1e-9:
             return
-        decisions.append(
-            append_remove_decision(
+        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+
+        try:
+            decision = append_remove_decision(
                 project,
                 track_id,
                 start,
@@ -232,7 +239,11 @@ def propose_focus_cuts(
                 review_required=review_required,
                 crossfade_ms=crossfade,
             )
-        )
+        except ScopeChangedAtApproval as held:
+            for hold in held.held:
+                skip_counts[hold.reason] = skip_counts.get(hold.reason, 0) + 1
+            return
+        decisions.append(decision)
         proposed_sec += dur
 
     for i, later in enumerate(segments):
@@ -272,9 +283,12 @@ def propose_focus_cuts(
         )
 
     for track_id in {s.track_id for s in segments}:
-        coalesce_edits(project, track_id=track_id)
+        coalesce_edits(
+            project, track_id=track_id, skip_counts=skip_counts, merge_ids={d.id for d in decisions}
+        )
 
-    return decisions
+    original.edit_decisions = project.edit_decisions
+    return [e for e in project.edit_decisions if e.id in {d.id for d in decisions}]
 
 
 def apply_focus_decisions(project: EpisodeProject) -> int:

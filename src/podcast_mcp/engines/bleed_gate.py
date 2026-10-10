@@ -702,9 +702,11 @@ def _compute_bleed_gate_plan(
 
         track = project.track_by_id(track_id)
         try:
+            from podcast_mcp.util.media_identity import same_recording
+
             primary = track_audio_path(project, track_id).resolve()
             if track is None or any(
-                resolve_clip_audio_path(project, track, span.clip).resolve() != primary
+                not same_recording(resolve_clip_audio_path(project, track, span.clip), primary)
                 for span in timeline.lane_clip_spans(track_id)
             ):
                 return BleedGatePlan(reasons=("unsupported_source_proxy_layout",))

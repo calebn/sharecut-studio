@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import ValidationError
 
@@ -15,6 +18,7 @@ from podcast_mcp.edits.clips_ops import (
     place_clips_at,
     punch_timeline_range_from_clips,
     recording_key,
+    remove_timeline_range_from_clips,
     set_track_clips,
     source_duration_sec,
     split_clip_at,
@@ -43,7 +47,13 @@ from podcast_mcp.edits.ripple import (
     ripple_remove_clips,
     ripple_track_ids,
 )
-from podcast_mcp.edits.room_tone import room_tone_span
+from podcast_mcp.edits.room_tone import (
+    OwnQuietSample,
+    RecordedBedSample,
+    SampleAbsent,
+    room_tone_span,
+)
+from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch, search_transcript
 from podcast_mcp.edits.transcript_sync import (
     apply_batch_transcript_removes,
@@ -53,6 +63,7 @@ from podcast_mcp.edits.transcript_sync import (
 )
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
+    clip_source_to_timeline_shift,
     origin_track_id_for_clip,
 )
 from podcast_mcp.models import (
@@ -65,8 +76,9 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
+from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec
-from podcast_mcp.util.tracks import dialogue_track_ids, unknown_track
+from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, unknown_track
 
 
 def _optimized_ripple_span(
@@ -1069,6 +1081,18 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
     return {"tracks": by_track, "clip_count": len(clips)}
 
 
+def _pad_samples(clips: Sequence[Clip]) -> list[dict[str, Any]]:
+    return [
+        {
+            "track_id": clip.track_id,
+            "source_id": clip.source_id,
+            "source_start": clip.source_start,
+            "source_end": clip.source_end,
+        }
+        for clip in clips
+    ]
+
+
 def fill_with_room_tone(
     project: EpisodeProject,
     track_id: str,
@@ -1084,7 +1108,9 @@ def fill_with_room_tone(
     """
     clips = clips_for_track(project, track_id)
     if len(clips) < 2:
-        return change_summary(project, operation="fill_with_room_tone", affected_tracks=[track_id])
+        return change_summary(
+            project, operation="fill_with_room_tone", affected_tracks=[track_id], pad_samples=[]
+        )
 
     track = project.track_by_id(track_id)
     if not track:
@@ -1093,6 +1119,7 @@ def fill_with_room_tone(
         raise CodedValueError(f"track {track_id} has no media", code="track_has_no_media")
 
     new_clips: list[Clip] = []
+    inserted: list[Clip] = []
     for i, clip in enumerate(clips):
         new_clips.append(clip)
         if i + 1 >= len(clips):
@@ -1108,9 +1135,12 @@ def fill_with_room_tone(
             near_sec=clip.source_end,
             duration_sec=min(sample_duration_sec, gap),
         )
-        if span is None:
+        if isinstance(span, SampleAbsent):
             continue
-        sample_src, src_end, source_id = span
+        if isinstance(span, OwnQuietSample):
+            sample_src, src_end, source_id = span.sample.start, span.sample.end, None
+        else:
+            sample_src, src_end, source_id = span.start, span.end, span.source_id
         piece = max(1e-3, src_end - sample_src)
         t = gap_start
         while t < gap_end - 1e-6:
@@ -1129,6 +1159,7 @@ def fill_with_room_tone(
                     join_in_mode=ClipJoinMode.FADE,
                 )
             )
+            inserted.append(new_clips[-1])
             t += use
             if use <= 0:  # pragma: no cover
                 break
@@ -1137,25 +1168,323 @@ def fill_with_room_tone(
     update_timeline_duration(project)
     # Fill clips duplicate existing source audio; word times are untouched.
     rebuild_combined(project)
-    return change_summary(project, operation="fill_with_room_tone", affected_tracks=[track_id])
+    samples = _pad_samples(inserted)
+    if inserted:
+        archive_timeline_op(
+            project,
+            operation="fill_with_room_tone",
+            track_ids=[track_id],
+            params={
+                "pad_samples": samples,
+                "clips": [{"clip_id": clip.id, "track_id": clip.track_id} for clip in inserted],
+            },
+        )
+    return change_summary(
+        project,
+        operation="fill_with_room_tone",
+        affected_tracks=[track_id],
+        pad_samples=samples,
+    )
 
 
 def mute_room_tone_fill(
     project: EpisodeProject, clip: Clip, src_start: float, src_end: float
 ) -> RoomToneFill | None:
-    """Room tone to lay under ``clip``'s muted ``[src_start, src_end)``, as a ripple pad picks it.
+    """Room tone to lay under ``clip``'s muted ``[src_start, src_end)``.
 
-    None when the track has no bed and no room tone near the mute (a gated track): the
-    mute stays silent, as a ripple pad does.
+    An unavailable sample leaves this existing in-place mute unfilled.
     """
     lo, hi = max(src_start, clip.source_start), min(src_end, clip.source_end)
     if hi <= lo:
         return None
     span = room_tone_span(project, clip.track_id, near_sec=(lo + hi) / 2.0, duration_sec=hi - lo)
-    if span is None:
+    if isinstance(span, SampleAbsent):
         return None
-    start, end, source_id = span
+    if isinstance(span, OwnQuietSample):
+        start, end, source_id = span.sample.start, span.sample.end, None
+    else:
+        start, end, source_id = span.start, span.end, span.source_id
     return RoomToneFill(start_s=start, end_s=end, source_id=source_id)
+
+
+@dataclass(frozen=True)
+class LaneSample:
+    track_id: str
+    selection: OwnQuietSample | RecordedBedSample
+
+
+@dataclass(frozen=True)
+class LaneWithoutPlayback:
+    track_id: str
+
+
+@dataclass(frozen=True)
+class LaneUnavailable:
+    track_id: str
+    cause: SampleAbsent | str
+
+
+@dataclass(frozen=True)
+class PauseEdgeFade:
+    track_id: str
+    source_id: str | None
+    source_sec: float
+    side: Literal["left", "right"]
+    milliseconds: int
+    _media: Path = field(repr=False)
+    timeline_sec: float
+    source_start: float
+    source_end: float
+    inherited_ms: int
+
+
+@dataclass(frozen=True)
+class RoomTonePad:
+    at_time: float
+    seconds: float
+    lanes: tuple[LaneSample | LaneWithoutPlayback | LaneUnavailable, ...]
+
+
+def _project_pad_lane(
+    project: EpisodeProject, tid: str, at_time: float, removal: RippleRemoval | None
+) -> list[Clip] | LaneUnavailable:
+    from podcast_mcp.edits.track_media import full_span_clip
+
+    track = project.track_by_id(tid)
+    clips = [c.model_copy(deep=True) for c in clips_for_track(project, tid)]
+    if not clips and track is not None and not track.timeline_empty and track.media:
+        duration = track.media.duration_sec
+        if duration is None or not math.isfinite(duration) or duration <= 0:
+            return LaneUnavailable(tid, "media_extent_unavailable")
+        if any(origin_track_id_for_clip(project, c) == tid for c in project.clips):
+            return LaneUnavailable(tid, "implicit_playback_with_parked_source")
+        clips = [full_span_clip(tid, duration)]
+    if removal:
+        for start, end in sorted(removal.spans, reverse=True):
+            clips = remove_timeline_range_from_clips(clips, start, end)
+    else:
+        clips = [
+            piece
+            for clip in clips
+            for piece in (
+                split_clip_at(clip, at_time)
+                if clip.timeline_start + 1e-9 < at_time < clip.timeline_end - 1e-9
+                else [clip]
+            )
+        ]
+    return clips
+
+
+def bind_pause_effects(
+    project: EpisodeProject,
+    at_time: float,
+    removal: RippleRemoval,
+    *,
+    observation: GeometricPause | MeasuredPause,
+    splice_fade_ms: int,
+) -> tuple[PauseEdgeFade, ...] | LaneUnavailable:
+    """Bind finite effects to canonical survivors, preserving authored source fades."""
+    from podcast_mcp.edits.track_media import full_span_clip
+
+    duration = sum(end - start for start, end in removal.spans)
+    fades: list[PauseEdgeFade] = []
+    for tid in ripple_track_ids(project, removal.edited_track_ids):
+        clips = _project_pad_lane(project, tid, at_time, removal)
+        if isinstance(clips, LaneUnavailable):
+            return clips
+        originals = clips_for_track(project, tid)
+        track = project.track_by_id(tid)
+        if not originals and clips and track is not None and track.media is not None:
+            extent = track.media.duration_sec
+            if extent is None or not math.isfinite(extent):
+                return LaneUnavailable(tid, "media_extent_unavailable")
+            originals = [full_span_clip(tid, extent)]
+        for clip in clips:
+            for side in ("left", "right"):
+                timeline_edge = clip.timeline_end if side == "left" else clip.timeline_start
+                if abs(timeline_edge - at_time) > 1e-6:
+                    continue
+                source_edge = clip.source_end if side == "left" else clip.source_start
+                try:
+                    media = recording_audio_path(project, tid, clip.source_id).resolve(strict=True)
+                except (CodedError, OSError, ValueError):
+                    return LaneUnavailable(tid, "effect_media_unavailable")
+                before_edge = at_time if side == "left" else at_time + duration
+                matches = [
+                    original
+                    for original in originals
+                    if original.source_id == clip.source_id
+                    and original.source_start - 1e-6 <= clip.source_start
+                    and original.source_end + 1e-6 >= clip.source_end
+                    and abs(source_edge + clip_source_to_timeline_shift(original) - before_edge)
+                    <= 1e-6
+                ]
+                if len(matches) != 1 or track is None:
+                    return LaneUnavailable(tid, "effect_source_geometry")
+                original = matches[0]
+                authored_edge = original.source_end if side == "left" else original.source_start
+                inherited = (
+                    (original.fade_out_ms if side == "left" else original.fade_in_ms)
+                    if abs(source_edge - authored_edge) <= 1e-6
+                    else 0
+                )
+                activity = [
+                    sound
+                    for sound in observation.activity
+                    if sound.track_id == tid
+                    and sound.media is not None
+                    and same_recording(sound.media, media)
+                ]
+                original_start = (
+                    before_edge - (clip.source_end - clip.source_start)
+                    if side == "left"
+                    else before_edge
+                )
+                original_end = (
+                    before_edge
+                    if side == "left"
+                    else before_edge + (clip.source_end - clip.source_start)
+                )
+                if side == "left":
+                    quiet_start = max(
+                        [original_start]
+                        + [
+                            min(sound.hi, before_edge)
+                            for sound in activity
+                            if sound.lo < before_edge - 1e-6 and sound.hi > original_start
+                        ]
+                    )
+                    capacity = max(0.0, before_edge - quiet_start)
+                else:
+                    quiet_end = min(
+                        [original_end]
+                        + [
+                            max(sound.lo, before_edge)
+                            for sound in activity
+                            if sound.hi > before_edge + 1e-6 and sound.lo < original_end
+                        ]
+                    )
+                    capacity = max(0.0, quiet_end - before_edge)
+                capacity_ms = max(0, math.floor(capacity * 1000.0 + 1e-6))
+                if (
+                    min(inherited, (clip.source_end - clip.source_start) * 1000.0)
+                    > capacity_ms + 1e-6
+                ):
+                    return LaneUnavailable(tid, "unsafe_inherited_fade")
+                milliseconds = max(inherited, min(splice_fade_ms, capacity_ms))
+                footprint = min(milliseconds / 1000.0, clip.source_end - clip.source_start)
+                fades.append(
+                    PauseEdgeFade(
+                        tid,
+                        clip.source_id,
+                        source_edge,
+                        "left" if side == "left" else "right",
+                        milliseconds,
+                        media,
+                        at_time,
+                        source_edge - footprint if side == "left" else source_edge,
+                        source_edge if side == "left" else source_edge + footprint,
+                        inherited,
+                    )
+                )
+    return tuple(fades)
+
+
+def room_tone_pad(
+    project: EpisodeProject,
+    at_time: float,
+    seconds: float,
+    *,
+    sample_duration_sec: float | None = None,
+    avoid: Mapping[str, Sequence[tuple[float, float]]] | None = None,
+) -> RoomTonePad:
+    """Bind every lane's sample at the current seam before inserting a pad."""
+    tracks = ripple_track_ids(project)
+    lanes: list[LaneSample | LaneWithoutPlayback | LaneUnavailable] = []
+    for tid in tracks:
+        clips = _project_pad_lane(project, tid, at_time, None)
+        if isinstance(clips, LaneUnavailable):
+            lanes.append(clips)
+            continue
+        if not clips:
+            lanes.append(LaneWithoutPlayback(tid))
+            continue
+        excluded = list((avoid or {}).get(tid, ()))
+        left = [c for c in clips if abs(c.timeline_end - at_time) <= 1e-6]
+        right = [c for c in clips if abs(c.timeline_start - at_time) <= 1e-6]
+        if not left:
+            before = [c for c in clips if c.timeline_end <= at_time + 1e-6]
+            left = [max(before, key=lambda c: c.timeline_end)] if before else []
+        if not right:
+            after = [c for c in clips if c.timeline_start >= at_time - 1e-6]
+            right = [min(after, key=lambda c: c.timeline_start)] if after else []
+        near = left[-1].source_end if left else right[0].source_start if right else None
+        if near is None:
+            lanes.append(LaneUnavailable(tid, "missing_seam"))
+            continue
+        selected = room_tone_span(
+            project,
+            tid,
+            near_sec=near,
+            duration_sec=min(seconds, sample_duration_sec) if sample_duration_sec else seconds,
+            avoid=excluded,
+        )
+        lanes.append(
+            LaneUnavailable(tid, selected)
+            if isinstance(selected, SampleAbsent)
+            else LaneSample(tid, selected)
+        )
+    return RoomTonePad(at_time, seconds, tuple(lanes))
+
+
+def insert_bound_room_tone_pad(project: EpisodeProject, pad: RoomTonePad) -> dict:
+    """Insert one common gap and tile exactly the samples already measured."""
+    at_time, duration_sec = pad.at_time, pad.seconds
+    insert_gap(project, at_time, duration_sec)
+    inserted: list[Clip] = []
+    for lane in pad.lanes:
+        if not isinstance(lane, LaneSample):
+            continue
+        tid, selected = lane.track_id, lane.selection
+        if isinstance(selected, OwnQuietSample):
+            sample_src, src_end, source_id = selected.sample.start, selected.sample.end, None
+        else:
+            sample_src, src_end, source_id = selected.start, selected.end, selected.source_id
+        fills: list[Clip] = []
+        t, pad_end = at_time, at_time + duration_sec
+        piece = src_end - sample_src
+        while t < pad_end - 1e-6:
+            use = min(piece, pad_end - t)
+            fills.append(
+                Clip(
+                    id=new_clip_id(),
+                    track_id=tid,
+                    source_start=sample_src,
+                    source_end=sample_src + use,
+                    timeline_start=t,
+                    source_id=source_id,
+                    fade_in_ms=10 if t == at_time else 0,
+                    fade_out_ms=10 if t + use >= pad_end - 1e-6 else 0,
+                    join_in_mode=ClipJoinMode.FADE,
+                )
+            )
+            t += use
+        set_track_clips(
+            project,
+            tid,
+            sorted(clips_for_track(project, tid) + fills, key=lambda c: c.timeline_start),
+        )
+        inserted.extend(fills)
+    rebuild_combined(project)
+    update_timeline_duration(project)
+    return change_summary(
+        project,
+        operation="insert_room_tone_pad",
+        affected_tracks=[lane.track_id for lane in pad.lanes],
+        at_time=at_time,
+        duration_sec=duration_sec,
+        pad_samples=_pad_samples(inserted),
+    )
 
 
 def insert_room_tone_pad(
@@ -1174,71 +1503,7 @@ def insert_room_tone_pad(
     """
     if duration_sec <= 0:
         raise ValueError("duration_sec must be positive")
-    sample_dur = float(sample_duration_sec) if sample_duration_sec is not None else duration_sec
-    tracks = ripple_track_ids(project)
-    insert_gap(project, at_time, duration_sec)
-    for tid in tracks:
-        clips = clips_for_track(project, tid)
-        left: Clip | None = None
-        for c in clips:
-            if (
-                abs(c.timeline_end - at_time) < 1e-3
-                or (c.timeline_start < at_time and c.timeline_end <= at_time + 1e-6)
-            ) and (left is None or c.timeline_end > left.timeline_end):
-                left = c
-        if left is None:
-            # Closest clip ending at or before the pad.
-            before = [c for c in clips if c.timeline_end <= at_time + 1e-6]
-            left = max(before, key=lambda c: c.timeline_end) if before else None
-        right: Clip | None = None
-        after = [c for c in clips if c.timeline_start >= at_time + duration_sec - 1e-3]
-        if after:
-            right = min(after, key=lambda c: c.timeline_start)
-        near = left.source_end if left else right.source_start if right else None
-        if near is None:
-            continue
-        span = room_tone_span(
-            project,
-            tid,
-            near_sec=near,
-            duration_sec=min(sample_dur, duration_sec),
-            avoid=(avoid or {}).get(tid, ()),
-        )
-        if span is None:
-            continue
-        sample_src, src_end, source_id = span
-        # Tile short samples across the pad when source room tone is shorter.
-        fills: list[Clip] = []
-        t = at_time
-        pad_end = at_time + duration_sec
-        piece = src_end - sample_src
-        while t < pad_end - 1e-6:
-            remain = pad_end - t
-            use = min(piece, remain)
-            fills.append(
-                Clip(
-                    id=new_clip_id(),
-                    track_id=tid,
-                    source_start=sample_src,
-                    source_end=sample_src + use,
-                    timeline_start=t,
-                    source_id=source_id,
-                    fade_in_ms=10 if t == at_time else 0,
-                    fade_out_ms=10 if t + use >= pad_end - 1e-6 else 0,
-                    join_in_mode=ClipJoinMode.FADE,
-                )
-            )
-            t += use
-            if use <= 0:  # pragma: no cover - defensive against zero-length tiles
-                break
-        merged = sorted(clips + fills, key=lambda c: c.timeline_start)
-        set_track_clips(project, tid, merged)
-    rebuild_combined(project)
-    update_timeline_duration(project)
-    return change_summary(
-        project,
-        operation="insert_room_tone_pad",
-        affected_tracks=tracks,
-        at_time=at_time,
-        duration_sec=duration_sec,
+    pad = room_tone_pad(
+        project, at_time, duration_sec, sample_duration_sec=sample_duration_sec, avoid=avoid
     )
+    return insert_bound_room_tone_pad(project, pad)

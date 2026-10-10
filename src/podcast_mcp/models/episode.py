@@ -986,6 +986,7 @@ class EpisodeProject(BaseModel):
 
     def transcript_for_source(self, track_id: str, source_id: str | None) -> Transcript | None:
         """This recording's transcript; track-level words apply only to primary media."""
+        from podcast_mcp.util.media_identity import same_recording
         from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
         fallback: Transcript | None = None
@@ -1004,8 +1005,9 @@ class EpisodeProject(BaseModel):
         if track is None or track.media is None or source is None:
             return None
         try:
-            if resolve_under_workspace(self, source.path) == resolve_under_workspace(
-                self, track.media.path
+            if same_recording(
+                resolve_under_workspace(self, source.path),
+                resolve_under_workspace(self, track.media.path),
             ):
                 return fallback
         except (OSError, ValueError):

@@ -17,6 +17,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
+from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.tracks import recording_audio_path, unknown_track
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
@@ -335,8 +336,9 @@ def recording_key(project: EpisodeProject, clip: Clip, *, secret: bytes) -> str 
 def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
     if first.track_id == second.track_id and first.source_id == second.source_id:
         return True
-    return recording_audio_path(project, first.track_id, first.source_id) == recording_audio_path(
-        project, second.track_id, second.source_id
+    return same_recording(
+        recording_audio_path(project, first.track_id, first.source_id),
+        recording_audio_path(project, second.track_id, second.source_id),
     )
 
 

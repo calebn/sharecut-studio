@@ -205,6 +205,7 @@ export function recordAnchors(
         ],
       };
     }
+    case "fill_with_room_tone":
     case "move_clips": {
       const clips = record.params?.clips;
       const clipIds = Array.isArray(clips)

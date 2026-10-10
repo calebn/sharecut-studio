@@ -16,10 +16,12 @@ from podcast_mcp.models import (
     TranscriptWord,
     load_project,
 )
+from source_review_helpers import finite_primary_recording
 
 
 def test_propose_filler_edits(minimal_project):
     proj = load_project(minimal_project)
+    finite_primary_recording(proj, 3)
     proj.transcripts.append(
         Transcript(
             track_id="host",
@@ -74,6 +76,7 @@ def test_propose_tighten_keeps_existing_when_not_replacing(minimal_project):
 
 def test_propose_tighten_decisions_match_project_after_coalesce(minimal_project):
     proj = load_project(minimal_project)
+    finite_primary_recording(proj, 3)
     proj.transcripts.append(
         Transcript(
             track_id="host",

@@ -32,7 +32,10 @@ Canonical implementation: [`run_mutation`](../src/podcast_mcp/history/session.py
 
 History failure recovery uses the shared `HistoryCheckpoint`. Mutation callers can
 consume `RollbackOutcome` through `on_failure`; external artifacts may be deleted
-only on `restored`. A merged save uses `LOCKED_CALL` while holding the commit lock
+only on certified `restored`: raw history restoration alone does not certify editable
+and render recovery. A failed registered restore downgrades `restored` to `unknown`;
+secondary recovery, notification or logger `BaseException`s preserve the primary failure.
+A merged save uses `LOCKED_CALL` while holding the commit lock
 through capture and rollback. Pipeline progress alone does not create an undo
 snapshot; `render_last_completed_step` remains stored and restorable.
 

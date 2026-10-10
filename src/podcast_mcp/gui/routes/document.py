@@ -170,7 +170,7 @@ def pending_preview_audio(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
     except Timeout as exc:
         busy = project_busy_http_error(exc)
         if busy is None:

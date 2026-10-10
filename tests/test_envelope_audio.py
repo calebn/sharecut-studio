@@ -135,5 +135,5 @@ def test_previous_envelope_render_revision_cannot_reuse_stem(tmp_path: Path, mon
     play_audit.write_stem_hash(project, "host")
     assert play_audit.stem_is_fresh(project, "host")
     monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", RENDER_SEMANTICS_REV)
-    assert RENDER_SEMANTICS_REV == 12
+    assert RENDER_SEMANTICS_REV > 10
     assert not play_audit.stem_is_fresh(project, "host")

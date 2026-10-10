@@ -4,10 +4,9 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
 from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.decisions import (
-    ScopeChangedAtApproval,
     apply_auto_edits,
     apply_prefix_edits,
     approve_edits,
@@ -18,6 +17,7 @@ from podcast_mcp.edits.decisions import (
 )
 from podcast_mcp.edits.edit_log import revert_applied_edit
 from podcast_mcp.edits.range_edits import build_range_target, edit_selected_range
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (
     plan_delete_clips,
     punch_delete,
@@ -25,6 +25,7 @@ from podcast_mcp.edits.timeline_ops import (
     ripple_delete_clips,
     split_clips_at,
 )
+from podcast_mcp.history.manager import snapshot_from_project
 from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
@@ -37,8 +38,11 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
     TranscriptWord,
+    save_project,
 )
 from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import EditService, HistoryService
 from ripple_helpers import ripple_cut, trim
 
 
@@ -136,7 +140,9 @@ def test_approve_skips_unmapped_remove_without_archiving_it():
         )
     ]
 
-    assert approve_edits(proj, ["stale-remove"]) == 0
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        approve_edits(proj, ["stale-remove"])
+    assert held.value.ids == ("stale-remove",)
     assert [clip.model_dump() for clip in proj.clips] == original_clips
     assert [decision.id for decision in proj.edit_decisions] == ["stale-remove"]
     assert proj.editorial.edit_log == []
@@ -245,7 +251,45 @@ def test_update_pending_edit_missing_id():
         update_pending_edit(proj, "missing", start=0.0, end=1.0, snap=False)
 
 
-def test_revert_applied_edit_restores_clip():
+def _saved_restore_workspace(project, tmp_path):
+    project.meta.workspace_dir = str(tmp_path)
+    update_timeline_duration(project)
+    return ProjectWorkspace.open(save_project(project))
+
+
+def _assert_remove_restore_refused(project, record_id):
+    before = project.model_dump(mode="json")
+    with pytest.raises(ValueError) as refused:
+        revert_applied_edit(project, record_id)
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert str(refused.value) == (
+        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
+        "History Undo also undoes the other edits in that action. "
+        "You may need to undo later actions first."
+    )
+    assert project.model_dump(mode="json") == before
+
+
+def _refuse_restore_then_undo(ws, original):
+    before = ws.project.model_dump(mode="json")
+    disk = ws.path.read_bytes()
+    head = HistoryService(ws).status()["head_id"]
+    with pytest.raises(ValueError) as refused:
+        EditService(ws).revert_applied(ws.project.editorial.edit_log[-1].id)
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert str(refused.value) == (
+        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
+        "History Undo also undoes the other edits in that action. "
+        "You may need to undo later actions first."
+    )
+    assert ws.project.model_dump(mode="json") == before
+    assert ws.path.read_bytes() == disk
+    assert HistoryService(ws).status()["head_id"] == head
+    HistoryService(ws).undo(expected_head_id=head)
+    assert snapshot_from_project(ws.project).model_dump(mode="json") == original
+
+
+def test_remove_restore_refuses_and_history_undo_restores_clip(tmp_path):
     proj = _project_with_clip()
     proj.edit_decisions = [
         EditDecision(
@@ -258,21 +302,17 @@ def test_revert_applied_edit_restores_clip():
             applied=False,
         )
     ]
-    approve_edits(proj, ["a"])
-    assert len(proj.editorial.edit_log) == 1
-    record = proj.editorial.edit_log[0]
-    duration_before = proj.timeline.duration_sec
-    result = revert_applied_edit(proj, record.id)
-    assert result["operation"] == "revert_applied_edit"
-    assert proj.editorial.edit_log == []
-    assert proj.timeline.duration_sec == pytest.approx(duration_before + 2.0, abs=0.01)
-    host_clips = clips_for_track(proj, "host")
-    assert any(
-        abs(c.source_start - 2.0) < 1e-6 and abs(c.source_end - 4.0) < 1e-6 for c in host_clips
-    )
+    ws = _saved_restore_workspace(proj, tmp_path)
+    original = snapshot_from_project(ws.project).model_dump(mode="json")
+    assert EditService(ws).approve(["a"]) == 1
+    assert [(c.source_start, c.source_end) for c in ws.project.clips] == [(0, 2), (4, 10)]
+    _refuse_restore_then_undo(ws, original)
+    assert [(c.id, c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips] == [
+        ("c1", 0, 10, 0)
+    ]
 
 
-def test_revert_applied_edit_requires_source_clocks():
+def test_remove_restore_requires_history_without_source_clocks():
     proj = _project_with_clip()
     proj.editorial.edit_log = [
         AppliedEditRecord(
@@ -284,15 +324,10 @@ def test_revert_applied_edit_requires_source_clocks():
             timeline_end=2.0,
         )
     ]
-    with pytest.raises(ValueError, match="History undo"):
-        revert_applied_edit(proj, "alog_x")
+    _assert_remove_restore_refused(proj, "alog_x")
 
 
-def test_revert_applied_edit_keeps_multitrack_aligned():
-    """Cross-track ripple + revert must not leave lasting timeline skew."""
-    from podcast_mcp.engines.session_timeline import SessionTimeline
-    from podcast_mcp.util.timebase import TimelineSec
-
+def test_remove_restore_refuses_and_history_undo_keeps_multitrack_aligned(tmp_path):
     proj = _two_track_project()
     proj.edit_decisions = [
         EditDecision(
@@ -305,31 +340,24 @@ def test_revert_applied_edit_keeps_multitrack_aligned():
             review_required=True,
         )
     ]
-    approve_edits(proj, ["cut1"])
-    record = proj.editorial.edit_log[0]
-    assert "host" in record.track_ids and "guest" in record.track_ids
-    assert "per_track_source" in (record.params or {})
-    revert_applied_edit(proj, record.id)
-    st = SessionTimeline(proj)
-    for t in (1.0, 5.0, 8.0):
-        a = st.timeline_to_source("host", TimelineSec(t))
-        b = st.timeline_to_source("guest", TimelineSec(t))
-        assert a is not None and b is not None
-        assert abs(float(a) - float(b)) < 0.02
+    ws = _saved_restore_workspace(proj, tmp_path)
+    original = snapshot_from_project(ws.project).model_dump(mode="json")
+    assert EditService(ws).approve(["cut1"]) == 1
+    record = ws.project.editorial.edit_log[0]
+    assert record.track_ids == ["host", "guest"]
+    assert "per_track_source" in record.params
+    _refuse_restore_then_undo(ws, original)
+    assert [
+        (c.track_id, c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips
+    ] == [("host", 0, 10, 0), ("guest", 0, 10, 0)]
 
 
-def test_revert_legacy_single_track_archive_still_shifts_peers():
-    """Legacy archives listed one track; peers must still shift to avoid skew."""
-    from podcast_mcp.engines.session_timeline import SessionTimeline
-    from podcast_mcp.util.timebase import TimelineSec
-
+def test_single_track_archive_cannot_authorize_peer_clip_restore():
     proj = _two_track_project()
-    # Simulate a 0.6s cross-track hole by rippling, then archive like old approve.
-
     ripple_cut(proj, 2.0, 2.6, record_log=False)
     proj.editorial.edit_log = [
         AppliedEditRecord(
-            id="alog_legacy",
+            id="alog_single",
             applied_at="2026-01-01T00:00:00+00:00",
             operation="approve_edits",
             track_ids=["host"],
@@ -339,12 +367,7 @@ def test_revert_legacy_single_track_archive_still_shifts_peers():
             timeline_end=2.6,
         )
     ]
-    revert_applied_edit(proj, "alog_legacy")
-    st = SessionTimeline(proj)
-    a = st.timeline_to_source("host", TimelineSec(5.0))
-    b = st.timeline_to_source("guest", TimelineSec(5.0))
-    assert a is not None and b is not None
-    assert abs(float(a) - float(b)) < 0.02
+    _assert_remove_restore_refused(proj, "alog_single")
 
 
 def _two_track_project() -> EpisodeProject:
@@ -530,7 +553,7 @@ def test_approve_edits_matches_sequential_ripple():
     assert approved.edit_decisions == []
 
 
-def test_apply_prefix_edits_pause_with_crossfade():
+def test_apply_prefix_edits_filler_with_crossfade():
 
     proj = _project_with_clip()
     proj.timeline.clips.append(
@@ -549,22 +572,25 @@ def test_apply_prefix_edits_pause_with_crossfade():
             type=EditDecisionType.REMOVE,
             start=2.0,
             end=2.5,
-            reason="pause:long",
+            reason="filler:long",
+            crossfade_ms=15,
             review_required=False,
             applied=False,
         ),
     ]
     with patch("podcast_mcp.edits.decisions.load_defaults") as defaults:
         defaults.return_value = {"tighten": {"inaudible_opt": False, "crossfade_ms": 15}}
-        removed = apply_prefix_edits(proj, "pause:", config_key="tighten")
+        removed = apply_prefix_edits(proj, "filler:", config_key="tighten")
     assert removed == 1
     assert proj.edit_decisions == []
+    assert proj.editorial.edit_log[-1].params["crossfade_ms"] == 15
 
 
 @pytest.mark.parametrize("boundary_mode", [None, "vocal_transcript_guided"])
-@pytest.mark.parametrize("config_key,prefix", [("tighten", "pause:"), ("focus", "focus:")])
-def test_apply_prefix_edits_archives_the_settled_cut_range(boundary_mode, config_key, prefix):
-    """The archived timeline range is the cut per_track_source describes, so revert fills it exactly."""
+@pytest.mark.parametrize("config_key,prefix", [("tighten", "filler:"), ("focus", "focus:")])
+def test_apply_prefix_edits_archives_the_settled_cut_range(
+    tmp_path, boundary_mode, config_key, prefix
+):
     proj = _project_with_clip()
     proj.edit_decisions = [
         EditDecision(
@@ -579,6 +605,9 @@ def test_apply_prefix_edits_archives_the_settled_cut_range(boundary_mode, config
             applied=False,
         )
     ]
+    ws = _saved_restore_workspace(proj, tmp_path)
+    proj = ws.project
+    original = snapshot_from_project(proj).model_dump(mode="json")
     optimized = type("R", (), {"start": 2.0, "end": 2.56, "mode": "vocal_transcript_guided"})()
     with (
         patch("podcast_mcp.edits.decisions.load_defaults") as defaults,
@@ -590,14 +619,21 @@ def test_apply_prefix_edits_archives_the_settled_cut_range(boundary_mode, config
         ) as optimize,
     ):
         defaults.return_value = {config_key: {"inaudible_opt": True}}
-        assert apply_prefix_edits(proj, prefix, config_key=config_key) == 1
+        assert (
+            ws.mutate(
+                "before apply prefix",
+                "after apply prefix",
+                lambda p: apply_prefix_edits(p, prefix, config_key=config_key),
+            )
+            == 1
+        )
     assert optimize.call_args.kwargs["force_enabled"] is (boundary_mode is None)
     record = proj.editorial.edit_log[-1]
     assert record.timeline_start == pytest.approx(2.0)
     assert record.timeline_end == pytest.approx(2.56 if boundary_mode is None else 2.5)
     pre, post = record.params["per_track_source"]["host"]
     assert post - pre == pytest.approx(record.timeline_end - record.timeline_start)
-    revert_applied_edit(proj, record.id)
+    _refuse_restore_then_undo(ws, original)
     assert proj.timeline.duration_sec == pytest.approx(10.0)
 
 
@@ -611,7 +647,7 @@ def test_apply_prefix_edits_pads_at_the_optimized_join():
             type=EditDecisionType.REMOVE,
             start=2.0,
             end=2.5,
-            reason="pause:long",
+            reason="filler:long",
             review_required=False,
             applied=False,
             replace_gap_sec=0.3,
@@ -621,14 +657,14 @@ def test_apply_prefix_edits_pads_at_the_optimized_join():
     with (
         patch("podcast_mcp.edits.decisions.load_defaults") as defaults,
         patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="silence"),
-        patch("podcast_mcp.edits.decisions.recommend_post_pad_fade_in_ms", return_value=0),
+        patch("podcast_mcp.edits.source_removals.recommend_post_pad_fade_in_ms", return_value=0),
         patch(
             "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
             return_value=optimized,
         ),
     ):
         defaults.return_value = {"tighten": {"inaudible_opt": True}}
-        assert apply_prefix_edits(proj, "pause:", config_key="tighten") == 1
+        assert apply_prefix_edits(proj, "filler:", config_key="tighten") == 1
     host = clips_for_track(proj, "host")
     # The pad opens at the optimized join (1.7), so the clip is not split at the requested 2.0.
     assert len(host) == 2
@@ -1062,9 +1098,11 @@ def test_impact_ignores_structural_edits():
     assert _impact(proj) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 0}
 
 
-def test_impact_drops_a_reverted_cut():
+def test_impact_drops_a_cut_after_guarded_history_undo(tmp_path):
     proj = _approve_two_track_project()
     proj.edit_decisions = [_pending("a", EditDecisionType.REMOVE, 2.0, 4.0)]
-    approve_edits(proj, ["a"])
-    revert_applied_edit(proj, proj.editorial.edit_log[0].id)
-    assert _impact(proj) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 0}
+    ws = _saved_restore_workspace(proj, tmp_path)
+    original = snapshot_from_project(ws.project).model_dump(mode="json")
+    assert EditService(ws).approve(["a"]) == 1
+    _refuse_restore_then_undo(ws, original)
+    assert _impact(ws.project) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 1}

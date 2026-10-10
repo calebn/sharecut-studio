@@ -10,6 +10,72 @@ import {
 const TRACK = "mira-voice";
 
 describe("appliedEditTicks", () => {
+  it("projects manual room fill through the inserted clips, without matching reused source", () => {
+    const record = appliedEditRecord({
+      operation: "fill_with_room_tone",
+      source_start: null,
+      source_end: null,
+      timeline_start: null,
+      timeline_end: null,
+      params: {
+        clips: [
+          { clip_id: "fill-a", track_id: TRACK },
+          { clip_id: "fill-b", track_id: TRACK },
+        ],
+        pad_samples: [
+          {
+            track_id: TRACK,
+            source_id: null,
+            source_start: 5,
+            source_end: 5.25,
+          },
+          {
+            track_id: TRACK,
+            source_id: null,
+            source_start: 5,
+            source_end: 5.25,
+          },
+        ],
+      },
+    });
+    const clips = [
+      clipRow({
+        id: "original",
+        source_start: 5,
+        source_end: 5.25,
+        timeline_start: 0,
+        timeline_end: 0.25,
+      }),
+      clipRow({
+        id: "fill-a",
+        source_start: 5,
+        source_end: 5.25,
+        timeline_start: 2,
+        timeline_end: 2.25,
+      }),
+      clipRow({
+        id: "fill-b",
+        source_start: 5,
+        source_end: 5.25,
+        timeline_start: 2.25,
+        timeline_end: 2.5,
+      }),
+    ];
+    expect(
+      appliedEditTicks([record], TRACK, clips).map((tick) => [
+        tick.kind,
+        tick.sec,
+      ]),
+    ).toEqual([
+      ["edge", 2],
+      ["edge", 2.25],
+    ]);
+    expect(
+      appliedEditTicks([record], TRACK, [clips[0], clips[2]]).map(
+        (tick) => tick.sec,
+      ),
+    ).toEqual([2.25]);
+  });
   it.each(["cut", "mute"])(
     "projects exact %s islands only at the selected repeated placement",
     (action) => {

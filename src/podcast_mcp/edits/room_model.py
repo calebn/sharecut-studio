@@ -393,6 +393,11 @@ def _local_lines(smooth: np.ndarray, room: Room, least: float) -> _Lines:
     )
 
 
+def sound_reach(levels: np.ndarray, room: Room, least: float) -> np.ndarray:
+    """The unchanged local sound reach on the recording's native frame grid."""
+    return _local_lines(smoothed(levels), room, least).reach
+
+
 def _sustained(
     smooth: np.ndarray, lines: _Lines, ceiling: float, levels: np.ndarray
 ) -> list[Sound]:

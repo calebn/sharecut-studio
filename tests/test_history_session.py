@@ -729,10 +729,59 @@ def test_an_interrupted_rollback_still_restores_memory(minimal_project, monkeypa
 
     monkeypatch.setattr(rollback_mod, "roll_back_history", interrupted)
     _fail_commit(monkeypatch)
-    with pytest.raises(KeyboardInterrupt):
+    with pytest.raises(RuntimeError, match="commit"):
         run_mutation(path, proj, "before", "after", _append_new)
 
     assert _ids(proj) == ["unrecorded"]
+
+
+class RecoveryInterrupted(BaseException):
+    pass
+
+
+@pytest.mark.parametrize("boundary", ["history", "restore", "notification", "logger"])
+def test_recovery_baseexception_preserves_primary_error_and_truthful_outcome(
+    minimal_project, monkeypatch, boundary
+):
+    path, project, _index_path = _setup(minimal_project)
+    checkpoint = take_history_checkpoint(ProjectStore(path), project)
+    original = RuntimeError("primary mutation error")
+    outcomes = []
+    restoration = []
+
+    def interrupt(*_args, **_kwargs):
+        raise RecoveryInterrupted("secondary recovery interruption")
+
+    def restore():
+        if boundary in ("restore", "logger"):
+            interrupt()
+        project.name = "restored"
+        restoration.append(project.name)
+
+    def notify(outcome):
+        outcomes.append(outcome)
+        if boundary == "notification":
+            interrupt()
+
+    monkeypatch.setattr(
+        rollback_mod,
+        "roll_back_history",
+        interrupt if boundary == "history" else lambda *_args: RollbackOutcome.RESTORED,
+    )
+    if boundary == "logger":
+        monkeypatch.setattr(rollback_mod.log, "warning", interrupt)
+    with pytest.raises(RuntimeError) as raised:
+        with rollback_mod.rolled_back_on_failure(
+            project, checkpoint, on_not_landed=restore, on_failure=notify
+        ):
+            project.name = "partial mutation"
+            raise original
+    assert raised.value is original
+    assert outcomes == [
+        RollbackOutcome.RESTORED if boundary == "notification" else RollbackOutcome.UNKNOWN
+    ]
+    assert project.name == ("partial mutation" if boundary in ("restore", "logger") else "restored")
+    assert restoration == ([] if boundary in ("restore", "logger") else ["restored"])
 
 
 def test_a_failed_memory_restore_is_logged_and_the_original_error_propagates(

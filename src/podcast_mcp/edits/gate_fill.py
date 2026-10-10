@@ -82,6 +82,8 @@ import numpy as np
 
 from podcast_mcp.edits.room_tone import (
     MIN_BELOW_SPEECH_DB,
+    BedUnavailable,
+    LiveFloor,
     TrackFloor,
     room_tone_bed,
     track_floor,
@@ -408,9 +410,10 @@ def _comfort_noise(
     project: EpisodeProject, track: Track, path: Path, holes: GateHoles
 ) -> FillLoop | str:
     del project, track
-    floor = track_floor(path)
-    if floor is None:
+    read = track_floor(path)
+    if not isinstance(read, LiveFloor):
         return "no noise measured under its speech"
+    floor = read.floor
     held = _hold_noise(path, holes)
     noise = held if isinstance(held, _Noise) else _room_noise(path, holes, floor) or held
     if isinstance(noise, str):
@@ -446,10 +449,10 @@ def _room_tone_bed(
     from podcast_mcp.engines.align import load_mono_window
 
     bed = room_tone_bed(project, track.id)
-    if bed is None:
+    if isinstance(bed, BedUnavailable):
         return "no recorded room-tone bed"
     samples = load_mono_window(
-        bed[0], start_sec=0.0, duration_sec=bed[1], sample_rate=holes.sample_rate
+        bed.path, start_sec=0.0, duration_sec=bed.end, sample_rate=holes.sample_rate
     )
     return FillLoop(samples=samples, level_db=rms_db(samples, floor_db=-200.0), noise_db=None)
 

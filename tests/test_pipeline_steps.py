@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import logging
+import math
+import wave
+from array import array
+
+import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.effects.presets import add_effect, apply_preset_to_chain
 from podcast_mcp.models import (
+    Clip,
     MediaAsset,
     ProcessingChain,
     ProcessingEffect,
@@ -16,6 +22,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.pipeline import steps
+from source_review_helpers import finite_primary_recording
 
 
 def _project_with_host(minimal_project, sample_wav, tmp_workspace):
@@ -179,8 +186,34 @@ def test_compress_tracks_rerun_same_params_is_quiet(
     assert "compress_tracks:" not in caplog.text
 
 
-def test_analyze_and_tighten_steps(minimal_project):
+@pytest.mark.parametrize("placed", [True, False, "primary"])
+def test_analyze_and_tighten_steps(minimal_project, placed):
     proj = load_project(minimal_project)
+    proj.tracks = [Track(id="host", label="Host")]
+    if placed is not False:
+        finite_primary_recording(proj, 2.2)
+        samples = array("h", [1]) * 35_200
+        for start, end in ((1_760, 2_400), (31_840, 35_040)):
+            for frame in range(start, end):
+                samples[frame] = int(6000 * math.sin(2 * math.pi * 440 * (frame - start) / 16_000))
+        for boundary in (1_600, 3_200, 23_200):
+            samples[boundary - 16 : boundary + 16] = array("h", [0]) * 32
+        with wave.open(str(proj.workspace_path() / "raw" / "host.wav"), "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(16_000)
+            handle.writeframes(samples.tobytes())
+    if placed is True:
+        proj.clips = [
+            Clip(
+                id="host-main",
+                track_id="host",
+                source_start=0.0,
+                source_end=2.2,
+                timeline_start=0.0,
+            )
+        ]
+        proj.timeline.duration_sec = 2.2
     proj.transcripts = [
         Transcript(
             track_id="host",
@@ -193,12 +226,26 @@ def test_analyze_and_tighten_steps(minimal_project):
     defaults = load_defaults()
     defaults["tighten"]["breath_handling"]["enabled"] = False
     defaults.setdefault("tighten", {})["enabled"] = True
+    before = proj.model_dump(mode="json")
     steps.analyze_fillers_pauses(proj, defaults)
-    assert len(proj.edit_decisions) > 0
-    before = len(proj.edit_decisions)
-    steps.tighten_from_transcript(proj, defaults)
-    assert len(proj.edit_decisions) < before
-    assert not any((e.reason or "").startswith(("filler:", "pause:")) for e in proj.edit_decisions)
+    if placed is False:
+        assert proj.model_dump(mode="json") == before
+        assert steps.tighten_from_transcript(proj, defaults) == "0 tighten cuts applied"
+        assert proj.model_dump(mode="json") == before
+        return
+    assert [e.reason for e in proj.edit_decisions] == ["filler:um", "pause:1.80s:solo"]
+    assert all(not e.review_required for e in proj.edit_decisions)
+    held_pause = proj.edit_decisions[1].model_dump(mode="json")
+    summary = steps.tighten_from_transcript(proj, defaults)
+    assert summary == "1 tighten cuts applied"
+    assert [edit.model_dump(mode="json") for edit in proj.edit_decisions] == [held_pause]
+    assert proj.timeline.duration_sec == pytest.approx(2.1)
+    assert [record.reason for record in proj.editorial.edit_log] == ["filler:um"]
+    assert [record.params.get("replace_gap_sec") for record in proj.editorial.edit_log] == [None]
+    assert [(w.text, w.start, w.end) for w in proj.transcripts[0].words] == [("hi", 2.0, 2.2)]
+    assert steps.tighten_from_transcript(proj, defaults) == "0 tighten cuts applied"
+    assert [edit.model_dump(mode="json") for edit in proj.edit_decisions] == [held_pause]
+    assert proj.timeline.duration_sec == pytest.approx(2.1)
 
 
 def test_tighten_steps_skip_when_disabled(minimal_project):
@@ -291,6 +338,7 @@ def test_analyze_prosody_step_noop_when_unavailable(minimal_project, monkeypatch
 def test_analyze_fillers_step_honours_config_intensity(minimal_project):
     def hits(intensity: str) -> list[str]:
         proj = load_project(minimal_project)
+        finite_primary_recording(proj, 2.2)
         proj.transcripts = [
             Transcript(
                 track_id="host",
