@@ -344,6 +344,18 @@ async function undoStaysReachable(
   };
   const seen: Record<string, Awaited<ReturnType<typeof measure>>> = {};
   const check = async (step: string, controls: Locator) => {
+    const beforeReveal = await measure(controls);
+    await receipt(
+      info,
+      `hit-${name}-${rootPx}-${theme}-${step}-before-header-reveal`,
+      beforeReveal,
+    );
+    if (beforeReveal.feedback)
+      expect(beforeReveal.feedback.overlaps).toEqual([]);
+    const header = page.locator(
+      ".bottom-sheet--compact .bottom-sheet-header-actions",
+    );
+    if (await header.count()) await header.scrollIntoViewIfNeeded();
     seen[step] = await measure(controls);
     await receipt(info, `hit-${name}-${rootPx}-${theme}-${step}`, seen[step]);
     await info.attach(`hit-${step}`, {
