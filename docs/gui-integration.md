@@ -312,12 +312,15 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ### Responsive shells
 
-Compact-inspector composition supplies a temporary feedback row between pinned
-chrome and scrolling fields. `DawApp` passes that DOM host to the single
-`FeedbackToast`; its stable portal preserves the existing card, lifetime,
-focus pause and guarded Undo when the sheet opens, closes or stows.
-No feedback means no reserved row. Visible feedback may grow the sheet to its
-slot, with fields scrolling beneath it. See [Feedback toast](gui-mobile.md#feedback-toast).
+Compact inspectors keep Undo, Redo, resize and Close outside their content
+scroller. The feedback host is first inside that same scroller as the fields.
+`DawApp` passes the host to the single `FeedbackToast`; its stable portal
+preserves the existing card, focus and guarded Undo when the sheet opens,
+closes or stows. A saved edit preserves the focused or just-pressed control.
+Ordinary body scrolling exposes feedback when a full native label and the card
+cannot fit together. The single Toast pauses its remaining visible lifetime
+while clipped and preserves it through host movement. See
+[Feedback toast](gui-mobile.md#feedback-toast) for the geometry contract.
 
 `MobileShell` and `StudioShell` are memoized live adapters over the props-only
 `MobileShellView` and `StudioShellView`. The views own shell layout, navigation,
@@ -894,18 +897,7 @@ requires a fresh published mix. Host isolated and guest full-mix extracts use
 separate private paths and atomic publication.
 
 Reviewed exact MUTE proposals require interactive host approval. Rendered pending previews and host processed timeline playback honor clip-local mute envelopes; guest source-proxy timeline playback currently omits them. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
-
-
 ### Applied edit recovery
 
 The Applied edit inspector offers **Restore** only for ordinary source MUTE archives with valid source clocks and edit access. Cuts and exact ranges show the whole-action History Undo guidance, including other edits in the action and the need to undo later actions first. **Open History** opens the current History tab without running Undo. Numeric source and timeline seam displays remain unchanged. The backend independently refuses unsupported local Restore before history starts. See [History](history.md#individual-restore-and-whole-action-undo).
 
-### Compact feedback scrolling
-
-Compact inspectors keep Undo, Redo, resize and Close outside their content
-scroller. The feedback host is first inside that same scroller as the fields.
-A saved edit preserves the focused or just-pressed control. Ordinary body
-scrolling exposes feedback when a full native label and the card cannot fit
-together. The single Toast pauses its remaining visible lifetime while clipped
-and preserves it through close, stow and host movement. See
-[mobile feedback](gui-mobile.md#feedback-toast) for the geometry contract.
