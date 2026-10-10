@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import io
 import tarfile
 
@@ -181,3 +182,41 @@ def test_linux_linkage_rejects_external_or_missing_dependencies(tmp_path, monkey
     monkeypatch.setattr(builder, "_run", lambda *_a, **_k: dependency + "\n")
     with pytest.raises(ValueError, match="non-system native linkage"):
         builder._linkage(tmp_path / "ffmpeg")
+
+
+def test_windows_builder_requests_and_stages_executable_targets(tmp_path, monkeypatch):
+    builder = load_script("build_ffmpeg")
+    policy = copy.deepcopy(builder.ffmpeg_policy())
+    cache = tmp_path / "sources"
+    cache.mkdir()
+    for source in policy["sources"].values():
+        archive = cache / source["archive"]
+        with tarfile.open(archive, "w") as handle:
+            entry = tarfile.TarInfo(source["directory"] + "/COPYING")
+            entry.size = 7
+            handle.addfile(entry, io.BytesIO(b"license"))
+        source["sha256"] = builder.sha256_file(archive)
+    monkeypatch.setattr(builder, "ffmpeg_policy", lambda: policy)
+    monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(builder.platform, "machine", lambda: "AMD64")
+    commands = []
+
+    def native_tool(argv, *, cwd=None, **kwargs):
+        if cwd and cwd.name == policy["sources"]["ffmpeg"]["directory"]:
+            if argv[:2] == ["sh", "configure"]:
+                (cwd / "config.h").write_text("#define CONFIG_GPL 0\n#define CONFIG_NONFREE 0\n")
+            elif argv[0] == "make":
+                commands.append(argv)
+                if argv[2:] != ["ffmpeg.exe", "ffprobe.exe"]:
+                    raise RuntimeError("No rule to make target 'ffmpeg'")
+                for name in ("ffmpeg.exe", "ffprobe.exe"):
+                    (cwd / name).write_bytes(b"native executable")
+        return "native tool completed\n"
+
+    monkeypatch.setattr(builder, "_run", native_tool)
+    output = tmp_path / "payload"
+    output.mkdir()
+    builder.build_payload(output, source_cache=cache)
+    assert commands == [["make", "-j2", "ffmpeg.exe", "ffprobe.exe"]]
+    assert (output / "bin/ffmpeg.exe").read_bytes() == b"native executable"
+    assert (output / "bin/ffprobe.exe").read_bytes() == b"native executable"

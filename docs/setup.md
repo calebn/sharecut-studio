@@ -290,8 +290,10 @@ Without explicit overrides, `PODCAST_MCP_FFMPEG_BUNDLE` declares the desktop
 pair's executable directory. That directory must contain exact 9.0.2. A missing,
 corrupt or unsupported declared bundle fails instead of falling back to PATH.
 Otherwise automatic discovery checks the native macOS Homebrew keg, complete
-PATH directories, then the existing source-use cache. Unsupported automatic
-candidates are rejected before a later supported candidate can be selected.
+PATH directories, then the existing source-use cache. Discovery reads candidates
+in order and creates no cache directories. Inaccessible optional directories are
+unavailable candidates. Unsupported automatic candidates are rejected before a
+later supported candidate can be selected.
 Single-command helpers use the same validated pair.
 
 The authoritative [source recipe](../contracts/ffmpeg-build.json) pins FFmpeg

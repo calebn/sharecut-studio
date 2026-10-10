@@ -369,15 +369,16 @@ def build_payload(
         config = (ffmpeg / "config.h").read_text()
         if "#define CONFIG_GPL 0" not in config or "#define CONFIG_NONFREE 0" not in config:
             raise ValueError("build enabled GPL or nonfree")
+        suffix = ".exe" if platform.system() == "Windows" else ""
+        programs = [name + suffix for name in ("ffmpeg", "ffprobe")]
         logs["ffmpeg-build"] = _run(
-            ["make", f"-j{min(max(jobs, 1), 8)}", "ffmpeg", "ffprobe"],
+            ["make", f"-j{min(max(jobs, 1), 8)}", *programs],
             cwd=ffmpeg,
             env=environment,
             timeout=3600,
         )
-        suffix = ".exe" if platform.system() == "Windows" else ""
-        for name in ("ffmpeg", "ffprobe"):
-            shutil.copy2(ffmpeg / (name + suffix), directory / "bin" / (name + suffix))
+        for name in programs:
+            shutil.copy2(ffmpeg / name, directory / "bin" / name)
         rebuild = directory / "rebuild"
         rebuild.mkdir()
         (rebuild / "scripts").mkdir()

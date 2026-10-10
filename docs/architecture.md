@@ -203,8 +203,9 @@ Models                   models/  (EpisodeProject, snapshots)
 through `util.binaries.resolve_ffmpeg_pair`. The value carries absolute command
 paths, an equal numeric release, and the selection source. Explicit supported
 pairs win, followed by the declared exact-release bundle, native Homebrew, complete
-PATH directories and the existing source-use cache. Version validation lives at
-this executable boundary. Readiness reports retain its failures and source.
+PATH directories and the existing source-use cache. Discovery is lazy and
+read-only. Inaccessible optional directories count as unavailable. Version
+validation lives at this executable boundary. Readiness reports retain its failures and source.
 `contracts/ffmpeg-build.json` owns the release and native source recipe.
 `scripts/build_ffmpeg.py` builds, verifies and publishes a complete payload.
 The sidecar builder ensures it before runtime completion on fresh and reused
