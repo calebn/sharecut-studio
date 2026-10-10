@@ -385,11 +385,15 @@ Unsupported descriptor platforms fail closed before public promotion; `resolve_s
 before that platform check, so a missing or stale mix reports its own portable error even when
 `_SAFE_FAILED_CLEANUP_SUPPORTED` is `False` (`test_publish_reports_a_missing_mix_before_the_platform_refusal`).
 `tests/review_platform.py` holds the shared `requires_safe_cleanup` / `requires_safe_failed_cleanup`
-skip markers so `test_review_versions.py` and `test_project_commit_lock.py` skip the same
+skip markers so `test_review_versions.py`, `test_project_commit_lock.py`, and the
+publication-dependent cases in `test_share_registry.py` skip the same
 staging/quarantine/publication tests together on a platform without safe, descriptor-relative
-directory operations (Windows); an autouse fixture defined once there (`unmarked_tests_run_as_unsupported_platform`, imported by name into both modules)
+directory operations (Windows); an autouse fixture defined once there (`unmarked_tests_run_as_unsupported_platform`, imported by name into all three modules)
 forces both flags off for any test without one of those markers, so a test that stages media without
 `requires_safe_failed_cleanup` fails on POSIX too, not only on the Windows job (the fixture patches only the pytest process, so a spawned child that stages media still needs the marker);
+`tests/test_share_registry.py` imports the same fixture and marks only its 11 tests
+whose setup publishes review media (14 cases including parameters), so its direct
+SQLite registry coverage remains active on Windows;
 `test_review_publication_support_matches_the_ci_platform` guards
 that those flags are `True` on POSIX and `False` on Windows, so CI cannot silently start skipping
 them everywhere.
@@ -2241,7 +2245,10 @@ platform's canonical workspace oracle.
 ### Native registry storage privacy
 
 `registry-backup-windows` runs the source-privacy, portable inheritance policy,
-backup, denial, collision, restore, and lifecycle tests on Windows. The job first
+backup, denial, collision, restore, and lifecycle tests on Windows, including the
+direct SQLite cases in `tests/test_share_registry.py`; that module's 11 review-share
+publication tests (14 parameterized cases) carry `requires_safe_failed_cleanup` and
+skip on Windows. The job first
 records production admission diagnostics for ordinary runner ancestry. It then
 creates a fresh run-owned NTFS VHDX on a free drive letter, installs an exact
 protected trusted root DACL with `OI|CI` inheritance, and runs production ancestry
