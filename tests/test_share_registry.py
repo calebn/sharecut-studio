@@ -31,6 +31,10 @@ from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService, lookup_share
+from review_platform import requires_safe_failed_cleanup
+from review_platform import (
+    unmarked_tests_run_as_unsupported_platform as unmarked_tests_run_as_unsupported_platform,
+)
 from sqlite_helpers import FailingConnection
 
 
@@ -339,6 +343,7 @@ def _seed_premix(minimal_project, sample_wav):
     return ProjectWorkspace.open(minimal_project)
 
 
+@requires_safe_failed_cleanup
 def test_create_share_coolname_and_lookup_touch(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -361,6 +366,7 @@ def test_create_share_coolname_and_lookup_touch(
     assert list_usable_shares(ws.project) == []
 
 
+@requires_safe_failed_cleanup
 def test_create_share_sidecar_serializes(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Lock")
@@ -381,6 +387,7 @@ def test_create_share_sidecar_serializes(minimal_project, sample_wav, tmp_worksp
     assert len(list_shares(ws.project)) == 8
 
 
+@requires_safe_failed_cleanup
 def test_lookup_demotes_hard_expired(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Exp")
@@ -415,6 +422,7 @@ def test_override_path_used_verbatim(monkeypatch, tmp_path: Path):
     assert not expected.with_suffix(".sqlite").exists()
 
 
+@requires_safe_failed_cleanup
 def test_json_override_revoke_is_seen_by_lookup(
     minimal_project, sample_wav, tmp_path: Path, monkeypatch
 ):
@@ -536,6 +544,7 @@ def test_reset_singleton(monkeypatch, tmp_path: Path):
     b.close()
 
 
+@requires_safe_failed_cleanup
 def test_create_share_save_failure_releases(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -790,6 +799,7 @@ def test_release_claim(registry: SqliteShareRegistry):
     assert registry.release_claim(token) is False
 
 
+@requires_safe_failed_cleanup
 def test_touch_share_and_register_paths(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.edits.review_shares import (
         register_share_globally,
@@ -851,6 +861,7 @@ def test_resolve_share_exception(monkeypatch, tmp_path: Path):
     assert resolve_share("x", registry_path=tmp_path / "x.sqlite") is None
 
 
+@requires_safe_failed_cleanup
 def test_lookup_missing_workspace(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.services.collaboration.share import _mark_share_revoked
 
@@ -890,6 +901,7 @@ def test_touch_missing_token_and_bad_last_used(registry: SqliteShareRegistry):
     assert registry.demote_to_cooldown(token, reason="bad_ts", now=now) is True
 
 
+@requires_safe_failed_cleanup
 def test_lookup_touch_exception_fallback(minimal_project, sample_wav, tmp_workspace, monkeypatch):
 
     ws = _seed_premix(minimal_project, sample_wav)
@@ -969,6 +981,7 @@ def test_sanitize_guest_view():
     assert "path" not in view["render_status"]["premix"]
 
 
+@requires_safe_failed_cleanup
 def test_revoke_object_store_cleanup_warning(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -1039,6 +1052,7 @@ def _idle_for(ws: ProjectWorkspace, token: str, days: int) -> None:
         ("revoked", False),
     ],
 )
+@requires_safe_failed_cleanup
 def test_registry_and_sidecar_agree_on_whether_a_share_is_usable(
     minimal_project, sample_wav, tmp_workspace, state, usable
 ):
@@ -1069,6 +1083,7 @@ def test_registry_and_sidecar_agree_on_whether_a_share_is_usable(
     assert registry.is_reserved(token) is True
 
 
+@requires_safe_failed_cleanup
 def test_a_share_unused_for_over_a_year_keeps_its_last_used_date_for_display(
     minimal_project, sample_wav, tmp_workspace
 ):

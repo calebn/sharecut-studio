@@ -4,8 +4,9 @@
 descriptor-relative directory operations (Windows): staging, quarantine and
 stale-cleanup paths all require ``_SAFE_STALE_CLEANUP_SUPPORTED`` /
 ``_SAFE_FAILED_CLEANUP_SUPPORTED``. Tests that exercise those paths import the
-markers below instead of redefining them, so ``tests/test_project_commit_lock.py``
-and ``tests/test_review_versions.py`` skip the same way on an unsupported platform.
+markers below instead of redefining them, so ``tests/test_project_commit_lock.py``,
+``tests/test_review_versions.py``, and the publication-dependent cases in
+``tests/test_share_registry.py`` skip the same way on an unsupported platform.
 Modules that import the markers also import the autouse fixture
 ``unmarked_tests_run_as_unsupported_platform`` by name. pytest registers an imported
 fixture for that module only, so an unmarked test there runs as it would on Windows on
