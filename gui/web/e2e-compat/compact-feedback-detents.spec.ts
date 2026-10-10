@@ -93,7 +93,24 @@ for (const viewport of [
                 const ruler = await controlGeometry(
                   page.getByRole("slider", { name: "Timeline position" }),
                 );
-                halfRulerPermitted = ruler.fullyVisible && ruler.hitsControl;
+                const area = ruler.measured[0].visibleArea;
+                const point = {
+                  x: ruler.rect.left + 300,
+                  y: ruler.rect.top + 12,
+                };
+                halfRulerPermitted =
+                  area.state === "positive" &&
+                  point.x >= area.bounds.left &&
+                  point.x <= area.bounds.right &&
+                  point.y >= area.bounds.top &&
+                  point.y <= area.bounds.bottom &&
+                  ruler.rect.bottom <= box!.y;
+                if (halfRulerPermitted) {
+                  await page
+                    .getByRole("slider", { name: "Timeline position" })
+                    .click({ position: { x: 300, y: 12 } });
+                  await expect(panel).toHaveClass(/bottom-sheet--half/);
+                }
                 json(info, "half-without-feedback", {
                   ruler,
                   panel: await controlGeometry(panel),
@@ -182,8 +199,13 @@ for (const viewport of [
               );
               if (detent === "half") {
                 if (halfRulerPermitted) {
-                  expect(ruler.fullyVisible).toBe(true);
-                  expect(ruler.hitsControl).toBe(true);
+                  const area = ruler.measured[0].visibleArea;
+                  expect(area.state).toBe("positive");
+                  expect(ruler.rect.bottom).toBeLessThanOrEqual(box!.y);
+                  await page
+                    .getByRole("slider", { name: "Timeline position" })
+                    .click({ position: { x: 300, y: 12 } });
+                  await expect(panel).toHaveClass(/bottom-sheet--half/);
                 }
                 if (rootPx === 16)
                   expect(box!.y - timeline.rect.top).toBeGreaterThanOrEqual(

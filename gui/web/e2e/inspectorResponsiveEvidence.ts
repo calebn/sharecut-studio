@@ -270,8 +270,14 @@ export async function exposeControl(
   for (let step = 0; step < 28; step++) {
     const geometry = await controlGeometry(control);
     if (geometry.fullyVisible && geometry.hitsControl) return geometry;
-    const expand = page.getByRole("button", { name: "Expand", exact: true });
-    if (step === 0 && (await expand.count())) {
+    const cannotFit = geometry.measured.some(
+      (item) => item.rect.height > item.clip.bottom - item.clip.top + 1,
+    );
+    const expand = page.getByRole("button", {
+      name: cannotFit ? /^Expand(?: to (?:half|full) height)?$/ : "Expand",
+      exact: true,
+    });
+    if ((step === 0 || cannotFit) && (await expand.count())) {
       const admission = await controlGeometry(expand);
       receipts.push({
         checkpoint: "public-expand-admission",
