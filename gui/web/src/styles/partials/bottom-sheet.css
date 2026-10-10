@@ -345,3 +345,8 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 .bottom-sheet :focus-visible:not(.sr-only) {
   outline-offset: calc(-1 * var(--focus-ring-width));
 }
+
+.bottom-sheet .ui-control.primary:focus-visible,
+.bottom-sheet .ui-control[data-variant="primary"]:focus-visible {
+  outline-color: var(--color-accent-on-solid);
+}
