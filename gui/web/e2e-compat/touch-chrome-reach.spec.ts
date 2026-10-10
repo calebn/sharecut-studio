@@ -40,6 +40,16 @@ const SIZES = {
   landscape: { width: 844, height: 390 },
 } as const;
 
+const original = [
+  { id: "env-a", time: 5, value: 1 },
+  { id: "env-edge", time: 10, value: 0.8 },
+  { id: "env-c", time: 16, value: 1 },
+  { id: "env-join", time: 40, value: 1.2 },
+];
+const edited = original.map((point) =>
+  point.id === "env-c" ? { ...point, time: 16.01 } : point,
+);
+
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 240_000 });
 
@@ -96,6 +106,14 @@ async function reach(target: Locator) {
       onTop: hit !== null && (el === hit || el.contains(hit)),
       hit: hit ? `${hit.tagName}.${String(hit.className).slice(0, 40)}` : null,
     };
+  });
+}
+
+async function receipt(info: TestInfo, name: string, value: unknown) {
+  json(info, name, value);
+  await info.attach(name, {
+    body: JSON.stringify(value),
+    contentType: "application/json",
   });
 }
 
@@ -201,6 +219,14 @@ async function undoStaysReachable(
           lane: lane?.toJSON(),
           strip: strip?.toJSON(),
           chrome: chrome?.toJSON(),
+          bottomChrome: document
+            .querySelector(
+              document.documentElement.dataset.shell === "phone"
+                ? ".mobile-nav"
+                : ".daw-shell > .status-bar",
+            )
+            ?.getBoundingClientRect()
+            .toJSON(),
           shell: document.documentElement.dataset.shell,
           layout: document.documentElement.dataset.layout,
         };
@@ -280,11 +306,10 @@ async function undoStaysReachable(
         })),
       };
     });
-  json(info, `census-${name}-${rootPx}-${theme}`, census);
-  await info.attach("peek", {
-    body: await page.screenshot(),
-    contentType: "image/png",
-  });
+  await receipt(info, `census-${name}-${rootPx}-${theme}`, census);
+  const screenshot = info.outputPath(`peek-${name}-${rootPx}-${theme}.png`);
+  const image = await page.screenshot({ path: screenshot });
+  await info.attach("peek", { body: image, contentType: "image/png" });
 
   for (const detent of ["half", "full", "peek"] as const) {
     if (detent === "half") {
@@ -298,15 +323,6 @@ async function undoStaysReachable(
     await check(detent, headerHistory);
   }
 
-  const original = [
-    { id: "env-a", time: 5, value: 1 },
-    { id: "env-edge", time: 10, value: 0.8 },
-    { id: "env-c", time: 16, value: 1 },
-    { id: "env-join", time: 40, value: 1.2 },
-  ];
-  const edited = original.map((point) =>
-    point.id === "env-c" ? { ...point, time: 16.01 } : point,
-  );
   await expect.poll(() => savedEnvelope(page)).toEqual(original);
   const nudge = page.getByRole("button", {
     name: "Envelope point 0.01 s later",
@@ -322,8 +338,13 @@ async function undoStaysReachable(
   await finger.up();
   await expect.poll(() => savedEnvelope(page)).toEqual(edited);
   await page.waitForTimeout(900);
+  await expect(page.locator(".guest-attention")).not.toBeVisible();
   await check("strip-open-after-edit", headerHistory);
-  json(info, `chrome-undo-${name}-${rootPx}-${theme}-${browserName}`, seen);
+  await receipt(
+    info,
+    `chrome-undo-${name}-${rootPx}-${theme}-${browserName}`,
+    seen,
+  );
 
   for (const [step, row] of Object.entries(seen)) {
     expect({ step, ...row.undo }).toMatchObject({
@@ -350,18 +371,26 @@ async function undoStaysReachable(
       expect(control.height).toBeGreaterThanOrEqual(44);
     }
     expect(row.overlaps).toBe(false);
+    if (step !== "rail") {
+      expect(row.visibleLaneHeight.strip?.bottom).toBeCloseTo(
+        row.visibleLaneHeight.bottomChrome?.top ?? -1,
+        0,
+      );
+    }
     if (
       rootPx === 16 &&
       (step === "peek" || step === "strip-open-after-edit")
     ) {
-      expect(row.visibleLaneHeight.visible).toBeGreaterThanOrEqual(
+      expect(row.visibleLaneHeight.visible).toBeCloseTo(
         name === "portrait" ? 547 : 191,
+        0,
       );
     }
   }
 
   await expect(page.locator(".bottom-sheet--peek")).toBeVisible();
   const undo = headerHistory.getByRole("button", { name: "Undo" });
+  await expect(undo).not.toHaveAttribute("aria-disabled", "true");
   const box = await undo.boundingBox();
   if (!box) throw new Error("Undo has no box");
   commands.length = 0;
@@ -369,9 +398,11 @@ async function undoStaysReachable(
   await page.waitForTimeout(60);
   await finger.up();
   await expect.poll(() => savedEnvelope(page)).toEqual(original);
+  const savedUndo = await savedEnvelope(page);
   const undoCommands = commands.map((c) => c.type);
   expect(undoCommands).toEqual(["UndoHistory"]);
   const redo = headerHistory.getByRole("button", { name: "Redo" });
+  await expect(redo).not.toHaveAttribute("aria-disabled", "true");
   const redoBox = await redo.boundingBox();
   if (!redoBox) throw new Error("Redo has no box");
   commands.length = 0;
@@ -383,12 +414,18 @@ async function undoStaysReachable(
   await finger.up();
   await expect.poll(() => savedEnvelope(page)).toEqual(edited);
   expect(commands.map((c) => c.type)).toEqual(["RedoHistory"]);
-  json(info, `saved-history-${name}-${rootPx}-${theme}-${browserName}`, {
-    original,
-    edited,
-    undoCommands,
-    redoCommands: commands,
-  });
+  await receipt(
+    info,
+    `saved-history-${name}-${rootPx}-${theme}-${browserName}`,
+    {
+      original,
+      edited,
+      savedUndo,
+      savedRedo: await savedEnvelope(page),
+      undoCommands,
+      redoCommands: commands,
+    },
+  );
 }
 
 /** The blade confirmation's Cut is in view and on top at `rootPx`, and a tap on it cuts. */
@@ -477,3 +514,162 @@ test("the Cut button of the blade confirmation can be tapped at 32px text: lands
   browserName,
 }, info) =>
   cutIsTappable("landscape", 32, { page, context, browserName }, info));
+
+for (const pending of ["wait", "refuse"] as const) {
+  test(`compact header ${pending} behind a pending save`, async ({
+    page,
+    context,
+    browserName,
+  }, info) => {
+    await openAt(page, SIZES.landscape);
+    const finger = await newFinger(context, page, browserName);
+    const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
+    await finger.down(at);
+    await page.waitForTimeout(60);
+    await finger.up();
+    await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "32px";
+    });
+    await page.waitForTimeout(600);
+    let releaseSave = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    await page.route("**/api/document/command", async (route) => {
+      const body = route.request().postDataJSON() as { type: string };
+      if (body.type === "SetEnvelope") await gate;
+      await route.continue();
+    });
+    const commands = watchCommands(page);
+    const tap = async (button: Locator) => {
+      const box = await button.boundingBox();
+      if (!box) throw new Error("Button has no box");
+      await finger.down({
+        x: box.x + box.width / 2,
+        y: box.y + box.height / 2,
+      });
+      await page.waitForTimeout(60);
+      await finger.up();
+    };
+    try {
+      await tap(
+        page.getByRole("button", {
+          name: "Envelope point 0.01 s later",
+          exact: true,
+        }),
+      );
+      await expect
+        .poll(() => commands.map((command) => command.type))
+        .toEqual(["SetEnvelope"]);
+      await tap(
+        compactHistory(page).getByRole("button", { name: "Undo", exact: true }),
+      );
+      await page.waitForTimeout(200);
+      expect(commands.map((command) => command.type)).toEqual(["SetEnvelope"]);
+      await expect.poll(() => savedEnvelope(page)).toEqual(original);
+      if (pending === "refuse") {
+        await expect(page.locator(".ui-toast-region--app")).toContainText(
+          "Your last edit is still saving. Nothing was undone.",
+          { timeout: 7000 },
+        );
+        expect(commands.map((command) => command.type)).toEqual([
+          "SetEnvelope",
+        ]);
+      }
+      releaseSave();
+      if (pending === "wait") {
+        await expect
+          .poll(() => commands.map((command) => command.type))
+          .toEqual(["SetEnvelope", "UndoHistory"]);
+        await expect.poll(() => savedEnvelope(page)).toEqual(original);
+      } else {
+        await expect.poll(() => savedEnvelope(page)).toEqual(edited);
+        expect(commands.map((command) => command.type)).toEqual([
+          "SetEnvelope",
+        ]);
+      }
+      await receipt(info, `pending-save-${pending}-${browserName}`, {
+        commands,
+        saved: await savedEnvelope(page),
+      });
+    } finally {
+      releaseSave();
+      await page.unrouteAll({ behavior: "wait" });
+    }
+  });
+}
+
+for (const name of ["portrait", "landscape"] as const) {
+  for (const rootPx of [16, 32]) {
+    test(`unavailable compact history keeps geometry ${name} root${rootPx}`, async ({
+      page,
+      context,
+      browserName,
+    }, info) => {
+      await openAt(page, SIZES[name]);
+      const finger = await newFinger(context, page, browserName);
+      const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
+      await finger.down(at);
+      await page.waitForTimeout(60);
+      await finger.up();
+      await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
+      await page.evaluate((px) => {
+        document.documentElement.style.fontSize = `${px}px`;
+      }, rootPx);
+      await page.waitForTimeout(600);
+      const history = compactHistory(page);
+      const commands = watchCommands(page);
+      const geometry = () =>
+        page.locator(".bottom-sheet--compact").evaluate((panel) => ({
+          panel: panel.getBoundingClientRect().toJSON(),
+          header: panel
+            .querySelector(".bottom-sheet-header")
+            ?.getBoundingClientRect()
+            .toJSON(),
+          body: panel
+            .querySelector(".bottom-sheet-body")
+            ?.getBoundingClientRect()
+            .toJSON(),
+          controls: [
+            ...panel.querySelectorAll(".bottom-sheet-header button"),
+          ].map((button) => button.getBoundingClientRect().toJSON()),
+        }));
+      for (const detent of ["peek", "half", "full"] as const) {
+        if (detent !== "peek") {
+          await page
+            .getByRole("button", {
+              name:
+                detent === "half"
+                  ? "Expand to half height"
+                  : "Expand to full height",
+            })
+            .click();
+          await page.waitForTimeout(350);
+        }
+        const before = await geometry();
+        const redo = history.getByRole("button", { name: "Redo", exact: true });
+        await expect(redo).toHaveAttribute("aria-disabled", "true");
+        const box = await redo.boundingBox();
+        if (!box) throw new Error("Redo has no box");
+        await finger.down({
+          x: box.x + box.width / 2,
+          y: box.y + box.height / 2,
+        });
+        await page.waitForTimeout(60);
+        await finger.up();
+        const hint = history.getByRole("status");
+        await expect(hint).toHaveText("Nothing to redo");
+        await expect(hint).toBeInViewport({ ratio: 1 });
+        const after = await geometry();
+        expect(after).toEqual(before);
+        expect(commands).toEqual([]);
+        await receipt(
+          info,
+          `unavailable-${name}-${rootPx}-${detent}-${browserName}`,
+          { before, after },
+        );
+      }
+    });
+  }
+}
