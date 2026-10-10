@@ -1348,6 +1348,7 @@ test; other rows are whole tests.
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | every phone Primary navigation button paints a complete focus indicator at both root sizes | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| full-height phone sheet field errors keep native keyboard focus paint inside the sheet | `gui/web/e2e/inspector-responsive.spec.ts` | CSS / layout | Pass | Not run | Not run |
 | feedback preserves selected half and full geometry and permitted ruler and lane room | `gui/web/e2e-compat/compact-feedback-detents.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped removal feedback keeps remaining lifetime after closing the compact host | `gui/web/e2e-compat/compact-feedback-host-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | every native compact Tab target paints its focus indicator inside actual clips | `gui/web/e2e-compat/compact-painted-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
