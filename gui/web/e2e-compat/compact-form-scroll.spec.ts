@@ -23,6 +23,7 @@ for (const viewport of [
       test("scrolled fades and pinned actions retain pointer and keyboard ownership", async ({
         page,
         receipts,
+        browserName,
       }, info) => {
         await withShareableProject(
           async (projectPath) => {
@@ -55,7 +56,12 @@ for (const viewport of [
             for (const name of ["Fade in ms", "Fade out ms"]) {
               const field = page.getByLabel(name, { exact: true });
               await exposeControl(page, field, receipts);
-              await nativeTabTo(page, field, receipts);
+              await nativeTabTo(
+                page,
+                field,
+                receipts,
+                browserName === "webkit" ? "Alt+Tab" : "Tab",
+              );
               const geometry = await controlGeometry(field);
               const chromeBottom = await chrome.evaluate(
                 (element) => element.getBoundingClientRect().bottom,
@@ -71,8 +77,15 @@ for (const viewport of [
               }
             }
             for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {
-              const action = page.getByRole("button", { name, exact: true });
-              await nativeTabTo(page, action, receipts);
+              const action = page
+                .locator(".bottom-sheet-header")
+                .getByRole("button", { name, exact: true });
+              await nativeTabTo(
+                page,
+                action,
+                receipts,
+                browserName === "webkit" ? "Alt+Tab" : "Tab",
+              );
               const geometry = await controlGeometry(action);
               expect(geometry.hitsControl).toBe(true);
               expect(geometry.rect.width).toBeGreaterThanOrEqual(88);

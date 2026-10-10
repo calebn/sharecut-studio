@@ -55,6 +55,10 @@ the comment; use **More → Comments** for comment actions.
 
 An inspector stays open while the timeline remains interactive behind it. Fine pointers can drag pending-cut edges. On touch, selected cuts show 44px edge targets only when the drawn region is at least 44px wide and the lane fits both targets; otherwise choose **Edit timing** in the selected action card to focus Source start in the inspector. In compact mode, the peek strip's Start and End rows hold timing. The review card docks in the pinned header, and **Expand**, **Collapse**, and **Close** remain available there. When the compact inspector is open, its header keeps Undo and Redo visible at peek, half and full height, and the strip covers the tool rail so the lanes keep their room. The Impact panel lists every pending edit for selection. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
 
+On a short screen with enlarged text, scroll the expanded inspector to reach
+its fields. The compact header keeps its close spacing at every height, and
+Tab reveals the field and its label below the pinned actions when they fit.
+
 The selection sheet groups actions in this order:
 
 1. **Details** — the inspector for what you selected

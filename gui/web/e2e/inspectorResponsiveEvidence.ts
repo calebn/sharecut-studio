@@ -362,6 +362,7 @@ export async function nativeTabTo(
   page: Page,
   target: Locator,
   receipts: InteractionReceipt[],
+  tabKey: "Tab" | "Alt+Tab" = "Tab",
 ) {
   for (let step = 0; step < 150; step++) {
     if (
@@ -370,7 +371,7 @@ export async function nativeTabTo(
       await visibleFocus(target, receipts, "native-tab-visible-target");
       return;
     }
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(tabKey);
   }
   throw new Error("Native Tab traversal did not reach target");
 }

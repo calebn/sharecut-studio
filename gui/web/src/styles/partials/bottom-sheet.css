@@ -243,6 +243,7 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 
 .bottom-sheet--compact .bottom-sheet-header {
   position: relative;
+  padding-block: var(--space-1);
 }
 
 .bottom-sheet--compact .bottom-sheet-header-actions {
