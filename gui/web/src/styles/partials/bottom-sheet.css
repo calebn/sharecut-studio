@@ -321,10 +321,6 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   padding: var(--space-3) var(--space-4);
 }
 
-.bottom-sheet--compact:has(.compact-feedback-slot .ui-toast) {
-  height: auto;
-}
-
 .bottom-sheet--compact,
 .bottom-sheet--compact:has(.modifier-inspector) {
   overflow: hidden;
@@ -344,4 +340,8 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   min-height: auto;
   height: auto;
   overflow: visible;
+}
+
+.bottom-sheet--compact :focus-visible:not(.sr-only) {
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }

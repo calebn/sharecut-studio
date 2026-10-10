@@ -243,7 +243,7 @@ Compact shell composition registers an optional DOM host through `DawApp`.
 `BottomSheet` renders the supplied flow slot first inside its body. Compact
 sheets keep chrome outside that one scroller and remove nested inspector
 scrolling. Feedback presentation observes actual card intersection with the
-viewport and clipping ancestors. `Toast` owns the remaining visible lifetime
+viewport and clipping ancestors in both compact and floating hosts. `Toast` owns the remaining visible lifetime
 and pauses it while clipped. A stable portal container moves the single card
 between floating and compact flow presentations without remounting its timer
 or guarded Undo. Store announcements and command authority

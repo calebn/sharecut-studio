@@ -219,7 +219,7 @@ the empty state, not a separate discovery task.
   centred at the bottom above the status bar on desktop and tablet. On a
   phone it docks above bottom chrome. A visible compact inspector instead
   supplies a host first inside the same body scroller as its fields, below
-  the pinned header. Dismiss restores ordinary inspector sizing. A focused
+  the pinned header. Feedback preserves selected half and full heights. A focused
   field or just-pressed control keeps its place when feedback arrives. When
   feedback and a full native label cannot fit together, ordinary body scrolling
   exposes either. The same card pauses expiry while clipped and retains its

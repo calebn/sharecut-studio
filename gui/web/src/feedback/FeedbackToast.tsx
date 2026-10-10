@@ -57,7 +57,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   );
   useLayoutEffect(() => {
     const card = regionRef.current?.querySelector(".ui-toast");
-    if (!host || !card) {
+    if (!card) {
       setVisibility("visible");
       return;
     }

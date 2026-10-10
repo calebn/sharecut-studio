@@ -144,11 +144,16 @@ describe("FeedbackToast", () => {
     vi.stubGlobal(
       "IntersectionObserver",
       class {
+        callback: (
+          entries: { isIntersecting: boolean; intersectionRatio: number }[],
+        ) => void;
         constructor(
-          private callback: (
+          callback: (
             entries: { isIntersecting: boolean; intersectionRatio: number }[],
           ) => void,
-        ) {}
+        ) {
+          this.callback = callback;
+        }
         observe() {
           this.callback([{ isIntersecting: true, intersectionRatio: 0.5 }]);
         }
@@ -166,10 +171,14 @@ describe("FeedbackToast", () => {
     const card = screen
       .getByText("Removed long workshop recording")
       .closest(".ui-toast");
-    act(() => vi.advanceTimersByTime(12000));
+    act(() => {
+      vi.advanceTimersByTime(12000);
+    });
     host.remove();
     rerender(<FeedbackToast />);
-    act(() => vi.advanceTimersByTime(12000));
+    act(() => {
+      vi.advanceTimersByTime(12000);
+    });
     expect(
       screen.getByText("Removed long workshop recording").closest(".ui-toast"),
     ).toBe(card);

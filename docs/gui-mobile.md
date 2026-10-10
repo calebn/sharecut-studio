@@ -292,7 +292,7 @@ and actions. Field focus reveals the complete fitting native label and control
 through the same body scroller. Undo, Redo, resize and Close stay fully visible
 and on top before and after feedback, field focus and body scrolling.
 
-`FeedbackToast` moves one stable portal container between this row and its
+`FeedbackToast` moves one stable portal container between this body and its
 ordinary floating host. The same `Toast` card keeps its eight-second timer,
 focus and hover pause, disabled-Undo pause, Dismiss and history freshness.
 A presentation-boundary intersection observer pauses expiry whenever the card
@@ -305,6 +305,16 @@ Other workflows retain the existing floating dock. On phones
 `feedback/toastDock.ts` measures bottom chrome and the latest pressed control;
 its full-sheet fallback can cover scrolling content in those other workflows.
 Desktop and ordinary tablet feedback stays above the status bar.
+
+Compact half and full detents keep the same outer height when feedback appears.
+The shared body scroller exposes feedback without taking more timeline room.
+At enlarged text in short slots, the existing minimum chrome height can leave
+no ruler or lane room. Feedback does not change that baseline. Native focus
+outlines inside compact controls use an inset offset, so fitting controls and
+labels retain their painted indicator at the body clip edge. The detent range
+continues to show focus on its visible grabber. Floating feedback also pauses
+its clock when the whole card is outside the viewport or clipped.
+
 
 Regression checks assert header reachability before any recovery scroll at
 every compact detent. They measure feedback and all active controls and native
