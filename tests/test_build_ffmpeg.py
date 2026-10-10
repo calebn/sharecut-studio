@@ -235,6 +235,74 @@ def test_windows_builder_requests_and_stages_executable_targets(tmp_path, monkey
         ).read_bytes()
 
 
+def test_windows_media_proof_uses_canonical_systemroot_for_every_child(tmp_path, monkeypatch):
+    builder = load_script("build_ffmpeg")
+    monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
+    system_root = tmp_path / "Windows"
+    original_environment = {
+        "PATH": "C:\\toolchain\\bin;C:\\Windows\\System32",
+        "SYSTEMROOT": str(system_root),
+        "DYLD_LIBRARY_PATH": "toolchain-dylib",
+        "DYLD_FALLBACK_LIBRARY_PATH": "toolchain-fallback",
+        "LD_LIBRARY_PATH": "toolchain-ld",
+    }
+    monkeypatch.setattr(builder.os, "environ", original_environment)
+    child_environments = []
+
+    def run(argv, *, env=None, **_kwargs):
+        child_environments.append(env)
+        if argv[0].endswith("ffprobe.exe"):
+            codec = Path(argv[-1]).stem
+            codec = {"libmp3lame": "mp3", "libopus": "opus"}.get(codec, codec)
+            return f'{{"streams":[{{"codec_name":"{codec}","sample_rate":"48000"}}]}}'
+        if "-af" in argv:
+            return (
+                "True peak: -1 dBTP"
+                if argv[argv.index("-af") + 1].startswith("ebur128")
+                else '{"input_tp":"-1.0"}'
+            )
+        if "-frames:v" in argv:
+            Path(argv[-1]).write_bytes(b"\x89PNG\r\n\x1a\nproof")
+        elif "-ar" in argv:
+            Path(argv[-1]).write_bytes(b"f" * (44100 * 4))
+        elif "-f" in argv and argv[argv.index("-f") + 1] == "f32le":
+            Path(argv[-1]).write_bytes(b"f" * (48000 * 4))
+        elif argv[-1] != "-":
+            Path(argv[-1]).write_bytes(b"encoded audio")
+        return ""
+
+    monkeypatch.setattr(builder, "_run", run)
+    result = builder.media_proof(tmp_path / "payload")
+
+    assert result == {
+        "codecs": ["pcm_s16le", "pcm_f32le", "flac", "aac", "libmp3lame", "libopus"],
+        "resampling": "48000 to 44100",
+        "filters": ["ebur128", "loudnorm", "showwavespic"],
+    }
+    assert len(child_environments) == 22
+    assert all(
+        environment["PATH"] == str(system_root / "System32")
+        and environment["SYSTEMROOT"] == str(system_root)
+        and "toolchain" not in environment["PATH"]
+        and all(
+            key not in environment
+            for key in (
+                "DYLD_LIBRARY_PATH",
+                "DYLD_FALLBACK_LIBRARY_PATH",
+                "LD_LIBRARY_PATH",
+            )
+        )
+        for environment in child_environments
+    )
+    assert original_environment == {
+        "PATH": "C:\\toolchain\\bin;C:\\Windows\\System32",
+        "SYSTEMROOT": str(system_root),
+        "DYLD_LIBRARY_PATH": "toolchain-dylib",
+        "DYLD_FALLBACK_LIBRARY_PATH": "toolchain-fallback",
+        "LD_LIBRARY_PATH": "toolchain-ld",
+    }
+
+
 def test_windows_linkage_accepts_native_recipe_sdk_imports(tmp_path, monkeypatch, capsys):
     builder = load_script("build_ffmpeg")
     monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
