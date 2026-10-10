@@ -780,7 +780,9 @@ chooser lab until the owner made it the default (2026-10-07).
   "At the playhead" caption. The boundaries come from `softBoundaries`, the
   query held nudges use; a boundary the drag starts on does not catch it.
 - **Drawer.** The compact inspector swipes between peek (the strip), half
-  and full; Expand and Collapse step between them, and the visually hidden
+  and full. Its covered editing rail stays inert while the drawer is visible;
+  closing or stowing restores the rail without changing its layout height.
+  Expand and Collapse step between detents, and the visually hidden
   "Inspector height" range does it for keys and screen readers. The owner's
   round-5 phone test found the swipe followed the finger but lagged: each
   move set a React state height, so the inspector re-rendered and laid out

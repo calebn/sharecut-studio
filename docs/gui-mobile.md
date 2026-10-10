@@ -180,6 +180,10 @@ press goes past it. A trim's strip wears the **Ripple** mark: later clips on
 every dialogue track move with it, and a held nudge previews them all. A
 ripple trim drag draws the same on every lane it moves: arrows to where the
 later clips go and, on the other lanes, the span a shortening trim takes.
+While a compact inspector is visible, the covered editing rail is inert and
+keeps its layout height. Native keyboard navigation uses the visible inspector
+header controls. Closing or stowing the inspector restores rail interaction.
+
 The compact inspector is a swipeable drawer (#1051 round 4b): drag its header,
 which shows a grabber pill, up or down between **peek** (the strip), **half**
 (the full inspector at no more than half the slot) and **full**. The sheet

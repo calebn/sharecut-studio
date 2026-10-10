@@ -21,6 +21,16 @@ const execute = vi.hoisted(() => vi.fn());
 vi.mock("../commands/execute", () => ({ execute }));
 
 describe("EditingToolRail", () => {
+  it("keeps the covered rail inert and restores it without removing tools", () => {
+    const { container, rerender } = render(<EditingToolRail inert />);
+    const rail = container.querySelector(".editing-tool-rail");
+    expect(rail).toHaveAttribute("inert");
+    expect(rail).toHaveTextContent("Select range");
+    rerender(<EditingToolRail inert={false} />);
+    expect(rail).not.toHaveAttribute("inert");
+    expect(rail).toHaveTextContent("Select range");
+  });
+
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     Object.assign(bladeCutState, {

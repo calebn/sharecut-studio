@@ -236,6 +236,9 @@ async function sheetState(page: Page) {
     const panel = document.querySelector(".bottom-sheet");
     return {
       open: panel != null,
+      railInert:
+        document.querySelector(".editing-tool-rail")?.hasAttribute("inert") ??
+        false,
       size:
         [...(panel?.classList ?? [])]
           .find((c) => /^bottom-sheet--(peek|half|full)$/.test(c))
@@ -645,6 +648,9 @@ async function dragStowsStrip(
     trimStartSec: await trimStartSec(page),
   };
   json(info, `stow-${size}-${browserName}`, row);
+  expect(row.opened.railInert).toBe(true);
+  expect(row.midChipDrag.railInert).toBe(false);
+  expect(row.released.railInert).toBe(true);
   expect(row.midChipDrag.stowed).toBe(true);
   expect(row.released).toMatchObject({ stowed: false, title: "Trim start" });
   expect(row.released.value).not.toBe(row.opened.value);

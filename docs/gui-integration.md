@@ -328,6 +328,10 @@ records the verified phone examples and outstanding composition work.
 
 Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain components but not the same chrome. Phone uses Listen / Timeline / Text / More modes and one Inspector or Mix sheet. More → Mix shows all tracks in project order with saved Volume and capability-dependent M; S stays local. Opening Mix exits inspection, and navigation or new selection invalidates it. Close, Escape, and its scrim return to More. The timeline rail remains identity-only at phone width. Touch long-press selects clips, words, comments, and tracks; swipe left resolves an eligible host comment; double-tap a word opens correction. Full map, wireframes, and desktop back-apply: [gui-mobile.md](gui-mobile.md).
 
+While a compact inspector is visible, the covered editing rail is inert and
+keeps its layout height. Native keyboard navigation uses the visible inspector
+header controls. Closing or stowing the inspector restores rail interaction.
+
 On a touch screen the phone and tablet shells are `position: fixed` and pad themselves with `env(safe-area-inset-*)` (`index.html` sets `viewport-fit=cover`). The page under them never scrolls. iPhone Safari gives a page no way to hide its bars, so the Home Screen app (`display-mode: standalone`, from `public/assets/app/manifest.webmanifest`) is the phone's full-screen path; a Safari tab shows a dismissible Add to Home Screen banner once per browser. A phone held sideways (at most 40rem tall) gets 72px touch lanes and no empty marker row, and the tool rail carries **Undo** and **Redo** on both touch shells. A selected compact inspector repeats the same controls in its pinned header at every detent and covers the rail, above the nav or status row. Detail: [gui-mobile.md § Browser chrome](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
 Compact headers retain the strip's vertical spacing at half and full height,
