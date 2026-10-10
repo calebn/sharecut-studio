@@ -272,10 +272,13 @@ and tools use `--color-transport-chip` with full-strength text. Transport status
 pills use their own light-on-dark warning and success inks.
 
 Use `--color-accent-fg` for small accent text, including links and status labels;
-`--color-accent` remains available for non-text decoration and focus rings. Studio
-components use semantic `--color-*` roles directly. `tokens.css` keeps Studio
-scale, layout, motion, and composite paint tokens; it does not define short color
-aliases. Shared
+`--color-accent` remains the default non-text decoration and focus-ring color.
+Bottom sheets inset focus outlines inside their border boxes. In a sheet, primary
+controls use `--color-accent-on-solid` for the inset outline so it stays visible
+against the solid accent fill; this applies to both `.primary` and
+`[data-variant="primary"]` controls. Studio components use semantic `--color-*`
+roles directly. `tokens.css` keeps Studio scale, layout, motion, and composite
+paint tokens; it does not define short color aliases. Shared
 empty-state chrome lives in `.ui-empty-state`. The live playhead position comes
 from the transport animation frame and changes immediately for seeks; CSS
 motion applies to controls and panels, not that time coordinate.

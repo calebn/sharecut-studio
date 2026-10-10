@@ -114,7 +114,7 @@ Sharecut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/we
 |-------|-------------------|-----|
 | Rest | Always | Fill + border that already reads as a control (WCAG **1.4.11** non-text contrast ≥ **3:1** vs adjacent) |
 | Hover | Fine pointer only | A faint ink wash (`--color-hover`) plus full-strength text / a stronger border. `@media (hover: hover) and (pointer: fine)` so touch does not stick hover. **Never** the only cue that something is clickable, and never the selected chip, so a hovered control does not look selected |
-| Focus-visible | Keyboard (and programmatic) focus | **2.4.7** Focus Visible. 2px `outline` in `--color-accent`, offset 2px. Use `:focus-visible`, not `:focus` |
+| Focus-visible | Keyboard (and programmatic) focus | **2.4.7** Focus Visible. By default, a 2px `outline` in `--color-accent`, offset 2px. Bottom sheets inset the outline inside the control; primary controls use `--color-accent-on-solid` for contrast against their solid fill. Use `:focus-visible`, not `:focus` |
 | Active (while down) | Pointer down / Space on a button | Brief darker/stronger press. Works on touch |
 | Pressed / selected / current | Sticky mode (Focus, Follow, Annotate, tab, Full mix/Edited stems/Original, Select/Blade, M/S) | Visible without hover: the neutral selected chip (`--color-chip-selected`) with a secondary-ink border for default toggles and grouped segments; standalone quiet toggles and tabs use full-strength text and a neutral underline; checked menu radios add a check mark. Never the accent, except the phone tab bar's current tab (accent top indicator, the iOS/Android convention for current location). Use `aria-pressed` / `aria-checked` / `aria-current` / `aria-expanded`, not color alone |
 | Disabled | Cannot run | `cursor: not-allowed`; reduced opacity is an allowed WCAG exception. Prefer remaining enabled and explaining *why* when the user might try |
@@ -130,9 +130,11 @@ Accent identifies actions and focus; small links use the darker `--color-accent-
 
 Prefer layout that wraps from leftover space (`flex-wrap` + `gap` + `flex-basis`) over width breakpoints. Named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`) when leftover-space wrap is not enough; any fluid type still includes a rem term. Do not use viewport-size `@media` (`min/max-width/height`) for chrome density — shell phone/tablet/desktop stays JS `useViewportClass`. Capability media (`hover`, `pointer`, `prefers-*`) may stay `@media`.
 
-Compact inspector controls draw their focus outlines inside their border boxes.
-The native detent range draws its indicator on the visible grabber. Feedback
-uses the same bounded body as fields and preserves selected half and full heights.
+Bottom-sheet controls draw their focus outlines inside their border boxes;
+primary controls use `--color-accent-on-solid` so the inset outline remains
+visible against the solid fill. The compact inspector's native detent range
+draws its indicator on the visible grabber. Feedback uses the same bounded body
+as fields and preserves selected half and full heights.
 
 
 ## Images
