@@ -9,6 +9,7 @@ import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
 import { setTheme } from "../e2e/theme";
+import { json } from "../e2e/touchTimeline";
 
 for (const width of [667, 844]) {
   for (const theme of ["light", "dark"] as const) {
@@ -131,6 +132,14 @@ for (const width of [667, 844]) {
                   if (!measured.full) clipped.push(`${id}-label-or-control`);
               }
             }
+            json(info, "painted-focus-geometry", {
+              width,
+              height: 360,
+              rootPx: 32,
+              theme,
+              browserName,
+              receipts,
+            });
             expect([...seen].sort()).toEqual(expected.sort());
             expect(clipped).toEqual([]);
           },
