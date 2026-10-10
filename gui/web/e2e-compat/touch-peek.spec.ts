@@ -236,6 +236,8 @@ async function sheetState(page: Page) {
     const panel = document.querySelector(".bottom-sheet");
     return {
       open: panel != null,
+      sheetInert:
+        panel?.closest(".bottom-sheet-root")?.hasAttribute("inert") ?? false,
       railInert:
         document.querySelector(".editing-tool-rail")?.hasAttribute("inert") ??
         false,
@@ -614,11 +616,65 @@ async function dragStowsStrip(
   await page.waitForTimeout(350);
   const mid = await sheetState(page);
   await frame(page, info, `stow-${size}-2-mid-drag-${browserName}`);
+  const focusSteps = [];
+  for (let step = 0; step < 80; step++) {
+    await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
+    const focused = await page.evaluate(() => {
+      const element = document.activeElement;
+      return {
+        sheet: !!element?.closest(".bottom-sheet-root"),
+        tag: element?.tagName,
+        label: element?.getAttribute("aria-label"),
+        rect: element?.getBoundingClientRect().toJSON(),
+      };
+    });
+    focusSteps.push(focused);
+    if (focused.sheet) {
+      json(info, `stowed-focus-${size}-${browserName}`, focusSteps);
+    }
+    expect(focused.sheet, JSON.stringify(focused)).toBe(false);
+  }
+  json(info, `stowed-focus-${size}-${browserName}`, focusSteps);
   await finger.up();
   await cutAnyway(page, finger);
   await page.waitForTimeout(900);
   const released = await sheetState(page);
   await frame(page, info, `stow-${size}-3-released-${browserName}`);
+  let restoredHeader = null;
+  for (let step = 0; step < 80; step++) {
+    await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
+    restoredHeader = await page.evaluate(() => {
+      const element = document.activeElement;
+      if (
+        !(element instanceof HTMLButtonElement) ||
+        !element.closest(".bottom-sheet-header")
+      )
+        return null;
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+      );
+      return {
+        label: element.getAttribute("aria-label"),
+        rect: rect.toJSON(),
+        owns: hit === element || element.contains(hit),
+        full:
+          rect.top >= 0 &&
+          rect.bottom <= innerHeight &&
+          rect.left >= 0 &&
+          rect.right <= innerWidth,
+        inert: !!element.closest("[inert]"),
+      };
+    });
+    if (restoredHeader) break;
+  }
+  json(info, `restored-focus-${size}-${browserName}`, restoredHeader);
+  expect(restoredHeader).toMatchObject({
+    owns: true,
+    full: true,
+    inert: false,
+  });
 
   // The selected trim's own handle under one moving finger: the grammar
   // scrolls, so nothing stows and nothing is edited (#1051 round 4b).
@@ -648,6 +704,9 @@ async function dragStowsStrip(
     trimStartSec: await trimStartSec(page),
   };
   json(info, `stow-${size}-${browserName}`, row);
+  expect(row.opened.sheetInert).toBe(false);
+  expect(row.midChipDrag.sheetInert).toBe(true);
+  expect(row.released.sheetInert).toBe(false);
   expect(row.opened.railInert).toBe(true);
   expect(row.midChipDrag.railInert).toBe(false);
   expect(row.released.railInert).toBe(true);

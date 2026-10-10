@@ -15,6 +15,36 @@ import { stubResizeObserver } from "../test/resizeObserver";
 import { BottomSheet } from "./BottomSheet";
 
 describe("BottomSheet", () => {
+  it("makes stowed controls inert and restores them when the sheet returns", () => {
+    const props = {
+      open: true,
+      onClose: vi.fn(),
+      title: "Inspector",
+      backgroundPolicy: "interactive" as const,
+    };
+    const { rerender } = render(
+      <BottomSheet {...props} stowed>
+        <button type="button">Undo</button>
+      </BottomSheet>,
+    );
+    const root = document.querySelector(".bottom-sheet-root");
+    expect(root).toHaveAttribute("inert");
+    expect(root).toHaveTextContent("Undo");
+    rerender(
+      <BottomSheet {...props} stowed={false}>
+        <button type="button">Undo</button>
+      </BottomSheet>,
+    );
+    expect(root).not.toHaveAttribute("inert");
+    expect(root).toHaveTextContent("Undo");
+    rerender(
+      <BottomSheet {...props}>
+        <button type="button">Undo</button>
+      </BottomSheet>,
+    );
+    expect(root).not.toHaveAttribute("inert");
+  });
+
   it("renders compact header actions beside its resize and close controls", async () => {
     render(
       <BottomSheet

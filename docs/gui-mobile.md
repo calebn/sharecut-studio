@@ -183,6 +183,8 @@ later clips go and, on the other lanes, the span a shortening trim takes.
 While a compact inspector is visible, the covered editing rail is inert and
 keeps its layout height. Native keyboard navigation uses the visible inspector
 header controls. Closing or stowing the inspector restores rail interaction.
+The stowed sheet is inert too; when it returns, its controls rejoin native
+keyboard navigation.
 
 The compact inspector is a swipeable drawer (#1051 round 4b): drag its header,
 which shows a grabber pill, up or down between **peek** (the strip), **half**

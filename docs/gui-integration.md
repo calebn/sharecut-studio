@@ -331,6 +331,8 @@ Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain compon
 While a compact inspector is visible, the covered editing rail is inert and
 keeps its layout height. Native keyboard navigation uses the visible inspector
 header controls. Closing or stowing the inspector restores rail interaction.
+The stowed sheet is inert too; when it returns, its controls rejoin native
+keyboard navigation.
 
 On a touch screen the phone and tablet shells are `position: fixed` and pad themselves with `env(safe-area-inset-*)` (`index.html` sets `viewport-fit=cover`). The page under them never scrolls. iPhone Safari gives a page no way to hide its bars, so the Home Screen app (`display-mode: standalone`, from `public/assets/app/manifest.webmanifest`) is the phone's full-screen path; a Safari tab shows a dismissible Add to Home Screen banner once per browser. A phone held sideways (at most 40rem tall) gets 72px touch lanes and no empty marker row, and the tool rail carries **Undo** and **Redo** on both touch shells. A selected compact inspector repeats the same controls in its pinned header at every detent and covers the rail, above the nav or status row. Detail: [gui-mobile.md § Browser chrome](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
