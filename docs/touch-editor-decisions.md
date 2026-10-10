@@ -552,9 +552,10 @@ held sideways). Taller tablets and desktop keep their inspector.
   at a 32 px root font), so half never takes less than 9rem of its slot (the
   header's 4.3rem plus a few lines of the inspector) or all of a slot that
   small; half and full then share a height and Expand, Collapse and Close stay
-  on screen. The drawer's scroll padding equals its pinned header, so Tab
-  focus lands below it; WebKit does not scroll a partly covered field into
-  view, so the sheet also scrolls it clear on focus (`revealBelowChrome`).
+  on screen. The drawer has one bounded body scroller. Native focus reveal
+  brings the active field and its complete label below the pinned header when
+  the label fits; the sheet scrolls within its own content instead of measuring
+  a dynamic scroll-padding value (`focusAndReveal`, `revealBelowChrome`).
 - **No dim at the strip.** The strip leaves the timeline undimmed (a clear,
   touch-transparent scrim, `bottom-sheet-scrim--clear`), since its job is to
   show the selection instead of covering the timeline. Half and full dim it

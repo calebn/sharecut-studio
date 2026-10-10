@@ -281,16 +281,16 @@ clicked, since Safari does not focus a clicked button).
 The app toast (`feedback/FeedbackToast`) has one message, optional guarded Undo,
 and explicit Dismiss. Compact composition puts its host first inside the same
 scrolling body as the fields. The pinned header stays outside that scroller.
-The sheet can grow to its available slot while feedback exists. Dismiss restores
-ordinary detent sizing and lane room.
+The compact half and full detents keep the same outer height with or without
+feedback. Dismiss removes the card without changing the detent height or lane
+room.
 
 Feedback and a full native label can exceed the available body height at large
-text sizes. They remain in ordinary scroll order rather than sharing a reserved
-row. A saved edit preserves the focused or just-pressed control. Browser scroll
-anchoring can leave the new card clipped, so the user scrolls back to its message
-and actions. Field focus reveals the complete fitting native label and control
-through the same body scroller. Undo, Redo, resize and Close stay fully visible
-and on top before and after feedback, field focus and body scrolling.
+text sizes, so ordinary body scrolling reveals them in turn rather than sharing
+a reserved row. Field focus reveals the control and its complete label below the
+pinned header when the label fits in the bounded body. A saved edit preserves
+the focused or just-pressed control. Undo, Redo, resize and Close stay fully
+visible and on top before and after feedback, field focus and body scrolling.
 
 `FeedbackToast` moves one stable portal container between this body and its
 ordinary floating host. The same `Toast` card keeps its eight-second timer,
