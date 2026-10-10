@@ -184,31 +184,24 @@ The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, 
 
 ### CI dependency downloads
 
-The `pytest` and browser matrix jobs build the pinned native FFmpeg source
-recipe through `.github/actions/setup-ffmpeg`. Each independent workflow first
-calls the shared source-only producer, which downloads official pinned archives
-without extraction or compilation. A one-day same-run artifact transports the
-original archives to every native consumer. The action requires that artifact
-and has no source-cache or network fallback. Consumers rehash the complete set
-before payload reuse and verify the owned copies before any extraction. Failed
-or partial producer downloads never publish final cache entries. Release source
-production follows the exact repository/SHA trust gate, and failed acquisition
-blocks both extension preparation and bundling. A skipped optional extension job
-still permits an ordinary bundle after successful source production.
-The builder checks system-only linkage, and executes codec, resampling,
-loudness and PNG probes before exporting the absolute pair paths. Codec probes
-include actual libopus encode/decode. The acceptance verifier also runs
-multichannel bleed behavior across PCM and lossy AAC/Opus. A damaged
-archive fails closed. No downloaded binary cache is trusted through its manifest.
-Native desktop jobs execute the same recipe on Ubuntu 22.04 x64, Intel macOS,
-and Windows x64 with MinGW/MSYS2. A separate Ubuntu 24 job executes the Linux
-payload built on 22.04. Local arm64 proof does not replace these target jobs.
-On Windows, `media_proof` copies `os.environ` before configuring the
-environment passed to its media checks. Python normalizes Windows environment keys to uppercase, so the
-copied plain dictionary reads the system root through `SYSTEMROOT` and limits
-child `PATH` to its `System32` directory. The focused builder test models that
-uppercase-only mapping and checks every child environment; only the Windows CI
-job proves this behavior with the native process environment.
+The `pytest` and browser matrix jobs acquire the catalog-pinned prebuilt pair
+through `.github/actions/setup-ffmpeg`. Sidecar builds use the same importer.
+Ordinary consumer workflows have no source producer or compiler setup. The
+production target catalog pins each hosted archive and original producer manifest.
+
+Tests cover digest failure before archive opening or execution, unsafe members,
+closed inventories, wrong targets, mixed pairs, source-pin and configure-input
+mismatches, repair, failed publication and signed-byte identity. The canonical
+native proof checks executable architecture, system-only linkage, exact 9.0.2,
+codec encode/decode, resampling, loudness filters and PNG waveform rendering.
+Windows import inspection reads PE headers with the standard library and media
+children use only `SYSTEMROOT`'s `System32` directory on PATH.
+
+Native desktop jobs execute the acquired pair on Ubuntu 22.04 x64, Intel macOS
+and Windows x64. A separate Ubuntu 24.04 job executes the identical transferred
+Linux payload. Native ARM local checks remain necessary and do not replace those
+jobs. Load-command minimum-OS checks are separate evidence from execution on the
+oldest supported OS. Source compilation is dependency production only.
 
 Python jobs cache pip downloads with `actions/setup-python`. Both `pyproject.toml`
 and `uv.lock` invalidate that cache. The editable pip install commands still run
@@ -218,7 +211,7 @@ Node packages are not cached by this change. Playwright still installs Chromium
 and WebKit with `--with-deps` for both existing suites.
 
 Run the archive boundary and workflow checks with
-`.venv/bin/python -m pytest -q --no-cov tests/test_build_ffmpeg.py tests/test_build_sidecar.py tests/test_ci_dependency_cache.py tests/test_release_desktop_workflows.py tests/test_browser_acceptance_matrix.py`.
+`.venv/bin/python -m pytest -q --no-cov tests/test_ffmpeg_payload.py tests/test_build_ffmpeg.py tests/test_build_sidecar.py tests/test_ci_dependency_cache.py tests/test_release_desktop_workflows.py tests/test_browser_acceptance_matrix.py`.
 
 ### FFmpeg release acceptance
 
@@ -1567,7 +1560,7 @@ Windows desktop binary. The Windows job logs
 so reviewers can check for duplicate `windows` and `windows-result` versions.
 The Windows job compiles WebView2-only adapters that macOS
 and Linux cannot typecheck; installer creation remains in the reusable release
-workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` with Python 3.11 and 3.12 so the Windows fallback of pinned media reads is tested on NTFS at the `requires-python` floor and the sidecar's version, not only simulated. A `project-commit-lock-windows` job runs `tests/test_project_commit_lock.py`, `tests/test_history.py`, and `tests/test_review_versions.py` on `windows-latest` with Python 3.12 (building the shared pinned FFmpeg source recipe first, since `tests/conftest.py::sample_wav` skips without it) so the cross-process commit lock and every review-publication test that does not stage media runs on real Windows; `requires_safe_cleanup` / `requires_safe_failed_cleanup` (`tests/review_platform.py`) skip the staging/quarantine paths that publication does not support there (see `docs/persistence.md`'s Inventory row for review publication).
+workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` with Python 3.11 and 3.12 so the Windows fallback of pinned media reads is tested on NTFS at the `requires-python` floor and the sidecar's version, not only simulated. A `project-commit-lock-windows` job runs `tests/test_project_commit_lock.py`, `tests/test_history.py`, and `tests/test_review_versions.py` on `windows-latest` with Python 3.12 (acquiring the catalog-pinned prebuilt FFmpeg pair first, since `tests/conftest.py::sample_wav` skips without it) so the cross-process commit lock and every review-publication test that does not stage media runs on real Windows; `requires_safe_cleanup` / `requires_safe_failed_cleanup` (`tests/review_platform.py`) skip the staging/quarantine paths that publication does not support there (see `docs/persistence.md`'s Inventory row for review publication).
 
 Local mirrors:
 

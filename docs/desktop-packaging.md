@@ -165,32 +165,27 @@ That builds [`gui/desktop/Dockerfile.linux-appimage`](../gui/desktop/Dockerfile.
 
 If `docker pull ubuntu:22.04` hangs, the wrapper imports Ubuntu’s published jammy rootfs via curl and builds `FROM` that local tag.
 
-Apple Silicon Docker produces an **aarch64** AppImage (native). Testers download **amd64** from GHA; only click **Run workflow** after this Docker recipe succeeds. The Ubuntu job calls the same `build_linux_appimage.sh`.
+The Docker wrapper selects `linux/amd64` for image import, build and run. Apple Silicon uses Docker emulation to match the Linux x64 release dependency. Image, cache and volume names include `amd64`, so existing ARM resources are not reused or removed. Explicit base images and cached AppImage images must report `amd64`. Stubbed command tests cover argument selection; real local Docker build and runtime validation remain pending. The Linux x64 CI release path calls the same `build_linux_appimage.sh`.
 
 
-CI delivers original source archives through the shared source-only producer
-before native FFmpeg builds. Release production uses the exact repository and
-SHA emitted by `verify-source`. Its only optional secret is the read-only
-checkout deploy key. Both release matrices require successful source production;
-the bundle still allows the extension preparation job to be skipped when no
-extension is requested. Every native target compiles and executes its own
-payload from independently rehashed archives.
+CI acquires a catalog-pinned prebuilt payload through the same importer as the
+sidecar. Release preparation still follows the exact repository and SHA emitted
+by `verify-source`. Unsigned extension preparation acquires and freezes its
+payload before the signing job consumes the prepared runtime. The optional
+extension job may be skipped for an ordinary bundle.
 
-The FFmpeg action exports `PODCAST_FFMPEG_SOURCE_ARCHIVES` as build configuration
-for sidecar fresh freezes, `--ensure` reuse and payload repairs in the same job.
-These paths pass `--source-archives` to the builder, so missing or corrupt
-archives fail even when a prior payload exists. Local contributor freezes
-continue to use `PODCAST_FFMPEG_SOURCE_CACHE` or the adjacent `ffmpeg-sources`
-download cache when no supplied directory is configured. No source artifact
-path is stored in the packaged launchers or runtime selection. Original source
-archives and rebuild materials remain inside the published native resource.
-See [Build FFmpeg from source](setup.md#build-ffmpeg-from-source) for both modes.
+Offline builds may supply `PODCAST_FFMPEG_ARCHIVE` and
+`PODCAST_FFMPEG_CATALOG` to the importer. Explicit archive damage fails before
+installed payload reuse, with no download or compilation fallback. These build
+inputs are absent from packaged launchers and runtime selection. Sources,
+notices and rebuild materials remain inside the payload. See
+[Acquire the pinned FFmpeg pair](setup.md#acquire-the-pinned-ffmpeg-pair).
 
 ## Frozen sidecar
 
 Testers do not have `podcast` on PATH. [`scripts/build_sidecar.py`](../scripts/build_sidecar.py) freezes **on each OS** (native `faster-whisper` / CTranslate2 wheels):
 
-- Standalone CPython (`uv python install 3.12`) + venv with `--extra gui` (no torch / joinqc). The pinned FFmpeg resource is built before completion; first run never downloads FFmpeg. The venv is created from `uv python find --managed-python --no-project 3.12` under `UV_PYTHON_INSTALL_DIR`, not the repo `.venv`. A Homebrew/framework interpreter plus uv `PYTHONHOME` fails with `ModuleNotFoundError: math` (uv standalone keeps `math` builtin; Homebrew expects `lib-dynload/math*.so`). Freeze then imports `math`, `datetime`, `encodings`, and `uvicorn` before writing `.freeze-complete`.
+- Standalone CPython (`uv python install 3.12`) + venv with `--extra gui` (no torch / joinqc). The pinned prebuilt FFmpeg resource is admitted before completion; first run never downloads FFmpeg. The venv is created from `uv python find --managed-python --no-project 3.12` under `UV_PYTHON_INSTALL_DIR`, not the repo `.venv`. A Homebrew/framework interpreter plus uv `PYTHONHOME` fails with `ModuleNotFoundError: math` (uv standalone keeps `math` builtin; Homebrew expects `lib-dynload/math*.so`). Freeze then imports `math`, `datetime`, `encodings`, and `uvicorn` before writing `.freeze-complete`.
 - Copied `gui/web/dist` as `sharecut-runtime/web-dist`. The freeze and
   `--ensure` reuse paths reject assets containing recording E2E hooks; build
   ordinary web assets after running `make test-web-e2e` before packaging.
@@ -530,24 +525,33 @@ Universal Links, if used, are managed by the distributor's web deployment.
 ### Bundled native audio tools
 
 The sidecar contains `sharecut-runtime/ffmpeg/bin/ffmpeg` and `ffprobe`, with
-`.exe` suffixes on Windows. `scripts/build_ffmpeg.py` consumes the shared
-`contracts/ffmpeg-build.json` recipe on each native release runner. Fresh freeze
-and `--ensure` both verify the complete pair before `.freeze-complete` is written.
-Failure clears that marker. Replacement stages one complete payload in a unique
-owned directory before publication. Normal app startup does not compile or fetch.
+`.exe` suffixes on Windows. Fresh freeze, `--ensure`, repair and CI use the
+same `scripts/ffmpeg_payload.py` importer and target catalog. Complete archive
+SHA256 admission happens before extraction or execution. The pinned producer
+manifest defines a closed file inventory. Pair, source, notices and rebuild
+materials must match it. Failure clears `.freeze-complete`. A replacement stages
+one complete payload before publication. Normal app startup does not fetch.
 
-The payload contains source archives, upstream notices, a runnable rebuild tree,
-configure logs, concrete compiler and OS provenance, and SHA256 digests. Static
-LGPL sources and rebuild materials accompany the binaries. These are source
-and recipe pins, with no signature-verification or byte-reproducibility claim.
-macOS runtime signing refreshes integrity after executable bytes change. Existing
-release checkout trust and signing gates still govern the build.
+The production catalog in `contracts/ffmpeg-artifacts.json` pins the hosted
+archive and original producer manifest for each target. CI and desktop packaging
+use this catalog. Offline verification uses the same importer with an explicit
+catalog and archive. Sidecar tooling forwards `PODCAST_FFMPEG_CATALOG` and
+`PODCAST_FFMPEG_ARCHIVE`; invalid explicit archives fail before installed reuse.
+
+The dependency payload retains its original compiler and OS provenance, source
+archives, upstream notices, rebuild tree, configure logs and SHA256 inventory.
+`scripts/build_ffmpeg.py` remains the producer for new dependency releases.
+Ordinary consumers do not compile it. Source pins establish correspondence to
+reviewed inputs, without a signature-verification or byte-reproducibility claim.
+
+macOS signing admits the payload first and signs the pair through the importer.
+The immutable origin manifest stays unchanged. A separate signed-byte receipt
+records both executable hashes and retains the admitted archive and manifest
+identity. Verification checks those hashes and each code signature. General
+runtime signing excludes this pair. Existing checkout trust and certificate
+separation still govern release jobs.
 
 The launcher supplies `PODCAST_MCP_FFMPEG_BUNDLE` for GUI, packaged `podcast`,
 and packaged `podcast-mcp`. It preserves explicit user executable overrides.
 The resolver selects the complete exact 9.0.2 bundle ahead of ambient tools and
 fails clearly if a declared bundle is damaged. See [setup](setup.md#ffmpeg-version-and-pair-policy).
-
-The Windows action keeps setup-python CPython on the job PATH. MinGW/MSYS2
-build tools are passed only in the builder child environment, including sidecar
-re-verification and repair. They do not select the Python used for wheel installs.

@@ -2,7 +2,7 @@
 
 FOSS podcast production toolkit: multitrack projects, per-track transcription, transcript-driven tightening, FFmpeg processing, a read-only DAW viewer, and agent skills under `.agents/`.
 
-**Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv) recommended (`install.sh` falls back to `.venv` + `pip`), and a matching FFmpeg/FFprobe 9.0.2 or later 9.x pair for source use. Desktop releases bundle 9.0.2.
+**Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv) recommended (`install.sh` falls back to `.venv` + `pip`), and a matching FFmpeg/FFprobe 9.0.2 or later 9.x pair for source use. Desktop packaging selects a pinned prebuilt 9.0.2 pair. The release catalog pins the same platform archives for CI and desktop packaging.
 
 ## Quick start
 
@@ -11,7 +11,6 @@ git clone <repo-url> && cd sharecut-studio
 ./install.sh
 source .venv/bin/activate   # or: uv run podcast …
 podcast doctor
-# Audio tools for source installs: see docs/setup.md
 # Whisper defaults to large-v3-turbo (~1.6 GB, first transcribe). Smaller: ./install.sh --whisper-model small.en
 ```
 
@@ -21,7 +20,7 @@ Choose a downloaded Whisper model for one standalone transcription with `podcast
 
 `podcast transcribe` reports the number of tracks processed by that run. When there are no dialogue tracks to process, it reports `Transcribed 0 track(s).` and warns on stderr.
 
-No supported system pair? Build the pinned sources with the [shared native builder](docs/setup.md#build-ffmpeg-from-source). That builder also supports source-only acquisition and offline consumption of the complete pinned archive set. Pair selection and the tested release policy are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
+No supported system pair? Use the [prebuilt importer](docs/setup.md#acquire-the-pinned-ffmpeg-pair). Offline validation uses an explicit pinned archive through the same importer. Pair selection and the tested release policy are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
 
 Agent config is tool-agnostic under [.agents/](.agents/) (skills, rules, MCP template). Register MCP per [docs/setup.md](docs/setup.md). With `podcast gui` running on loopback, **Connect agent…** (home or Menu) copies `http://127.0.0.1:8765/mcp` for URL-only clients. Use the `podcast-setup` skill when onboarding.
 
@@ -35,7 +34,7 @@ Use this only when you need enrollment speaker ID (`speaker` / `speaker-lite`) a
 git clone <repo-url> && cd sharecut-studio
 uv sync --all-extras
 source .venv/bin/activate   # or: uv run …
-podcast bootstrap --component all    # whisper model + rnnoise (+ silero check)
+podcast bootstrap --component all
 podcast doctor
 # Optional Sharecut Studio UI (needs Node 24+):
 cd gui/web && npm ci && npm run build && cd ../..

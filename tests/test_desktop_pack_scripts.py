@@ -195,7 +195,7 @@ def test_linux_appimage_script_is_shared_by_docker_and_gha() -> None:
     assert "BASE_IMAGE" in dockerfile
     assert "build_linux_appimage.sh" in docker_run
     assert "Dockerfile.linux-appimage" in docker_run
-    assert "sharecut-linux-sidecar" in docker_run
+    assert "sharecut-linux-amd64-sidecar" in docker_run
     assert "SHARECUT_APPIMAGE_OUT" in script
     assert "/opt/sharecut-debs" in script
     assert "/opt/sharecut-debs" in docker_run
@@ -221,7 +221,7 @@ def test_linux_docker_wrapper_mounts_external_distribution_profile(tmp_path: Pat
     _write_executable(
         bin_dir / "docker",
         "#!/usr/bin/env bash\n"
-        'if [[ "$1 $2" == "image inspect" ]]; then exit 0; fi\n'
+        'if [[ "$1 $2" == "image inspect" ]]; then echo amd64; exit 0; fi\n'
         'printf \'%s\\n\' "$@" >> "$DOCKER_LOG"\n',
     )
     _write_executable(bin_dir / "uname", "#!/usr/bin/env bash\necho x86_64\n")
@@ -432,3 +432,109 @@ def test_tauri_sidecar_hook_finds_repo(tmp_path: Path, monkeypatch) -> None:
     script.write_text("ok\n", encoding="utf-8")
     monkeypatch.chdir(nested)
     assert hook.repo_root(nested.resolve()) == tmp_path.resolve()
+
+
+@pytest.mark.parametrize("host", ["arm64", "x86_64"])
+@pytest.mark.parametrize("base", ["cached-amd64", "existing-arm64"])
+def test_linux_docker_wrapper_selects_release_architecture_without_reusing_arm_state(
+    tmp_path, host, base
+):
+    import shutil
+    import sys
+
+    owned = tmp_path / "checkout"
+    (owned / "scripts").mkdir(parents=True)
+    shutil.copyfile(
+        ROOT / "scripts/build_linux_appimage_docker.sh",
+        owned / "scripts/build_linux_appimage_docker.sh",
+    )
+    bin_dir = tmp_path / "commands"
+    bin_dir.mkdir()
+    log = tmp_path / "commands.jsonl"
+    _write_executable(
+        bin_dir / "docker",
+        f"#!{sys.executable}\n"
+        + """import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+with Path(os.environ["DOCKER_LOG"]).open("a") as stream:
+    stream.write(json.dumps(args) + "\\n")
+if args[:2] == ["image", "inspect"]:
+    images = json.loads(os.environ["STUB_IMAGE_MAP"])
+    arch = images.get(args[-1])
+    if arch is None:
+        sys.exit(1)
+    if "--format" in args:
+        print(arch)
+""",
+    )
+    _write_executable(bin_dir / "uname", f"#!/usr/bin/env bash\necho {host}\n")
+    _write_executable(
+        bin_dir / "curl",
+        """#!/usr/bin/env bash
+while (( $# )); do
+  if [[ "$1" == -o ]]; then printf fixture > "$2"; exit 0; fi
+  shift
+done
+exit 1
+""",
+    )
+    _write_executable(bin_dir / "shasum", "#!/usr/bin/env bash\ncat >/dev/null\nexit 0\n")
+    images = {"ubuntu:22.04": "amd64" if base == "cached-amd64" else "arm64"}
+    if base == "cached-amd64":
+        images["sharecut-linux-amd64-appimage:local"] = "amd64"
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "TMPDIR": str(tmp_path / "cache"),
+        "DOCKER_LOG": str(log),
+        "STUB_IMAGE_MAP": json.dumps(images),
+    }
+    for key in (
+        "PODCAST_DISTRIBUTION_PROFILE",
+        "SHARECUT_LINUX_APPIMAGE_IMAGE",
+        "SHARECUT_LINUX_BASE_IMAGE",
+        "SHARECUT_LINUX_REBUILD_IMAGE",
+    ):
+        env.pop(key, None)
+    completed = subprocess.run(
+        ["bash", str(owned / "scripts/build_linux_appimage_docker.sh")],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    run = next(command for command in commands if command[0] == "run")
+    assert run[:4] == ["run", "--platform", "linux/amd64", "--rm"]
+    assert run[-2:] == ["sharecut-linux-amd64-appimage:local", "./scripts/build_linux_appimage.sh"]
+    volumes = [run[index + 1] for index, value in enumerate(run) if value == "-v"]
+    assert "sharecut-linux-amd64-sidecar:/src/gui/desktop/binaries" in volumes
+    assert "sharecut-linux-amd64-cargo-target:/cargo-target" in volumes
+    assert all(
+        volume.startswith("sharecut-linux-amd64-")
+        for volume in volumes
+        if volume.startswith("sharecut-linux-")
+    )
+    assert all(command[:2] not in (["image", "rm"], ["volume", "rm"]) for command in commands)
+    if base == "existing-arm64":
+        imported = next(command for command in commands if command[0] == "import")
+        assert imported == [
+            "import",
+            "--platform",
+            "linux/amd64",
+            str(
+                tmp_path / "cache/sharecut-linux-amd64-rootfs/ubuntu-base-22.04.5-base-amd64.tar.gz"
+            ),
+            "sharecut-ubuntu-amd64:22.04",
+        ]
+        build = next(command for command in commands if command[0] == "build")
+        assert build[:5] == [
+            "build",
+            "--platform",
+            "linux/amd64",
+            "--build-arg",
+            "BASE_IMAGE=sharecut-ubuntu-amd64:22.04",
+        ]
+    else:
+        assert all(command[0] not in {"build", "import"} for command in commands)

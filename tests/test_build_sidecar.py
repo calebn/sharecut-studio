@@ -568,54 +568,29 @@ def test_payload_is_ensured_before_runtime_completion(monkeypatch, tmp_path, reu
     )
 
 
-@pytest.mark.parametrize("operation", ["ensure", "integrity"])
-def test_ffmpeg_toolchain_path_is_scoped_to_builder_child(monkeypatch, tmp_path, operation):
-    import os
-
+def test_sidecar_uses_prebuilt_owner_with_standard_python(monkeypatch, tmp_path):
     mod = _load_build_sidecar()
-    original = "/standard/python/bin"
-    toolchain = os.pathsep.join(("/owned/mingw/bin", "/owned/msys/bin"))
-    monkeypatch.setenv("PATH", original)
-    monkeypatch.setenv("PODCAST_FFMPEG_TOOLCHAIN_PATH", toolchain)
     calls = []
     monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append((argv, kwargs)))
-    if operation == "ensure":
-        mod.ensure_ffmpeg_payload(tmp_path, "x86_64-pc-windows-msvc")
-    else:
-        mod.refresh_ffmpeg_integrity(tmp_path)
+    mod.ensure_ffmpeg_payload(tmp_path, "x86_64-pc-windows-msvc")
     argv, options = calls[0]
-    assert argv[0] == sys.executable
-    assert options["env"]["PATH"] == toolchain + os.pathsep + original
-    assert os.environ["PATH"] == original
-
-
-@pytest.mark.parametrize("supplied", [True, False])
-def test_sidecar_passes_source_delivery_only_to_builder(monkeypatch, tmp_path, supplied):
-    mod = _load_build_sidecar()
-    archive_dir = tmp_path / "delivered"
-    monkeypatch.setenv("PODCAST_FFMPEG_SOURCE_CACHE", str(tmp_path / "cache"))
-    if supplied:
-        monkeypatch.setenv("PODCAST_FFMPEG_SOURCE_ARCHIVES", str(archive_dir))
-    else:
-        monkeypatch.delenv("PODCAST_FFMPEG_SOURCE_ARCHIVES", raising=False)
-    calls = []
-    monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
-    mod.ensure_ffmpeg_payload(tmp_path / "runtime", "x86_64-pc-windows-msvc")
-    assert calls[0][-2:] == (
-        ["--source-archives", str(archive_dir)]
-        if supplied
-        else ["--source-cache", str(tmp_path / "cache")]
-    )
-    assert "PODCAST_FFMPEG_SOURCE_ARCHIVES" not in mod.POSIX_LAUNCHER
-    assert "PODCAST_FFMPEG_SOURCE_ARCHIVES" not in mod.WINDOWS_LAUNCHER
+    assert argv == [
+        sys.executable,
+        str(ROOT / "scripts/ffmpeg_payload.py"),
+        "--output",
+        str(tmp_path / "ffmpeg"),
+        "--target",
+        "x86_64-pc-windows-msvc",
+    ]
+    assert "env" not in options
+    assert options["check"] is True
 
 
 @pytest.mark.parametrize("mode", ["fresh", "ensure", "repair"])
-def test_sidecar_lifecycle_preserves_supplied_source_input(monkeypatch, tmp_path, mode):
+def test_sidecar_lifecycle_acquires_the_same_prebuilt_pair(monkeypatch, tmp_path, mode):
     mod = _load_build_sidecar()
     calls = []
-    archives = tmp_path / "sources"
-    monkeypatch.setenv("PODCAST_FFMPEG_SOURCE_ARCHIVES", str(archives))
+    (tmp_path / "sharecut-runtime").mkdir()
     monkeypatch.delenv("APPLE_SIGNING_IDENTITY", raising=False)
     monkeypatch.setattr(mod, "require_rustc", lambda: None)
     monkeypatch.setattr(mod, "runtime_is_complete", lambda *_a, **_k: mode == "ensure")
@@ -623,10 +598,65 @@ def test_sidecar_lifecycle_preserves_supplied_source_input(monkeypatch, tmp_path
     monkeypatch.setattr(mod, "copy_web_dist", lambda *_a, **_k: None)
     monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: None)
     monkeypatch.setattr(mod, "compile_launchers", lambda *_a: None)
-    monkeypatch.setattr(mod, "write_freeze_complete", lambda *_a: None)
     monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
     args = ["--out", str(tmp_path), "--triple", "x86_64-pc-windows-msvc"]
     if mode != "fresh":
         args.append("--ensure")
     assert mod.main(args) == 0
-    assert calls[0][-2:] == ["--source-archives", str(archives)]
+    assert calls == [
+        [
+            sys.executable,
+            str(ROOT / "scripts/ffmpeg_payload.py"),
+            "--output",
+            str(tmp_path / "sharecut-runtime/ffmpeg"),
+            "--target",
+            "x86_64-pc-windows-msvc",
+        ]
+    ]
+    assert (tmp_path / "sharecut-runtime/.freeze-complete").exists()
+
+
+def test_codesign_only_admits_pair_before_signing_and_clears_marker_on_failure(
+    monkeypatch, tmp_path
+):
+    mod = _load_build_sidecar()
+    runtime = tmp_path / "sharecut-runtime"
+    runtime.mkdir()
+    mod.write_freeze_complete(runtime)
+    monkeypatch.setenv("APPLE_SIGNING_IDENTITY", "Developer ID fixture")
+    order = []
+    monkeypatch.setattr(mod, "ensure_ffmpeg_payload", lambda *_: order.append("admitted"))
+    monkeypatch.setattr(mod, "codesign_runtime", lambda *_: order.append("runtime-signed"))
+
+    def failed_sign(*_):
+        order.append("pair-sign-failed")
+        raise RuntimeError("signature failed")
+
+    monkeypatch.setattr(mod, "sign_ffmpeg_payload", failed_sign)
+    with pytest.raises(RuntimeError, match="signature failed"):
+        mod.main(["--codesign-only", "--out", str(tmp_path), "--triple", "aarch64-apple-darwin"])
+    assert order == ["admitted", "runtime-signed", "pair-sign-failed"]
+    assert not (runtime / ".freeze-complete").exists()
+
+
+def test_sidecar_forwards_only_selected_prebuilt_inputs(monkeypatch, tmp_path):
+    mod = _load_build_sidecar()
+    monkeypatch.setenv("PODCAST_FFMPEG_CATALOG", str(tmp_path / "catalog.json"))
+    monkeypatch.setenv("PODCAST_FFMPEG_ARCHIVE", str(tmp_path / "payload.tar.xz"))
+    calls = []
+    monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
+    mod.ensure_ffmpeg_payload(tmp_path, "aarch64-apple-darwin")
+    assert calls[0][-4:] == [
+        "--catalog",
+        str(tmp_path / "catalog.json"),
+        "--archive",
+        str(tmp_path / "payload.tar.xz"),
+    ]
+    mod.sign_ffmpeg_payload(tmp_path, "Developer ID fixture", "aarch64-apple-darwin")
+    assert calls[1][-4:] == [
+        "--catalog",
+        str(tmp_path / "catalog.json"),
+        "--sign-identity",
+        "Developer ID fixture",
+    ]
+    assert "--archive" not in calls[1]

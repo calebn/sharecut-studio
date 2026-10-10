@@ -37,7 +37,6 @@ class FFmpegPair:
     source: SelectionSource
 
     def is_available(self) -> bool:
-        """Check that the admitted executables still exist."""
         return all(shutil.which(command) is not None for command in (self.ffmpeg, self.ffprobe))
 
 

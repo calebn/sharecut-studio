@@ -585,7 +585,9 @@ def iter_macho_files(root: Path) -> list[Path]:
 
 def codesign_runtime(runtime: Path, identity: str) -> int:
     """Sign nested Mach-O in the frozen runtime so Apple notarization accepts the .app."""
-    files = iter_macho_files(runtime)
+    files = [
+        path for path in iter_macho_files(runtime) if not path.is_relative_to(runtime / "ffmpeg")
+    ]
     if not files:
         print(f"codesign: no Mach-O files under {runtime}")
         return 0
@@ -663,56 +665,33 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _ffmpeg_build_environment() -> dict[str, str]:
-    environment = os.environ.copy()
-    if toolchain := environment.get("PODCAST_FFMPEG_TOOLCHAIN_PATH"):
-        environment["PATH"] = toolchain + os.pathsep + environment.get("PATH", "")
-    return environment
+def _ffmpeg_payload_args(runtime: Path, triple: str) -> list[str]:
+    command = [
+        sys.executable,
+        str(ROOT / "scripts/ffmpeg_payload.py"),
+        "--output",
+        str(runtime / "ffmpeg"),
+        "--target",
+        triple,
+    ]
+    if catalog := os.environ.get("PODCAST_FFMPEG_CATALOG"):
+        command.extend(["--catalog", catalog])
+    return command
 
 
-def refresh_ffmpeg_integrity(runtime: Path) -> None:
+def sign_ffmpeg_payload(runtime: Path, identity: str, triple: str) -> None:
     subprocess.run(
-        [
-            sys.executable,
-            str(ROOT / "scripts/build_ffmpeg.py"),
-            "--output",
-            str(runtime / "ffmpeg"),
-            "--refresh-integrity",
-        ],
+        [*_ffmpeg_payload_args(runtime, triple), "--sign-identity", identity],
         check=True,
-        timeout=120,
-        env=_ffmpeg_build_environment(),
+        timeout=300,
     )
 
 
 def ensure_ffmpeg_payload(runtime: Path, triple: str) -> None:
-    supplied = os.environ.get("PODCAST_FFMPEG_SOURCE_ARCHIVES")
-    source_option = (
-        ["--source-archives", str(Path(supplied))]
-        if supplied is not None
-        else [
-            "--source-cache",
-            str(
-                Path(
-                    os.environ.get("PODCAST_FFMPEG_SOURCE_CACHE", runtime.parent / "ffmpeg-sources")
-                )
-            ),
-        ]
-    )
-    subprocess.run(
-        [
-            sys.executable,
-            str(ROOT / "scripts/build_ffmpeg.py"),
-            "--output",
-            str(runtime / "ffmpeg"),
-            "--target",
-            triple,
-            *source_option,
-        ],
-        check=True,
-        timeout=5400,
-        env=_ffmpeg_build_environment(),
-    )
+    command = _ffmpeg_payload_args(runtime, triple)
+    if archive := os.environ.get("PODCAST_FFMPEG_ARCHIVE"):
+        command.extend(["--archive", archive])
+    subprocess.run(command, check=True, timeout=600)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -740,8 +719,9 @@ def main(argv: list[str] | None = None) -> int:
         if not identity:
             raise SystemExit("--codesign-only requires APPLE_SIGNING_IDENTITY")
         clear_freeze_complete(runtime)
+        ensure_ffmpeg_payload(runtime, triple)
         codesign_runtime(runtime, identity)
-        refresh_ffmpeg_integrity(runtime)
+        sign_ffmpeg_payload(runtime, identity, triple)
         write_freeze_complete(runtime)
         return 0
 
@@ -766,7 +746,7 @@ def main(argv: list[str] | None = None) -> int:
         compile_launchers(binaries, triple)
         if sys.platform == "darwin" and identity:
             codesign_runtime(runtime, identity)
-            refresh_ffmpeg_integrity(runtime)
+            sign_ffmpeg_payload(runtime, identity, triple)
         write_freeze_complete(runtime)
         print(f"reusing complete freeze: {runtime}")
         return 0
@@ -780,7 +760,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"runtime: {runtime}")
     if sys.platform == "darwin" and identity:
         codesign_runtime(runtime, identity)
-        refresh_ffmpeg_integrity(runtime)
+        sign_ffmpeg_payload(runtime, identity, triple)
     write_freeze_complete(runtime)
     return 0
 

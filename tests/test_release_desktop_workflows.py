@@ -67,7 +67,7 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
         "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && "
         "matrix.bundle != 'appimage' && 'desktop-signing' || '' }}"
     )
-    assert job["needs"] == ["verify-source", "ffmpeg-sources", "prepare-extension-runtime"]
+    assert job["needs"] == ["verify-source", "prepare-extension-runtime"]
     assert "inputs.extension_artifact_name == ''" in job["if"]
     steps = {step.get("name") for step in job["steps"] if "name" in step}
     assert "Resolve signing flags" in steps
@@ -136,7 +136,7 @@ def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
         if str(step.get("uses", "")).startswith("actions/setup-python")
     )
     assert setup["with"]["python-version"] == "3.12"
-    ffmpeg = next(step for step in job["steps"] if step.get("name") == "Build pinned FFmpeg")
+    ffmpeg = next(step for step in job["steps"] if step.get("name") == "Install pinned FFmpeg")
     assert ffmpeg["uses"] == "./.github/actions/setup-ffmpeg"
     assert "if" not in ffmpeg and not ffmpeg.get("continue-on-error")
 
@@ -168,7 +168,7 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     bundle = data["jobs"]["bundle"]
 
     assert prepare["if"] == "inputs.extension_artifact_name != ''"
-    assert prepare["needs"] == ["verify-source", "ffmpeg-sources"]
+    assert prepare["needs"] == "verify-source"
     assert prepare["permissions"] == {}
     assert "environment" not in prepare
     prepare_checkout = prepare["steps"][0]
@@ -229,7 +229,7 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     assert upload["with"]["path"].endswith("prepared-extension-sidecar.tar")
 
     bundle_names = [step.get("name") for step in bundle["steps"]]
-    assert bundle["needs"] == ["verify-source", "ffmpeg-sources", "prepare-extension-runtime"]
+    assert bundle["needs"] == ["verify-source", "prepare-extension-runtime"]
     assert "needs.prepare-extension-runtime.result == 'success'" in bundle["if"]
     assert bundle_names.index("Download prepared extension sidecar") < bundle_names.index(
         "Import Apple signing material"
@@ -300,7 +300,7 @@ def test_signing_hooks_fail_closed_and_keep_artifact_names() -> None:
         for i, step in enumerate(job["steps"])
         if str(step.get("uses", "")).startswith("actions/checkout")
     )
-    assert job["needs"] == ["verify-source", "ffmpeg-sources", "prepare-extension-runtime"]
+    assert job["needs"] == ["verify-source", "prepare-extension-runtime"]
     assert job["steps"][checkout_at]["with"]["ref"] == (
         "${{ needs.verify-source.outputs.source_sha }}"
     )
@@ -452,7 +452,7 @@ def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
     assert "secrets." not in str(steps[checkout_at + 1 :])
 
     bundle = data["jobs"]["bundle"]
-    assert bundle["needs"] == ["verify-source", "ffmpeg-sources", "prepare-extension-runtime"]
+    assert bundle["needs"] == ["verify-source", "prepare-extension-runtime"]
     assert "needs.verify-source.outputs.trusted == 'true'" in bundle["environment"]
     signing_guard = bundle["steps"][0]
     assert signing_guard["name"] == "Require trusted source for signing"
@@ -515,7 +515,6 @@ def test_public_reusable_workflow_has_no_hosted_release_operations() -> None:
     data = load_github_yaml(BUILD)
     assert set(data["jobs"]) == {
         "verify-source",
-        "ffmpeg-sources",
         "prepare-extension-runtime",
         "bundle",
     }
@@ -532,7 +531,7 @@ def test_windows_registry_media_fixtures_use_pinned_pair():
         "native-registry-backup"
     ]
     steps = job["steps"]
-    build = next(step for step in steps if step.get("name") == "Build pinned FFmpeg")
+    build = next(step for step in steps if step.get("name") == "Install pinned FFmpeg")
     tests = next(
         step
         for step in steps
@@ -543,7 +542,7 @@ def test_windows_registry_media_fixtures_use_pinned_pair():
     assert steps.index(build) < steps.index(tests)
 
 
-def test_release_bundle_predicate_rejects_failed_sources_and_allows_skipped_extension():
+def test_release_bundle_predicate_rejects_untrusted_checkout_and_failed_extension():
     expression = load_github_yaml(BUILD)["jobs"]["bundle"]["if"]
     expression = expression.removeprefix("${{ ").removesuffix(" }}")
     cases = [
@@ -554,10 +553,9 @@ def test_release_bundle_predicate_rejects_failed_sources_and_allows_skipped_exte
         ("failure", "extension", "success", False),
         ("success", "extension", "failure", False),
     ]
-    for sources, extension, preparation, expected in cases:
+    for trust, extension, preparation, expected in cases:
         concrete = expression.replace("cancelled()", "false")
-        concrete = concrete.replace("needs.verify-source.result", "'success'")
-        concrete = concrete.replace("needs.ffmpeg-sources.result", repr(sources))
+        concrete = concrete.replace("needs.verify-source.result", repr(trust))
         concrete = concrete.replace("inputs.extension_artifact_name", repr(extension))
         concrete = concrete.replace("needs.prepare-extension-runtime.result", repr(preparation))
         result = subprocess.run(

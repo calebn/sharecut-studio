@@ -1,61 +1,20 @@
 name: Set up pinned FFmpeg
-description: Build and execute the shared FFmpeg source recipe on the native runner
+description: Install and execute the catalog-pinned prebuilt FFmpeg pair
 inputs:
-  source-artifact:
-    description: Same-run artifact of original pinned source archives
-    required: true
   output:
     description: Complete native payload destination
     default: ""
 runs:
   using: composite
   steps:
-    - name: Install Linux build tools
-      if: runner.os == 'Linux'
+    - name: Install prebuilt payload
       shell: bash
-      run: |
-        sudo apt-get --error-on=any -o Acquire::Retries=2 update
-        sudo apt-get --yes --no-install-recommends install build-essential pkg-config curl
-    - name: Install Windows native build tools
-      if: runner.os == 'Windows'
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: MINGW64
-        update: true
-        install: make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-python curl
-    - name: Download original source archives
-      uses: actions/download-artifact@v8
-      with:
-        name: ${{ inputs.source-artifact }}
-        path: ${{ runner.temp }}/ffmpeg-sources
-    - name: Build native Windows payload
-      if: runner.os == 'Windows'
-      shell: msys2 {0}
       env:
         PAYLOAD_OUTPUT: ${{ inputs.output }}
-      run: |
-        output="$(cygpath -am "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}")"
-        python scripts/build_ffmpeg.py --output "$output" --source-archives "$RUNNER_TEMP/ffmpeg-sources"
-        echo "PODCAST_FFMPEG_SOURCE_ARCHIVES=$(cygpath -am "$RUNNER_TEMP/ffmpeg-sources")" >> "$GITHUB_ENV"
-        echo "PODCAST_FFMPEG_TOOLCHAIN_PATH=$(cygpath -w /mingw64/bin);$(cygpath -w /usr/bin)" >> "$GITHUB_ENV"
-        echo "$(cygpath -w "$output/bin")" >> "$GITHUB_PATH"
-        echo "PODCAST_MCP_FFMPEG=$(cygpath -m "$output/bin/ffmpeg.exe")" >> "$GITHUB_ENV"
-        echo "PODCAST_MCP_FFPROBE=$(cygpath -m "$output/bin/ffprobe.exe")" >> "$GITHUB_ENV"
+      run: python scripts/ffmpeg_payload.py --output "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}" --github-env
     - name: Verify downstream standard CPython
       if: runner.os == 'Windows'
       shell: pwsh
       run: >-
         python -c 'import os,sys; from pathlib import Path;
         assert Path(sys.executable).resolve().is_relative_to(Path(os.environ["pythonLocation"]).resolve()), sys.executable'
-    - name: Build native Unix payload
-      if: runner.os != 'Windows'
-      shell: bash
-      env:
-        PAYLOAD_OUTPUT: ${{ inputs.output }}
-      run: |
-        output="$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).absolute())' "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}")"
-        python3 scripts/build_ffmpeg.py --output "$output" --source-archives "$RUNNER_TEMP/ffmpeg-sources"
-        echo "PODCAST_FFMPEG_SOURCE_ARCHIVES=$RUNNER_TEMP/ffmpeg-sources" >> "$GITHUB_ENV"
-        echo "$output/bin" >> "$GITHUB_PATH"
-        echo "PODCAST_MCP_FFMPEG=$output/bin/ffmpeg" >> "$GITHUB_ENV"
-        echo "PODCAST_MCP_FFPROBE=$output/bin/ffprobe" >> "$GITHUB_ENV"
