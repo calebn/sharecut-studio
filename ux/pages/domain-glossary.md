@@ -284,10 +284,10 @@ Link out when a designer needs depth; keep **Partner terms** as the default hand
 **Wordbar:** the host's source-clock word timing editor. Its handles and numeric fields adjust a stored word's start and end against the original recording waveform. Drag release or Apply creates one undoable change; raw preview has its own local playhead.
 
 
+Audio tools are the bundled FFmpeg and FFprobe pair. Desktop setup checks their readiness and downloads speech models separately. Source installs supply a supported matching FFmpeg 9 pair.
+
 ## Restore an applied edit
 
 The Applied edit inspector offers Restore for an ordinary source mute with valid source clocks and edit access. A cut cannot restore its removed recording from numeric seam clocks. The inspector explains whole-action History Undo and offers Open History. That control opens the History tab without changing the project.
 
 History Undo also undoes the other edits in the same action. You may need to undo later actions first. The existing History control checks that the selected history head is still current before restoring its editable snapshot.
-
-Audio tools are the bundled FFmpeg and FFprobe pair. Desktop setup checks their readiness and downloads speech models separately. Source installs supply a supported matching FFmpeg 9 pair.
