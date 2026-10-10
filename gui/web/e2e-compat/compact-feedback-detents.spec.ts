@@ -85,14 +85,48 @@ for (const viewport of [
               expect(box).not.toBeNull();
               withoutFeedback[detent] = box!.height;
               if (detent === "half") {
-                const ruler = await controlGeometry(
-                  page.getByRole("slider", { name: "Timeline position" }),
-                );
-                const area = ruler.measured[0].visibleArea;
-                const point = {
+                const slider = page.getByRole("slider", {
+                  name: "Timeline position",
+                });
+                let ruler = await controlGeometry(slider);
+                let area = ruler.measured[0].visibleArea;
+                let point = {
                   x: ruler.rect.left + 300,
                   y: ruler.rect.top + 12,
                 };
+                if (
+                  inspector === "Envelope" &&
+                  viewport.width === 390 &&
+                  rootPx === 16 &&
+                  area.state === "positive" &&
+                  point.x > area.bounds.right
+                ) {
+                  const timelineScroll = page.locator(".timeline-scroll");
+                  const scrollLeftBefore = await timelineScroll.evaluate(
+                    (element) => element.scrollLeft,
+                  );
+                  await page.mouse.move(area.bounds.right - 8, point.y);
+                  await page.mouse.wheel(180, 0);
+                  await expect
+                    .poll(() =>
+                      timelineScroll.evaluate((element) => element.scrollLeft),
+                    )
+                    .toBeGreaterThan(scrollLeftBefore);
+                  ruler = await controlGeometry(slider);
+                  area = ruler.measured[0].visibleArea;
+                  point = {
+                    x: ruler.rect.left + 300,
+                    y: ruler.rect.top + 12,
+                  };
+                  json(info, "half-ruler-horizontal-wheel", {
+                    scrollLeftBefore,
+                    scrollLeftAfter: await timelineScroll.evaluate(
+                      (element) => element.scrollLeft,
+                    ),
+                    ruler,
+                    point,
+                  });
+                }
                 halfRulerPermitted =
                   area.state === "positive" &&
                   point.x >= area.bounds.left &&
@@ -117,16 +151,36 @@ for (const viewport of [
               })
               .click();
             if (halfRulerPermitted) {
-              json(
-                info,
-                "without-feedback-ruler-click",
-                await controlGeometry(
-                  page.getByRole("slider", { name: "Timeline position" }),
-                ),
-              );
-              await page
-                .getByRole("slider", { name: "Timeline position" })
-                .click({ position: { x: 300, y: 12 } });
+              const slider = page.getByRole("slider", {
+                name: "Timeline position",
+              });
+              if (inspector === "Envelope") {
+                const timeBefore = Number(
+                  await slider.getAttribute("aria-valuenow"),
+                );
+                json(info, "without-feedback-ruler-before-click", {
+                  timeBefore,
+                  ruler: await controlGeometry(slider),
+                });
+                await slider.click({ position: { x: 300, y: 12 } });
+                await expect(panel).not.toBeVisible();
+                await expect(slider).not.toHaveAttribute(
+                  "aria-valuenow",
+                  String(timeBefore),
+                );
+                json(info, "without-feedback-ruler-after-click", {
+                  timeAfter: Number(await slider.getAttribute("aria-valuenow")),
+                  panelVisible: await panel.isVisible(),
+                  ruler: await controlGeometry(slider),
+                });
+              } else {
+                json(
+                  info,
+                  "without-feedback-ruler-click",
+                  await controlGeometry(slider),
+                );
+                await slider.click({ position: { x: 300, y: 12 } });
+              }
               await hit.focus();
               await hit.press("Enter");
               await expect(panel).toHaveClass(/bottom-sheet--half/);
