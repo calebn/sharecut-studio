@@ -76,6 +76,51 @@ for (const viewport of [
                 expect(item.full).toBe(true);
               }
             }
+            const fade = page.getByLabel("Fade out ms", { exact: true });
+            await fade.focus();
+            await fade.press("ArrowRight");
+            await page.route("**/api/document/command*", async (route) => {
+              const body = route.request().postDataJSON() as { type: string };
+              if (body.type === "UndoHistory") {
+                await route.fulfill({
+                  status: 409,
+                  contentType: "application/json",
+                  headers: { "x-sharecut-error-code": "history_stale" },
+                  body: JSON.stringify({ detail: "Project changed" }),
+                });
+              } else {
+                await route.continue();
+              }
+            });
+            await page
+              .locator(".bottom-sheet-header")
+              .getByRole("button", { name: "Undo", exact: true })
+              .click();
+            const feedback = page.locator(
+              ".ui-toast-region--inspector-flow .ui-toast",
+            );
+            await expect(feedback).toBeVisible();
+            await nativeTabTo(
+              page,
+              fade,
+              receipts,
+              browserName === "webkit" ? "Alt+Tab" : "Tab",
+            );
+            await expect(fade).toBeFocused();
+            const fadeGeometry = await controlGeometry(fade);
+            const feedbackBox = await feedback.boundingBox();
+            expect(feedbackBox).not.toBeNull();
+            expect(fadeGeometry.hitsControl).toBe(true);
+            expect(fadeGeometry.rect.top).toBeGreaterThanOrEqual(
+              (feedbackBox?.y ?? 0) + (feedbackBox?.height ?? 0),
+            );
+            for (const action of await feedback.getByRole("button").all()) {
+              await exposeControl(page, action, receipts);
+              const geometry = await controlGeometry(action);
+              expect(geometry.hitsControl).toBe(true);
+              expect(geometry.rect.width).toBeGreaterThanOrEqual(88);
+              expect(geometry.rect.height).toBeGreaterThanOrEqual(88);
+            }
             for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {
               const action = page
                 .locator(".bottom-sheet-header")

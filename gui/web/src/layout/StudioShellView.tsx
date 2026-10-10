@@ -1,4 +1,4 @@
-import type { DragEventHandler, ReactNode, Ref } from "react";
+import type { DragEventHandler, ReactNode, Ref, RefCallback } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab, studioTabIds } from "../presence/followSync";
 import type { LayoutMode } from "../state/types";
@@ -28,6 +28,7 @@ export type StudioWorkspace =
   | { kind: "ingest"; headers: ReactNode; ingest: IngestPresentation }
   | { kind: "arrange"; canvas: ReactNode };
 export type StudioShellViewProps = {
+  feedbackHostRef?: RefCallback<HTMLDivElement>;
   appearance: ShellAppearance;
   layout: LayoutMode;
   chrome: {
@@ -56,6 +57,7 @@ export type StudioShellViewProps = {
 };
 
 export function StudioShellView({
+  feedbackHostRef,
   appearance,
   layout,
   chrome,
@@ -178,6 +180,11 @@ export function StudioShellView({
           expanded={inspector.sheet.expanded}
           onExpandedChange={inspector.sheet.onExpandedChange}
           {...inspector.sheet.compact}
+          bodyHeader={
+            inspector.sheet.compact && !inspector.sheet.compact.stowed ? (
+              <div ref={feedbackHostRef} className="compact-feedback-slot" />
+            ) : null
+          }
         >
           {inspector.sheet.content}
         </BottomSheet>

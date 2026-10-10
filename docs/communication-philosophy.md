@@ -217,12 +217,13 @@ the empty state, not a separate discovery task.
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
   centred at the bottom above the status bar on desktop and tablet. On a
-  phone it docks just above the highest bottom chrome that is shown (an
-  open sheet, the Timeline tool rail, or the mode nav) and below the
-  transport. Keeping all controls and sheet fields clear is required; the
-  current full-sheet fallback can cover another inspector control when it moves
-  off the latest pressed control ([gui-mobile.md §
-  Feedback toast](gui-mobile.md#feedback-toast)). The shell's single
+  phone it docks above bottom chrome. A visible compact inspector instead
+  supplies a temporary flow row below its pinned header and above scrolling
+  fields. Dismiss removes that row and restores ordinary inspector sizing.
+  The same card keeps its timer, focus pause and guarded Undo across host
+  changes. Keeping all visible controls and native labels clear is required;
+  compact feedback participates in layout rather than covering fields
+  ([gui-mobile.md § Feedback toast](gui-mobile.md#feedback-toast)). The shell's single
   live region speaks it, once per announcement, even when the same text
   repeats.
   Only a status that a persistent control already shows (the job chip,

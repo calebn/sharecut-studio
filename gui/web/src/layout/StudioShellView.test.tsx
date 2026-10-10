@@ -39,6 +39,50 @@ function presentation(): StudioShellViewProps {
 }
 
 describe("StudioShellView", () => {
+  it("registers compact tablet feedback and releases it on stow or Close", () => {
+    const props = presentation();
+    const ref = vi.fn();
+    const sheet = {
+      open: true,
+      expanded: false,
+      content: <p>Fields</p>,
+      onClose: vi.fn(),
+      onExpandedChange: vi.fn(),
+      compact: { className: "bottom-sheet--compact", stowed: false },
+    };
+    const { rerender } = render(
+      <StudioShellView
+        {...props}
+        inspector={{ kind: "tablet", tools: null, sheet }}
+        feedbackHostRef={ref}
+      />,
+    );
+    expect(ref).toHaveBeenLastCalledWith(expect.any(HTMLDivElement));
+    rerender(
+      <StudioShellView
+        {...props}
+        inspector={{
+          kind: "tablet",
+          tools: null,
+          sheet: { ...sheet, compact: { ...sheet.compact, stowed: true } },
+        }}
+        feedbackHostRef={ref}
+      />,
+    );
+    expect(ref.mock.calls.at(-1)?.[0]).toBeNull();
+    rerender(
+      <StudioShellView
+        {...props}
+        inspector={{
+          kind: "tablet",
+          tools: null,
+          sheet: { ...sheet, open: false },
+        }}
+        feedbackHostRef={ref}
+      />,
+    );
+    expect(document.querySelector(".compact-feedback-slot")).toBeNull();
+  });
   it("renders desktop chrome, six tabs, pressed state and navigation payload", async () => {
     const props = presentation();
     const { container } = render(<StudioShellView {...props} />);

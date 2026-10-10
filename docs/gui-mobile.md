@@ -278,27 +278,35 @@ clicked, since Safari does not focus a clicked button).
 
 ### Feedback toast
 
-The app toast (`feedback/FeedbackToast`) waits up to 8 s, so on a phone it must
-not sit over controls. It docks just above the highest bottom chrome that is
-shown: an open sheet, the Timeline tool rail (Select, Blade, Import), or the
-mode nav, and below the transport and status row. With a half sheet open it
-sits over the timeline between the transport and the sheet. A full-height sheet
-leaves no free band; the toast then sits above the mode nav, over the sheet's
-scrolling body, which can be scrolled past. If that spot would cover the
-control just pressed (a "Move track down" near the bottom of a full sheet),
-the toast moves just above that control, or just below it when there is no
-room above (`ui/pressedControl.ts` remembers the clicked control; Undo and
-Dismiss in the toast itself do not count). `feedback/toastDock.ts` measures
-those edges every frame while a toast shows (like an open menu) into the
-region's `--toast-dock-bottom`; without it the CSS places the toast above the
-mode nav. Desktop and tablet keep it above the status bar.
+The app toast (`feedback/FeedbackToast`) has one message, optional guarded Undo,
+and explicit Dismiss. While a compact inspector is visible, its composition
+supplies a temporary flow row between pinned chrome and the scrolling fields.
+The row exists only while feedback exists. The sheet can grow to its available
+slot while the message is visible; fields scroll below the feedback instead of
+passing behind it. Dismiss restores ordinary detent sizing and lane room.
+At large text sizes some fields need body scrolling. If wrapped chrome and
+a long message fill the slot, ordinary sheet scrolling keeps a minimum native
+control viewport available. In a slot shorter than 15rem, the header also
+participates in that scroll while feedback exists; native traversal and ordinary
+scrolling reveal its actions again. A focused native field or
+just-pressed inspector control is revealed in that body after feedback arrives.
 
-The current full-sheet fallback avoids only the latest pressed control. At large
-text sizes it can cover another inspector control, including wrapped Close or
-the other envelope nudge row. Keeping every visible control clear is a required
-fix, not a guarantee of the current docking implementation. Regression checks
-must inspect the toast while it is visible and compare its full rectangle with
-visible control and native label rectangles, after ancestor clipping.
+`FeedbackToast` moves one stable portal container between this row and its
+ordinary floating host. The same `Toast` card keeps its eight-second timer,
+focus and hover pause, disabled-Undo pause, Dismiss and history freshness. Host
+changes do not restart the timer or remount Undo. Closing or stowing a compact
+inspector returns feedback to the floating host, outside the inert rail.
+Other workflows retain the existing floating dock. On phones
+`feedback/toastDock.ts` measures bottom chrome and the latest pressed control;
+its full-sheet fallback can cover scrolling content in those other workflows.
+Desktop and ordinary tablet feedback stays above the status bar.
+
+Regression checks keep feedback visible at every compact detent and compare its
+full rectangle with all visible active controls and native labels, clipped to
+the viewport and actual overflow ancestors. Feedback's own actions are checked
+for target size and hit ownership separately. Time and Level changes each prove
+complete saved arrays through Undo and Redo. The no-feedback strip retains the
+ordinary lane measurements.
 
 ### Selection sheet: three zones
 

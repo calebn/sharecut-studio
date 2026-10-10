@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { executePointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { HistoryEntryId } from "../types/project";
 import { Toast } from "../ui";
+import { focusAndReveal } from "../ui/focusAndReveal";
+import { lastPressedControl } from "../ui/pressedControl";
 import { errorMessage } from "../utils/apiError";
 import { usePhoneToastDock } from "./toastDock";
 
@@ -14,14 +17,61 @@ import { usePhoneToastDock } from "./toastDock";
  * head this tab sees; the server refuses the undo (`history_stale`) if another
  * edit landed first, so Undo never reverses someone else's change.
  */
-export function FeedbackToast() {
+export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const { toast, headId } = useDaw((s) => ({
     toast: s.feedbackToast,
     headId: s.project?.history?.head_id ?? null,
   }));
   const [undoing, setUndoing] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
-  usePhoneToastDock(regionRef, toast != null);
+  const [portal] = useState(() => {
+    const region = document.createElement("section");
+    region.setAttribute("aria-label", "Status messages");
+    return region;
+  });
+  const focusRef = useRef<HTMLElement | null>(null);
+  usePhoneToastDock(regionRef, toast != null && host == null);
+
+  useLayoutEffect(() => {
+    const rememberFocus = (event: FocusEvent) => {
+      if (event.target instanceof HTMLElement) {
+        focusRef.current = portal.contains(event.target) ? event.target : null;
+      }
+    };
+    document.addEventListener("focusin", rememberFocus);
+    return () => document.removeEventListener("focusin", rememberFocus);
+  }, [portal]);
+
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    const focused =
+      active instanceof HTMLElement && portal.contains(active)
+        ? active
+        : active === document.body
+          ? focusRef.current
+          : null;
+    (host ?? document.body).append(portal);
+    focused?.focus({ preventScroll: true });
+  }, [host, portal]);
+  useLayoutEffect(() => () => portal.remove(), [portal]);
+  useLayoutEffect(() => {
+    if (!host || !toast) return;
+    const sheet = host.closest<HTMLElement>(".bottom-sheet");
+    const reveal = (target: HTMLElement | null) => {
+      if (target && sheet?.contains(target)) focusAndReveal(target);
+    };
+    const focused = document.activeElement;
+    reveal(
+      focused instanceof HTMLElement && sheet?.contains(focused)
+        ? focused
+        : lastPressedControl(),
+    );
+    const onFocus = (event: FocusEvent) => {
+      if (event.target instanceof HTMLElement) reveal(event.target);
+    };
+    sheet?.addEventListener("focusin", onFocus);
+    return () => sheet?.removeEventListener("focusin", onFocus);
+  }, [host, toast]);
   const undoEntry =
     toast?.undo != null && toast.undo === headId ? toast.undo : null;
 
@@ -47,10 +97,14 @@ export function FeedbackToast() {
     }
   };
 
-  return (
+  return createPortal(
     <Toast
       announce={false}
-      className="ui-toast-region--app"
+      className={
+        host
+          ? "ui-toast-region--app ui-toast-region--inspector-flow"
+          : "ui-toast-region--app"
+      }
       regionRef={regionRef}
       toast={toast}
       onDismiss={() => {
@@ -62,6 +116,7 @@ export function FeedbackToast() {
           : undefined
       }
       undoDisabled={undoing}
-    />
+    />,
+    portal,
   );
 }
