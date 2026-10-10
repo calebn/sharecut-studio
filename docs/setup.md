@@ -355,9 +355,10 @@ unknown or different release before tests start. The runner removes inherited
 Cross-platform behavioral resolver tests mock OS selection and executable
 lookup policy while keeping the test host's real path semantics. Focused
 resolver/readiness tests run on real Windows in the desktop workflow, but do
-not constitute Windows media acceptance. Native payload jobs separately build
-and execute the pinned recipe on every release target. Full media acceptance
-must name the exact pair and preserve the runner’s JSON and JUnit evidence.
+not constitute Windows media acceptance. Native payload jobs separately acquire
+and verify the pinned prebuilt archive on every release target. These consumer
+checks do not compile the source recipe. Full media acceptance must name the
+exact pair and preserve the runner's JSON and JUnit evidence.
 
 ## Reproducible installs
 

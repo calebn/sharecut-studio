@@ -50,7 +50,7 @@ def isolate(monkeypatch, tmp_path):
         "9.0.2-10-gabcd",
         "9.0.2+snapshot",
         "9..2",
-        "9.0.2.1",
+        "9.0.2.1000",
     ],
 )
 def test_unsupported_release_fails_before_return(tmp_path, version):
