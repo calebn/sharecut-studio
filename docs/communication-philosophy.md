@@ -218,10 +218,13 @@ the empty state, not a separate discovery task.
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
   centred at the bottom above the status bar on desktop and tablet. On a
   phone it docks above bottom chrome. A visible compact inspector instead
-  supplies a temporary flow row below its pinned header and above scrolling
-  fields. Dismiss removes that row and restores ordinary inspector sizing.
-  The same card keeps its timer, focus pause and guarded Undo across host
-  changes. Keeping all visible controls and native labels clear is required;
+  supplies a host first inside the same body scroller as its fields, below
+  the pinned header. Dismiss restores ordinary inspector sizing. A focused
+  field or just-pressed control keeps its place when feedback arrives. When
+  feedback and a full native label cannot fit together, ordinary body scrolling
+  exposes either. The same card pauses expiry while clipped and retains its
+  remaining visible time across host changes. Undo, Redo, resize and Close stay
+  fully visible. Keeping visible controls and native labels clear is required;
   compact feedback participates in layout rather than covering fields
   ([gui-mobile.md § Feedback toast](gui-mobile.md#feedback-toast)). The shell's single
   live region speaks it, once per announcement, even when the same text
@@ -525,3 +528,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   longer undoes behind it), names its consequence as the dialog's
   description, and returns focus to the control that opened it in
   Safari too; the toast steps off the control just pressed.
+
+- 2026-10-09 Compact feedback (#1205). The header stays outside the single
+  content scroller. Feedback and native fields share ordinary scroll order.
+  Clipped feedback pauses its remaining visible lifetime.

@@ -329,19 +329,25 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 
 .bottom-sheet--compact:has(.compact-feedback-slot .ui-toast) {
   height: auto;
-  overflow: auto;
 }
 
-.bottom-sheet--compact:has(.compact-feedback-slot .ui-toast)
-  .bottom-sheet-body {
+.bottom-sheet--compact,
+.bottom-sheet--compact:has(.modifier-inspector) {
+  overflow: hidden;
+}
+
+.bottom-sheet--compact .bottom-sheet-body,
+.bottom-sheet--compact:has(.modifier-inspector) .bottom-sheet-body {
   flex: 1 1 auto;
-  min-height: calc(var(--touch-min) + var(--space-6));
+  min-height: 0;
   overflow: auto;
 }
 
-@container sheet-slot (height < 15rem) {
-  .bottom-sheet--compact:has(.compact-feedback-slot .ui-toast)
-    .bottom-sheet-chrome {
-    position: static;
-  }
+.bottom-sheet--compact .bottom-sheet-body > *,
+.bottom-sheet--compact .bottom-sheet-body .inspector,
+.bottom-sheet--compact .bottom-sheet-body .modifier-body {
+  flex: 0 0 auto;
+  min-height: auto;
+  height: auto;
+  overflow: visible;
 }

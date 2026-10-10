@@ -829,3 +829,28 @@ chooser lab until the owner made it the default (2026-10-07).
   arise; in portrait the grip is reachable and its pinch rule is pinned live.
   A toast no longer covers the grip there either: the phone toast docks above
   an open crossfade rail as it does above the tool rail.
+
+### Decision: Compact feedback and fields share one body scroller
+
+<!-- decision
+id: D-compact-feedback-one-scroll
+status: accepted
+date: 2026-10-09
+decided-by: calebn
+evidence:
+- #1205 consolidated owner directive selects corrected Architect seat 2
+- 667 by 360 with root 32 has a 256px sheet slot; full labels and long feedback cannot coexist
+enforced-by:
+- gui/web/src/ui/BottomSheet.test.tsx::puts supplied flow content and fields in one body below chrome
+- gui/web/src/ui/Toast.test.tsx::preserves remaining time while clipped and through presentation changes
+- make test-web-e2e
+-->
+
+The header stays outside the compact content scroller. Feedback and native
+fields share ordinary scroll order. A saved edit preserves the focused or
+just-pressed control, even when browser scroll anchoring leaves feedback
+clipped. Ordinary body scroll exposes the message and actions. Field focus
+reveals its full fitting native label and control. The single Toast retains its
+remaining visible lifetime while clipped and through host movement. Initial
+header reachability is asserted before any recovery scroll. No short-height
+rule may make those header controls scroll away.

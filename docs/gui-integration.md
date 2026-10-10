@@ -899,3 +899,13 @@ Reviewed exact MUTE proposals require interactive host approval. Rendered pendin
 ### Applied edit recovery
 
 The Applied edit inspector offers **Restore** only for ordinary source MUTE archives with valid source clocks and edit access. Cuts and exact ranges show the whole-action History Undo guidance, including other edits in the action and the need to undo later actions first. **Open History** opens the current History tab without running Undo. Numeric source and timeline seam displays remain unchanged. The backend independently refuses unsupported local Restore before history starts. See [History](history.md#individual-restore-and-whole-action-undo).
+
+### Compact feedback scrolling
+
+Compact inspectors keep Undo, Redo, resize and Close outside their content
+scroller. The feedback host is first inside that same scroller as the fields.
+A saved edit preserves the focused or just-pressed control. Ordinary body
+scrolling exposes feedback when a full native label and the card cannot fit
+together. The single Toast pauses its remaining visible lifetime while clipped
+and preserves it through close, stow and host movement. See
+[mobile feedback](gui-mobile.md#feedback-toast) for the geometry contract.

@@ -152,3 +152,13 @@ Escape return focus to the Mix control in More. Dismissing the sheet from its
 scrim does the same. Close starts with focus when Mix opens. Switching modes or
 inspecting something else closes Mix; returning to More does not reopen it.
 The timeline gutter keeps its identity-only layout. Swipe-to-mix is deferred.
+
+## Compact feedback
+
+The inspector header keeps Undo, Redo, resize and Close visible while its body
+scrolls. Feedback and fields share that one scroll order. At large text sizes,
+a full native label and a long message may need separate views. Scroll back to
+the message and its Dismiss or guarded Undo action. Clipped feedback pauses its
+remaining visible lifetime. A saved edit preserves the focused or just-pressed
+control, and Close or a timeline drag returns the same card to its floating
+host.

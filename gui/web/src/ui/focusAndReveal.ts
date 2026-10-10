@@ -54,9 +54,10 @@ export function focusAndReveal(target: HTMLElement | null): void {
         element !== null && boundary.contains(element),
     );
   const style = getComputedStyle(target);
-  const ring =
-    (Number.parseFloat(style.outlineWidth) || 0) +
-    (Number.parseFloat(style.outlineOffset) || 0);
+  const ring = boundary.matches(".bottom-sheet--compact")
+    ? 0
+    : (Number.parseFloat(style.outlineWidth) || 0) +
+      (Number.parseFloat(style.outlineOffset) || 0);
   for (
     let parent = target.parentElement;
     parent;

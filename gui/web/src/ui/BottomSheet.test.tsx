@@ -45,6 +45,35 @@ describe("BottomSheet", () => {
     expect(root).not.toHaveAttribute("inert");
   });
 
+  it("puts supplied flow content and fields in one body below chrome", async () => {
+    render(
+      <BottomSheet
+        open
+        onClose={vi.fn()}
+        backgroundPolicy="interactive"
+        title="Inspector"
+        className="bottom-sheet--compact"
+        bodyHeader={<button type="button">Feedback</button>}
+      >
+        <label>
+          Time
+          <input />
+        </label>
+      </BottomSheet>,
+    );
+    const feedback = screen.getByRole("button", { name: "Feedback" });
+    const body = feedback.closest(".bottom-sheet-body");
+    expect(body).toContainElement(screen.getByLabelText("Time"));
+    expect(body).not.toContainElement(
+      screen.getByRole("button", { name: "Close" }),
+    );
+    expect(
+      feedback.compareDocumentPosition(screen.getByLabelText("Time")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    await expectNoA11yViolations(document.body);
+  });
+
   it("renders compact header actions beside its resize and close controls", async () => {
     render(
       <BottomSheet

@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
-import { revealBelowChrome } from "./focusAndReveal";
+import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
 import { Icon } from "./Icon";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
@@ -49,7 +49,7 @@ type Props = {
   /** Size while expanded. */
   expandedSize?: BottomSheetSize;
   children: ReactNode;
-  /** Flow content between pinned chrome and the scrolling body. */
+  /** First content in the scrolling body, below the pinned chrome. */
   bodyHeader?: ReactNode;
   /** When true, show `expandedSize` (user or parent). */
   expanded?: boolean;
@@ -124,12 +124,14 @@ export function BottomSheet({
     const reveal = (event: FocusEvent) => {
       const chrome = chromeRef.current;
       if (chrome && event.target instanceof HTMLElement) {
-        revealBelowChrome(panel, chrome, event.target);
+        if (panel.matches(".bottom-sheet--compact")) {
+          if (!chrome.contains(event.target)) focusAndReveal(event.target);
+        } else revealBelowChrome(panel, chrome, event.target);
       }
     };
     panel.addEventListener("focusin", reveal);
     return () => panel.removeEventListener("focusin", reveal);
-  }, [open, hasDrawer]);
+  }, [open, hasDrawer, className]);
   const isExpanded = expanded ?? size === expandedSize;
   const current = drawer ? drawer.detent : isExpanded ? expandedSize : size;
 
@@ -256,8 +258,10 @@ export function BottomSheet({
             </div>
           </div>
         </div>
-        {bodyHeader}
-        <div className="bottom-sheet-body">{children}</div>
+        <div className="bottom-sheet-body">
+          {bodyHeader}
+          {children}
+        </div>
       </div>
     </div>,
     document.body,
