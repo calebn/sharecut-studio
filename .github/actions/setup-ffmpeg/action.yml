@@ -1,6 +1,9 @@
 name: Set up pinned FFmpeg
 description: Build and execute the shared FFmpeg source recipe on the native runner
 inputs:
+  source-artifact:
+    description: Same-run artifact of original pinned source archives
+    required: true
   output:
     description: Complete native payload destination
     default: ""
@@ -20,11 +23,11 @@ runs:
         msystem: MINGW64
         update: true
         install: make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-python curl
-    - name: Restore hash-verified source archives
-      uses: actions/cache/restore@v6
+    - name: Download original source archives
+      uses: actions/download-artifact@v8
       with:
+        name: ${{ inputs.source-artifact }}
         path: ${{ runner.temp }}/ffmpeg-sources
-        key: ffmpeg-sources-${{ hashFiles('contracts/ffmpeg-build.json') }}
     - name: Build native Windows payload
       if: runner.os == 'Windows'
       shell: msys2 {0}
@@ -32,7 +35,8 @@ runs:
         PAYLOAD_OUTPUT: ${{ inputs.output }}
       run: |
         output="$(cygpath -am "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}")"
-        python scripts/build_ffmpeg.py --output "$output" --source-cache "$RUNNER_TEMP/ffmpeg-sources"
+        python scripts/build_ffmpeg.py --output "$output" --source-archives "$RUNNER_TEMP/ffmpeg-sources"
+        echo "PODCAST_FFMPEG_SOURCE_ARCHIVES=$(cygpath -am "$RUNNER_TEMP/ffmpeg-sources")" >> "$GITHUB_ENV"
         echo "PODCAST_FFMPEG_TOOLCHAIN_PATH=$(cygpath -w /mingw64/bin);$(cygpath -w /usr/bin)" >> "$GITHUB_ENV"
         echo "$(cygpath -w "$output/bin")" >> "$GITHUB_PATH"
         echo "PODCAST_MCP_FFMPEG=$(cygpath -m "$output/bin/ffmpeg.exe")" >> "$GITHUB_ENV"
@@ -50,13 +54,8 @@ runs:
         PAYLOAD_OUTPUT: ${{ inputs.output }}
       run: |
         output="$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).absolute())' "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}")"
-        python3 scripts/build_ffmpeg.py --output "$output" --source-cache "$RUNNER_TEMP/ffmpeg-sources"
+        python3 scripts/build_ffmpeg.py --output "$output" --source-archives "$RUNNER_TEMP/ffmpeg-sources"
+        echo "PODCAST_FFMPEG_SOURCE_ARCHIVES=$RUNNER_TEMP/ffmpeg-sources" >> "$GITHUB_ENV"
         echo "$output/bin" >> "$GITHUB_PATH"
         echo "PODCAST_MCP_FFMPEG=$output/bin/ffmpeg" >> "$GITHUB_ENV"
         echo "PODCAST_MCP_FFPROBE=$output/bin/ffprobe" >> "$GITHUB_ENV"
-    - name: Save source archives
-      if: github.ref == 'refs/heads/main'
-      uses: actions/cache/save@v6
-      with:
-        path: ${{ runner.temp }}/ffmpeg-sources
-        key: ffmpeg-sources-${{ hashFiles('contracts/ffmpeg-build.json') }}

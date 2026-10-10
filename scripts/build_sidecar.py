@@ -686,6 +686,19 @@ def refresh_ffmpeg_integrity(runtime: Path) -> None:
 
 
 def ensure_ffmpeg_payload(runtime: Path, triple: str) -> None:
+    supplied = os.environ.get("PODCAST_FFMPEG_SOURCE_ARCHIVES")
+    source_option = (
+        ["--source-archives", str(Path(supplied))]
+        if supplied is not None
+        else [
+            "--source-cache",
+            str(
+                Path(
+                    os.environ.get("PODCAST_FFMPEG_SOURCE_CACHE", runtime.parent / "ffmpeg-sources")
+                )
+            ),
+        ]
+    )
     subprocess.run(
         [
             sys.executable,
@@ -694,12 +707,7 @@ def ensure_ffmpeg_payload(runtime: Path, triple: str) -> None:
             str(runtime / "ffmpeg"),
             "--target",
             triple,
-            "--source-cache",
-            str(
-                Path(
-                    os.environ.get("PODCAST_FFMPEG_SOURCE_CACHE", runtime.parent / "ffmpeg-sources")
-                )
-            ),
+            *source_option,
         ],
         check=True,
         timeout=5400,

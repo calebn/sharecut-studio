@@ -7,7 +7,16 @@ on:
     branches: [main]
 
 jobs:
+  ffmpeg-sources:
+    uses: ./.github/workflows/ffmpeg-sources.yml
+    permissions:
+      contents: read
+    with:
+      source-repository: ${{ github.repository }}
+      source-sha: ${{ github.sha }}
+
   pytest:
+    needs: ffmpeg-sources
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -29,6 +38,8 @@ jobs:
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          source-artifact: ${{ needs.ffmpeg-sources.outputs.artifact-name }}
 
       - name: Install package and dev deps
         run: |
@@ -73,6 +84,7 @@ jobs:
   # 3.11 `wave` gap (WAVE_FORMAT_EXTENSIBLE, #1183) on the floor. Advisory: not in the
   # required repository merge checks.
   pytest-python-floor:
+    needs: ffmpeg-sources
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -88,6 +100,8 @@ jobs:
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          source-artifact: ${{ needs.ffmpeg-sources.outputs.artifact-name }}
 
       - name: Install package and dev deps
         run: |
@@ -147,6 +161,7 @@ jobs:
         run: npm run cheatsheet:check
 
   frontend-e2e-suites:
+    needs: ffmpeg-sources
     name: frontend-e2e-${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -182,6 +197,8 @@ jobs:
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          source-artifact: ${{ needs.ffmpeg-sources.outputs.artifact-name }}
 
       - uses: actions/setup-node@v7
         with:

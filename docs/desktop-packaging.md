@@ -168,6 +168,24 @@ If `docker pull ubuntu:22.04` hangs, the wrapper imports Ubuntu’s published ja
 Apple Silicon Docker produces an **aarch64** AppImage (native). Testers download **amd64** from GHA; only click **Run workflow** after this Docker recipe succeeds. The Ubuntu job calls the same `build_linux_appimage.sh`.
 
 
+CI delivers original source archives through the shared source-only producer
+before native FFmpeg builds. Release production uses the exact repository and
+SHA emitted by `verify-source`. Its only optional secret is the read-only
+checkout deploy key. Both release matrices require successful source production;
+the bundle still allows the extension preparation job to be skipped when no
+extension is requested. Every native target compiles and executes its own
+payload from independently rehashed archives.
+
+The FFmpeg action exports `PODCAST_FFMPEG_SOURCE_ARCHIVES` as build configuration
+for sidecar fresh freezes, `--ensure` reuse and payload repairs in the same job.
+These paths pass `--source-archives` to the builder, so missing or corrupt
+archives fail even when a prior payload exists. Local contributor freezes
+continue to use `PODCAST_FFMPEG_SOURCE_CACHE` or the adjacent `ffmpeg-sources`
+download cache when no supplied directory is configured. No source artifact
+path is stored in the packaged launchers or runtime selection. Original source
+archives and rebuild materials remain inside the published native resource.
+See [Build FFmpeg from source](setup.md#build-ffmpeg-from-source) for both modes.
+
 ## Frozen sidecar
 
 Testers do not have `podcast` on PATH. [`scripts/build_sidecar.py`](../scripts/build_sidecar.py) freezes **on each OS** (native `faster-whisper` / CTranslate2 wheels):

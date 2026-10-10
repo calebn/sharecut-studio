@@ -33,6 +33,7 @@ on:
       - "tests/conftest.py"
       - "pyproject.toml"
       - ".github/workflows/desktop.yml"
+      - ".github/workflows/ffmpeg-sources.yml"
   push:
     branches: [main]
     paths: *desktop-paths
@@ -43,6 +44,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ffmpeg-sources:
+    uses: ./.github/workflows/ffmpeg-sources.yml
+    permissions:
+      contents: read
+    with:
+      source-repository: ${{ github.repository }}
+      source-sha: ${{ github.sha }}
+
   web-dist:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -165,6 +174,7 @@ jobs:
   # closed on Windows, so its staging tests skip there via the markers in tests/review_platform.py (see
   # docs/persistence.md's Inventory row for review publication).
   project-commit-lock-windows:
+    needs: ffmpeg-sources
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -174,6 +184,8 @@ jobs:
           python-version: "3.12"
       - name: Build pinned FFmpeg
         uses: ./.github/actions/setup-ffmpeg
+        with:
+          source-artifact: ${{ needs.ffmpeg-sources.outputs.artifact-name }}
       - *install-python-dev-deps
       - *provision-windows-storage
       # Two separate steps: pwsh only fails the job on the last command's exit code.
@@ -184,6 +196,7 @@ jobs:
       - *cleanup-windows-storage
 
   ffmpeg-native-payload:
+    needs: ffmpeg-sources
     strategy:
       fail-fast: false
       matrix:
@@ -197,6 +210,7 @@ jobs:
           python-version: "3.12"
       - uses: ./.github/actions/setup-ffmpeg
         with:
+          source-artifact: ${{ needs.ffmpeg-sources.outputs.artifact-name }}
           output: ${{ runner.temp }}/sharecut-runtime/ffmpeg
       - name: Repeat payload verification through the sidecar builder
         if: runner.os == 'Windows'

@@ -1,0 +1,59 @@
+name: Acquire original FFmpeg sources
+
+on:
+  workflow_call:
+    inputs:
+      source-repository:
+        type: string
+        required: true
+      source-sha:
+        type: string
+        required: true
+    secrets:
+      SOURCE_REPOSITORY_SSH_KEY:
+        description: Optional read-only source checkout deploy key
+        required: false
+    outputs:
+      artifact-name:
+        value: ${{ jobs.acquire.outputs.artifact-name }}
+
+jobs:
+  acquire:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      artifact-name: ${{ steps.identity.outputs.artifact-name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.source-repository }}
+          ref: ${{ inputs.source-sha }}
+          persist-credentials: false
+          ssh-key: ${{ secrets.SOURCE_REPOSITORY_SSH_KEY }}
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source-sha }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[a-fA-F0-9]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "${SOURCE_SHA,,}"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Name same-run source artifact
+        id: identity
+        shell: bash
+        env:
+          ARTIFACT_NAME: ffmpeg-sources-${{ github.run_id }}-${{ github.run_attempt }}-${{ hashFiles('contracts/ffmpeg-build.json') }}
+        run: echo "artifact-name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+      - name: Acquire original pinned sources
+        shell: bash
+        run: python scripts/build_ffmpeg.py --acquire-sources --source-cache "$RUNNER_TEMP/ffmpeg-sources"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.identity.outputs.artifact-name }}
+          path: ${{ runner.temp }}/ffmpeg-sources
+          if-no-files-found: error
+          retention-days: 1

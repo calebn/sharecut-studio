@@ -587,3 +587,46 @@ def test_ffmpeg_toolchain_path_is_scoped_to_builder_child(monkeypatch, tmp_path,
     assert argv[0] == sys.executable
     assert options["env"]["PATH"] == toolchain + os.pathsep + original
     assert os.environ["PATH"] == original
+
+
+@pytest.mark.parametrize("supplied", [True, False])
+def test_sidecar_passes_source_delivery_only_to_builder(monkeypatch, tmp_path, supplied):
+    mod = _load_build_sidecar()
+    archive_dir = tmp_path / "delivered"
+    monkeypatch.setenv("PODCAST_FFMPEG_SOURCE_CACHE", str(tmp_path / "cache"))
+    if supplied:
+        monkeypatch.setenv("PODCAST_FFMPEG_SOURCE_ARCHIVES", str(archive_dir))
+    else:
+        monkeypatch.delenv("PODCAST_FFMPEG_SOURCE_ARCHIVES", raising=False)
+    calls = []
+    monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
+    mod.ensure_ffmpeg_payload(tmp_path / "runtime", "x86_64-pc-windows-msvc")
+    assert calls[0][-2:] == (
+        ["--source-archives", str(archive_dir)]
+        if supplied
+        else ["--source-cache", str(tmp_path / "cache")]
+    )
+    assert "PODCAST_FFMPEG_SOURCE_ARCHIVES" not in mod.POSIX_LAUNCHER
+    assert "PODCAST_FFMPEG_SOURCE_ARCHIVES" not in mod.WINDOWS_LAUNCHER
+
+
+@pytest.mark.parametrize("mode", ["fresh", "ensure", "repair"])
+def test_sidecar_lifecycle_preserves_supplied_source_input(monkeypatch, tmp_path, mode):
+    mod = _load_build_sidecar()
+    calls = []
+    archives = tmp_path / "sources"
+    monkeypatch.setenv("PODCAST_FFMPEG_SOURCE_ARCHIVES", str(archives))
+    monkeypatch.delenv("APPLE_SIGNING_IDENTITY", raising=False)
+    monkeypatch.setattr(mod, "require_rustc", lambda: None)
+    monkeypatch.setattr(mod, "runtime_is_complete", lambda *_a, **_k: mode == "ensure")
+    monkeypatch.setattr(mod, "assert_production_web_dist", lambda *_a: None)
+    monkeypatch.setattr(mod, "copy_web_dist", lambda *_a, **_k: None)
+    monkeypatch.setattr(mod, "freeze_python", lambda *_a, **_k: None)
+    monkeypatch.setattr(mod, "compile_launchers", lambda *_a: None)
+    monkeypatch.setattr(mod, "write_freeze_complete", lambda *_a: None)
+    monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append(argv))
+    args = ["--out", str(tmp_path), "--triple", "x86_64-pc-windows-msvc"]
+    if mode != "fresh":
+        args.append("--ensure")
+    assert mod.main(args) == 0
+    assert calls[0][-2:] == ["--source-archives", str(archives)]
