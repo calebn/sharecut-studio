@@ -220,3 +220,60 @@ def test_windows_builder_requests_and_stages_executable_targets(tmp_path, monkey
     assert commands == [["make", "-j2", "ffmpeg.exe", "ffprobe.exe"]]
     assert (output / "bin/ffmpeg.exe").read_bytes() == b"native executable"
     assert (output / "bin/ffprobe.exe").read_bytes() == b"native executable"
+
+
+def test_windows_linkage_accepts_native_recipe_sdk_imports(tmp_path, monkeypatch, capsys):
+    builder = load_script("build_ffmpeg")
+    monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
+    evidence = (
+        "DLL Name: GDI32.dll\n"
+        "DLL Name: OLEAUT32.dll\n"
+        "DLL Name: SHLWAPI.dll\n"
+        "DLL Name: AVICAP32.dll\n"
+        "DLL Name: KERNEL32.dll\n"
+        "DLL Name: api-ms-win-crt-runtime-l1-1-0.dll\n"
+    )
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: evidence)
+    assert builder._linkage(tmp_path / "ffmpeg.exe") == evidence
+    assert capsys.readouterr().out == (
+        f"Windows native imports for {tmp_path / 'ffmpeg.exe'}: "
+        "['GDI32.dll', 'OLEAUT32.dll', 'SHLWAPI.dll', 'AVICAP32.dll', 'KERNEL32.dll', "
+        "'api-ms-win-crt-runtime-l1-1-0.dll']\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "dependency",
+    [
+        "libopus-0.dll",
+        "libmp3lame-0.dll",
+        "libgcc_s_seh-1.dll",
+        "libwinpthread-1.dll",
+        "api-ms-win-../../libopus.dll",
+        "api-ms-win-..\\libopus.dll",
+        "api-ms-win-crt-runtime-l1-1-0.exe",
+        "api-ms-win-crt-runtime-l1-1-0.dll/extra",
+        "api-ms-win-crt-runtime.dll",
+        "C:\\Windows\\System32\\KERNEL32.dll",
+        "../KERNEL32.dll",
+    ],
+)
+def test_windows_linkage_rejects_external_or_malformed_imports(
+    tmp_path, monkeypatch, dependency, capsys
+):
+    builder = load_script("build_ffmpeg")
+    monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: "DLL Name: " + dependency + "\n")
+    with pytest.raises(ValueError, match="non-system native linkage"):
+        builder._linkage(tmp_path / "ffmpeg.exe")
+    assert capsys.readouterr().out == (
+        f"Windows native imports for {tmp_path / 'ffmpeg.exe'}: {[dependency]!r}\n"
+    )
+
+
+def test_windows_linkage_rejects_missing_import_evidence(tmp_path, monkeypatch):
+    builder = load_script("build_ffmpeg")
+    monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(builder, "_run", lambda *_a, **_k: "no import table\n")
+    with pytest.raises(ValueError, match="non-system native linkage"):
+        builder._linkage(tmp_path / "ffmpeg.exe")

@@ -308,6 +308,16 @@ jobs run this builder and execute the resulting pair. Source archives alone are
 cached and rechecked before extraction. Binary hashes detect corruption after a
 trusted source build, and do not authenticate arbitrary binary downloads.
 
+Windows linkage validation admits audited direct imports from Windows SDK DLLs,
+including GDI, OLE Automation, Shell utilities and AVICap used by FFmpeg's native
+capture inputs. API-set imports must be complete DLL basenames with their level
+and version numbers. Paths, malformed names and external codec or toolchain DLLs
+fail validation. The builder prints the complete direct import inventory before
+validation, so CI logs retain it on success or failure. PE import inspection checks
+names. The subsequent media proof executes both programs with only Windows
+System32 on PATH to detect missing runtime dependencies and confirm the required
+codecs and filters.
+
 `podcast bootstrap` downloads model assets only. FFmpeg is a readiness check and
 is absent from CLI and GUI download component lists. Keep supported system tools,
 use explicit paths from the source builder, or reinstall a damaged desktop bundle.
