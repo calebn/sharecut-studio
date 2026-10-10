@@ -54,6 +54,12 @@ def test_workflow_keeps_installs_checks_and_only_one_ffmpeg_cache_writer() -> No
     assert "if" not in browser and not browser.get("continue-on-error")
 
 
+def test_release_wheel_rebuilds_when_ffmpeg_contract_changes() -> None:
+    workflow = load_github_yaml(ROOT / ".github/workflows/release-wheel.yml")
+    for event in ("pull_request", "push"):
+        assert "contracts/ffmpeg-build.json" in workflow["on"][event]["paths"]
+
+
 def test_source_cache_never_stores_binaries():
     action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
     for step in action["runs"]["steps"]:
