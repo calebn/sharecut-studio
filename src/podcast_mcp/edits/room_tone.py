@@ -37,6 +37,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
@@ -69,8 +70,6 @@ MIN_SAMPLE_SEC = 0.25
 # word's attack or reverb tail, or a gate opening or closing, sits at the floor's level
 # while it is still voice, which no level check or absent voice detector can catch.
 SPEECH_GUARD_SEC = 0.15
-# Quiet runs tried per request, nearest first. A track whose nearest runs all fail
-# has no usable room tone near this cut; the fill stays silent.
 MAX_CANDIDATES = 16
 
 Span = tuple[float, float]
@@ -99,6 +98,69 @@ class Sample:
     end: float
     rms_db: float
     speech_prob: float | None
+
+
+@dataclass(frozen=True)
+class LiveFloor:
+    floor: TrackFloor
+    gated: bool
+
+
+@dataclass(frozen=True)
+class DigitalSilence:
+    path: Path
+
+
+@dataclass(frozen=True)
+class Unmeasured:
+    cause: Literal["missing_file", "unreadable_file"]
+    path: Path
+
+
+FloorRead = LiveFloor | DigitalSilence | Unmeasured
+
+
+@dataclass(frozen=True)
+class RecordedBedSample:
+    start: float
+    end: float
+    source_id: str
+    path: Path
+
+
+@dataclass(frozen=True)
+class OwnQuietSample:
+    sample: Sample
+
+
+@dataclass(frozen=True)
+class SampleAbsent:
+    cause: Literal[
+        "missing_track",
+        "missing_media",
+        "missing_file",
+        "unreadable_file",
+        "digital_silence",
+        "gated_live",
+        "no_quiet_run",
+        "too_short",
+        "excluded",
+        "rejected",
+        "window_unreadable",
+        "candidate_limit",
+        "no_fill_requested",
+    ]
+    rejected_checks: tuple[str, ...] = ()
+    unreadable_windows: int = 0
+    bed_failure: str | None = None
+
+
+RoomToneSelection = RecordedBedSample | OwnQuietSample | SampleAbsent
+
+
+@dataclass(frozen=True)
+class BedUnavailable:
+    cause: str
 
 
 Check = Callable[[Sample, TrackFloor], bool]
@@ -131,49 +193,77 @@ def room_tone_span(
     near_sec: float,
     duration_sec: float,
     avoid: Sequence[Span] = (),
-) -> tuple[float, float, str | None] | None:
-    """``(start, end, source_id)`` of room tone to fill ``duration_sec`` near ``near_sec``.
+) -> RoomToneSelection:
+    """Measured room tone or an actual absence cause for this request.
 
     ``near_sec`` is the cut's position in the track's source seconds. ``avoid`` is source
     time a sample of the track's own audio may not come from: a pad that replays the
     source of a cut that has not been applied yet makes that cut play in two places, and
     approving it then removes everything between them. The track's
     recorded bed wins (its ``source_id``); otherwise a sample of the track's own audio
-    (``source_id`` None) that may be shorter than ``duration_sec``, for the caller to
-    tile. None when the track has neither, e.g. a track gated to digital silence.
+    that may be shorter than ``duration_sec``, for the caller to tile.
     """
     if duration_sec <= 0:
-        return None
-    bed = _bed_span(project, track_id, duration_sec)
-    if bed is not None:
-        return bed
+        return SampleAbsent("no_fill_requested")
+    bed = room_tone_bed(project, track_id)
+    if isinstance(bed, RecordedBedSample):
+        return RecordedBedSample(0.0, min(bed.end, duration_sec), bed.source_id, bed.path)
     track = project.track_by_id(track_id)
-    if track is None or track.media is None:
-        return None
-    floor = track_floor(track_audio_path(project, track_id))
-    if floor is None:
-        return None
-    sample = _pick_sample(floor, near_sec=near_sec, duration_sec=duration_sec, avoid=avoid)
-    return None if sample is None else (sample.start, sample.end, None)
+    if track is None:
+        return SampleAbsent("missing_track", bed_failure=bed.cause)
+    if track.media is None:
+        return SampleAbsent("missing_media", bed_failure=bed.cause)
+    read = track_floor(track_audio_path(project, track_id))
+    if isinstance(read, Unmeasured):
+        return SampleAbsent(read.cause, bed_failure=bed.cause)
+    if isinstance(read, DigitalSilence):
+        return SampleAbsent("digital_silence", bed_failure=bed.cause)
+    if read.gated:
+        return SampleAbsent("gated_live", bed_failure=bed.cause)
+    selected = _pick_sample(read.floor, near_sec=near_sec, duration_sec=duration_sec, avoid=avoid)
+    if isinstance(selected, SampleAbsent):
+        return SampleAbsent(
+            selected.cause, selected.rejected_checks, selected.unreadable_windows, bed.cause
+        )
+    return selected
 
 
 def _pick_sample(
     track: TrackFloor, *, near_sec: float, duration_sec: float, avoid: Sequence[Span] = ()
-) -> Sample | None:
+) -> OwnQuietSample | SampleAbsent:
     """The room-tone sample nearest ``near_sec``: quiet runs nearest first, first to pass."""
     need = min(duration_sec, MIN_SAMPLE_SEC)
+    if not track.runs:
+        return SampleAbsent("no_quiet_run")
+    eligible = [run for run in track.runs if run[1] - run[0] >= need - 1e-9]
+    if not eligible:
+        return SampleAbsent("too_short")
     runs = [
         r
-        for run in track.runs
+        for run in eligible
         for r in subtract_intervals([run], avoid)
         if r[1] - r[0] >= need - 1e-9
     ]
     runs.sort(key=lambda r: max(r[0] - near_sec, near_sec - r[1], 0.0))
+    if not runs:
+        return SampleAbsent("excluded")
+    rejected: list[str] = []
+    unreadable = 0
     for run in runs[:MAX_CANDIDATES]:
         sample = _measure(track, _window_nearest(run, near_sec, duration_sec))
-        if sample is not None and rejection(sample, track) is None:
-            return sample
-    return None
+        if sample is None:
+            unreadable += 1
+            continue
+        failed = rejection(sample, track)
+        if failed is None:
+            return OwnQuietSample(sample)
+        if failed not in rejected:
+            rejected.append(failed)
+    if len(runs) > MAX_CANDIDATES:
+        return SampleAbsent("candidate_limit", tuple(rejected), unreadable)
+    if rejected:
+        return SampleAbsent("rejected", tuple(rejected), unreadable)
+    return SampleAbsent("window_unreadable", unreadable_windows=unreadable)
 
 
 def _window_nearest(run: Span, near_sec: float, duration_sec: float) -> Span:
@@ -191,6 +281,8 @@ def _measure(track: TrackFloor, span: Span) -> Sample | None:
             duration_sec=end - start,
             sample_rate=SAMPLE_RATE,
         )
+        if audio.size == 0 or not np.all(np.isfinite(audio)):
+            return None
         speech_prob = _speech_prob(audio)
     except Exception as exc:
         log.warning("room tone window %.2f-%.2f unmeasurable: %s", start, end, exc)
@@ -212,19 +304,20 @@ def _speech_prob(audio: np.ndarray) -> float | None:
     return float(np.max(vad.speech_probs(audio)))
 
 
-def track_floor(path: Path) -> TrackFloor | None:
-    """``path``'s floor, speech level and quiet runs (cached per file revision); None when
-    it holds no live audio or cannot be read."""
+def track_floor(path: Path) -> FloorRead:
+    """Live, digital or unreadable source facts cached per file revision."""
     try:
         resolved = path.resolve(strict=True)
         return _track_floor(resolved, file_revision(resolved))
+    except FileNotFoundError:
+        return Unmeasured("missing_file", path)
     except Exception as exc:
         log.warning("room tone levels unavailable for %s: %s", path, exc)
-        return None
+        return Unmeasured("unreadable_file", path)
 
 
 @lru_cache(maxsize=8)
-def _track_floor(path: Path, revision: FileRevision) -> TrackFloor | None:
+def _track_floor(path: Path, revision: FileRevision) -> FloorRead:
     """Decode ``path`` once per file revision into its floor, speech level and quiet runs.
 
     A track whose bed is digital silence (more of it is digital silence than live audio
@@ -234,11 +327,19 @@ def _track_floor(path: Path, revision: FileRevision) -> TrackFloor | None:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
     frame = round(SAMPLE_RATE * FRAME_SEC)
-    chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=SAMPLE_RATE)
-    frames = frame_rms_db_stream(chunks, frame, frame, floor_db=DIGITAL_SILENCE_DB)
+    try:
+        chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=SAMPLE_RATE)
+        frames = frame_rms_db_stream(chunks, frame, frame, floor_db=DIGITAL_SILENCE_DB)
+    except FileNotFoundError:
+        return Unmeasured("missing_file", path)
+    except Exception as exc:
+        log.warning("room tone levels unavailable for %s: %s", path, exc)
+        return Unmeasured("unreadable_file", path)
+    if frames.size == 0 or not np.all(np.isfinite(frames)):
+        return Unmeasured("unreadable_file", path)
     live = frames > DIGITAL_SILENCE_DB
     if not live.any():
-        return None
+        return DigitalSilence(path)
     floor_db = float(np.percentile(frames[live], FLOOR_PERCENTILE))
     quiet = live & (frames <= floor_db + FLOOR_BAND_DB)
     gated = np.count_nonzero(~live) > np.count_nonzero(quiet)
@@ -248,40 +349,37 @@ def _track_floor(path: Path, revision: FileRevision) -> TrackFloor | None:
         for i, j in ([] if gated else bool_runs(quiet))
     ]
     loud = frames[frames > floor_db + FLOOR_BAND_DB]
-    return TrackFloor(
+    floor = TrackFloor(
         path=path,
         floor_db=floor_db,
         speech_db=float(np.percentile(loud, SPEECH_PERCENTILE)) if loud.size else None,
         runs=tuple((i * FRAME_SEC, j * FRAME_SEC) for i, j in runs if j > i),
     )
+    return LiveFloor(floor, bool(gated))
 
 
-def room_tone_bed(project: EpisodeProject, track_id: str) -> tuple[Path, float] | None:
-    """``(path, duration_sec)`` of the track's recorded bed, when registered and audible."""
+def room_tone_bed(project: EpisodeProject, track_id: str) -> RecordedBedSample | BedUnavailable:
+    """Read the registered source that a bed clip actually renders."""
     track = project.track_by_id(track_id)
     if track is None or track.room_tone is None:
-        return None
+        return BedUnavailable("missing_bed")
     bed_sec = float(track.room_tone.duration_sec or 0.0)
-    if bed_sec <= 0 or project.source_by_id(room_tone_source_id(track_id)) is None:
-        return None
-    path = Path(track.room_tone.path)
-    if not path.is_absolute():
-        path = project.workspace_path() / path
+    source_id = room_tone_source_id(track_id)
+    source = project.source_by_id(source_id)
+    if bed_sec <= 0 or source is None:
+        return BedUnavailable("unregistered_bed")
+    from podcast_mcp.util.workspace_paths import resolve_under_workspace
+
     try:
+        path = resolve_under_workspace(project, source.path)
         audio = load_mono_window(path, start_sec=0.0, duration_sec=bed_sec)
+    except FileNotFoundError:
+        return BedUnavailable("missing_file")
     except Exception as exc:
-        log.warning("room tone bed %s unreadable: %s", path, exc)
-        return None
+        log.warning("room tone bed %s unreadable: %s", source_id, exc)
+        return BedUnavailable("unreadable_file")
+    if audio.size == 0 or not np.all(np.isfinite(audio)):
+        return BedUnavailable("unreadable_file")
     if rms_db(audio, floor_db=DIGITAL_SILENCE_DB) <= DIGITAL_SILENCE_DB:
-        return None
-    return path, bed_sec
-
-
-def _bed_span(
-    project: EpisodeProject, track_id: str, duration_sec: float
-) -> tuple[float, float, str] | None:
-    """``(0, use, source_id)`` from the track's recorded bed, when it holds audible sound."""
-    bed = room_tone_bed(project, track_id)
-    if bed is None:
-        return None
-    return (0.0, min(bed[1], duration_sec), room_tone_source_id(track_id))
+        return BedUnavailable("digital_silence")
+    return RecordedBedSample(0.0, bed_sec, source_id, path)

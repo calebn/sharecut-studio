@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits import apply_tighten_decisions
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.models import (
@@ -10,6 +13,8 @@ from podcast_mcp.models import (
     MediaAsset,
     Track,
     TrackRole,
+    Transcript,
+    TranscriptWord,
 )
 
 
@@ -74,8 +79,29 @@ def test_apply_tighten_decisions_counts_applied():
     assert host_end == guest_end == 9.5
 
 
-def test_apply_tighten_decisions_applies_a_pause_trim_that_needs_no_review():
+def _original_pause_project(tmp_path):
     proj = _two_track_project()
+    proj.meta.workspace_dir = str(tmp_path)
+    for index, track in enumerate(proj.tracks):
+        audio = room(10, seed=1214 + index)
+        for start, end in ((4.0, 4.3), (6.4, 6.7), (8.7, 9.1)):
+            voice(audio, start, end)
+        write_wav(tmp_path / track.media.path, audio)
+        proj.transcripts.append(
+            Transcript(
+                track_id=track.id,
+                words=[
+                    TranscriptWord(text="before", start=4.0, end=4.3),
+                    TranscriptWord(text="after", start=6.4, end=6.7),
+                    TranscriptWord(text="reference", start=8.7, end=9.1),
+                ],
+            )
+        )
+    return proj
+
+
+def test_apply_tighten_decisions_applies_a_pause_trim_that_needs_no_review(tmp_path):
+    proj = _original_pause_project(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="trim",
@@ -101,7 +127,37 @@ def test_apply_tighten_decisions_applies_a_pause_trim_that_needs_no_review():
 
     assert apply_tighten_decisions(proj) == 1
     assert [e.id for e in proj.edit_decisions] == ["risky-trim"]
-    assert max(c.timeline_end for c in clips_for_track(proj, "guest")) == 9.0
+    assert max(c.timeline_end for c in clips_for_track(proj, "guest")) == pytest.approx(
+        9.0, abs=0.001
+    )
+    assert all(c.source_id is None for c in proj.clips)
+    assert proj.editorial.edit_log[0].params["replace_gap_sec"] is None
+    assert proj.editorial.edit_log[0].params["pad_samples"] == []
+
+
+def test_apply_tighten_decisions_holds_a_pause_without_original_media(tmp_path):
+    proj = _original_pause_project(tmp_path)
+    (tmp_path / "raw" / "host.wav").unlink()
+    proj.edit_decisions = [
+        EditDecision(
+            id="trim",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=5.0,
+            end=6.0,
+            reason="pause:1.5s",
+            review_required=False,
+        )
+    ]
+    before = proj.model_dump(mode="json")
+
+    assert apply_tighten_decisions(proj) == 0
+
+    assert proj.model_dump(mode="json") == before
+    assert max(c.timeline_end for c in clips_for_track(proj, "guest")) == 10.0
+    assert [e.id for e in proj.edit_decisions] == ["trim"]
+    assert proj.editorial.edit_log == []
+    assert all(c.source_id is None for c in proj.clips)
 
 
 def _resolved(project, rows, *, existing=(), rejected=()):
@@ -257,9 +313,11 @@ def test_a_track_local_pause_trim_is_never_a_twin() -> None:
         for c, scope in zip(candidates, ("track", "session"), strict=True)
     ]
 
-    kept = _resolve_analyzed_cuts(candidates, results, project=project)
+    skips: dict[str, int] = {}
+    kept = _resolve_analyzed_cuts(candidates, results, project=project, skip_counts=skips)
 
-    assert kept == results
+    assert kept == results[1:]
+    assert skips == {"stored_track_pause": 1}
 
 
 def test_every_dialogue_track_is_decoded_for_a_pause_trim_a_transcript_or_not() -> None:

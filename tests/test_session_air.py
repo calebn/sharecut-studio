@@ -217,7 +217,7 @@ def test_a_track_is_read_through_the_decode_the_run_already_holds() -> None:
 
 
 def _recording(air: SessionAir, track_id: str):
-    return next(r for (tid, _media), r in air._recordings.items() if tid == track_id)
+    return next(r for r in air._recordings.values() if r.track_id == track_id)
 
 
 def test_the_sessions_speech_is_laid_on_the_session_clock_not_the_recordings_seconds() -> None:

@@ -971,6 +971,12 @@
       },
       "ApproveEditsPayload": {
         "properties": {
+          "allow_review": {
+            "default": true,
+            "description": "Authorize a pause join that currently requires review. Selected approval defaults to true. Apply eligible with Avoid harsh cuts on sends false; speech confirmation does not change this authority.",
+            "title": "Allow Review",
+            "type": "boolean"
+          },
           "confirm_cut_speech": {
             "default": false,
             "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",

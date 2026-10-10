@@ -109,10 +109,14 @@ def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -
     timeline after the edit.
     """
     from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
     logged = len(project.editorial.edit_log)
     # A snapshot saves nothing: Suggested plays the edit as a confirmed approval ships it.
-    approve_edits(project, [window.edit_id], confirm_cut_speech=True)
+    try:
+        approve_edits(project, [window.edit_id], confirm_cut_speech=True)
+    except ScopeChangedAtApproval as held:
+        raise held.for_delivery("suggested") from held
     applied = project.editorial.edit_log[logged:]
     if not applied:
         raise ValueError(SUGGEST_REASON_UNMAPPED)

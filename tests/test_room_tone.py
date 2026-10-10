@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.room_tone import room_tone_span
+from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
 from podcast_mcp.edits.timeline_ops import insert_room_tone_pad, mute_room_tone_fill
 from podcast_mcp.models import (
     Clip,
@@ -255,20 +255,27 @@ def test_room_tone_is_not_taken_from_source_a_pending_cut_still_plays(tmp_path: 
     nearest = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3)
     kept = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3, avoid=[(5.0, 7.0)])
 
-    assert nearest is not None
-    assert nearest[0] == pytest.approx(5.15)
-    assert kept == (pytest.approx(2.15), pytest.approx(2.45), None)
+    assert isinstance(nearest, OwnQuietSample)
+    assert nearest.sample.start == pytest.approx(5.15)
+    assert isinstance(kept, OwnQuietSample)
+    assert (kept.sample.start, kept.sample.end) == (pytest.approx(2.15), pytest.approx(2.45))
 
 
 def test_no_room_tone_without_audio_or_length(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
-    assert room_tone_span(project, "host", near_sec=4.25, duration_sec=0.0) is None
+    assert room_tone_span(project, "host", near_sec=4.25, duration_sec=0.0) == SampleAbsent(
+        "no_fill_requested"
+    )
     host = project.track_by_id("host")
     assert host is not None
     host.media = None
-    assert room_tone_span(project, "host", near_sec=4.25, duration_sec=0.5) is None
+    missing = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.5)
+    assert isinstance(missing, SampleAbsent)
+    assert missing.cause == "missing_media"
     gated = _project(tmp_path / "gated", host=np.zeros(round(DURATION_SEC * SR)))
-    assert room_tone_span(gated, "host", near_sec=4.25, duration_sec=0.5) is None
+    silent = room_tone_span(gated, "host", near_sec=4.25, duration_sec=0.5)
+    assert isinstance(silent, SampleAbsent)
+    assert silent.cause == "digital_silence"
 
 
 def test_floor_too_close_to_speech_is_not_room_tone(tmp_path: Path) -> None:
@@ -356,18 +363,24 @@ def _gated_talker() -> np.ndarray:
 
 
 @pytest.mark.usefixtures("no_voice_detector")
-@pytest.mark.parametrize("guest", [_gated_steady_word(), _gated_talker()], ids=["word", "talker"])
+@pytest.mark.parametrize(
+    ("guest", "cause"),
+    [(_gated_steady_word(), "gated_live"), (_gated_talker(), "no_quiet_run")],
+    ids=["word", "talker"],
+)
 def test_a_gated_track_has_no_room_tone_without_a_voice_detector(
-    tmp_path: Path, guest: np.ndarray
+    tmp_path: Path, guest: np.ndarray, cause: str
 ) -> None:
     project = _project(tmp_path, host=_host_audio(), guest=guest)
 
-    assert [
-        room_tone_span(project, "guest", near_sec=near, duration_sec=0.3)
-        for near in (4.0, 6.5, 8.5)
-    ] == [None, None, None]
+    for near in (4.0, 6.5, 8.5):
+        selected = room_tone_span(project, "guest", near_sec=near, duration_sec=0.3)
+        assert isinstance(selected, SampleAbsent)
+        assert selected.cause == cause
     # The host's room floor is still found without the detector.
-    assert room_tone_span(project, "host", near_sec=4.0, duration_sec=0.3) is not None
+    assert isinstance(
+        room_tone_span(project, "host", near_sec=4.0, duration_sec=0.3), OwnQuietSample
+    )
 
 
 @pytest.mark.usefixtures("no_voice_detector")
@@ -383,8 +396,8 @@ def test_word_onsets_and_tails_are_never_room_tone(
 
     span = room_tone_span(project, "host", near_sec=near_sec, duration_sec=duration_sec)
 
-    assert span is not None
-    start, end, _ = span
+    assert isinstance(span, OwnQuietSample)
+    start, end = span.sample.start, span.sample.end
     # A word is audible from its start until its tail falls 10 dB under the floor.
     tail_sec = (VOICE_DB - (FLOOR_DB - 10.0)) / DECAY_DB_PER_SEC
     heard = [(s, e + tail_sec) for s, e in WORDS_WITH_TAILS]

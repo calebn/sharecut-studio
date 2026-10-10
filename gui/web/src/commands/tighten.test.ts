@@ -100,7 +100,12 @@ describe("tighten commands", () => {
     expect(await execute("tighten.applyHit", { id: "e1" })).toEqual({
       status: "ok",
     });
-    expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);
+    expect(approveEdits).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      ["e1"],
+      false,
+      true,
+    );
     expect(await execute("tighten.skipHit", { id: "e2" })).toEqual({
       status: "ok",
     });
@@ -190,7 +195,12 @@ describe("tighten commands", () => {
     expect(await execute("tighten.applyHit", { id: "repeat" })).toEqual({
       status: "ok",
     });
-    expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["repeat"]);
+    expect(approveEdits).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      ["repeat"],
+      false,
+      true,
+    );
     expect(await execute("tighten.skipHit", { id: "restart" })).toEqual({
       status: "ok",
     });
@@ -212,7 +222,55 @@ describe("tighten commands", () => {
       danger: false,
     });
     expect(approveEdits).toHaveBeenCalledTimes(1);
-    expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);
+    expect(approveEdits).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      ["e1"],
+      false,
+      false,
+    );
+  });
+
+  it("apply-all retains deliberate review authority with Avoid harsh cuts off", async () => {
+    const result = await execute("tighten.applyAllSafe", {
+      avoidHarsh: false,
+      ids: ["e1", "e2"],
+    });
+    expect(result).toEqual({ status: "ok" });
+    expect(approveEdits).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      ["e1", "e2"],
+      false,
+      true,
+    );
+  });
+
+  it("turning off Avoid harsh cuts still leaves one-by-one pause hits pending", async () => {
+    useDawStore.setState({
+      project: minimalProject({
+        pending_edits: [
+          pending(),
+          pending({
+            id: "review-pause",
+            reason: "pause:2.00s",
+            review_required: true,
+            harsh: true,
+            listen_one_by_one: true,
+          }),
+        ],
+      }),
+    });
+    expect(
+      await execute("tighten.applyAllSafe", {
+        avoidHarsh: false,
+        ids: ["e1", "review-pause"],
+      }),
+    ).toEqual({ status: "ok" });
+    expect(approveEdits).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      ["e1"],
+      false,
+      true,
+    );
   });
 
   it("disables apply-all when every listed hit is harsh", async () => {
@@ -231,7 +289,12 @@ describe("tighten commands", () => {
     });
     const result = await execute("tighten.applyAllSafe", {});
     expect(result).toEqual({ status: "ok" });
-    expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);
+    expect(approveEdits).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      ["e1"],
+      false,
+      false,
+    );
   });
 
   it("apply-all never batches a row the server did not classify", async () => {

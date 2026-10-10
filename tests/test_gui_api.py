@@ -2359,10 +2359,11 @@ def test_api_pipeline_run_job_pushes_proposed_edits_to_open_tabs(
 
     from podcast_mcp.edits.transcript_cuts import append_remove_decision
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project
+    from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project, save_project
     from podcast_mcp.services.document_sync import document_hub_key
     from podcast_mcp.services.pipeline.service import PipelineRunner
     from podcast_mcp.services.session_sync.hub import get_hub
+    from source_review_helpers import finite_primary_recording
 
     def run(self, project, *, on_step_complete=None, **_kwargs):
         append_remove_decision(project, "host", 1.0, 1.5, reason="find-hits-proof")
@@ -2375,6 +2376,9 @@ def test_api_pipeline_run_job_pushes_proposed_edits_to_open_tabs(
         )
 
     monkeypatch.setattr(PipelineRunner, "run", run)
+    project = load_project(minimal_project)
+    finite_primary_recording(project, 2)
+    save_project(project, minimal_project)
     key = document_hub_key(load_project(minimal_project))
     loop = asyncio.new_event_loop()
     queue = get_hub().subscribe(key, loop)

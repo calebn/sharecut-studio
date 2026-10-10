@@ -611,6 +611,12 @@ def _absorb_trailing_silence(
     return target, True
 
 
+def _effective_cut_optimization_enabled(
+    config: InaudibleCutConfig, force_enabled: bool | None
+) -> bool:
+    return config.enabled if force_enabled is None else force_enabled
+
+
 def optimize_source_cut_range(
     project: EpisodeProject,
     track_id: str,
@@ -623,7 +629,7 @@ def optimize_source_cut_range(
     word_index: CutWordIndex | None = None,
 ) -> OptimizedCutRange:
     cfg = config or InaudibleCutConfig.from_defaults()
-    enabled = cfg.enabled if force_enabled is None else force_enabled
+    enabled = _effective_cut_optimization_enabled(cfg, force_enabled)
     track = project.track_by_id(track_id)
     if not track:
         return OptimizedCutRange(
@@ -768,17 +774,21 @@ def optimize_timeline_cut_range(
             confidence=0.0,
             details={"strategy": "passthrough"},
         )
+    cfg = config or InaudibleCutConfig.from_defaults()
+    enabled = _effective_cut_optimization_enabled(cfg, force_enabled)
     optimized = optimize_source_cut_range(
         project,
         track_id,
         source_start,
         source_end,
-        config=config,
-        force_enabled=force_enabled,
+        config=cfg,
+        force_enabled=enabled,
     )
     return OptimizedCutRange(
-        start=_source_to_timeline(project, track_id, optimized.start),
-        end=_source_to_timeline(project, track_id, optimized.end),
+        start=(
+            _source_to_timeline(project, track_id, optimized.start) if enabled else timeline_start
+        ),
+        end=(_source_to_timeline(project, track_id, optimized.end) if enabled else timeline_end),
         mode=optimized.mode,
         shifted_start_ms=(optimized.start - source_start) * 1000.0,
         shifted_end_ms=(optimized.end - source_end) * 1000.0,

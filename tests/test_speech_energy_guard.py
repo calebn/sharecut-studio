@@ -12,6 +12,7 @@ import pytest
 from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
 from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.speech_energy_guard import (
+    ResolvedCutScope,
     assess_cross_track_speech,
     resolve_cut_scope,
 )
@@ -166,16 +167,15 @@ def test_assess_allows_when_cut_track_dominates():
     assert not g.blocked
 
 
-def test_resolve_skip_raises():
+def test_resolve_skip_retains_peer_evidence():
     p = _two_track()
     with (
         patch(
             "podcast_mcp.edits.speech_energy_guard.measure_timeline_rms_db",
             return_value=-30.0,
         ),
-        pytest.raises(ValueError, match="cut blocked"),
     ):
-        resolve_cut_scope(
+        result = resolve_cut_scope(
             p,
             "host",
             2.0,
@@ -191,6 +191,11 @@ def test_resolve_skip_raises():
                 "analysis": {"heuristics": {}},
             },
         )
+
+    assert isinstance(result, ResolvedCutScope)
+    assert result.cause == "peer_speech"
+    assert result.guard.blocking_track_ids == ("guest",)
+    assert result.guard.action == "skip"
 
 
 def test_add_remove_decision_becomes_track_local(monkeypatch):
@@ -319,7 +324,9 @@ def test_resolve_cut_scope_speaker_bleed_short_circuits():
             return_value={"role": "bleed"},
         ),
     ):
-        scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        assert isinstance(resolved, ResolvedCutScope)
+        scope, guard = resolved.scope, resolved.guard
     assert scope == "track"
     assert guard is None
 
@@ -336,7 +343,9 @@ def test_resolve_cut_scope_speaker_exception_falls_through():
             return_value=-60.0,
         ),
     ):
-        scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        assert isinstance(resolved, ResolvedCutScope)
+        scope, guard = resolved.scope, resolved.guard
     assert scope == "session"
     assert guard is not None
     assert not guard.blocked
@@ -374,7 +383,9 @@ def test_resolve_cut_scope_speaker_none_continues_to_rms():
             return_value=-60.0,
         ),
     ):
-        scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        assert isinstance(resolved, ResolvedCutScope)
+        scope, guard = resolved.scope, resolved.guard
     assert scope == "session"
     assert guard is not None
 
@@ -446,7 +457,9 @@ def test_resolve_cut_scope_speaker_own_continues_to_rms():
             return_value=-60.0,
         ),
     ):
-        scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5)
+        resolved = resolve_cut_scope(p, "host", 2.0, 2.5)
+        assert isinstance(resolved, ResolvedCutScope)
+        scope, guard = resolved.scope, resolved.guard
     assert scope == "session"
     assert guard is not None
     assert not guard.blocked
@@ -454,7 +467,9 @@ def test_resolve_cut_scope_speaker_own_continues_to_rms():
 
 def test_resolve_cut_scope_track_scope_short_circuits() -> None:
     p = _two_track()
-    scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5, requested_scope="track")
+    resolved = resolve_cut_scope(p, "host", 2.0, 2.5, requested_scope="track")
+    assert isinstance(resolved, ResolvedCutScope)
+    scope, guard = resolved.scope, resolved.guard
     assert scope == "track"
     assert guard is None
 
@@ -615,7 +630,9 @@ def _peer_word_in_cut(*, suppressed: bool = False) -> EpisodeProject:
 def test_resolve_cut_scope_punches_over_peer_word_without_stems() -> None:
     p = _peer_word_in_cut()
     assert not any(Path(t.media.path).exists() for t in p.tracks if t.media)
-    scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=_GUARD_ON)
+    resolved = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=_GUARD_ON)
+    assert isinstance(resolved, ResolvedCutScope)
+    scope, guard = resolved.scope, resolved.guard
     assert scope == "track"
     assert guard is not None
     assert guard.blocking_track_ids == ("guest",)
@@ -623,12 +640,13 @@ def test_resolve_cut_scope_punches_over_peer_word_without_stems() -> None:
 
 
 def test_resolve_cut_scope_ripples_over_suppressed_peer_word_without_stems() -> None:
-    scope, guard = resolve_cut_scope(
+    resolved = resolve_cut_scope(
         _peer_word_in_cut(suppressed=True), "host", 2.0, 2.5, defaults=_GUARD_ON
     )
-    assert scope == "session"
-    assert guard is not None
-    assert not guard.blocked
+    assert isinstance(resolved, ResolvedCutScope)
+    assert resolved.scope == "session"
+    assert resolved.guard is not None
+    assert not resolved.guard.blocked
 
 
 def test_resolve_cut_scope_with_stems_lets_sound_decide_over_peer_word(tmp_path: Path) -> None:
@@ -644,7 +662,9 @@ def test_resolve_cut_scope_with_stems_lets_sound_decide_over_peer_word(tmp_path:
         path = tmp_path / f"{track.id}.wav"
         _write_wav(path, signals[track.id])
         track.media.path = str(path)
-    scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=_GUARD_ON)
+    resolved = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=_GUARD_ON)
+    assert isinstance(resolved, ResolvedCutScope)
+    scope, guard = resolved.scope, resolved.guard
     assert scope == "session"
     assert guard is not None
     assert not guard.blocked

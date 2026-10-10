@@ -276,6 +276,10 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms frames per gap (ceiling `600`, ~6 s); longer gaps are skipped |
 | `tighten.acoustic_gap_filler.vad_backend` | `heuristic` | Breath rejection for each candidate run; `silero` is opt-in and falls back to the heuristic when unavailable |
 
+Ordinary SOURCE REMOVE proposals and their coalesced final rows require complete unique continuous playback geometry. Crossing a prior source hole is a counted `source_geometry` skip. Pauses measure actual played loss minus the final pad and pass the existing perceptibility rule before shared twins; strict geometry and effect checks preserve safe automatic eligibility. Automatic apply rechecks the final consumed window and fresh scope per row, excludes held rows from chosen speech, and applies only converged survivors. Saved selected approval and Suggested snapshot approval retain their separate transaction behavior.
+
+Generated REMOVE/MUTE rows start pending. Coalescing touches only the generator's owned IDs, preserves excluded rows exactly, and counts invalid owned singleton or merged groups once. Focus supplies an effective hold sink for direct and pipeline callers; its summary includes held counts. Every selected origin placement must belong to the actual removal's canonical ripple lanes, or the row stays pending with `operation_scope`. Auto-apply discards held trials and restarts from the stable post-MUTE project after each new hold. Only the first complete hold-free survivor copy is adopted.
+
 Propose summaries include `N discourse kept` (`discourse:{token}` skip counts) and, when relevant, `N acoustic (review)` / `N acoustic skipped` (`acoustic:*` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
 
 ## Export formats

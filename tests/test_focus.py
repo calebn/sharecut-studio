@@ -17,6 +17,9 @@ from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
     EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
     Transcript,
     TranscriptWord,
 )
@@ -28,6 +31,14 @@ def _project_with_repeated_utterances() -> EpisodeProject:
         "for immigration justice and safety for everyone"
     )
     p = EpisodeProject.create("focus", "/tmp/ws")
+    p.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=60),
+        )
+    ]
     p.transcripts = [
         Transcript(
             track_id="host",

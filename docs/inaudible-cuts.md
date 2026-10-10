@@ -8,10 +8,16 @@ This is **not** effect/plugin smoothing — it only moves cut boundaries and fad
 
 ## Behavior
 
+For a valid timeline range, `optimize_timeline_cut_range` preserves the requested
+timeline endpoints when optimization is disabled by configuration or an explicit
+`force_enabled=False` override. Source normalization and result diagnostics
+still run; `shifted_start_ms` and `shifted_end_ms` remain source-clock values and
+can be nonzero even when the returned timeline geometry is exact.
+
 - **Dialogue tracks** — anchor to legal transcript word boundaries, then search locally for low-energy / near-zero-cross points. `min_word_margin_ms` prevents snaps from landing too close to retained words.
 - **Short filler / NL cuts** (`duration ≤ short_cut_max_sec`) — if the cut end still sits in hot / non-quiet waveform energy (ASR often ends “um” early while the voiced blob continues), extend `end` to the **quietest** RMS hop between the naive end and the start of the next transcript word, capped by `trailing_energy_extend_ms`. This skips shallow local troughs inside a nasal coda. When that window is still hot (filler overlaps the next word’s onset), chew further within the extend budget to clear the blob. Room-tone pacing still inserts `replace_gap_sec`, but does **not** clamp away a trailing-energy extend past the next word’s ASR start.
 - **Trailing silence absorb** — after boundary snap, if the next transcript word is within `absorb_trailing_silence_max_sec` and the intervening audio is quiet, extend `end` to `next_word_start − absorb_trailing_silence_retain_sec` (default 0.4s breath). Prevents restart/ripple joins from leaving a double-breath of leftover dead air. Distant next words are skipped so multitrack ripple medians stay safe.
-- **Retained breaths in Tighten proposals** — after pacing, clamps and voiced nudges, `protect_cut_breaths` preserves confirmed complete breaths at both final edges of a cut without a paced pad by shrinking the cut (a padded filler cut fades each edge against silence and is checked for the next word's onset and whole kept words instead; [filler cut quality](filler-cut-quality.md#policy) § Padded cuts). Completion includes quiet onset and tail with measured floor separators and the unchanged speech/kept-word/sibilance gates. Relevant protected or incomplete connected activity, and unavailable acoustic evidence, suppress the proposal. A pause trim does not take this path. It shrinks to the longest stretch of air inside it, measured against each recording's room tone (read once, where nobody in the session is speaking, and how far it spreads), so no edge sits inside a sound that rises out of the room on any track the ripple cuts; every pause trim is review-only until the owner has listened, and one that moved off the span pacing proposed says `:air_edges` ([filler cut quality](filler-cut-quality.md#proposed-decision-pause-trims-cut-only-air), #1055). Silence and unrelated rejected activity stay clear. Kept-word eligibility and final scope/voice checks are revalidated before risk, pad, join and fade; the pad is paced from the final span, so an edge that moves resizes it (#1074). Exact breath endpoints stay unchanged. See [filler cut quality](filler-cut-quality.md#policy) for the bounded detection contract and listening limits.
+- **Retained breaths in Tighten proposals** — after pacing, clamps and voiced nudges, `protect_cut_breaths` preserves confirmed complete breaths at both final edges of a cut without a paced pad by shrinking the cut (a padded filler cut fades each edge against silence and is checked for the next word's onset and whole kept words instead; [filler cut quality](filler-cut-quality.md#policy) § Padded cuts). Completion includes quiet onset and tail with measured floor separators and the unchanged speech/kept-word/sibilance gates. Relevant protected or incomplete connected activity, and unavailable acoustic evidence, suppress the proposal. A pause trim does not take this path. It shrinks to the longest stretch of air inside it, measured against each recording's room tone (read once, where nobody in the session is speaking, and how far it spreads), so no edge sits inside a sound that rises out of the room on any track the ripple cuts; a pause trim that passes the current filler checks can apply, and one that moved off the span pacing proposed says `:air_edges` ([filler cut quality](filler-cut-quality.md#proposed-decision-pause-trims-cut-only-air), #1055). Silence and unrelated rejected activity stay clear. Kept-word eligibility and final scope/voice checks are revalidated before risk, pad, join and fade; the pad is paced from the final span, so an edge that moves resizes it (#1074). Exact breath endpoints stay unchanged. See [filler cut quality](filler-cut-quality.md#policy) for the bounded detection contract and listening limits.
 - **Applying optimized proposals** — automatic prefix application uses the stored range when `boundary_mode` records prior optimization. It does not snap those guarded edges again. Unsnapped pending edits still use the workflow's `inaudible_opt` setting; explicit approval already consumes the saved range. Coalescing keeps decisions with different boundary modes separate, preserving each row's optimization policy.
 - **Cuts across recordings** — if timeline endpoints map to a missing or non-increasing source range, the optimizer preserves the requested timeline boundaries. It cannot optimize across different recording clocks as one source interval. Applied removals retain cut transcript words in their matching source archive for later boundary restoration (see [DAW editing](daw-editing.md)).
 - **Non-dialogue tracks** (music, sfx, intro, outro) — waveform-only snapping; no transcript dependency.
@@ -88,7 +94,34 @@ Do **not** loosen global `absorb_trailing_silence_retain_sec` for this — hando
 
 Audition ~10–15s around the join before resolving review comments. Prefer existing room tone over `insert_gap` of pure silence unless the user asks.
 
-**Pad source order** with the default `filler_pad_mode: room_tone` (an approved mute's fill uses the same order): (1) recorded `track.room_tone` bed from the lobby capture (abutting tiles if the pad is longer than the bed: fade-in on the first tile, fade-out on the last); (2) a steady stretch of the track's own audio at its noise floor, at least 30 dB under its speech level and voice-free, nearest the cut, chosen from the audio and not from word times (#1054; rules in [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from); (3) skip the pad rather than tiling dialogue, bleed, or digital silence. Set `filler_pad_mode: silence` for a hard silent gap instead. A digitally silent recorded bed is treated as missing.
+**Pad source order** with the default `filler_pad_mode: room_tone` (an approved mute's fill uses the same order): (1) recorded `track.room_tone` bed from the lobby capture (abutting tiles if the pad is longer than the bed: fade-in on the first tile, fade-out on the last); (2) a steady stretch of the track's own audio at its noise floor, at least 30 dB under its speech level and voice-free, nearest the cut, chosen from the audio and not from word times (#1054; rules in [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from); (3) skip the pad rather than tiling dialogue, bleed, or digital silence. Set `filler_pad_mode: silence` for a hard silent gap instead. A digitally silent recorded bed is treated as missing. The bed check reads the registered source path that clips render. Manual gap fill, MUTE, and nonpause filler/NL pads retain their existing sample and unfilled-gap behavior. A pause-floor shortfall never generates a pad, including when silence is configured. Missing media, decode failure, digital silence, gated live audio, absent/short/excluded runs, CHECKS failures, unreadable windows and the nearest-sixteen limit remain distinct measurement facts. Mixed failures retain actual rejection names and unreadable-window counts; absent VAD keeps the existing level checks.
+
+Pause retention counts current once-only original quiet on both sides of the final
+removal. Complete placed flanking words and actual sound activity bound the query.
+Exact paired mappings qualify source pieces across abutting clips, including retained
+inner pieces beside deleted source interior. Mutes, ignored regions, replay, foreign
+media, registered beds, and known pad samples earn no duration. Renderer-selected paths
+resolve aliases of the same recording. Current clip fields cannot prove the history
+of an indistinguishable replacement. A small set of right, left, and bilateral
+contractions reruns every ordinary preparation gate and finish with both bounds pinned.
+The first fully finished attempt is selected and the caller finishes it again.
+If no attempt retains enough original quiet, the pending pause holds unchanged.
+
+Pause removal still uses guarded whole sounds. Recording observations refine each
+outer edge independently with its measured voice anchor and adjacent original pause.
+The complete release-to-onset corridor is filtered and smoothed once per measurement
+with native DSP. Every frame of an outer collar, at least five complete frames,
+must lie at or below the corresponding original reach in both bands. Missing, nongrid,
+nonfinite or clipped corridor or full-guard samples preserve the guard. Refinement
+also requires one full current guard placement and no extra same-media image
+touching it. Deleted interior and replay confined to the corridor interior do not
+invalidate the measurement or supply retained duration.
+
+The final plan owns finite per-lane source fades for splices and pads. Consumption
+assigns those exact effects after the kernel instead of maxing the scalar
+recommendation onto survivors. Safe authored fades remain, while provisional split
+fades are replaced. The existing archive carries actual edge footprints and
+inserted sample tiles. See [filler cut quality](filler-cut-quality.md#policy).
 
 ## Configuration
 

@@ -11,6 +11,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from source_review_helpers import finite_primary_recording
 
 runner = CliRunner()
 
@@ -20,6 +21,7 @@ def _init_with_transcript(tmp_path):
     runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "demo"])
     project = ws / "episode.project.json"
     proj = load_project(project)
+    finite_primary_recording(proj, 20)
     proj.transcripts.append(
         Transcript(
             track_id="host",

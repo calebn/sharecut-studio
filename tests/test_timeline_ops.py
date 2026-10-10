@@ -6,6 +6,7 @@ import pytest
 
 from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
+from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.timeline_ops import (
     duplicate_segment,
     fill_with_room_tone,
@@ -805,7 +806,8 @@ def test_fill_with_room_tone_two_clips() -> None:
         ),
     ]
     with patch(
-        "podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(5.0, 5.25, None)
+        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        return_value=OwnQuietSample(Sample(5.0, 5.25, -70.0, None)),
     ) as span:
         summary = fill_with_room_tone(p, "host", sample_duration_sec=0.25)
     assert summary["operation"] == "fill_with_room_tone"

@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits.clips_ops import split_clip_at
 from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, reject_edits
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
@@ -351,17 +352,19 @@ def test_mute_analyze_join_fail_and_pacing_skip():
         project.edit_decisions = []
 
 
-def test_invalid_edit_mode_falls_back_to_ripple():
+def test_invalid_edit_mode_falls_back_to_ripple(tmp_path):
     from unittest.mock import patch
 
     from podcast_mcp.edits.cut_quality import CutRisk
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+    from source_review_helpers import finite_primary_recording
 
     words = [
         TranscriptWord(text="um", start=0.5, end=0.7),
         TranscriptWord(text="uh", start=0.75, end=0.95),
     ]
-    project = EpisodeProject.create("p", "/tmp/ws")
+    project = EpisodeProject.create("p", str(tmp_path))
+    finite_primary_recording(project)
     project.transcripts = [Transcript(track_id="host", words=words)]
 
     def _opt(project, track_id, start, end, **kw):
@@ -396,6 +399,7 @@ def test_invalid_edit_mode_falls_back_to_ripple():
         )
     assert proposed.decisions
     assert all(d.type == EditDecisionType.REMOVE for d in proposed.decisions)
+    assert all(not d.applied for d in proposed.decisions)
 
 
 def test_apply_mute_keeps_timeline_and_peer_offsets(tmp_path, sample_wav):
@@ -1353,13 +1357,29 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path, sample_wav):
             params={"mute": True},
         )
     ]
-    with pytest.raises(ValueError, match="lacks source"):
+    before = project.model_dump(mode="json")
+    with pytest.raises(ValueError) as refused:
         revert_applied_edit(project, "bad")
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert str(refused.value) == (
+        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
+        "History Undo also undoes the other edits in that action. "
+        "You may need to undo later actions first."
+    )
+    assert project.model_dump(mode="json") == before
     rec = project.editorial.edit_log[0]
     rec.source_start = 0.5
     rec.source_end = 0.5
-    with pytest.raises(ValueError, match="invalid source"):
+    before = project.model_dump(mode="json")
+    with pytest.raises(ValueError) as refused:
         revert_applied_edit(project, "bad")
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert str(refused.value) == (
+        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
+        "History Undo also undoes the other edits in that action. "
+        "You may need to undo later actions first."
+    )
+    assert project.model_dump(mode="json") == before
     rec.source_start = 0.4
     rec.source_end = 0.7
     rec.params = {"mute": True, "per_track_source": {"host": [0.9, 0.8]}}
@@ -1496,19 +1516,29 @@ def test_mute_mode_still_proposes_a_filler_outside_the_muted_span():
     assert "already_muted" not in proposed.skip_counts
 
 
-def test_ripple_mode_ignores_existing_mute_regions():
+def test_ripple_mode_ignores_existing_mute_regions(tmp_path):
     project, defaults = _um_uh_project()
+    project.meta.workspace_dir = str(tmp_path)
+    project.tracks[0].media = MediaAsset(path="raw/host.wav", duration_sec=5)
+    audio = room(5)
+    for start, end in ((0.5, 0.7), (0.75, 0.95), (3.0, 3.3)):
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw" / "host.wav", audio)
+    defaults["tighten"]["breath_handling"] = {"enabled": True}
+    defaults["tighten"]["speech_energy_guard"] = {"enabled": True}
     project.clips[0].mute_regions = [ClipMuteRegion(start_s=0.4, end_s=1.0)]
 
-    proposed = _propose_with_stubbed_dsp(project, defaults, "ripple")
+    proposed = propose_tighten_edits(project, defaults, edit_mode="ripple")
 
-    # The filler cut and the pause trim after it are two decisions (a trim waiting for
-    # review is not merged into the cut beside it); both ripple.
     assert [(d.reason.split(":")[0], d.type) for d in proposed.decisions] == [
         ("filler", EditDecisionType.REMOVE),
         ("pause", EditDecisionType.REMOVE),
     ]
     assert "already_muted" not in proposed.skip_counts
+
+    assert [(r.start_s, r.end_s) for r in project.clips[0].mute_regions] == [(0.4, 1.0)]
+    pause = next(d for d in proposed.decisions if d.reason.startswith("pause:"))
+    assert pause.replace_gap_sec is None
 
 
 def test_already_muted_covers_acoustic_candidates_and_is_per_track():

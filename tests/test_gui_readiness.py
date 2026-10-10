@@ -238,37 +238,47 @@ def test_punch_across_a_moved_clip_records_the_seam() -> None:
     assert record.params["per_track_source"] == {"host": [pytest.approx(15.0), pytest.approx(33.0)]}
 
 
-def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
+def _assert_restore_requires_history(project, record_id):
     import pytest
 
+    from podcast_mcp.edits.edit_log import revert_applied_edit
+
+    before = project.model_dump(mode="json")
+    with pytest.raises(ValueError) as refused:
+        revert_applied_edit(project, record_id)
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert str(refused.value) == (
+        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
+        "History Undo also undoes the other edits in that action. "
+        "You may need to undo later actions first."
+    )
+    assert project.model_dump(mode="json") == before
+
+
+def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
     from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+    from podcast_mcp.edits.edit_log import list_applied_edits
     from podcast_mcp.edits.timeline_ops import move_clips
 
     p = _project_with_moved_clip()
     move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
     ripple_cut(p, 10.0, 21.0, use_inaudible_opt=False)
     record = list_applied_edits(p)[-1]
-    # Give the timeline op decision source clocks so revert reaches the seam check.
     record.source_start = 10.0
     record.source_end = 21.0
     before = [c.model_dump() for c in clips_for_track(p, "host")]
     # [15, 33] is 18 s of source for an 11 s hole.
-    with pytest.raises(ValueError, match="History undo"):
-        revert_applied_edit(p, record.id)
+    _assert_restore_requires_history(p, record.id)
     assert [c.model_dump() for c in clips_for_track(p, "host")] == before
     assert record in p.editorial.edit_log
     # pre > post (moved material later in source than the clip after the cut).
     record.params["per_track_source"] = {"host": [33.0, 15.0]}
-    with pytest.raises(ValueError, match="History undo"):
-        revert_applied_edit(p, record.id)
+    _assert_restore_requires_history(p, record.id)
 
 
 def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
-    import pytest
-
     from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+    from podcast_mcp.edits.edit_log import list_applied_edits
     from podcast_mcp.edits.timeline_ops import move_clips, punch_delete
 
     p = _project_with_moved_clip()
@@ -280,18 +290,19 @@ def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
     record.source_end = 21.0
     before = [c.model_dump() for c in clips_for_track(p, "host")]
     # [15, 33] is 18 s of source for an 11 s hole.
-    with pytest.raises(ValueError, match="History undo"):
-        revert_applied_edit(p, record.id)
+    _assert_restore_requires_history(p, record.id)
     assert [c.model_dump() for c in clips_for_track(p, "host")] == before
     assert record in p.editorial.edit_log
 
 
-def test_revert_track_scope_punch_refills_the_hole_in_place() -> None:
+def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(tmp_path) -> None:
     import pytest
 
-    from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.edits.decisions import approve_edits
-    from podcast_mcp.edits.edit_log import revert_applied_edit
+    from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
+    from podcast_mcp.history.manager import snapshot_from_project
+    from podcast_mcp.models import save_project
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import EditService, HistoryService
 
     p = EpisodeProject.create("gui_test", "/tmp/gui_test")
     p.timeline.tracks = [
@@ -319,33 +330,34 @@ def test_revert_track_scope_punch_refills_the_hole_in_place() -> None:
             scope="track",
         )
     ]
-    approve_edits(p, ["k"])
+    p.meta.workspace_dir = str(tmp_path)
+    update_timeline_duration(p)
+    ws = ProjectWorkspace.open(save_project(p))
+    p = ws.project
+    original = snapshot_from_project(p).model_dump(mode="json")
+    assert EditService(ws).approve(["k"]) == 1
     record = p.editorial.edit_log[-1]
     assert record.params["scope"] == "track"
     guest_before = [c.model_dump() for c in clips_for_track(p, "guest")]
-    revert_applied_edit(p, record.id)
-    host = [(c.source_start, c.source_end, c.timeline_start) for c in clips_for_track(p, "host")]
-    assert host == [
-        (0.0, 2.0, 0.0),
-        (pytest.approx(2.0), pytest.approx(3.0), pytest.approx(2.0)),
-        (3.0, 10.0, 3.0),
-    ]
-    # Nothing rippled: the peer track and the session length are unchanged.
+    _assert_restore_requires_history(p, record.id)
+    assert [
+        (c.source_start, c.source_end, c.timeline_start) for c in clips_for_track(p, "host")
+    ] == [(0.0, 2.0, 0.0), (3.0, 10.0, 3.0)]
+    HistoryService(ws).undo(expected_head_id=HistoryService(ws).status()["head_id"])
+    assert snapshot_from_project(p).model_dump(mode="json") == original
+    assert [
+        (c.source_start, c.source_end, c.timeline_start) for c in clips_for_track(p, "host")
+    ] == [(0.0, 10.0, 0.0)]
     assert [c.model_dump() for c in clips_for_track(p, "guest")] == guest_before
     assert p.timeline.duration_sec == pytest.approx(10.0)
     assert p.editorial.edit_log == []
 
 
 def test_revert_refuses_a_session_cut_across_a_late_joining_track() -> None:
-    """A gap at a cut edge (late recorder) records a seam pair shorter than the hole.
-
-    ``[pre, post]`` cannot tell a leading gap from a trailing or inner one, so revert
-    refuses (History undo) instead of guessing an offset, and moves nothing on any track.
-    """
     import pytest
 
     from podcast_mcp.edits.clips_ops import clips_for_track
-    from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+    from podcast_mcp.edits.edit_log import list_applied_edits
 
     p = _project_with_two_clips()
     p.timeline.tracks[0].media = MediaAsset(path="raw/host.wav", duration_sec=20.0)
@@ -371,8 +383,7 @@ def test_revert_refuses_a_session_cut_across_a_late_joining_track() -> None:
     record.source_start = 1.0
     record.source_end = 5.0
     before = {tid: [c.model_dump() for c in clips_for_track(p, tid)] for tid in ("host", "guest")}
-    with pytest.raises(ValueError, match=r"'guest'.*History undo"):
-        revert_applied_edit(p, record.id)
+    _assert_restore_requires_history(p, record.id)
     after = {tid: [c.model_dump() for c in clips_for_track(p, tid)] for tid in ("host", "guest")}
     assert after == before
     assert record in p.editorial.edit_log
@@ -442,7 +453,7 @@ def test_every_edit_log_operation_has_an_applied_tick_case() -> None:
     ticks_ts = (ROOT / "gui/web/src/timeline/appliedEditTicks.ts").read_text(encoding="utf-8")
     cases = set(re.findall(r'case "([a-z_]+)":', ticks_ts))
     ops = _edit_log_operations()
-    assert {"ripple_delete", "approve_edits", "trim_clip_edge"} <= ops
+    assert {"ripple_delete", "approve_edits", "trim_clip_edge", "fill_with_room_tone"} <= ops
     assert ops - cases == set()
 
 

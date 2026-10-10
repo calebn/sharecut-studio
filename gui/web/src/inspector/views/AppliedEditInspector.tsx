@@ -8,24 +8,29 @@ import { DefItem, DefinitionList, InspectorSeekFooter } from "../../ui";
 import { ModifierInspector } from "../ModifierInspector";
 
 export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
-  const { projectPath, guestMode, shareCapabilities, setSelection } = useDaw(
-    (s) => ({
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      setSelection: s.setSelection,
-    }),
-  );
+  const {
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    setSelection,
+    setActiveTab,
+  } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    setSelection: s.setSelection,
+    setActiveTab: s.setActiveTab,
+  }));
   const { busy, error, run } = useProjectMutation();
 
   const mayRestore = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const hasSourceClocks =
     rec.source_start != null &&
     rec.source_end != null &&
-    rec.timeline_start != null &&
-    rec.timeline_end != null;
-  const exact = rec.operation === "edit_selected_range";
-  const canRestore = mayRestore && hasSourceClocks && !exact;
+    rec.source_end > rec.source_start &&
+    rec.track_ids.length > 0;
+  const mute = rec.params?.mute === true && !("exact_range" in rec.params);
+  const canRestore = mayRestore && mute && hasSourceClocks;
 
   const onRestore = async () => {
     await run(async () => {
@@ -58,7 +63,14 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
                 onClick: () => void onRestore(),
               },
             ]
-          : undefined
+          : mayRestore
+            ? [
+                {
+                  label: "Open History",
+                  onClick: () => setActiveTab("history"),
+                },
+              ]
+            : undefined
       }
       error={error}
       footer={
@@ -85,15 +97,13 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
             {rec.timeline_start.toFixed(3)} – {rec.timeline_end?.toFixed(3)} s
           </DefItem>
         ) : null}
-        {exact ? (
+        {!canRestore ? (
           <DefItem label="Restore">
-            Use History Undo to restore the whole range action.
-          </DefItem>
-        ) : !canRestore ? (
-          <DefItem label="Restore">
-            {mayRestore
-              ? "Unavailable (no source clocks). Use History undo"
-              : "Restore is unavailable with your current access."}
+            {!mayRestore
+              ? "Restore is unavailable with your current access."
+              : mute
+                ? "This mute has no valid source clocks. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first."
+                : "This edit cannot be restored individually. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first."}
           </DefItem>
         ) : null}
         {rec.boundary_mode ? (

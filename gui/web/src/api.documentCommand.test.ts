@@ -844,6 +844,52 @@ describe("host document command queue", () => {
     expect(removeHostQueuedCommand).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    "preserves review authority %s through durable approval and replay",
+    async (allowReview) => {
+      enqueueHostCommand.mockResolvedValue({
+        persisted: true,
+        hadPredecessor: true,
+      });
+      const fetchSpy = vi.fn(
+        async (_url: string, _init?: RequestInit) =>
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+      const { approveEdits, submitDocumentCommand } = await import("./api");
+
+      expect(
+        await approveEdits(
+          "/tmp/episode.project.json",
+          ["a"],
+          false,
+          allowReview,
+        ),
+      ).toEqual({ queued: true, asked: false, historyHead: null });
+      const command = enqueueHostCommand.mock.calls[0][1] as {
+        command_id: string;
+        client_id: string;
+        client_seq: number;
+        payload: Record<string, unknown>;
+      };
+      expect(command.payload).toEqual({
+        ids: ["a"],
+        allow_review: allowReview,
+      });
+
+      await submitDocumentCommand(
+        "/tmp/episode.project.json",
+        "ApproveEdits",
+        command.payload,
+        { ...command, replaying: true },
+      );
+      const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
+        payload: unknown;
+      };
+      expect(body.payload).toEqual({ ids: ["a"], allow_review: allowReview });
+    },
+  );
+
   it("reports an approval left queued behind older work", async () => {
     enqueueHostCommand.mockResolvedValue({
       persisted: true,

@@ -380,8 +380,16 @@ def analyze_focus_cuts(project: EpisodeProject, defaults: dict[str, Any]) -> Ste
         prog.set_phase("outline", "Writing focus outline…")
         write_focus_outline(project, defaults)
         prog.set_phase("propose", "Proposing focus cuts…")
-        decisions = propose_focus_cuts(project, defaults, replace_existing=True)
-    return f"{len(decisions)} focus cuts proposed"
+        skip_counts: dict[str, int] = {}
+        decisions = propose_focus_cuts(
+            project, defaults, replace_existing=True, skip_counts=skip_counts
+        )
+    summary = f"{len(decisions)} focus cuts proposed"
+    if skip_counts:
+        summary += "; held " + ", ".join(
+            f"{count} {reason}" for reason, count in sorted(skip_counts.items())
+        )
+    return summary
 
 
 def focus_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

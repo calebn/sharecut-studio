@@ -228,7 +228,60 @@ describe("CutSpeechDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(sent(1)).toEqual({
       type: "ApproveEdits",
-      payload: { ids: ["e1"], confirm_cut_speech: true },
+      payload: { ids: ["e1"], allow_review: true, confirm_cut_speech: true },
+    });
+  });
+
+  it.each([false, true])(
+    "speech confirmation preserves review authority %s",
+    async (allowReview) => {
+      const user = userEvent.setup();
+      render(<CutSpeechDialog />);
+
+      expect(await approveEdits("/tmp/ep", ["e1"], false, allowReview)).toEqual(
+        {
+          queued: false,
+          asked: true,
+          historyHead: null,
+        },
+      );
+      expect(sent(0)).toEqual({
+        type: "ApproveEdits",
+        payload: { ids: ["e1"], allow_review: allowReview },
+      });
+      await user.click(
+        await screen.findByRole("button", { name: "Cut anyway" }),
+      );
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(sent(1)).toEqual({
+        type: "ApproveEdits",
+        payload: {
+          ids: ["e1"],
+          allow_review: allowReview,
+          confirm_cut_speech: true,
+        },
+      });
+    },
+  );
+
+  it("speech confirmation on replay keeps a safe bulk command's review refusal", async () => {
+    const user = userEvent.setup();
+    submit.mockReset().mockResolvedValue({ ok: true });
+    render(<CutSpeechDialog />);
+    askIfReplayHeldBack(
+      "/tmp/ep",
+      "ApproveEdits",
+      { ids: ["e1"], allow_review: false },
+      ASKED,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Cut anyway" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(sent(0)).toEqual({
+      type: "ApproveEdits",
+      payload: { ids: ["e1"], allow_review: false, confirm_cut_speech: true },
     });
   });
 

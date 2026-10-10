@@ -18,6 +18,7 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.process import run
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
@@ -34,7 +35,8 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
 # 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
-RENDER_SEMANTICS_REV = 12
+# 13: hard-link aliases use primary gate fill and single-source placement.
+RENDER_SEMANTICS_REV = 13
 
 
 def resolve_clip_audio_path(
@@ -102,7 +104,7 @@ def gate_fill_paths(project: EpisodeProject, track: Track, paths: list[Path]) ->
     if fill is None or track.media is None:
         return [None] * len(paths)
     primary = resolve_under_workspace(project, track.media.path).resolve()
-    return [fill if path.resolve() == primary else None for path in paths]
+    return [fill if same_recording(path, primary) else None for path in paths]
 
 
 def timeline_duration_sec(project: EpisodeProject) -> float:
@@ -199,7 +201,7 @@ def render_track_from_timeline(
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
 
     paths = [resolve_clip_audio_path(project, track, c) for c in track_clips]
-    multi_source = len({p.resolve() for p in paths}) > 1
+    multi_source = any(not same_recording(paths[0], path) for path in paths[1:])
 
     if multi_source:
         return _render_placed_track(

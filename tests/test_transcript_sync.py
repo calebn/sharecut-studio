@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.transcript_sync import (
     apply_batch_transcript_removes,
 )
@@ -88,7 +89,10 @@ def test_fill_with_room_tone_keeps_word_source_times() -> None:
         Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
         Clip(id="c2", track_id="host", source_start=10.0, source_end=15.0, timeline_start=6.0),
     ]
-    with patch("podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(7.0, 7.25, None)):
+    with patch(
+        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        return_value=OwnQuietSample(Sample(7.0, 7.25, -70.0, None)),
+    ):
         fill_with_room_tone(p, "host")
     words = {w.text: w.start for w in p.transcripts[0].words}
     assert words == {"a": 0.0, "b": 5.0}

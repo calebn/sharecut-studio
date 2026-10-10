@@ -811,15 +811,14 @@ class FFmpegEngine:
         They never overlap (``mute_regions.mute_spans_for_source_window``). A region
         too short for both fades is muted outright.
         """
+        from podcast_mcp.edits.mute_regions import sample_mute_envelopes
+
         gains: list[tuple[str, str]] = []
-        for env in mute_spans:
-            a, b = env.start, env.end
-            if b <= a + 1e-6 or b <= 0 or a >= seg_duration:
-                continue
-            first = math.floor((a + source_start) * sample_rate + 0.5) - origin
-            last = math.floor((b + source_start) * sample_rate + 0.5) - origin
-            fade_out = math.floor(env.fade_out_sec * sample_rate + 0.5)
-            fade_in = math.floor(env.fade_in_sec * sample_rate + 0.5)
+        for samples in sample_mute_envelopes(
+            mute_spans, seg_duration, sample_rate, source_start=source_start, origin=origin
+        ):
+            first, last = samples.first, samples.last
+            fade_out, fade_in = samples.fade_out, samples.fade_in
             if fade_out + fade_in > last - first:
                 gains.append((str(first), f"if(gte(n,{first})*lt(n,{last}),0,1)"))
                 continue

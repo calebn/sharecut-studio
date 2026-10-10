@@ -205,6 +205,7 @@ def test_set_envelope_goes_through_document_log_and_baseline(tmp_path):
 
 def test_propose_and_apply_edits(tmp_path, monkeypatch):
     from podcast_mcp.config import load_defaults
+    from source_review_helpers import finite_primary_recording
 
     defaults = load_defaults()
     defaults["tighten"]["breath_handling"]["enabled"] = False
@@ -212,6 +213,7 @@ def test_propose_and_apply_edits(tmp_path, monkeypatch):
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
     proj = load_project(Path(path))
+    finite_primary_recording(proj)
     proj.transcripts.append(
         Transcript(
             track_id="host",
@@ -326,10 +328,12 @@ def test_build_edit_context_mcp(tmp_path):
 
 def test_search_and_cut_mcp(tmp_path):
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
+    from source_review_helpers import finite_primary_recording
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
     proj = load_project(Path(path))
+    finite_primary_recording(proj)
     proj.combined_transcript = CombinedTranscript(
         utterances=[
             CombinedUtterance(
@@ -685,10 +689,12 @@ def test_play_compare_mcp(tmp_path, sample_wav):
 
 def test_cut_utterance_and_words_mcp(tmp_path):
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance, Transcript, TranscriptWord
+    from source_review_helpers import finite_primary_recording
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
     proj = load_project(Path(path))
+    finite_primary_recording(proj)
     proj.combined_transcript = CombinedTranscript(
         utterances=[
             CombinedUtterance(
@@ -717,8 +723,13 @@ def test_cut_utterance_and_words_mcp(tmp_path):
 
 
 def test_apply_edit_plan_mcp(tmp_path):
+    from source_review_helpers import finite_primary_recording
+
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
+    project = load_project(Path(path))
+    finite_primary_recording(project)
+    save_project(project, Path(path))
     plan = [
         {
             "track_id": "host",

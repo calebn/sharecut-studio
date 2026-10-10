@@ -28,7 +28,6 @@ from podcast_mcp.util.dsp import (
     high_band_energy_fraction,
     voicing_probes,
 )
-from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
@@ -954,16 +953,8 @@ def _own_span(
     plays the same source twice, or a run that starts or ends where the lane plays nothing,
     maps to a different window.
     """
-    lo = timeline.timeline_to_source(track_id, TimelineSec(run[0]))
-    hi = timeline.timeline_to_source(track_id, TimelineSec(run[1]))
-    if lo is None or hi is None or hi <= lo:
-        return None
-    bounds = source_span_timeline_bounds(timeline, track_id, float(lo), float(hi))
-    if bounds[0] is None or bounds[1] is None:
-        return None
-    if abs(bounds[0] - run[0]) > _CLOCK_EPS_SEC or abs(bounds[1] - run[1]) > _CLOCK_EPS_SEC:
-        return None
-    return float(lo), float(hi)
+    span = timeline.exact_timeline_source_span(track_id, TimelineSec(run[0]), TimelineSec(run[1]))
+    return (float(span[0]), float(span[1])) if span is not None else None
 
 
 def pause_air_span(

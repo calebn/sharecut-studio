@@ -10,6 +10,8 @@ make test        # coverage gate + parallel; excludes e2e_slow / e2e_real
 
 Pytest is configured in `pyproject.toml` to **fail if line+branch coverage drops below 95%** for `podcast_mcp`.
 
+Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
+
 Vitest uses four worker threads in `gui/web/vitest.config.ts`. Its default
 fork pool starts a child process per test file and scales to available CPUs;
 the 196-file jsdom suite intermittently stalled worker RPCs on a macOS host
@@ -552,7 +554,7 @@ Failed-spec traces remain separate `playwright-test-results-<name>` artifacts.
 | MCP tool handlers | `test_mcp_tools.py` |
 | Config / defaults | `test_config.py`; `test_pipeline_config.py` asserts every `ParamField.default` equals `.agents/defaults/pipeline.yaml`, and that the align module constants match it |
 | History / undo-redo | `test_history.py` |
-| Source↔timeline mapping | `test_session_timeline.py`, `test_timebase_regression.py` |
+| Source↔timeline mapping | `test_session_timeline.py`, `test_timebase_regression.py`, `test_pause_trim_geometry.py` |
 | Timebase architecture guards / conformance | `test_timebase_guards.py`, `test_time_conformance.py` |
 | Agent ↔ DAW session sync | `test_session_sync.py`, `test_gui_api.py` (session endpoints) |
 | Document-command contract (schema + boundary rejects) | `test_document_command_payloads.py`, `test_document_command_boundary.py` (HTTP/WS/MCP 422/-32602 + OpenAPI↔schema) |
@@ -614,6 +616,10 @@ Two meta-tests keep the source/timeline split (see [architecture.md § Timebase]
 - **`test_timebase_guards.py`** scans `src/podcast_mcp` and fails if the clip mapping formula (`source_start + (t - timeline_start)`, etc.) appears outside `engines/session_timeline.py` or the `Clip.timeline_end` property. New code doing ad-hoc clip math fails CI with a pointer to `SessionTimeline`.
 - **`test_raw_echo_cache.py`** exercises CLI and MCP audibility/reconcile paths without rendered stems. Its fixture shifts clips on the timeline and removes source spans, proving raw samples are placed through the mapper before the measured echo path can classify bleed. Literal PCM tests cover overlapping extra recordings, moved clips, repeated-file decode reuse, a missing primary with available extras, and abstention for missing, invalid, dangling, escaped, or short selected media.
 - **`test_time_conformance.py`** introspects every registered MCP tool; any tool with a seconds-like parameter that is missing from `TOOL_TIMEBASE` in `util/tool_timebase.py` fails. It also runs a conformance suite on a shared compressed-timeline fixture (30s removed mid-track) asserting the mapper, exports, and QC touch the correct audio region. **Adding a new time-bearing tool = one registry entry.**
+
+`test_pause_trim_geometry.py` and `test_source_remove_geometry.py` drive actual `EditService` approval, workspace mutation, saved reload and Suggested snapshot approval. They verify replay and source-hole holds, final optimizer closure, stored track-pause refusal, finite implicit primary media, unknown extent and intentional empty lanes, actual pad-adjusted loss, and late selected-batch rollback. Automatic tests verify a fresh scope hold restarts survivors without duplicate archives and excludes speech chosen only by a freshly held cut. Generated coalescing preserves independent retained manual rows. Continuous splits, origin media parked elsewhere, exact occurrences and source MUTE remain distinct positive controls. These literal geometry fixtures establish playback and transcript preservation; they do not establish pad audibility or owner listening.
+
+`test_source_review_corrections.py`, `test_source_operation_coverage.py`, and `test_source_recovery_trials.py` cover original request rejection before optimization, complete survivor identity and review barriers, excluded-row ownership, Focus hold summaries, actual operation lanes, cascading held trials and full saved recovery. Source-positive fixtures create a real finite WAV and declare its measured duration locally; `minimal_project` stays media-less for refusal controls. Golden-ear tests call `_equalize_clip_lengths` directly with unequal matching-format WAVs in both argument orders and assert exact output frames, preserved PCM prefixes and zero tails. Real legal-pause rendering and invalid-pause refusal remain separate integration controls.
 
 ### Fixture hygiene
 
@@ -2248,3 +2254,36 @@ regressions install unsafe grants after fixture setup so the fixture cannot eras
 Portable policy mocks and macOS ACL tests do not prove NTFS or native Windows
 account denial. Retain failed setup and test receipts and require an actual
 successful Windows run before claiming those guarantees.
+
+## Bounded Restore and source ownership
+
+`test_pause_hardlink_identity_contract.py` checks unchanged saved and in-memory
+state for explicit, primary-media, and unclipped hardlink replays. It keeps a
+sole-placement positive and excludes actual pad receipts from original quiet.
+`test_media_physical_identity.py` checks missing-media geometry, filesystem errors,
+transcript provenance, and acoustic exclusion across aliases.
+`test_pause_primary_transcript_contract.py` retains each primary alias lane's own
+words, including explicit-source transcripts stored before primary words. It
+compares literal kept-word PCM before and after a later pause approval.
+`test_pause_parked_transcript_contract.py` covers explicit and unique-primary parked
+transcripts, unrelated transcript ordering, and atomic refusal of ambiguous owners.
+`test_pause_primary_authority_contract.py` checks selected-primary transcript order,
+the literal original-air floor between real words, and implicit peer clock safety.
+`test_pause_peer_floor_clock_contract.py` checks shifted peer solo floors and actual
+current-turn positive controls across saved approval, automatic application and Suggested.
+`test_pause_ignored_peer_floor_contract.py` and `test_pause_muted_peer_floor_contract.py`
+check literal solo and turn floors after editorial changes, including parked and
+implicit sources, physical transcript fallback, partial fades, abutting clips and replay.
+`test_editorial_word_sample_contract.py` compares real rendered 48 kHz samples with
+current word placement despite stale 16 kHz metadata. It covers inclusive mute
+endpoints, short fades, shared rounded boundaries, ignored-token fade overlap and
+unchanged raw room calibration frames.
+`test_pause_unreadable_mask_contract.py` requires a typed, atomic hold for unreadable
+masked media through saved approval, automatic application and Suggested.
+`test_pause_prior_join_contract.py` keeps existing incoming join modes and compares
+literal PCM around an earlier crossfade before and after a later approved pause.
+These signals prove rendered behavior, not owner listening acceptance.
+
+`test_bounded_restore_contract.py` drives saved service, document HTTP, and real owner MCP refusal with the literal `local_restore_requires_history` code and four-sentence guidance. It checks unchanged editable state, project bytes, pending rows, archives, history index, and snapshot IDs. Guarded History Undo recovers parked recording identity, transcript archives, and all peer clip occurrences. Source MUTE Restore remains a positive control through every delivery boundary.
+
+`test_manual_pending_ownership_contract.py` proves transitive manual joining ownership, atomic stale-member refusal, identity and review barriers, and excluded metadata/order preservation. `test_pause_original_placement_contract.py` uses the actual planner to distinguish original lane membership from final pause effect. `test_source_review_final_findings.py` retains disjoint-stale, original MUSIC, RESTORED confirmation, and UNKNOWN primary-error regressions. `test_bounded_restore_owner_details.py` also prevents transient before-history writes for Restore and all-held automatic application, blocks joining across an intervening review barrier, and checks real positive automatic REMOVE/MUTE actions with held rows, render bookkeeping, and guarded whole-action Undo. Applied edit inspector Vitest tests cover MUTE-only Restore, whole-action guidance, access bounds, and navigation without hidden Undo.

@@ -4,10 +4,11 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project
+from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project, save_project
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline.service import PipelineRunner
+from source_review_helpers import finite_primary_recording
 
 
 def _stub_run(steps: list[PipelineStepLog]) -> PipelineRun:
@@ -186,6 +187,9 @@ def test_run_pushes_proposed_pending_edits_to_document_subscribers(
     from podcast_mcp.services.session_sync.hub import get_hub
 
     _propose_pending_edit(monkeypatch)
+    project = load_project(minimal_project)
+    finite_primary_recording(project, 2)
+    save_project(project, minimal_project)
     key = document_hub_key(load_project(minimal_project))
     loop = asyncio.new_event_loop()
     queue = get_hub().subscribe(key, loop)
@@ -214,6 +218,9 @@ def test_failed_run_still_pushes_the_steps_that_saved(minimal_project: Path, mon
     from podcast_mcp.services.session_sync.hub import get_hub
 
     _propose_pending_edit(monkeypatch, fail_after=True)
+    project = load_project(minimal_project)
+    finite_primary_recording(project, 2)
+    save_project(project, minimal_project)
     key = document_hub_key(load_project(minimal_project))
     loop = asyncio.new_event_loop()
     queue = get_hub().subscribe(key, loop)

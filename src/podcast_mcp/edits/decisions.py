@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Annotated, Literal
@@ -14,23 +13,26 @@ from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     SourceExtent,
     UnconfirmedCutSpeech,
-    clear_ripple,
     confirmation_for,
     merge_cut_speech,
 )
 from podcast_mcp.edits.edit_impact import ImpactKind, record_impact
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
-from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange, optimize_source_cut_range
+from podcast_mcp.edits.inaudible_cuts import (
+    OptimizedCutRange,
+    optimize_source_cut_range,
+)
 from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
+from podcast_mcp.edits.source_removals import (
+    CutScopeHold,
+    ScopeChangedAtApproval,
+    consume_source_remove,
+    require_source_remove,
+)
 from podcast_mcp.edits.timeline_ops import (
-    insert_gap,
-    insert_room_tone_pad,
     mute_room_tone_fill,
-    plan_ripple_delete,
-    punch_delete,
-    ripple_delete,
     split_clips_at,
 )
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
@@ -45,47 +47,6 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError
 from podcast_mcp.util.review import reject_by_id
-from podcast_mcp.util.timebase import SourceSec
-from podcast_mcp.util.tracks import dialogue_track_ids
-
-# How close a clip edge must sit to a pad point to receive the pad fades. This
-# matches edges to a time, not clips to each other (see ``clips_abut``).
-_PAD_EDGE_MATCH_SEC = 0.05
-
-
-class ScopeChangedAtApproval(CodedError, ValueError):
-    """An approval that would not cut what was reviewed; raised to roll it back.
-
-    A session cut whose peers are now speaking over it would silence only its own track
-    and shorten nothing. ``ids`` are the decisions it held, ``message`` names the
-    speakers and the way on.
-    """
-
-    code = "cut_scope_changed"
-
-    def __init__(self, held: Sequence[tuple[str, tuple[str, ...]]], speakers: dict[str, str]):
-        self.ids = tuple(edit_id for edit_id, _peers in held)
-        heard = sorted({speakers.get(peer, peer) for _id, peers in held for peer in peers})
-        noun = "This cut was" if len(self.ids) == 1 else f"{len(self.ids)} cuts were"
-        why = (
-            f"{' and '.join(heard)} is speaking where it would be cut from every track, so it "
-            "would silence only one track and shorten nothing"
-            if heard
-            else "it could not be checked against the other tracks, so it would silence only "
-            "one track and shorten nothing"
-        )
-        super().__init__(
-            f"{noun} not applied: {why}. Nothing changed. "
-            "Reject it, or cut that part of the track on its own."
-        )
-
-
-@dataclass(frozen=True)
-class CutScopeHold:
-    """A session cut the scope guard would turn into a track-local punch: not applied."""
-
-    edit_id: str
-    peers: tuple[str, ...]
 
 
 def _speaker_name(project: EpisodeProject, track_id: str) -> str:
@@ -95,10 +56,6 @@ def _speaker_name(project: EpisodeProject, track_id: str) -> str:
 
 def _tighten_cfg() -> dict:
     return dict(load_defaults().get("tighten", {}) or {})
-
-
-def _defaults_all() -> dict:
-    return load_defaults()
 
 
 def _mapped_edit_to_timeline_range(
@@ -130,10 +87,12 @@ def apply_join_fades_from_decisions(
     for tid, decs in by_track.items():
         for left, right in abutting_pairs(clips_for_track(project, tid)):
             join_src = left.source_end
-            fade = 0
-            for d in decs:
-                if abs(d.end - join_src) < 0.08 or abs(d.start - join_src) < 0.08:
-                    fade = max(fade, d.crossfade_ms)
+            matching = [
+                d for d in decs if abs(d.end - join_src) < 0.08 or abs(d.start - join_src) < 0.08
+            ]
+            if not matching:
+                continue
+            fade = max(d.crossfade_ms for d in matching)
             if fade <= 0:
                 fade = recommend_cut_fade_ms(
                     project,
@@ -176,189 +135,6 @@ def list_edit_decisions(
     return out
 
 
-def _join_time_after_ripple(project: EpisodeProject, near_sec: float) -> float:
-    """Actual butt-join near ``near_sec`` after a ripple (handles float drift)."""
-    best: float | None = None
-    best_dist = float("inf")
-    for tid in dialogue_track_ids(project):
-        clips = clips_for_track(project, tid)
-        for i in range(len(clips) - 1):
-            left, right = clips[i], clips[i + 1]
-            if abs(left.timeline_end - right.timeline_start) > 1e-3:
-                continue
-            dist = abs(left.timeline_end - near_sec)
-            if dist < best_dist:
-                best_dist = dist
-                best = left.timeline_end
-    return best if best is not None and best_dist < 0.1 else near_sec
-
-
-def _source_still_cut_pending(
-    project: EpisodeProject, besides: EditDecision
-) -> dict[str, list[tuple[float, float]]]:
-    """Per track, the source seconds of the other pending cuts that still play.
-
-    A cut maps to the session time its source seconds are played at. A pad that replays
-    those seconds elsewhere would make it play in two places and remove all between.
-    """
-    timeline = SessionTimeline(project)
-    spans: dict[str, list[tuple[float, float]]] = {}
-    for other in project.edit_decisions:
-        if (
-            other.id == besides.id
-            or other.applied
-            or other.exact_range is not None
-            or other.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
-            or not timeline.map_source_span(
-                other.track_id, SourceSec(other.start), SourceSec(other.end)
-            )
-        ):
-            continue
-        spans.setdefault(other.track_id, []).append((other.start, other.end))
-    return spans
-
-
-def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start: float) -> None:
-    gap = edit.replace_gap_sec
-    if gap is None or gap <= 0:
-        return
-    if getattr(edit, "scope", "session") == "track":
-        # Track-local punches already leave a hole; do not insert session pads.
-        return
-    at = _join_time_after_ripple(project, tl_start)
-    if filler_pad_mode() == "room_tone":
-        insert_room_tone_pad(project, at, gap, avoid=_source_still_cut_pending(project, edit))
-    else:
-        # filler_pad_mode: silence - a hard silence beat (dry rooms).
-        insert_gap(project, at, gap)
-    defaults = _defaults_all()
-    # Left edge: ripple often stamps a ~15ms fade-out while clips still abut,
-    # then the pad opens a hole - that fade swallows consonant releases (N in
-    # "mean"). Keep only a tiny declick into silence.
-    pre_fade = _pre_pad_fade_out_ms()
-    for tid in dialogue_track_ids(project):
-        for clip in clips_for_track(project, tid):
-            if abs(clip.timeline_end - at) <= _PAD_EDGE_MATCH_SEC:
-                clip.fade_out_ms = pre_fade
-                clip.join_in_mode = ClipJoinMode.FADE
-    # Right edge: fade length from resume-edge energy (quiet air → short;
-    # late/hot onset → longer so the fade still covers the consonant), ended
-    # before the next word's detected onset so it never attenuates that onset.
-    resume_at = at + gap
-    for tid in dialogue_track_ids(project):
-        for clip in clips_for_track(project, tid):
-            if abs(clip.timeline_start - resume_at) <= _PAD_EDGE_MATCH_SEC:
-                fade_ms = recommend_post_pad_fade_in_ms(
-                    project,
-                    tid,
-                    clip.source_start,
-                    next_burst_sec=edit.next_burst_sec,
-                    defaults=defaults,
-                )
-                if fade_ms > 0:
-                    clip.fade_in_ms = max(int(clip.fade_in_ms), fade_ms)
-                    clip.join_in_mode = ClipJoinMode.FADE
-
-
-def _apply_remove_edit(
-    project: EpisodeProject,
-    edit: EditDecision,
-    *,
-    confirm_cut_speech: bool,
-    batch: Sequence[SourceExtent],
-    use_inaudible_opt: bool | None = False,
-    record_log: bool = False,
-) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation | CutScopeHold:
-    """Apply one REMOVE via session ripple or track-local punch.
-
-    A suggestion that recorded ``cut_speech`` ripples as suggested. Any other session
-    remove keeps the speech-energy scope guard, read from what the lanes play now. A
-    session cut over speaking peers is not the cut that was reviewed, and a punch would
-    shorten nothing: it returns a :class:`CutScopeHold` and changes nothing. A ripple
-    then clears the speech guard against the current transcript, counting the words the
-    rest of ``batch`` cuts as chosen; unconfirmed speech returns the confirmation and
-    changes nothing.
-    """
-    from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
-
-    scope = getattr(edit, "scope", "session") or "session"
-    mapped_range = _mapped_edit_to_timeline_range(project, edit)
-    if mapped_range is None:
-        return edit.start, edit.end, [], {"scope": scope, "per_track_source": {}}
-    tl_start, tl_end = mapped_range
-    if scope != "track" and edit.cut_speech is None:
-        peers: tuple[str, ...] = ()
-        try:
-            scope, guard = resolve_cut_scope(
-                project,
-                edit.track_id,
-                edit.start,
-                edit.end,
-                requested_scope=scope,
-                defaults=load_defaults(),
-            )
-            peers = guard.blocking_track_ids if guard is not None else ()
-        except ValueError as blocked:
-            scope = "track"
-            peers = tuple(getattr(blocked, "peers", ()))
-        if scope == "track":
-            return CutScopeHold(edit.id, peers)
-
-    if scope == "track":
-        report = punch_delete(
-            project,
-            edit.track_id,
-            tl_start,
-            tl_end,
-            use_inaudible_opt=use_inaudible_opt,
-            record_log=record_log,
-        )
-        tl_start, tl_end = report["timeline_start"], report["timeline_end"]
-        return (
-            tl_start,
-            tl_end,
-            [edit.track_id],
-            {
-                "per_track_source": report["per_track_source"],
-                "replace_gap_sec": edit.replace_gap_sec,
-                "scope": scope,
-            },
-        )
-    removal = plan_ripple_delete(
-        project,
-        tl_start,
-        tl_end,
-        edited_track_ids=[edit.track_id],
-        use_inaudible_opt=use_inaudible_opt,
-    )
-    clearance = clear_ripple(
-        project, removal, confirm_cut_speech=confirm_cut_speech, also_chosen=batch
-    )
-    if isinstance(clearance, CutSpeechConfirmation):
-        return clearance
-    report = ripple_delete(
-        project,
-        clearance,
-        record_log=record_log,
-        params={"use_inaudible_opt": use_inaudible_opt},
-    )
-    tl_start, tl_end = report["timeline_start"], report["timeline_end"]
-    per_track = report["per_track_source"]
-    track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
-    _apply_replace_gap_pad(project, edit, tl_start)
-    return (
-        tl_start,
-        tl_end,
-        track_ids,
-        {
-            "per_track_source": per_track,
-            "replace_gap_sec": edit.replace_gap_sec,
-            "scope": scope,
-            **clearance.log_params(),
-        },
-    )
-
-
 def _source_extents(removes: list[EditDecision]) -> tuple[SourceExtent, ...]:
     return tuple(SourceExtent(e.track_id, e.start, e.end) for e in removes)
 
@@ -386,7 +162,7 @@ def _apply_mute_edit(
             edit.track_id,
             edit.end,
             next_burst_sec=edit.next_burst_sec,
-            defaults=_defaults_all(),
+            defaults=load_defaults(),
         )
         or MUTE_FADE_MS
     )
@@ -419,7 +195,11 @@ def _apply_mute_edit(
 
 
 def approve_edits(
-    project: EpisodeProject, ids: list[str], *, confirm_cut_speech: bool = False
+    project: EpisodeProject,
+    ids: list[str],
+    *,
+    confirm_cut_speech: bool = False,
+    allow_review: bool = True,
 ) -> int:
     """Apply the pending edits ``ids``.
 
@@ -462,10 +242,11 @@ def approve_edits(
     asked: list[CutSpeechConfirmation] = []
     held: list[CutScopeHold] = []
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
-        applied = _apply_remove_edit(
+        applied = consume_source_remove(
             project,
             edit,
             confirm_cut_speech=confirm_cut_speech,
+            allow_review=allow_review,
             batch=batch,
             use_inaudible_opt=False,
             record_log=False,
@@ -493,7 +274,7 @@ def approve_edits(
         raise UnconfirmedCutSpeech(confirmation_for(merge_cut_speech([a.speech for a in asked])))
     if held:
         raise ScopeChangedAtApproval(
-            [(h.edit_id, h.peers) for h in held],
+            held,
             {tid: _speaker_name(project, tid) for h in held for tid in h.peers},
         )
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
@@ -623,6 +404,9 @@ def update_pending_edit(
     if end <= start:
         raise ValueError("end must be after start")
 
+    original = edit
+    edit = edit.model_copy(deep=True)
+    require_source_remove(project, edit.model_copy(update={"start": start, "end": end}))
     if snap:
         opt = optimize_source_cut_range(project, edit.track_id, start, end)
         edit.start = opt.start
@@ -635,6 +419,8 @@ def update_pending_edit(
             edit.cut_confidence = None
         edit.start = start
         edit.end = end
+    require_source_remove(project, edit)
+    project.edit_decisions = [edit if row is original else row for row in project.edit_decisions]
     return edit
 
 
@@ -652,10 +438,11 @@ def _apply_auto_removes(
     batch = _source_extents(removes)
     held: set[str] = set()
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
-        applied = _apply_remove_edit(
+        applied = consume_source_remove(
             project,
             edit,
             confirm_cut_speech=False,
+            allow_review=False,
             batch=batch,
             use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
             record_log=False,
@@ -666,6 +453,10 @@ def _apply_auto_removes(
         tl_start, tl_end, track_ids, params = applied
         if not track_ids:
             continue
+        edit.start = params["source_start"]
+        edit.end = params["source_end"]
+        edit.crossfade_ms = params.get("crossfade_ms", edit.crossfade_ms)
+        edit.replace_gap_sec = params["replace_gap_sec"]
         archive_decision(
             project,
             edit,
@@ -676,33 +467,6 @@ def _apply_auto_removes(
             params={**params, "config_key": config_key},
         )
     return held
-
-
-def _held_back_removes(
-    project: EpisodeProject,
-    removes: list[EditDecision],
-    *,
-    inaudible_opt: bool,
-    config_key: str,
-) -> set[str]:
-    """Ids of the auto removes that would cut other speech unasked.
-
-    A held-back remove chooses nothing for the rest, so speech only it covered can
-    hold back another. Trial runs on copies repeat until no more is held back.
-    """
-    ids = {e.id for e in removes}
-    held: set[str] = set()
-    while True:
-        trial = project.model_copy(deep=True)
-        newly = _apply_auto_removes(
-            trial,
-            [e for e in trial.edit_decisions if e.id in ids - held],
-            inaudible_opt=inaudible_opt,
-            config_key=config_key,
-        )
-        if not newly:
-            return held
-        held |= newly
 
 
 def apply_prefix_edits(
@@ -755,18 +519,32 @@ def apply_prefix_edits(
             track_ids=track_ids,
             params=params,
         )
-    held = _held_back_removes(project, removes, inaudible_opt=inaudible_opt, config_key=config_key)
-    held |= _apply_auto_removes(
-        project,
-        [e for e in removes if e.id not in held],
-        inaudible_opt=inaudible_opt,
-        config_key=config_key,
-    )
+    remove_ids = {e.id for e in removes}
+    held: set[str] = set()
+    while True:
+        working = project.model_copy(deep=True)
+        newly = _apply_auto_removes(
+            working,
+            [e for e in working.edit_decisions if e.id in remove_ids - held],
+            inaudible_opt=inaudible_opt,
+            config_key=config_key,
+        )
+        if newly:
+            held |= newly
+            continue
+        from podcast_mcp.project_merge import adopt_project_state
+
+        adopt_project_state(project, working)
+        break
     applied_decisions = [e for e in applied_decisions if e.id not in held]
 
     apply_join_fades_from_decisions(
         project,
-        [e for e in applied_decisions if e.type == EditDecisionType.REMOVE],
+        [
+            e
+            for e in project.edit_decisions
+            if e.id in remove_ids - held and not (e.reason or "").startswith("pause:")
+        ],
         defaults=cfg_all,
     )
     id_set = {e.id for e in applied_decisions}

@@ -47,7 +47,10 @@ export function pendingTightenHit(
   return edit;
 }
 
-async function runApprove(ids: string[]): Promise<ExecuteResult> {
+async function runApprove(
+  ids: string[],
+  allowReview = true,
+): Promise<ExecuteResult> {
   const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
     const s = useDawStore.getState();
     if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
@@ -61,6 +64,8 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
       const { queued, asked, historyHead } = await approveEdits(
         projectPath,
         ids,
+        false,
+        allowReview,
       );
       if (asked) return { status: "ok" };
       const next = useDawStore.getState();
@@ -199,7 +204,7 @@ export function registerTightenCommands(): void {
     if (freshIds.length === 0) {
       return { status: "disabled", reason: "Nothing is eligible to apply" };
     }
-    return runApprove(freshIds);
+    return runApprove(freshIds, !avoidHarsh);
   });
 
   registerCommand("tighten.previewHit", async (args) => {

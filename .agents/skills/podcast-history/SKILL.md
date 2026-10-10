@@ -28,6 +28,8 @@ podcast history record --project episode.project.json --label "before risky chan
 
 ## After undo
 
+For a failed mutation, raw history restoration alone does not certify editable and render recovery. A saved unchanged-project assurance requires the registered restore to finish. A failed restore reports an unknown outcome and preserves the original failure; reload the canonical saved project before continuing. Recovery, notification and logger interruptions cannot replace the original error or authorize deleting review media.
+
 Re-render if needed:
 
 ```bash

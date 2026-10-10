@@ -154,14 +154,16 @@ export async function approveEdits(
   projectPath: string,
   ids: string[],
   confirmCutSpeech = false,
+  allowReview = true,
 ): Promise<RippleOutcome & { historyHead: HistoryEntryId | null }> {
   const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
     ids,
+    allow_review: allowReview,
     ...confirmed(confirmCutSpeech),
   });
   return {
     ...rippleOutcome(projectPath, result, {
-      cutAnyway: () => approveEdits(projectPath, ids, true),
+      cutAnyway: () => approveEdits(projectPath, ids, true, allowReview),
       leaveGap: null,
     }),
     historyHead: replyHistoryHead(result),

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 
@@ -71,9 +71,12 @@ def speech_energy_guard_enabled(defaults: dict[str, Any] | None = None) -> bool:
 
 def speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -> ConflictAction:
     raw = str(_guard_cfg(defaults).get("on_conflict", "track_local")).strip().lower()
-    if raw in ("skip", "review", "track_local"):
-        return raw  # type: ignore[return-value]
-    return "track_local"
+    choices: dict[str, ConflictAction] = {
+        "skip": "skip",
+        "review": "review",
+        "track_local": "track_local",
+    }
+    return choices.get(raw, "track_local")
 
 
 @dataclass(frozen=True)
@@ -319,6 +322,30 @@ class PeerSpeechBlocked(ValueError):
         self.peers = peers
 
 
+@dataclass(frozen=True)
+class ResolvedCutScope:
+    cause: Literal["session_clear", "intentional_track", "peer_speech", "speaker_bleed"]
+    guard: SpeechEnergyGuardResult | None = None
+
+    @property
+    def scope(self) -> Literal["session", "track"]:
+        scopes: dict[str, Literal["session", "track"]] = {
+            "session_clear": "session",
+            "intentional_track": "track",
+            "peer_speech": "track",
+            "speaker_bleed": "track",
+        }
+        return scopes[self.cause]
+
+
+@dataclass(frozen=True)
+class CutScopeUnavailable:
+    """Peer assessment failed without selecting an executable cut scope."""
+
+
+CutScopeResolution: TypeAlias = ResolvedCutScope | CutScopeUnavailable
+
+
 def resolve_cut_scope(
     project: EpisodeProject,
     cut_track_id: str,
@@ -328,13 +355,10 @@ def resolve_cut_scope(
     requested_scope: str = "session",
     defaults: dict[str, Any] | None = None,
     caches: TrackRmsCacheSet | None = None,
-) -> tuple[str, SpeechEnergyGuardResult | None]:
-    """Return ``(scope, guard)`` with scope ``session`` or ``track``.
-
-    Raises ``ValueError`` when ``on_conflict`` is ``skip`` and peers are speaking.
-    """
+) -> CutScopeResolution:
+    """Resolve current cut scope or report unavailable peer assessment."""
     if requested_scope == "track":
-        return "track", None
+        return ResolvedCutScope("intentional_track")
 
     try:
         from podcast_mcp.engines.speaker_id import (
@@ -353,21 +377,17 @@ def resolve_cut_scope(
                 ctx.speaker_id,
             )
             if speaker and speaker.get("role") == "bleed":
-                return "track", None
+                return ResolvedCutScope("speaker_bleed")
     except Exception as exc:
         log.debug("speaker cut scope guard skipped: %s", exc, exc_info=True)
 
-    guard = assess_cross_track_speech(
-        project,
-        cut_track_id,
-        src_start,
-        src_end,
-        defaults=defaults,
-        caches=caches,
-    )
+    try:
+        guard = assess_cross_track_speech(
+            project, cut_track_id, src_start, src_end, defaults=defaults, caches=caches
+        )
+    except (OSError, ValueError):
+        return CutScopeUnavailable()
     if not guard.blocked:
-        return "session", guard
-    if guard.action == "skip":
-        raise PeerSpeechBlocked(guard.blocking_track_ids)
+        return ResolvedCutScope("session_clear", guard)
     # track_local and review: never session-ripple over live peer speech.
-    return "track", guard
+    return ResolvedCutScope("peer_speech", guard)
