@@ -139,6 +139,45 @@ describe("FeedbackToast", () => {
     unmount();
   });
 
+  it("keeps a card paused when compact and floating presentations both clip it", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(
+          private callback: (
+            entries: { isIntersecting: boolean; intersectionRatio: number }[],
+          ) => void,
+        ) {}
+        observe() {
+          this.callback([{ isIntersecting: true, intersectionRatio: 0.5 }]);
+        }
+        disconnect() {}
+      },
+    );
+    const host = document.createElement("div");
+    document.body.append(host);
+    const { rerender, unmount } = render(<FeedbackToast host={host} />);
+    act(() =>
+      useDawStore.getState().announceStatus("Removed long workshop recording", {
+        undo: entry("host-reorder"),
+      }),
+    );
+    const card = screen
+      .getByText("Removed long workshop recording")
+      .closest(".ui-toast");
+    act(() => vi.advanceTimersByTime(12000));
+    host.remove();
+    rerender(<FeedbackToast />);
+    act(() => vi.advanceTimersByTime(12000));
+    expect(
+      screen.getByText("Removed long workshop recording").closest(".ui-toast"),
+    ).toBe(card);
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    expect(undoHistory).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("does not restart an unpaused timer when the presentation changes", () => {
     vi.useFakeTimers();
     const host = document.createElement("div");
