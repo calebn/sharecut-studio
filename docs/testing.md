@@ -191,16 +191,19 @@ production target catalog pins each hosted archive and original producer manifes
 
 Tests cover digest failure before archive opening or execution, unsafe members,
 closed inventories, wrong targets, mixed pairs, source-pin and configure-input
-mismatches, repair, failed publication and signed-byte identity. The canonical
-native proof checks executable architecture, system-only linkage, exact 9.0.2,
+mismatches, repair, caught Ctrl-C and publication failures, retained previous
+bytes after failed restoration, restart recovery on either side of publication,
+unsafe recovery roots, explicit archive admission before recovery mutation,
+malformed signing receipts before execution, and signed-byte identity. Importer
+tests inject failures and model completed rename states with fixture bytes.
+The canonical native proof checks executable architecture, system-only linkage, exact 9.0.2,
 codec encode/decode, resampling, loudness filters and PNG waveform rendering.
 Windows import inspection reads PE headers with the standard library and media
 children use only `SYSTEMROOT`'s `System32` directory on PATH.
 
-Native desktop jobs execute the acquired pair on Ubuntu 22.04 x64, Intel macOS
-and Windows x64. A separate Ubuntu 24.04 job executes the identical transferred
-Linux payload. Native ARM local checks remain necessary and do not replace those
-jobs. Load-command minimum-OS checks are separate evidence from execution on the
+Native desktop jobs execute the acquired pair on Ubuntu 22.04 x64, Intel macOS,
+Apple Silicon macOS and Windows x64. A separate Ubuntu 24.04 job executes the
+identical transferred Linux payload. Local native checks supplement those jobs. Load-command minimum-OS checks are separate evidence from execution on the
 oldest supported OS. Source compilation is dependency production only.
 
 Python jobs cache pip downloads with `actions/setup-python`. Both `pyproject.toml`
@@ -234,9 +237,9 @@ test, skipped or deselected test, empty/missing/malformed JUnit evidence, or
 guarded release mismatch fails the run. Omit
 `--expected-version` to record another installed pair without a release guard.
 Pass `--ffmpeg` and `--ffprobe` only when you need explicit command overrides.
-Required Python and browser jobs use the shared pinned source pair. Native
-payload jobs build and execute it on Ubuntu 22.04 x64, Intel macOS and Windows
-x64; Ubuntu 24.04 executes the Linux artifact. Cross-platform resolver tests
+Required Python and browser jobs use the shared pinned prebuilt pair. Native
+payload jobs acquire and execute it on Ubuntu 22.04 x64, Intel and Apple Silicon
+macOS and Windows x64; Ubuntu 24.04 executes the Linux artifact. Cross-platform resolver tests
 control executable version evidence while keeping native path semantics.
 Resolver tests alone do not establish media capability or installer acceptance.
 The release and security policy is in
