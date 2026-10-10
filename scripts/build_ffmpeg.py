@@ -108,6 +108,7 @@ def _linkage(binary: Path) -> str:
     elif system == "Windows":
         text = _run(["objdump", "-p", str(binary)])
         dependencies = re.findall(r"DLL Name:\s*(\S+)", text)
+        print(f"Windows native imports for {binary}: {dependencies}")
         allowed = {
             "kernel32.dll",
             "msvcrt.dll",
@@ -121,11 +122,18 @@ def _linkage(binary: Path) -> str:
             "shell32.dll",
             "ole32.dll",
             "avrt.dll",
+            "gdi32.dll",
+            "oleaut32.dll",
+            "shlwapi.dll",
+            "avicap32.dll",
         }
         invalid = [
             item
             for item in dependencies
-            if item.lower() not in allowed and not item.lower().startswith("api-ms-win-")
+            if item.lower() not in allowed
+            and not re.fullmatch(
+                r"api-ms-win-[a-z0-9]+(?:-[a-z0-9]+)*-l[0-9]+-[0-9]+-[0-9]+\.dll", item.lower()
+            )
         ]
     else:
         text = _run(["ldd", str(binary)])
