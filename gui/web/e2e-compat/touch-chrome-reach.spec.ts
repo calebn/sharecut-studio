@@ -536,7 +536,7 @@ for (const pending of ["wait", "refuse"] as const) {
     const gate = new Promise<void>((resolve) => {
       releaseSave = resolve;
     });
-    await page.route("**/api/document/command", async (route) => {
+    await page.route("**/api/document/command*", async (route) => {
       const body = route.request().postDataJSON() as { type: string };
       if (body.type === "SetEnvelope") await gate;
       await route.continue();

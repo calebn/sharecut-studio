@@ -260,18 +260,11 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 
 .compact-history-hint {
   position: absolute;
-  inset-block-end: 100%;
+  inset-block-start: 100%;
   inset-inline-end: var(--space-4);
   max-inline-size: calc(100% - 2 * var(--space-4));
-  margin-block-end: var(--space-1);
-  pointer-events: none;
-}
-
-.bottom-sheet--full .compact-history-hint {
-  inset-block-end: auto;
-  inset-block-start: 100%;
-  margin-block-end: 0;
   margin-block-start: var(--space-1);
+  pointer-events: none;
 }
 
 .compact-history-hint:not(:empty) {
