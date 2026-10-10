@@ -1366,6 +1366,8 @@ test; other rows are whole tests.
 | #1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a plain mouse grab at a join rolls it, as on main | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| clipped saved feedback pauses its remaining visible lifetime | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | compact header handles Undo while a save is pending | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | Core flow | Pass | Pass | Not run |
 | unavailable compact history keeps geometry | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |

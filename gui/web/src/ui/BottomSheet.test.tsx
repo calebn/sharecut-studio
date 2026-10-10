@@ -11,7 +11,6 @@ import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { stubRaf } from "../test/raf";
-import { stubResizeObserver } from "../test/resizeObserver";
 import { BottomSheet } from "./BottomSheet";
 
 describe("BottomSheet", () => {
@@ -303,38 +302,6 @@ describe("BottomSheet", () => {
     expect(screen.queryByRole("button", { name: "Expand" })).toBeNull();
     expect(dialog.querySelector(".bottom-sheet-grab")).toBeNull();
     await expectNoA11yViolations(dialog);
-  });
-
-  it("pads the drawer's scroll by its pinned chrome, so a revealed control clears it", () => {
-    stubResizeObserver({ reportOnObserve: true });
-    const offset = vi
-      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
-      .mockImplementation(function (this: HTMLElement) {
-        return this.classList.contains("bottom-sheet-chrome") ? 72 : 0;
-      });
-    render(
-      <BottomSheet
-        open
-        onClose={() => undefined}
-        backgroundPolicy="interactive"
-        title="Trim start"
-        drawer={{
-          detents: ["peek", "half", "full"],
-          detent: "half",
-          onDetentChange: () => undefined,
-          label: "Inspector height",
-        }}
-      >
-        <p>Fields</p>
-      </BottomSheet>,
-    );
-    expect(
-      screen
-        .getByRole("dialog", { name: "Trim start" })
-        .style.getPropertyValue("--sheet-chrome-block-size"),
-    ).toBe("72px");
-    offset.mockRestore();
-    vi.unstubAllGlobals();
   });
 
   describe("as a swipeable drawer (#1051 round 4b)", () => {

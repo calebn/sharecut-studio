@@ -6,7 +6,6 @@ import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
 import { Icon } from "./Icon";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
-import { useResizeObserver } from "./useResizeObserver";
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
 export type DrawerDetent = "peek" | "half" | "full";
@@ -99,22 +98,6 @@ export function BottomSheet({
   const closeRef = useRef<HTMLButtonElement>(null);
   const swipe = useDrawerSwipe(panelRef, open ? drawer : undefined);
   const chromeRef = useRef<HTMLDivElement>(null);
-  // The drawer's chrome stays pinned while its body scrolls; the panel's
-  // scroll padding keeps a focused or revealed control clear of it.
-  useResizeObserver(
-    chromeRef,
-    () => {
-      const panel = panelRef.current;
-      const chrome = chromeRef.current;
-      if (panel && chrome) {
-        panel.style.setProperty(
-          "--sheet-chrome-block-size",
-          `${chrome.offsetHeight}px`,
-        );
-      }
-    },
-    drawer != null,
-  );
   const hasDrawer = drawer != null;
   // A focused control is scrolled clear of the pinned header, which WebKit
   // does not do for a field it counts as partly in view.

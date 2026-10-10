@@ -118,12 +118,6 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   background: var(--color-bg-overlay);
 }
 
-/* Tab focus and a browser's own reveal scroll a control below that chrome,
-   not under it; BottomSheet measures the chrome into the variable. */
-.bottom-sheet--compact {
-  scroll-padding-block-start: var(--sheet-chrome-block-size, 0);
-}
-
 /* The swipeable drawer (#1051 round 4b): the header drags the sheet between
    its detents, under the finger, and the grabber pill says so. The page
    never scrolls under that drag; the body keeps its own scroll. */
