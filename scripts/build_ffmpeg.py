@@ -228,7 +228,7 @@ def media_proof(directory: Path) -> dict[str, Any]:
     for key in ("DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH", "LD_LIBRARY_PATH"):
         environment.pop(key, None)
     if platform.system() == "Windows":
-        environment["PATH"] = str(Path(environment["SystemRoot"]) / "System32")
+        environment["PATH"] = str(Path(environment["SYSTEMROOT"]) / "System32")
     else:
         environment["PATH"] = "/usr/bin:/bin"
     with tempfile.TemporaryDirectory(prefix="media-proof-") as temp:

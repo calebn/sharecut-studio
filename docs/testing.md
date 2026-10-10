@@ -203,6 +203,12 @@ archive fails closed. No downloaded binary cache is trusted through its manifest
 Native desktop jobs execute the same recipe on Ubuntu 22.04 x64, Intel macOS,
 and Windows x64 with MinGW/MSYS2. A separate Ubuntu 24 job executes the Linux
 payload built on 22.04. Local arm64 proof does not replace these target jobs.
+On Windows, `media_proof` copies `os.environ` before configuring the
+environment passed to its media checks. Python normalizes Windows environment keys to uppercase, so the
+copied plain dictionary reads the system root through `SYSTEMROOT` and limits
+child `PATH` to its `System32` directory. The focused builder test models that
+uppercase-only mapping and checks every child environment; only the Windows CI
+job proves this behavior with the native process environment.
 
 Python jobs cache pip downloads with `actions/setup-python`. Both `pyproject.toml`
 and `uv.lock` invalidate that cache. The editable pip install commands still run
