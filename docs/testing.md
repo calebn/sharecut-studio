@@ -1347,6 +1347,7 @@ test; other rows are whole tests.
 | a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| every phone Primary navigation button paints a complete focus indicator at both root sizes | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | feedback preserves selected half and full geometry and permitted ruler and lane room | `gui/web/e2e-compat/compact-feedback-detents.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped removal feedback keeps remaining lifetime after closing the compact host | `gui/web/e2e-compat/compact-feedback-host-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | every native compact Tab target paints its focus indicator inside actual clips | `gui/web/e2e-compat/compact-painted-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -2372,3 +2373,9 @@ track through the production confirmation, then closes a compact selection while
 that same guarded card remains clipped. Browser RED receipts precede repairs.
 
 Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper admits the actual compact Expand control before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. The original Pending ruler click assertions remain unchanged.
+
+The phone navigation focus matrix traverses every Primary navigation button
+with native Tab at 16px and 32px root sizes in light and dark themes. It runs
+in Chromium and WebKit and saves geometry receipts and screenshots for each
+focused button. The phone shell clips content at its viewport edge, so every
+navigation focus indicator must fit inside its button.

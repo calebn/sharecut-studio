@@ -22,7 +22,6 @@ import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 240_000 });
 
-/** Undo and Redo are in view and on top before and after an edit, and a tap on Undo undoes it. */
 async function undoStaysReachable(
   name: keyof typeof SIZES,
   rootPx: number,
