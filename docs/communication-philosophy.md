@@ -219,7 +219,9 @@ the empty state, not a separate discovery task.
   centred at the bottom above the status bar on desktop and tablet. On a
   phone it docks just above the highest bottom chrome that is shown (an
   open sheet, the Timeline tool rail, or the mode nav) and below the
-  transport, so it covers no controls or sheet fields ([gui-mobile.md §
+  transport. Keeping all controls and sheet fields clear is required; the
+  current full-sheet fallback can cover another inspector control when it moves
+  off the latest pressed control ([gui-mobile.md §
   Feedback toast](gui-mobile.md#feedback-toast)). The shell's single
   live region speaks it, once per announcement, even when the same text
   repeats.
