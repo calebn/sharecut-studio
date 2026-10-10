@@ -12,7 +12,7 @@ export async function controlGeometry(control: Locator, identity = false) {
       tag: node.tagName,
       class: node.getAttribute("class"),
       label: node.getAttribute("aria-label"),
-      text: node.textContent?.trim().slice(0, 160),
+      text: node.textContent?.trim().slice(0, 160) ?? null,
     });
     const label =
       element instanceof HTMLInputElement ||
