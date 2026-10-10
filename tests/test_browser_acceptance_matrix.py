@@ -29,6 +29,7 @@ CI_GATE_JOB = "frontend-e2e"
 MAIN_COMMAND = "npm run test:e2e"
 MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- --shard=(\d+)/(\d+)$")
 COMPAT_COMMAND = "npm run test:e2e:compat"
+COMPAT_ENGINES = ("chromium", "webkit")
 
 PASS = "Pass"
 NOT_RUN = "Not run"
@@ -173,6 +174,16 @@ def _frontend_e2e_steps() -> list[dict]:
     return job["steps"]
 
 
+def compat_ci_engines(include: list[dict]) -> list[str]:
+    rows = [entry for entry in include if entry["name"].startswith("compat")]
+    expected = [
+        {"name": f"compat-{engine}", "command": f"{COMPAT_COMMAND} -- --project={engine}"}
+        for engine in COMPAT_ENGINES
+    ]
+    assert rows == expected, f"compat jobs must run each complete engine exactly once: {rows}"
+    return list(COMPAT_ENGINES)
+
+
 def test_matrix_header_names_every_engine_column() -> None:
     assert _matrix().header == HEADER
 
@@ -238,9 +249,11 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
     assert job["strategy"]["fail-fast"] is False
     include = job["strategy"]["matrix"]["include"]
     assert job["strategy"]["matrix"].keys() == {"include"}
-    assert [entry["name"] for entry in include if entry["command"] == COMPAT_COMMAND] == ["compat"]
+    engines = compat_ci_engines(include)
     shards = [
-        MAIN_SHARD_RE.match(entry["command"]) for entry in include if entry["name"] != "compat"
+        MAIN_SHARD_RE.match(entry["command"])
+        for entry in include
+        if not entry["name"].startswith("compat")
     ]
     assert all(shards), f"main shards must run `{MAIN_COMMAND} -- --shard=i/n`: {include}"
     totals = {shard[2] for shard in shards if shard}
@@ -251,7 +264,7 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
     )
     assert [entry["name"] for entry in include] == [
         *(f"main-{i}of{count}" for i in range(1, count + 1)),
-        "compat",
+        *(f"compat-{engine}" for engine in engines),
     ]
     assert len({entry["name"] for entry in include}) == len(include)
     steps = _frontend_e2e_steps()
@@ -274,6 +287,49 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
     assert engines_with_pass <= installed, (
         f"{engines_with_pass - installed} have a Pass cell but {CI_SUITES_JOB} never installs them"
     )
+
+
+def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
+    include = load_github_yaml(WORKFLOW)["jobs"][CI_SUITES_JOB]["strategy"]["matrix"]["include"]
+    engines = compat_ci_engines(include)
+    projects = compat_projects(COMPAT_CONFIG.read_text(encoding="utf-8"))
+    checks = [
+        (spec, check) for spec, source in compat_specs().items() for check in spec_checks(source)
+    ]
+    expected = {(engine, spec, check) for engine in COMPAT_ENGINES for spec, check in checks}
+    selected = [
+        (engine, spec, check)
+        for engine in engines
+        for spec, check in checks
+        if runs_on(spec, engine, projects)
+    ]
+    assert len(selected) == len(set(selected)), "compat jobs duplicate engine/check pairs"
+    assert set(selected) == expected, "compat jobs omit engine/check pairs"
+    config = COMPAT_CONFIG.read_text(encoding="utf-8")
+    assert re.search(r"\bworkers:\s*1\s*,", config)
+    assert re.search(r"\bfullyParallel:\s*false\s*,", config)
+
+
+@pytest.mark.parametrize(
+    "commands",
+    [
+        [],
+        ["chromium"],
+        ["webkit"],
+        ["chromium", "chromium", "webkit"],
+        ["chromium", "webkit --grep history"],
+        ["chromium --shard=1/2", "webkit"],
+    ],
+)
+def test_ci_compat_selection_rejects_missing_duplicate_or_filtered_engines(
+    commands: list[str],
+) -> None:
+    include = [
+        {"name": f"compat-{engine}", "command": f"{COMPAT_COMMAND} -- --project={engine}"}
+        for engine in commands
+    ]
+    with pytest.raises(AssertionError, match="each complete engine exactly once"):
+        compat_ci_engines(include)
 
 
 @pytest.mark.parametrize(
