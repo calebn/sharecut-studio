@@ -45,6 +45,7 @@ export const test = base.extend<{ compactChromeProject: string }>({
       try {
         await provideProject(projectPath);
       } finally {
+        await page.close();
         await switchE2eProject(e2eProjectPath);
         removeRelocatedE2eProject(fixture.workspaceDir);
       }
