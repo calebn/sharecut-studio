@@ -14,6 +14,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
+import { setTheme } from "../e2e/theme";
 import {
   buildFixture,
   centerOf,
@@ -34,7 +35,6 @@ import {
  */
 
 const CLIENT_ID = "e2e-touch-chrome-reach";
-const HOLD_MS = 750;
 const SIZES = {
   portrait: { width: 390, height: 844 },
   landscape: { width: 844, height: 390 },
@@ -61,6 +61,8 @@ test.afterEach(async () => {
 async function openAt(
   page: Page,
   size: { width: number; height: number },
+  rootPx = 16,
+  theme: "dark" | "light" = "dark",
 ): Promise<void> {
   await page.setViewportSize(size);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
@@ -68,6 +70,10 @@ async function openAt(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (size.width < 768) await openPhoneTimeline(page);
+  await setTheme(page, theme);
+  await page.evaluate((px) => {
+    document.documentElement.style.fontSize = `${px}px`;
+  }, rootPx);
   await setZoom(page, 3);
 }
 
@@ -85,28 +91,32 @@ async function reach(target: Locator) {
         r.top >= 0 &&
         r.right <= innerWidth &&
         r.bottom <= innerHeight,
+      width: r.width,
+      height: r.height,
       onTop: hit !== null && (el === hit || el.contains(hit)),
       hit: hit ? `${hit.tagName}.${String(hit.className).slice(0, 40)}` : null,
     };
   });
 }
 
-const history = (page: Page) =>
+const railHistory = (page: Page) =>
   page.getByRole("group", { name: "Undo and redo" });
+const compactHistory = (page: Page) =>
+  page.locator(".bottom-sheet--compact").getByRole("group", {
+    name: "Undo and redo",
+  });
 
-async function envCTime(page: Page): Promise<number | undefined> {
+async function savedEnvelope(page: Page) {
   const res = await page.request.get(
     `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
   );
   const body = (await res.json()) as {
     envelopes: {
       track_id: string;
-      points: { id: string; time: number }[];
+      points: { id: string; time: number; value: number }[];
     }[];
   };
-  return body.envelopes
-    .find((e) => e.track_id === TRACK)
-    ?.points.find((p) => p.id === "env-c")?.time;
+  return body.envelopes.find((e) => e.track_id === TRACK)?.points;
 }
 
 type Fixtures = Pick<PlaywrightTestArgs, "page" | "context"> & {
@@ -116,40 +126,206 @@ type Fixtures = Pick<PlaywrightTestArgs, "page" | "context"> & {
 /** Undo and Redo are in view and on top before and after an edit, and a tap on Undo undoes it. */
 async function undoStaysReachable(
   name: keyof typeof SIZES,
+  rootPx: number,
+  theme: "dark" | "light",
   { page, context, browserName }: Fixtures,
   info: TestInfo,
 ): Promise<void> {
-  await openAt(page, SIZES[name]);
+  await openAt(page, SIZES[name], 16, theme);
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
-  const undo = history(page).getByRole("button", { name: "Undo" });
-  const redo = history(page).getByRole("button", { name: "Redo" });
-  const seen: Record<string, unknown> = {};
-  const check = async (step: string) => {
-    seen[step] = { undo: await reach(undo), redo: await reach(redo) };
+  const measure = async (controls: Locator) => {
+    const undo = controls.getByRole("button", { name: "Undo" });
+    const redo = controls.getByRole("button", { name: "Redo" });
+    const boxes = await page
+      .locator(".bottom-sheet--compact .bottom-sheet-header-actions button")
+      .evaluateAll((buttons) =>
+        buttons
+          .filter(
+            (button) =>
+              button.getAttribute("aria-label") !== "Undo" &&
+              button.getAttribute("aria-label") !== "Redo",
+          )
+          .map((button) => {
+            const rect = button.getBoundingClientRect();
+            return {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+            };
+          }),
+      );
+    const historyBoxes = await Promise.all(
+      [undo, redo].map((button) => button.boundingBox()),
+    );
+    const overlaps = historyBoxes.some(
+      (box) =>
+        box &&
+        boxes.some(
+          (other) =>
+            other.left < box.x + box.width &&
+            other.right > box.x &&
+            other.top < box.y + box.height &&
+            other.bottom > box.y,
+        ),
+    );
+    return {
+      undo: await reach(undo),
+      redo: await reach(redo),
+      otherControls: await Promise.all(
+        (
+          await page
+            .locator(
+              ".bottom-sheet--compact .bottom-sheet-header-actions button",
+            )
+            .all()
+        ).map((button) => reach(button)),
+      ),
+      overlaps,
+      visibleLaneHeight: await page.evaluate(() => {
+        const lane = document
+          .querySelector(".timeline-scroll")
+          ?.getBoundingClientRect();
+        const strip = document
+          .querySelector(".bottom-sheet")
+          ?.getBoundingClientRect();
+        const chrome = document
+          .querySelector(".bottom-sheet-chrome")
+          ?.getBoundingClientRect();
+        return {
+          visible:
+            lane && strip
+              ? Math.max(0, Math.min(lane.bottom, strip.top) - lane.top)
+              : 0,
+          lane: lane?.toJSON(),
+          strip: strip?.toJSON(),
+          chrome: chrome?.toJSON(),
+          shell: document.documentElement.dataset.shell,
+          layout: document.documentElement.dataset.layout,
+        };
+      }),
+    };
   };
-  await check("start");
+  const seen: Record<string, Awaited<ReturnType<typeof measure>>> = {};
+  const check = async (step: string, controls: Locator) => {
+    seen[step] = await measure(controls);
+  };
+  await check("rail", railHistory(page));
 
   const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
   await finger.down(at);
   await page.waitForTimeout(60);
   await finger.up();
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
+  await page.evaluate((px) => {
+    document.documentElement.style.fontSize = `${px}px`;
+  }, rootPx);
   await page.waitForTimeout(600);
-  await check("strip-open-after-tap");
+  const headerHistory = compactHistory(page);
+  await check("peek", headerHistory);
+  const census = await page
+    .locator(".bottom-sheet--compact")
+    .evaluate((panel) => {
+      const selectors = [
+        ".bottom-sheet-chrome",
+        ".bottom-sheet-header",
+        ".bottom-sheet-title",
+        ".bottom-sheet-header-actions",
+        ".bottom-sheet-body",
+        ".peek-strip",
+      ];
+      return {
+        viewport: {
+          width: innerWidth,
+          height: innerHeight,
+          scrollX,
+          scrollY,
+          visualHeight: visualViewport?.height,
+          visualOffset: visualViewport?.offsetTop,
+        },
+        root: {
+          rect: panel.parentElement?.getBoundingClientRect().toJSON(),
+          bottom: panel.parentElement
+            ? getComputedStyle(panel.parentElement).bottom
+            : null,
+        },
+        shell: {
+          rect: document
+            .querySelector(".daw-shell")
+            ?.getBoundingClientRect()
+            .toJSON(),
+          style: document.documentElement.style.cssText,
+        },
+        panel: {
+          className: panel.className,
+          rect: panel.getBoundingClientRect().toJSON(),
+        },
+        children: selectors.map((selector) => {
+          const el = panel.querySelector(selector);
+          const style = el ? getComputedStyle(el) : null;
+          return {
+            selector,
+            text: el?.textContent,
+            rect: el?.getBoundingClientRect().toJSON(),
+            padding: style?.padding,
+            gap: style?.gap,
+            flex: style?.flex,
+          };
+        }),
+        buttons: [...panel.querySelectorAll("button")].map((el) => ({
+          name: el.getAttribute("aria-label"),
+          rect: el.getBoundingClientRect().toJSON(),
+          padding: getComputedStyle(el).padding,
+        })),
+      };
+    });
+  json(info, `census-${name}-${rootPx}-${theme}`, census);
+  await info.attach("peek", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
 
-  const from = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
-  await finger.down(from);
-  await page.waitForTimeout(HOLD_MS);
-  await finger.slide({ x: from.x + 24, y: from.y - 12 });
+  for (const detent of ["half", "full", "peek"] as const) {
+    if (detent === "half") {
+      await page.getByRole("button", { name: "Expand to half height" }).click();
+    } else if (detent === "full") {
+      await page.getByRole("button", { name: "Expand to full height" }).click();
+    } else {
+      await page.getByRole("button", { name: "Collapse to strip" }).click();
+    }
+    await page.waitForTimeout(350);
+    await check(detent, headerHistory);
+  }
+
+  const original = [
+    { id: "env-a", time: 5, value: 1 },
+    { id: "env-edge", time: 10, value: 0.8 },
+    { id: "env-c", time: 16, value: 1 },
+    { id: "env-join", time: 40, value: 1.2 },
+  ];
+  const edited = original.map((point) =>
+    point.id === "env-c" ? { ...point, time: 16.01 } : point,
+  );
+  await expect.poll(() => savedEnvelope(page)).toEqual(original);
+  const nudge = page.getByRole("button", {
+    name: "Envelope point 0.01 s later",
+    exact: true,
+  });
+  const nudgeBox = await nudge.boundingBox();
+  if (!nudgeBox) throw new Error("Nudge has no box");
+  await finger.down({
+    x: nudgeBox.x + nudgeBox.width / 2,
+    y: nudgeBox.y + nudgeBox.height / 2,
+  });
+  await page.waitForTimeout(60);
   await finger.up();
-  await expect.poll(() => envCTime(page)).toBeGreaterThan(16);
+  await expect.poll(() => savedEnvelope(page)).toEqual(edited);
   await page.waitForTimeout(900);
-  await check("strip-open-after-edit");
-  json(info, `chrome-undo-${name}-${browserName}`, seen);
+  await check("strip-open-after-edit", headerHistory);
+  json(info, `chrome-undo-${name}-${rootPx}-${theme}-${browserName}`, seen);
 
-  for (const [step, state] of Object.entries(seen)) {
-    const row = state as Record<string, { inView: boolean; onTop: boolean }>;
+  for (const [step, row] of Object.entries(seen)) {
     expect({ step, ...row.undo }).toMatchObject({
       step,
       inView: true,
@@ -160,17 +336,59 @@ async function undoStaysReachable(
       inView: true,
       onTop: true,
     });
+    expect(row.undo.width).toBeGreaterThanOrEqual(44);
+    expect(row.undo.height).toBeGreaterThanOrEqual(44);
+    expect(row.redo.width).toBeGreaterThanOrEqual(44);
+    expect(row.redo.height).toBeGreaterThanOrEqual(44);
+    for (const control of row.otherControls) {
+      expect({ step, ...control }).toMatchObject({
+        step,
+        inView: true,
+        onTop: true,
+      });
+      expect(control.width).toBeGreaterThanOrEqual(44);
+      expect(control.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(row.overlaps).toBe(false);
+    if (
+      rootPx === 16 &&
+      (step === "peek" || step === "strip-open-after-edit")
+    ) {
+      expect(row.visibleLaneHeight.visible).toBeGreaterThanOrEqual(
+        name === "portrait" ? 547 : 191,
+      );
+    }
   }
 
-  // A tap at Undo's centre undoes the edit: the strip does not swallow it.
+  await expect(page.locator(".bottom-sheet--peek")).toBeVisible();
+  const undo = headerHistory.getByRole("button", { name: "Undo" });
   const box = await undo.boundingBox();
   if (!box) throw new Error("Undo has no box");
   commands.length = 0;
   await finger.down({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
   await page.waitForTimeout(60);
   await finger.up();
-  await expect.poll(() => envCTime(page)).toBe(16);
-  expect(commands.map((c) => c.type)).toEqual(["UndoHistory"]);
+  await expect.poll(() => savedEnvelope(page)).toEqual(original);
+  const undoCommands = commands.map((c) => c.type);
+  expect(undoCommands).toEqual(["UndoHistory"]);
+  const redo = headerHistory.getByRole("button", { name: "Redo" });
+  const redoBox = await redo.boundingBox();
+  if (!redoBox) throw new Error("Redo has no box");
+  commands.length = 0;
+  await finger.down({
+    x: redoBox.x + redoBox.width / 2,
+    y: redoBox.y + redoBox.height / 2,
+  });
+  await page.waitForTimeout(60);
+  await finger.up();
+  await expect.poll(() => savedEnvelope(page)).toEqual(edited);
+  expect(commands.map((c) => c.type)).toEqual(["RedoHistory"]);
+  json(info, `saved-history-${name}-${rootPx}-${theme}-${browserName}`, {
+    original,
+    edited,
+    undoCommands,
+    redoCommands: commands,
+  });
 }
 
 /** The blade confirmation's Cut is in view and on top at `rootPx`, and a tap on it cuts. */
@@ -213,19 +431,24 @@ async function cutIsTappable(
   expect(commands.map((c) => c.type)).toContain("SplitAtTime");
 }
 
-test("Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: portrait", ({
-  page,
-  context,
-  browserName,
-}, info) =>
-  undoStaysReachable("portrait", { page, context, browserName }, info));
-
-test("Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: landscape", ({
-  page,
-  context,
-  browserName,
-}, info) =>
-  undoStaysReachable("landscape", { page, context, browserName }, info));
+for (const name of ["portrait", "landscape"] as const) {
+  for (const rootPx of [16, 32]) {
+    for (const theme of ["dark", "light"] as const) {
+      test(`compact history ${name} root${rootPx} ${theme}`, ({
+        page,
+        context,
+        browserName,
+      }, info) =>
+        undoStaysReachable(
+          name,
+          rootPx,
+          theme,
+          { page, context, browserName },
+          info,
+        ));
+    }
+  }
+}
 
 test("the Cut button of the blade confirmation can be tapped at 16px text: portrait", ({
   page,

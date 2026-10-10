@@ -15,6 +15,37 @@ import { stubResizeObserver } from "../test/resizeObserver";
 import { BottomSheet } from "./BottomSheet";
 
 describe("BottomSheet", () => {
+  it("renders compact header actions beside its resize and close controls", async () => {
+    render(
+      <BottomSheet
+        open
+        onClose={() => undefined}
+        backgroundPolicy="interactive"
+        title="Trim start"
+        drawer={{
+          detents: ["peek", "half"],
+          detent: "peek",
+          onDetentChange: vi.fn(),
+          label: "Inspector height",
+        }}
+        compactHeaderActions={<button type="button">Undo</button>}
+        compactResizeIcons
+      >
+        <p>Inspector body</p>
+      </BottomSheet>,
+    );
+
+    expect(screen.getByRole("button", { name: "Undo" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Expand to half height" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Expand to half height" }),
+    ).toHaveAttribute("title", "Expand to half height");
+    expect(screen.getByRole("button", { name: "Close" })).toBeVisible();
+    await expectNoA11yViolations(document.body);
+  });
+
   it("opens from its trigger, toggles controlled sizing, and restores focus on close and Escape", async () => {
     const user = userEvent.setup();
     const onExpandedChange = vi.fn();

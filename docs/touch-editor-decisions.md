@@ -59,7 +59,7 @@ enforced-by:
 - gui/web/src/inspector/InspectorPeek.test.tsx::rolls a held run back, saving nothing, when the router cancels it for a second finger
 - gui/web/src/timeline/hitRouting.grammar.test.ts::arms from its body near an end whose trim and fade targets are click-through, as on an unselected clip
 - gui/web/src/timeline/hitCandidates.test.ts::is still the one candidate when every target in reach is out of reach
-- gui/web/e2e-compat/touch-chrome-reach.spec.ts::Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: landscape
+- gui/web/e2e-compat/touch-chrome-reach.spec.ts::compact history ${name} root${rootPx} ${theme}
 - gui/web/e2e-compat/touch-chrome-reach.spec.ts::the Cut button of the blade confirmation can be tapped at 32px text: landscape
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
@@ -614,20 +614,26 @@ or `RollClipJoin`; now they send no document command, the saved clip is
 unchanged, the selection is what it was, and the zoom grows by about 2.3×
 (portrait and sideways).
 
-### Undo stays in reach beside the strip (#1181 round 9)
+### Decision: Undo and Redo stay in the compact inspector header
 
-The strip is a fixed sheet over the timeline, and the tool rail's Undo and
-Redo sit at the timeline's bottom edge, so an open strip covered them on a
-phone held either way: round 9's live proof tapped Undo's centre and nudged a
-pending edit instead. The strip's slot now stops above the rail
-(`bottom-sheet.css`, with `--tool-rail-block-size`, which
-`layout/useToolRailBlockSize.ts` publishes from the rail's own height), so
-Undo and Redo stay visible and tappable at every detent. It costs a sideways
-phone about one lane of the room above an open strip (the rail's 46 px).
-Where the slot above the rail would be under 10rem (a 390 px screen at a
-32 px root font) the strip covers the rail as before, because starving the
-strip's header and body is worse; `toolRailInsetRem` decides. The crossfade
-rail stacks the same way for the phone toast, which now docks above it.
+<!-- decision
+id: D-compact-inspector-history
+status: accepted
+date: 2026-10-09
+decided-by: calebn
+evidence:
+- #1205: at 844x390 with 32 px text, a tap on the rail Undo hit the envelope nudge and saved an unintended edit
+- #1205 design synthesis: the same history controls move into the compact header while lane space returns
+enforced-by:
+- gui/web/e2e-compat/touch-chrome-reach.spec.ts::compact history ${name} root${rootPx} ${theme}
+-->
+
+The strip covers the tool rail again. Its header keeps the shared Undo and
+Redo controls visible at peek, half and full height. The rail and header use
+one authorization check, one unavailable-action message and the existing
+`history.undo` / `history.redo` command bus path, including its wait for this
+tab's edit saves and refusal when one is still saving. History controls stay
+at least 44 CSS pixels square and do not overlap the resize or Close controls.
 
 The blade confirmation is a `fit` sheet, as tall as its question and its
 actions and no taller, with Cancel and Cut pinned to the bottom of its scroll

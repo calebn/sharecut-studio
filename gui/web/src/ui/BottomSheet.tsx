@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
 import { revealBelowChrome } from "./focusAndReveal";
+import { Icon } from "./Icon";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
 import { useResizeObserver } from "./useResizeObserver";
@@ -53,6 +54,9 @@ type Props = {
   onExpandedChange?: (expanded: boolean) => void;
   /** Accessible names of the Expand and Collapse actions. */
   resizeLabels?: { expand: string; collapse: string };
+  /** Additional actions for a compact inspector header. */
+  compactHeaderActions?: ReactNode;
+  compactResizeIcons?: boolean;
   /** Detents the header swipes between; replaces the expand toggle. */
   drawer?: SheetDrawer;
   /**
@@ -81,6 +85,8 @@ export function BottomSheet({
   expanded,
   onExpandedChange,
   resizeLabels,
+  compactHeaderActions,
+  compactResizeIcons = false,
   drawer,
   stowed = false,
   className,
@@ -152,9 +158,10 @@ export function BottomSheet({
           variant="link"
           type="button"
           aria-label={`Collapse to ${DETENT_TEXT[lowest].toLowerCase()}`}
+          title={`Collapse to ${DETENT_TEXT[lowest].toLowerCase()}`}
           onClick={() => drawer.onDetentChange(lowest)}
         >
-          Collapse
+          {compactResizeIcons ? <Icon name="restore" size={20} /> : "Collapse"}
         </Button>
       ) : null}
       {higher ? (
@@ -163,9 +170,10 @@ export function BottomSheet({
           variant="link"
           type="button"
           aria-label={`Expand to ${DETENT_TEXT[higher].toLowerCase()}`}
+          title={`Expand to ${DETENT_TEXT[higher].toLowerCase()}`}
           onClick={() => drawer.onDetentChange(higher)}
         >
-          Expand
+          {compactResizeIcons ? <Icon name="maximize" size={20} /> : "Expand"}
         </Button>
       ) : null}
     </>
@@ -238,6 +246,7 @@ export function BottomSheet({
               <span className="bottom-sheet-title-spacer" />
             )}
             <div className="bottom-sheet-header-actions">
+              {compactHeaderActions}
               {resizeButtons}
               <CloseButton ref={closeRef} onClick={dismiss} />
             </div>

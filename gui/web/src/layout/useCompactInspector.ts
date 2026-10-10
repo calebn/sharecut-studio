@@ -9,7 +9,12 @@
  * Phone-sized: the phone shell's Timeline mode, or the tablet shell on a
  * short screen (a phone held sideways). Real tablets keep their sheet.
  */
-import { type ComponentProps, useLayoutEffect, useState } from "react";
+import {
+  type ComponentProps,
+  createElement,
+  useLayoutEffect,
+  useState,
+} from "react";
 import {
   mediaQuerySubscription,
   useMediaQueryStore,
@@ -29,6 +34,7 @@ import {
   COMPACT_INSPECTOR_VIEWS,
   type CompactInspectorView,
 } from "../utils/compactInspectorPref";
+import { CompactHistoryControls } from "./HistoryControls";
 
 /** A phone held sideways: the same short-screen line the sheets use. */
 export const SHORT_SCREEN_MQ = "(max-height: 40rem)";
@@ -157,7 +163,12 @@ export function useCompactInspector(
 /** `BottomSheet` props that make the inspector sheet the compact one. */
 export type CompactSheetProps = Pick<
   ComponentProps<typeof BottomSheet>,
-  "title" | "drawer" | "stowed" | "className"
+  | "title"
+  | "drawer"
+  | "stowed"
+  | "className"
+  | "compactHeaderActions"
+  | "compactResizeIcons"
 >;
 
 /**
@@ -170,6 +181,8 @@ export function compactSheetProps(
 ): CompactSheetProps {
   return {
     title: compact.peek.title,
+    compactHeaderActions: createElement(CompactHistoryControls),
+    compactResizeIcons: true,
     drawer: {
       detents: COMPACT_INSPECTOR_VIEWS,
       detent: compact.view,

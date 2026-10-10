@@ -97,6 +97,24 @@ describe("EditingToolRailView", () => {
       expect(status).toBeEmptyDOMElement();
     });
 
+    it("keeps the reason visible for a new wait after another unavailable tap", () => {
+      vi.useFakeTimers();
+      render(<EditingToolRailView {...baseProps()} />);
+      act(() => screen.getByRole("button", { name: "Redo" }).click());
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      act(() => screen.getByRole("button", { name: "Redo" }).click());
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByRole("status")).toHaveTextContent("Nothing to redo");
+      act(() => {
+        vi.advanceTimersByTime(2600);
+      });
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    });
+
     it("passes axe while the reason shows", async () => {
       const { container } = render(<EditingToolRailView {...baseProps()} />);
       act(() => {

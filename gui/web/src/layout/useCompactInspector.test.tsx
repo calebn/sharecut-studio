@@ -62,6 +62,26 @@ describe("useCompactInspector", () => {
       stowed: false,
       className: "bottom-sheet--compact",
     });
+    const sheet = render(<CompactSheet />);
+    expect(screen.getByRole("group", { name: "Undo and redo" })).toBeVisible();
+    const redo = screen.getByRole("button", { name: "Redo" });
+    expect(redo).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(redo);
+    expect(screen.getByRole("status")).toHaveTextContent("Nothing to redo");
+    sheet.unmount();
+  });
+
+  it("does not expose history actions to a share without edit authority", () => {
+    act(() =>
+      useDawStore.setState({
+        projectPath: "share:viewer",
+        guestMode: "view",
+        shareCapabilities: ["view"],
+      }),
+    );
+    const sheet = render(<CompactSheet />);
+    expect(screen.queryByRole("group", { name: "Undo and redo" })).toBeNull();
+    sheet.unmount();
   });
 
   it("is off in other phone modes and on tablets unless the screen is short", () => {
