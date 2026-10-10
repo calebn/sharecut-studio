@@ -17,8 +17,12 @@ def repo_root() -> Path:
     return _REPO_ROOT
 
 
+def _cache_root() -> Path:
+    return Path(os.environ.get("PODCAST_MCP_CACHE", Path.home() / ".cache" / "podcast_mcp"))
+
+
 def cache_dir() -> Path:
-    base = Path(os.environ.get("PODCAST_MCP_CACHE", Path.home() / ".cache" / "podcast_mcp"))
+    base = _cache_root()
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -31,9 +35,7 @@ def whisper_cache_dir() -> Path:
 
 def bin_cache_dir() -> Path:
     """Existing source-use directory for a locally supplied FFmpeg/FFprobe pair."""
-    d = cache_dir() / "bin"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return _cache_root() / "bin"
 
 
 def models_dir() -> Path:

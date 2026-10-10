@@ -11,6 +11,7 @@ import os
 import platform
 import re
 import shutil
+from collections.abc import Iterator
 from dataclasses import dataclass
 from os import environ
 from pathlib import Path
@@ -93,8 +94,11 @@ def _exe_suffix() -> str:
 def _pair_in(directory: Path) -> tuple[str, str] | None:
     directory = directory.absolute()
     commands = tuple(directory / f"{name}{_exe_suffix()}" for name in ("ffmpeg", "ffprobe"))
-    if all(path.is_file() and os.access(path, os.X_OK) for path in commands):
-        return str(commands[0]), str(commands[1])
+    try:
+        if all(path.is_file() and os.access(path, os.X_OK) for path in commands):
+            return str(commands[0]), str(commands[1])
+    except OSError:
+        return None
     return None
 
 
@@ -105,17 +109,16 @@ def _native_homebrew_pair() -> tuple[str, str] | None:
     return _pair_in(prefix / "opt" / "ffmpeg" / "bin") if prefix else None
 
 
+def _automatic_candidates() -> Iterator[tuple[tuple[str, str] | None, SelectionSource]]:
+    yield _native_homebrew_pair(), "homebrew"
+    for entry in environ.get("PATH", os.defpath).split(os.pathsep):
+        yield _pair_in(Path(entry or os.curdir)), "path"
+    yield _pair_in(bin_cache_dir()), "cache"
+
+
 def _automatic_pair() -> FFmpegPair:
     failures: list[str] = []
-    candidates: list[tuple[tuple[str, str] | None, SelectionSource]] = [
-        (_native_homebrew_pair(), "homebrew")
-    ]
-    candidates.extend(
-        (_pair_in(Path(entry or os.curdir)), "path")
-        for entry in environ.get("PATH", os.defpath).split(os.pathsep)
-    )
-    candidates.append((_pair_in(bin_cache_dir()), "cache"))
-    for commands, source in candidates:
+    for commands, source in _automatic_candidates():
         if commands is not None:
             try:
                 return _validate(*commands, source)

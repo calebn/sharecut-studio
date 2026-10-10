@@ -178,3 +178,43 @@ def test_probe_failure_is_actionable_and_cannot_return_pair(tmp_path, monkeypatc
     monkeypatch.setattr("podcast_mcp.util.binaries.run", failed)
     with pytest.raises(FFmpegPairResolutionError, match=r"Cannot run.*Install matching"):
         resolve_ffmpeg_pair(*map(str, paths))
+
+
+def test_valid_path_pair_does_not_create_readonly_cache_directories(tmp_path, monkeypatch):
+    selected = executable_pair(tmp_path / "selected", "9.0.2")
+    cache = tmp_path / "readonly-cache"
+    cache.mkdir()
+    cache.chmod(0o555)
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(cache))
+    monkeypatch.setenv("PATH", str(selected[0].parent))
+    try:
+        pair = resolve_ffmpeg_pair()
+        assert pair.version == (9, 0, 2)
+        assert pair.source == "path"
+        assert Path(pair.ffmpeg).samefile(selected[0])
+        assert list(cache.iterdir()) == []
+    finally:
+        cache.chmod(0o755)
+
+
+def test_missing_tools_report_recovery_without_creating_cache(tmp_path, monkeypatch):
+    cache = tmp_path / "absent-cache"
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(cache))
+    with pytest.raises(FFmpegPairResolutionError, match=r"build_ffmpeg\.py"):
+        resolve_ffmpeg_pair()
+    assert not cache.exists()
+
+
+def test_inaccessible_optional_directory_reports_actionable_refusal(tmp_path, monkeypatch):
+    inaccessible = tmp_path / "inaccessible"
+    monkeypatch.setenv("PATH", str(inaccessible))
+    original = Path.is_file
+
+    def is_file(path):
+        if path.parent == inaccessible:
+            raise PermissionError("directory access denied")
+        return original(path)
+
+    monkeypatch.setattr(Path, "is_file", is_file)
+    with pytest.raises(FFmpegPairResolutionError, match=r"build_ffmpeg\.py"):
+        resolve_ffmpeg_pair()
