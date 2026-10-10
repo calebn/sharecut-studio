@@ -856,8 +856,10 @@ remaining visible lifetime while clipped and through host movement. Initial
 header reachability is asserted before any recovery scroll. No short-height
 rule may make those header controls scroll away.
 
-Feedback does not override half or full detent geometry. Compact controls paint
-focus outlines inside their border boxes. The visually hidden detent range
-keeps the grabber as its visible focus indicator. Visibility observation follows
+Feedback does not override half or full detent geometry. Bottom-sheet controls
+paint focus outlines inside their border boxes; primary controls use
+`--color-accent-on-solid` so the inset ring contrasts with their solid fill.
+The visually hidden detent range keeps the grabber as its visible focus
+indicator. Visibility observation follows
 the same feedback card through compact and floating hosts, so both presentations
 pause the single remaining lifetime when the whole card is clipped.
