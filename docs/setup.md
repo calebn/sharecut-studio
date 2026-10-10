@@ -390,8 +390,9 @@ auto-pulled by pipeline Run or transcription — download them via
 the Pipeline picker before running those steps. Neither needs a speaker
 extra. `torch`/`speechbrain` are only for the optional enrollment-based
 speaker ID workflow; a fully functional install (transcribe, tighten, mix,
-master, export) needs none of `speaker`, `speaker-lite`, or `bootstrap` if
-system FFmpeg is on `PATH` (Whisper weights still required for ASR).
+master, export) needs neither `speaker` nor `speaker-lite`. Source installs
+require a supported FFmpeg pair as described above. Whisper weights are still
+required for ASR.
 
 Regenerate the lock file after changing `pyproject.toml` dependencies:
 
