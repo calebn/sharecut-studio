@@ -19,21 +19,9 @@ html[data-shell="tablet"] .bottom-sheet-root {
   bottom: calc(var(--tabs-height) + var(--status-height));
 }
 
-html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
-  bottom: var(--status-height);
-}
-
-/* A phone held sideways gets the tablet shell; its compact inspector takes
-   the bottom tabs' place (responsive.css hides them), not the timeline's. */
+html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root,
 html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
-  bottom: calc(var(--status-height) + var(--tool-rail-block-size, 0rem));
-}
-
-/* The compact strip stacks above the tool rail, not over it, so Undo and Redo
-   stay visible and tappable beside an edit's nudges (EditingToolRailView
-   publishes the rail's height). */
-html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
-  bottom: calc(var(--mobile-nav-height) + var(--tool-rail-block-size, 0rem));
+  bottom: var(--status-height);
 }
 
 /* The compact strip stacks above the shell's rows, so the status or nav row
@@ -251,6 +239,29 @@ html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   gap: var(--space-3);
   flex: 0 0 auto;
   margin-inline-start: auto;
+}
+
+.bottom-sheet--compact .bottom-sheet-header-actions {
+  flex: 0 1 auto;
+  max-inline-size: 100%;
+  flex-wrap: wrap;
+}
+
+.compact-history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.compact-history-hint:not(:empty) {
+  flex-basis: 100%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-small);
+  text-align: end;
 }
 
 .bottom-sheet-body {

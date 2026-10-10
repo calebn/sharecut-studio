@@ -1,8 +1,9 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode } from "react";
 import type { ToolMode } from "../state/types";
-import { BottomSheet, Button, Icon, InlineError } from "../ui";
+import { BottomSheet, Button, InlineError } from "../ui";
 import { formatTime } from "../utils/time";
-import { useToolRailBlockSize } from "./useToolRailBlockSize";
+import { HistoryControls } from "./HistoryControls";
+import type { HistoryAvailability } from "./useHistoryControls";
 
 export interface EditingToolRailViewProps {
   bladeAllowed: boolean;
@@ -15,7 +16,7 @@ export interface EditingToolRailViewProps {
   trackIdsForCut: readonly string[];
   toolToggle: ReactNode;
   /** Undo and Redo for people who can edit; null hides them. */
-  history: { canUndo: boolean; canRedo: boolean } | null;
+  history: HistoryAvailability | null;
   onUndo: () => void;
   onRedo: () => void;
   onAddTrack: () => void;
@@ -45,31 +46,13 @@ export function EditingToolRailView({
   onCancelCut,
   onConfirmCut,
 }: EditingToolRailViewProps) {
-  const [blocked, setBlocked] = useState<{ action: HistoryAction } | null>(
-    null,
-  );
-  const railRef = useRef<HTMLDivElement>(null);
-  useToolRailBlockSize(railRef);
-  useEffect(() => {
-    if (!blocked) {
-      return;
-    }
-    const timer = window.setTimeout(() => setBlocked(null), HINT_MS);
-    return () => window.clearTimeout(timer);
-  }, [blocked]);
-
   if (!bladeAllowed && !mayIngest && !history) {
     return null;
   }
-  const blockedReason =
-    blocked && !historyEnabled(history, blocked.action)
-      ? HISTORY_COPY[blocked.action].reason
-      : "";
 
   return (
     <>
       <div
-        ref={railRef}
         className="editing-tool-rail"
         role="group"
         aria-label="Editing tools"
@@ -102,29 +85,7 @@ export function EditingToolRailView({
             Cut at playhead
           </Button>
         ) : null}
-        {history ? (
-          <div
-            className="editing-tool-rail-history"
-            role="group"
-            aria-label="Undo and redo"
-          >
-            <HistoryButton
-              action="undo"
-              enabled={history.canUndo}
-              onClick={onUndo}
-              onBlocked={() => setBlocked({ action: "undo" })}
-            />
-            <HistoryButton
-              action="redo"
-              enabled={history.canRedo}
-              onClick={onRedo}
-              onBlocked={() => setBlocked({ action: "redo" })}
-            />
-          </div>
-        ) : null}
-        <span className="editing-tool-rail-hint" role="status">
-          {blockedReason}
-        </span>
+        <HistoryControls history={history} onUndo={onUndo} onRedo={onRedo} />
       </div>
       {bladeAllowed ? (
         <BottomSheet
@@ -156,63 +117,6 @@ export function EditingToolRailView({
           ) : null}
         </BottomSheet>
       ) : null}
-    </>
-  );
-}
-
-const HISTORY_COPY = {
-  undo: { label: "Undo", reason: "Nothing to undo" },
-  redo: { label: "Redo", reason: "Nothing to redo" },
-} as const;
-
-type HistoryAction = keyof typeof HISTORY_COPY;
-
-/** How long a tapped, unavailable Undo or Redo keeps naming its reason. */
-const HINT_MS = 3500;
-
-function historyEnabled(
-  history: EditingToolRailViewProps["history"],
-  action: HistoryAction,
-): boolean {
-  return action === "undo" ? !!history?.canUndo : !!history?.canRedo;
-}
-
-/**
- * An icon Undo or Redo (#1077). Unavailable, it stays focusable and
- * `aria-disabled`: a native disabled button swallows a tap, so a finger would
- * get nothing. The tap names the reason in the rail's status line instead;
- * hover, focus and screen readers get it as the title and description.
- */
-function HistoryButton({
-  action,
-  enabled,
-  onClick,
-  onBlocked,
-}: {
-  action: HistoryAction;
-  enabled: boolean;
-  onClick: () => void;
-  onBlocked: () => void;
-}) {
-  const reasonId = useId();
-  const { label, reason } = HISTORY_COPY[action];
-  return (
-    <>
-      <Button
-        className="editing-tool-rail-icon"
-        aria-label={label}
-        title={enabled ? label : reason}
-        aria-disabled={enabled ? undefined : true}
-        aria-describedby={enabled ? undefined : reasonId}
-        onClick={enabled ? onClick : onBlocked}
-      >
-        <Icon name={action} size={20} />
-      </Button>
-      {enabled ? null : (
-        <span id={reasonId} className="sr-only">
-          {reason}
-        </span>
-      )}
     </>
   );
 }

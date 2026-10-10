@@ -113,7 +113,8 @@ is the fix, enforced in copy review.
   frequent actions live in the bottom easy-reach zone; the top is
   reserved for titles, status, and infrequent controls. (Surfaces 1,
   3, 5 — the phone bottom nav and EditingToolRail are the reference
-  implementations; the REC chip stranded in the top bar and zoom
+  implementations, with Undo and Redo in the compact inspector header
+  while a selection is open; the REC chip stranded in the top bar and zoom
   buried in the top overflow menu are the violations.)
 - **One primary action per view.** If two buttons compete, one of them
   is not primary — demote it. (Surface 3 bulk approve/reject.) Bulk
