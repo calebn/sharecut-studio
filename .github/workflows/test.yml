@@ -205,17 +205,11 @@ jobs:
           - name: main-4of4
             command: npm run test:e2e -- --shard=4/4
             browser: chromium
-          - name: compat-chromium-1of2
-            command: npm run test:e2e:compat -- --project=chromium --shard=1/2
+          - name: compat-chromium
+            command: npm run test:e2e:compat -- --project=chromium
             browser: chromium
-          - name: compat-chromium-2of2
-            command: npm run test:e2e:compat -- --project=chromium --shard=2/2
-            browser: chromium
-          - name: compat-webkit-1of2
-            command: npm run test:e2e:compat -- --project=webkit --shard=1/2
-            browser: webkit
-          - name: compat-webkit-2of2
-            command: npm run test:e2e:compat -- --project=webkit --shard=2/2
+          - name: compat-webkit
+            command: npm run test:e2e:compat -- --project=webkit
             browser: webkit
     env:
       PLAYWRIGHT_JSON_OUTPUT_FILE: playwright-report/${{ matrix.name }}.json
