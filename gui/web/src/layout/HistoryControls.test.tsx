@@ -132,25 +132,58 @@ describe("CompactHistoryControls", () => {
     },
   );
 
-  it("clears compact feedback as soon as its action becomes available", () => {
-    const props = {
-      history: { canUndo: false, canRedo: true },
-      onUndo: vi.fn(),
-      onRedo: vi.fn(),
-      variant: "compact" as const,
-    };
-    const { rerender } = render(<HistoryControls {...props} />);
-    const button = screen.getByRole("button", { name: "Undo" });
-    fireEvent.click(button);
-    expect(
-      button.querySelector(".compact-history-caption"),
-    ).toBeInTheDocument();
-    rerender(
-      <HistoryControls {...props} history={{ canUndo: true, canRedo: true }} />,
-    );
-    expect(button.querySelector(".compact-history-caption")).toBeNull();
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
-  });
+  it.each([
+    ["undo", "compact"],
+    ["redo", "compact"],
+    ["undo", "rail"],
+    ["redo", "rail"],
+  ] as const)(
+    "ends the old %s activation on recovery in %s controls",
+    async (action, variant) => {
+      vi.useFakeTimers();
+      const label = action === "undo" ? "Undo" : "Redo";
+      const reason = action === "undo" ? "Nothing to undo" : "Nothing to redo";
+      const props = {
+        history: {
+          canUndo: action !== "undo",
+          canRedo: action !== "redo",
+        },
+        onUndo: vi.fn(),
+        onRedo: vi.fn(),
+        variant,
+      };
+      const { rerender } = render(<HistoryControls {...props} />);
+      const button = screen.getByRole("button", { name: label });
+      fireEvent.click(button);
+      expect(screen.getByRole("status")).toHaveTextContent(reason);
+      await act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      rerender(
+        <HistoryControls
+          {...props}
+          history={{ canUndo: true, canRedo: true }}
+        />,
+      );
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      expect(button.querySelector(".compact-history-caption")).toBeNull();
+      rerender(<HistoryControls {...props} />);
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      expect(button.querySelector(".compact-history-caption")).toBeNull();
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription(reason);
+      fireEvent.click(button);
+      expect(screen.getByRole("status")).toHaveTextContent(reason);
+      await act(() => {
+        vi.advanceTimersByTime(3499);
+      });
+      expect(screen.getByRole("status")).toHaveTextContent(reason);
+      await act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    },
+  );
 
   it.each(["view", "comment"] as const)(
     "offers no history mutation to a %s guest",
