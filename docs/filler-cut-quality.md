@@ -61,7 +61,15 @@ calibration only. Detection and context stop at the peer lane's end.
 Ripple confirmation already knows the exact removal and chosen speech. Its
 sound windows use only samples inside each half-open window after subtracting
 selected and batch-chosen spans. Speech in another window cannot be attributed
-to an earlier window. Generic proposal queries retain the outward pad.
+to an earlier window. Initial proposal queries retain the outward pad. After
+edge protection, a non-pause cut checks only its finalized mapped removal;
+approval repeats that check on the current validated removal geometry.
+Pause cuts refresh that evidence only after a completed acoustic observation
+and successful original-air retention and effect checks. The final mapped
+removal must stay inside that observation's request bounds. Approval prepares
+the pause again and checks its finished bounds before using fresh mapped spans.
+Geometric observations retain the generic query. Peer sound inside a pause
+still requires session review and excludes automatic application.
 The local floor is `max(S − 25 dB, R + 6 dB)`, using the peer's live-frame
 90th percentile for S and all-frame 10th percentile for R. A concurrently louder
 owner excludes a peer frame from both activity and S, with the configured
