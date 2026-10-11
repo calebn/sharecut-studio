@@ -22,6 +22,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any, Final, Literal, overload
 
 from pydantic import BaseModel
@@ -150,7 +151,8 @@ def _chosen_on_timeline(
 def _windows(start: float, end: float) -> list[tuple[float, float]]:
     count = max(1, math.ceil((end - start) / _SOUND_WINDOW_SEC - 1e-9))
     size = (end - start) / count
-    return [(start + i * size, start + (i + 1) * size) for i in range(count)]
+    edges = [start, *(min(end, start + i * size) for i in range(1, count)), end]
+    return list(pairwise(edges))
 
 
 def _own_sound(
@@ -185,6 +187,7 @@ def _own_sound(
             defaults=cfg,
             caches=caches,
             _admissible_spans=(window,),
+            _removal_spans=removal.spans,
         )
         if levels is not None and tid in levels.speaking:
             found.setdefault(tid, []).append(window)
