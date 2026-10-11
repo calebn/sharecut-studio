@@ -1,7 +1,6 @@
 import { HISTORY_STALE_CODE, redoHistory, undoHistory } from "../api";
 import {
   type DocumentScope,
-  documentAuthority,
   documentScope,
   isCurrentDocumentScope,
   ownCommandHead,
@@ -44,19 +43,10 @@ const NO_HEAD = "Open a project first.";
 const moves: {
   /** The last queued move; settles with the head it left (null: none). */
   tail: {
-    projectPath: string;
+    scope: DocumentScope;
     landed: Promise<HistoryEntryId | null>;
   } | null;
-  /** The tab's last own move that landed: where it started and ended. */
-  last: {
-    projectPath: string;
-    from: HistoryEntryId;
-    to: HistoryEntryId;
-    displayedFrom: HistoryEntryId | null;
-    scope: DocumentScope;
-    seq: number;
-  } | null;
-} = { tail: null, last: null };
+} = { tail: null };
 
 function knownHead(projectPath: string): HistoryEntryId | null {
   const shown = useDawStore.getState().project?.history.head_id ?? null;
@@ -64,13 +54,7 @@ function knownHead(projectPath: string): HistoryEntryId | null {
   const observation =
     scope.path === projectPath ? ownCommandHead(scope, shown) : null;
   if (observation) return observation.head;
-  const last = moves.last;
-  return last?.projectPath === projectPath &&
-    isCurrentDocumentScope(last.scope) &&
-    documentAuthority.seq === last.seq &&
-    (shown === last.from || shown === last.displayedFrom)
-    ? last.to
-    : shown;
+  return shown;
 }
 
 /**
@@ -94,13 +78,16 @@ function moveHistory(
   const explicit = parseHistoryEntryId(args.expectedHeadId);
   const scope = documentScope();
   const ahead =
-    moves.tail?.projectPath === projectPath ? moves.tail.landed : null;
+    moves.tail?.scope.path === projectPath &&
+    isCurrentDocumentScope(moves.tail.scope)
+      ? moves.tail.landed
+      : null;
   const knownAtPress = knownHead(projectPath);
   const landedAtPress = savesLandedMark(projectPath);
   const savesAhead = editSavesInFlight(projectPath);
   let settle: (landed: HistoryEntryId | null) => void = () => {};
   const tail = {
-    projectPath,
+    scope,
     landed: new Promise<HistoryEntryId | null>((resolve) => {
       settle = resolve;
     }),
@@ -110,12 +97,25 @@ function moveHistory(
   const run = async (): Promise<ExecuteResult> => {
     let landed: HistoryEntryId | null = null;
     try {
+      const refuseObsolete = (): ExecuteResult | null => {
+        if (isCurrentDocumentScope(scope)) return null;
+        useDawStore.getState().announceStatus(STALE_COPY[action]);
+        return {
+          status: "disabled",
+          reason: STALE_COPY[action],
+          announced: true,
+        };
+      };
       const aheadLanded = ahead ? await ahead : null;
+      const afterMove = refuseObsolete();
+      if (afterMove) return afterMove;
       const saved = await raceTimeout(
         savesAhead.then(() => true),
         HOST_SEND_WAIT_MS,
         () => false,
       );
+      const afterSave = refuseObsolete();
+      if (afterSave) return afterSave;
       if (!saved) {
         useDawStore.getState().announceStatus(STILL_SAVING_COPY[action]);
         return {
@@ -125,12 +125,13 @@ function moveHistory(
         };
       }
       await flushPendingMix();
+      const afterMix = refuseObsolete();
+      if (afterMix) return afterMix;
       const shown = useDawStore.getState().project?.history.head_id ?? null;
       const observation = ownCommandHead(scope, shown);
-      const seq = documentAuthority.seq;
       const expectedHeadId =
         explicit ??
-        headLandedSince(projectPath, landedAtPress) ??
+        headLandedSince(projectPath, landedAtPress, scope) ??
         (ahead ? (aheadLanded ?? knownAtPress) : knownHead(projectPath));
       if (expectedHeadId === null) {
         return { status: "disabled", reason: NO_HEAD };
@@ -153,14 +154,6 @@ function moveHistory(
       }
       if (landed !== null) {
         retireOwnCommandHead(observation);
-        moves.last = {
-          projectPath,
-          from: expectedHeadId,
-          to: landed,
-          displayedFrom: shown,
-          scope,
-          seq,
-        };
       }
       return { status: "ok" };
     } finally {
@@ -171,10 +164,8 @@ function moveHistory(
   return run();
 }
 
-/** Tests only: forget queued and landed moves. */
 export function _resetHistoryMovesForTests(): void {
   moves.tail = null;
-  moves.last = null;
 }
 
 export function registerHistoryCommands(): void {

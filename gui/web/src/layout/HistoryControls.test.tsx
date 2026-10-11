@@ -12,6 +12,7 @@ import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
 } from "../commands/history";
+import { documentScope } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
   beginHostSend,
@@ -320,7 +321,7 @@ describe("CompactHistoryControls", () => {
         await Promise.resolve();
       });
       expect(move).not.toHaveBeenCalled();
-      noteSaveLanded("/tmp/history-controls", HISTORY_ROOT_ID);
+      noteSaveLanded("/tmp/history-controls", HISTORY_ROOT_ID, documentScope());
       save.finish();
       await waitFor(() =>
         expect(move).toHaveBeenCalledWith("/tmp/history-controls", {
