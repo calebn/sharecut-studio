@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
-from podcast_mcp.edits.cut_speech import SpeechClearance, clear_ripple
+from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SpeechClearance, clear_ripple
 from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, ripple_remove_clips
 from podcast_mcp.edits.source_removals import CutScopeHold, consume_source_remove
@@ -41,7 +41,6 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-
 from podcast_mcp.util.timebase import SourceSec
 
 
@@ -1030,6 +1029,19 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
             assert isinstance(result, CutScopeHold)
             assert result.reason == "peer_speech"
             assert np.array_equal(_played_window(p, "guest", 0.0, 8.50004), before)
+            assert isinstance(clearance, CutSpeechConfirmation)
+            confirmed = consume_source_remove(
+                p,
+                edit.model_copy(update={"cut_speech": clearance.speech}),
+                confirm_cut_speech=True,
+                allow_review=True,
+                batch=(),
+                use_inaudible_opt=False,
+                record_log=False,
+            )
+            assert isinstance(confirmed, tuple)
+            assert np.count_nonzero(_played_window(p, "guest", 0.0, 6.50004)) == 0
+            assert np.count_nonzero(raw_timeline_samples(p, "guest")) == 0
         else:
             assert isinstance(result, tuple)
             after = _played_window(p, "guest", 0.0, 6.50004)

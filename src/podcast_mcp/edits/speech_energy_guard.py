@@ -46,7 +46,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import CutSpeechWord, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.intervals import merge_intervals
+from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -101,11 +101,64 @@ class PeerSpeechLevels:
     """Per peer, the spans where its own sound could not be read, so it shows nothing."""
 
 
-def _sample_boundary(point: float, rate: int, origin: float) -> float:
-    index = math.floor((point - origin) * rate)
-    if origin + index / rate < point:
-        index += 1
-    return origin + index / rate
+def _removal_sample_spans(
+    project: EpisodeProject,
+    peer_track_id: str,
+    start: float,
+    end: float,
+    caches: TrackRmsCacheSet | None,
+) -> tuple[list[tuple[float, float]], bool]:
+    track = project.track_by_id(peer_track_id)
+    if track is None:
+        return [], False
+    cache = caches.get(peer_track_id) if caches else None
+    rate = cache.sample_rate if cache else _RMS_SAMPLE_RATE
+    removed: list[tuple[float, float]] = []
+    retained: list[tuple[float, float]] = []
+    for part in lane_placements(project, track):
+        source_first = round(part.src_start * rate)
+        part_end = part.tl_end
+        if not math.isfinite(part_end):
+            duration = track.media.duration_sec if track.media else None
+            part_end = end if duration is None else duration
+        count = (
+            round(part_end * rate) - round(part.tl_start * rate)
+            if cache
+            else round((part_end - part.tl_start) * rate)
+        )
+        lo, hi = max(start, part.tl_start), min(end, part_end)
+        if hi > lo:
+            prefix = (
+                round(lo * rate) - round(part.tl_start * rate)
+                if cache
+                else round((lo - part.tl_start) * rate)
+            )
+            first = min(count, max(0, prefix))
+            last = (
+                min(count, max(first, round(part.to_source(hi) * rate) - source_first))
+                if hi < part_end
+                else count
+            )
+        else:
+            first = last = 0
+        if cache:
+            offset = round(part.tl_start * rate) / rate
+            left, right = offset + first / rate, offset + last / rate
+            full_left, full_right = offset, offset + count / rate
+        else:
+            left, right = (part.to_session((source_first + i) / rate) for i in (first, last))
+            full_left = part.to_session(source_first / rate)
+            full_right = part.to_session((source_first + count) / rate)
+        if right > left:
+            removed.append((left, right))
+        if left > full_left:
+            retained.append((full_left, left))
+        if full_right > right:
+            retained.append((right, full_right))
+    eligible = merge_intervals(removed)
+    # A mixed sample cannot identify its removed and retained recording contributions.
+    supported = subtract_intervals(eligible, retained)
+    return supported, supported != eligible
 
 
 def _owned_peer_frames(
@@ -120,13 +173,7 @@ def _owned_peer_frames(
     half_open: bool = False,
 ) -> tuple[np.ndarray, np.ndarray] | None:
     if half_open:
-        cache = caches.get(peer_track_id) if caches else None
-        rate = cache.sample_rate if cache else _RMS_SAMPLE_RATE
-        origin = cache.timeline_offset_sec if cache else 0.0
-        start, end = (
-            float(np.nextafter(_sample_boundary(point, rate, origin), np.inf))
-            for point in (start, end)
-        )
+        start, end = (float(np.nextafter(point, np.inf)) for point in (start, end))
     else:
         end = float(np.nextafter(end, np.inf))
     levels = timeline_frame_levels_db(
@@ -199,16 +246,11 @@ def _peer_speaks_near_span(
 
     def covered(lo: float, size: int, *, sealed: bool) -> np.ndarray:
         cache = caches.get(peer_track_id) if caches else None
-        if sealed:
-            lo = _sample_boundary(
-                lo,
-                cache.sample_rate if cache else _RMS_SAMPLE_RATE,
-                cache.timeline_offset_sec if cache else 0.0,
-            )
-        elif cache:
+        if cache:
+            read_start = float(np.nextafter(lo, np.inf)) if sealed else lo
             lo = (
                 cache.timeline_offset_sec
-                + math.floor((lo - cache.timeline_offset_sec) * cache.sample_rate)
+                + math.floor((read_start - cache.timeline_offset_sec) * cache.sample_rate)
                 / cache.sample_rate
             )
         starts = lo + np.arange(size) * LEVEL_FRAME_SEC
@@ -258,14 +300,21 @@ def _peer_speaks_near_span(
 
     before = frames(max(0.0, start - 5.0), start)
     after = frames(end, min(end + 5.0, extent) if extent is not None else end + 5.0)
-    unavailable = False
-    block_start = start
-    while block_start < end - 1e-9:
-        block_end = min(block_start + 2.0, end)
+    decision_spans, unavailable = (
+        _removal_sample_spans(project, peer_track_id, start, end, caches)
+        if admissible_span is not None
+        else ([(start, end)], False)
+    )
+    blocks: list[tuple[float, float]] = []
+    for left, right in decision_spans:
+        block_start = left
+        while block_start < right - 1e-9:
+            block_end = min(block_start + 2.0, right)
+            blocks.append((max(left, min(block_start, block_end - LEVEL_FRAME_SEC)), block_end))
+            block_start = block_end
+    for block_start, block_end in blocks:
         evidence = frames(
-            max(start, min(block_start, block_end - LEVEL_FRAME_SEC))
-            if admissible_span is not None
-            else min(block_start, block_end - LEVEL_FRAME_SEC),
+            block_start,
             block_end,
             sealed=admissible_span is not None,
         )
@@ -274,7 +323,6 @@ def _peer_speaks_near_span(
         else:
             levels, own, _ = evidence
             if not bool(own.any()):
-                block_start = block_end
                 continue
             nearby = (
                 (before, after)
@@ -307,7 +355,6 @@ def _peer_speaks_near_span(
                     return True
             else:
                 unavailable = True
-        block_start = block_end
     return None if unavailable else False
 
 
