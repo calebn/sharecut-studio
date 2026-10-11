@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -12,7 +13,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from podcast_mcp.gui.routes import host
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import load_project
+from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.service import document_hub_key
@@ -170,6 +171,75 @@ def test_session_work_is_off_loop_and_inbound_commands_stay_ordered(minimal_proj
     assert {name for name, _ in calls} == {"submit", "snapshot", "remove_client"}
     assert not any(on_loop for _, on_loop in calls)
     assert SessionSyncService(load_project(minimal_project)).snapshot()["playhead_sec"] == 7.0
+
+
+def test_session_echo_transport_disconnect_cleans_up_and_reconnects(tmp_path):
+    project = EpisodeProject.create("echo_disconnect", str(tmp_path))
+    project.ensure_dirs()
+    project_path = save_project(project)
+    app = create_app()
+    finished = threading.Event()
+    failed_echoes = []
+    closes = []
+
+    async def disconnect_on_echo(scope, receive, send):
+        async def transport_send(message):
+            if message["type"] == "websocket.send":
+                frame = json.loads(message["text"])
+                if frame.get("type") == "Echo" and not failed_echoes:
+                    failed_echoes.append(frame)
+                    raise OSError("connection is closing")
+            if message["type"] == "websocket.close":
+                closes.append(message)
+            await send(message)
+
+        try:
+            await app(scope, receive, transport_send)
+        finally:
+            finished.set()
+
+    client = TestClient(disconnect_on_echo)
+    with client.websocket_connect(_url(project_path)) as socket:
+        _hello(socket)
+        socket.send_json(
+            {
+                "plane": "session",
+                "type": "Command",
+                "command_type": "SetPlayhead",
+                "payload": {"playhead_sec": 7.0},
+                "client_seq": 10,
+            }
+        )
+        assert finished.wait(2)
+    assert len(failed_echoes) == 1
+    assert failed_echoes[0]["snapshot"]["playhead_sec"] == 7.0
+    assert closes == []
+    project = load_project(project_path)
+    session_key = str(project.workspace_path())
+    assert get_hub().listener_count(session_key) == 0
+    assert get_hub().listener_count(document_hub_key(project)) == 0
+    assert not cross_process_bridge().watching(session_key)
+    assert SessionSyncService(project).snapshot()["clients"] == []
+
+    with client.websocket_connect(_url(project_path)) as socket:
+        session_hello, _ = _hello(socket)
+        assert session_hello["snapshot"]["playhead_sec"] == 7.0
+        socket.send_json(
+            {
+                "plane": "session",
+                "type": "Command",
+                "command_type": "SetPlayhead",
+                "payload": {"playhead_sec": 12.0},
+                "client_seq": 11,
+            }
+        )
+        while True:
+            echo = receive_host_plane(socket, "session")
+            if echo["type"] == "Echo":
+                break
+        assert echo["snapshot"]["playhead_sec"] == 12.0
+        assert echo["client_id"] == "presence-owner"
+    assert SessionSyncService(project).snapshot()["playhead_sec"] == 12.0
 
 
 def test_document_frames_cannot_mutate_and_http_fans_out(minimal_project):

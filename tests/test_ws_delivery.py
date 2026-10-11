@@ -3,8 +3,114 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from starlette.websockets import WebSocket, WebSocketState
 
 from podcast_mcp.util.ws_delivery import SerializedWsWriter
+
+
+@pytest.mark.asyncio
+async def test_transport_disconnect_completes_writer_without_another_close():
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    frames = []
+
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(frame):
+        frames.append(frame)
+        if frame.get("text") == "closing":
+            entered.set()
+            await release.wait()
+            raise OSError("connection is closing")
+
+    socket = WebSocket({"type": "websocket"}, receive, send)
+    await socket.accept()
+    writer = SerializedWsWriter(socket.send_text, socket.close)
+    await writer.send("first")
+    closing = asyncio.create_task(writer.send("closing"))
+    await entered.wait()
+    queued = asyncio.create_task(writer.send("queued"))
+    await asyncio.sleep(0)
+    release.set()
+    await asyncio.wait_for(asyncio.gather(closing, queued), 0.2)
+    await asyncio.wait_for(writer.wait_closed(), 0.2)
+    await asyncio.wait_for(writer.close(1000, "later"), 0.2)
+    await writer.send("late")
+    assert writer.closed
+    assert socket.application_state == WebSocketState.DISCONNECTED
+    assert frames == [
+        {"type": "websocket.accept", "subprotocol": None, "headers": []},
+        {"type": "websocket.send", "text": "first"},
+        {"type": "websocket.send", "text": "closing"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_send_disconnect_does_not_complete_an_in_progress_close():
+    write_entered = asyncio.Event()
+    close_entered = asyncio.Event()
+    release_close = asyncio.Event()
+    frames = []
+
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(frame):
+        frames.append(frame)
+        if frame["type"] == "websocket.send":
+            write_entered.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                raise OSError("connection is closing") from None
+        if frame["type"] == "websocket.close":
+            close_entered.set()
+            await release_close.wait()
+
+    socket = WebSocket({"type": "websocket"}, receive, send)
+    await socket.accept()
+    writer = SerializedWsWriter(socket.send_text, socket.close)
+    writing = asyncio.create_task(writer.send("active"))
+    await write_entered.wait()
+    closing = asyncio.create_task(writer.close(4403, "revoked"))
+    await close_entered.wait()
+    waiter = asyncio.create_task(writer.wait_closed())
+    await asyncio.wait_for(writing, 0.2)
+    await asyncio.sleep(0)
+    assert not closing.done()
+    assert not waiter.done()
+    release_close.set()
+    await asyncio.wait_for(asyncio.gather(closing, waiter), 0.2)
+    assert writer.closed
+    assert frames == [
+        {"type": "websocket.accept", "subprotocol": None, "headers": []},
+        {"type": "websocket.send", "text": "active"},
+        {"type": "websocket.close", "code": 4403, "reason": "revoked"},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [RuntimeError("invalid send"), ValueError("invalid payload")])
+async def test_unrelated_write_errors_propagate_and_leave_writer_open(error):
+    sent = []
+    closed = []
+
+    async def write(value):
+        if value == "invalid":
+            raise error
+        sent.append(value)
+
+    async def close(code, reason):
+        closed.append((code, reason))
+
+    writer = SerializedWsWriter(write, close)
+    with pytest.raises(type(error), match=str(error)):
+        await writer.send("invalid")
+    await writer.send("valid")
+    assert sent == ["valid"]
+    assert closed == []
+    assert not writer.closed
 
 
 @pytest.mark.asyncio
