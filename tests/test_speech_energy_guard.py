@@ -918,6 +918,66 @@ def test_peer_detection_stops_at_exact_outward_pad_boundary(
     assert guard.blocking_track_ids == expected
 
 
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("edge", ["before_start", "first_inside", "last_inside", "at_end"])
+def test_sealed_peer_detection_contains_exact_half_open_samples(
+    tmp_path: Path, cached: bool, edge: str
+) -> None:
+    for start, end, samples in [
+        (1.003, 3.003, (8023, 8024, 24023, 24024)),
+        (1.00304, 3.00704, (8024, 8025, 24056, 24057)),
+    ]:
+        peer = np.zeros(8 * _SR)
+        index = samples[("before_start", "first_inside", "last_inside", "at_end").index(edge)]
+        peer[index * 2] = 0.045
+        p = _project_with_peer_audio(tmp_path, peer)
+        caches = build_track_rms_caches(p) if cached else None
+        kwargs = {
+            "owner_track_ids": ["host"],
+            "peer_track_ids": ["guest"],
+            "defaults": _GUARD_ON,
+            "caches": caches,
+        }
+        generic = measure_peer_speech(p, [(start, end)], **kwargs)
+        sealed = measure_peer_speech(p, [(start, end)], _admissible_spans=((start, end),), **kwargs)
+        assert generic is not None and sealed is not None
+        assert generic.speaking == ("guest",)
+        assert sealed.speaking == (("guest",) if edge in ("first_inside", "last_inside") else ())
+        assert sealed.owner_rms_db == generic.owner_rms_db
+        assert sealed.peer_rms_db == generic.peer_rms_db
+        assert sealed.unread == generic.unread == {}
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("gap", [False, True], ids=["shifted", "core_gap"])
+def test_peer_room_calibration_uses_played_context_and_core_coverage(
+    tmp_path: Path, cached: bool, gap: bool
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    peer = np.random.default_rng(1940).normal(0.0, 0.0004, clock.size)
+    voice = (clock >= 4.22) & (clock < 4.26)
+    peer[voice] = 0.01 * np.sin(2 * np.pi * 220 * clock[voice])
+    p = _project_with_peer_audio(tmp_path, peer)
+    p.clips[1].source_start = p.clips[1].timeline_start = 4.0
+    p.clips[1].source_end = 4.5 if gap else 6.0
+    if gap:
+        p.clips.append(
+            Clip(id="g2", track_id="guest", source_start=4.89, source_end=6.0, timeline_start=4.89)
+        )
+    caches = build_track_rms_caches(p) if cached else None
+    levels = measure_peer_speech(
+        p,
+        [(4.625, 4.9)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == ()
+    assert levels.unread == {}
+
+
 @pytest.mark.parametrize("amplitude", [0.045, 0.0004], ids=["hot", "quiet"])
 def test_unavailable_frames_use_readable_mean_without_word_fallback(
     tmp_path: Path, amplitude: float
