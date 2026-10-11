@@ -33,6 +33,173 @@ describe("queued command identity and landed history", () => {
     vi.unstubAllGlobals();
   });
 
+  async function laggingHistory() {
+    const api = await import("../api");
+    const { useDawStore } = await import("../state/dawStore");
+    const { minimalProject } = await import("../test/fixtures");
+    const authority = await import("../document/authorityState");
+    const { clearRegisteredCommands, execute } = await import(
+      "../commands/execute"
+    );
+    const { _resetHistoryMovesForTests, registerHistoryCommands } =
+      await import("../commands/history");
+    const project = minimalProject();
+    useDawStore.setState({
+      projectPath: path,
+      project: {
+        ...project,
+        history: { ...project.history, can_undo: true, can_redo: true },
+      },
+    });
+    authority.resetDocumentAuthority(path);
+    authority.documentAuthority.seq = 1;
+    clearRegisteredCommands();
+    _resetHistoryMovesForTests();
+    registerHistoryCommands();
+    return { api, execute, useDawStore, ...authority };
+  }
+
+  it("uses completed command replies through undo and redo while display lags", async () => {
+    const { api, execute, useDawStore } = await laggingHistory();
+    const replies = [
+      { ok: true, server_seq: 4, history_head_id: "after-host-approval" },
+      {
+        ok: true,
+        snapshot: { server_seq: 5 },
+        history_head_id: "before-approval",
+      },
+      { ok: true, server_seq: 6, history_head_id: "before-earlier-edit" },
+      { ok: true, server_seq: 7, history_head_id: "before-approval" },
+    ];
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(JSON.stringify(replies.shift()), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    await api.submitDocumentCommand(path, "ApproveEdits", {
+      ids: ["range-proposal"],
+    });
+    expect(useDawStore.getState().project?.history.head_id).toBe("root");
+    expect(await execute("history.undo")).toEqual({ status: "ok" });
+    expect(await execute("history.undo")).toEqual({ status: "ok" });
+    expect(await execute("history.redo")).toEqual({ status: "ok" });
+    expect(
+      fetchSpy.mock.calls.slice(1).map((call) => {
+        const init = (call as unknown as [string, RequestInit])[1];
+        const body = JSON.parse(init.body as string);
+        return { type: body.type, payload: body.payload };
+      }),
+    ).toEqual([
+      {
+        type: "UndoHistory",
+        payload: { rerender: false, expected_head_id: "after-host-approval" },
+      },
+      {
+        type: "UndoHistory",
+        payload: { rerender: false, expected_head_id: "before-approval" },
+      },
+      {
+        type: "RedoHistory",
+        payload: { rerender: false, expected_head_id: "before-earlier-edit" },
+      },
+    ]);
+  });
+
+  it.each(["newer-reply", "applied-peer", "reopened"])(
+    "ignores a late own receipt after %s",
+    async (advance) => {
+      const { api, execute, documentAuthority, resetDocumentAuthority } =
+        await laggingHistory();
+      let release!: (response: Response) => void;
+      const late = new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+      const fetchSpy = vi
+        .fn()
+        .mockReturnValueOnce(late)
+        .mockResolvedValue(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        );
+      vi.stubGlobal("fetch", fetchSpy);
+      const old = api.submitDocumentCommand(path, "ApproveEdits", {
+        ids: ["old"],
+      });
+      await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      let expected = "root";
+      if (advance === "newer-reply") {
+        fetchSpy.mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              ok: true,
+              server_seq: 4,
+              history_head_id: "newer-own-head",
+            }),
+            { status: 200 },
+          ),
+        );
+        await api.submitDocumentCommand(path, "ApproveEdits", {
+          ids: ["newer"],
+        });
+        expected = "newer-own-head";
+      } else if (advance === "applied-peer") documentAuthority.seq = 4;
+      else resetDocumentAuthority(path);
+      release(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            server_seq: 2,
+            history_head_id: "obsolete-own-head",
+          }),
+          { status: 200 },
+        ),
+      );
+      await old;
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      const init = (
+        fetchSpy.mock.calls.at(-1) as unknown as [string, RequestInit]
+      )[1];
+      expect(JSON.parse(init.body as string).payload).toEqual({
+        rerender: false,
+        expected_head_id: expected,
+      });
+    },
+  );
+
+  it("keeps the observed own head when a history move is queued without a reply", async () => {
+    const { api, execute } = await laggingHistory();
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            server_seq: 2,
+            history_head_id: "after-host-approval",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+    await api.submitDocumentCommand(path, "ApproveEdits", {
+      ids: ["range-proposal"],
+    });
+    expect(await execute("history.undo")).toEqual({ status: "ok" });
+    expect(await execute("history.undo")).toEqual({ status: "ok" });
+    expect(
+      fetchSpy.mock.calls.slice(1).map((call) => {
+        const init = (call as unknown as [string, RequestInit])[1];
+        return JSON.parse(init.body as string).payload;
+      }),
+    ).toEqual([
+      { rerender: false, expected_head_id: "after-host-approval" },
+      { rerender: false, expected_head_id: "after-host-approval" },
+    ]);
+  });
+
   it("records a replay's landed head while posting its original identity", async () => {
     const fetchSpy = vi.fn(
       async () =>

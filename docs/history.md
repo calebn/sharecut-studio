@@ -216,8 +216,13 @@ because a peer's edit can reach the store while the command is in flight.
 (Mod+Z, Mod+Shift+Z, the History tab buttons, the toast Undo, the phone two-finger tap
 and the adjacent Undo controls) share one queue per tab (`commands/history.ts`). A move
 with nothing ahead of it sends the head the tab knows, read after flushing its pending
-mix saves: the head it shows, or, when the tab still shows where its own last move
-started because the reply beat the update, where that move landed. A press made while
+mix saves. A completed own command reply can name that head before the display
+catches up. The tab keeps that reply only in the current document generation,
+while its server sequence is ahead of the applied document, recovery has not
+observed a newer sequence, and the displayed predecessor is unchanged. An applied
+peer update or reopening the project ends that knowledge. When the display still
+predates a successful own history move, the next move uses its returned head
+until the applied document advances. A press made while
 an earlier move is in flight waits for that reply and expects the head the reply
 returned (`history_head_id`), so pressing Mod+Z twice quickly undoes two changes: the
 tab's own undo moved the head, and that is not someone else's change. A press also
