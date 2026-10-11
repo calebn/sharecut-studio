@@ -7,13 +7,21 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.client import Client
 
+from podcast_mcp.edits.edit_log import (
+    LocalRestoreRequiresHistory,
+    require_applied_edit_restore,
+    revert_applied_edit,
+)
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.engines.session_timeline import origin_track_id_for_clip
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
+    AppliedEditRecord,
     Clip,
+    ClipMuteRegion,
+    RoomToneFill,
     EditDecisionType,
     Track,
     TrackRole,
@@ -452,3 +460,191 @@ async def test_mute_restore_keeps_local_positive_workflow(tmp_path, delivery):
     assert saved.timeline.duration_sec == 6
     assert saved.editorial.edit_log == []
     assert saved.edit_decisions == []
+
+
+@pytest.mark.parametrize("location", ["top", "override"])
+@pytest.mark.parametrize(
+    "bounds",
+    [
+        (float("nan"), 2),
+        (1, float("nan")),
+        (float("inf"), 2),
+        (1, float("inf")),
+        (float("-inf"), 2),
+        (1, float("-inf")),
+        (-1, 2),
+        (1, -2),
+        (1, 1),
+        (2, 1),
+        ("bad", 2),
+        (1, None),
+        ({}, 2),
+        (1, 10**400),
+        (True, 2),
+    ],
+)
+def test_restore_rejects_invalid_source_bounds(tmp_path, location, bounds):
+    project = _project(tmp_path)
+    record = AppliedEditRecord(
+        id="invalid-bounds",
+        applied_at="2026-01-01T00:00:00+00:00",
+        operation="approve_edits",
+        track_ids=["host"],
+        source_start=1,
+        source_end=2,
+        params={"mute": True, "per_track_source": {"host": [1, 2]}},
+    )
+    if location == "top":
+        record.source_start, record.source_end = bounds
+    else:
+        record.params["per_track_source"]["host"] = bounds
+    project.editorial.edit_log = [record]
+    before = project.model_dump_json()
+    for restore in (require_applied_edit_restore, revert_applied_edit):
+        with pytest.raises(LocalRestoreRequiresHistory) as refused:
+            restore(project, record.id)
+        assert refused.value.code == "local_restore_requires_history"
+        assert str(refused.value) == RESTORE_MESSAGE
+        assert project.model_dump_json() == before
+
+
+@pytest.mark.parametrize(
+    "mapping",
+    [
+        None,
+        [],
+        "bad",
+        1,
+        {"host": None},
+        {"host": "12"},
+        {"host": [1]},
+        {"host": [1, 2, 3]},
+        {"host": {"start": 1, "end": 2}},
+        {"host": [1, 2], "unused": ["NaN", 2]},
+        {"host": [1, 2], "unused": "bad"},
+    ],
+)
+def test_restore_rejects_complete_malformed_mapping(tmp_path, mapping, monkeypatch):
+    project = _project(tmp_path)
+    project.editorial.edit_log = [
+        AppliedEditRecord(
+            id="invalid-mapping",
+            applied_at="2026-01-01T00:00:00+00:00",
+            operation="approve_edits",
+            track_ids=["host"],
+            source_start=1,
+            source_end=2,
+            params={"mute": True, "per_track_source": mapping},
+        )
+    ]
+    project.clips[0].mute_regions = [ClipMuteRegion(start_s=1, end_s=2)]
+    before = project.model_dump_json()
+
+    def unexpected_subtraction(*_args):
+        pytest.fail("invalid complete plan reached subtraction")
+
+    monkeypatch.setattr("podcast_mcp.edits.edit_log.subtract_source_mute", unexpected_subtraction)
+    with pytest.raises(LocalRestoreRequiresHistory) as refused:
+        revert_applied_edit(project, "invalid-mapping")
+    assert str(refused.value) == RESTORE_MESSAGE
+    assert project.model_dump_json() == before
+
+
+@pytest.mark.parametrize(
+    "params", [{}, {"per_track_source": {}}, {"per_track_source": {"host": ("1", "2")}}]
+)
+def test_restore_removes_only_bounded_intersection(tmp_path, params):
+    project = _project(tmp_path)
+    fill = RoomToneFill(start_s=5, end_s=5.5)
+    region = ClipMuteRegion(start_s=0.5, end_s=2.5, fill=fill, fade_out_ms=7, fade_in_ms=9)
+    outside = ClipMuteRegion(start_s=4, end_s=5, fade_out_ms=3, fade_in_ms=4)
+    project.clips[0].mute_regions = [region, outside]
+    geometry = (
+        project.clips[0].source_start,
+        project.clips[0].source_end,
+        project.clips[0].timeline_start,
+    )
+    project.editorial.edit_log = [
+        AppliedEditRecord(
+            id="bounded",
+            applied_at="2026-01-01T00:00:00+00:00",
+            operation="approve_edits",
+            track_ids=["host"],
+            source_start=1,
+            source_end=2,
+            params={"mute": True, **params},
+        )
+    ]
+    assert require_applied_edit_restore(project, "bounded") is project.editorial.edit_log[0]
+    result = revert_applied_edit(project, "bounded")
+    assert result["operation"] == "revert_applied_edit"
+    assert project.clips[0].mute_regions == [
+        region.model_copy(update={"end_s": 1}),
+        region.model_copy(update={"start_s": 2}),
+        outside,
+    ]
+    assert (
+        project.clips[0].source_start,
+        project.clips[0].source_end,
+        project.clips[0].timeline_start,
+    ) == geometry
+    assert project.timeline.duration_sec == 6
+    assert project.editorial.edit_log == []
+
+
+def test_persisted_invalid_later_track_refuses_before_history(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    project.tracks.append(project.tracks[0].model_copy(update={"id": "guest", "label": "Guest"}))
+    project.clips.append(project.clips[0].model_copy(update={"id": "guest", "track_id": "guest"}))
+    mute = _cut("mute", 1, 2, reason="filler:um")
+    mute.type = EditDecisionType.MUTE
+    project.edit_decisions = [mute]
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="um", start=1.2, end=1.6)])
+    ]
+    mark_refine_done(
+        project, notes="Known synthetic transcript fixture; no real-project acceptance"
+    )
+    ws = ProjectWorkspace.open(save_project(project))
+    assert EditService(ws).approve(["mute"]) == 1
+    record = ws.project.editorial.edit_log[0]
+    record.track_ids = ["host", "guest"]
+    record.params["per_track_source"] = {"host": [1, 2], "guest": ["NaN", 2]}
+    for clip in ws.project.clips:
+        clip.mute_regions = [
+            ClipMuteRegion(
+                start_s=0.5,
+                end_s=2.5,
+                fill=RoomToneFill(start_s=5, end_s=5.5),
+                fade_out_ms=7,
+                fade_in_ms=9,
+            ),
+            ClipMuteRegion(start_s=4, end_s=5, fade_out_ms=3, fade_in_ms=4),
+        ]
+    ws.project.render.last_completed_step = "render_tracks"
+    ws.project.render.artifacts.premix = "artifacts/premix.wav"
+    ws.project.render.last_reconciliation_hash = "preserved-render-hash"
+    ws.save()
+    (tmp_path / "artifacts" / "premix.wav").write_bytes(b"preserved-premix")
+    (tmp_path / "artifacts" / "host.renderhash").write_bytes(b"preserved-sidecar")
+    ws = ProjectWorkspace.open(ws.path)
+    before_memory = ws.project.model_dump_json()
+    before_files = {
+        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    }
+    assert any(str(p).startswith("history/snapshots/") for p in before_files)
+    assert any(str(p).startswith("transcripts/") for p in before_files)
+
+    def unexpected_mutation(*_args, **_kwargs):
+        pytest.fail("invalid complete plan started workspace mutation/history")
+
+    monkeypatch.setattr(ws, "mutate", unexpected_mutation)
+    with pytest.raises(LocalRestoreRequiresHistory) as refused:
+        EditService(ws).revert_applied(record.id)
+    assert refused.value.code == "local_restore_requires_history"
+    assert str(refused.value) == RESTORE_MESSAGE
+    assert ws.project.model_dump_json() == before_memory
+    assert load_project(ws.path).model_dump_json() == before_memory
+    assert {
+        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    } == before_files
