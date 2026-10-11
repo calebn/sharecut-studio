@@ -1362,6 +1362,7 @@ test; other rows are whole tests.
 | native Tab keeps every Primary navigation indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | feedback preserves selected half and full geometry and permitted ruler and lane room | `gui/web/e2e-compat/compact-feedback-detents.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped removal feedback keeps remaining lifetime after closing the compact host | `gui/web/e2e-compat/compact-feedback-host-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| unavailable history feedback stays above a real inspector refusal | `gui/web/e2e-compat/compact-history-hint.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | every native compact Tab target paints its focus indicator inside actual clips | `gui/web/e2e-compat/compact-painted-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | scrolled fades and pinned actions retain pointer and keyboard ownership | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | native traversal skips covered tools and Close restores them | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
