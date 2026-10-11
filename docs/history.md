@@ -217,23 +217,27 @@ because a peer's edit can reach the store while the command is in flight.
 and the adjacent Undo controls) share one queue per tab (`commands/history.ts`). A move
 with nothing ahead of it sends the head the tab knows, read after flushing its pending
 mix saves. A completed own command reply can name that head before the display
-catches up. The tab keeps that reply only in the current document generation,
-while its server sequence is ahead of the applied document, recovery has not
-observed a newer sequence, and the displayed predecessor is unchanged. An applied
-peer update or reopening the project ends that knowledge. Successful own history
-moves use the same reply observation and expiry rules. A press made while
-an earlier move is in flight waits for that reply and expects the head the reply
-returned (`history_head_id`), so pressing Mod+Z twice quickly undoes two changes: the
-tab's own undo moved the head, and that is not someone else's change. A press also
-waits (up to `HOST_SEND_WAIT_MS`, 5 s) behind the edit saves this tab had in flight
-when it was made: the live sends already out, and the saves still preparing their
+catches up. The tab keeps that reply only as head knowledge for the current
+document generation, while its server sequence is ahead of the applied document,
+recovery has not observed a newer sequence, and the displayed predecessor is
+unchanged. An applied peer update or reopening the project ends that knowledge.
+Successful own history moves use the same reply observation and expiry rules. A
+press made while an earlier history move is in flight waits for that reply and
+expects the head the reply returned (`history_head_id`), so pressing Mod+Z twice
+quickly undoes two changes: the tab's own undo moved the head, and that is not
+someone else's change. A press also waits, before calling the history API, for
+edit saves that were in flight when the press was made. This wait lasts up to
+`HOST_SEND_WAIT_MS` (5 s) and covers live sends and saves still preparing their
 send, such as a trim or roll loading its boundary token (`trackEditSave` in
-`state/hostSendOrder.ts`). It then expects the head the latest of this tab's own
-commands left in that document generation (`noteSaveLanded`), so Undo reverts the
-edit the person just made and is not refused as stale by it. Reopening the project
-while a press waits or flushes mix edits refuses that press without sending a
-history command. Replies from the previous generation cannot supply its head. A
-boundary token load that the server never answers gives up
+`state/hostSendOrder.ts`). It then expects the head left by the latest of this
+tab's own commands in that document generation (`noteSaveLanded`), so Undo
+reverts the edit the person just made and is not refused as stale by it. The
+handler also checks the document generation after waiting for an earlier
+history move, the edit saves, and pending mix saves. If the project was reopened
+during one of those waits, the handler refuses the press before calling the
+history API. This check does not cancel a history command after API dispatch.
+A reply from a previous generation cannot supply head knowledge for the current
+generation. A boundary token load that the server never answers gives up
 after `DOCUMENT_COMMAND_TIMEOUT_MS` (`loadBoundaryContext`), and the save is dropped with
 "The server didn't answer. Nothing was saved.", so Undo is not refused for good. Saves
 that begin after the press are not waited for. A
