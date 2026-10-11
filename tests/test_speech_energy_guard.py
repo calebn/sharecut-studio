@@ -10,7 +10,10 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
+from podcast_mcp.edits.cut_speech import SpeechClearance, clear_ripple
 from podcast_mcp.edits.decisions import approve_edits
+from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, ripple_remove_clips
+from podcast_mcp.edits.source_removals import CutScopeHold, consume_source_remove
 from podcast_mcp.edits.speech_energy_guard import (
     ResolvedCutScope,
     assess_cross_track_speech,
@@ -20,10 +23,13 @@ from podcast_mcp.edits.speech_energy_guard import (
 from podcast_mcp.edits.timeline_ops import punch_delete
 from podcast_mcp.edits.transcript_cuts import add_remove_decision
 from podcast_mcp.engines.audio_audit import (
+    _played_window,
     build_track_rms_caches,
     measure_timeline_rms_db,
     timeline_frame_levels_db,
 )
+from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.ungated_audio import raw_timeline_samples
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -35,6 +41,8 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+
+from podcast_mcp.util.timebase import SourceSec
 
 
 def _two_track(
@@ -925,13 +933,18 @@ def test_sealed_peer_detection_contains_exact_half_open_samples(
 ) -> None:
     for start, end, samples in [
         (1.003, 3.003, (8023, 8024, 24023, 24024)),
-        (1.00304, 3.00704, (8024, 8025, 24056, 24057)),
+        (1.00304, 3.00704, (8023, 8024, 24055, 24056)),
     ]:
         peer = np.zeros(8 * _SR)
         index = samples[("before_start", "first_inside", "last_inside", "at_end").index(edge)]
         peer[index * 2] = 0.045
         p = _project_with_peer_audio(tmp_path, peer)
         _write_wav(tmp_path / "guest.wav", peer[::2], sample_rate=8000)
+        forward = p.model_copy(deep=True)
+        ripple_remove_clips(forward, [(start, end)], ["host", "guest"])
+        remaining = 0 if edge in ("first_inside", "last_inside") else 1
+        assert np.count_nonzero(_played_window(forward, "guest", 0.0, 8.0)) == remaining
+        assert np.count_nonzero(raw_timeline_samples(forward, "guest")) == remaining
         caches = build_track_rms_caches(p) if cached else None
         kwargs = {
             "owner_track_ids": ["host"],
@@ -947,6 +960,81 @@ def test_sealed_peer_detection_contains_exact_half_open_samples(
         assert sealed.owner_rms_db == generic.owner_rms_db
         assert sealed.peer_rms_db == generic.peer_rms_db
         assert sealed.unread == generic.unread == {}
+
+
+@pytest.mark.parametrize("origin", [0.0, 0.00008, 0.10008, 0.00004])
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+def test_sealed_peer_boundaries_follow_native_forward_removal(
+    tmp_path: Path, origin: float, cached: bool
+) -> None:
+    for index, removed in [(8024, True), (24024, False)]:
+        peer = np.zeros(8 * _SR)
+        peer[index * 2] = 0.045
+        p = _project_with_peer_audio(tmp_path, peer)
+        _write_wav(tmp_path / "guest.wav", peer[::2], sample_rate=8000)
+        p.clips[0].timeline_start = 0.50004
+        p.clips[1].source_start = origin
+        p.clips[1].timeline_start = 0.50004 + origin
+        p.timeline.duration_sec = 8.50004
+        spans = tuple(
+            (float(a), float(b))
+            for a, b in SessionTimeline(p).map_source_span(
+                "host", SourceSec(1.003), SourceSec(3.003)
+            )
+        )
+        before = _played_window(p, "guest", 0.0, 8.50004)
+        before_cache = raw_timeline_samples(p, "guest")
+        assert np.count_nonzero(before) == np.count_nonzero(before_cache) == 1
+        forward = p.model_copy(deep=True)
+        ripple_remove_clips(forward, spans, ["host", "guest"])
+        expected_count = 0 if removed else 1
+        assert np.count_nonzero(_played_window(forward, "guest", 0.0, 6.50004)) == expected_count
+        assert np.count_nonzero(raw_timeline_samples(forward, "guest")) == expected_count
+        levels = measure_peer_speech(
+            p,
+            spans,
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+            caches=build_track_rms_caches(p) if cached else None,
+            _admissible_spans=spans,
+        )
+        assert levels is not None
+        assert levels.speaking == (("guest",) if removed else ())
+        assert levels.unread == {}
+        removal = RippleRemoval.of([TrackExtent("host", *spans[0])])
+        clearance = clear_ripple(p, removal, confirm_cut_speech=False, defaults=_GUARD_ON)
+        assert isinstance(clearance, SpeechClearance) is (not removed)
+        edit = EditDecision(
+            id="native-boundary",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=1.003,
+            end=3.003,
+            scope="session",
+            reason="nl:range",
+            boundary_mode="exact",
+            review_required=False,
+            applied=False,
+        )
+        result = consume_source_remove(
+            p,
+            edit,
+            confirm_cut_speech=False,
+            allow_review=True,
+            batch=(),
+            use_inaudible_opt=False,
+            record_log=False,
+        )
+        if removed:
+            assert isinstance(result, CutScopeHold)
+            assert result.reason == "peer_speech"
+            assert np.array_equal(_played_window(p, "guest", 0.0, 8.50004), before)
+        else:
+            assert isinstance(result, tuple)
+            after = _played_window(p, "guest", 0.0, 6.50004)
+            assert np.count_nonzero(after) == 1
+            assert after[after != 0].tolist() == before[before != 0].tolist()
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
