@@ -372,6 +372,10 @@ def consume_source_remove(
         finished = _finish_candidate(project, prepared_pause, defaults)
         if isinstance(finished, _CutRejected):
             return CutScopeHold(edit.id, (), "pause_join", detail=finished.skip)
+        if prepared_pause.peer_observation_span is not None and (
+            finished.start != prepared_pause.plan.start or finished.end != prepared_pause.plan.end
+        ):
+            return CutScopeHold(edit.id, (), "source_geometry")
         if finished.review_required and not allow_review:
             return CutScopeHold(edit.id, (), "pause_join", detail="review_required")
         actual = edit.model_copy(
@@ -424,6 +428,20 @@ def consume_source_remove(
     if isinstance(assessed, CutScopeHold):
         return assessed
     if scope != "track":
+        mapped_spans = tuple(
+            (float(start), float(end))
+            for start, end in timeline.map_source_span(
+                edit.track_id, SourceSec(actual.start), SourceSec(actual.end)
+            )
+        )
+        admissible_spans = mapped_spans if not pause else None
+        if prepared_pause is not None and prepared_pause.peer_observation_span is not None:
+            observed_start, observed_end = prepared_pause.peer_observation_span
+            if not mapped_spans or any(
+                not observed_start <= start < end <= observed_end for start, end in mapped_spans
+            ):
+                return CutScopeHold(edit.id, (), "source_geometry")
+            admissible_spans = mapped_spans
         try:
             resolved = resolve_cut_scope(
                 project,
@@ -432,6 +450,7 @@ def consume_source_remove(
                 actual.end,
                 requested_scope=scope,
                 defaults=load_defaults(),
+                _admissible_spans=admissible_spans,
             )
         except ValueError as blocked:
             peers = tuple(getattr(blocked, "peers", ()))

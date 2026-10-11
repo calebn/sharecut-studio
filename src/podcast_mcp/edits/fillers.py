@@ -2157,12 +2157,15 @@ def _cut_scope(
     *,
     peer_scoped: bool,
     defaults: dict[str, Any],
+    _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> ResolvedCutScope | _CutRejected:
     if not peer_scoped:
         return ResolvedCutScope("intentional_track")
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
 
-    resolved = resolve_cut_scope(project, track_id, start, end, defaults=defaults)
+    resolved = resolve_cut_scope(
+        project, track_id, start, end, defaults=defaults, _admissible_spans=_admissible_spans
+    )
     if isinstance(resolved, CutScopeUnavailable):
         return _CutRejected("scope_unavailable")
     return resolved
@@ -2316,9 +2319,23 @@ def _gate_cut_edges(
         and rms_db(audio_cache.window(cut_start, cut_end)) < _audibility_floor_db(defaults)
     ):
         return _CutRejected("inaudible")
+    admissible_spans = None
+    if checks.peer_scoped and candidate.cut_kind != "pause":
+        span = SessionTimeline(project).exact_source_span(
+            track_id, SourceSec(cut_start), SourceSec(cut_end)
+        )
+        if span is None:
+            return _CutRejected("source_geometry")
+        admissible_spans = ((float(span[0]), float(span[1])),)
     try:
         resolved = _cut_scope(
-            project, track_id, cut_start, cut_end, peer_scoped=checks.peer_scoped, defaults=defaults
+            project,
+            track_id,
+            cut_start,
+            cut_end,
+            peer_scoped=checks.peer_scoped,
+            defaults=defaults,
+            _admissible_spans=admissible_spans,
         )
     except ValueError:
         return _CutRejected("scope")
@@ -2368,6 +2385,7 @@ class _PreparedCut:
     reason: str
     review_required: bool
     heard_pause: float | None = None
+    peer_observation_span: tuple[float, float] | None = None
 
 
 def _prepare_candidate(
@@ -2510,6 +2528,7 @@ def _prepare_candidate(
     else:
         return _CutRejected("unstable_scope")
     plan, guard, flags = gated.plan, gated.guard, gated.flags
+    peer_observation_span = None
     if _clamp_to_candidate(candidate, plan.start, plan.end) != (plan.start, plan.end):
         return _CutRejected("bounds")
     if candidate.cut_kind == "pause" and not mute_mode:
@@ -2564,11 +2583,11 @@ def _prepare_candidate(
             / 1000.0
         )
         acoustic = bool(tighten.get("breath_handling", {}).get("enabled", True))
-        observation = air.pause_observation(
+        observation_span = (
             min(float(span[0]) - effect_reach, float(before_span[0])),
             max(float(span[1]) + effect_reach, float(after_span[1])),
-            acoustic=acoustic,
         )
+        observation = air.pause_observation(*observation_span, acoustic=acoustic)
         if isinstance(observation, PauseAirSkip):
             return _CutRejected(observation.value)
         original = _original_pause_support(project, track_id, words, observation)
@@ -2675,6 +2694,37 @@ def _prepare_candidate(
         if isinstance(effects, LaneUnavailable):
             return _CutRejected("pause_effects", (effects,))
         plan = replace(plan, effects=effects)
+        if isinstance(observation, MeasuredPause):
+            final_span = timeline.exact_source_span(
+                track_id, SourceSec(plan.start), SourceSec(plan.end)
+            )
+            if final_span is None or not (
+                observation_span[0] <= final_span[0] < final_span[1] <= observation_span[1]
+            ):
+                return _CutRejected("source_geometry")
+            support = tuple(
+                (float(start), float(end))
+                for start, end in timeline.map_source_span(
+                    track_id, SourceSec(plan.start), SourceSec(plan.end)
+                )
+            )
+            try:
+                resolved = _cut_scope(
+                    project,
+                    track_id,
+                    plan.start,
+                    plan.end,
+                    peer_scoped=True,
+                    defaults=defaults,
+                    _admissible_spans=support,
+                )
+            except ValueError:
+                return _CutRejected("scope")
+            if isinstance(resolved, _CutRejected):
+                return resolved
+            guard = resolved.guard
+            gated = replace(gated, guard=guard)
+            peer_observation_span = observation_span
     checks = plan.checks
     cut_start, cut_end = plan.start, plan.end
     if not checks.score_joins or (cut_start, cut_end) != (opt.start, opt.end):
@@ -2730,6 +2780,7 @@ def _prepare_candidate(
         reason=reason,
         review_required=review_required,
         heard_pause=gated.heard_pause,
+        peer_observation_span=peer_observation_span,
     )
 
 
