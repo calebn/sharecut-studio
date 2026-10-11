@@ -243,6 +243,18 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       for (let i = 0; i < 5; i += 1) await Promise.resolve();
     };
 
+    it("undoes from a same-tab save that landed before the press", async () => {
+      const projectPath = "/tmp/ep-history-save-landed-before-undo-press";
+      useDawStore.setState({ projectPath });
+      noteSaveLanded(projectPath, head("after-host-approval"));
+
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+
+      expect(undoHistory).toHaveBeenCalledWith(projectPath, {
+        expectedHeadId: "after-host-approval",
+      });
+    });
+
     it("waits for a save still loading its boundary token, then expects the head it left", async () => {
       let finishSave!: () => void;
       const gate = new Promise<void>((resolve) => {
