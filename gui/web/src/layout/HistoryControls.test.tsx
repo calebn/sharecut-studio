@@ -185,6 +185,95 @@ describe("CompactHistoryControls", () => {
     },
   );
 
+  it.each([
+    ["undo", "compact"],
+    ["redo", "compact"],
+    ["undo", "rail"],
+    ["redo", "rail"],
+  ] as const)(
+    "does not revive the old %s activation after history disappears in %s controls",
+    async (action, variant) => {
+      vi.useFakeTimers();
+      const label = action === "undo" ? "Undo" : "Redo";
+      const reason = action === "undo" ? "Nothing to undo" : "Nothing to redo";
+      const props = {
+        history: {
+          canUndo: action !== "undo",
+          canRedo: action !== "redo",
+        },
+        onUndo: vi.fn(),
+        onRedo: vi.fn(),
+        variant,
+      };
+      const { rerender } = render(<HistoryControls {...props} />);
+      const button = screen.getByRole("button", { name: label });
+      fireEvent.click(button);
+      expect(screen.getByRole("status")).toHaveTextContent(reason);
+      await act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      rerender(<HistoryControls {...props} history={null} />);
+      expect(screen.queryByRole("group", { name: "Undo and redo" })).toBeNull();
+      rerender(<HistoryControls {...props} />);
+
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      const restoredButton = screen.getByRole("button", { name: label });
+      expect(restoredButton).toHaveAttribute("aria-disabled", "true");
+      expect(restoredButton).toHaveAccessibleDescription(reason);
+      expect(
+        restoredButton.querySelector(".compact-history-caption"),
+      ).toBeNull();
+
+      fireEvent.click(restoredButton);
+      expect(screen.getByRole("status")).toHaveTextContent(reason);
+      await act(() => {
+        vi.advanceTimersByTime(3499);
+      });
+      expect(screen.getByRole("status")).toHaveTextContent(reason);
+      await act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    },
+  );
+
+  it.each(["undo", "redo"] as const)(
+    "keeps the original %s expiry when availability is replaced with an equivalent object",
+    async (action) => {
+      vi.useFakeTimers();
+      const props = {
+        history: {
+          canUndo: action !== "undo",
+          canRedo: action !== "redo",
+        },
+        onUndo: vi.fn(),
+        onRedo: vi.fn(),
+        variant: "compact" as const,
+      };
+      const { rerender } = render(<HistoryControls {...props} />);
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: action === "undo" ? "Undo" : "Redo",
+        }),
+      );
+      await act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      rerender(<HistoryControls {...props} history={{ ...props.history }} />);
+
+      await act(() => {
+        vi.advanceTimersByTime(2499);
+      });
+      expect(screen.getByRole("status")).toHaveTextContent(
+        action === "undo" ? "Nothing to undo" : "Nothing to redo",
+      );
+      await act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    },
+  );
+
   it.each(["view", "comment"] as const)(
     "offers no history mutation to a %s guest",
     (guestMode) => {
