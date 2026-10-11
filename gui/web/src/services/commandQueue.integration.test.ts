@@ -105,6 +105,107 @@ describe("queued command identity and landed history", () => {
     ]);
   });
 
+  it.each(["undo", "redo"])(
+    "expires a completed own move before %s when newer recovery starts",
+    async (action) => {
+      const {
+        api,
+        execute,
+        documentAuthority,
+        ownCommandHead,
+        documentScope,
+        useDawStore,
+      } = await laggingHistory();
+      const replies = [
+        { ok: true, server_seq: 4, history_head_id: "after-host-approval" },
+        { ok: true, server_seq: 5, history_head_id: "before-approval" },
+        { ok: true },
+      ];
+      const fetchSpy = vi.fn(
+        async () =>
+          new Response(JSON.stringify(replies.shift()), { status: 200 }),
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+      await api.submitDocumentCommand(path, "ApproveEdits", {
+        ids: ["range-proposal"],
+      });
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      documentAuthority.phase = { kind: "recovering", minimum: 6 };
+      expect(
+        ownCommandHead(
+          documentScope(),
+          useDawStore.getState().project?.history.head_id ?? null,
+        ),
+      ).toBeNull();
+      expect(await execute(`history.${action}`)).toEqual({ status: "ok" });
+      const init = (
+        fetchSpy.mock.calls.at(-1) as unknown as [string, RequestInit]
+      )[1];
+      expect(JSON.parse(init.body as string).payload).toEqual({
+        rerender: false,
+        expected_head_id: "root",
+      });
+    },
+  );
+
+  it.each(["undo", "redo"])(
+    "refuses an obsolete waiting %s and ignores its save receipt after reopening",
+    async (action) => {
+      const { api, execute, resetDocumentAuthority, useDawStore } =
+        await laggingHistory();
+      let release!: (response: Response) => void;
+      const pending = new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+      const fetchSpy = vi
+        .fn()
+        .mockReturnValueOnce(pending)
+        .mockResolvedValue(
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        );
+      vi.stubGlobal("fetch", fetchSpy);
+      const save = api.submitDocumentCommand(path, "ApproveEdits", {
+        ids: ["old-scope"],
+      });
+      await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      const obsolete = execute(`history.${action}`);
+      resetDocumentAuthority(path);
+      const current = execute(`history.${action}`);
+      release(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            server_seq: 4,
+            history_head_id: "old-scope-head",
+          }),
+          { status: 200 },
+        ),
+      );
+      await save;
+      const reason =
+        action === "undo"
+          ? "Can't undo: the project changed since. Nothing was undone."
+          : "Can't redo: the project changed since. Nothing was redone.";
+      expect(await obsolete).toEqual({
+        status: "disabled",
+        reason,
+        announced: true,
+      });
+      expect(await current).toEqual({ status: "ok" });
+      expect(useDawStore.getState().statusAnnouncement).toBe(reason);
+      expect(
+        fetchSpy.mock.calls
+          .slice(1)
+          .map(
+            (call) =>
+              JSON.parse(
+                (call as unknown as [string, RequestInit])[1].body as string,
+              ).payload,
+          ),
+      ).toEqual([{ rerender: false, expected_head_id: "root" }]);
+    },
+  );
+
   it.each(["newer-reply", "applied-peer", "reopened"])(
     "ignores a late own receipt after %s",
     async (advance) => {

@@ -122,6 +122,54 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       return { reply, release };
     }
 
+    it.each(["undo", "redo"] as const)(
+      "refuses an obsolete %s waiting behind another history move",
+      async (action) => {
+        const first = heldReply();
+        vi.mocked(undoHistory).mockImplementationOnce(() => first.reply);
+        const one = execute("history.undo");
+        await vi.waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
+        const obsolete = execute(`history.${action}`);
+        resetDocumentAuthority("/tmp/ep");
+        first.release(head("old-generation-head"));
+        expect(await one).toEqual({ status: "ok" });
+        const reason =
+          action === "undo"
+            ? "Can't undo: the project changed since. Nothing was undone."
+            : "Can't redo: the project changed since. Nothing was redone.";
+        expect(await obsolete).toEqual({
+          status: "disabled",
+          reason,
+          announced: true,
+        });
+        expect(vi.mocked(undoHistory).mock.calls).toEqual([
+          ["/tmp/ep", { expectedHeadId: "seen-by-tab" }],
+        ]);
+        expect(redoHistory).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["undo", "redo"] as const)(
+      "refuses an obsolete %s after pending mix flush reopens the project",
+      async (action) => {
+        vi.mocked(flushPendingMix).mockImplementationOnce(async () => {
+          resetDocumentAuthority("/tmp/ep");
+        });
+        const reason =
+          action === "undo"
+            ? "Can't undo: the project changed since. Nothing was undone."
+            : "Can't redo: the project changed since. Nothing was redone.";
+        expect(await execute(`history.${action}`)).toEqual({
+          status: "disabled",
+          reason,
+          announced: true,
+        });
+        expect(useDawStore.getState().statusAnnouncement).toBe(reason);
+        expect(undoHistory).not.toHaveBeenCalled();
+        expect(redoHistory).not.toHaveBeenCalled();
+      },
+    );
+
     it("sends a second fast Mod+Z after the first reply, expecting where it landed", async () => {
       const first = heldReply();
       vi.mocked(undoHistory)
