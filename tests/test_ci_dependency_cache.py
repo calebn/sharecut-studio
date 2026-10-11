@@ -49,8 +49,17 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     )
     browser_steps = jobs["frontend-e2e-suites"]["steps"]
     browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
-    assert browser["run"] == "npm ci\nnpx playwright install --with-deps chromium webkit\n"
+    assert browser["run"] == "npm ci\nnpx playwright install --with-deps ${{ matrix.browser }}\n"
     assert "if" not in browser and not browser.get("continue-on-error")
+    include = jobs["frontend-e2e-suites"]["strategy"]["matrix"]["include"]
+    assert [(entry["name"], entry["browser"]) for entry in include] == [
+        ("main-1of4", "chromium"),
+        ("main-2of4", "chromium"),
+        ("main-3of4", "chromium"),
+        ("main-4of4", "chromium"),
+        ("compat-chromium", "chromium"),
+        ("compat-webkit", "webkit"),
+    ]
 
 
 def test_release_wheel_rebuilds_when_ffmpeg_contract_changes() -> None:
