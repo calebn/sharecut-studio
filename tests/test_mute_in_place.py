@@ -1342,11 +1342,13 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
     assert after == before
 
 
-def test_revert_mute_error_paths_and_per_track_source(tmp_path, sample_wav):
+def test_revert_mute_error_paths_and_per_track_source(tmp_path):
     from podcast_mcp.edits.edit_log import revert_applied_edit
     from podcast_mcp.models import AppliedEditRecord
 
-    project = _project_with_audio(tmp_path, sample_wav)
+    from source_review_helpers import _project
+
+    project = _project(tmp_path)
     add_source_mute(project.clips[0], ClipMuteRegion(start_s=0.4, end_s=0.7))
     project.editorial.edit_log = [
         AppliedEditRecord(
@@ -1383,7 +1385,11 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path, sample_wav):
     rec.source_start = 0.4
     rec.source_end = 0.7
     rec.params = {"mute": True, "per_track_source": {"host": [0.9, 0.8]}}
-    revert_applied_edit(project, "bad")
+    before = project.model_dump_json()
+    with pytest.raises(ValueError) as refused:
+        revert_applied_edit(project, "bad")
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert project.model_dump_json() == before
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions
     add_source_mute(host, ClipMuteRegion(start_s=0.4, end_s=0.7))
@@ -1398,6 +1404,12 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path, sample_wav):
             params={"mute": True, "per_track_source": {"host": [0.4, 0.7], "x": "skip"}},
         )
     ]
+    before = project.model_dump_json()
+    with pytest.raises(ValueError) as refused:
+        revert_applied_edit(project, "ok")
+    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
+    assert project.model_dump_json() == before
+    project.editorial.edit_log[0].params["per_track_source"].pop("x")
     revert_applied_edit(project, "ok")
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions == []
