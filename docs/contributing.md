@@ -318,7 +318,7 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    keep per-step canonical commits for pipeline crash resume. The project store skips
    unchanged mirror writes and trims old undo history toward 400 snapshots without
    removing redo entries.
-5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist. Individual Restore only supports ordinary source MUTE archives. Clip removals and exact ranges use the coded `local_restore_requires_history` refusal before history starts. Whole-action History Undo also undoes other edits in the action and may require undoing later actions first. Do not recreate recordings from archive clocks or perform a hidden Undo.
+5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist. Individual Restore only supports ordinary source MUTE archives. Clip removals and exact ranges use the coded `local_restore_requires_history` refusal before history starts. Whole-action History Undo also undoes other edits in the action and may require undoing later actions first. The domain parser validates the complete MUTE Restore plan, including unused per-track entries, before history or subtraction. Malformed data uses the same coded refusal. Do not recreate recordings from archive clocks or perform a hidden Undo.
 
 Applying a pending decision with `boundary_mode` already set must consume its
 stored optimized bounds. A second snap can reopen a protected breath edge.
