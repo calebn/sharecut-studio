@@ -617,12 +617,12 @@ _GUARD_ON = {
 _SR = 16_000
 
 
-def _write_wav(path: Path, signal: np.ndarray) -> None:
+def _write_wav(path: Path, signal: np.ndarray, *, sample_rate: int = _SR) -> None:
     data = (np.clip(signal, -1.0, 1.0) * 32767).astype("<i2")
     with wave.open(str(path), "wb") as out:
         out.setnchannels(1)
         out.setsampwidth(2)
-        out.setframerate(_SR)
+        out.setframerate(sample_rate)
         out.writeframes(data.tobytes())
 
 
@@ -931,6 +931,7 @@ def test_sealed_peer_detection_contains_exact_half_open_samples(
         index = samples[("before_start", "first_inside", "last_inside", "at_end").index(edge)]
         peer[index * 2] = 0.045
         p = _project_with_peer_audio(tmp_path, peer)
+        _write_wav(tmp_path / "guest.wav", peer[::2], sample_rate=8000)
         caches = build_track_rms_caches(p) if cached else None
         kwargs = {
             "owner_track_ids": ["host"],
