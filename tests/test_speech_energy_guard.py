@@ -14,11 +14,16 @@ from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.speech_energy_guard import (
     ResolvedCutScope,
     assess_cross_track_speech,
+    measure_peer_speech,
     resolve_cut_scope,
 )
 from podcast_mcp.edits.timeline_ops import punch_delete
 from podcast_mcp.edits.transcript_cuts import add_remove_decision
-from podcast_mcp.engines.audio_audit import measure_timeline_rms_db
+from podcast_mcp.engines.audio_audit import (
+    build_track_rms_caches,
+    measure_timeline_rms_db,
+    timeline_frame_levels_db,
+)
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -622,7 +627,7 @@ def _write_wav(path: Path, signal: np.ndarray) -> None:
 
 
 def _project_with_peer_audio(tmp_path: Path, peer: np.ndarray) -> EpisodeProject:
-    p = _two_track(duration=8.0)
+    p = _two_track(duration=peer.size / _SR)
     p.meta.workspace_dir = str(tmp_path)
     p.transcripts = []
     signals = {"host": np.zeros_like(peer), "guest": peer}
@@ -638,7 +643,6 @@ def _project_with_peer_audio(tmp_path: Path, peer: np.ndarray) -> EpisodeProject
 def test_assess_blocks_brief_untranscribed_peer_in_long_pause(
     tmp_path: Path, amplitude: float
 ) -> None:
-    """A 100 ms peer sound at its own speech level survives a five-second cut (#1194)."""
     clock = np.arange(8 * _SR) / _SR
     carrier = np.sin(2 * np.pi * 220 * clock)
     peer = np.zeros_like(clock)
@@ -662,7 +666,6 @@ def test_assess_blocks_brief_untranscribed_peer_in_long_pause(
 
 @pytest.mark.parametrize("amplitude", [0.045, 0.0045], ids=["normal", "quiet"])
 def test_assess_blocks_peer_attack_at_end_of_long_pause(tmp_path: Path, amplitude: float) -> None:
-    """A quiet 20 ms attack belongs to the peer speech just beyond the cut (#1194)."""
     clock = np.arange(8 * _SR) / _SR
     carrier = np.sin(2 * np.pi * 220 * clock)
     peer = np.zeros_like(clock)
@@ -686,6 +689,320 @@ def test_assess_blocks_peer_attack_at_end_of_long_pause(tmp_path: Path, amplitud
     assert guard.blocked
     assert guard.blocking_track_ids == ("guest",)
     assert guard.action == "track_local"
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize(
+    ("owner_case", "expected"),
+    [("same_time", ()), ("elsewhere", ("guest",)), ("loud_copy_elsewhere", ("guest",))],
+)
+def test_peer_frames_discount_only_concurrent_owner_bleed(
+    tmp_path: Path, cached: bool, owner_case: str, expected: tuple[str, ...]
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    carrier = np.sin(2 * np.pi * 220 * clock)
+    brief = (clock >= 3.0) & (clock < 3.1)
+    elsewhere = (clock >= 4.0) & (clock < 5.0)
+    peer = np.zeros_like(clock)
+    owner = np.zeros_like(clock)
+    peer[brief] = 0.0045 * carrier[brief]
+    if owner_case == "same_time":
+        owner[brief] = 0.1 * carrier[brief]
+    else:
+        owner[elsewhere] = 0.6 * carrier[elsewhere]
+        if owner_case == "loud_copy_elsewhere":
+            peer[elsewhere] = 0.3 * carrier[elsewhere]
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 6.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == expected
+    assert levels.unread == {}
+    assert levels.peer_rms_db["guest"] == pytest.approx(
+        measure_timeline_rms_db(p, "guest", 1.0, 6.0, caches=caches)
+    )
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == expected
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize(
+    ("peer_case", "expected"),
+    [("brief", ("guest",)), ("bleed", ()), ("digital_zero_gap", ())],
+)
+def test_dense_owner_bleed_cannot_hide_brief_independent_peer(
+    tmp_path: Path, cached: bool, peer_case: str, expected: tuple[str, ...]
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    carrier = np.sin(2 * np.pi * 220 * clock)
+    owner = 0.6 * carrier
+    peer = 0.3 * carrier
+    brief = (clock >= 3.0) & (clock < 3.1)
+    if peer_case != "bleed":
+        owner[brief] = 0.0
+        peer[brief] = 0.0045 * carrier[brief] if peer_case == "brief" else 0.0
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 6.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.owner_rms_db is not None
+    assert levels.owner_rms_db - levels.peer_rms_db["guest"] > 3.0
+    assert levels.speaking == expected
+    assert levels.unread == {}
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == expected
+    assert guard.action == ("track_local" if expected else None)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("dense_bleed", [False, True], ids=["sparse_owner", "dense_bleed"])
+def test_quiet_room_after_owner_warns_only_when_bleed_raises_raw_reference(
+    tmp_path: Path, cached: bool, dense_bleed: bool
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    carrier = np.sin(2 * np.pi * 220 * clock)
+    noise = np.random.default_rng(14).normal(0.0, 0.0004, clock.size)
+    owner = np.zeros_like(clock)
+    peer = noise.copy()
+    if dense_bleed:
+        owner = 0.6 * carrier
+        peer = 0.3 * carrier
+        room = (clock >= 3.0) & (clock < 3.1)
+        owner[room] = 0.0
+        peer[room] = noise[room]
+    else:
+        burst = (clock >= 2.0) & (clock < 2.1)
+        owner[burst] = 0.6 * carrier[burst]
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 6.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == (("guest",) if dense_bleed else ())
+    assert levels.unread == {}
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocked is dense_bleed
+    assert guard.action == ("track_local" if dense_bleed else None)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("gain", [-20.0, 0.0, 30.0])
+@pytest.mark.parametrize("silent", [False, True], ids=["noise", "digital_zero"])
+def test_noise_without_contrast_uses_mean_while_digital_zero_stays_clear(
+    tmp_path: Path, cached: bool, gain: float, silent: bool
+) -> None:
+    peer = np.zeros(8 * _SR) if silent else np.random.default_rng(14).normal(0.0, 0.0004, 8 * _SR)
+    p = _project_with_peer_audio(tmp_path, peer)
+    p.tracks[1].gain_db = gain
+    p.transcripts = [
+        Transcript(track_id="guest", words=[TranscriptWord(text="right", start=3.0, end=3.1)])
+    ]
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 6.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    expected = ("guest",) if not silent and gain == 30.0 else ()
+    assert levels.speaking == expected
+    assert levels.unread == {}
+    if not silent and gain == 30.0:
+        assert levels.peer_rms_db["guest"] > -42.0
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == expected
+    assert guard.action == ("track_local" if expected else None)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+def test_continuous_hot_peer_without_quiet_context_still_blocks(
+    tmp_path: Path, cached: bool
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    p = _project_with_peer_audio(tmp_path, 0.1 * np.sin(2 * np.pi * 220 * clock))
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 6.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == ("guest",)
+    assert levels.unread == {}
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == ("guest",)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize(
+    ("sound_start", "sound_end", "expected"),
+    [
+        (0.944, 0.964, ("guest",)),
+        (0.914, 0.934, ()),
+        (6.024, 6.044, ("guest",)),
+        (6.064, 6.084, ()),
+        (6.062, 6.063, ("guest",)),
+    ],
+    ids=["left_pad", "before_pad", "right_pad", "after_pad", "non_grid_tail"],
+)
+def test_peer_detection_stops_at_exact_outward_pad_boundary(
+    tmp_path: Path,
+    cached: bool,
+    sound_start: float,
+    sound_end: float,
+    expected: tuple[str, ...],
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    peer = np.zeros_like(clock)
+    active = (clock >= sound_start) & (clock < sound_end)
+    peer[active] = 0.045 * np.sin(2 * np.pi * 220 * clock[active])
+    p = _project_with_peer_audio(tmp_path, peer)
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.003, 6.003)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == expected
+    assert levels.unread == {}
+    guard = assess_cross_track_speech(p, "host", 1.003, 6.003, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == expected
+
+
+@pytest.mark.parametrize("amplitude", [0.045, 0.0004], ids=["hot", "quiet"])
+def test_unavailable_frames_use_readable_mean_without_word_fallback(
+    tmp_path: Path, amplitude: float
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    p = _project_with_peer_audio(tmp_path, amplitude * np.sin(2 * np.pi * 220 * clock))
+    p.transcripts = [
+        Transcript(track_id="guest", words=[TranscriptWord(text="right", start=3.0, end=3.1)])
+    ]
+    with patch("podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", return_value=None):
+        levels = measure_peer_speech(
+            p,
+            [(1.0, 6.0)],
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+        )
+        guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON)
+    expected = ("guest",) if amplitude == 0.045 else ()
+    assert levels is not None
+    assert levels.speaking == expected
+    assert levels.unread == {}
+    assert guard.blocking_track_ids == expected
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+def test_separate_spans_keep_independent_peer_calibration(tmp_path: Path, cached: bool) -> None:
+    clock = np.arange(20 * _SR) / _SR
+    carrier = np.sin(2 * np.pi * 220 * clock)
+    peer = np.zeros_like(clock)
+    owner = np.zeros_like(clock)
+    copy = (clock >= 1.0) & (clock < 2.0)
+    brief = (clock >= 16.1) & (clock < 16.2)
+    owner[copy] = 0.6 * carrier[copy]
+    peer[copy] = 0.3 * carrier[copy]
+    peer[brief] = 0.0045 * carrier[brief]
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    p.clips[0].source_end = 2.0
+    p.clips.insert(
+        1,
+        Clip(id="h2", track_id="host", source_start=16.0, source_end=20.0, timeline_start=16.0),
+    )
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 2.0), (16.0, 17.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == ("guest",)
+    assert levels.unread == {}
+    assert levels.peer_rms_db["guest"] == pytest.approx(
+        measure_timeline_rms_db(p, "guest", 1.0, 2.0, caches=caches)
+    )
+    guard = assess_cross_track_speech(p, "host", 1.0, 17.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == ("guest",)
+
+
+def test_bounded_core_frames_survive_unreadable_optional_context(tmp_path: Path) -> None:
+    clock = np.arange(20 * _SR) / _SR
+    peer = np.zeros_like(clock)
+    brief = (clock >= 13.0) & (clock < 13.1)
+    peer[brief] = 0.0045 * np.sin(2 * np.pi * 220 * clock[brief])
+    p = _project_with_peer_audio(tmp_path, peer)
+    requests: list[tuple[str, float, float]] = []
+
+    def read(project, track_id, start, end, *, frame_sec, hop_sec, caches):
+        requests.append((track_id, start, end))
+        if start < 0.94 or end > 15.06:
+            return None
+        assert frame_sec == hop_sec == 0.01
+        return timeline_frame_levels_db(
+            project, track_id, start, end, frame_sec=frame_sec, hop_sec=hop_sec, caches=caches
+        )
+
+    with patch("podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=read):
+        levels = measure_peer_speech(
+            p,
+            [(1.0, 15.0)],
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+        )
+    assert levels is not None
+    assert levels.speaking == ("guest",)
+    assert levels.unread == {}
+    assert all(end - start <= 5.0 + 1e-9 for _, start, end in requests)
+    assert all(
+        end - start <= 2.0 + 1e-9 for _, start, end in requests if start >= 0.94 and end <= 15.06
+    )
 
 
 def _peer_word_in_cut(*, suppressed: bool = False) -> EpisodeProject:

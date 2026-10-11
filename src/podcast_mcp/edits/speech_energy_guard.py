@@ -20,6 +20,12 @@ from typing import Any, Literal, TypeAlias
 import numpy as np
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.audio_cache import (
+    DIGITAL_SILENCE_DB,
+    LEVEL_FRAME_SEC,
+    room_floor_db,
+    speech_level_db,
+)
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
@@ -90,6 +96,150 @@ class PeerSpeechLevels:
     """Per peer, the spans where its own sound could not be read, so it shows nothing."""
 
 
+def _owned_peer_frames(
+    project: EpisodeProject,
+    peer_track_id: str,
+    start: float,
+    end: float,
+    *,
+    owner_track_ids: Collection[str],
+    dominance_db: float,
+    caches: TrackRmsCacheSet | None,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    end = float(np.nextafter(end, np.inf))
+    levels = timeline_frame_levels_db(
+        project,
+        peer_track_id,
+        start,
+        end,
+        frame_sec=LEVEL_FRAME_SEC,
+        hop_sec=LEVEL_FRAME_SEC,
+        caches=caches,
+    )
+    if levels is None:
+        return None
+    peer = project.track_by_id(peer_track_id)
+    gain = peer.gain_db if peer else 0.0
+    own = levels > DIGITAL_SILENCE_DB + gain
+    for tid in owner_track_ids:
+        owner = timeline_frame_levels_db(
+            project,
+            tid,
+            start,
+            end,
+            frame_sec=LEVEL_FRAME_SEC,
+            hop_sec=LEVEL_FRAME_SEC,
+            caches=caches,
+        )
+        if owner is None:
+            continue
+        track = project.track_by_id(tid)
+        owner_gain = track.gain_db if track else 0.0
+        size = min(levels.size, owner.size)
+        own[:size] &= ~(
+            (owner[:size] > DIGITAL_SILENCE_DB + owner_gain)
+            & (owner[:size] - levels[:size] >= dominance_db)
+        )
+    return levels, own
+
+
+def _peer_speaks_near_span(
+    project: EpisodeProject,
+    peer_track_id: str,
+    span: tuple[float, float],
+    *,
+    owner_track_ids: Collection[str],
+    dominance_db: float,
+    caches: TrackRmsCacheSet | None,
+) -> bool | None:
+    config = JoinSpeechConfig()
+    start, end = max(0.0, span[0] - config.pad_sec), span[1] + config.pad_sec
+    track = project.track_by_id(peer_track_id)
+    gain = track.gain_db if track else 0.0
+    extent = max(
+        (clip.timeline_end for clip in clips_for_track(project, peer_track_id)),
+        default=track.media.duration_sec if track and track.media else None,
+    )
+    if extent is not None:
+        end = min(end, extent)
+
+    def frames(lo: float, hi: float) -> tuple[np.ndarray, np.ndarray] | None:
+        if hi - lo < LEVEL_FRAME_SEC - 1e-9:
+            return None
+        evidence = _owned_peer_frames(
+            project,
+            peer_track_id,
+            lo,
+            hi,
+            owner_track_ids=owner_track_ids,
+            dominance_db=dominance_db,
+            caches=caches,
+        )
+        if evidence is None:
+            return None
+        levels, own = evidence
+        if lo + levels.size * LEVEL_FRAME_SEC < hi - 1e-9:
+            tail = _owned_peer_frames(
+                project,
+                peer_track_id,
+                hi - LEVEL_FRAME_SEC,
+                hi,
+                owner_track_ids=owner_track_ids,
+                dominance_db=dominance_db,
+                caches=caches,
+            )
+            if tail is None:
+                return None
+            levels = np.concatenate((levels, tail[0]))
+            own = np.concatenate((own, tail[1]))
+        return levels, own
+
+    before = frames(max(0.0, start - 5.0), start)
+    after = frames(end, min(end + 5.0, extent) if extent is not None else end + 5.0)
+    unavailable = False
+    block_start = start
+    while block_start < end - 1e-9:
+        block_end = min(block_start + 2.0, end)
+        evidence = frames(min(block_start, block_end - LEVEL_FRAME_SEC), block_end)
+        if evidence is None:
+            unavailable = True
+        else:
+            levels, own = evidence
+            if not bool(own.any()):
+                block_start = block_end
+                continue
+            nearby = (
+                (before, after)
+                if end - start <= 2.0
+                else (before,)
+                if block_start - start < end - block_end
+                else (after,)
+            )
+            references = [evidence, *(part for part in nearby if part is not None)]
+            upper = max(
+                (
+                    speech + gain
+                    for local, mask in references
+                    if (speech := speech_level_db(local[mask] - gain, min_live_sec=0.0)) is not None
+                ),
+                default=None,
+            )
+            if upper is not None:
+                room = room_floor_db(np.concatenate([local for local, _ in references]))
+                floor = max(upper - config.speech_dynamic_db, room + 6.0)
+                if upper < room + 6.0:
+                    if room > upper and any(
+                        bool(((local > DIGITAL_SILENCE_DB + gain) & ~mask).any())
+                        for local, mask in references
+                    ):
+                        return True
+                    unavailable = True
+                elif bool((own & (levels >= floor)).any()):
+                    return True
+        block_start = block_end
+    return None if unavailable else False
+
+
 def measure_peer_speech(
     project: EpisodeProject,
     timeline_spans: Sequence[tuple[float, float]],
@@ -101,9 +251,10 @@ def measure_peer_speech(
 ) -> PeerSpeechLevels | None:
     """Peers whose own sound is speech in a span: at audible level, not owner bleed.
 
-    A peer counts when its level reaches ``min_other_rms_db`` and the loudest owner
-    track is not ``dominance_db`` louder there (then the peer only carries the owner's
-    voice as bleed). ``None`` when no span is at least ``min_overlap_sec`` long.
+    Local 10 ms frames use the peer's own speech and room levels, excluding concurrent
+    owner bleed. Whole-span means remain diagnostics and decide only when frames are
+    unavailable or cannot separate speech from room. ``None`` when no span is at least
+    ``min_overlap_sec`` long.
     """
     cfg = _guard_cfg(defaults)
     policy = AnalysisPolicy.from_defaults(defaults)
@@ -144,12 +295,19 @@ def measure_peer_speech(
                 continue
             if tid not in peer_rms or rms > peer_rms[tid]:
                 peer_rms[tid] = rms
-            if rms < min_other:
-                continue
-            # The owner holds the moment (the peer is quieter bleed).
-            if span_owner is not None and span_owner - rms >= dominance:
-                continue
-            speaks = True
+            calibrated = _peer_speaks_near_span(
+                project,
+                tid,
+                (tl_start, tl_end),
+                owner_track_ids=owner_track_ids,
+                dominance_db=dominance,
+                caches=caches,
+            )
+            if calibrated is None:
+                calibrated = rms >= min_other and (
+                    span_owner is None or span_owner - rms < dominance
+                )
+            speaks |= calibrated
         if speaks:
             speaking.append(tid)
     return PeerSpeechLevels(

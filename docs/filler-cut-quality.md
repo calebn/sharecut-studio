@@ -51,6 +51,34 @@ Implementation: `edits/fillers.py`, `edits/cut_quality.py`, `edits/join_continui
   fully muted speech do not lower the floor. Partial mute fades and unmuted replays
   retain their audible kept words. A track's mix listening mute retains turn evidence.
 
+### Peer speech guard
+
+`speech_energy_guard` checks each mapped span independently with 10 ms frames,
+including up to the existing 60 ms outward edge pad. One qualifying frame can
+block session ripple, even when a long cut dilutes its whole-span mean. New
+decision reads are at most 2 s; up to 5 s of nearby audio on either side supplies
+calibration only. Detection and context stop at the peer lane's end.
+The local floor is `max(S − 25 dB, R + 6 dB)`, using the peer's live-frame
+90th percentile for S and all-frame 10th percentile for R. A concurrently louder
+owner excludes a peer frame from both activity and S, with the configured
+`dominance_db`; owner speech elsewhere cannot discount that frame.
+
+Whole-span RMS values remain diagnostics. If fine frames cannot be read or the
+local reference has no speech/room contrast, the existing mean threshold and
+owner-dominance rule normally decide. This keeps continuous hot activity protected;
+steady noise raised above the mean threshold can still block without usable
+contrast. When live owner-dominated reference frames are present and raw R is
+strictly above S, the guard conservatively blocks if the decision interval has
+non-silent undominated activity. Dense bleed therefore cannot hide a brief quiet
+peer remark through a whole-span dominance fallback. This can also warn for quiet
+room noise after an owner stops, because these levels cannot distinguish that
+noise from quiet independent speech. Sparse owner activity over stationary quiet
+noise does not qualify merely because `R + 6 dB` exceeds S. Readable digital silence
+and entirely owner-dominated bleed stay clear.
+Unreadable whole-span audio retains the unsuppressed voiced-word fallback.
+This guard's local reference is separate from the 27 dB kept-word voice walks
+and the recording-wide pause-air model described above.
+
 ### Decision: Filler cuts follow the owner's listening rules
 
 <!-- decision
