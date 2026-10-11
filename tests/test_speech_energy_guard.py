@@ -1049,6 +1049,103 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
             assert after[after != 0].tolist() == before[before != 0].tolist()
 
 
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+def test_source_removal_preserves_nearest_even_split_endpoint(tmp_path: Path, cached: bool) -> None:
+    for index, removed in [(24056, False), (24055, True)]:
+        peer = np.zeros(8 * _SR)
+        peer[index * 2] = 0.045
+        p = _project_with_peer_audio(tmp_path, peer)
+        _write_wav(tmp_path / "guest.wav", peer[::2], sample_rate=8000)
+        p.clips[0].timeline_start = 0.7001
+        p.clips[1].source_start = 0.00003
+        p.clips[1].timeline_start = 0.7001 + 0.00003
+        for clip in p.clips:
+            clip.source_end = 7.9
+        p.timeline.duration_sec = 8.7001
+        spans = tuple(
+            (float(a), float(b))
+            for a, b in SessionTimeline(p).map_source_span(
+                "host", SourceSec(1.0030625), SourceSec(3.0070625)
+            )
+        )
+        before = _played_window(p, "guest", 0.0, 8.7001)
+        before_cache = raw_timeline_samples(p, "guest")
+        assert np.count_nonzero(before) == np.count_nonzero(before_cache) == 1
+        forward = p.model_copy(deep=True)
+        ripple_remove_clips(forward, spans, ["host", "guest"])
+        expected_count = 0 if removed else 1
+        for samples in (
+            _played_window(forward, "guest", 0.0, 8.7001),
+            raw_timeline_samples(forward, "guest"),
+        ):
+            assert np.count_nonzero(samples) == expected_count
+            if not removed:
+                assert samples[samples != 0].tolist() == [0.04498291015625]
+        levels = measure_peer_speech(
+            p,
+            spans,
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+            caches=build_track_rms_caches(p) if cached else None,
+            _admissible_spans=spans,
+        )
+        assert levels is not None
+        assert levels.speaking == (("guest",) if removed else ())
+        assert levels.unread == {}
+        clearance = clear_ripple(
+            p,
+            RippleRemoval.of([TrackExtent("host", *spans[0])]),
+            confirm_cut_speech=False,
+            defaults=_GUARD_ON,
+        )
+        assert isinstance(clearance, SpeechClearance) is (not removed)
+        edit = EditDecision(
+            id="nearest-even-boundary",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=1.0030625,
+            end=3.0070625,
+            scope="session",
+            reason="nl:range",
+            boundary_mode="exact",
+            review_required=False,
+            applied=False,
+        )
+        snapshot = p.model_dump(mode="json")
+        result = consume_source_remove(
+            p,
+            edit,
+            confirm_cut_speech=False,
+            allow_review=True,
+            batch=(),
+            use_inaudible_opt=False,
+            record_log=False,
+        )
+        if removed:
+            assert isinstance(result, CutScopeHold)
+            assert result.reason == "peer_speech"
+            assert p.model_dump(mode="json") == snapshot
+            assert isinstance(clearance, CutSpeechConfirmation)
+            result = consume_source_remove(
+                p,
+                edit.model_copy(update={"cut_speech": clearance.speech}),
+                confirm_cut_speech=True,
+                allow_review=True,
+                batch=(),
+                use_inaudible_opt=False,
+                record_log=False,
+            )
+        assert isinstance(result, tuple)
+        for samples in (
+            _played_window(p, "guest", 0.0, 8.7001),
+            raw_timeline_samples(p, "guest"),
+        ):
+            assert np.count_nonzero(samples) == expected_count
+            if not removed:
+                assert samples[samples != 0].tolist() == [0.04498291015625]
+
+
 def test_sealed_cached_samples_use_the_cache_timeline_origin(tmp_path: Path) -> None:
     for index, removed in [(8023, False), (24023, True)]:
         peer = np.zeros(8 * _SR)
