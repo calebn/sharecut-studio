@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
@@ -151,30 +152,49 @@ def get_applied_edit(project: EpisodeProject, record_id: str) -> AppliedEditReco
     raise KeyError(f"applied edit not found: {record_id}")
 
 
-def _per_track_source_pairs(record: AppliedEditRecord) -> dict[str, tuple[float, float]]:
-    per_track_raw = (record.params or {}).get("per_track_source") or {}
+def _require_source_span(
+    record: AppliedEditRecord, raw_start: Any, raw_end: Any
+) -> tuple[float, float]:
+    if isinstance(raw_start, bool) or isinstance(raw_end, bool):
+        raise LocalRestoreRequiresHistory(record.id)
+    try:
+        start, end = float(raw_start), float(raw_end)
+    except (TypeError, ValueError, OverflowError):
+        raise LocalRestoreRequiresHistory(record.id) from None
+    if not math.isfinite(start) or not math.isfinite(end) or start < 0 or not start < end:
+        raise LocalRestoreRequiresHistory(record.id)
+    return start, end
+
+
+def _require_restore_spans(record: AppliedEditRecord) -> tuple[tuple[str, float, float], ...]:
+    if (
+        record.params.get("mute") is not True
+        or "exact_range" in record.params
+        or record.source_start is None
+        or record.source_end is None
+        or not record.track_ids
+    ):
+        raise LocalRestoreRequiresHistory(record.id)
+    fallback = _require_source_span(record, record.source_start, record.source_end)
     per_track: dict[str, tuple[float, float]] = {}
-    for tid, pair in per_track_raw.items():
-        if isinstance(pair, (list, tuple)) and len(pair) == 2:
-            per_track[str(tid)] = (float(pair[0]), float(pair[1]))
-    return per_track
+    if "per_track_source" in record.params:
+        raw = record.params["per_track_source"]
+        if not isinstance(raw, Mapping):
+            raise LocalRestoreRequiresHistory(record.id)
+        for tid, pair in raw.items():
+            if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                raise LocalRestoreRequiresHistory(record.id)
+            per_track[str(tid)] = _require_source_span(record, pair[0], pair[1])
+    return tuple((tid, *per_track.get(tid, fallback)) for tid in record.track_ids)
 
 
 def _revert_mute_archive(project: EpisodeProject, record: AppliedEditRecord) -> dict[str, Any]:
     """Subtract mute spans in place; never ripple or re-insert clips."""
-    assert record.source_start is not None and record.source_end is not None
-    per_track = _per_track_source_pairs(record)
-    restore_tracks = list(record.track_ids)
-    for tid in restore_tracks:
-        if tid in per_track:
-            s0, s1 = per_track[tid]
-        else:
-            s0 = float(record.source_start)
-            s1 = float(record.source_end)
-        if s1 <= s0:
-            continue
+    spans = _require_restore_spans(record)
+    restore_tracks = [tid for tid, _, _ in spans]
+    for tid, start, end in spans:
         for clip in clips_for_track(project, tid):
-            subtract_source_mute(clip, s0, s1)
+            subtract_source_mute(clip, start, end)
     project.editorial.edit_log = [r for r in project.editorial.edit_log if r.id != record.id]
     rebuild_combined(project)
     update_timeline_duration(project)
@@ -191,15 +211,7 @@ def _revert_mute_archive(project: EpisodeProject, record: AppliedEditRecord) -> 
 def require_applied_edit_restore(project: EpisodeProject, record_id: str) -> AppliedEditRecord:
     """Refuse unsupported local Restore before the service records history."""
     record = get_applied_edit(project, record_id)
-    if (
-        record.params.get("mute") is not True
-        or "exact_range" in record.params
-        or record.source_start is None
-        or record.source_end is None
-        or not record.track_ids
-        or record.source_end <= record.source_start
-    ):
-        raise LocalRestoreRequiresHistory(record.id)
+    _require_restore_spans(record)
     return record
 
 

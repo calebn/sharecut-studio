@@ -36,7 +36,7 @@ Episode workspaces have two protection layers:
 **When adding or changing tools, services, or skills:**
 
 - Domain code in `edits/` / `engines/` mutates an in-memory `EpisodeProject` only — no file I/O.
-- Application code in `services/` wraps undoable work in `ws.mutate(label_before, label_after, fn)`.
+- Application code in `services/` wraps undoable work in `ws.mutate(label_before, label_after, fn)`. MUTE Restore validates the complete persisted plan in the domain before this call, refusing malformed bounds or mappings with `local_restore_requires_history` before history or subtraction.
 - Adapters in `cli/` and `mcp/tools/` call **one** service method; they do not call `save()` or domain mutators directly.
 - Skills compose MCP/CLI primitives and must point users to `history_undo` when a workflow batches mutations.
 

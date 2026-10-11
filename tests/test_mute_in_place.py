@@ -1345,7 +1345,6 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
 def test_revert_mute_error_paths_and_per_track_source(tmp_path):
     from podcast_mcp.edits.edit_log import revert_applied_edit
     from podcast_mcp.models import AppliedEditRecord
-
     from source_review_helpers import _project
 
     project = _project(tmp_path)

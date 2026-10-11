@@ -320,7 +320,7 @@ keeps the `cut_speech` it confirmed. See [daw-editing.md § Edit modes](daw-edit
 
 Individual Restore supports ordinary source MUTE archives. It subtracts the recorded mute spans without inserting media or shifting timeline time. Removed clip material, including track punches, session ripples, parked recordings, replacement pads, and exact ranges, requires History Undo. `AppliedEditRecord` source and seam clocks remain editorial display data. They cannot identify the removed recordings or clip occurrences.
 
-`EditService.revert_applied` checks the domain-owned Restore bound under the workspace transaction before recording history. Unsupported archives raise `local_restore_requires_history` through the existing service, HTTP, and MCP error boundaries with this message.
+`EditService.revert_applied` validates the complete Restore plan under the workspace transaction before recording history. Top-level source bounds and every supplied `per_track_source` pair must be finite, nonnegative, and strictly ordered, including pairs for unlisted tracks. A present mapping must contain only two-element lists or tuples with numeric values. Finite numeric strings retain float conversion. An absent or empty mapping uses the top-level span for each listed track. Malformed plans leave project state, mute regions, archives, history, caches, and artifacts unchanged. Unsupported archives raise `local_restore_requires_history` through the existing service, HTTP, and MCP error boundaries with this message.
 
 > This edit cannot be restored individually. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first.
 

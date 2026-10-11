@@ -3,7 +3,7 @@
 When editing **podcast_mcp** source (not only running MCP tools on episodes):
 
 1. Follow [AGENTS.md](../AGENTS.md) and [rules/engineering-standards.md](rules/engineering-standards.md) — **SOLID/DRY**, **tests as you go**, **docs in sync**. Sharecut Studio CSS: [rules/gui-styling.md](rules/gui-styling.md). Long-running progress: [docs/progress.md](../docs/progress.md).
-2. Put new behavior in **services + domain**, not in skills or MCP wrappers.
+2. Put new behavior in **services + domain**, not in skills or MCP wrappers. The domain owns complete MUTE Restore validation before workspace history or mute subtraction; malformed archive data returns `local_restore_requires_history`.
 3. Run focused tests as you work. `make test` and `make ci` are optional local mirrors; GitHub Actions is the required full-CI gate.
 4. Follow [sharecut-poteto](skills/sharecut-poteto/SKILL.md), its [Git policy](skills/sharecut-poteto/references/git-workflow.md), and its [issue claims](skills/sharecut-poteto/references/issue-claims.md) for contributor work.
 5. Update `README.md`, `docs/architecture.md`, and related docs/skills when the change affects them.

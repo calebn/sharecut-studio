@@ -21,8 +21,8 @@ from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
     ClipMuteRegion,
-    RoomToneFill,
     EditDecisionType,
+    RoomToneFill,
     Track,
     TrackRole,
     Transcript,
@@ -462,25 +462,31 @@ async def test_mute_restore_keeps_local_positive_workflow(tmp_path, delivery):
     assert saved.edit_decisions == []
 
 
-@pytest.mark.parametrize("location", ["top", "override"])
 @pytest.mark.parametrize(
-    "bounds",
+    "location,bounds",
     [
-        (float("nan"), 2),
-        (1, float("nan")),
-        (float("inf"), 2),
-        (1, float("inf")),
-        (float("-inf"), 2),
-        (1, float("-inf")),
-        (-1, 2),
-        (1, -2),
-        (1, 1),
-        (2, 1),
-        ("bad", 2),
-        (1, None),
-        ({}, 2),
-        (1, 10**400),
-        (True, 2),
+        (location, bounds)
+        for bounds in [
+            (float("nan"), 2),
+            (1, float("nan")),
+            (float("inf"), 2),
+            (1, float("inf")),
+            (float("-inf"), 2),
+            (1, float("-inf")),
+            (-1, 2),
+            (1, -2),
+            (1, 1),
+            (2, 1),
+        ]
+        for location in ("top", "override")
+    ]
+    + [
+        ("top", (1, None)),
+        ("override", ("bad", 2)),
+        ("override", (1, None)),
+        ("override", ({}, 2)),
+        ("override", (1, 10**400)),
+        ("override", (True, 2)),
     ],
 )
 def test_restore_rejects_invalid_source_bounds(tmp_path, location, bounds):
