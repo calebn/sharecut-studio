@@ -13,6 +13,10 @@ interface Send {
   done: Promise<void>;
 }
 
+import {
+  type DocumentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
 import type { HistoryEntryId } from "../types/project";
 import { raceTimeout } from "../utils/raceTimeout";
 
@@ -20,7 +24,10 @@ const sends = new Map<string, Send[]>();
 const finishedCount = new Map<string, number>();
 const drains = new Map<string, Promise<void>>();
 const preparing = new Map<string, Set<Promise<void>>>();
-const landed = new Map<string, { count: number; head: HistoryEntryId }>();
+const landed = new Map<
+  string,
+  { count: number; head: HistoryEntryId; scope: DocumentScope }
+>();
 
 /**
  * Publish the host drain run in progress (`requestHostDrain`). Its replays are
@@ -143,10 +150,16 @@ export function editSavesInFlight(projectPath: string): Promise<void> {
 }
 
 /** Records the history head one of this tab's own commands left, read from its reply. */
-export function noteSaveLanded(projectPath: string, head: HistoryEntryId) {
+export function noteSaveLanded(
+  projectPath: string,
+  head: HistoryEntryId,
+  scope: DocumentScope,
+) {
+  if (!isCurrentDocumentScope(scope)) return;
   landed.set(projectPath, {
     count: (landed.get(projectPath)?.count ?? 0) + 1,
     head,
+    scope,
   });
 }
 
@@ -159,7 +172,14 @@ export function savesLandedMark(projectPath: string): number {
 export function headLandedSince(
   projectPath: string,
   mark: number,
+  scope: DocumentScope,
 ): HistoryEntryId | null {
   const latest = landed.get(projectPath);
-  return latest && latest.count > mark ? latest.head : null;
+  return latest &&
+    latest.count > mark &&
+    latest.scope.path === scope.path &&
+    latest.scope.generation === scope.generation &&
+    isCurrentDocumentScope(scope)
+    ? latest.head
+    : null;
 }

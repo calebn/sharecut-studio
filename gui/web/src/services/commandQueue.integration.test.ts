@@ -317,6 +317,7 @@ describe("queued command identity and landed history", () => {
       "../state/hostSendOrder"
     );
     const mark = savesLandedMark(path);
+    const scope = (await import("../document/authorityState")).documentScope();
     const result = await submitDocumentCommand(
       path,
       "SetTrackMeta",
@@ -342,7 +343,7 @@ describe("queued command identity and landed history", () => {
       role: "viewer",
     });
     expect(result).toEqual({ ok: true, history_head_id: "h-replay-9" });
-    expect(headLandedSince(path, mark)).toBe("h-replay-9");
+    expect(headLandedSince(path, mark, scope)).toBe("h-replay-9");
   });
 
   it("allocates live defaults once and posts the identity it persisted", async () => {
@@ -443,9 +444,12 @@ describe("queued command identity and landed history", () => {
         "../state/hostSendOrder"
       );
       const mark = savesLandedMark(path);
+      const scope = (
+        await import("../document/authorityState")
+      ).documentScope();
       const result = await submitDocumentCommand(path, "SetTrackMeta", {});
       expect(result.ok).toBe(true);
-      expect(headLandedSince(path, mark)).toBeNull();
+      expect(headLandedSince(path, mark, scope)).toBeNull();
       expect(savesLandedMark(path)).toBe(mark);
     },
   );
@@ -463,6 +467,7 @@ describe("queued command identity and landed history", () => {
       "../state/hostSendOrder"
     );
     const mark = savesLandedMark(path);
+    const scope = (await import("../document/authorityState")).documentScope();
     const result = await submitDocumentCommand(
       path,
       "SetTrackMeta",
@@ -480,7 +485,7 @@ describe("queued command identity and landed history", () => {
       client_seq: 12,
     });
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(headLandedSince(path, mark)).toBeNull();
+    expect(headLandedSince(path, mark, scope)).toBeNull();
     expect(savesLandedMark(path)).toBe(mark);
   });
 

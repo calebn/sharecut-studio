@@ -217,7 +217,14 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
     it("expects where its own move landed while the tab still shows where it started", async () => {
       vi.mocked(undoHistory)
-        .mockResolvedValueOnce(head("own-landing"))
+        .mockImplementationOnce(async () => {
+          noteOwnCommandHead(documentScope(), {
+            seq: 2,
+            displayedFrom: head("seen-by-tab"),
+            head: head("own-landing"),
+          });
+          return head("own-landing");
+        })
         .mockResolvedValueOnce(null);
 
       await execute("history.undo");
@@ -302,8 +309,9 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     it("undoes from a same-tab save that landed before the press", async () => {
       const projectPath = "/tmp/ep-history-save-landed-before-undo-press";
       useDawStore.setState({ projectPath });
-      noteSaveLanded(projectPath, head("after-host-approval"));
-      noteOwnCommandHead(resetDocumentAuthority(projectPath), {
+      const scope = resetDocumentAuthority(projectPath);
+      noteSaveLanded(projectPath, head("after-host-approval"), scope);
+      noteOwnCommandHead(scope, {
         seq: 2,
         displayedFrom: head("seen-by-tab"),
         head: head("after-host-approval"),
@@ -350,8 +358,22 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         head: head("after-host-approval"),
       });
       vi.mocked(undoHistory)
-        .mockResolvedValueOnce(head("before-approval"))
-        .mockResolvedValueOnce(head("before-earlier-edit"));
+        .mockImplementationOnce(async () => {
+          noteOwnCommandHead(documentScope(), {
+            seq: 5,
+            displayedFrom: head("seen-by-tab"),
+            head: head("before-approval"),
+          });
+          return head("before-approval");
+        })
+        .mockImplementationOnce(async () => {
+          noteOwnCommandHead(documentScope(), {
+            seq: 6,
+            displayedFrom: head("seen-by-tab"),
+            head: head("before-earlier-edit"),
+          });
+          return head("before-earlier-edit");
+        });
       vi.mocked(redoHistory).mockResolvedValueOnce(head("before-approval"));
       await execute("history.undo");
       await execute("history.undo");
@@ -430,9 +452,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       const gate = new Promise<void>((resolve) => {
         finishSave = resolve;
       });
+      const scope = documentScope();
       void trackEditSave(
         "/tmp/ep",
-        gate.then(() => noteSaveLanded("/tmp/ep", head("after-trim"))),
+        gate.then(() => noteSaveLanded("/tmp/ep", head("after-trim"), scope)),
       );
       vi.mocked(undoHistory).mockResolvedValueOnce(head("before-trim"));
 
@@ -453,7 +476,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       await flushTurns();
       expect(redoHistory).not.toHaveBeenCalled();
 
-      noteSaveLanded("/tmp/ep", head("after-send"));
+      noteSaveLanded("/tmp/ep", head("after-send"), documentScope());
       send.finish();
       await undo;
       expect(vi.mocked(redoHistory).mock.calls).toEqual([
@@ -472,9 +495,12 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     });
 
     it("keeps a toast's own entry over the head a save left", async () => {
+      const scope = documentScope();
       void trackEditSave(
         "/tmp/ep",
-        Promise.resolve().then(() => noteSaveLanded("/tmp/ep", head("saved"))),
+        Promise.resolve().then(() =>
+          noteSaveLanded("/tmp/ep", head("saved"), scope),
+        ),
       );
       await execute("history.undo", { expectedHeadId: "toast-entry" });
       expect(vi.mocked(undoHistory).mock.calls).toEqual([
@@ -519,9 +545,12 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
           const slowToken = new Promise<void>((resolve) => {
             setTimeout(resolve, HOST_SEND_WAIT_MS + 1_000);
           });
+          const scope = documentScope();
           void trackEditSave(
             "/tmp/ep",
-            slowToken.then(() => noteSaveLanded("/tmp/ep", head("after-trim"))),
+            slowToken.then(() =>
+              noteSaveLanded("/tmp/ep", head("after-trim"), scope),
+            ),
           );
           const press = execute(`history.${action}`);
           await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS + 1_000);

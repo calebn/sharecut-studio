@@ -204,8 +204,9 @@ describe("host document command queue", () => {
         "./state/hostSendOrder"
       );
       const mark = savesLandedMark(path);
+      const scope = (await import("./document/authorityState")).documentScope();
       await submitDocumentCommand(path, "TrimClipEdge", {});
-      expect(headLandedSince(path, mark)).toBe("h-7");
+      expect(headLandedSince(path, mark, scope)).toBe("h-7");
     });
 
     it("is not recorded for a command that only queued", async () => {
@@ -224,9 +225,10 @@ describe("host document command queue", () => {
         "./state/hostSendOrder"
       );
       const mark = savesLandedMark(path);
+      const scope = (await import("./document/authorityState")).documentScope();
       const result = await submitDocumentCommand(path, "TrimClipEdge", {});
       expect(result).toMatchObject({ queued: true });
-      expect(headLandedSince(path, mark)).toBeNull();
+      expect(headLandedSince(path, mark, scope)).toBeNull();
     });
   });
 

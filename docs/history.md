@@ -220,9 +220,8 @@ mix saves. A completed own command reply can name that head before the display
 catches up. The tab keeps that reply only in the current document generation,
 while its server sequence is ahead of the applied document, recovery has not
 observed a newer sequence, and the displayed predecessor is unchanged. An applied
-peer update or reopening the project ends that knowledge. When the display still
-predates a successful own history move, the next move uses its returned head
-until the applied document advances. A press made while
+peer update or reopening the project ends that knowledge. Successful own history
+moves use the same reply observation and expiry rules. A press made while
 an earlier move is in flight waits for that reply and expects the head the reply
 returned (`history_head_id`), so pressing Mod+Z twice quickly undoes two changes: the
 tab's own undo moved the head, and that is not someone else's change. A press also
@@ -230,8 +229,11 @@ waits (up to `HOST_SEND_WAIT_MS`, 5 s) behind the edit saves this tab had in fli
 when it was made: the live sends already out, and the saves still preparing their
 send, such as a trim or roll loading its boundary token (`trackEditSave` in
 `state/hostSendOrder.ts`). It then expects the head the latest of this tab's own
-commands left (`noteSaveLanded`), so Undo reverts the edit the person just made and is
-not refused as stale by it. A boundary token load that the server never answers gives up
+commands left in that document generation (`noteSaveLanded`), so Undo reverts the
+edit the person just made and is not refused as stale by it. Reopening the project
+while a press waits or flushes mix edits refuses that press without sending a
+history command. Replies from the previous generation cannot supply its head. A
+boundary token load that the server never answers gives up
 after `DOCUMENT_COMMAND_TIMEOUT_MS` (`loadBoundaryContext`), and the save is dropped with
 "The server didn't answer. Nothing was saved.", so Undo is not refused for good. Saves
 that begin after the press are not waited for. A

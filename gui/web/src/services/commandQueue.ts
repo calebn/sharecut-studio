@@ -139,7 +139,7 @@ export async function submitQueuedDocumentCommand(
     const result = await submitCommand(projectPath, type, payload, resolved);
     const head = parseHistoryEntryId(result.history_head_id);
     if (head && result.queued !== true) {
-      noteSaveLanded(projectPath, head);
+      noteSaveLanded(projectPath, head, scope);
       const seq = snapshotFromResult(result)?.server_seq ?? result.server_seq;
       if (
         typeof seq === "number" &&
