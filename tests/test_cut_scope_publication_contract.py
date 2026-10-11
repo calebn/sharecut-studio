@@ -78,7 +78,7 @@ def test_clear_to_known_peer_scope_flip_needs_available_regate_assessment(
 ):
     result, cfg = _filler(tmp_path, monkeypatch, moved=True, guest="quiet")
     peer = room(seed=1215)
-    voice(peer, 0.82, 0.97, db=-12)
+    voice(peer, 0.82, 0.92, db=-12)
     write_wav(tmp_path / "raw" / "guest.wav", peer)
     control = propose_tighten_edits(result.model_copy(deep=True), cfg, replace_existing=False)
     assert [(d.start, d.end, d.scope) for d in control.decisions] == [
