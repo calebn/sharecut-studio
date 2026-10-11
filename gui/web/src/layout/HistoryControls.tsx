@@ -6,36 +6,29 @@ import {
 } from "./useHistoryControls";
 
 type HistoryAction = "undo" | "redo";
+type HistoryVariant = "rail" | "compact";
 
 const HISTORY_COPY = {
-  undo: { label: "Undo", reason: "Nothing to undo" },
-  redo: { label: "Redo", reason: "Nothing to redo" },
+  undo: { label: "Undo", reason: "Nothing to undo", caption: "undo" },
+  redo: { label: "Redo", reason: "Nothing to redo", caption: "redo" },
 } as const;
 const HINT_MS = 3500;
 
 export function CompactHistoryControls() {
   const controls = useHistoryControls();
-  return (
-    <HistoryControls
-      {...controls}
-      className="compact-history-controls"
-      hintClassName="compact-history-hint"
-    />
-  );
+  return <HistoryControls {...controls} variant="compact" />;
 }
 
 export function HistoryControls({
   history,
   onUndo,
   onRedo,
-  className = "editing-tool-rail-history",
-  hintClassName = "editing-tool-rail-hint",
+  variant = "rail",
 }: {
   history: HistoryAvailability | null;
   onUndo: () => void;
   onRedo: () => void;
-  className?: string;
-  hintClassName?: string;
+  variant?: HistoryVariant;
 }) {
   const [blocked, setBlocked] = useState<{ action: HistoryAction } | null>(
     null,
@@ -46,26 +39,38 @@ export function HistoryControls({
     return () => window.clearTimeout(timer);
   }, [blocked]);
   if (!history) return null;
-  const reason =
-    blocked && !enabled(history, blocked.action)
-      ? HISTORY_COPY[blocked.action].reason
-      : "";
+  const blockedAction =
+    blocked && !enabled(history, blocked.action) ? blocked.action : null;
+  const reason = blockedAction ? HISTORY_COPY[blockedAction].reason : "";
 
   return (
-    <div className={className} role="group" aria-label="Undo and redo">
+    <div
+      className={
+        variant === "compact"
+          ? "compact-history-controls"
+          : "editing-tool-rail-history"
+      }
+      role="group"
+      aria-label="Undo and redo"
+    >
       <HistoryButton
         action="undo"
         available={history.canUndo}
+        showBlockedCaption={variant === "compact" && blockedAction === "undo"}
         onClick={onUndo}
         onBlocked={() => setBlocked({ action: "undo" })}
       />
       <HistoryButton
         action="redo"
         available={history.canRedo}
+        showBlockedCaption={variant === "compact" && blockedAction === "redo"}
         onClick={onRedo}
         onBlocked={() => setBlocked({ action: "redo" })}
       />
-      <span className={hintClassName} role="status">
+      <span
+        className={variant === "compact" ? "sr-only" : "editing-tool-rail-hint"}
+        role="status"
+      >
         {reason}
       </span>
     </div>
@@ -82,11 +87,13 @@ function enabled(
 function HistoryButton({
   action,
   available,
+  showBlockedCaption,
   onClick,
   onBlocked,
 }: {
   action: HistoryAction;
   available: boolean;
+  showBlockedCaption: boolean;
   onClick: () => void;
   onBlocked: () => void;
 }) {
@@ -101,7 +108,19 @@ function HistoryButton({
       aria-describedby={available ? undefined : reasonId}
       onClick={available ? onClick : onBlocked}
     >
-      <Icon name={action} size={20} />
+      <Icon
+        name={action}
+        size={20}
+        className={
+          showBlockedCaption ? "history-controls-icon--hidden" : undefined
+        }
+      />
+      {showBlockedCaption ? (
+        <span className="compact-history-caption" aria-hidden="true">
+          <span>No</span>
+          <span>{HISTORY_COPY[action].caption}</span>
+        </span>
+      ) : null}
       {available ? null : (
         <span id={reasonId} className="sr-only">
           {reason}

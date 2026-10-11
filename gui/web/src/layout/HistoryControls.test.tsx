@@ -20,7 +20,7 @@ import {
 } from "../state/hostSendOrder";
 import { minimalProject } from "../test/fixtures";
 import { HISTORY_ROOT_ID } from "../types/project";
-import { CompactHistoryControls } from "./HistoryControls";
+import { CompactHistoryControls, HistoryControls } from "./HistoryControls";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
@@ -53,6 +53,105 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("CompactHistoryControls", () => {
+  it.each(["undo", "redo"] as const)(
+    "shows the compact %s caption until its 3500 ms expiry",
+    async (action) => {
+      vi.useFakeTimers();
+      const available = { canUndo: true, canRedo: true };
+      const props = {
+        history: {
+          ...available,
+          [action === "undo" ? "canUndo" : "canRedo"]: false,
+        },
+        onUndo: vi.fn(),
+        onRedo: vi.fn(),
+        variant: "compact" as const,
+      };
+      const { rerender } = render(<HistoryControls {...props} />);
+      const button = screen.getByRole("button", {
+        name: action === "undo" ? "Undo" : "Redo",
+      });
+      fireEvent.click(button);
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription(
+        action === "undo" ? "Nothing to undo" : "Nothing to redo",
+      );
+      expect(
+        button.querySelector(".compact-history-caption")?.textContent,
+      ).toBe(`No${action}`);
+      expect(button.querySelector("svg")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+      expect(screen.getByRole("status")).toHaveTextContent(
+        action === "undo" ? "Nothing to undo" : "Nothing to redo",
+      );
+      expect(vi.getTimerCount()).toBe(1);
+      await act(() => {
+        vi.advanceTimersByTime(3499);
+      });
+      expect(
+        button.querySelector(".compact-history-caption"),
+      ).toBeInTheDocument();
+      await act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(
+        screen
+          .getByRole("button", { name: action === "undo" ? "Undo" : "Redo" })
+          .querySelector(".compact-history-caption"),
+      ).toBeNull();
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+      rerender(<HistoryControls {...props} />);
+      fireEvent.click(button);
+      await act(() => {
+        vi.advanceTimersByTime(3499);
+      });
+      expect(
+        button.querySelector(".compact-history-caption"),
+      ).toBeInTheDocument();
+      fireEvent.click(button);
+      await act(() => {
+        vi.advanceTimersByTime(3499);
+      });
+      expect(
+        screen
+          .getByRole("button", { name: action === "undo" ? "Undo" : "Redo" })
+          .querySelector(".compact-history-caption"),
+      ).toBeInTheDocument();
+      await act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      rerender(<HistoryControls {...props} />);
+      expect(
+        screen
+          .getByRole("button", { name: action === "undo" ? "Undo" : "Redo" })
+          .querySelector(".compact-history-caption"),
+      ).toBeNull();
+    },
+  );
+
+  it("clears compact feedback as soon as its action becomes available", () => {
+    const props = {
+      history: { canUndo: false, canRedo: true },
+      onUndo: vi.fn(),
+      onRedo: vi.fn(),
+      variant: "compact" as const,
+    };
+    const { rerender } = render(<HistoryControls {...props} />);
+    const button = screen.getByRole("button", { name: "Undo" });
+    fireEvent.click(button);
+    expect(
+      button.querySelector(".compact-history-caption"),
+    ).toBeInTheDocument();
+    rerender(
+      <HistoryControls {...props} history={{ canUndo: true, canRedo: true }} />,
+    );
+    expect(button.querySelector(".compact-history-caption")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
   it.each(["view", "comment"] as const)(
     "offers no history mutation to a %s guest",
     (guestMode) => {

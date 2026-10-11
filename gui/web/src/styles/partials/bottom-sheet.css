@@ -254,22 +254,25 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   gap: var(--space-1);
 }
 
-.compact-history-hint {
-  position: absolute;
-  inset-block-start: 100%;
-  inset-inline-end: var(--space-4);
-  max-inline-size: calc(100% - 2 * var(--space-4));
-  margin-block-start: var(--space-1);
-  pointer-events: none;
+.compact-history-controls .editing-tool-rail-icon {
+  position: relative;
 }
 
-.compact-history-hint:not(:empty) {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-overlay);
+.history-controls-icon--hidden {
+  visibility: hidden;
+}
+
+.compact-history-caption {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   color: var(--color-text-primary);
   font-size: var(--font-size-small);
-  text-align: end;
+  line-height: 1.1;
+  pointer-events: none;
 }
 
 .bottom-sheet-body {
