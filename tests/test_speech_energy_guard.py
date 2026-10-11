@@ -18,6 +18,7 @@ from podcast_mcp.edits.speech_energy_guard import (
 )
 from podcast_mcp.edits.timeline_ops import punch_delete
 from podcast_mcp.edits.transcript_cuts import add_remove_decision
+from podcast_mcp.engines.audio_audit import measure_timeline_rms_db
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -618,6 +619,73 @@ def _write_wav(path: Path, signal: np.ndarray) -> None:
         out.setsampwidth(2)
         out.setframerate(_SR)
         out.writeframes(data.tobytes())
+
+
+def _project_with_peer_audio(tmp_path: Path, peer: np.ndarray) -> EpisodeProject:
+    p = _two_track(duration=8.0)
+    p.meta.workspace_dir = str(tmp_path)
+    p.transcripts = []
+    signals = {"host": np.zeros_like(peer), "guest": peer}
+    for track in p.tracks:
+        assert track.media is not None
+        path = tmp_path / f"{track.id}.wav"
+        _write_wav(path, signals[track.id])
+        track.media.path = str(path)
+    return p
+
+
+@pytest.mark.parametrize("amplitude", [0.045, 0.0045], ids=["normal", "quiet"])
+def test_assess_blocks_brief_untranscribed_peer_in_long_pause(
+    tmp_path: Path, amplitude: float
+) -> None:
+    """A 100 ms peer sound at its own speech level survives a five-second cut (#1194)."""
+    clock = np.arange(8 * _SR) / _SR
+    carrier = np.sin(2 * np.pi * 220 * clock)
+    peer = np.zeros_like(clock)
+    reference = (clock >= 0.1) & (clock < 0.8)
+    brief = (clock >= 3.0) & (clock < 3.1)
+    peer[reference | brief] = amplitude * carrier[reference | brief]
+    p = _project_with_peer_audio(tmp_path, peer)
+
+    reference_rms = measure_timeline_rms_db(p, "guest", 0.1, 0.8)
+    brief_rms = measure_timeline_rms_db(p, "guest", 3.0, 3.1)
+    assert reference_rms is not None
+    assert brief_rms == pytest.approx(reference_rms, abs=0.1)
+
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON)
+
+    assert guard.other_rms_db["guest"] < -42.0
+    assert guard.blocked
+    assert guard.blocking_track_ids == ("guest",)
+    assert guard.action == "track_local"
+
+
+@pytest.mark.parametrize("amplitude", [0.045, 0.0045], ids=["normal", "quiet"])
+def test_assess_blocks_peer_attack_at_end_of_long_pause(tmp_path: Path, amplitude: float) -> None:
+    """A quiet 20 ms attack belongs to the peer speech just beyond the cut (#1194)."""
+    clock = np.arange(8 * _SR) / _SR
+    carrier = np.sin(2 * np.pi * 220 * clock)
+    peer = np.zeros_like(clock)
+    reference = (clock >= 0.1) & (clock < 0.8)
+    peer[reference] = amplitude * carrier[reference]
+    speech = (clock >= 5.98) & (clock < 6.5)
+    attack = np.minimum(1.0, (clock[speech] - 5.98) / 0.05)
+    peer[speech] = amplitude * attack * carrier[speech]
+    p = _project_with_peer_audio(tmp_path, peer)
+
+    attack_rms = measure_timeline_rms_db(p, "guest", 5.98, 6.0)
+    following_rms = measure_timeline_rms_db(p, "guest", 6.04, 6.08)
+    assert attack_rms is not None
+    assert following_rms is not None
+    assert attack_rms < -42.0
+    assert following_rms > attack_rms + 10.0
+
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON)
+
+    assert guard.other_rms_db["guest"] < -42.0
+    assert guard.blocked
+    assert guard.blocking_track_ids == ("guest",)
+    assert guard.action == "track_local"
 
 
 def _peer_word_in_cut(*, suppressed: bool = False) -> EpisodeProject:
