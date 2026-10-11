@@ -2371,6 +2371,9 @@ Saved Time and Level edits compare literal whole arrays through exact
 ancestor while the card is active. Ordinary wheel discovery exposes the whole
 card where it fits, or each feedback action where a long card cannot fit.
 Native Tab checks every intermediate compact field with its complete label.
+After Undo restores the saved envelope, the dependent Level nudge first checks
+that the compact Time output displays the restored point time; saved state and
+the client's displayed point are separate preconditions.
 The short-form refusal uses explicitly labeled HTTP `history_stale` fault
 injection after a real fade edit, whose successful save is silent.
 

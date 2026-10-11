@@ -437,6 +437,12 @@ async function undoStaysReachable(
   );
   await undo.click();
   await expect.poll(() => savedEnvelope(page)).toEqual(original);
+  await expect(
+    page
+      .locator(".nudge-row")
+      .filter({ has: page.locator(".nudge-row-label", { hasText: /^Time$/ }) })
+      .locator("output"),
+  ).toHaveText("0:16.000");
   const levelEdited = [
     { id: "env-a", time: 5, value: 1 },
     { id: "env-edge", time: 10, value: 0.8 },
