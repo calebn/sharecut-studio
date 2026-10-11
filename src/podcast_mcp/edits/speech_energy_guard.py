@@ -120,7 +120,6 @@ def _owned_peer_frames(
     half_open: bool = False,
 ) -> tuple[np.ndarray, np.ndarray] | None:
     if half_open:
-        # Both readers must use the first eligible sample and the exclusive stopping index.
         cache = caches.get(peer_track_id) if caches else None
         rate = cache.sample_rate if cache else _RMS_SAMPLE_RATE
         origin = cache.timeline_offset_sec if cache else 0.0
@@ -322,14 +321,6 @@ def measure_peer_speech(
     caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> PeerSpeechLevels | None:
-    """Peers whose own sound is speech in a span: at audible level, not owner bleed.
-
-    Local 10 ms frames use the peer's own speech and room levels, excluding concurrent
-    owner bleed. Whole-span means remain diagnostics and decide only when frames are
-    unavailable or cannot separate speech from room. ``None`` when no span is at least
-    ``min_overlap_sec`` long. Internal ``_admissible_spans`` seals positive evidence
-    to the exact half-open query spans. Calibration remains local to played audio.
-    """
     if _admissible_spans is not None and (
         not _admissible_spans
         or tuple(_admissible_spans) != tuple(timeline_spans)
