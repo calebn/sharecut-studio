@@ -47,6 +47,13 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         test["run"]
         == 'set -o pipefail\npytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\ncoverage report --fail-under=95\n'
     )
+    reports = next(step for step in pytest_steps if step.get("name") == "Upload pytest reports")
+    assert reports["if"] == "always()"
+    assert reports["with"] == {
+        "name": "pytest-reports",
+        "path": "test-results/",
+        "retention-days": 7,
+    }
     browser_steps = jobs["frontend-e2e-suites"]["steps"]
     browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
     assert browser["run"] == "npm ci\nnpx playwright install --with-deps ${{ matrix.browser }}\n"
