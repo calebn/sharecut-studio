@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redoHistory, undoHistory } from "../api";
+import {
+  documentAuthority,
+  documentScope,
+  noteOwnCommandHead,
+  resetDocumentAuthority,
+} from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
   beginHostSend,
@@ -51,6 +57,8 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       statusAnnouncement: "",
     });
     showHead("seen-by-tab");
+    resetDocumentAuthority("/tmp/ep");
+    documentAuthority.seq = 1;
   });
 
   it("sends the head this tab shows after its pending mix edits are saved", async () => {
@@ -247,6 +255,11 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       const projectPath = "/tmp/ep-history-save-landed-before-undo-press";
       useDawStore.setState({ projectPath });
       noteSaveLanded(projectPath, head("after-host-approval"));
+      noteOwnCommandHead(resetDocumentAuthority(projectPath), {
+        seq: 2,
+        displayedFrom: head("seen-by-tab"),
+        head: head("after-host-approval"),
+      });
 
       expect(await execute("history.undo")).toEqual({ status: "ok" });
 
@@ -254,6 +267,115 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         expectedHeadId: "after-host-approval",
       });
     });
+
+    it("uses an observed later peer head instead of the completed own reply", async () => {
+      noteOwnCommandHead(documentScope(), {
+        seq: 2,
+        displayedFrom: head("seen-by-tab"),
+        head: head("after-host-approval"),
+      });
+      documentAuthority.seq = 3;
+      showHead("later-peer-head");
+      await execute("history.undo");
+      expect(undoHistory).toHaveBeenCalledWith("/tmp/ep", {
+        expectedHeadId: "later-peer-head",
+      });
+    });
+
+    it("does not reuse an own reply after a newer peer delta starts recovery", async () => {
+      noteOwnCommandHead(documentScope(), {
+        seq: 2,
+        displayedFrom: head("seen-by-tab"),
+        head: head("after-host-approval"),
+      });
+      documentAuthority.phase = { kind: "recovering", minimum: 3 };
+      await execute("history.undo");
+      expect(undoHistory).toHaveBeenCalledWith("/tmp/ep", {
+        expectedHeadId: "seen-by-tab",
+      });
+    });
+
+    it("chains subsequent undo and redo while display predates the approval", async () => {
+      noteOwnCommandHead(documentScope(), {
+        seq: 4,
+        displayedFrom: head("seen-by-tab"),
+        head: head("after-host-approval"),
+      });
+      vi.mocked(undoHistory)
+        .mockResolvedValueOnce(head("before-approval"))
+        .mockResolvedValueOnce(head("before-earlier-edit"));
+      vi.mocked(redoHistory).mockResolvedValueOnce(head("before-approval"));
+      await execute("history.undo");
+      await execute("history.undo");
+      await execute("history.redo");
+      expect(vi.mocked(undoHistory).mock.calls.map((call) => call[1])).toEqual([
+        { expectedHeadId: "after-host-approval" },
+        { expectedHeadId: "before-approval" },
+      ]);
+      expect(redoHistory).toHaveBeenCalledWith("/tmp/ep", {
+        expectedHeadId: "before-earlier-edit",
+      });
+    });
+
+    it("expires a move's lagging display alias when applied peer sequence advances", async () => {
+      noteOwnCommandHead(documentScope(), {
+        seq: 2,
+        displayedFrom: head("seen-by-tab"),
+        head: head("after-host-approval"),
+      });
+      vi.mocked(undoHistory).mockResolvedValueOnce(head("before-approval"));
+      await execute("history.undo");
+      documentAuthority.seq = 3;
+      await execute("history.undo");
+      expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
+        expectedHeadId: "seen-by-tab",
+      });
+    });
+
+    it("forgets an observation and own move when the same project reopens", async () => {
+      noteOwnCommandHead(documentScope(), {
+        seq: 2,
+        displayedFrom: head("seen-by-tab"),
+        head: head("after-host-approval"),
+      });
+      vi.mocked(undoHistory).mockResolvedValueOnce(head("before-approval"));
+      await execute("history.undo");
+      noteOwnCommandHead(documentScope(), {
+        seq: 3,
+        displayedFrom: head("seen-by-tab"),
+        head: head("another-old-scope-edit"),
+      });
+      resetDocumentAuthority("/tmp/ep");
+      await execute("history.undo");
+      expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
+        expectedHeadId: "seen-by-tab",
+      });
+    });
+
+    it.each(["null", "refused"])(
+      "retains the completed own reply after a %s move",
+      async (outcome) => {
+        noteOwnCommandHead(documentScope(), {
+          seq: 2,
+          displayedFrom: head("seen-by-tab"),
+          head: head("after-host-approval"),
+        });
+        if (outcome === "null")
+          vi.mocked(undoHistory).mockResolvedValueOnce(null);
+        else
+          vi.mocked(undoHistory).mockRejectedValueOnce(
+            new ApiError("Did not undo", "history_stale", 409),
+          );
+        await execute("history.undo");
+        await execute("history.undo");
+        expect(
+          vi.mocked(undoHistory).mock.calls.map((call) => call[1]),
+        ).toEqual([
+          { expectedHeadId: "after-host-approval" },
+          { expectedHeadId: "after-host-approval" },
+        ]);
+      },
+    );
 
     it("waits for a save still loading its boundary token, then expects the head it left", async () => {
       let finishSave!: () => void;

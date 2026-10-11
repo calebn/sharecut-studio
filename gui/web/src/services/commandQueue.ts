@@ -3,11 +3,13 @@ import {
   type DocumentScope,
   documentScope,
   isCurrentDocumentScope,
+  noteOwnCommandHead,
 } from "../document/authorityState";
 import {
   beginDocumentDraft,
   finishDocumentDraft,
 } from "../document/pendingDrafts";
+import { snapshotFromResult } from "../document/projectPatch";
 /** Persisted command order, replay, conflict, and result-application policy. */
 
 import {
@@ -136,7 +138,23 @@ export async function submitQueuedDocumentCommand(
   try {
     const result = await submitCommand(projectPath, type, payload, resolved);
     const head = parseHistoryEntryId(result.history_head_id);
-    if (head) noteSaveLanded(projectPath, head);
+    if (head && result.queued !== true) {
+      noteSaveLanded(projectPath, head);
+      const seq = snapshotFromResult(result)?.server_seq ?? result.server_seq;
+      if (
+        typeof seq === "number" &&
+        Number.isSafeInteger(seq) &&
+        seq > 0 &&
+        active &&
+        useDawStore.getState().projectPath === projectPath
+      )
+        noteOwnCommandHead(scope, {
+          seq,
+          head,
+          displayedFrom:
+            useDawStore.getState().project?.history.head_id ?? null,
+        });
+    }
     if (active && isCurrentDocumentScope(scope) && result.queued !== true) {
       finishDocumentDraft(commandId);
       refreshDocumentDisplay();

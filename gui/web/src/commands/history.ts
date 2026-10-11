@@ -1,4 +1,12 @@
 import { HISTORY_STALE_CODE, redoHistory, undoHistory } from "../api";
+import {
+  type DocumentScope,
+  documentAuthority,
+  documentScope,
+  isCurrentDocumentScope,
+  ownCommandHead,
+  retireOwnCommandHead,
+} from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
   editSavesInFlight,
@@ -44,17 +52,23 @@ const moves: {
     projectPath: string;
     from: HistoryEntryId;
     to: HistoryEntryId;
+    displayedFrom: HistoryEntryId | null;
+    scope: DocumentScope;
+    seq: number;
   } | null;
 } = { tail: null, last: null };
 
-/**
- * The latest head this tab knows: the one it shows, unless it still shows
- * where its own last move started because the reply arrived before the update.
- */
 function knownHead(projectPath: string): HistoryEntryId | null {
   const shown = useDawStore.getState().project?.history.head_id ?? null;
+  const scope = documentScope();
+  const observation =
+    scope.path === projectPath ? ownCommandHead(scope, shown) : null;
+  if (observation) return observation.head;
   const last = moves.last;
-  return last?.projectPath === projectPath && shown === last.from
+  return last?.projectPath === projectPath &&
+    isCurrentDocumentScope(last.scope) &&
+    documentAuthority.seq === last.seq &&
+    (shown === last.from || shown === last.displayedFrom)
     ? last.to
     : shown;
 }
@@ -78,6 +92,7 @@ function moveHistory(
   args: Record<string, unknown>,
 ): Promise<ExecuteResult> {
   const explicit = parseHistoryEntryId(args.expectedHeadId);
+  const scope = documentScope();
   const ahead =
     moves.tail?.projectPath === projectPath ? moves.tail.landed : null;
   const knownAtPress = knownHead(projectPath);
@@ -110,6 +125,9 @@ function moveHistory(
         };
       }
       await flushPendingMix();
+      const shown = useDawStore.getState().project?.history.head_id ?? null;
+      const observation = ownCommandHead(scope, shown);
+      const seq = documentAuthority.seq;
       const expectedHeadId =
         explicit ??
         headLandedSince(projectPath, landedAtPress) ??
@@ -134,7 +152,15 @@ function moveHistory(
         throw e;
       }
       if (landed !== null) {
-        moves.last = { projectPath, from: expectedHeadId, to: landed };
+        retireOwnCommandHead(observation);
+        moves.last = {
+          projectPath,
+          from: expectedHeadId,
+          to: landed,
+          displayedFrom: shown,
+          scope,
+          seq,
+        };
       }
       return { status: "ok" };
     } finally {
