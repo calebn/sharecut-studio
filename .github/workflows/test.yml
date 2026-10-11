@@ -50,12 +50,36 @@ jobs:
       - name: Type check (strict on timebase modules)
         run: mypy
 
+      - name: Record pytest run context
+        run: |
+          mkdir -p test-results
+          {
+            printf 'Run URL: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf 'Run ID: %s\n' "$GITHUB_RUN_ID"
+            printf 'Run attempt: %s\n' "$GITHUB_RUN_ATTEMPT"
+            printf 'Event: %s\n' "$GITHUB_EVENT_NAME"
+            printf 'GITHUB_SHA: %s\n' "$GITHUB_SHA"
+            printf 'Checkout SHA: %s\n' "$(git rev-parse HEAD)"
+            python -VV
+            python - <<'PY'
+          from importlib.metadata import version
+
+          for package in ("pytest", "pytest-xdist", "pytest-cov", "coverage"):
+              print(f"{package}: {version(package)}")
+          PY
+            ffmpeg -version
+            printf 'Pytest invocation: pytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\n'
+            printf 'Worker policy: -n auto; tests/conftest.py caps automatic workers at four.\n'
+            printf 'Coverage provenance: pyproject.toml pytest addopts collect coverage and write coverage.xml; coverage report --fail-under=95 is a separate gate.\n'
+          } > test-results/context.txt
+
       - name: Run tests with coverage gate
         # Exclude HF-backed / nightly tiers (e2e_slow, e2e_real); keep fast e2e for coverage.
         # Per-test --timeout=60 comes from pyproject addopts (pytest-timeout).
         # xdist can leave pytest exit 0 even when --cov-fail-under fails; enforce via coverage.
         run: |
-          pytest -n auto -m "not e2e_slow and not e2e_real"
+          set -o pipefail
+          pytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log
           coverage report --fail-under=95
 
       - name: Docs-sync gate (PR diff)
@@ -72,6 +96,14 @@ jobs:
         with:
           name: coverage-xml
           path: coverage.xml
+
+      - name: Upload pytest reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-reports
+          path: test-results/
+          retention-days: 7
 
   # requires-python is >=3.11 but the full suite runs on 3.12. This runs the tests that pin the
   # 3.11 `wave` gap (WAVE_FORMAT_EXTENSIBLE, #1183) on the floor. Advisory: not in the

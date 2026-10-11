@@ -41,11 +41,11 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     )
     assert "cache" not in frontend_python["with"]
     pytest_steps = jobs["pytest"]["steps"]
-    test = next(step for step in pytest_steps if "coverage report" in step.get("run", ""))
+    test = next(step for step in pytest_steps if step.get("name") == "Run tests with coverage gate")
     assert "if" not in test and not test.get("continue-on-error")
     assert (
         test["run"]
-        == 'pytest -n auto -m "not e2e_slow and not e2e_real"\ncoverage report --fail-under=95\n'
+        == 'set -o pipefail\npytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\ncoverage report --fail-under=95\n'
     )
     browser_steps = jobs["frontend-e2e-suites"]["steps"]
     browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
