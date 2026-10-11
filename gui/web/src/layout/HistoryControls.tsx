@@ -33,14 +33,21 @@ export function HistoryControls({
   const [blocked, setBlocked] = useState<{ action: HistoryAction } | null>(
     null,
   );
+  const selectedActionAvailable = blocked
+    ? enabled(history, blocked.action)
+    : false;
   useEffect(() => {
     if (!blocked) return;
+    if (selectedActionAvailable) {
+      setBlocked(null);
+      return;
+    }
     const timer = window.setTimeout(() => setBlocked(null), HINT_MS);
     return () => window.clearTimeout(timer);
-  }, [blocked]);
+  }, [blocked, selectedActionAvailable]);
   if (!history) return null;
   const blockedAction =
-    blocked && !enabled(history, blocked.action) ? blocked.action : null;
+    blocked && !selectedActionAvailable ? blocked.action : null;
   const reason = blockedAction ? HISTORY_COPY[blockedAction].reason : "";
 
   return (
