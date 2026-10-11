@@ -53,6 +53,27 @@ The helper fails closed on required checks, a moved head, a base other than `mai
 an ambiguous issue link, a missing or lost live claim, missing merging stage labels,
 holds, unresolved review threads, won't-do items, or an unmergeable PR.
 Its JSON result is an additional predicate, not the native independent verdict.
+
+Run the helper as its own tool action. Capture the process exit status and
+retain the JSON receipt. Before a separate merge action, require all of these:
+
+- The helper exits with status `0`.
+- `mergeable` is `true`.
+- `head_sha` is non-null and equals the expected verified PR head.
+- `blockers` is an empty list.
+
+A command error, malformed or missing JSON, an API failure such as HTTP 503,
+or a null head stops the merge invocation. Do not put the helper and merge
+on separate unchecked lines in one shell action. For a delegated owner, send
+the receipt and exit status to the root. Wait for the root to inspect them
+and issue the final merge instruction before invoking the separate merge action.
+A previous passing receipt cannot replace this immediate predicate.
+
+When qualifying this procedure, retain a PR-only failure-path demonstration.
+Use a harmless command as the merge stand-in. Show that both an exit-1 helper
+and an HTTP-503/null-head result invoke no stand-in, and that the all-passing
+control invokes it. Retain the commands, JSON, exit statuses, and stand-in count.
+Do not invoke a real merge to test a failure path.
 Do not invent an issue for a contributor PR to run it.
 
 Before merge, mark the draft ready through the built-in PR tool when available,

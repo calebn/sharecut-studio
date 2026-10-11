@@ -160,6 +160,54 @@ before work on a GitHub issue.
 Create commits and PRs when the user asks to ship or clearly authorizes that work.
 Merge requires the user's current grant. Opening a PR does not grant merge authority.
 
+### Bound the outcome before coding
+
+At launch, state the observable outcome, acceptance criteria and proof, expected
+areas of change, and explicit non-goals in the run report. For issue-backed
+work, also post them on the issue. Resolve material ambiguity or larger
+prerequisites before implementation.
+
+At the first code-ready head, keep that outcome fixed. Use native batched
+fix-forward for demonstrated defects in the PR, introduced regressions, agreed
+acceptance failures, and required verification or integration blockers.
+Record independent, nonblocking discoveries as linked follow-up issues with
+evidence and their own acceptance criteria. Keep optional polish, adjacent
+redesigns, and speculative hardening out of the current run.
+
+If safe completion needs a materially larger outcome, explain the evidence and
+the smallest safe options before expanding. Do not relabel a valid blocker as
+a follow-up or weaken a check to finish. Finish work that is close. Use native
+premise reassessment for repeated failed approaches, without an arbitrary time
+limit or universal review-round cap.
+
+### Choose recurring tests deliberately
+
+In the existing PR verification notes, explain the choice for each proposed
+new check. Name the protection and its recurring cost.
+
+- A permanent CI regression test protects a unique, important future failure
+  or demonstrated defect at the cheapest reliable test level.
+- PR-only proof retains exploratory checks, broad layout sweeps, base/head
+  comparisons, listening, and deliberate broken-code probes with results and
+  reproducible steps. Promote a specific case only when it adds justified
+  durable regression protection.
+- An on-demand or scheduled suite repeats expensive compatibility, performance,
+  or real-media checks under an explicit policy.
+
+For a new expensive browser case, explain why browser-level proof and each
+matrix dimension are necessary. Extend or consolidate equivalent coverage
+instead of multiplying every case across themes, sizes, browsers, and states.
+Review recurring runtime and runner cost alongside code size.
+
+Owner listening approval establishes that the example sounds acceptable.
+It does not require future runs to reproduce identical cut timestamps or
+waveforms. Explicit timing requirements and narrow invariants, such as
+untouched audio and preview/approval fidelity, remain separate contracts.
+
+Existing required checks and test inventories remain in force. Moving or
+removing them requires an explicit policy decision and an equivalent-assurance
+rationale. A useful one-off proof does not itself justify recurring CI.
+
 ### Review evidence
 
 Screenshots, receipts and before/after records for one issue belong in the PR description or a PR comment. Do not commit `docs/issue-<n>/` folders: rebase-merge keeps every commit, so evidence added and later removed still stays in `main`'s history. Durable findings go into the doc that owns the behavior. `tests/test_docs_layout.py` fails when a tracked `docs/issue-<n>/` path exists.
@@ -179,6 +227,14 @@ verdict, and applicable owner listening or product approval before an authorized
 For an issue-backed PR, `scripts/poteto_issue_gate.py` adds a manual, read-only,
 fail-closed repository predicate. Its success does not replace native Shipping or
 grant permission to merge. Do not invent an issue for a contributor PR to call it.
+
+Run that immediate predicate as a separate tool action and capture its exit
+status and JSON. Before the separate merge action, require exit `0`,
+`mergeable=true`, the expected non-null `head_sha`, and an empty `blockers` list.
+An API failure stops the merge invocation. Delegated owners wait for the root
+to inspect the receipt and give the final merge instruction. Follow the
+[Git policy failure-path qualification](../.agents/skills/sharecut-poteto/references/git-workflow.md#verify-an-authorized-merge)
+with a harmless stand-in and retain the proof on the PR.
 
 ## Docs in sync
 

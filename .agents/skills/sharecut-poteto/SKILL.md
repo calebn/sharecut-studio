@@ -18,13 +18,17 @@ description: Use for Sharecut repository contributor work, issue implementation,
    Read its model configuration when the native instructions require it.
    If native Poteto is absent, report the missing dependency and stop contributor
    execution. Do not substitute another workflow or vendor upstream files here.
-4. Route the user's request through native Poteto. Read each selected native
+4. State the observable outcome, acceptance criteria and proof, expected areas
+   of change, and non-goals before coding. Follow the
+   [scope and verification guidance](../../../docs/contributing.md#bound-the-outcome-before-coding)
+   when launching a contributor run and preparing PR verification notes.
+5. Route the user's request through native Poteto. Read each selected native
    playbook and routed skill from the discovered installation. Resolve native
    relative paths against that installation, including upstream-source audit paths
    that name another repository. Do not create a local copy of that repository layout.
    Native Poteto owns the procedure, delegation, review, feedback, and Shipping.
    Apply this repository's draft-PR and rebase-merge overrides.
-5. Keep the applicable podcast, Impeccable, and product skills active.
+6. Keep the applicable podcast, Impeccable, and product skills active.
    Select the least expensive capable verified runtime model and reasoning effort
    for each role. Follow the operator's model restrictions and assess a specific
    capability need before choosing a premium model. Record the choice and reason.

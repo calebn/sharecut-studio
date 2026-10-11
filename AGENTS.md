@@ -21,6 +21,9 @@ Read its [Git policy](.agents/skills/sharecut-poteto/references/git-workflow.md)
 and [issue claims](.agents/skills/sharecut-poteto/references/issue-claims.md)
 before implementation. Native Poteto owns the procedure. Repository engineering,
 product, security, and CSS approval rules still apply.
+State the outcome, acceptance proof, affected areas, and non-goals before coding.
+Follow [contributor scope and proof guidance](docs/contributing.md#bound-the-outcome-before-coding)
+through code-ready review and PR delivery.
 
 ## SOLID / DRY (short)
 
