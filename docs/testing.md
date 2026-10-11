@@ -13,18 +13,18 @@ Pytest is configured in `pyproject.toml` to **fail if line+branch coverage drops
 Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
 
 Vitest uses four worker threads and two inline projects in
-`gui/web/vitest.config.ts`. The `node` project runs an explicit list of 11
-pure edit test files without DOM setup. The `jsdom` project runs the remaining
-frontend tests with `src/test/setup.ts`. Both projects use the same list to
-keep their file sets disjoint, and jsdom retains Vitest's default exclusions.
+`gui/web/vitest.config.ts`. The `node` project runs an explicit list of 17
+pure edit and timeline utility test files without DOM setup. The `jsdom` project
+runs the remaining frontend tests with `src/test/setup.ts`. Both projects use the
+same list to keep their file sets disjoint, and jsdom retains Vitest's default exclusions.
 The thread pool keeps file isolation and bounded parallelism after fork workers
 stalled on a macOS host with endpoint scanning. Keep a separate Playwright
 browser run for real-browser checks.
 
 When adding tests, name the regression risk and use the cheapest layer that
-faithfully exercises it. Pure edit calculations can use Node only when their
-imports and tested paths require no DOM or shared browser setup. Component behavior
-stays in jsdom, and browser behavior stays in Playwright. Before changing the
+faithfully exercises it. Pure edit and timeline utility calculations can use Node
+only when their imports and tested paths require no DOM or shared browser setup.
+Component behavior stays in jsdom, and browser behavior stays in Playwright. Before changing the
 Node list, compare test discovery and results across both projects and the
 full suite. Record evidence that every test runs once and retains its assertions.
 Check existing coverage before adding a permanent case. Justify each expensive

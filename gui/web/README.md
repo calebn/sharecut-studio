@@ -282,8 +282,8 @@ Mobile transcript touch E2E should wait for an indexed word chip
 CDP touch events. The first unindexed chip can be a temporary turn-level
 placeholder while the transcript hydrates.
 
-Vitest's `node` project runs 11 explicitly listed pure edit test files without
-DOM setup. Its `jsdom` project runs the remaining tests with
+Vitest's `node` project runs 17 explicitly listed pure edit and timeline utility
+test files without DOM setup. Its `jsdom` project runs the remaining tests with
 [`src/test/setup.ts`](src/test/setup.ts). Both projects inherit four worker
 threads from [`vitest.config.ts`](vitest.config.ts).
 

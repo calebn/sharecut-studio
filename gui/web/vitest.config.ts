@@ -12,6 +12,12 @@ const nodeTestFiles = [
   "src/edit/ripplePreview.test.ts",
   "src/edit/rollLimits.test.ts",
   "src/edit/trimLimits.test.ts",
+  "src/utils/time.test.ts",
+  "src/utils/timebase.test.ts",
+  "src/utils/zoom.test.ts",
+  "src/utils/snap.test.ts",
+  "src/utils/timelinePointer.test.ts",
+  "src/utils/timelineViewport.test.ts",
 ];
 
 export default defineConfig({
