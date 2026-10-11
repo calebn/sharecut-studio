@@ -59,9 +59,18 @@ block session ripple, even when a long cut dilutes its whole-span mean. New
 decision reads are at most 2 s; up to 5 s of nearby audio on either side supplies
 calibration only. Detection and context stop at the peer lane's end.
 Ripple confirmation already knows the exact removal and chosen speech. Its
-sound windows use only samples inside each half-open window after subtracting
-selected and batch-chosen spans. Speech in another window cannot be attributed
-to an earlier window. Initial proposal queries retain the outward pad. After
+sound windows derive eligible samples from current placements and the native
+reads of their surviving prefix and suffix, after subtracting selected and
+batch-chosen spans. This follows rounded source starts and reader-specific
+placement counts, including fractional placements and source origins at 8 kHz.
+Speech in another window cannot be attributed to an earlier window. A mixed
+cache sample can contain both a removed and a retained recording contribution.
+That edge supplies no calibrated decision, while usable interior frames still
+protect peer activity. Without another qualifying frame, the existing mean
+fallback applies and does not prove exact sample membership. General reader
+rounding and mixed-contribution limits remain tracked in
+[#1258](https://github.com/calebn/sharecut-studio/issues/1258).
+Initial proposal queries retain the outward pad. After
 edge protection, a non-pause cut checks only its finalized mapped removal;
 approval repeats that check on the current validated removal geometry.
 Pause cuts refresh that evidence only after a completed acoustic observation
