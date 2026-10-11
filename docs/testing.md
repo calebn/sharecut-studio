@@ -51,6 +51,27 @@ Coverage reports:
 - Terminal: missing lines after each run
 - `coverage.xml` for CI / IDE
 
+### Pytest CI reports
+
+The required `pytest` job uploads `pytest-reports` for seven days. It contains
+`pytest.log`, the native pytest terminal output; `pytest.xml`, JUnit XML with
+per-testcase durations; and `context.txt`, which records the Actions run, commit,
+Python and test-tool versions, FFmpeg version, worker invocation, marker filter, and
+coverage gate provenance. The pytest command also prints up to 100 phases that
+took at least 0.1 seconds with `--durations=100 --durations-min=0.1`.
+
+These measurements answer different questions. Pytest phase durations report
+the slowest setup, call, and teardown phases, while JUnit testcase durations
+report each test's elapsed setup, call, and teardown time by default. Summing
+those testcase durations adds work that can overlap across workers. Neither is
+the parallel suite's wall time or the Actions step or job duration. Compare the report with the recorded versions,
+run, worker policy, and coverage gate. Pytest truncates the duration list at 100
+entries, so phases below the 0.1-second cutoff and remaining phases beyond the
+100-entry limit are absent. A duration alone does not show a cause, attribute time to a
+subprocess, or prove that a change saves time. Inspect the relevant test and
+dependencies, then isolate a candidate with bounded runs before claiming a cause
+or savings.
+
 ## Python quality tooling
 
 Local mirrors of the CI `pytest` job’s static checks (config in `pyproject.toml`):
