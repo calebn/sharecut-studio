@@ -1049,6 +1049,36 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
             assert after[after != 0].tolist() == before[before != 0].tolist()
 
 
+def test_sealed_cached_samples_use_the_cache_timeline_origin(tmp_path: Path) -> None:
+    for index, removed in [(8023, False), (24023, True)]:
+        peer = np.zeros(8 * _SR)
+        peer[index * 2] = 0.045
+        p = _project_with_peer_audio(tmp_path, peer)
+        _write_wav(tmp_path / "guest.wav", peer[::2], sample_rate=8000)
+        for clip in p.clips:
+            clip.timeline_start = 0.50004
+        span = (1.50304, 3.50304)
+        forward = p.model_copy(deep=True)
+        ripple_remove_clips(forward, [span], ["host", "guest"])
+        assert np.count_nonzero(raw_timeline_samples(forward, "guest")) == (0 if removed else 1)
+        caches = build_track_rms_caches(p)
+        for cache in caches.caches.values():
+            cache.samples = cache.samples[4000:]
+            cache.timeline_offset_sec = 0.50004
+        levels = measure_peer_speech(
+            p,
+            [span],
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+            caches=caches,
+            _admissible_spans=(span,),
+        )
+        assert levels is not None
+        assert levels.speaking == (("guest",) if removed else ())
+        assert levels.unread == {}
+
+
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
 @pytest.mark.parametrize("gap", [False, True], ids=["shifted", "core_gap"])
 def test_peer_room_calibration_uses_played_context_and_core_coverage(

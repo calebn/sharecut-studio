@@ -142,7 +142,10 @@ def _removal_sample_spans(
         else:
             first = last = 0
         if cache:
-            offset = round(part.tl_start * rate) / rate
+            offset = (
+                cache.timeline_offset_sec
+                + (round(part.tl_start * rate) - round(cache.timeline_offset_sec * rate)) / rate
+            )
             left, right = offset + first / rate, offset + last / rate
             full_left, full_right = offset, offset + count / rate
         else:
@@ -310,7 +313,12 @@ def _peer_speaks_near_span(
         block_start = left
         while block_start < right - 1e-9:
             block_end = min(block_start + 2.0, right)
-            blocks.append((max(left, min(block_start, block_end - LEVEL_FRAME_SEC)), block_end))
+            read_start = (
+                max(left, min(block_start, block_end - LEVEL_FRAME_SEC))
+                if admissible_span is not None
+                else min(block_start, block_end - LEVEL_FRAME_SEC)
+            )
+            blocks.append((read_start, block_end))
             block_start = block_end
     for block_start, block_end in blocks:
         evidence = frames(
