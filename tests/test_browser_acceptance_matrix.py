@@ -176,7 +176,7 @@ def _frontend_e2e_steps() -> list[dict]:
 
 def compat_ci_engines(include: list[dict]) -> list[str]:
     rows = [entry for entry in include if entry["name"].startswith("compat")]
-    expected = [
+    baseline = [
         {
             "name": f"compat-{engine}",
             "command": f"{COMPAT_COMMAND} -- --project={engine}",
@@ -184,7 +184,19 @@ def compat_ci_engines(include: list[dict]) -> list[str]:
         }
         for engine in COMPAT_ENGINES
     ]
-    assert rows == expected, f"compat jobs must run each complete engine exactly once: {rows}"
+    sharded = [
+        {
+            "name": f"compat-{engine}-{shard}of2",
+            "command": f"{COMPAT_COMMAND} -- --project={engine} --shard={shard}/2",
+            "browser": engine,
+        }
+        for engine in COMPAT_ENGINES
+        for shard in (1, 2)
+    ]
+    assert rows in (baseline, sharded), (
+        "compat jobs must run each complete engine once, either unsharded or as two standard shards: "
+        f"{rows}"
+    )
     return list(COMPAT_ENGINES)
 
 
@@ -266,10 +278,25 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
     assert [int(shard[1]) for shard in shards if shard] == list(range(1, count + 1)), (
         "main shards must cover --shard=1/n through n/n exactly once"
     )
-    assert [entry["name"] for entry in include] == [
+    names = [entry["name"] for entry in include]
+    baseline_names = [
         *(f"main-{i}of{count}" for i in range(1, count + 1)),
         *(f"compat-{engine}" for engine in engines),
     ]
+    sharded_names = [
+        *(f"main-{i}of{count}" for i in range(1, count + 1)),
+        *(f"compat-{engine}-{shard}of2" for engine in engines for shard in (1, 2)),
+    ]
+    assert names in (baseline_names, sharded_names)
+    baseline_compat_rows = [
+        {
+            "name": f"compat-{engine}",
+            "command": f"{COMPAT_COMMAND} -- --project={engine}",
+            "browser": engine,
+        }
+        for engine in engines
+    ]
+    assert compat_ci_engines(baseline_compat_rows) == list(COMPAT_ENGINES)
     assert len({entry["name"] for entry in include}) == len(include)
     main_shards = [entry for entry in include if not entry["name"].startswith("compat")]
     assert all(entry.get("browser") == "chromium" for entry in main_shards), (
@@ -338,29 +365,57 @@ def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
 
 
 @pytest.mark.parametrize(
-    "commands",
+    ("shape", "mutation"),
     [
-        [],
-        ["chromium"],
-        ["webkit"],
-        ["chromium", "chromium", "webkit"],
-        ["chromium", "webkit --grep history"],
-        ["chromium --shard=1/2", "webkit"],
+        ("baseline", "missing"),
+        ("baseline", "duplicate"),
+        ("baseline", "filtered"),
+        ("sharded", "missing"),
+        ("sharded", "duplicate"),
+        ("sharded", "denominator"),
+        ("sharded", "wrong-engine"),
+        ("sharded", "wrong-name"),
+        ("sharded", "filtered"),
     ],
 )
-def test_ci_compat_selection_rejects_missing_duplicate_or_filtered_engines(
-    commands: list[str],
+def test_ci_compat_selection_rejects_incomplete_or_inconsistent_jobs(
+    shape: str, mutation: str
 ) -> None:
-    include = [
-        {
-            "name": f"compat-{engine}",
-            "command": f"{COMPAT_COMMAND} -- --project={engine}",
-            "browser": engine,
-        }
-        for engine in commands
-    ]
-    with pytest.raises(AssertionError, match="each complete engine exactly once"):
-        compat_ci_engines(include)
+    if shape == "baseline":
+        rows = [
+            {
+                "name": f"compat-{engine}",
+                "command": f"{COMPAT_COMMAND} -- --project={engine}",
+                "browser": engine,
+            }
+            for engine in COMPAT_ENGINES
+        ]
+    else:
+        rows = [
+            {
+                "name": f"compat-{engine}-{shard}of2",
+                "command": f"{COMPAT_COMMAND} -- --project={engine} --shard={shard}/2",
+                "browser": engine,
+            }
+            for engine in COMPAT_ENGINES
+            for shard in (1, 2)
+        ]
+
+    if mutation == "missing":
+        rows.pop()
+    elif mutation == "duplicate":
+        rows.append(dict(rows[0]))
+    elif mutation == "denominator":
+        rows[0]["command"] = rows[0]["command"].replace("1/2", "1/3")
+    elif mutation == "wrong-engine":
+        rows[0]["browser"] = "webkit"
+    elif mutation == "wrong-name":
+        rows[0]["name"] = "compat-chromium-part1"
+    elif mutation == "filtered":
+        rows[0]["command"] += " --grep=history"
+
+    with pytest.raises(AssertionError, match="compat jobs must run each complete engine"):
+        compat_ci_engines(rows)
 
 
 @pytest.mark.parametrize(
