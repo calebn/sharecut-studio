@@ -177,7 +177,11 @@ def _frontend_e2e_steps() -> list[dict]:
 def compat_ci_engines(include: list[dict]) -> list[str]:
     rows = [entry for entry in include if entry["name"].startswith("compat")]
     expected = [
-        {"name": f"compat-{engine}", "command": f"{COMPAT_COMMAND} -- --project={engine}"}
+        {
+            "name": f"compat-{engine}",
+            "command": f"{COMPAT_COMMAND} -- --project={engine}",
+            "browser": engine,
+        }
         for engine in COMPAT_ENGINES
     ]
     assert rows == expected, f"compat jobs must run each complete engine exactly once: {rows}"
@@ -267,6 +271,14 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
         *(f"compat-{engine}" for engine in engines),
     ]
     assert len({entry["name"] for entry in include}) == len(include)
+    main_shards = [entry for entry in include if not entry["name"].startswith("compat")]
+    assert all(entry.get("browser") == "chromium" for entry in main_shards), (
+        f"every main shard must install Chromium: {main_shards}"
+    )
+    declared_browsers = {entry.get("browser") for entry in include}
+    assert declared_browsers <= set(COMPAT_ENGINES), (
+        f"matrix declares an unknown browser engine: {declared_browsers}"
+    )
     steps = _frontend_e2e_steps()
     runner_steps = [
         step for step in steps if str(step.get("run", "")).strip() == "${{ matrix.command }}"
@@ -277,7 +289,22 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
     assert not runner.get("continue-on-error"), "the browser suite runner must fail its cell"
     assert "continue-on-error" not in job, f"{CI_SUITES_JOB} must fail the build"
 
-    installed = set().union(*(installed_engines(str(step.get("run", ""))) for step in steps))
+    install_runs = [
+        str(step.get("run", "")) for step in steps if _INSTALL_RE.search(str(step.get("run", "")))
+    ]
+    assert len(install_runs) == 1, f"expected one browser install step, got {install_runs}"
+    browser_expression = "${{ matrix.browser }}"
+    assert install_runs[0].count(browser_expression) == 1, (
+        f"browser install must use exactly one matrix.browser value: {install_runs[0]!r}"
+    )
+    installed_runs = [
+        install_runs[0].replace(browser_expression, entry["browser"]) for entry in include
+    ]
+    assert all("${{" not in run for run in installed_runs), (
+        f"browser install has an unresolved workflow expression: {installed_runs}"
+    )
+    installed = set().union(*(installed_engines(run) for run in installed_runs))
+    assert installed <= set(COMPAT_ENGINES), f"browser install names an unknown engine: {installed}"
     engines_with_pass = {
         ENGINE_COLUMNS[column]
         for record in _matrix().records()
@@ -325,7 +352,11 @@ def test_ci_compat_selection_rejects_missing_duplicate_or_filtered_engines(
     commands: list[str],
 ) -> None:
     include = [
-        {"name": f"compat-{engine}", "command": f"{COMPAT_COMMAND} -- --project={engine}"}
+        {
+            "name": f"compat-{engine}",
+            "command": f"{COMPAT_COMMAND} -- --project={engine}",
+            "browser": engine,
+        }
         for engine in commands
     ]
     with pytest.raises(AssertionError, match="each complete engine exactly once"):
