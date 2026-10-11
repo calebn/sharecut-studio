@@ -589,7 +589,10 @@ for (const name of ["portrait", "landscape"] as const) {
           await finger.up();
           const hint = history.getByRole("status");
           await expect(hint).toHaveText("Nothing to redo");
-          await expect(hint).toBeInViewport({ ratio: 1 });
+          await expect(redo).toHaveAccessibleDescription("Nothing to redo");
+          const caption = redo.locator(".compact-history-caption");
+          await expect(caption).toHaveText("Noredo");
+          await expect(caption).toBeInViewport({ ratio: 1 });
           const after = await geometry();
           expect(after).toEqual(before);
           expect(commands).toEqual([]);
