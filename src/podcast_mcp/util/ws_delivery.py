@@ -5,6 +5,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
+from starlette.websockets import WebSocketDisconnect
+
 from podcast_mcp.util.body_limits import relay_ws_max_size
 
 WS_SEND_TIMEOUT_S = 5.0
@@ -52,6 +54,10 @@ class SerializedWsWriter(Generic[T]):
                     self._active = asyncio.current_task()
                     try:
                         await self._write(payload)
+                    except WebSocketDisconnect:
+                        if not self._closed:
+                            self._closed = True
+                            self._close_complete.set()
                     finally:
                         self._active = None
         except TimeoutError:

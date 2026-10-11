@@ -82,6 +82,14 @@ WebSocket reports such collisions as `Error` frames with
 | `POST /api/session/state` | Viewer blob → typed commands (bootstrap / non-command-log clients); socket-down fallback for `ViewerState` |
 | `WS /api/host/ws?path=&client_id=&document_client_id=` | One host connection for session, document, and active recording planes. Session ingress accepts `Command` / `Ack` / `Presence` / `ViewerState` / `RosterRequest`; document commands remain HTTP. |
 
+If an outgoing frame, including a session `Echo`, encounters Starlette's
+`WebSocketDisconnect`, the shared `SerializedWsWriter` marks that connection closed
+and skips queued and later sends. The transport is already disconnected, so the
+writer completes without sending another close frame. A close attempt already in
+progress retains its own completion deadline. Host teardown removes subscriptions,
+the watcher lease, and presence; reconnect reads the saved session state. Other
+send errors still propagate, and slow consumers retain the existing send timeout.
+
 The `ViewerState` frame (`{"type":"ViewerState","snapshot":{…ViewerSessionSnapshot…}}`) is the WS twin of `POST /api/session/state`: the same `ViewerSessionSnapshot` model and `publish_viewer_snapshot` adapter, so both paths have identical semantics. The server ignores any `client_id` / `label` in the blob and forces the socket's own `client_id` and query `label` (a label-less socket publishes no label), so a socket cannot publish as another client or name. The server runs the adapter off the event loop (worker-thread dispatch, like the sync HTTP route) and, unlike the HTTP route, skips the `PresenceHeartbeat` (the socket carries its own `Presence` frames). It replies to the sender only with an `Echo` carrying `command.client_id`; the durable deltas it journals still fan out `Applied` to every peer through the hub, as with the HTTP route. A malformed blob or a service `ValueError` gets `{"type":"Error","code":"invalid_viewer_state",…}`, a store error gets `code: "viewer_state_failed"`, and the socket stays open, mirroring `client_seq_conflict`. `ViewerState` is host-socket only: `apply_ws_client_message`, which the guest share socket shares, ignores it.
 
 **Sparse `Applied` / `Echo` (#598, #722).** Durable session wire events carry
