@@ -13,6 +13,7 @@ falls back to words only where a peer's sound cannot be read.
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeAlias
@@ -28,8 +29,10 @@ from podcast_mcp.edits.audio_cache import (
 )
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
+from podcast_mcp.edits.session_air import lane_placements
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
 from podcast_mcp.engines.audio_audit import (
+    _RMS_SAMPLE_RATE,
     AnalysisPolicy,
     TrackRmsCacheSet,
     measure_timeline_rms_db,
@@ -42,6 +45,8 @@ from podcast_mcp.engines.session_timeline import (
     word_source_span,
 )
 from podcast_mcp.models import CutSpeechWord, EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -96,6 +101,13 @@ class PeerSpeechLevels:
     """Per peer, the spans where its own sound could not be read, so it shows nothing."""
 
 
+def _sample_boundary(point: float, rate: int, origin: float) -> float:
+    index = math.floor((point - origin) * rate)
+    if origin + index / rate < point:
+        index += 1
+    return origin + index / rate
+
+
 def _owned_peer_frames(
     project: EpisodeProject,
     peer_track_id: str,
@@ -105,8 +117,19 @@ def _owned_peer_frames(
     owner_track_ids: Collection[str],
     dominance_db: float,
     caches: TrackRmsCacheSet | None,
+    half_open: bool = False,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    end = float(np.nextafter(end, np.inf))
+    if half_open:
+        # Both readers must use the first eligible sample and the exclusive stopping index.
+        cache = caches.get(peer_track_id) if caches else None
+        rate = cache.sample_rate if cache else _RMS_SAMPLE_RATE
+        origin = cache.timeline_offset_sec if cache else 0.0
+        start, end = (
+            float(np.nextafter(_sample_boundary(point, rate, origin), np.inf))
+            for point in (start, end)
+        )
+    else:
+        end = float(np.nextafter(end, np.inf))
     levels = timeline_frame_levels_db(
         project,
         peer_track_id,
@@ -151,10 +174,15 @@ def _peer_speaks_near_span(
     owner_track_ids: Collection[str],
     dominance_db: float,
     caches: TrackRmsCacheSet | None,
+    admissible_span: tuple[float, float] | None = None,
 ) -> bool | None:
     config = JoinSpeechConfig()
-    start, end = max(0.0, span[0] - config.pad_sec), span[1] + config.pad_sec
-    if start > 0.0:
+    start, end = (
+        admissible_span
+        if admissible_span is not None
+        else (max(0.0, span[0] - config.pad_sec), span[1] + config.pad_sec)
+    )
+    if admissible_span is None and start > 0.0:
         start = float(np.nextafter(start, np.inf))
     track = project.track_by_id(peer_track_id)
     gain = track.gain_db if track else 0.0
@@ -165,7 +193,34 @@ def _peer_speaks_near_span(
     if extent is not None:
         end = min(end, extent)
 
-    def frames(lo: float, hi: float) -> tuple[np.ndarray, np.ndarray] | None:
+    coverage = merge_intervals(
+        ((part.tl_start, part.tl_end) for part in lane_placements(project, track)) if track else (),
+        gap=0.0,
+    )
+
+    def covered(lo: float, size: int, *, sealed: bool) -> np.ndarray:
+        cache = caches.get(peer_track_id) if caches else None
+        if sealed:
+            lo = _sample_boundary(
+                lo,
+                cache.sample_rate if cache else _RMS_SAMPLE_RATE,
+                cache.timeline_offset_sec if cache else 0.0,
+            )
+        elif cache:
+            lo = (
+                cache.timeline_offset_sec
+                + math.floor((lo - cache.timeline_offset_sec) * cache.sample_rate)
+                / cache.sample_rate
+            )
+        starts = lo + np.arange(size) * LEVEL_FRAME_SEC
+        mask = np.zeros(size, dtype=bool)
+        for left, right in coverage:
+            mask |= (starts >= left) & (starts + LEVEL_FRAME_SEC <= right)
+        return mask
+
+    def frames(
+        lo: float, hi: float, *, sealed: bool = False
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
         if hi - lo < LEVEL_FRAME_SEC - 1e-9:
             return None
         evidence = _owned_peer_frames(
@@ -176,10 +231,12 @@ def _peer_speaks_near_span(
             owner_track_ids=owner_track_ids,
             dominance_db=dominance_db,
             caches=caches,
+            half_open=sealed,
         )
         if evidence is None:
             return None
         levels, own = evidence
+        reference = covered(lo, levels.size, sealed=sealed)
         if lo + levels.size * LEVEL_FRAME_SEC < hi - 1e-9:
             tail = _owned_peer_frames(
                 project,
@@ -189,12 +246,16 @@ def _peer_speaks_near_span(
                 owner_track_ids=owner_track_ids,
                 dominance_db=dominance_db,
                 caches=caches,
+                half_open=sealed,
             )
             if tail is None:
                 return None
             levels = np.concatenate((levels, tail[0]))
             own = np.concatenate((own, tail[1]))
-        return levels, own
+            reference = np.concatenate(
+                (reference, covered(hi - LEVEL_FRAME_SEC, tail[0].size, sealed=sealed))
+            )
+        return levels, own, reference
 
     before = frames(max(0.0, start - 5.0), start)
     after = frames(end, min(end + 5.0, extent) if extent is not None else end + 5.0)
@@ -202,11 +263,17 @@ def _peer_speaks_near_span(
     block_start = start
     while block_start < end - 1e-9:
         block_end = min(block_start + 2.0, end)
-        evidence = frames(min(block_start, block_end - LEVEL_FRAME_SEC), block_end)
+        evidence = frames(
+            max(start, min(block_start, block_end - LEVEL_FRAME_SEC))
+            if admissible_span is not None
+            else min(block_start, block_end - LEVEL_FRAME_SEC),
+            block_end,
+            sealed=admissible_span is not None,
+        )
         if evidence is None:
             unavailable = True
         else:
-            levels, own = evidence
+            levels, own, _ = evidence
             if not bool(own.any()):
                 block_start = block_end
                 continue
@@ -221,23 +288,26 @@ def _peer_speaks_near_span(
             upper = max(
                 (
                     speech + gain
-                    for local, mask in references
+                    for local, mask, _ in references
                     if (speech := speech_level_db(local[mask] - gain, min_live_sec=0.0)) is not None
                 ),
                 default=None,
             )
-            if upper is not None:
-                room = room_floor_db(np.concatenate([local for local, _ in references]))
+            room_parts = [local[mask] for local, _, mask in references if bool(mask.any())]
+            if upper is not None and room_parts:
+                room = room_floor_db(np.concatenate(room_parts))
                 floor = max(upper - config.speech_dynamic_db, room + 6.0)
                 if upper < room + 6.0:
                     if room > upper and any(
                         bool(((local > DIGITAL_SILENCE_DB + gain) & ~mask).any())
-                        for local, mask in references
+                        for local, mask, _ in references
                     ):
                         return True
                     unavailable = True
                 elif bool((own & (levels >= floor)).any()):
                     return True
+            else:
+                unavailable = True
         block_start = block_end
     return None if unavailable else False
 
@@ -250,14 +320,25 @@ def measure_peer_speech(
     peer_track_ids: Iterable[str],
     defaults: dict[str, Any] | None = None,
     caches: TrackRmsCacheSet | None = None,
+    _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> PeerSpeechLevels | None:
     """Peers whose own sound is speech in a span: at audible level, not owner bleed.
 
     Local 10 ms frames use the peer's own speech and room levels, excluding concurrent
     owner bleed. Whole-span means remain diagnostics and decide only when frames are
     unavailable or cannot separate speech from room. ``None`` when no span is at least
-    ``min_overlap_sec`` long.
+    ``min_overlap_sec`` long. Internal ``_admissible_spans`` seals positive evidence
+    to the exact half-open query spans. Calibration remains local to played audio.
     """
+    if _admissible_spans is not None and (
+        not _admissible_spans
+        or tuple(_admissible_spans) != tuple(timeline_spans)
+        or any(not math.isfinite(s) or not math.isfinite(e) or e <= s for s, e in _admissible_spans)
+    ):
+        raise CodedValueError(
+            "Peer detection support must match the exact positive query spans.",
+            code="invalid_range",
+        )
     cfg = _guard_cfg(defaults)
     policy = AnalysisPolicy.from_defaults(defaults)
     min_other = float(cfg.get("min_other_rms_db", policy.audibility_rms_db))
@@ -304,6 +385,7 @@ def measure_peer_speech(
                 owner_track_ids=owner_track_ids,
                 dominance_db=dominance,
                 caches=caches,
+                admissible_span=(tl_start, tl_end) if _admissible_spans is not None else None,
             )
             if calibrated is None:
                 calibrated = rms >= min_other and (
@@ -424,6 +506,7 @@ def assess_cross_track_speech(
     *,
     defaults: dict[str, Any] | None = None,
     caches: TrackRmsCacheSet | None = None,
+    _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> SpeechEnergyGuardResult:
     """Return tracks that are speaking over the cut's mapped timeline window.
 
@@ -446,6 +529,7 @@ def assess_cross_track_speech(
         peer_track_ids=dialogue_track_ids(project),
         defaults=defaults,
         caches=caches,
+        _admissible_spans=_admissible_spans,
     )
     if levels is None:
         return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
@@ -515,6 +599,7 @@ def resolve_cut_scope(
     requested_scope: str = "session",
     defaults: dict[str, Any] | None = None,
     caches: TrackRmsCacheSet | None = None,
+    _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> CutScopeResolution:
     """Resolve current cut scope or report unavailable peer assessment."""
     if requested_scope == "track":
@@ -543,7 +628,13 @@ def resolve_cut_scope(
 
     try:
         guard = assess_cross_track_speech(
-            project, cut_track_id, src_start, src_end, defaults=defaults, caches=caches
+            project,
+            cut_track_id,
+            src_start,
+            src_end,
+            defaults=defaults,
+            caches=caches,
+            _admissible_spans=_admissible_spans,
         )
     except (OSError, ValueError):
         return CutScopeUnavailable()

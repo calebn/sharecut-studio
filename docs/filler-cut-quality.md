@@ -58,10 +58,20 @@ including up to the existing 60 ms outward edge pad. One qualifying frame can
 block session ripple, even when a long cut dilutes its whole-span mean. New
 decision reads are at most 2 s; up to 5 s of nearby audio on either side supplies
 calibration only. Detection and context stop at the peer lane's end.
+Ripple confirmation already knows the exact removal and chosen speech. Its
+sound windows use only samples inside each half-open window after subtracting
+selected and batch-chosen spans. Speech in another window cannot be attributed
+to an earlier window. Generic proposal queries retain the outward pad.
 The local floor is `max(S − 25 dB, R + 6 dB)`, using the peer's live-frame
 90th percentile for S and all-frame 10th percentile for R. A concurrently louder
 owner excludes a peer frame from both activity and S, with the configured
 `dominance_db`; owner speech elsewhere cannot discount that frame.
+Every raw room reference, including the decision interval's reference view,
+uses only complete frames within current peer-lane playback coverage. Real
+clip gaps and time before a shifted clip supply no reference frames. Digital
+zeros recorded inside a clip and owner-dominated raw frames remain eligible.
+Detection and own speech-level frames, whole-span means, and unread spans retain
+their existing meaning. Missing room reference uses the existing mean fallback.
 
 Whole-span RMS values remain diagnostics. If fine frames cannot be read or the
 local reference has no speech/room contrast, the existing mean threshold and

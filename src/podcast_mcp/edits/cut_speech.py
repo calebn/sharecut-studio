@@ -184,6 +184,7 @@ def _own_sound(
             peer_track_ids=[tid],
             defaults=cfg,
             caches=caches,
+            _admissible_spans=(window,),
         )
         if levels is not None and tid in levels.speaking:
             found.setdefault(tid, []).append(window)
