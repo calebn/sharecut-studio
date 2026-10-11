@@ -49,6 +49,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     )
     reports = next(step for step in pytest_steps if step.get("name") == "Upload pytest reports")
     assert reports["if"] == "always()"
+    assert reports["uses"] == "actions/upload-artifact@v7"
     assert reports["with"] == {
         "name": "pytest-reports",
         "path": "test-results/",
