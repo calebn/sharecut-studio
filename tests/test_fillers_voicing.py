@@ -520,9 +520,6 @@ def test_hit_ids_separate_track_kind_and_span() -> None:
 
 
 def test_peer_voice_inside_a_session_pause_is_reviewed(tmp_path: Path) -> None:
-    """The ripple removes the window from every track; the guest's untranscribed 100 ms
-    burst at -32 dBFS averages -45 dBFS over the 2 s window. Both the run check and
-    calibrated peer frames protect it (the lab's lana 673.3 s, in miniature)."""
     host = np.zeros(4 * RATE, dtype=np.float32)
     _voice(host, 0.2, 0.4)
     _voice(host, 3.0, 3.2)

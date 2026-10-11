@@ -159,7 +159,7 @@ def _removal_sample_spans(
         if full_right > right:
             retained.append((right, full_right))
     eligible = merge_intervals(removed)
-    # A mixed sample cannot identify its removed and retained recording contributions.
+    # Mixed sample provenance remains unresolved (#1258).
     supported = subtract_intervals(eligible, retained)
     return supported, supported != eligible
 
