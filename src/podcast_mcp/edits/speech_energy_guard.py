@@ -154,6 +154,8 @@ def _peer_speaks_near_span(
 ) -> bool | None:
     config = JoinSpeechConfig()
     start, end = max(0.0, span[0] - config.pad_sec), span[1] + config.pad_sec
+    if start > 0.0:
+        start = float(np.nextafter(start, np.inf))
     track = project.track_by_id(peer_track_id)
     gain = track.gain_db if track else 0.0
     extent = max(

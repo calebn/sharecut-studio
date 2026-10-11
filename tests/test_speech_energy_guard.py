@@ -876,8 +876,18 @@ def test_continuous_hot_peer_without_quiet_context_still_blocks(
         (6.024, 6.044, ("guest",)),
         (6.064, 6.084, ()),
         (6.062, 6.063, ("guest",)),
+        (0.941, 0.9429375, ()),
+        (0.943, 0.9430625, ("guest",)),
     ],
-    ids=["left_pad", "before_pad", "right_pad", "after_pad", "non_grid_tail"],
+    ids=[
+        "left_pad",
+        "before_pad",
+        "right_pad",
+        "after_pad",
+        "non_grid_tail",
+        "sample_before_left_pad",
+        "first_sample_in_left_pad",
+    ],
 )
 def test_peer_detection_stops_at_exact_outward_pad_boundary(
     tmp_path: Path,
