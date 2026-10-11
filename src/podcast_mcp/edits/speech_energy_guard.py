@@ -16,6 +16,7 @@ import logging
 import math
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Any, Literal, TypeAlias
 
 import numpy as np
@@ -29,6 +30,7 @@ from podcast_mcp.edits.audio_cache import (
 )
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
+from podcast_mcp.edits.ranges import SPAN_EPS_S
 from podcast_mcp.edits.session_air import lane_placements
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
 from podcast_mcp.engines.audio_audit import (
@@ -42,6 +44,7 @@ from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
+    clip_timeline_point_to_source,
     word_source_span,
 )
 from podcast_mcp.models import CutSpeechWord, EpisodeProject
@@ -107,6 +110,8 @@ def _removal_sample_spans(
     start: float,
     end: float,
     caches: TrackRmsCacheSet | None,
+    *,
+    removal_span: tuple[float, float] | None = None,
 ) -> tuple[list[tuple[float, float]], bool]:
     track = project.track_by_id(peer_track_id)
     if track is None:
@@ -115,7 +120,14 @@ def _removal_sample_spans(
     rate = cache.sample_rate if cache else _RMS_SAMPLE_RATE
     removed: list[tuple[float, float]] = []
     retained: list[tuple[float, float]] = []
+    removal_start, removal_end = removal_span if removal_span is not None else (start, end)
+    clips = iter(clips_for_track(project, peer_track_id))
     for part in lane_placements(project, track):
+        originals = []
+        for clip in clips:
+            originals.append(clip)
+            if clip.timeline_end == part.tl_end:
+                break
         source_first = round(part.src_start * rate)
         part_end = part.tl_end
         if not math.isfinite(part_end):
@@ -136,9 +148,24 @@ def _removal_sample_spans(
             first = min(count, max(0, prefix))
             last = (
                 min(count, max(first, round(part.to_source(hi) * rate) - source_first))
-                if hi < part_end
+                if hi < part_end and (end != removal_end or not originals)
                 else count
             )
+            for original in originals:
+                if original.timeline_end <= removal_end + 1e-9:
+                    continue
+                if original.timeline_start >= removal_end - 1e-9:
+                    suffix_start = original.source_start
+                elif original.timeline_start < removal_start - SPAN_EPS_S:
+                    mapped = clip_timeline_overlap_to_source(original, removal_start, removal_end)
+                    if mapped is None:
+                        continue
+                    suffix_start = mapped[1]
+                else:
+                    suffix_start = clip_timeline_point_to_source(original, removal_end)
+                physical_last = min(count, max(first, round(suffix_start * rate) - source_first))
+                last = physical_last if end == removal_end else min(last, physical_last)
+                break
         else:
             first = last = 0
         if cache:
@@ -224,6 +251,7 @@ def _peer_speaks_near_span(
     dominance_db: float,
     caches: TrackRmsCacheSet | None,
     admissible_span: tuple[float, float] | None = None,
+    removal_span: tuple[float, float] | None = None,
 ) -> bool | None:
     config = JoinSpeechConfig()
     start, end = (
@@ -304,7 +332,7 @@ def _peer_speaks_near_span(
     before = frames(max(0.0, start - 5.0), start)
     after = frames(end, min(end + 5.0, extent) if extent is not None else end + 5.0)
     decision_spans, unavailable = (
-        _removal_sample_spans(project, peer_track_id, start, end, caches)
+        _removal_sample_spans(project, peer_track_id, start, end, caches, removal_span=removal_span)
         if admissible_span is not None
         else ([(start, end)], False)
     )
@@ -375,6 +403,7 @@ def measure_peer_speech(
     defaults: dict[str, Any] | None = None,
     caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
+    _removal_spans: Sequence[tuple[float, float]] | None = None,
 ) -> PeerSpeechLevels | None:
     if _admissible_spans is not None and (
         not _admissible_spans
@@ -383,6 +412,17 @@ def measure_peer_speech(
     ):
         raise CodedValueError(
             "Peer detection support must match the exact positive query spans.",
+            code="invalid_range",
+        )
+    if _removal_spans is not None and (
+        _admissible_spans is None
+        or not _removal_spans
+        or any(not math.isfinite(s) or not math.isfinite(e) or e <= s for s, e in _removal_spans)
+        or any(left[1] > right[0] for left, right in pairwise(_removal_spans))
+        or any(sum(a <= s and e <= b for a, b in _removal_spans) != 1 for s, e in timeline_spans)
+    ):
+        raise CodedValueError(
+            "Peer removal geometry must contain each sealed query in one ordered component.",
             code="invalid_range",
         )
     cfg = _guard_cfg(defaults)
@@ -432,6 +472,16 @@ def measure_peer_speech(
                 dominance_db=dominance,
                 caches=caches,
                 admissible_span=(tl_start, tl_end) if _admissible_spans is not None else None,
+                removal_span=next(
+                    (
+                        component
+                        for component in _removal_spans
+                        if component[0] <= tl_start and tl_end <= component[1]
+                    ),
+                    None,
+                )
+                if _removal_spans is not None
+                else None,
             )
             if calibrated is None:
                 calibrated = rms >= min_other and (

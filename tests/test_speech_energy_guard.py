@@ -41,6 +41,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.timebase import SourceSec
 
 
@@ -1144,6 +1145,29 @@ def test_source_removal_preserves_nearest_even_split_endpoint(tmp_path: Path, ca
             assert np.count_nonzero(samples) == expected_count
             if not removed:
                 assert samples[samples != 0].tolist() == [0.04498291015625]
+
+
+def test_removal_geometry_requires_one_containing_component_per_sealed_query() -> None:
+    for admissible, geometry in [
+        (None, ((1.0, 3.0),)),
+        (((1.0, 3.0),), ()),
+        (((1.0, 3.0),), ((1.0, float("inf")),)),
+        (((1.0, 3.0),), ((3.0, 1.0),)),
+        (((1.0, 3.0),), ((4.0, 5.0), (1.0, 3.0))),
+        (((1.0, 3.0),), ((1.0, 3.0), (2.0, 4.0))),
+        (((1.0, 3.0),), ((1.0, 2.0), (2.5, 3.0))),
+    ]:
+        with pytest.raises(CodedValueError, match="one ordered component") as error:
+            measure_peer_speech(
+                _two_track(),
+                [(1.0, 3.0)],
+                owner_track_ids=["host"],
+                peer_track_ids=["guest"],
+                defaults=_GUARD_ON,
+                _admissible_spans=admissible,
+                _removal_spans=geometry,
+            )
+        assert error.value.code == "invalid_range"
 
 
 def test_sealed_cached_samples_use_the_cache_timeline_origin(tmp_path: Path) -> None:

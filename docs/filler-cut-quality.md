@@ -63,6 +63,11 @@ sound windows derive eligible samples from current placements and the native
 reads of their surviving prefix and suffix, after subtracting selected and
 batch-chosen spans. This follows rounded source starts and reader-specific
 placement counts, including fractional placements and source origins at 8 kHz.
+Each residual window keeps the containing live removal component as private
+geometry. The terminal original clip supplies the consuming suffix clock, using
+the existing overlap mapper from the actual lower split. Window endpoints come
+directly from the residual bounds, with shared interior edges. Selected and
+batch-chosen sound stays outside the window's evidence and diagnostics.
 Speech in another window cannot be attributed to an earlier window. A mixed
 cache sample can contain both a removed and a retained recording contribution.
 That edge supplies no calibrated decision, while usable interior frames still
