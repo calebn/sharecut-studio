@@ -277,10 +277,11 @@ times and fall back to source times when absent; zero-length spans remain valid
 for remote point selections but clipboard extraction requires a positive span.
 Mix-minus sidetone uses the shared `src/utils/audio.ts` dB conversion.
 
-Mobile transcript touch E2E should wait for an indexed word chip
-(`data-transcript-word` with `data-word-index`) before measuring its box for
-CDP touch events. The first unindexed chip can be a temporary turn-level
-placeholder while the transcript hydrates.
+Transcript touch and boundary-drag E2E tests wait for an indexed word chip
+(`data-transcript-word` with `data-word-index`) before measuring pointer
+geometry. Shell hydration can replace an unindexed turn placeholder and its
+nearby boundary mark. The restored-boundary case waits for the fixture's
+restored `dissatisfied` chip before scrolling or measuring that mark.
 
 Vitest's `node` project runs 17 explicitly listed pure edit and timeline utility
 test files without DOM setup. Its `jsdom` project runs the remaining tests with
