@@ -92,9 +92,9 @@ it("focuses only the innermost of two dialogs opened together", () => {
     </>,
   );
   const inner = screen.getByRole("dialog", { name: "Inner" });
-  // Outer queued its entry frame first; run it last so order alone cannot win.
+  const framesOuterLast = frames.reverse();
   act(() => {
-    for (const frame of frames.reverse()) frame(0);
+    for (const frame of framesOuterLast) frame(0);
   });
   expect(within(inner).getByRole("button", { name: /^Close$/ })).toHaveFocus();
 });
