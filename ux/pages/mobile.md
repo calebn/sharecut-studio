@@ -70,10 +70,15 @@ The selection sheet groups actions in this order:
 2. **You might also want…** — related commands when available
 3. **More** — available clip Cut or track Move up/down actions. Selections with no related or overflow actions omit the command region.
 
-Phone and tablet inspector sheets scroll together, including the heading,
+Ordinary phone and tablet modifier sheets scroll together, including the heading,
 actions, fields, help, errors, and audition controls. Scroll to the top to reach
 **Close**, **Expand**, and **Collapse**. Use **Expand** for more room on a short
-screen. The sheet has no drag handle.
+screen. These sheets use a taller half height and have no drag handle.
+
+The compact inspector keeps its header and actions pinned outside one bounded
+body scroller. Feedback and fields scroll together below that header. Its half
+height leaves room for the timeline, with a minimum height for its controls on
+short screens. Drag its header or use **Expand** and **Collapse** to resize it.
 
 To adjust a track's volume envelope, open track details and choose **Add volume
 envelope** or **Edit volume envelope**. Choose **Add point** or select a point

@@ -146,8 +146,8 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 | **Purpose** | Modifier for whatever is selected (pending cut, clip fade, track FX, word, …) |
 | **Primary actions** | Approve / Reject / Restore · Play around · param edits · Close |
 | **Data shown** | Type badge · label · agent reason · source + timeline ranges · shape-specific params |
-| **Phone** | Half → full bottom sheet; never stack; Close stays reachable in the sheet chrome. Modifier fields, errors, related commands and audition footer share one body scroller; Ask scrolls in that body. Taller half peek for any modifier (clip/track/chapter too). |
-| **Tablet** | Peek sheet over timeline, docked above the tabs band (same pin/scroll as phone) |
+| **Phone** | Ordinary modifier sheets use half or full height. Heading, actions, fields, errors, related commands, and audition footer scroll together. Scroll to the top for Close, Expand, and Collapse. Ordinary modifiers use a taller half height. The compact inspector uses peek, half, and full heights with its header pinned outside one bounded body scroller. Feedback and fields scroll in that body. Sheets never stack. |
+| **Tablet** | Ordinary sheets dock above the tabs band and scroll as on phone. The compact inspector docks above the status row and keeps its header pinned outside the body scroller. |
 | **Desktop** | Side inspector pane |
 | **Empty** | “Select a clip, edit, or word” |
 | **Out of scope** | Deep nested wizards; one panel per MCP tool name |
@@ -309,7 +309,7 @@ Long-lived panels; do not stack sheets to reach these — navigate More.
 | | |
 |--|--|
 | **Purpose** | Timeline-first with peek inspector; side inspector when wide enough |
-| **Layout** | Transport (often collapsed) · headers + timeline · tabs band (~40–45%, capped to viewport); peek sheet docks above tabs. Modifier fields, errors, related commands and audition footer share one body scroller; Ask scrolls in the body. |
+| **Layout** | Transport (often collapsed) · headers + timeline · tabs band (~40–45%, capped to viewport). Ordinary modifier sheets dock above the tabs and scroll their heading, actions, fields, errors, related commands, and audition footer together. The compact inspector docks above the status row with a pinned header and one bounded body scroller for feedback and fields. |
 | **Playhead** | Moving (desktop-like), not phone fixed-center |
 | **Out of scope** | Phone bottom mode nav as primary IA |
 

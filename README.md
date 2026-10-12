@@ -129,6 +129,8 @@ Host MCP agents can read and replace it with revision checks. See the
 - [Timeline comments](docs/timeline-comments.md) — review feedback + action items (MCP/CLI/DAW)
 - [Pipeline](docs/pipeline.md)
 - [Testing](docs/testing.md)
+- [CI workflow](.github/workflows/test.yml) defines the frontend browser matrix
+  and its job timeouts, including the Chromium and WebKit compatibility jobs.
 - Editor profiling: `npm --prefix gui/web run profile:remaining` runs disposable
   workload profiles; `profile:compare` freezes or applies local diagnostic budgets.
   See [the profiling commands and limits](docs/testing.md#large-project-browser-profile-opt-in).
