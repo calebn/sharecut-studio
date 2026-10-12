@@ -409,13 +409,19 @@ Notes on reading the table:
   pushed on the day of the review). `@dnd-kit/react` 0.5.0 (MIT) is pre-1.0 and
   covers drag and drop only, not press, long press or pinch. Hammer.js is
   unmaintained.
-- Platform values, from the AOSP `ViewConfiguration.java` source:
-  `DEFAULT_LONG_PRESS_TIMEOUT = 400` ms, `TOUCH_SLOP = 8` dp (its comment calls
-  this a fallback for legacy apps), `TAP_TIMEOUT = 100` ms, key repeat 400 ms
-  then 50 ms. Apple documents `UILongPressGestureRecognizer`
-  `minimumPressDuration` as 0.5 s and `allowableMovement` as 10 pt.
-  `LONG_PRESS_MS` (500) is iOS's value and the top of Android's 400 to 500 ms
-  range. `TOUCH_SLOP_PX` (10) is iOS's value and 2 px above Android's, so a
+- Platform values. Android: `DEFAULT_LONG_PRESS_TIMEOUT = 400` ms in
+  [`ViewConfiguration.java`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/view/ViewConfiguration.java);
+  the touch slop is the resource `config_viewConfigurationTouchSlop`, which
+  [`core/res/res/values/config.xml`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/res/res/values/config.xml)
+  sets to `8dp` (the `TOUCH_SLOP = 8` in `ViewConfiguration.java` is only the
+  fallback for legacy apps). Apple documents `UILongPressGestureRecognizer`
+  [`minimumPressDuration`](https://developer.apple.com/documentation/uikit/uilongpressgesturerecognizer/minimumpressduration)
+  as 0.5 s and
+  [`allowableMovement`](https://developer.apple.com/documentation/uikit/uilongpressgesturerecognizer/allowablemovement)
+  as 10 pt. CSS px and dp are the same size on mobile browsers (the
+  device pixel ratio scales both), so comparing `TOUCH_SLOP_PX` to dp is
+  sound. `LONG_PRESS_MS` (500) is iOS's value and 100 ms above Android's
+  default. `TOUCH_SLOP_PX` (10) is iOS's value and 2 px above Android's, so a
   finger that drifts 8 to 10 px still counts as holding where Android would
   have started a scroll; the browser's own scroll slop takes over first on a
   scrollable surface. No constant changes. `gestureConstants.test.ts` now pins
@@ -433,19 +439,24 @@ evidence:
 - #1078 React Aria prototype (2026-10-06): +6,923 B gzip, no pointer code removed, router grew from 503 to 571 lines
 - #1078: the library could not express movement slop, second-finger cancel, sliding onto a chip, or tap on release
 - #1078 bounded comparison (2026-10-12), results table: neither library supplies slop, second-finger rollback or both cancel paths; @use-gesture/react adds 8.5 kB gzip, has not been released since 2024-03-21 and needs the same hand-written long press, tap and cancel code
-- #1078 platform check (2026-10-12): the constants already sit inside iOS 0.5 s and 10 pt and Android 400 to 500 ms and 8 dp
+- #1078 platform check (2026-10-12): the constants sit at iOS's 0.5 s and 10 pt, 100 ms above Android's 400 ms long press and 2 px above its 8 dp touch slop (sources in the results notes)
 - Decided under the operator's autonomous grant for #1078; the owner can still override
 enforced-by:
 - gui/web/src/timeline/gestureGovernance.test.ts::adopts no gesture package beyond the React Aria press layer (#1078)
-- gui/web/src/hooks/gestureConstants.test.ts::holds inside Android's 400 ms default and 500 ms legacy long press
+- gui/web/src/hooks/gestureConstants.test.ts::holds between Android's 400 ms default and iOS's 500 ms
 - gui/web/src/hooks/gestureConstants.test.ts::is at least Android's 8 dp touch slop and at most iOS's 10 pt
-- gui/web/src/hooks/gestureConstants.test.ts::holds for iOS's 0.5 s, inside Android's 400-500 ms
+- gui/web/src/hooks/gestureConstants.test.ts::holds for iOS's 0.5 s, a little above Android's 400 ms default
 -->
 
 Timeline touch recognition stays on native Pointer Events with the shared
 constants in `hooks/gestureConstants.ts`. No gesture package is added:
 `@use-gesture/react`, `@dnd-kit`, Hammer.js and Motion are not used for
-gestures. The one existing package, React Aria's press hooks in
+gestures. The governance guard is a denylist of known gesture and pointer
+libraries (`@use-gesture/*`, `react-use-gesture`, `@dnd-kit/*`, Hammer.js,
+`react-swipeable`, `interactjs`, Motion, React Aria's other packages). It scans
+every dependency field of `gui/web/package.json` and every import in non-test
+source. A library not on the list passes, so add its name when a new one
+appears. The one existing package, React Aria's press hooks in
 `useTouchPress.ts` and the chooser chips, stays for now. It is 1.6% of the
 bundle, and the approved phone behavior (#1051 rounds 4b to 6) was tuned with
 it. Whether the router can own the press layer itself is a follow-up, because

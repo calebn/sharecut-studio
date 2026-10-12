@@ -20,7 +20,7 @@
 
 /**
  * Hold duration before a touch press counts as a long-press: iOS's 0.5 s,
- * inside Android's 400-500 ms. The target chooser opens after this hold, and
+ * a little above Android's 400 ms default. The target chooser opens after this hold, and
  * resting on a chip this long grabs its target, so one rhythm serves both.
  */
 export const LONG_PRESS_MS = 500;

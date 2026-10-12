@@ -11,11 +11,11 @@ import {
 } from "./gestureConstants";
 
 describe("platform long-press conventions", () => {
-  it("holds for iOS's 0.5 s, inside Android's 400-500 ms", () => {
+  it("holds for iOS's 0.5 s, a little above Android's 400 ms default", () => {
     expect(LONG_PRESS_MS).toBe(500);
   });
 
-  it("holds inside Android's 400 ms default and 500 ms legacy long press", () => {
+  it("holds between Android's 400 ms default and iOS's 500 ms", () => {
     expect(LONG_PRESS_MS).toBeGreaterThanOrEqual(400);
     expect(LONG_PRESS_MS).toBeLessThanOrEqual(500);
   });
