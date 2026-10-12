@@ -162,6 +162,168 @@ describe("history command lifetime at queue admission", () => {
     },
   );
 
+  it.each(["host", "guest"] as const)(
+    "uses the landed head of a %s edit invoked behind H1 before H2 is pressed",
+    async (route) => {
+      const path =
+        route === "host"
+          ? "/tmp/history-save-order.json"
+          : "share:history-save-order";
+      const { useDawStore } = await import("../state/dawStore");
+      const { minimalProject } = await import("../test/fixtures");
+      const authority = await import("../document/authorityState");
+      const { clearRegisteredCommands, execute } = await import(
+        "../commands/execute"
+      );
+      const { _resetHistoryMovesForTests, registerHistoryCommands } =
+        await import("../commands/history");
+      const project = minimalProject();
+      useDawStore.setState({
+        projectPath: path,
+        project: {
+          ...project,
+          history: {
+            ...project.history,
+            head_id: "visible-head" as HistoryEntryId,
+            can_undo: true,
+            can_redo: true,
+          },
+        },
+      });
+      authority.resetDocumentAuthority(path);
+      clearRegisteredCommands();
+      _resetHistoryMovesForTests();
+      registerHistoryCommands();
+
+      const rows: { command_id: string; type: string; payload: object }[] = [];
+      const enqueue = (command: (typeof rows)[number]) => {
+        rows.push(command);
+        return route === "host"
+          ? { persisted: true, hadPredecessor: rows.length > 1 }
+          : undefined;
+      };
+      const remove = (_key: string, commandId: string) => {
+        const index = rows.findIndex((row) => row.command_id === commandId);
+        if (index >= 0) rows.splice(index, 1);
+      };
+      queue.enqueueHostCommand.mockImplementation(
+        async (_path, command) =>
+          enqueue(command as (typeof rows)[number]) as {
+            persisted: true;
+            hadPredecessor: boolean;
+          },
+      );
+      queue.enqueueCommand.mockImplementation(async (_token, command) => {
+        enqueue(command as (typeof rows)[number]);
+      });
+      queue.loadHostCommandQueue.mockImplementation(
+        async () => [...rows] as never,
+      );
+      queue.loadCommandQueue.mockImplementation(async () => [...rows] as never);
+      queue.removeHostQueuedCommand.mockImplementation(async (key, commandId) =>
+        remove(key, commandId),
+      );
+      queue.removeQueuedCommand.mockImplementation(async (key, commandId) =>
+        remove(key, commandId),
+      );
+
+      let releaseH1!: (response: Response) => void;
+      const h1Response = new Promise<Response>((resolve) => {
+        releaseH1 = resolve;
+      });
+      let h1Entered!: () => void;
+      const h1Started = new Promise<void>((resolve) => {
+        h1Entered = resolve;
+      });
+      let eWaiting!: () => void;
+      const eWaitStarted = new Promise<void>((resolve) => {
+        eWaiting = resolve;
+      });
+      const nativeLocks = commandLocks();
+      Object.defineProperty(navigator, "locks", {
+        configurable: true,
+        value: {
+          request: (
+            name: string,
+            options: LockOptions,
+            callback: (lock: Lock | null) => unknown,
+          ) => {
+            if (options.mode === "shared") eWaiting();
+            return nativeLocks.request(name, options, callback);
+          },
+        },
+      });
+      let serverHead = "visible-head";
+      const commandBody = (init?: RequestInit) =>
+        JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          type: string;
+          payload: { expected_head_id?: string };
+        };
+      const fetchSpy = vi.fn(
+        async (_input: RequestInfo | URL, init?: RequestInit) => {
+          const body = commandBody(init);
+          if (
+            body.type === "UndoHistory" &&
+            body.payload.expected_head_id === "visible-head"
+          ) {
+            h1Entered();
+            return h1Response;
+          }
+          if (
+            (body.type === "UndoHistory" || body.type === "RedoHistory") &&
+            body.payload.expected_head_id !== serverHead
+          ) {
+            return new Response(JSON.stringify({ detail: "history_stale" }), {
+              status: 409,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          serverHead = body.type === "AddChapter" ? "edit-head" : "undo-head";
+          return new Response(
+            JSON.stringify({
+              history_head_id: serverHead,
+              server_seq: fetchSpy.mock.calls.length,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        },
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const firstUndo = execute("history.undo");
+      await h1Started;
+      const { submitQueuedDocumentCommand } = await import("./commandQueue");
+      const edit = submitQueuedDocumentCommand(path, "AddChapter", {
+        title: "Chapter",
+        start_sec: 1,
+      });
+      await eWaitStarted;
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const secondUndo = execute("history.undo");
+
+      serverHead = "h1-head";
+      releaseH1(
+        new Response(
+          JSON.stringify({ history_head_id: "h1-head", server_seq: 1 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+      await expect(firstUndo).resolves.toMatchObject({ status: "ok" });
+      await expect(edit).resolves.toMatchObject({
+        history_head_id: "edit-head",
+      });
+      await expect(secondUndo).resolves.toMatchObject({ status: "ok" });
+
+      const historyBodies = fetchSpy.mock.calls
+        .map(([, init]) => commandBody(init))
+        .filter((body) => body.type === "UndoHistory");
+      expect(
+        historyBodies.map((body) => body.payload.expected_head_id),
+      ).toEqual(["visible-head", "edit-head"]);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    },
+  );
+
   it("refuses direct replay submission for history command types", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
