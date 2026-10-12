@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -99,7 +99,7 @@ class SpeakerSplitRequest(BaseModel):
     path: str
     track_id: str
     speaker_count: int = Field(ge=2, le=8)
-    names: list[str] | None = None
+    names: list[Annotated[str, Field(max_length=80)]] | None = Field(default=None, max_length=8)
 
 
 class ExportDeliverablesRequest(BaseModel):

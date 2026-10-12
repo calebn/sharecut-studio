@@ -100,6 +100,7 @@ describe("pipelineProgress", () => {
 
   it("uses tracks for Analyze and steps otherwise", () => {
     expect(pipelineUnitNoun("analyze")).toBe("tracks");
+    expect(pipelineUnitNoun("split_speakers")).toBe("windows");
     expect(pipelineUnitNoun("pipeline")).toBe("steps");
     expect(pipelineUnitNoun("bounce")).toBe("steps");
     expect(pipelineUnitNoun(undefined)).toBe("steps");
