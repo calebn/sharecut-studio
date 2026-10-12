@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
+import { hasValidFocusedFeedbackAction } from "../../feedback/feedbackActionFocus";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
 import { focusAndReveal } from "../../ui/focusAndReveal";
@@ -62,7 +63,11 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const initialFocus = useRef(false);
   const formKind = form?.kind ?? null;
   useEffect(() => {
-    if (!initialFocus.current && !formKind) {
+    if (
+      !initialFocus.current &&
+      !formKind &&
+      !hasValidFocusedFeedbackAction(document)
+    ) {
       focusAndReveal(points.length ? select.current : add.current);
     }
     initialFocus.current = true;

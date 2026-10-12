@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useRef } from "react";
+import { hasValidFocusedFeedbackAction } from "../feedback/feedbackActionFocus";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
 import { closeOverlay, isInnermostOverlay, openOverlay } from "./modalGate";
@@ -96,13 +97,24 @@ export function useDialogModal({
     );
 
     const focusInitial = () => {
+      const panel = panelRef.current;
+      if (
+        !isInnermostOverlay(layer) ||
+        !panel ||
+        panel !== openedPanel ||
+        !panel.isConnected ||
+        panel.closest("[inert]")
+      ) {
+        return;
+      }
+      if (
+        mode === "sheet" &&
+        hasValidFocusedFeedbackAction(panel.ownerDocument)
+      )
+        return;
       const preferred = initialFocusRef?.current;
       if (preferred) {
         preferred.focus();
-        return;
-      }
-      const panel = panelRef.current;
-      if (!panel) {
         return;
       }
       listFocusable(panel)[0]?.focus();

@@ -256,7 +256,11 @@ scrolling. Feedback presentation observes actual card intersection with the
 viewport and clipping ancestors in both compact and floating hosts. `Toast` owns the remaining visible lifetime
 and pauses it while clipped. A stable portal container moves the single card
 between floating and compact flow presentations without remounting its timer
-or guarded Undo. Store announcements and command authority
+or guarded Undo. Its native action carries the single feedback focus intent.
+Sheet and keyed inspector entry requests yield to that valid intent; actual
+navigation clears it. The current compact Close supplies the existing Toast
+return-focus ref, whose target is validated when the action disappears.
+Modal focus keeps priority. Store announcements and command authority
 remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).
 
 Frontend pointer dispatch policy lives in `gui/web/src/commands/pointer.ts`.
