@@ -29,12 +29,12 @@ import {
 } from "../state/commandSendOwnership";
 import { useDawStore } from "../state/dawStore";
 import {
-  beginHostSend,
-  HOST_SEND_WAIT_MS,
-  type HostSend,
+  beginDocumentSend,
+  DOCUMENT_SEND_WAIT_MS,
+  type DocumentSend,
   noteSaveLanded,
   trackEditSave,
-} from "../state/hostSendOrder";
+} from "../state/documentSendOrder";
 import type { QueuedCommand } from "../state/offlineStore";
 import {
   requestGuestDrainLazy,
@@ -360,7 +360,7 @@ async function submitLiveHistoryIntent(
     }
   }
 
-  const send = beginHostSend(projectPath, identity.command_id);
+  const send = beginDocumentSend(projectPath, identity.command_id);
   let queue: typeof import("../state/offlineStore") | null = null;
   try {
     queue = await import("../state/offlineStore");
@@ -431,7 +431,9 @@ async function submitCommand(
     ...(opts.structural_mode ? { structural_mode: opts.structural_mode } : {}),
   };
 
-  const send = opts.replaying ? null : beginHostSend(projectPath, command_id);
+  const send = opts.replaying
+    ? null
+    : beginDocumentSend(projectPath, command_id);
   try {
     if (isShareProjectKey(projectPath)) {
       return await submitGuestDocumentCommand(
@@ -456,7 +458,7 @@ async function submitGuestDocumentCommand(
   projectPath: string,
   body: DocumentCommandBody,
   opts: ResolvedCommandOptions,
-  send: HostSend | null,
+  send: DocumentSend | null,
 ): Promise<Record<string, unknown>> {
   const { command_id, client_seq, type, payload, bodyBase } = body;
   const token = shareTokenFromKey(projectPath)!;
@@ -543,15 +545,15 @@ async function submitGuestDocumentCommand(
 async function queueHeadAfterPriorSend(
   loadQueue: () => Promise<QueuedCommand[]>,
   commandId: string,
-  send: HostSend,
+  send: DocumentSend,
 ): Promise<QueuedCommand | null> {
   const earlier = supportsCommandSendOwnership()
     ? raceTimeout(
         send.earlier.then(() => true),
-        HOST_SEND_WAIT_MS,
+        DOCUMENT_SEND_WAIT_MS,
         () => false,
       )
-    : send.earlierWithin(HOST_SEND_WAIT_MS);
+    : send.earlierWithin(DOCUMENT_SEND_WAIT_MS);
   if (!(await earlier)) {
     return null;
   }
@@ -568,7 +570,7 @@ async function submitHostDocumentCommand(
   projectPath: string,
   body: DocumentCommandBody,
   opts: ResolvedCommandOptions,
-  send: HostSend | null,
+  send: DocumentSend | null,
 ): Promise<Record<string, unknown>> {
   const { command_id, client_seq, type, payload } = body;
   let bodyBase = body.bodyBase;

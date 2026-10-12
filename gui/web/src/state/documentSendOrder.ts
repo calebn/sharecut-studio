@@ -34,15 +34,18 @@ const landed = new Map<
  * not live sends, and it removes replayed records only when a pass ends, so a
  * live command queued behind them waits for the run too. `done` never rejects.
  */
-export function trackHostDrain(projectPath: string, done: Promise<void>): void {
+export function trackDocumentDrain(
+  projectPath: string,
+  done: Promise<void>,
+): void {
   drains.set(projectPath, done);
   void done.then(() => {
     if (drains.get(projectPath) === done) drains.delete(projectPath);
   });
 }
 
-/** The host drain run in progress for the project, or null. */
-export function activeHostDrain(projectPath: string): Promise<void> | null {
+/** The drain run in progress for the project, or null. */
+export function activeDocumentDrain(projectPath: string): Promise<void> | null {
   return drains.get(projectPath) ?? null;
 }
 
@@ -50,29 +53,29 @@ export function activeHostDrain(projectPath: string): Promise<void> | null {
  * How many live sends this tab has finished for the project. It changes only
  * after a send's own queue cleanup, so the drain re-reads the queue only then.
  */
-export function hostSendsFinished(projectPath: string): number {
+export function documentSendsFinished(projectPath: string): number {
   return finishedCount.get(projectPath) ?? 0;
 }
 
-/** How long a live host command waits behind this tab's earlier sends before it stays queued for the drain. */
-export const HOST_SEND_WAIT_MS = 5_000;
+/** How long a live command waits behind this tab's earlier sends before it stays queued for the drain. */
+export const DOCUMENT_SEND_WAIT_MS = 5_000;
 
-export interface HostSend {
+export interface DocumentSend {
   /**
    * Settles once every send begun earlier for this project has finished (all of
-   * them, not only queue records ahead; the host queue is a single FIFO).
+   * them, not only queue records ahead; each queue is a single FIFO).
    */
   earlier: Promise<void>;
-  /** True once every earlier send and then the host drain run in progress (if any) finished, false if `ms` passes first. */
+  /** True once every earlier send and then the drain run in progress (if any) finished, false if `ms` passes first. */
   earlierWithin: (ms: number) => Promise<boolean>;
   /** Mark this send finished (call from a finally block). */
   finish: () => void;
 }
 
-export function beginHostSend(
+export function beginDocumentSend(
   projectPath: string,
   commandId: string,
-): HostSend {
+): DocumentSend {
   const list = sends.get(projectPath) ?? [];
   const earlier = Promise.all(list.map((s) => s.done)).then(() => undefined);
   let resolveDone!: () => void;
@@ -85,7 +88,7 @@ export function beginHostSend(
     earlier,
     earlierWithin: (ms) =>
       raceTimeout(
-        earlier.then(() => activeHostDrain(projectPath)).then(() => true),
+        earlier.then(() => activeDocumentDrain(projectPath)).then(() => true),
         ms,
         () => false,
       ),
@@ -93,14 +96,14 @@ export function beginHostSend(
       const rest = (sends.get(projectPath) ?? []).filter((s) => s !== entry);
       if (rest.length > 0) sends.set(projectPath, rest);
       else sends.delete(projectPath);
-      finishedCount.set(projectPath, hostSendsFinished(projectPath) + 1);
+      finishedCount.set(projectPath, documentSendsFinished(projectPath) + 1);
       resolveDone();
     },
   };
 }
 
 /** This tab's in-flight live send of `commandId`, settling when it finishes; null if none. */
-export function hostSendDone(
+export function documentSendDone(
   projectPath: string,
   commandId: string,
 ): Promise<void> | null {

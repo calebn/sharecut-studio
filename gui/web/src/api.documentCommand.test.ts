@@ -22,9 +22,9 @@ vi.mock("./document/applyDocumentUpdate", () => ({
 
 vi.mock("./state/drainOfflineQueue", () => ({ requestHostDrain }));
 
-vi.mock("./state/hostSendOrder", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./state/hostSendOrder")>()),
-  HOST_SEND_WAIT_MS: 200,
+vi.mock("./state/documentSendOrder", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./state/documentSendOrder")>()),
+  DOCUMENT_SEND_WAIT_MS: 200,
 }));
 
 vi.mock("./state/offlineStore", () => ({
@@ -205,7 +205,7 @@ describe("host document command queue", () => {
       );
       const { submitDocumentCommand } = await import("./api");
       const { headLandedSince, savesLandedMark } = await import(
-        "./state/hostSendOrder"
+        "./state/documentSendOrder"
       );
       const mark = savesLandedMark(path);
       const scope = (await import("./document/authorityState")).documentScope();
@@ -226,7 +226,7 @@ describe("host document command queue", () => {
       );
       const { submitDocumentCommand } = await import("./api");
       const { headLandedSince, savesLandedMark } = await import(
-        "./state/hostSendOrder"
+        "./state/documentSendOrder"
       );
       const mark = savesLandedMark(path);
       const scope = (await import("./document/authorityState")).documentScope();
@@ -298,9 +298,9 @@ describe("host document command queue", () => {
     });
 
     it("waits for the drain pass in progress before re-reading the queue head", async () => {
-      const { trackHostDrain } = await import("./state/hostSendOrder");
+      const { trackDocumentDrain } = await import("./state/documentSendOrder");
       let finishDrain!: () => void;
-      trackHostDrain(
+      trackDocumentDrain(
         path,
         new Promise<void>((r) => {
           finishDrain = r;

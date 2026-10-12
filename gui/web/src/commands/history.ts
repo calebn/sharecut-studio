@@ -8,11 +8,11 @@ import {
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
+  DOCUMENT_SEND_WAIT_MS,
   editSavesInFlight,
-  HOST_SEND_WAIT_MS,
   headLandedSince,
   savesLandedMark,
-} from "../state/hostSendOrder";
+} from "../state/documentSendOrder";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { raceTimeout } from "../utils/raceTimeout";
@@ -64,7 +64,7 @@ function knownHead(projectPath: string): HistoryEntryId | null {
  * this tab, the head that move landed on. A press also waits behind the edit
  * saves this tab had in flight when it was made, and expects the head the
  * latest of this tab's own commands left, so Undo reverts the edit the person
- * just made. If those saves are still out after `HOST_SEND_WAIT_MS` the press
+ * just made. If those saves are still out after `DOCUMENT_SEND_WAIT_MS` the press
  * runs nothing and says the edit is still saving, rather than reverting the
  * edit before it and letting the slow one land after. A peer edit that arrives while a press waits its turn is never
  * adopted: the server refuses (`history_stale`) instead of reverting an edit
@@ -111,7 +111,7 @@ function moveHistory(
       if (afterMove) return afterMove;
       const saved = await raceTimeout(
         savesAhead.then(() => true),
-        HOST_SEND_WAIT_MS,
+        DOCUMENT_SEND_WAIT_MS,
         () => false,
       );
       const afterSave = refuseObsolete();

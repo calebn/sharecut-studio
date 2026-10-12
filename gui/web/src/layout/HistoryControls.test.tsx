@@ -18,10 +18,10 @@ import {
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
-  beginHostSend,
-  HOST_SEND_WAIT_MS,
+  beginDocumentSend,
+  DOCUMENT_SEND_WAIT_MS,
   noteSaveLanded,
-} from "../state/hostSendOrder";
+} from "../state/documentSendOrder";
 import { minimalProject } from "../test/fixtures";
 import { HISTORY_ROOT_ID } from "../types/project";
 import { CompactHistoryControls, HistoryControls } from "./HistoryControls";
@@ -320,7 +320,7 @@ describe("CompactHistoryControls", () => {
     const move = action === "undo" ? undoHistory : redoHistory;
     it(`waits for this tab's save before header ${label}`, async () => {
       const scopeAtPress = documentScope();
-      const save = beginHostSend("/tmp/history-controls", `save-${action}`);
+      const save = beginDocumentSend("/tmp/history-controls", `save-${action}`);
       render(<CompactHistoryControls />);
       fireEvent.click(screen.getByRole("button", { name: label }));
       await act(async () => {
@@ -339,12 +339,15 @@ describe("CompactHistoryControls", () => {
 
     it(`refuses header ${label} while a save remains pending`, async () => {
       vi.useFakeTimers();
-      const save = beginHostSend("/tmp/history-controls", `stalled-${action}`);
+      const save = beginDocumentSend(
+        "/tmp/history-controls",
+        `stalled-${action}`,
+      );
       try {
         render(<CompactHistoryControls />);
         fireEvent.click(screen.getByRole("button", { name: label }));
         await act(async () => {
-          await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS);
+          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS);
         });
         expect(move).not.toHaveBeenCalled();
         expect(useDawStore.getState().statusAnnouncement).toBe(
