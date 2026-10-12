@@ -9,7 +9,7 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("retains an admitted ordinary edit while completed guest history is removed", async () => {
+function stubSerializedIndexedDb(): void {
   const rows = new Map<string, unknown>();
   let transactions = Promise.resolve();
   vi.stubGlobal("indexedDB", {
@@ -59,6 +59,10 @@ it("retains an admitted ordinary edit while completed guest history is removed",
       return req;
     },
   });
+}
+
+it("retains an admitted ordinary edit while completed guest history is removed", async () => {
+  stubSerializedIndexedDb();
   const history: QueuedCommand = {
     client_id: "guest",
     command_id: "H",
@@ -81,4 +85,34 @@ it("retains an admitted ordinary edit while completed guest history is removed",
     removeQueuedCommand("guest", "completed-A"),
   ]);
   expect(await loadCommandQueue("guest")).toEqual([edit]);
+});
+
+it("keeps a prior client's rows ahead of a new client's row admitted during their re-admission and cleanup", async () => {
+  stubSerializedIndexedDb();
+  const row = (id: string, clientId: string, seq: number): QueuedCommand => ({
+    client_id: clientId,
+    command_id: id,
+    client_seq: seq,
+    type: "SetTrackMeta",
+    payload: { label: id },
+    created_at: seq,
+  });
+  const prior = row("prior-9", "viewer-prior", 9);
+  const completedHistory = {
+    ...row("history", "viewer-prior", 12),
+    type: "UndoHistory",
+    payload: {},
+  };
+  const incoming = row("new-1", "viewer-new", 1);
+  await saveCommandQueue("guest", [prior, completedHistory]);
+
+  await Promise.all([
+    enqueueCommand("guest", incoming),
+    enqueueCommand("guest", prior),
+    removeQueuedCommand("guest", "history"),
+  ]);
+
+  expect(
+    (await loadCommandQueue("guest")).map((command) => command.command_id),
+  ).toEqual(["prior-9", "new-1"]);
 });
