@@ -127,6 +127,12 @@ function timelineChromeBottom(): number {
   );
 }
 
+/** Viewport y where the bottom panel begins; the window's bottom when absent. */
+function bottomChromeTop(): number {
+  const panel = document.querySelector(".bottom-tabs");
+  return panel ? panel.getBoundingClientRect().top : window.innerHeight;
+}
+
 function touchTargetPx(): number {
   const targetRem = Number.parseFloat(
     getComputedStyle(document.documentElement).getPropertyValue("--touch-min"),
@@ -531,7 +537,7 @@ function PendingEditRegion({
             { width: panel.width, height: naturalHeight },
             {
               width: window.innerWidth,
-              height: sheetTop ?? window.innerHeight,
+              height: sheetTop ?? bottomChromeTop(),
               top: timelineChromeBottom(),
             },
             VIEWPORT_GUTTER_REM * rem,

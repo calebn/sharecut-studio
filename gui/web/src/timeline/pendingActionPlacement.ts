@@ -19,7 +19,10 @@ export interface PendingActionPlacement {
 /**
  * Place review controls outside the selected lane with a scrollable side
  * budget. `viewport.top` is where free space starts (the bottom of the sticky
- * timeline chrome), so the card never sits over the ruler.
+ * timeline chrome) and `viewport.height` is where it ends (the top of the
+ * bottom panel), so the card never sits over either. Returns null when the
+ * card cannot fit between them, leaving the review actions to the inline
+ * controls.
  */
 export function placePendingActionbar(
   anchor: PendingActionRect,
@@ -41,6 +44,9 @@ export function placePendingActionbar(
     floor,
     Math.min(anchor.bottom, viewport.height - gutter),
   );
+  if (panel.height > viewport.height - gutter - floor) {
+    return null;
+  }
   const below = Math.max(0, viewport.height - bottomEdge - gutter * 2);
   const above = Math.max(0, topEdge - floor - gutter);
   if (Math.max(above, below) === 0) {

@@ -112,12 +112,34 @@ describe("placePendingActionbar", () => {
     const position = availablePlacement(
       placePendingActionbar(
         { left: 120, top: 150, bottom: 240, width: 14 },
-        { width: 240, height: 700 },
+        { width: 240, height: 600 },
         { ...viewport, top: 140 },
         8,
       ),
     );
     expect(position.top).toBe(248);
+  });
+
+  it("leaves the actions inline when the card cannot fit between the ruler and the bottom panel", () => {
+    expect(
+      placePendingActionbar(
+        { left: 600, top: 200, bottom: 260, width: 14 },
+        { width: 240, height: 82 },
+        { width: 1280, height: 212, top: 153 },
+        8,
+      ),
+    ).toBeNull();
+  });
+
+  it("still places a card that fits between the ruler and the bottom panel", () => {
+    expect(
+      placePendingActionbar(
+        { left: 600, top: 200, bottom: 260, width: 14 },
+        { width: 240, height: 82 },
+        { width: 1280, height: 400, top: 153 },
+        8,
+      ),
+    ).toEqual({ left: 487, top: 268, maxHeight: 124 });
   });
 
   it("hides inline controls when neither side has room", () => {
