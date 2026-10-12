@@ -111,6 +111,8 @@ export interface TrackView {
   stem_is_fresh: boolean | null;
   has_source_audio?: boolean;
   media_path?: string | null;
+  /** Id of the speaker split this track is a lane of, else null. */
+  speaker_split_id?: string | null;
   /** Longest edge fade (ms) a clip on this track may take; null = uncapped. */
   fade_max_ms?: number | null;
 }

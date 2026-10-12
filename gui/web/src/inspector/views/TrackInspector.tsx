@@ -7,6 +7,7 @@ import {
   canApplyPass12,
   canEditEnvelopes,
   canIngestMedia,
+  canManageProjects,
   guestHearsMixOnly,
 } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
@@ -28,6 +29,7 @@ import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
 import { sortedVolumePoints } from "../../utils/envelopes";
 import { playTimelineRange } from "../../utils/playRange";
+import { splitSpeakersBlocker } from "../../utils/speakerSplit";
 import { ModifierInspector } from "../ModifierInspector";
 
 type EffectRow = ProjectView["effects_by_track"][string][number];
@@ -66,6 +68,9 @@ export function TrackInspector({
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const mixOnly = guestHearsMixOnly(guestMode);
+  const hostCanSplit = canManageProjects(projectPath);
+  const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
+  const splitBlockerId = `split-speakers-blocker-${track.id}`;
   const [label, setLabel] = useState(track.label);
   const [speaker, setSpeaker] = useState(track.speaker ?? "");
   const [role, setRole] = useState(track.role);
@@ -227,6 +232,16 @@ export function TrackInspector({
             <Button disabled={busy} onClick={() => void importAudio()}>
               {track.media_path ? "Replace audio…" : "Import audio…"}
             </Button>
+            {hostCanSplit ? (
+              <CommandButton
+                commandId="track.splitSpeakers"
+                args={{ trackId: track.id }}
+                disabled={busy || splitBlocker != null}
+                aria-describedby={splitBlocker ? splitBlockerId : undefined}
+              >
+                Split speakers…
+              </CommandButton>
+            ) : null}
             <CommandButton
               commandId="track.remove"
               args={{ trackId: track.id }}
@@ -236,6 +251,11 @@ export function TrackInspector({
               Remove track
             </CommandButton>
           </div>
+          {hostCanSplit && splitBlocker ? (
+            <p id={splitBlockerId} className="modifier-note">
+              {splitBlocker}
+            </p>
+          ) : null}
         </>
       ) : (
         <DefinitionList>

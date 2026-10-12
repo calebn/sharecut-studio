@@ -35,6 +35,7 @@ export type ContextPredicateId =
   | "trackInspectorSelected"
   | "canMoveSelectedTrackUp"
   | "canMoveSelectedTrackDown"
+  | "canSplitSpeakers"
   | "hasInspectorSelection"
   | "following"
   | "recordPanelOpen"

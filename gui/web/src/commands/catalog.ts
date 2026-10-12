@@ -556,6 +556,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Backspace/Delete when inspector track selected; confirms then RemoveTrack. Menu/inspector use skipWhen + trackId args.",
   },
+  "track.splitSpeakers": {
+    id: "track.splitSpeakers",
+    category: "edit",
+    label: "Split speakers…",
+    keywords: ["speakers", "one track", "interview", "room mic", "per person"],
+    when: "canSplitSpeakers",
+    notes:
+      "Opens the Split speakers dialog for the inspector track (args { trackId? }); the split runs as a job and is one undo step",
+  },
   "track.reorder": {
     id: "track.reorder",
     category: "edit",

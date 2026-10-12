@@ -161,6 +161,8 @@ class TrackView(BaseModel):
     stem_is_fresh: bool | None = None
     has_source_audio: bool = False
     media_path: str | None = None
+    # Id of the speaker split this track is a lane of (editorial.speaker_splits), else null.
+    speaker_split_id: str | None = None
     # Longest edge fade (ms) a clip on this track may take; null = uncapped. Display copy of
     # the cap set_clip_fade enforces at write time (same track_fade_max_ms resolver); every
     # TRACKS/CLIPS slice, including the one after each SetClipFade, rebuilds it.

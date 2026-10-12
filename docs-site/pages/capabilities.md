@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**118** capabilities · **102** Sharecut Studio commands · **54** keyed · **180** MCP tools · **17** skills on rows (+ **19** hub skills).
+**119** capabilities · **103** Sharecut Studio commands · **54** keyed · **180** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -59,6 +59,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Cancel blade cut | view | `edit.bladeCut.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | — | `bladeConfirmSheet` | — | — | — | — | none · none |
 | Delete clip | project | `edit.delete` | `Backspace` | — | `clipInspector` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
 | Remove track | project | `track.remove` | `Backspace` | — | `trackInspector`, `transport.menu` | `track_remove_tool` | — | — | — | none · none |
+| Split speakers… | project | `track.splitSpeakers` | — (opens a dialog that asks for the speaker count; reached from the track inspector and the command palette) | — | `SplitSpeakersDialog` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
 | Move track up | project | `track.moveUp` | `ArrowUp` | — | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Move track down | project | `track.moveDown` | `ArrowDown` | — | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |

@@ -132,6 +132,12 @@ html[data-shell="phone"] .clip-destructive-controls .ui-control {
   flex-wrap: wrap;
 }
 
+.modifier-note {
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
 .modifier-footer-actions > .modifier-action {
   display: inline-flex;
   align-items: center;

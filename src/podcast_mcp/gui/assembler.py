@@ -8,6 +8,7 @@ from typing import Any, Literal
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.join_modes import track_fade_max_ms
+from podcast_mcp.edits.speaker_split import split_for_track
 from podcast_mcp.gui.mapper import (
     map_applied_edits_to_timeline,
     map_edit_boundaries,
@@ -102,6 +103,7 @@ def build_track_views(
     track_views: list[TrackView] = []
     for track in project.tracks:
         stem = status.get("tracks", {}).get(track.id, {})
+        split = split_for_track(project, track.id)
         track_views.append(
             TrackView(
                 range_media_seal=range_media_seal(project, track.id),
@@ -121,6 +123,7 @@ def build_track_views(
                 stem_is_fresh=stem.get("stem_is_fresh"),
                 has_source_audio=track.media is not None,
                 media_path=track.media.path if track.media else None,
+                speaker_split_id=split.id if split else None,
                 fade_max_ms=track_fade_max_ms(track, defaults),
             )
         )

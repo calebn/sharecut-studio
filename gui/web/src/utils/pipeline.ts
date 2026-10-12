@@ -6,6 +6,7 @@ const PIPELINE_SLOT_KINDS = new Set<string>([
   "export",
   "render_preview",
   "analyze",
+  "split_speakers",
 ]);
 
 /** Pipeline tab jobs — not bounce/export/agent/render-preview/analyze chrome. */
@@ -15,7 +16,7 @@ export function isPipelineKindJob(
   return (job?.kind ?? "pipeline") === "pipeline";
 }
 
-/** Single-flight slot jobs (pipeline / bounce / export / render_preview / analyze). */
+/** Single-flight slot jobs (pipeline / bounce / export / render_preview / analyze / split_speakers). */
 export function isPipelineSlotJob(
   job: Pick<PipelineJobSnapshot, "kind"> | null | undefined,
 ): boolean {
