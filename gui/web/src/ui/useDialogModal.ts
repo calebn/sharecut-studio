@@ -3,6 +3,7 @@ import { focusHeld } from "./focusHold";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
 import {
+  claimEscape,
   closeOverlay,
   focusInnermostOverlay,
   isInnermostOverlay,
@@ -130,7 +131,7 @@ export function useDialogModal({
           return;
         }
         // A dialog opened over this one (a confirm over a sheet) owns Escape.
-        if (!isInnermostOverlay(layer)) {
+        if (!isInnermostOverlay(layer) || !claimEscape(e)) {
           return;
         }
         e.preventDefault();
