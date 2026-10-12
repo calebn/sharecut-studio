@@ -181,7 +181,7 @@ def _stalled_migration_report(sender: Connection, entered: Any) -> None:
     try:
         sender.send(("progress", "target entered"))
         entered.set()
-        multiprocessing.Event().wait()
+        time.sleep(60)
     finally:
         sender.close()
 
