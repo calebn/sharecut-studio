@@ -23,7 +23,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.services.document import EditService, HistoryService, PlayRequest, PlayService
 from podcast_mcp.util.timebase import SourceSec
 
 RATE = 8000
@@ -115,10 +115,20 @@ def test_public_final_delete_reload_renders_silence_and_undo_restores_audio(
     render_track_from_timeline(reloaded, reloaded.tracks[0], stem, {})
     assert (_wav_count(segment), _wav_count(stem)) == (0, 0)
     assert reloaded.tracks[0].timeline_empty is True
+    processed = PlayService(ws).play(
+        PlayRequest(source="processed:guest", start_sec=0, end_sec=1), dry_run=True
+    )
+    raw = PlayService(ws).play(
+        PlayRequest(source="track:guest", start_sec=0, end_sec=1), dry_run=True
+    )
+    assert (_wav_count(processed.wav_path), _wav_count(raw.wav_path)) == (0, 8000)
 
     HistoryService(ws).undo()
     assert ws.project.tracks[0].timeline_empty is False
     assert _counts(ws.project) == (8000, 8000)
+    HistoryService(ws).redo()
+    assert ws.project.tracks[0].timeline_empty is True
+    assert _counts(ws.project) == (0, 0)
 
 
 def test_empty_replacement_on_unclipped_ingest_preserves_implicit_audio(tmp_path: Path) -> None:
@@ -131,6 +141,61 @@ def test_empty_replacement_on_unclipped_ingest_preserves_implicit_audio(tmp_path
 
     assert _counts(project) == (8000, 8000)
     assert project.tracks[0].timeline_empty is False
+
+
+def test_empty_lane_keeps_shared_source_cache_and_placed_peer_audible(tmp_path: Path) -> None:
+    project = _project(tmp_path, np.full((RATE, 2), 0.1))
+    project.tracks.append(Track(id="peer", label="Peer", media=project.tracks[0].media))
+    project.clips.append(
+        Clip(id="peer", track_id="peer", source_start=0, source_end=1, timeline_start=0)
+    )
+    sources: dict[Path, np.ndarray] = {}
+    before = raw_timeline_samples(
+        project, "peer", sample_rate=RATE, preserve_channels=True, sources=sources
+    )
+    cached = sources[(tmp_path / "raw" / "guest.wav").resolve()]
+    set_track_clips(project, "guest", [])
+    set_track_clips(project, "guest", [])
+
+    empty = raw_timeline_samples(
+        project, "guest", sample_rate=RATE, preserve_channels=True, sources=sources
+    )
+    assert empty.shape == (8000, 2)
+    assert empty.dtype == cached.dtype == np.float32
+    assert int(np.count_nonzero(empty)) == 0
+    assert not np.shares_memory(empty, cached)
+    assert int(np.count_nonzero(cached)) == 16000
+    after = raw_timeline_samples(
+        project, "peer", sample_rate=RATE, preserve_channels=True, sources=sources
+    )
+    np.testing.assert_array_equal(after, before)
+    assert int(np.count_nonzero(after)) == 16000
+    assert project.tracks[0].timeline_empty is True
+
+
+def test_raw_readers_prioritize_placements_over_stale_empty_flag(tmp_path: Path) -> None:
+    project = _project(tmp_path, np.full((RATE, 2), 0.1))
+    project.tracks[0].timeline_empty = True
+
+    full = raw_timeline_samples(project, "guest", sample_rate=RATE, preserve_channels=True)
+    window = raw_timeline_window(
+        project, "guest", 0.25, 0.75, sample_rate=RATE, preserve_channels=True
+    )
+
+    assert full.shape == (8000, 2)
+    assert window.shape == (4000, 2)
+    assert (int(np.count_nonzero(full)), int(np.count_nonzero(window))) == (16000, 8000)
+
+
+def test_empty_raw_readers_preserve_missing_media_errors(tmp_path: Path) -> None:
+    project = _project(tmp_path, np.full((RATE, 2), 0.1))
+    set_track_clips(project, "guest", [])
+    project.tracks[0].media.path = "raw/missing.wav"
+
+    with pytest.raises(ValueError, match="could not be probed"):
+        raw_timeline_samples(project, "guest", sample_rate=RATE, preserve_channels=True)
+    with pytest.raises(FileNotFoundError):
+        raw_timeline_window(project, "guest", 0.25, 0.75, sample_rate=RATE, preserve_channels=True)
 
 
 @pytest.mark.parametrize("channels", [1, 2])
