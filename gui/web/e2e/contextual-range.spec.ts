@@ -122,6 +122,19 @@ async function undo(page: Page) {
   await page.keyboard.press("Control+z");
 }
 
+async function slowHostDocument(page: Page, delayMs: number) {
+  await page.route("**/api/document/state*", async (route) => {
+    const response = await route.fetch();
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    await route.fulfill({ response });
+  });
+  await page.routeWebSocket(/\/api\/host\/ws/, (ws) => {
+    const server = ws.connectToServer();
+    server.onMessage((message) => setTimeout(() => ws.send(message), delayMs));
+    ws.onMessage((message) => server.send(message));
+  });
+}
+
 async function rangeAxe(page: Page) {
   const result = await new AxeBuilder({ page })
     .include(".range-actions")
@@ -219,7 +232,9 @@ test("editor guest cuts a range and one host Undo restores every occurrence", as
           JSON.parse(fs.readFileSync(projectPath, "utf8")).editorial
             .edit_decisions,
         ).toHaveLength(0);
+        await slowHostDocument(page, 1500);
         await page.reload();
+        await expect(page.locator(".clip-block")).toHaveCount(4);
         await undo(page);
         await expect.poll(() => geometry(projectPath)).toEqual(before);
       } finally {
