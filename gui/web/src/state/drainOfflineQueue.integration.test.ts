@@ -267,4 +267,92 @@ describe("guest drain against the real submit layer", () => {
       expect(ids(guestQueues.get(TOKEN))).toEqual([]);
     });
   });
+
+  describe("audit: a live guest send still in flight", () => {
+    const live = async (id: string) => {
+      const { submitDocumentCommand } = await import("../api");
+      return submitDocumentCommand(
+        `share:${TOKEN}`,
+        "SetTrackMeta",
+        { label: id },
+        { command_id: id },
+      );
+    };
+    function gatedServer(held: string) {
+      const posted: string[] = [];
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_url: string, init: RequestInit) => {
+          const { command_id } = JSON.parse(init.body as string) as {
+            command_id: string;
+          };
+          posted.push(command_id);
+          if (command_id === held) await gate;
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }),
+      );
+      return { posted, release };
+    }
+
+    it("is not replayed by a drain that runs while it is in flight", async () => {
+      const { posted, release } = gatedServer("one");
+      const first = live("one");
+      await vi.waitFor(() => expect(posted).toEqual(["one"]));
+
+      const replay = drain();
+      await new Promise((r) => setTimeout(r, 50));
+      release();
+      await Promise.all([first, replay]);
+
+      expect(posted).toEqual(["one"]);
+      expect(ids(guestQueues.get(TOKEN))).toEqual([]);
+    });
+
+    it("posts a second live edit only after the first one's reply", async () => {
+      const { posted, release } = gatedServer("one");
+      const first = live("one");
+      await vi.waitFor(() => expect(posted).toEqual(["one"]));
+      const second = live("two");
+      await new Promise((r) => setTimeout(r, 50));
+      const beforeRelease = [...posted];
+      release();
+      await first;
+
+      const result = await second;
+
+      expect(beforeRelease).toEqual(["one"]);
+      expect(posted).toEqual(["one", "two"]);
+    });
+
+    it("records one Needs attention entry when a refused live edit overlaps a reconnect drain", async () => {
+      const posted: string[] = [];
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_url: string, init: RequestInit) => {
+          const { command_id } = JSON.parse(init.body as string) as {
+            command_id: string;
+          };
+          posted.push(command_id);
+          await gate;
+          return new Response("refused", { status: 409 });
+        }),
+      );
+      const first = live("bad").catch((e: unknown) => e);
+      await vi.waitFor(() => expect(posted).toEqual(["bad"]));
+      const replay = drain();
+      await new Promise((r) => setTimeout(r, 50));
+      release();
+      await Promise.all([first, replay]);
+
+      expect(guestConflicts.map((c) => c.command.command_id)).toEqual(["bad"]);
+    });
+  });
 });
