@@ -898,6 +898,7 @@ async def test_run_once_ws_dispatch_paths():
         {"type": "weird"},
     ]
     outbox: list[str] = []
+    close_sent = asyncio.Event()
     idx = {"i": 0}
 
     class _FakeLocal:
@@ -932,6 +933,8 @@ async def test_run_once_ws_dispatch_paths():
 
         async def send(self, data: str) -> None:
             outbox.append(data)
+            if "ws_close" in data:
+                close_sent.set()
 
         async def recv(self) -> str:
             i = idx["i"]
@@ -951,7 +954,7 @@ async def test_run_once_ws_dispatch_paths():
     with patch.object(websockets, "connect", side_effect=_connect):
         with pytest.raises(RuntimeError, match="test-end"):
             await asyncio.wait_for(client._run_once(), timeout=5.0)
-        await asyncio.sleep(0.1)
+        await asyncio.wait_for(close_sent.wait(), timeout=2)
 
     joined = "\n".join(outbox)
     assert "hello" in joined
