@@ -1,0 +1,192 @@
+"""Tighten judges quiet and audible against each track's own levels (#1195).
+
+Tighten reads raw, unnormalized tracks, so a fixed dBFS floor moves its proposals with the
+recording level. Every scenario here is rendered at several gains, and each gain must
+propose the same cuts with edges inside one 10 ms frame of the unscaled recording.
+"""
+
+from __future__ import annotations
+
+import wave
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+)
+
+RATE = 16_000
+SECONDS = 20
+GAINS_DB = (-18.0, -12.0, 6.0, 12.0)
+FRAME_SEC = 0.01
+SPEECH_DB = -24.0
+ROOM_DB = -68.0
+
+
+def _tone(n: int, level_db: float, f0: float = 150.0) -> np.ndarray:
+    t = np.arange(n) / RATE
+    tone = sum(np.sin(2 * np.pi * f0 * k * t) / k for k in range(1, 6))
+    return tone / np.sqrt(np.mean(tone**2)) * 10 ** (level_db / 20)
+
+
+def _voice(audio: np.ndarray, start: float, end: float, level_db: float = SPEECH_DB) -> None:
+    lo, hi = round(start * RATE), round(end * RATE)
+    audio[lo:hi] += _tone(hi - lo, level_db)
+
+
+def _decay(audio: np.ndarray, start: float, end: float, from_db: float, to_db: float) -> None:
+    """Voice whose level falls linearly in dB: the tail a word's voice leaves past its end."""
+    lo, hi = round(start * RATE), round(end * RATE)
+    shape = 10 ** (np.linspace(from_db, to_db, hi - lo) / 20)
+    audio[lo:hi] += _tone(hi - lo, 0.0) * shape
+
+
+def _fricative(audio: np.ndarray, start: float, end: float, from_db: float, to_db: float) -> None:
+    lo, hi = round(start * RATE), round(end * RATE)
+    shape = 10 ** (np.linspace(from_db, to_db, hi - lo) / 20)
+    audio[lo:hi] += np.random.default_rng(5).standard_normal(hi - lo) * shape
+
+
+def _room(seed: int, *, gated: bool = False) -> np.ndarray:
+    if gated:
+        return np.zeros(SECONDS * RATE)
+    return np.random.default_rng(seed).normal(0, 10 ** (ROOM_DB / 20), SECONDS * RATE)
+
+
+def _host(*, gated: bool) -> tuple[np.ndarray, list[TranscriptWord]]:
+    """A kept word with a decaying voice, a filler before a soft fricative, a filler that
+    runs into the next word, a filler too quiet to hear, and a murmur inside a long pause."""
+    audio = _room(11, gated=gated)
+    _voice(audio, 1.0, 1.3)
+    _decay(audio, 1.3, 1.62, SPEECH_DB, SPEECH_DB - 40.0)
+    _voice(audio, 3.0, 3.35, SPEECH_DB - 3.0)
+    _fricative(audio, 3.5, 3.62, ROOM_DB - 4.0, SPEECH_DB - 30.0)
+    _voice(audio, 3.62, 4.1)
+    _voice(audio, 6.0, 6.3, SPEECH_DB - 2.0)
+    _voice(audio, 6.3, 6.8)
+    _voice(audio, 9.0, 9.3, SPEECH_DB - 31.0)
+    _voice(audio, 9.9, 10.4)
+    _voice(audio, 11.0, 11.4)
+    _voice(audio, 12.2, 12.5, SPEECH_DB - 22.0)
+    _voice(audio, 15.0, 15.4)
+    words = [
+        ("so", 1.0, 1.3),
+        ("well", 2.4, 2.8),
+        ("um", 3.0, 3.35),
+        ("right", 3.55, 4.1),
+        ("and", 5.4, 5.8),
+        ("uh", 6.0, 6.3),
+        ("that", 6.3, 6.8),
+        ("uh", 9.0, 9.3),
+        ("yes", 9.9, 10.4),
+        ("then", 11.0, 11.4),
+        ("end", 15.0, 15.4),
+    ]
+    return audio, [TranscriptWord(text=t, start=s, end=e) for t, s, e in words]
+
+
+def _guest(*, gated: bool) -> tuple[np.ndarray, list[TranscriptWord]]:
+    audio = _room(23, gated=gated)
+    _voice(audio, 16.2, 17.0)
+    _voice(audio, 17.2, 18.0)
+    words = [("okay", 16.2, 17.0), ("sure", 17.2, 18.0)]
+    return audio, [TranscriptWord(text=t, start=s, end=e) for t, s, e in words]
+
+
+def _pcm24(samples: np.ndarray) -> bytes:
+    """24-bit PCM, so a quiet recording's quantization noise is not part of what is measured."""
+    ints = np.rint(samples * 8388607).astype("<i4")
+    return ints.view(np.uint8).reshape(-1, 4)[:, :3].tobytes()
+
+
+def _project(tmp_path: Path, gain_db: float, *, gated: bool) -> EpisodeProject:
+    """The host and a guest, and a third track with no audio at all (a lane that never spoke)."""
+    project = EpisodeProject.create("gain", str(tmp_path))
+    silent = (np.zeros(SECONDS * RATE), [])
+    for track_id, (audio, words) in (
+        ("host", _host(gated=gated)),
+        ("guest", _guest(gated=gated)),
+        ("lull", silent),
+    ):
+        path = tmp_path / "raw" / f"{track_id}.wav"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        scaled = audio * 10 ** (gain_db / 20)
+        assert np.max(np.abs(scaled)) < 1.0
+        with wave.open(str(path), "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(3)
+            handle.setframerate(RATE)
+            handle.writeframes(_pcm24(scaled))
+        project.timeline.tracks.append(
+            Track(
+                id=track_id,
+                label=track_id,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{track_id}.wav", duration_sec=float(SECONDS)),
+            )
+        )
+        project.timeline.clips.append(
+            Clip(
+                id=f"c_{track_id}",
+                track_id=track_id,
+                source_start=0.0,
+                source_end=float(SECONDS),
+                timeline_start=0.0,
+            )
+        )
+        project.transcripts.append(Transcript(track_id=track_id, words=words))
+    return project
+
+
+def _proposals(tmp_path: Path, gain_db: float, edit_mode: str, intensity: str, *, gated: bool):
+    project = _project(tmp_path, gain_db, gated=gated)
+    defaults = {
+        "tighten": {
+            "edit_mode": edit_mode,
+            "filler_words": ["um", "uh"],
+            "discourse_markers": [],
+        }
+    }
+    decisions = propose_tighten_edits(project, defaults, intensity=intensity).decisions
+    return sorted((d.track_id, d.reason, d.start, d.end, d.review_required) for d in decisions)
+
+
+def _assert_the_same_at_every_level(
+    tmp_path: Path, edit_mode: str, intensity: str, *, gated: bool
+) -> None:
+    reference = _proposals(tmp_path / "0", 0.0, edit_mode, intensity, gated=gated)
+    assert reference, "the scenario must propose something to compare"
+    for gain_db in GAINS_DB:
+        scaled = _proposals(tmp_path / str(gain_db), gain_db, edit_mode, intensity, gated=gated)
+        assert [(t, r, f) for t, r, _, _, f in scaled] == [(t, r, f) for t, r, _, _, f in reference]
+        for (_, _, start, end, _), (_, _, ref_start, ref_end, _) in zip(
+            scaled, reference, strict=True
+        ):
+            assert start == pytest.approx(ref_start, abs=FRAME_SEC + 1e-6), gain_db
+            assert end == pytest.approx(ref_end, abs=FRAME_SEC + 1e-6), gain_db
+
+
+@pytest.mark.parametrize(
+    ("edit_mode", "intensity"), [("mute", "medium"), ("ripple", "medium"), ("ripple", "aggressive")]
+)
+def test_proposals_are_the_same_at_every_recording_level(
+    tmp_path: Path, edit_mode: str, intensity: str
+) -> None:
+    _assert_the_same_at_every_level(tmp_path, edit_mode, intensity, gated=False)
+
+
+@pytest.mark.parametrize("edit_mode", ["mute", "ripple"])
+def test_proposals_on_a_gated_recording_are_the_same_at_every_level(
+    tmp_path: Path, edit_mode: str
+) -> None:
+    """A noise gate holds the tracks at digital zero between words (Zoom), so the room is -inf."""
+    _assert_the_same_at_every_level(tmp_path, edit_mode, "medium", gated=True)
