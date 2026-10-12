@@ -316,6 +316,28 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
     )
 
 
+def test_ci_uploads_only_native_playwright_failure_diagnostics() -> None:
+    steps = _frontend_e2e_steps()
+    uploads = [
+        step for step in steps if step.get("name") == "Upload Playwright traces from failed specs"
+    ]
+    assert len(uploads) == 1
+    upload = uploads[0]
+    diagnostic_globs = [
+        "gui/web/test-results/**/trace.zip",
+        "gui/web/test-results/**/error-context.md",
+    ]
+    assert upload["if"] == (
+        "always() && hashFiles('" + diagnostic_globs[0] + "', '" + diagnostic_globs[1] + "') != ''"
+    )
+    assert upload["uses"] == "actions/upload-artifact@v7"
+    artifact = upload["with"]
+    assert artifact["name"] == "playwright-test-results-${{ matrix.name }}"
+    assert artifact["path"].splitlines() == diagnostic_globs
+    assert artifact["retention-days"] == 7
+    assert artifact["if-no-files-found"] == "ignore"
+
+
 def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
     include = load_github_yaml(WORKFLOW)["jobs"][CI_SUITES_JOB]["strategy"]["matrix"]["include"]
     engines = compat_ci_engines(include)
