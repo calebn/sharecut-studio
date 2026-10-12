@@ -1,0 +1,64 @@
+import { useId } from "react";
+import { Button, Icon } from "../ui";
+import type { ZoomAvailability } from "./useZoomControls";
+
+const ZOOM_COPY = {
+  in: { label: "Zoom in", reason: "Fully zoomed in", icon: "zoomIn" },
+  out: { label: "Zoom out", reason: "Fully zoomed out", icon: "zoomOut" },
+} as const;
+
+/** Zoom out and Zoom in for the editing tool rail, the same steps as `-` and `=`. */
+export function ZoomControls({
+  zoom,
+  onZoomIn,
+  onZoomOut,
+}: {
+  zoom: ZoomAvailability;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
+  return (
+    <div className="editing-tool-rail-zoom" role="group" aria-label="Zoom">
+      <ZoomButton
+        direction="out"
+        available={zoom.canZoomOut}
+        onClick={onZoomOut}
+      />
+      <ZoomButton
+        direction="in"
+        available={zoom.canZoomIn}
+        onClick={onZoomIn}
+      />
+    </div>
+  );
+}
+
+function ZoomButton({
+  direction,
+  available,
+  onClick,
+}: {
+  direction: "in" | "out";
+  available: boolean;
+  onClick: () => void;
+}) {
+  const reasonId = useId();
+  const { label, reason, icon } = ZOOM_COPY[direction];
+  return (
+    <Button
+      className="editing-tool-rail-icon"
+      aria-label={label}
+      title={available ? label : reason}
+      aria-disabled={available ? undefined : true}
+      aria-describedby={available ? undefined : reasonId}
+      onClick={available ? onClick : undefined}
+    >
+      <Icon name={icon} size={20} />
+      {available ? null : (
+        <span id={reasonId} className="sr-only">
+          {reason}
+        </span>
+      )}
+    </Button>
+  );
+}

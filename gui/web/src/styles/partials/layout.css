@@ -805,15 +805,50 @@ html[data-shell] body {
    instead: a rail too narrow for all of them hands + Track and Import to
    Menu > Media and More, which keep both, so a phone in portrait spends no
    second row on the pair. Icon buttons keep the full touch square. */
-.editing-tool-rail-history {
+.editing-tool-rail-history,
+.editing-tool-rail-zoom {
   display: flex;
   flex: none;
   gap: var(--space-1);
+}
+
+/* Zoom leads the closing cluster, so Undo and Redo keep the inline end. */
+.editing-tool-rail-zoom {
   margin-inline-start: auto;
+}
+
+/* Select range is a labelled button on a wide rail and its marquee icon on a
+   narrow one, where the label would push Zoom onto a second row. */
+.editing-tool-rail-range-icon {
+  display: none;
 }
 
 @container app (max-width: 30rem) {
   .editing-tool-rail .editing-tool-rail-ingest {
+    display: none;
+  }
+
+  /* Seven 44px targets share the row at 360px, so the rail trades its
+     padding and gaps for the room; Zoom keeps a wider gap from Undo. */
+  .editing-tool-rail {
+    gap: var(--space-1);
+    padding-inline: var(--space-3);
+  }
+
+  .editing-tool-rail-zoom {
+    margin-inline-end: var(--space-1);
+  }
+
+  .editing-tool-rail-range {
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+  }
+
+  .editing-tool-rail-range-icon {
+    display: inline-block;
+  }
+
+  .editing-tool-rail-range-label {
     display: none;
   }
 }

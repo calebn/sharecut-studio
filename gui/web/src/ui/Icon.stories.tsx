@@ -29,6 +29,9 @@ const ICONS = {
   seek: true,
   undo: true,
   redo: true,
+  zoomIn: true,
+  zoomOut: true,
+  range: true,
   warning: true,
   ripple: true,
 } satisfies Record<IconName, true>;
