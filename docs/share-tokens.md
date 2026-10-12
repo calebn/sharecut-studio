@@ -148,8 +148,9 @@ parent must be owned and private, and every ancestor must prevent ordinary accou
 from replacing its entries. Symlinks and Windows reparse points are refused.
 Existing main, WAL, SHM, and journal files must have private effective permissions.
 Extended POSIX ACL grants, default ACLs, and unsafe Windows inherited child grants
-fail closed without repair or source replacement. Owned POSIX modes may tighten to
-`0700` for the parent and `0600` for files after ACL inspection.
+fail closed without repair or source replacement. Only an owned parent directory's
+POSIX mode may tighten to `0700` after ACL inspection. A main, WAL, SHM, or journal
+file with group or other access fails closed and is never repaired.
 
 New main files are exclusively created empty with private permissions before SQLite
 receives the path. New Windows directories have protected owner, SYSTEM, and

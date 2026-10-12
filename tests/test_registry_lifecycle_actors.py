@@ -407,6 +407,7 @@ def test_concurrent_legacy_registry_migration_preserves_tokens_and_secret(tmp_pa
             "CREATE TABLE recording_key_secret (singleton INTEGER PRIMARY KEY, secret BLOB NOT NULL)"
         )
         connection.execute("INSERT INTO recording_key_secret VALUES (1, ?)", (secret,))
+    path.chmod(0o600)
     ctx = multiprocessing.get_context("spawn")
     barrier = ctx.Barrier(2)
     pipes = [ctx.Pipe(duplex=False) for _ in range(2)]
