@@ -734,6 +734,19 @@ def test_split_is_one_undoable_step(mixed_ws: ProjectWorkspace) -> None:
     assert after == before
 
 
+def test_an_applied_split_tells_open_studio_tabs_and_a_dry_run_does_not(
+    mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    told: list[ProjectWorkspace] = []
+    monkeypatch.setattr(
+        "podcast_mcp.services.document_sync.after_agent_mutation", lambda ws: told.append(ws)
+    )
+    SpeakerService(mixed_ws).split_speakers("room", speaker_count=2, dry_run=True)
+    assert told == []
+    SpeakerService(mixed_ws).split_speakers("room", speaker_count=2, dry_run=False)
+    assert told == [mixed_ws]
+
+
 def test_the_split_result_names_the_history_entry_an_undo_reverses(
     mixed_ws: ProjectWorkspace,
 ) -> None:

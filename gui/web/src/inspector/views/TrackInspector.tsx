@@ -236,6 +236,7 @@ export function TrackInspector({
               <CommandButton
                 commandId="track.splitSpeakers"
                 args={{ trackId: track.id }}
+                className="split-speakers-entry"
                 disabled={busy || splitBlocker != null}
                 aria-describedby={splitBlocker ? splitBlockerId : undefined}
               >

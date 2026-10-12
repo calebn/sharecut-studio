@@ -1,14 +1,19 @@
 import { useId } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, InlineError } from "../ui";
-import { lateCancelCopy } from "../utils/pipeline";
+import { isPipelineRunning, lateCancelCopy } from "../utils/pipeline";
+import {
+  pipelineProgressPercent,
+  pipelineUnitsLabel,
+} from "../utils/pipelineProgress";
+import { formatTimeShort } from "../utils/time";
 import {
   type ExportSettings,
   exportFileName,
   exportResultCopy,
   loudnessTargetCopy,
 } from "./exportSettings";
-import { JobProgressView } from "./JobProgressView";
+import { StaleProgressCopy } from "./StaleProgressCopy";
 
 /** One stage of an export, from settings to outcome. */
 export type ExportStage =
@@ -153,19 +158,50 @@ function ExportProgress({
   nowSec?: number;
 }) {
   const { job, cancelling, cancelError } = stage;
+  const pct = pipelineProgressPercent(job);
+  const units = pipelineUnitsLabel(job);
+  const running = job == null || isPipelineRunning(job);
+  const headline = cancelling
+    ? "Cancelling… If the master is still being prepared, the export stops once it is ready."
+    : (job?.message ?? "Starting export…");
   return (
     <>
-      <JobProgressView
-        job={job}
-        headline={
-          cancelling
-            ? "Cancelling… If the master is still being prepared, the export stops once it is ready."
-            : undefined
-        }
-        barLabel="Export progress"
-        startingCopy="Starting export…"
-        nowSec={nowSec}
-      />
+      <div
+        className="export-dialog-progress"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-busy={running || undefined}
+      >
+        <span className="pipeline-headline">{headline}</span>
+        {units ? <span>{units}</span> : null}
+        {pct == null && running ? (
+          <span className="pipeline-pulse" aria-hidden="true" />
+        ) : null}
+      </div>
+      {pct != null ? (
+        <div
+          className="pipeline-bar"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuenow={pct}
+          aria-valuemax={100}
+          aria-label="Export progress"
+        >
+          <div className="pipeline-bar-fill" style={{ width: `${pct}%` }} />
+        </div>
+      ) : null}
+      <p className="export-dialog-note">
+        <span className="pipeline-elapsed">
+          Elapsed {formatTimeShort(job?.elapsed_sec ?? 0)}
+        </span>
+        <StaleProgressCopy
+          lastProgressAt={job?.last_progress_at}
+          running={running}
+          prefix=" · "
+          nowSec={nowSec}
+        />
+      </p>
       <p className="export-dialog-note">
         You can close this window. The export keeps going, and the status bar
         shows its progress.
