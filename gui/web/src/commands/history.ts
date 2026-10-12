@@ -139,7 +139,7 @@ function moveHistory(
       try {
         landed = await (action === "undo" ? undoHistory : redoHistory)(
           projectPath,
-          { expectedHeadId },
+          { expectedHeadId, scope },
         );
       } catch (e) {
         if (e instanceof ApiError && e.code === HISTORY_STALE_CODE) {

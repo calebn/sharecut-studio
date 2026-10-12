@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { HistoryEntryId } from "../types/project";
 
 const queue = vi.hoisted(() => ({
   enqueueHostCommand: vi.fn(),
@@ -64,7 +65,7 @@ describe("history command lifetime at queue admission", () => {
           ...project,
           history: {
             ...project.history,
-            head_id: "visible-head",
+            head_id: "visible-head" as HistoryEntryId,
             can_undo: true,
             can_redo: true,
           },
@@ -191,7 +192,10 @@ describe("history command lifetime at queue admission", () => {
         client_id: "client",
         client_seq: 1,
         type: "UndoHistory",
-        payload: { expected_head_id: "visible-head", rerender: false },
+        payload: {
+          expected_head_id: "visible-head" as HistoryEntryId,
+          rerender: false,
+        },
         created_at: 1,
       };
       if (route === "host") {
@@ -229,7 +233,10 @@ describe("history command lifetime at queue admission", () => {
       const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string);
       expect(body).toMatchObject({
         type: "UndoHistory",
-        payload: { expected_head_id: "visible-head", rerender: false },
+        payload: {
+          expected_head_id: "visible-head" as HistoryEntryId,
+          rerender: false,
+        },
         role: route === "host" ? "viewer" : "guest",
       });
     },

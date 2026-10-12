@@ -8,6 +8,7 @@ const submit = vi.fn();
 const hostQueue = vi.fn();
 const guestQueue = vi.fn();
 const removeHostQueuedCommands = vi.fn();
+const removeQueuedCommand = vi.fn();
 const clearSuperseded = vi.fn(async () => {});
 const askIfReplayHeldBack = vi.fn();
 
@@ -20,6 +21,7 @@ vi.mock("./offlineStore", () => ({
   loadCommandQueue: guestQueue,
   loadHostCommandQueue: hostQueue,
   removeHostQueuedCommands,
+  removeQueuedCommand,
 }));
 
 const cmd = (id: string): QueuedCommand => ({

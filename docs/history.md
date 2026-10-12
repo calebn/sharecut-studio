@@ -1,5 +1,31 @@
 # Edit history and undo/redo
 
+### Decision: History intents belong to a project opening
+
+<!-- decision
+id: D-studio-history-intent-lifetime
+status: accepted
+date: 2026-10-12
+decided-by: issue #1263 implementation
+evidence:
+- Issue #1263 acceptance requires same-path reopen and project navigation to retire unsent history intents across durable replay.
+- gui/web/src/services/commandQueue.historyLifetime.integration.test.ts covers scope retirement, offline refusal, older queued edits, and failed history-row cleanup.
+- gui/web/src/state/drainOfflineQueue.test.ts and gui/web/src/services/commandQueue.integration.test.ts cover replay policy and ordinary command ordering.
+manual-review: verify production IndexedDB history never replays after cleanup failure and ordinary edits retain FIFO.
+-->
+
+An Undo or Redo belongs to the project opening where it was pressed. Studio
+sends it only while that opening is still current. Closing and reopening the
+same project or switching projects retires an unsent move before it can reach
+the server. A history command waiting behind older queued edits is refused
+until those edits are sent. Undo and Redo are unavailable offline.
+
+The browser may retain a history command briefly in its IndexedDB queue to
+reserve its place relative to other edits. History commands are never replayed.
+If removing one of these rows fails, later drains still skip it and continue
+with ordinary edits. If the server may have received a move but its response
+does not arrive, Studio reports that the outcome may be unknown. Check History
+before trying again.
 Podcast MCP uses **non-destructive editing** at two levels:
 
 1. **Source media** — Files in `raw/` are never overwritten. Cuts and effects are applied only at render time via `edit_decisions` and FFmpeg.

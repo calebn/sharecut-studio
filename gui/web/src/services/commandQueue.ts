@@ -31,7 +31,10 @@ import {
   noteSaveLanded,
 } from "../state/hostSendOrder";
 import type { QueuedCommand } from "../state/offlineStore";
-import { requestHostDrainLazy } from "../state/requestDrainLazy";
+import {
+  requestGuestDrainLazy,
+  requestHostDrainLazy,
+} from "../state/requestDrainLazy";
 import { parseHistoryEntryId } from "../types/project";
 import { ApiError, isRetryLater } from "../utils/apiError";
 import {
@@ -55,6 +58,12 @@ export type DocumentCommandOptions = CommandSettings &
   );
 type ResolvedCommandOptions = CommandSettings &
   CommandIdentity & { replaying: boolean };
+
+export type HistoryCommandType = "UndoHistory" | "RedoHistory";
+
+export function isHistoryCommand(type: string): type is HistoryCommandType {
+  return type === "UndoHistory" || type === "RedoHistory";
+}
 
 interface HostCommandBody {
   scope: DocumentScope;
@@ -130,6 +139,9 @@ export async function submitQueuedDocumentCommand(
   payload: Record<string, unknown> = {},
   opts?: DocumentCommandOptions,
 ): Promise<Record<string, unknown>> {
+  if (isHistoryCommand(type)) {
+    throw new Error("History commands must use submitLiveHistoryCommand");
+  }
   const resolved = resolveCommandOptions(opts);
   const commandId = resolved.command_id;
   const active = useDawStore.getState().projectPath === projectPath;
@@ -169,6 +181,211 @@ export async function submitQueuedDocumentCommand(
       }
     }
     throw error;
+  }
+}
+
+export async function submitLiveHistoryCommand(
+  projectPath: string,
+  type: HistoryCommandType,
+  payload: Record<string, unknown>,
+  scope: DocumentScope,
+): Promise<Record<string, unknown>> {
+  if (scope.path !== projectPath || !isCurrentDocumentScope(scope)) {
+    throw new ApiError(
+      "The project changed before Undo or Redo could run",
+      "history_stale",
+      409,
+    );
+  }
+  const resolved = resolveCommandOptions();
+  const { command_id, client_seq, client_id } = resolved;
+  const active = useDawStore.getState().projectPath === projectPath;
+  if (active) beginDocumentDraft(command_id, type, payload, false);
+  try {
+    const data = await submitLiveHistoryIntent(
+      projectPath,
+      type,
+      payload,
+      scope,
+      { command_id, client_id, client_seq },
+    );
+    const head = parseHistoryEntryId(data.history_head_id);
+    if (head) {
+      noteSaveLanded(projectPath, head, scope);
+      const seq = snapshotFromResult(data)?.server_seq ?? data.server_seq;
+      if (
+        typeof seq === "number" &&
+        Number.isSafeInteger(seq) &&
+        seq > 0 &&
+        active &&
+        useDawStore.getState().projectPath === projectPath
+      )
+        noteOwnCommandHead(scope, {
+          seq,
+          head,
+          displayedFrom:
+            useDawStore.getState().project?.history.head_id ?? null,
+        });
+    }
+    if (active && isCurrentDocumentScope(scope)) {
+      finishDocumentDraft(command_id);
+      refreshDocumentDisplay();
+    }
+    return data;
+  } catch (error) {
+    if (active && isCurrentDocumentScope(scope)) {
+      finishDocumentDraft(command_id);
+      refreshDocumentDisplay();
+    }
+    throw error;
+  }
+}
+
+async function submitLiveHistoryIntent(
+  projectPath: string,
+  type: HistoryCommandType,
+  payload: Record<string, unknown>,
+  scope: DocumentScope,
+  identity: CommandIdentity,
+): Promise<Record<string, unknown>> {
+  const offline = () =>
+    typeof navigator !== "undefined" && navigator.onLine === false;
+  const requireCurrent = () => {
+    if (!isCurrentDocumentScope(scope)) {
+      throw new ApiError(
+        "The project changed before Undo or Redo could run",
+        "history_stale",
+        409,
+      );
+    }
+    if (offline()) throw new Error("Undo and Redo are unavailable offline");
+  };
+  requireCurrent();
+  const bodyBase = {
+    ...identity,
+    type,
+    payload,
+  };
+  const cmd: QueuedCommand = {
+    ...identity,
+    type,
+    payload,
+    created_at: Date.now(),
+  };
+  if (isShareProjectKey(projectPath)) {
+    const token = shareTokenFromKey(projectPath)!;
+    const queue = await import("../state/offlineStore");
+    requireCurrent();
+    await queue.enqueueCommand(token, cmd);
+    try {
+      requireCurrent();
+      const pending = [...(await queue.loadCommandQueue(token))].sort(
+        (a, b) => a.client_seq - b.client_seq,
+      );
+      requireCurrent();
+      const effective = pending.filter(
+        (item) =>
+          !isHistoryCommand(item.type) ||
+          item.command_id === identity.command_id,
+      );
+      if (effective[0]?.command_id !== identity.command_id) {
+        requestGuestDrainLazy(token);
+        throw new Error("Undo and Redo must wait until older edits are sent");
+      }
+      requireCurrent();
+      let reply: DocumentCommandReply;
+      try {
+        reply = await postGuestDocumentCommand(token, {
+          ...bodyBase,
+          role: "guest",
+        });
+      } catch {
+        throw new Error(
+          "Undo or Redo may have been applied. Check History before trying again.",
+        );
+      }
+      if (!reply.ok) {
+        try {
+          await queue.removeQueuedCommand(token, identity.command_id);
+        } catch {}
+        if (reply.status >= 500) {
+          throw new Error(
+            "Undo or Redo may have been applied. Check History before trying again.",
+          );
+        }
+        throw reply.failure;
+      }
+      try {
+        await queue.removeQueuedCommand(token, identity.command_id);
+      } catch {}
+      const data = reply.data;
+      if (useDawStore.getState().projectPath === projectPath) {
+        applyDocumentResult(data, scope);
+      }
+      return data;
+    } catch (error) {
+      try {
+        await queue.removeQueuedCommand(token, identity.command_id);
+      } catch {}
+      throw error;
+    }
+  }
+
+  const send = beginHostSend(projectPath, identity.command_id);
+  let queue: typeof import("../state/offlineStore") | null = null;
+  try {
+    queue = await import("../state/offlineStore");
+    requireCurrent();
+    const admitted = await queue.enqueueHostCommand(projectPath, cmd);
+    requireCurrent();
+    if (!admitted.persisted) {
+      throw new Error("Undo and Redo require available local queue storage");
+    }
+    const earlier = await send.earlierWithin(HOST_SEND_WAIT_MS);
+    requireCurrent();
+    if (!earlier) {
+      requestHostDrainLazy(projectPath);
+      throw new Error("Undo and Redo must wait until older edits are sent");
+    }
+    const pending = await queue.loadHostCommandQueue(projectPath);
+    requireCurrent();
+    const effective = pending.filter(
+      (item) =>
+        !isHistoryCommand(item.type) || item.command_id === identity.command_id,
+    );
+    if (effective[0]?.command_id !== identity.command_id) {
+      requestHostDrainLazy(projectPath);
+      throw new Error("Undo and Redo must wait until older edits are sent");
+    }
+    requireCurrent();
+    let reply: DocumentCommandReply;
+    try {
+      reply = await postHostDocumentCommand(projectPath, {
+        ...bodyBase,
+        role: "viewer",
+      });
+    } catch {
+      throw new Error(
+        "Undo or Redo may have been applied. Check History before trying again.",
+      );
+    }
+    if (!reply.ok) {
+      if (reply.status >= 500) {
+        throw new Error(
+          "Undo or Redo may have been applied. Check History before trying again.",
+        );
+      }
+      throw reply.failure;
+    }
+    if (useDawStore.getState().projectPath === projectPath) {
+      applyDocumentResult(reply.data, scope);
+    }
+    return reply.data;
+  } finally {
+    try {
+      await queue?.removeHostQueuedCommand(projectPath, identity.command_id);
+    } catch {}
+    send.finish();
   }
 }
 

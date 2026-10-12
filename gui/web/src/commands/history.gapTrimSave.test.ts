@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
-import { submitQueuedDocumentCommand } from "../services/commandQueue";
+import { submitLiveHistoryCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
@@ -30,6 +30,10 @@ vi.mock("../services/commandQueue", () => ({
         : { history_head_id: "h-after" };
     },
   ),
+  submitLiveHistoryCommand: vi.fn(async (_path: string, type: string) => {
+    sent.push(type);
+    return { history_head_id: "h-after" };
+  }),
 }));
 vi.mock("../api/boundary", () => ({
   loadBoundaryContext: vi.fn(
@@ -77,7 +81,7 @@ it("holds an Undo pressed while a Leave a gap trim loads its boundary token unti
   releaseBoundary();
   await gap;
   await vi.waitFor(() =>
-    expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(3),
+    expect(submitLiveHistoryCommand).toHaveBeenCalledTimes(1),
   );
   expect(sent).toEqual(["trim ripple", "trim gap", "UndoHistory"]);
 });
