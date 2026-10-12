@@ -51,7 +51,7 @@ jobs:
         run: ./scripts/registry_windows_storage.ps1 -Cleanup
       - name: Preserve native proof receipts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: registry-windows-proof
           path: |
