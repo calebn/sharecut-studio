@@ -17,6 +17,8 @@ from podcast_mcp.services.session_sync import (
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
+from podcast_mcp.util.redact import redact_host_paths
+from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 
@@ -79,6 +81,25 @@ async def project_busy_exception_handler(request: Request, exc: Exception) -> Re
     """
     assert isinstance(exc, Timeout)
     return await http_exception_handler(request, project_busy_from_timeout(exc))
+
+
+async def registry_privacy_exception_handler(request: Request, exc: Exception) -> Response:
+    """App-wide fallback: a registry that is not private becomes HTTP 500 with the refusal.
+
+    The host reads the message with its path and fix; any other caller (a relayed share guest)
+    reads it with host paths redacted, like every refusal a guest sees (``util/tool_refusal.py``).
+    """
+    assert isinstance(exc, RegistryPrivacyError)
+    host = authorize_host(
+        peer_host=peer_host(request),
+        token=request.query_params.get("token") or request.headers.get("X-Podcast-Token"),
+        relayed=is_relayed_request(request.headers),
+    ).allowed
+    detail = str(exc) if host else redact_host_paths(str(exc))
+    return await http_exception_handler(
+        request,
+        HTTPException(status_code=500, detail=detail, headers={"X-Sharecut-Error-Code": exc.code}),
+    )
 
 
 def peer_host(request: Request) -> str | None:

@@ -152,6 +152,13 @@ fail closed without repair or source replacement. Only an owned parent directory
 POSIX mode may tighten to `0700` after ACL inspection. A main, WAL, SHM, or journal
 file with group or other access fails closed and is never repaired.
 
+On POSIX hosts a refusal is the coded error `registry_not_private`: the CLI, owner MCP tools and host GUI
+routes report one line that names the offending path and why, and a share guest sees it with
+host paths redacted. To recover from a loose file or folder, run the `chmod` it prints
+(`chmod 0600` for a main, WAL, SHM, or journal file, `chmod 0700` for the registry folder);
+for a foreign owner, an ACL, or a symlink it says what is wrong and offers no command, so fix
+it yourself or point `PODCAST_SHARE_REGISTRY` at a registry you own.
+
 New main files are exclusively created empty with private permissions before SQLite
 receives the path. New Windows directories have protected owner, SYSTEM, and
 Administrators grants with `OI|CI` inheritance. SQLite children inherit the verified
