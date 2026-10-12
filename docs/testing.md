@@ -1451,8 +1451,8 @@ test; other rows are whole tests.
 | pending actions at phone: docks in the inspector sheet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending actions at tablet-short: docks in the inspector sheet, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending actions at tablet-short: docks in the inspector sheet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet: floats under the open inspector sheet, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet: floats under the open inspector sheet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| pending actions at tablet: floats between the ruler and the bottom panel; the inspector sheet's Approve and Reject stay reachable, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| pending actions at tablet: floats between the ruler and the bottom panel; the inspector sheet's Approve and Reject stay reachable, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending actions at desktop: floats between the ruler and the bottom panel, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending actions at desktop: floats between the ruler and the bottom panel, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending actions at desktop-540: floats between the ruler and the bottom panel, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
