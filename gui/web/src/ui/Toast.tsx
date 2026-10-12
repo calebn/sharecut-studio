@@ -9,9 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { isValidFocusTarget } from "../feedback/feedbackActionFocus";
 import { pointerKindFromPointerType } from "../hooks/usePointerType";
 import { Button } from "./Button";
+import { isValidFocusTarget } from "./focusTarget";
 
 /** How long a toast stays up while not hovered or focused. */
 export const TOAST_MS = 8000;

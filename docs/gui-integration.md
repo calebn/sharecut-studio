@@ -318,10 +318,11 @@ scroller. The feedback host is first inside that same scroller as the fields.
 `DawApp` passes the host to the single `FeedbackToast`; its stable portal
 preserves the existing card, focus and guarded Undo when the sheet opens,
 closes or stows. A saved edit preserves the focused or just-pressed control.
-Focused feedback Undo and Dismiss survive phone/tablet host remounts. Sheet and
-Inspector entry focus yield to the current intentional action; real navigation
-cancels it. A removed or disabled focused action falls back to a usable current
-Close, while a modal keeps its own focus.
+Focused feedback Undo and Dismiss survive phone/tablet host remounts. Sheet entry
+focus and the volume-envelope view's first-entry focus yield to the current
+intentional action; real navigation cancels it. A removed or disabled focused
+action falls back to a usable current Close, and a sheet never takes entry focus
+behind an open modal.
 Ordinary body scrolling exposes feedback when a full native label and the card
 cannot fit together. The single Toast pauses its remaining visible lifetime
 while clipped and preserves it through host movement. Compact half and full

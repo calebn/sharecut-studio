@@ -2426,7 +2426,7 @@ outside its actual body clip, and waits nine seconds without card hover or
 focus. It then exposes Dismiss and verifies expiry within the remaining visible
 time. Unit tests cover portal continuity, focus, remaining time and guarded
 Undo through host movement. Run `npm run test:e2e:compat --
-compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedback-lifetime.spec.ts touch-chrome-reach.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
+compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedback-lifetime.spec.ts compact-feedback-focus.spec.ts touch-chrome-reach.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
 building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
 
@@ -2435,9 +2435,8 @@ through the real phone-to-tablet sheet and keyed Inspector remount. This focused
 compatibility regression needs Chromium and WebKit because their native focus
 fixup and portal movement differ. It uses one viewport transition per action,
 without duplicating the existing theme, text-size, or detent matrices. Component
-tests cover the smaller focus-request and current valid return-target contracts.
-PR-only proof measures remaining visible expiry and exercises modal priority,
-refused or disabled actions, and navigation before asynchronous Undo settles.
+tests cover the smaller focus-request and current valid return-target contracts,
+including modal priority and refused or disabled actions.
 
 The feedback detent matrix compares half and full height before and during a
 real history refusal for Envelope and Pending selections. It covers phone and

@@ -257,10 +257,12 @@ viewport and clipping ancestors in both compact and floating hosts. `Toast` owns
 and pauses it while clipped. A stable portal container moves the single card
 between floating and compact flow presentations without remounting its timer
 or guarded Undo. Its native action carries the single feedback focus intent.
-Sheet and keyed inspector entry requests yield to that valid intent; actual
-navigation clears it. The current compact Close supplies the existing Toast
+Sheet entry focus (`useDialogModal`) and the volume-envelope view's first-entry
+focus yield to that valid intent through the generic `ui/focusHold` seam, which
+the feedback module registers; no other inspector view defers entry focus.
+Actual navigation clears the intent. The current compact Close supplies the existing Toast
 return-focus ref, whose target is validated when the action disappears.
-Modal focus keeps priority. Store announcements and command authority
+A sheet never takes entry focus behind an open modal. Store announcements and command authority
 remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).
 
 Frontend pointer dispatch policy lives in `gui/web/src/commands/pointer.ts`.

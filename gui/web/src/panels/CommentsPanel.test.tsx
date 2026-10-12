@@ -197,6 +197,32 @@ describe("CommentsPanel", () => {
     );
   });
 
+  it.each([
+    ["hidden", (panel: HTMLElement) => (panel.style.display = "none")],
+    ["inert", (panel: HTMLElement) => panel.setAttribute("inert", "")],
+  ])(
+    "does not move focus to a %s panel when Dismiss removes the toast",
+    async (_, obscure) => {
+      const user = userEvent.setup();
+      const { container } = render(<CommentsPanel />);
+      await user.click(screen.getByRole("button", { name: "Resolve" }));
+      await screen.findByText(/Resolved comment at/);
+      const dismiss = screen.getByRole("button", { name: "Dismiss" });
+      act(() => dismiss.focus());
+      const panel = container.querySelector<HTMLElement>(".comments-panel");
+      if (!panel) throw new Error("missing comments panel");
+      obscure(panel);
+      fireEvent.click(dismiss);
+      await waitFor(() =>
+        expect(
+          screen.queryByText(/Resolved comment at/),
+        ).not.toBeInTheDocument(),
+      );
+      expect(panel).not.toHaveFocus();
+      expect(document.activeElement).toBe(document.body);
+    },
+  );
+
   it("keeps only the latest resolve's toast (latest wins)", async () => {
     const first = sampleComment();
     const second = sampleComment({

@@ -6,12 +6,14 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { HistoryEntryId } from "../types/project";
 import { Toast } from "../ui";
+import { registerFocusHold } from "../ui/focusHold";
+import { isValidFocusTarget } from "../ui/focusTarget";
 import { modalShortcuts } from "../ui/modalGate";
 import { errorMessage } from "../utils/apiError";
 import {
   FEEDBACK_FOCUS_ATTRIBUTE,
+  hasValidFocusedFeedbackAction,
   isValidFeedbackAction,
-  isValidFocusTarget,
 } from "./feedbackActionFocus";
 import { usePhoneToastDock } from "./toastDock";
 
@@ -105,6 +107,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     }
   }, [host, portal]);
   useLayoutEffect(() => () => portal.remove(), [portal]);
+  useLayoutEffect(() => registerFocusHold(hasValidFocusedFeedbackAction), []);
   const [visibility, setVisibility] = useState<"visible" | "clipped">(
     "visible",
   );
