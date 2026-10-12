@@ -309,6 +309,11 @@ async function submitLiveHistoryIntent(
         (a, b) => a.client_seq - b.client_seq,
       );
       requireCurrent();
+      if (!pending.some((item) => item.command_id === identity.command_id)) {
+        throw new Error(
+          "Undo and Redo cannot run right now. Reload the project and try again.",
+        );
+      }
       const effective = pending.filter(
         (item) =>
           !isHistoryCommand(item.type) ||

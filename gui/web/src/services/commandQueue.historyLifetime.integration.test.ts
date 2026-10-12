@@ -459,6 +459,33 @@ describe("history command lifetime at queue admission", () => {
     expect(drainRequests.host).toHaveBeenCalledWith(path);
   });
 
+  it("refuses guest history when its reservation was not stored", async () => {
+    const path = "share:history-unavailable-storage";
+    const { useDawStore } = await import("../state/dawStore");
+    const { minimalProject } = await import("../test/fixtures");
+    const authority = await import("../document/authorityState");
+    useDawStore.setState({ projectPath: path, project: minimalProject() });
+    authority.resetDocumentAuthority(path);
+    queue.loadCommandQueue.mockResolvedValueOnce([]);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { submitLiveHistoryCommand } = await import("./commandQueue");
+
+    await expect(
+      submitLiveHistoryCommand(
+        path,
+        "UndoHistory",
+        { expected_head_id: "visible-head" },
+        authority.documentScope(),
+      ),
+    ).rejects.toThrow(
+      "Undo and Redo cannot run right now. Reload the project and try again.",
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(drainRequests.guest).not.toHaveBeenCalled();
+  });
+
   it("refuses offline history before writing an ordering reservation", async () => {
     const path = "/tmp/history-offline.json";
     const { useDawStore } = await import("../state/dawStore");
