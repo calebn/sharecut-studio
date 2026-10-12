@@ -8,6 +8,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { pointerKindFromPointerType } from "../hooks/usePointerType";
 import { Button } from "./Button";
@@ -15,6 +16,15 @@ import { isValidFocusTarget } from "./focusTarget";
 
 /** How long a toast stays up while not hovered or focused. */
 export const TOAST_MS = 8000;
+
+function subscribeToFocus(notify: () => void): () => void {
+  document.addEventListener("focusin", notify);
+  document.addEventListener("focusout", notify);
+  return () => {
+    document.removeEventListener("focusin", notify);
+    document.removeEventListener("focusout", notify);
+  };
+}
 
 export type ToastState = { id: number; message: string };
 
@@ -98,7 +108,12 @@ function ToastCard({
   // moves to another element outside the card.
   const focusInside = useRef(false);
   const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
+  // Read from the document after every commit, not tracked from events: a host
+  // move can detach the focused action with no blur event (WebKit, Firefox).
+  const focused = useSyncExternalStore(
+    subscribeToFocus,
+    () => cardRef.current?.contains(document.activeElement) ?? false,
+  );
   const paused =
     hovered ||
     focused ||
@@ -128,12 +143,6 @@ function ToastCard({
       );
     };
   }, [toastId, paused, timeoutMs]);
-  // A host move detaches a focused action without a blur event, and a stowed
-  // or modal-covered host may refuse to take it back.
-  useEffect(() => {
-    if (focused && !cardRef.current?.contains(document.activeElement))
-      setFocused(false);
-  });
   useLayoutEffect(() => {
     const el = cardRef.current;
     const inside = focusInside;
@@ -152,12 +161,10 @@ function ToastCard({
   };
   const onFocus = () => {
     focusInside.current = true;
-    setFocused(true);
   };
   const onBlur = (event: FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget as Node | null;
     if (event.currentTarget.contains(next)) return;
-    setFocused(false);
     // Focus fell to <body> (next === null): keep the flag so closing still
     // returns focus. Focus moved to another element: the user left the toast.
     if (next !== null) focusInside.current = false;
