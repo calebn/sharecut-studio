@@ -20,6 +20,7 @@ from pathlib import Path
 from podcast_mcp.util.coded_error import CodedPermissionError
 
 REGISTRY_NOT_PRIVATE_CODE = "registry_not_private"
+GUEST_MESSAGE = "The host's sharing setup needs attention; ask the host to check it."
 _PIN = "set PODCAST_SHARE_REGISTRY to a registry you own"
 
 
