@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
-from podcast_mcp.edits.speaker_split import split_track_by_speaker
+from podcast_mcp.edits.speaker_split import (
+    LOW_CONFIDENCE,
+    ensure_splittable,
+    split_track_by_speaker,
+)
 from podcast_mcp.engines.speaker_id import (
+    SpeakerBackend,
     compare_window,
     enroll_segment,
     enroll_track,
@@ -23,7 +28,12 @@ from podcast_mcp.engines.waveform_media import schedule_track_waveforms
 from podcast_mcp.models import SpeakerSplitCrosstalk
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.transcript_context import context_lock, load_transcript_context
-from podcast_mcp.util.progress import ProgressReporter, resolve_progress, resolve_progress_task
+from podcast_mcp.util.progress import (
+    ProgressReporter,
+    raise_if_cancel_requested,
+    resolve_progress,
+    resolve_progress_task,
+)
 from podcast_mcp.util.tracks import track_audio_path
 
 
@@ -258,6 +268,39 @@ class SpeakerService:
             mutate,
         )
 
+    def check_split(
+        self,
+        track_id: str,
+        *,
+        speaker_count: int | None = None,
+        names: Sequence[str] | None = None,
+        enrolled: Sequence[str] = (),
+    ) -> tuple[list[str], SpeakerBackend]:
+        """The speaker names and embedding backend a split of ``track_id`` would use.
+
+        Raises what ``split_speakers`` raises before it reads any audio, so a caller can
+        refuse a split that cannot run without waiting for attribution.
+        """
+        ensure_splittable(self.ws.project, track_id)
+        ctx = load_transcript_context(self.ws.project.workspace_path())
+        count = speaker_count or (
+            ctx.speaker_id.expected_speaker_count
+            if ctx.speaker_id.speaker_count_source == "user"
+            else None
+        )
+        if not count:
+            raise ValueError(
+                "a speaker split needs the speaker count: pass it, or set it with set-speaker-count"
+            )
+        speakers = _speaker_names(count, names, list(enrolled))
+        backend = resolve_speaker_backend()
+        if backend.name() == "mock":
+            raise ImportError(
+                "speaker split needs a speaker embedding: install the [speaker] or "
+                "[speaker-lite] extra"
+            )
+        return speakers, backend
+
     def split_speakers(
         self,
         track_id: str,
@@ -269,6 +312,7 @@ class SpeakerService:
         room_tone_fill: bool = False,
         dry_run: bool = True,
         progress: ProgressReporter | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         """Attribute ``track_id``'s recording to its speakers, then split it into lanes.
 
@@ -281,23 +325,13 @@ class SpeakerService:
         taken; the split is one undoable mutation.
         """
         project = self.ws.project
-        ctx = load_transcript_context(project.workspace_path())
-        count = speaker_count or (
-            ctx.speaker_id.expected_speaker_count
-            if ctx.speaker_id.speaker_count_source == "user"
-            else None
+        speakers, backend = self.check_split(
+            track_id,
+            speaker_count=speaker_count,
+            names=names,
+            enrolled=list(enrollment or {}),
         )
-        if not count:
-            raise ValueError(
-                "a speaker split needs the speaker count: pass it, or set it with set-speaker-count"
-            )
-        speakers = _speaker_names(count, names, list(enrollment or {}))
-        backend = resolve_speaker_backend()
-        if backend.name() == "mock":
-            raise ImportError(
-                "speaker split needs a speaker embedding: install the [speaker] or "
-                "[speaker-lite] extra"
-            )
+        count = len(speakers)
         media_path = track_audio_path(project, track_id)
         samples = load_mono_full(media_path, sample_rate=RATE)
         attribution = attribute_speakers(
@@ -308,10 +342,12 @@ class SpeakerService:
                 speakers.index(name): list(spans) for name, spans in (enrollment or {}).items()
             },
             progress=resolve_progress(progress),
+            cancel_check=cancel_check,
         )
         warnings = _same_voice_warnings(attribution, speakers, set(enrollment or {}))
         if dry_run:
             return {**_attribution_summary(attribution, speakers), "warnings": warnings}
+        raise_if_cancel_requested(cancel_check)
         result = self.ws.mutate(
             "before split speakers",
             "after split speakers",
@@ -335,13 +371,22 @@ class SpeakerService:
             track = self.ws.project.track_by_id(lane["track_id"])
             if track is not None:
                 schedule_track_waveforms(self.ws.project, track)
-        return {**result, "warnings": warnings}
+        from podcast_mcp.services.document_sync import after_agent_mutation
+
+        after_agent_mutation(self.ws)
+        return {
+            **result,
+            "warnings": warnings,
+            "history_head_id": self.ws.project.history.head_id(),
+        }
 
 
 def _speaker_names(count: int, names: Sequence[str] | None, enrolled: list[str]) -> list[str]:
     if names:
         if len(names) != count:
             raise ValueError(f"expected {count} speaker names, got {len(names)}")
+        if len(set(names)) != len(names) or not all(name.strip() for name in names):
+            raise ValueError("speaker names must be different and not blank")
         missing = [name for name in enrolled if name not in names]
         if missing:
             raise ValueError(f"enrolled speaker {missing[0]!r} is not one of the names")
@@ -390,6 +435,6 @@ def _attribution_summary(attribution: SpeakerAttribution, speakers: list[str]) -
         "seconds_by_speaker": {name: round(sec, 2) for name, sec in seconds.items()},
         "crosstalk_sec": round(crosstalk, 2),
         "low_confidence_sec": round(
-            sum(t.end - t.start for t in attribution.turns if t.confidence < 0.5), 2
+            sum(t.end - t.start for t in attribution.turns if t.confidence < LOW_CONFIDENCE), 2
         ),
     }

@@ -92,6 +92,16 @@ class BounceRequestBody(BaseModel):
     formats: list[str] | None = None
 
 
+class SpeakerSplitRequest(BaseModel):
+    """Studio's Split speakers: the count is the host's, never guessed (``SpeakerService``)."""
+
+    model_config = {"extra": "forbid"}
+    path: str
+    track_id: str
+    speaker_count: int = Field(ge=2, le=8)
+    names: list[str] | None = None
+
+
 class ExportDeliverablesRequest(BaseModel):
     path: str
     formats: list[dict] | None = None

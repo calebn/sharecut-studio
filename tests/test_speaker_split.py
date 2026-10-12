@@ -495,6 +495,25 @@ def test_flagged_crosstalk_plays_once_on_its_likeliest_speaker_by_default(
     assert same_source_timeline_overlaps(project) == []
 
 
+def test_the_result_reports_the_stretches_the_attribution_is_unsure_of(
+    scripted_ws: ProjectWorkspace,
+) -> None:
+    unsure = SpeakerAttribution(
+        speaker_count=2,
+        duration=10.0,
+        turns=(
+            SpeakerTurn(0.0, 3.0, (0,), 0.9),
+            SpeakerTurn(3.0, 4.0, (1,), 0.3),
+            SpeakerTurn(4.0, 5.0, (0,), 0.2),
+            SpeakerTurn(5.0, 10.0, (1,), 0.9),
+        ),
+        backend="spectral-test",
+        method="cluster",
+    )
+    summary = split_track_by_speaker(scripted_ws.project, "room", unsure, names=["Ana", "Ben"])
+    assert (summary["low_confidence_sec"], summary["low_confidence_regions"]) == (2.0, 1)
+
+
 def test_both_plays_crosstalk_twice_and_the_stacked_copy_check_reports_it(
     scripted_ws: ProjectWorkspace,
 ) -> None:
@@ -680,6 +699,56 @@ def test_split_is_one_undoable_step(mixed_ws: ProjectWorkspace) -> None:
     HistoryService(mixed_ws).undo()
     after = mixed_ws.project.model_dump(include={"timeline", "transcript_data", "editorial"})
     assert after == before
+
+
+def test_the_split_result_names_the_history_entry_an_undo_reverses(
+    mixed_ws: ProjectWorkspace,
+) -> None:
+    result = SpeakerService(mixed_ws).split_speakers(
+        "room", speaker_count=2, names=["Ana", "Ben"], dry_run=False
+    )
+    assert result["history_head_id"] == mixed_ws.project.history.head_id()
+    HistoryService(mixed_ws).undo()
+    assert mixed_ws.project.history.head_id() != result["history_head_id"]
+
+
+def test_a_split_that_cannot_run_is_refused_before_any_audio_is_read(
+    mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_audio(*_args, **_kwargs):
+        raise AssertionError("read audio")
+
+    monkeypatch.setattr("podcast_mcp.services.media.speaker.load_mono_full", no_audio)
+    service = SpeakerService(mixed_ws)
+    speakers, backend = service.check_split("room", speaker_count=2, names=["Ana", "Ben"])
+    assert speakers == ["Ana", "Ben"] and backend.name() == "spectral-test"
+    with pytest.raises(ValueError, match="speaker count"):
+        service.check_split("room")
+    with pytest.raises(ValueError, match="no media to split"):
+        service.check_split("nobody", speaker_count=2)
+    with pytest.raises(ValueError, match="different and not blank"):
+        service.check_split("room", speaker_count=2, names=["Ana", " "])
+    with pytest.raises(ValueError, match="different and not blank"):
+        service.check_split("room", speaker_count=2, names=["Ana", "Ana"])
+
+
+@pytest.mark.parametrize("attributes_first", [False, True])
+def test_a_cancelled_split_changes_nothing(
+    mixed_ws: ProjectWorkspace, monkeypatch: pytest.MonkeyPatch, attributes_first: bool
+) -> None:
+    from podcast_mcp.util.progress import CancelledProgress
+
+    if attributes_first:
+        monkeypatch.setattr(
+            "podcast_mcp.services.media.speaker.attribute_speakers",
+            lambda *_args, **_kwargs: SCRIPTED,
+        )
+    before = mixed_ws.project.model_dump_json()
+    with pytest.raises(CancelledProgress):
+        SpeakerService(mixed_ws).split_speakers(
+            "room", speaker_count=2, dry_run=False, cancel_check=lambda: True
+        )
+    assert mixed_ws.project.model_dump_json() == before
 
 
 def test_dry_run_reports_turns_without_changing_the_project(mixed_ws: ProjectWorkspace) -> None:

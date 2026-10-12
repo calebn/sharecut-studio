@@ -18,7 +18,7 @@ from podcast_mcp.gui.job_events import (
 )
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.media import BounceRequest, BounceService
+from podcast_mcp.services.media import BounceRequest, BounceService, SpeakerService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.progress import (
@@ -28,7 +28,9 @@ from podcast_mcp.util.progress import (
     bind_progress,
 )
 
-JobKind = Literal["pipeline", "render_preview", "bounce", "export", "analyze", "agent"]
+JobKind = Literal[
+    "pipeline", "render_preview", "bounce", "export", "analyze", "split_speakers", "agent"
+]
 
 _GUI_FAIL_MAX = 200
 _AGENT_LIVE_LIMIT = 8
@@ -84,6 +86,9 @@ _KIND_META: dict[str, _KindMeta] = {
     ),
     "analyze": _KindMeta(
         "Analyze cancelled", "Analyze", frozenset({"analyze_health", "analyze_silence"})
+    ),
+    "split_speakers": _KindMeta(
+        "Split speakers cancelled", "Split speakers", frozenset({"speaker-split"})
     ),
     "agent": _KindMeta("Activity cancelled", "Activity", frozenset()),
 }
@@ -912,6 +917,29 @@ class PipelineJobManager:
         """Heuristic Analyze via ``analyze_working_set`` (same single-flight slot as pipeline)."""
         return self._spawn(project_path, kind="analyze", label="Analyze", config={"apply": apply})
 
+    def start_split_speakers(
+        self,
+        project_path: Path,
+        *,
+        track_id: str,
+        speaker_count: int,
+        names: list[str] | None = None,
+    ) -> PipelineJob:
+        """Split a one-track recording into a lane per speaker via ``SpeakerService``."""
+
+        def validate_split() -> None:
+            SpeakerService(ProjectWorkspace.open(project_path)).check_split(
+                track_id, speaker_count=speaker_count, names=names
+            )
+
+        return self._spawn(
+            project_path,
+            kind="split_speakers",
+            label="Split speakers",
+            config={"track_id": track_id, "speaker_count": speaker_count, "names": names},
+            validate=validate_split,
+        )
+
     def start_bounce(
         self,
         project_path: Path,
@@ -1101,6 +1129,17 @@ class PipelineJobManager:
                 cancel_check=cancel_check,
             )
             return "Bounce complete", {"paths": [str(p) for p in paths]}
+        if job.kind == "split_speakers":
+            cfg = job.config or {}
+            split = SpeakerService(ws).split_speakers(
+                cfg["track_id"],
+                speaker_count=cfg["speaker_count"],
+                names=cfg.get("names"),
+                dry_run=False,
+                progress=reporter,
+                cancel_check=cancel_check,
+            )
+            return "Split complete", split
         if job.kind == "analyze":
             from podcast_mcp.services.pipeline import analyze_working_set
 

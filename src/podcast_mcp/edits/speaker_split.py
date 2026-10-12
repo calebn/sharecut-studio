@@ -43,6 +43,8 @@ from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 CROSSTALK_MODES: tuple[SpeakerSplitCrosstalk, ...] = ("owner", "both", "lane")
 SPLIT_FADE_MS = 20
 """Hand-over fade: long enough not to click, short next to a syllable."""
+LOW_CONFIDENCE = 0.5
+"""A turn below this confidence is reported as one the attribution is unsure of."""
 CROSSTALK_LANE_NAME = "crosstalk"
 
 Span = tuple[float, float]
@@ -166,6 +168,28 @@ def _split_transcripts(project: EpisodeProject, split: SpeakerSplit, track_id: s
         )
 
 
+def ensure_splittable(project: EpisodeProject, track_id: str) -> tuple[Track, str]:
+    """The track ``track_id`` names and its media path, if it holds one recording not yet split."""
+    track = project.track_by_id(track_id)
+    if track is None or track.media is None:
+        raise ValueError(f"track {track_id} has no media to split")
+    if split_for_track(project, track_id) is not None:
+        raise ValueError(f"track {track_id} is already split by speaker")
+    clips = clips_for_track(project, track_id)
+    if not clips:
+        raise ValueError(f"track {track_id} has no clips to split")
+    if any(clip.source_id is not None for clip in clips):
+        raise ValueError(f"track {track_id} plays more than one recording; split needs one")
+    return track, track.media.path
+
+
+def unsure_spans(split: SpeakerSplit) -> list[Span]:
+    """Source spans whose speaker the attribution was unsure of, merged."""
+    return merge_intervals(
+        [(t.start_s, t.end_s) for t in split.turns if t.confidence < LOW_CONFIDENCE]
+    )
+
+
 def split_track_by_speaker(
     project: EpisodeProject,
     track_id: str,
@@ -182,20 +206,11 @@ def split_track_by_speaker(
     words of that speaker, FX and clips. Each other speaker (and the crosstalk lane in
     ``lane`` mode) gets a copy of it.
     """
-    track = project.track_by_id(track_id)
-    if track is None or track.media is None:
-        raise ValueError(f"track {track_id} has no media to split")
-    if split_for_track(project, track_id) is not None:
-        raise ValueError(f"track {track_id} is already split by speaker")
+    track, media_path = ensure_splittable(project, track_id)
     if crosstalk_mode not in CROSSTALK_MODES:
         raise ValueError(f"crosstalk_mode must be one of {CROSSTALK_MODES}")
     if len(names) != attribution.speaker_count:
         raise ValueError(f"expected {attribution.speaker_count} speaker names, got {len(names)}")
-    clips = clips_for_track(project, track_id)
-    if not clips:
-        raise ValueError(f"track {track_id} has no clips to split")
-    if any(clip.source_id is not None for clip in clips):
-        raise ValueError(f"track {track_id} plays more than one recording; split needs one")
 
     taken: set[str] = {track_id}
     lanes = [track_id] + [
@@ -208,7 +223,7 @@ def split_track_by_speaker(
     )
     split = SpeakerSplit(
         id=f"split_{uuid.uuid4().hex[:8]}",
-        media_path=track.media.path,
+        media_path=media_path,
         lanes=lanes,
         crosstalk_mode=crosstalk_mode,
         crosstalk_lane=crosstalk_lane,
@@ -242,6 +257,7 @@ def split_track_by_speaker(
     rebuild_combined(project)
     record_invalidation(project, track_ids=[*lanes, *([crosstalk_lane] if crosstalk_lane else [])])
     crosstalk = split.crosstalk_spans()
+    unsure = unsure_spans(split)
     return {
         "split_id": split.id,
         "lanes": [
@@ -252,6 +268,8 @@ def split_track_by_speaker(
         "crosstalk_mode": crosstalk_mode,
         "crosstalk_sec": round(sum(e - s for s, e in crosstalk), 3),
         "crosstalk_regions": len(crosstalk),
+        "low_confidence_sec": round(sum(e - s for s, e in unsure), 3),
+        "low_confidence_regions": len(unsure),
         "turns": len(split.turns),
         "backend": split.backend,
         "method": split.method,
