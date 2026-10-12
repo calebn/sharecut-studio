@@ -1,5 +1,8 @@
 import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { StrictMode, useRef } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { closeOverlay, openOverlay } from "../../ui/modalGate";
+import { useDialogModal } from "../../ui/useDialogModal";
 import {
   EnvelopeWorkspaceView,
   type EnvelopeWorkspaceViewProps,
@@ -35,6 +38,127 @@ const rect = (top: number, height: number): DOMRect => ({
   x: 10,
   y: top,
   toJSON: () => ({}),
+});
+
+describe("envelope initial focus", () => {
+  let nextFrame = 0;
+  let frames: Map<number, FrameRequestCallback>;
+  const extraNodes: HTMLElement[] = [];
+  const overlays: ReturnType<typeof openOverlay>[] = [];
+  beforeEach(() => {
+    frames = new Map();
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.set(++nextFrame, callback);
+      return nextFrame;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+      frames.delete(id);
+    });
+  });
+  afterEach(() => {
+    for (const node of extraNodes.splice(0)) node.remove();
+    for (const layer of overlays.splice(0)) closeOverlay(layer);
+    vi.restoreAllMocks();
+  });
+  function flushFrames() {
+    const pending = [...frames.values()];
+    frames.clear();
+    act(() => {
+      for (const callback of pending) callback(0);
+    });
+  }
+  function outsideControl() {
+    const button = document.createElement("button");
+    document.body.append(button);
+    extraNodes.push(button);
+    return button;
+  }
+
+  it("waits through detached feedback host registration and yields after the native action returns", () => {
+    const feedback = document.createElement("div");
+    feedback.className = "ui-toast-region--app";
+    const dismiss = document.createElement("button");
+    dismiss.setAttribute("data-feedback-focus", "");
+    feedback.append(dismiss);
+    extraNodes.push(feedback);
+    document.body.append(feedback);
+    dismiss.focus();
+    feedback.remove();
+    expect(document.activeElement).toBe(document.body);
+    render(<EnvelopeWorkspaceView {...props} form={null} />);
+    expect(document.activeElement).toBe(document.body);
+    document.body.append(feedback);
+    act(() => dismiss.focus());
+    flushFrames();
+    expect(dismiss).toHaveFocus();
+  });
+
+  it("completes ordinary first entry after StrictMode replays the canceled initial frame", () => {
+    render(
+      <StrictMode>
+        <EnvelopeWorkspaceView {...props} form={null} />
+      </StrictMode>,
+    );
+    expect(document.activeElement).toBe(document.body);
+    flushFrames();
+    expect(screen.getByRole("button", { name: "Add point" })).toHaveFocus();
+  });
+
+  it("cancels pending first entry when form entry immediately focuses Time", () => {
+    const { rerender } = render(
+      <EnvelopeWorkspaceView {...props} form={null} />,
+    );
+    expect(document.activeElement).toBe(document.body);
+    rerender(<EnvelopeWorkspaceView {...props} />);
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveFocus();
+    const save = screen.getByRole("button", { name: "Save point" });
+    act(() => save.focus());
+    flushFrames();
+    expect(save).toHaveFocus();
+  });
+
+  it.each(["navigation", "modal", "unmount"])(
+    "does not steal focus after %s before initial entry settles",
+    (change) => {
+      const outside = outsideControl();
+      const { unmount } = render(
+        <EnvelopeWorkspaceView {...props} form={null} />,
+      );
+      expect(document.activeElement).toBe(document.body);
+      if (change === "modal") overlays.push(openOverlay(true));
+      if (change === "unmount") unmount();
+      act(() => outside.focus());
+      flushFrames();
+      expect(outside).toHaveFocus();
+    },
+  );
+
+  it("preserves ordinary new sheet Close ordering after deferred envelope entry", () => {
+    function Sheet() {
+      const panelRef = useRef<HTMLDivElement>(null);
+      const closeRef = useRef<HTMLButtonElement>(null);
+      useDialogModal({
+        open: true,
+        onClose: vi.fn(),
+        panelRef,
+        initialFocusRef: closeRef,
+        mode: "sheet",
+      });
+      return (
+        <div ref={panelRef}>
+          <button ref={closeRef} type="button">
+            Close ordinary sheet
+          </button>
+          <EnvelopeWorkspaceView {...props} form={null} />
+        </div>
+      );
+    }
+    render(<Sheet />);
+    flushFrames();
+    expect(
+      screen.getByRole("button", { name: "Close ordinary sheet" }),
+    ).toHaveFocus();
+  });
 });
 
 describe("envelope error focus", () => {

@@ -56,6 +56,25 @@ describe("FeedbackToast", () => {
     return { panel, close, host };
   }
 
+  it("hands refused native action restoration to the usable current Close", () => {
+    const old = compactHost();
+    const current = compactHost();
+    const { rerender, unmount } = render(<FeedbackToast host={old.host} />);
+    act(() => useDawStore.getState().announceStatus("Saved"));
+    const dismiss = screen.getByRole("button", { name: "Dismiss" });
+    act(() => dismiss.focus());
+    const refused = vi.spyOn(dismiss, "focus").mockImplementation(() => {});
+    old.panel.remove();
+    rerender(<FeedbackToast host={current.host} />);
+    const focused = document.activeElement;
+    const stillOwned = dismiss.hasAttribute("data-feedback-focus");
+    refused.mockRestore();
+    unmount();
+    current.panel.remove();
+    expect(focused).toBe(current.close);
+    expect(stillOwned).toBe(false);
+  });
+
   it("returns focused Dismiss to the current host Close after a remount", () => {
     const old = compactHost();
     const current = compactHost();
