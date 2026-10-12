@@ -183,15 +183,18 @@ def read_mode(smooth: np.ndarray, ceiling_db: float, least: float) -> Mode | Non
     """The densest low mode of ``smooth``, or ``None`` when none stands clear.
 
     The room is the one place a recording's levels pile up. Its mode is the tallest bin
-    among the live frames under ``ceiling_db``; its level is the median of the frames within
-    a spread of it. Sound adds counts above the mode only as a thin continuum, so the room's
+    among the live frames under ``ceiling_db``, bins laid down from ``ceiling_db`` (a level
+    that moves with the recording's), not from its quietest frame, which sits at the edge of
+    digital silence and moves with the recording's level; its level is the median of the
+    frames within a spread of it. Sound adds counts above the mode only as a thin continuum, so the room's
     own half-height is where the count falls to half.
     """
     live = smooth[(smooth > DIGITAL_SILENCE_DB) & (smooth <= ceiling_db)]
     if live.size < _MIN_ROOM_FRAMES:
         return None
     width = max(least / 2.0, 0.25)
-    edges = np.arange(live.min(), live.max() + 2 * width, width)
+    bins = math.ceil((ceiling_db - float(live.min())) / width) + 1
+    edges = ceiling_db - width * np.arange(bins, -1, -1)
     counts = np.convolve(
         np.histogram(live, bins=edges)[0].astype(float), np.ones(5) / 5.0, mode="same"
     )
