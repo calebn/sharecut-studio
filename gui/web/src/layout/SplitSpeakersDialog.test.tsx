@@ -161,10 +161,11 @@ describe("SplitSpeakersDialog", () => {
     await user.type(count, "9");
     const button = screen.getByRole("button", { name: "Split speakers" });
     expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(
-      document.getElementById(button.getAttribute("aria-describedby")!)
-        ?.textContent,
-    ).toBe("Enter 2 to 8 speakers.");
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Enter 2 to 8 speakers.",
+    );
+    expect(count.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.queryByRole("textbox", { name: "Speaker 1" })).toBeNull();
   });
 
   it("splits with the typed count and names, then shows the tracks and announces with Undo", async () => {
@@ -181,7 +182,7 @@ describe("SplitSpeakersDialog", () => {
       speakerCount: 2,
       names: ["Ana", "Ben"],
     });
-    expect(await screen.findByText("Embedding 38 windows")).toBeTruthy();
+    expect(await screen.findByText("Finding who is talking…")).toBeTruthy();
     expect(
       screen
         .getByRole("progressbar", { name: "Split progress" })
@@ -197,6 +198,25 @@ describe("SplitSpeakersDialog", () => {
     expect(
       screen.getByText(/6 s where people talk over each other/),
     ).toBeTruthy();
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Split Room into 2 tracks: Ana and Ben.",
+    );
+    act(() =>
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [sampleTrack({ id: "room" })],
+          history: {
+            cursor: 2,
+            head_id: HEAD,
+            can_undo: true,
+            can_redo: false,
+            groups: [],
+          },
+        }),
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Done" }));
     expect(useDawStore.getState().feedbackToast).toMatchObject({
       message: "Split Room into 2 tracks: Ana and Ben.",
       undo: HEAD,
@@ -221,7 +241,7 @@ describe("SplitSpeakersDialog", () => {
     await act(async () => settle().ok(finished));
 
     expect(await screen.findByText("Split Room into 2 tracks.")).toBeTruthy();
-    expect(useDawStore.getState().feedbackToast?.message).toBe(
+    expect(useDawStore.getState().statusAnnouncement).toBe(
       "Split Room into 2 tracks: Ana and Ben.",
     );
   });
@@ -384,6 +404,7 @@ describe("SplitSpeakersDialog", () => {
       await screen.findByRole("button", { name: "Cancel split" }),
     ).toBeTruthy();
     expect(startSplitSpeakersJob).toHaveBeenCalledTimes(1);
+    act(() => useDawStore.getState().setSplitSpeakersTrackId(null));
 
     await act(async () => settle().ok(finished));
     expect(useDawStore.getState().feedbackToast?.undo).toBe(HEAD);

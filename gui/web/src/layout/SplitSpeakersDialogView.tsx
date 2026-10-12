@@ -20,6 +20,8 @@ export type SplitSpeakersStage =
       names: readonly string[];
       /** Why Split speakers is disabled, shown beside it. */
       blocker: string | null;
+      /** The count's own problem, shown under the count field. */
+      countError: string | null;
     }
   | {
       kind: "running";
@@ -121,13 +123,12 @@ function SplitSpeakersForm({
   return (
     <>
       <p className="export-dialog-lead">
-        Splits {trackLabel} into one track per speaker. Each track plays the
-        same recording and goes quiet where someone else is talking, so together
-        they sound like the original. Undo puts the single track back.
+        Splits {trackLabel} into one track per speaker. You can undo it.
       </p>
       <Field
         label="Number of speakers"
-        hint="Count everyone who talks. A number that is too high splits one voice in two."
+        hint="Count everyone who talks. Each track plays the same recording and goes quiet while someone else talks. Too high a number splits one voice in two."
+        error={stage.countError}
       >
         {(control) => (
           <input
@@ -144,28 +145,32 @@ function SplitSpeakersForm({
           />
         )}
       </Field>
-      <fieldset className="split-speakers-names" aria-describedby={namesHintId}>
-        <legend>Names (optional)</legend>
-        <p id={namesHintId} className="ui-field-hint">
-          A blank name becomes Speaker 1, Speaker 2, and so on, in the order
-          they first talk.
-        </p>
-        <div className="split-speakers-name-grid">
-          {Array.from({ length: shown }, (_, i) => (
-            <Field key={i} label={`Speaker ${i + 1}`}>
-              {(control) => (
-                <input
-                  {...control}
-                  type="text"
-                  autoComplete="off"
-                  value={stage.names[i] ?? ""}
-                  onChange={(e) => onNameChange(i, e.target.value)}
-                />
-              )}
-            </Field>
-          ))}
-        </div>
-      </fieldset>
+      {stage.countError ? null : (
+        <fieldset
+          className="split-speakers-names"
+          aria-describedby={namesHintId}
+        >
+          <legend>Names (optional)</legend>
+          <p id={namesHintId} className="ui-field-hint">
+            Blank names become Speaker 1, 2, and so on, in the order they talk.
+          </p>
+          <div className="split-speakers-name-grid">
+            {Array.from({ length: shown }, (_, i) => (
+              <Field key={i} label={`Speaker ${i + 1}`}>
+                {(control) => (
+                  <input
+                    {...control}
+                    type="text"
+                    autoComplete="off"
+                    value={stage.names[i] ?? ""}
+                    onChange={(e) => onNameChange(i, e.target.value)}
+                  />
+                )}
+              </Field>
+            ))}
+          </div>
+        </fieldset>
+      )}
     </>
   );
 }
@@ -181,15 +186,14 @@ function SplitSpeakersProgress({
     <>
       <JobProgressView
         job={stage.job}
-        headline={stage.cancelling ? "Cancelling…" : undefined}
+        headline={stage.cancelling ? "Cancelling…" : "Finding who is talking…"}
         unit={null}
         barLabel="Split progress"
         startingCopy="Starting the split…"
         nowSec={nowSec}
       />
       <p className="export-dialog-note">
-        You can close this window. The split keeps going, and the status bar
-        shows its progress. A long recording takes a few minutes.
+        You can close this window. The split keeps going in the status bar.
       </p>
       {stage.cancelError ? (
         <InlineError message={`Cancel failed: ${stage.cancelError}`} />
@@ -227,11 +231,14 @@ function SplitSpeakersOutcome({
         ))}
       </ul>
       {notes.length ? (
-        <ul className="split-speakers-notes" aria-label="Listen for">
-          {notes.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
+        <>
+          <h3 className="split-speakers-subhead">Listen for</h3>
+          <ul className="split-speakers-notes">
+            {notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </>
       ) : null}
       {stage.undoError ? (
         <InlineError message={`Undo failed: ${stage.undoError}`} />
@@ -256,7 +263,7 @@ function SplitSpeakersFooter({
   const blockerId = useId();
   return (
     <div className="bounce-dialog-footer">
-      {stage.kind === "configure" && stage.blocker ? (
+      {stage.kind === "configure" && stage.blocker && !stage.countError ? (
         <p id={blockerId} className="export-dialog-note">
           {stage.blocker}
         </p>
@@ -267,7 +274,9 @@ function SplitSpeakersFooter({
             variant="primary"
             type="button"
             disabled={stage.blocker != null}
-            aria-describedby={stage.blocker ? blockerId : undefined}
+            aria-describedby={
+              stage.blocker && !stage.countError ? blockerId : undefined
+            }
             onClick={onSplit}
           >
             Split speakers

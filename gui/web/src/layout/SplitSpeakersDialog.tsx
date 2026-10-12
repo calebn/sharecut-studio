@@ -105,9 +105,12 @@ export function SplitSpeakersDialog() {
     }
     await refreshDocumentProject(projectPath);
     const s = useDawStore.getState();
-    s.announceStatus(splitSpeakersDoneCopy(result, label), {
-      undo: result.history_head_id,
-    });
+    s.announceStatus(
+      splitSpeakersDoneCopy(result, label),
+      s.splitSpeakersTrackId == null
+        ? { undo: result.history_head_id }
+        : { toast: false },
+    );
     s.markJobResultsSpoken([job.id]);
     setFlow({
       kind: "done",
@@ -229,6 +232,7 @@ export function SplitSpeakersDialog() {
           count: settings.count,
           names: settings.names,
           blocker: splitSpeakersRequestBlocker(count, names),
+          countError: splitSpeakersRequestBlocker(count, null),
         }
       : flow.kind === "running"
         ? {
@@ -257,7 +261,21 @@ export function SplitSpeakersDialog() {
   return (
     <SplitSpeakersDialogView
       open={open}
-      onClose={() => setTrackId(null)}
+      onClose={() => {
+        if (
+          flow.kind === "done" &&
+          stage.kind === "done" &&
+          stage.canUndo &&
+          flow.result.history_head_id != null
+        ) {
+          useDawStore
+            .getState()
+            .announceStatus(splitSpeakersDoneCopy(flow.result, flow.label), {
+              undo: flow.result.history_head_id,
+            });
+        }
+        setTrackId(null);
+      }}
       trackLabel={trackLabel}
       stage={stage}
       onCountChange={(next) => setSettings((s) => ({ ...s, count: next }))}
