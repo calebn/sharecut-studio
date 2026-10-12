@@ -3,14 +3,14 @@
 Tighten proposals need one measurement in two places (#815, #818): does a cut edge
 sit inside the voice of a word that stays, and does a pause span hold speech the
 transcript missed. Both read the same runs: 20 ms level frames every 10 ms at or
-above an audibility floor, bridged across dips shorter than a stop closure, kept
+above a floor, bridged across dips shorter than a stop closure, kept
 only when enough frames carry a clear speech-pitch autocorrelation peak (so breaths,
 clicks and room tone never form a run).
 
 ``edits.join_speech`` measures the same phenomenon at existing clip splices with a
 floor relative to the window's loud frames. Proposal spans can be many seconds of
-dead air with no loud frame to anchor to, so this floor is absolute (the caller
-passes ``analysis.heuristics.audibility_rms_db``).
+dead air with no loud frame to anchor to, so the caller passes the track's own
+voice floor (``TrackAudioCache.voice_floor_db``).
 """
 
 from __future__ import annotations

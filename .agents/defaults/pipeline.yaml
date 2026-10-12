@@ -441,8 +441,9 @@ inaudible_cuts:
   # Short filler/NL: extend cut end through voiced energy that straddles ASR bounds
   short_cut_max_sec: 1.2
   trailing_energy_extend_ms: 350
-  trailing_energy_hot_db: -36.0
-  trailing_energy_quiet_db: -45.0
+  # dB over the track's own voice floor (TrackAudioCache.voice_floor_db), never dBFS.
+  trailing_energy_hot_over_floor_db: 6.0
+  trailing_energy_quiet_over_floor_db: -3.0
   trailing_energy_hop_ms: 10
   # Ripple/restart cuts: absorb quiet air after the cut end up to the next word,
   # leaving absorb_trailing_silence_retain_sec. Skips when next word is farther
@@ -450,7 +451,7 @@ inaudible_cuts:
   absorb_trailing_silence: true
   absorb_trailing_silence_retain_sec: 0.4
   absorb_trailing_silence_max_sec: 2.0
-  absorb_trailing_silence_quiet_db: -45.0
+  absorb_trailing_silence_quiet_over_floor_db: -3.0
   weights:
     energy: 0.65
     zero_cross: 0.2

@@ -13,7 +13,7 @@ second half of the word. :func:`voice_end` walks forward from a kept word's end 
 its first quiet frame, and :func:`voice_onset` walks back from the next kept word's
 start, so a cut never starts or ends inside either word's voice.
 
-Both walks read quiet against the track's own levels (:func:`voice_floor_db`), not
+Both walks read quiet against the track's own levels (:attr:`TrackAudioCache.voice_floor_db`), not
 a fixed dBFS floor. Tighten reads raw, unnormalized tracks: with the lab host track
 scaled by -12 dB, a fixed -42 dBFS floor ended 487 of its 739 kept words' voices
 more than 20 ms early, back inside the words. A dip that misses the floor still ends
@@ -59,20 +59,6 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
 from podcast_mcp.util.dsp import frame_band_db, frame_rms_db
 
-# The voice floor, relative to the track's own room (p10) and speech (p90) levels
-# (``audio_cache.level_profile``), so a voice ends at the same sound at any
-# recording level. 27 dB under the speech level is where the audibility floor the
-# owner approved (-42 dBFS) sits under the lab tape's speech: 26.7 dB on the host
-# track whose cuts the owner heard, 25.3-28.6 dB on all three. At that level the
-# walks are unchanged: "So" at 230.78 still voices until 230.98, and the ``ss`` dip
-# before the approved "uh" at 706.02 still ends "digress.".
-_VOICE_FLOOR_UNDER_SPEECH_DB = 27.0
-# Never closer than this to the room: on a noisy track the speech term alone sits in
-# the room tone and finds no quiet at all. 6 dB clears the frame-to-frame flicker of
-# steady room tone and stays under the 9.5 dB over the room where a breath begins
-# (``breath_detect._BREATH_ABOVE_FLOOR_DB``), so a kept word's own breath never
-# reads as quiet.
-_VOICE_FLOOR_OVER_ROOM_DB = 6.0
 # The bottom of a dip this deep on both sides ends a voice even when it misses the
 # floor: the ``ss`` of "digress." dips 19 dB under itself and 28 dB under the "uh"
 # after it (lab 706.00). A vowel's level ripples by a few dB from frame to frame.
@@ -103,9 +89,10 @@ _BURST_DB = 12.0
 # climbing out of a dark stretch gains 10-14 dB per frame, which _BURST_DB still
 # calls a new sound, but a fade-in can cover it.
 _BURST_KIND_DB = 18.0
-# A high-band jump out of the quiet must also reach this level: room noise on the lab
-# tape sits near -95 dB in that band and flickers by about 10 dB.
-_BURST_FLOOR_DB = -70.0
+# A high-band jump out of the quiet must also reach this far under the track's voice
+# floor: room noise on the lab tape sits near -95 dB in that band and flickers by about
+# 10 dB, and its voice floors (-44 to -40 dBFS) put this level at -72 to -68 dB.
+_BURST_FLOOR_UNDER_VOICE_FLOOR_DB = 28.0
 # A frame counts as the climb's lower step only when it is this far under the next:
 # the dark stretch before a rise is flat to a fraction of a dB, not a ramp.
 _FOOT_DB = 0.5
@@ -125,19 +112,6 @@ class Onset:
 
     sec: float
     kind: OnsetKind
-
-
-def voice_floor_db(cache: TrackAudioCache) -> float:
-    """The level under which a frame holds no voice on this track (dBFS).
-
-    ``inf`` on a track with no live audio at all: every frame is digital silence,
-    so every frame is quiet.
-    """
-    profile = cache.track_profile
-    if profile is None:
-        return math.inf
-    room_db, speech_db = (20.0 * math.log10(rms) for rms in profile)
-    return max(speech_db - _VOICE_FLOOR_UNDER_SPEECH_DB, room_db + _VOICE_FLOOR_OVER_ROOM_DB)
 
 
 def _is_valley(levels: np.ndarray, k: int, depth_db: float) -> bool:
@@ -175,7 +149,7 @@ def _frames(cache: TrackAudioCache, t0: float, t1: float) -> np.ndarray:
 
 
 def _walk_breaks(cache: TrackAudioCache, levels: np.ndarray) -> np.ndarray:
-    quiet_db = voice_floor_db(cache)
+    quiet_db = cache.voice_floor_db
     return _voice_breaks(
         levels, quiet_db, valley_max_db=quiet_db + _VALLEY_SLACK_DB, depth_db=_VALLEY_DEPTH_DB
     )
@@ -186,7 +160,7 @@ def voice_onset(cache: TrackAudioCache, word_start: float, floor: float) -> floa
 
     The word is a filler a cut starts at, or the kept word a cut must end before.
     The walk stops at the first frame where the voice breaks (under
-    :func:`voice_floor_db`, or a valley near it); the onset is the start of the frame
+    :attr:`TrackAudioCache.voice_floor_db`, or a valley near it); the onset is the start of the frame
     after it. It does not bridge short dips the way voiced runs do: the "ss" of
     "digress." falls under the floor for only 20 ms before the owner-approved "uh" at
     706.02 on the lab tape. ``word_start`` comes back when the voice begins at or
@@ -262,20 +236,20 @@ def voice_separates(cache: TrackAudioCache, word_end: float, end: float) -> bool
     """
     levels, first, last, _ = _frames_from_word_end(cache, word_end, end)
     breaks = _voice_breaks(
-        levels, voice_floor_db(cache), valley_max_db=math.inf, depth_db=_SEPARATION_DEPTH_DB
+        levels, cache.voice_floor_db, valley_max_db=math.inf, depth_db=_SEPARATION_DEPTH_DB
     )
     return bool(breaks[first:last].any())
 
 
-def next_onset(
-    cache: TrackAudioCache, filler_end: float, end: float, *, quiet_db: float
-) -> Onset | None:
+def next_onset(cache: TrackAudioCache, filler_end: float, end: float) -> Onset | None:
     """Where new sound begins after a filler, if it begins before ``end``.
 
-    ``filler_end`` is the filler's word-time end; ``quiet_db`` is the audibility floor.
+    ``filler_end`` is the filler's word-time end. Quiet is the track's voice floor.
     Times are frame starts on the absolute 10 ms grid, so the returned onset is never
     later than the sound it marks.
     """
+    quiet_db = cache.voice_floor_db
+    burst_floor_db = quiet_db - _BURST_FLOOR_UNDER_VOICE_FLOOR_DB
     sr = int(cache.waveform.sample_rate)
     frame = max(1, round(sr * FRAME_SEC))
     hop = max(1, round(sr * HOP_SEC))
@@ -302,7 +276,7 @@ def next_onset(
     for k in range(first, levels.size):
         level, band = float(levels[k]), float(bands[k])
         if quiet_band is not None:
-            if level >= quiet_db or (band >= _BURST_FLOOR_DB and band >= quiet_band + _BURST_DB):
+            if level >= quiet_db or (band >= burst_floor_db and band >= quiet_band + _BURST_DB):
                 return onset_at(k, k)
             quiet_band = min(quiet_band, band)
             continue

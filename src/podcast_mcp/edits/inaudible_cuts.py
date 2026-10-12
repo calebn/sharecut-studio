@@ -10,7 +10,7 @@ from typing import Literal
 import numpy as np
 
 from podcast_mcp.config import DEFAULT_MICRO_FADE_MS, join_micro_fade_ms, load_defaults
-from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.audio_cache import TrackAudioCache, track_voice_floor_db
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Track, Transcript
@@ -37,8 +37,9 @@ class InaudibleCutConfig:
     # word-timed boundary (ASR often ends "um" early while energy continues).
     short_cut_max_sec: float = 1.2
     trailing_energy_extend_ms: int = 350
-    trailing_energy_hot_db: float = -36.0
-    trailing_energy_quiet_db: float = -45.0
+    # Levels are dB over the track's voice floor (``TrackAudioCache.voice_floor_db``).
+    trailing_energy_hot_over_floor_db: float = 6.0
+    trailing_energy_quiet_over_floor_db: float = -3.0
     trailing_energy_hop_ms: int = 10
     # After a cut ends at a word boundary, absorb quiet dead air up to the next
     # word so restarts/ripples do not leave a double-breath. Only runs when the
@@ -46,7 +47,7 @@ class InaudibleCutConfig:
     absorb_trailing_silence: bool = True
     absorb_trailing_silence_retain_sec: float = 0.4
     absorb_trailing_silence_max_sec: float = 2.0
-    absorb_trailing_silence_quiet_db: float = -45.0
+    absorb_trailing_silence_quiet_over_floor_db: float = -3.0
 
     @classmethod
     def from_defaults(cls) -> InaudibleCutConfig:
@@ -64,16 +65,20 @@ class InaudibleCutConfig:
             weight_continuity=float(w.get("continuity", 0.15)),
             short_cut_max_sec=float(cfg.get("short_cut_max_sec", 1.2)),
             trailing_energy_extend_ms=int(cfg.get("trailing_energy_extend_ms", 350)),
-            trailing_energy_hot_db=float(cfg.get("trailing_energy_hot_db", -36.0)),
-            trailing_energy_quiet_db=float(cfg.get("trailing_energy_quiet_db", -45.0)),
+            trailing_energy_hot_over_floor_db=float(
+                cfg.get("trailing_energy_hot_over_floor_db", 6.0)
+            ),
+            trailing_energy_quiet_over_floor_db=float(
+                cfg.get("trailing_energy_quiet_over_floor_db", -3.0)
+            ),
             trailing_energy_hop_ms=int(cfg.get("trailing_energy_hop_ms", 10)),
             absorb_trailing_silence=bool(cfg.get("absorb_trailing_silence", True)),
             absorb_trailing_silence_retain_sec=float(
                 cfg.get("absorb_trailing_silence_retain_sec", 0.4)
             ),
             absorb_trailing_silence_max_sec=float(cfg.get("absorb_trailing_silence_max_sec", 2.0)),
-            absorb_trailing_silence_quiet_db=float(
-                cfg.get("absorb_trailing_silence_quiet_db", -45.0)
+            absorb_trailing_silence_quiet_over_floor_db=float(
+                cfg.get("absorb_trailing_silence_quiet_over_floor_db", -3.0)
             ),
         )
 
@@ -478,6 +483,7 @@ def _extend_end_past_trailing_energy(
     cut_end: float,
     *,
     config: InaudibleCutConfig,
+    floor_db: float,
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
     search_until: float | None = None,
@@ -511,8 +517,8 @@ def _extend_end_past_trailing_energy(
         return cut_end, False
     new_end, end_db, quietest_db = picked
 
-    hot = config.trailing_energy_hot_db
-    quiet = config.trailing_energy_quiet_db
+    hot = floor_db + config.trailing_energy_hot_over_floor_db
+    quiet = floor_db + config.trailing_energy_quiet_over_floor_db
     improve_db = 3.0
     # Still hot at the next-word boundary: allow chewing into the next token
     # within hard_cap so overlapping filler energy is cleared.
@@ -598,11 +604,15 @@ def _absorb_trailing_silence(
     if gap <= retain + 0.02 or gap > max_gap:
         return cut_end, False
     target = next_start - retain
+    quiet_db = (
+        track_voice_floor_db(project, track_id, audio_cache)
+        + config.absorb_trailing_silence_quiet_over_floor_db
+    )
     if not _region_is_quiet(
         path,
         cut_end,
         next_start,
-        quiet_db=config.absorb_trailing_silence_quiet_db,
+        quiet_db=quiet_db,
         hop_ms=config.trailing_energy_hop_ms,
         sample_rate=sample_rate,
         audio_cache=audio_cache,
@@ -689,6 +699,7 @@ def optimize_source_cut_range(
                 start,
                 end,
                 config=cfg,
+                floor_db=track_voice_floor_db(project, track_id, audio_cache),
                 audio_cache=audio_cache,
                 search_until=search_until,
             )

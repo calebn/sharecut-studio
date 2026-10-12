@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
 from podcast_mcp.config import join_micro_fade_ms, load_defaults
-from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.audio_cache import (
+    TrackAudioCache,
+    speech_db_from_profile,
+    track_level_profile,
+    track_voice_floor_db,
+    voice_floor_from_profile,
+)
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
     InaudibleCutConfig,
@@ -33,7 +40,6 @@ def _heuristics(defaults: dict[str, Any] | None) -> dict[str, float | int]:
         "boundary_jump_db": float(h.get("boundary_jump_db", 12.0)),
         "min_fade_ms": int(h.get("min_fade_ms", 10)),
         "recommended_fade_ms": int(h.get("recommended_fade_ms", 20)),
-        "audibility_rms_db": float(h.get("audibility_rms_db", -42.0)),
     }
 
 
@@ -201,14 +207,12 @@ def recommend_post_pad_fade_in_ms(
     (``inaudible_cuts.micro_fade_ms``) is the floor. A gradual onset (fricative,
     glide, vowel) sets no cap: the fade may cover it.
     """
-    h = _heuristics(defaults)
     min_ms, max_ms = post_pad_fade_in_bounds_ms(defaults)
     if max_ms <= 0:
         return 0
     tighten = _tighten_cfg(defaults)
 
-    quiet_db = float(tighten.get("filler_post_pad_quiet_db", h["audibility_rms_db"]))
-    hot_db = float(tighten.get("filler_post_pad_hot_db", -22.0))
+    hot_under_speech_db = float(tighten.get("filler_post_pad_hot_under_speech_db", 7.0))
     look_ahead = float(tighten.get("filler_post_pad_look_ahead_ms", 120)) / 1000.0
     hop = 0.02
 
@@ -231,6 +235,9 @@ def recommend_post_pad_fade_in_ms(
 
     fade_ms = min_ms
     if peak_db is not None:
+        profile = track_level_profile(project, track_id, audio_cache)
+        quiet_db = voice_floor_from_profile(profile)
+        hot_db = speech_db_from_profile(profile) - hot_under_speech_db
         span = max(1e-6, hot_db - quiet_db)
         energy_t = max(0.0, min(1.0, (peak_db - quiet_db) / span))
         energy_fade = round(min_ms + energy_t * (max_ms - min_ms))
@@ -259,7 +266,6 @@ def recommend_prev_word_lead_out_ms(
     reaches the quiet floor (clamped).
     """
     tighten = _tighten_cfg(defaults)
-    h = _heuristics(defaults)
     min_ms = int(tighten.get("filler_prev_word_lead_out_min_ms", 40))
     max_ms = int(tighten.get("filler_prev_word_lead_out_max_ms", 250))
     if max_ms < min_ms:
@@ -267,13 +273,13 @@ def recommend_prev_word_lead_out_ms(
     if max_ms <= 0:
         return 0
 
-    quiet_db = float(tighten.get("filler_prev_word_quiet_db", h["audibility_rms_db"]))
     look = float(tighten.get("filler_prev_word_look_ahead_ms", 300)) / 1000.0
     if max_available_sec is not None:
         look = min(look, max(0.0, max_available_sec))
     hop = 0.02
 
     saw_energy = False
+    quiet_db = math.inf
     quiet_at: float | None = None
     t = 0.0
     while t < look - 1e-9:
@@ -286,6 +292,8 @@ def recommend_prev_word_lead_out_ms(
             audio_cache=audio_cache,
         )
         if db is not None:
+            if not saw_energy:
+                quiet_db = track_voice_floor_db(project, track_id, audio_cache)
             saw_energy = True
             if db <= quiet_db:
                 quiet_at = t

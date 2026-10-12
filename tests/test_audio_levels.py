@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import wave
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import (
     DIGITAL_SILENCE_DB,
     BandLevels,
+    build_track_audio_caches,
     level_profile,
     room_floor_db,
     speech_level_db,
+    track_voice_floor_db,
 )
+from podcast_mcp.engines import audio_audit
+from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
 from podcast_mcp.util.dsp import LOW_BAND, SPEECH_BAND, frame_band_filtered_db
 
 RATE = 16_000
@@ -135,3 +142,66 @@ def test_a_block_that_cannot_be_read_late_in_a_recording_makes_it_unreadable() -
         return _reader(x)(start, duration)
 
     assert BandLevels(fails_late, RATE).all_levels() is None
+
+
+def _decoded_project(tmp_path: Path, name: str, samples: np.ndarray) -> EpisodeProject:
+    path = tmp_path / "raw" / f"{name}.wav"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(RATE)
+        handle.writeframes(np.rint(samples * 32767).astype("<i2").tobytes())
+    project = EpisodeProject.create("floors", str(tmp_path))
+    project.timeline.tracks.append(
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=f"raw/{name}.wav", duration_sec=samples.size / RATE),
+        )
+    )
+    return project
+
+
+def _speech_over_room(seconds: int = 4) -> np.ndarray:
+    rng = np.random.default_rng(3)
+    samples = rng.standard_normal(seconds * RATE) * 1e-4
+    t = np.arange(RATE) / RATE
+    for start in range(seconds - 1):
+        samples[start * RATE : (start + 1) * RATE] += 0.1 * np.sin(2 * np.pi * 150 * t)
+    return samples
+
+
+def test_a_caller_with_no_decode_reads_the_floor_the_cached_proposals_did(tmp_path) -> None:
+    project = _decoded_project(tmp_path, "host", _speech_over_room())
+    cache = build_track_audio_caches(project, ["host"])["host"]
+
+    assert track_voice_floor_db(project, "host") == pytest.approx(cache.voice_floor_db)
+    assert track_voice_floor_db(project, "host", cache) == cache.voice_floor_db
+    assert cache.voice_floor_db == pytest.approx(cache.speech_db - 27.0)
+
+
+def test_the_floor_of_a_track_is_decoded_once_per_audio_file(tmp_path, monkeypatch) -> None:
+    project = _decoded_project(tmp_path, "memo", _speech_over_room())
+    reads = []
+    real = audio_audit.TrackRmsCache.from_timeline_stem
+
+    def counting(*args, **kwargs):
+        reads.append(args)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(audio_audit.TrackRmsCache, "from_timeline_stem", counting)
+
+    first = track_voice_floor_db(project, "host")
+    second = track_voice_floor_db(project, "host")
+
+    assert first == second
+    assert len(reads) == 1
+
+
+def test_a_track_with_no_live_audio_has_every_frame_quiet(tmp_path) -> None:
+    project = _decoded_project(tmp_path, "silent", np.zeros(2 * RATE))
+
+    assert track_voice_floor_db(project, "host") == np.inf
+    assert build_track_audio_caches(project, ["host"])["host"].speech_db == -np.inf
