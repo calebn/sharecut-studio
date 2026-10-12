@@ -186,8 +186,6 @@ lockfile location needs a new `updates` entry in the same change. Workflow and
 Dependabot YAML contract tests load files through `tests/github_yaml.py`
 (`load_github_yaml`), which restores the `on:` key PyYAML 1.1 parses as `True`.
 
-The `uv` entry ignores `setuptools` `>=82`: `webrtcvad` (via `resemblyzer`) imports `pkg_resources`, which setuptools 82 removed (#1168), and the test pins the ignore so Dependabot cannot widen the `speaker-lite` `setuptools<82` bound again.
-
 The `frontend` job in `.github/workflows/test.yml` runs `npm audit --omit=dev
 --audit-level=high` right after `npm ci`. It is advisory only (`continue-on-error:
 true`) — the required `frontend` check does not block on upstream advisory timing,

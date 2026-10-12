@@ -42,7 +42,7 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
         "editables",
     ),
     "speaker": ("torch", "speechbrain.inference.speaker"),
-    "speaker-lite": ("resemblyzer",),
+    "speaker-lite": ("numba",),
     "joinqc": ("torch", "librosa", "transformers"),
     "gui": (
         "anyio",
@@ -61,10 +61,28 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
 }
 ALL_EXTRA = "all"
 
+# `import resemblyzer` itself fails on webrtcvad's removed `pkg_resources` import (#1284);
+# the backend loads it past that, so the probe drives the backend instead.
+EXTRA_EXERCISE: dict[str, str] = {
+    "speaker-lite": (
+        "import numpy as np; "
+        "from podcast_mcp.engines.speaker_id import ResemblyzerBackend; "
+        "samples = np.random.default_rng(0).normal(size=32000).astype('float32'); "
+        "emb = ResemblyzerBackend().embed(samples, 16000); "
+        "assert emb.shape == (256,), emb.shape"
+    ),
+}
+
 
 def _declared_extras() -> set[str]:
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     return set(data["project"]["optional-dependencies"])
+
+
+def _exercise_for(extra: str) -> str:
+    if extra == ALL_EXTRA:
+        return "; ".join(EXTRA_EXERCISE.values())
+    return EXTRA_EXERCISE.get(extra, "pass")
 
 
 def _imports_for(extra: str) -> tuple[str, ...]:
@@ -129,7 +147,7 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
     code = (
         "import sys, pathlib; "
         f"assert pathlib.Path(sys.prefix).resolve() == pathlib.Path({str(venv)!r}).resolve(), sys.prefix; "
-        f"import {imports}"
+        f"import {imports}; {_exercise_for(extra)}"
     )
     # Run from tmp_path so the checkout's src/ cannot shadow the installed package.
     probe = subprocess.run(

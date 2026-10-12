@@ -75,10 +75,6 @@ updates:
     commit-message:
       prefix: chore
       include: scope
-    # webrtcvad (via resemblyzer) imports pkg_resources, which setuptools 82 removed (#1168).
-    ignore:
-      - dependency-name: setuptools
-        versions: [">=82"]
     groups:
       uv-minor-patch:
         applies-to: version-updates

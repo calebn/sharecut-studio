@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
+import types
 import wave
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -171,6 +173,24 @@ class SpeechBrainBackend:
         return emb.squeeze().detach().cpu().numpy().astype(np.float32)
 
 
+def _import_voice_encoder() -> Any:
+    """Import resemblyzer's VoiceEncoder without importing webrtcvad.
+
+    resemblyzer imports webrtcvad at module scope for `preprocess_wav`'s silence
+    trimming, which this repo never calls. webrtcvad 2.0.10 imports `pkg_resources`,
+    which setuptools 82 removed, so a placeholder stands in while resemblyzer loads.
+    """
+    placeholder = "webrtcvad" not in sys.modules
+    if placeholder:
+        sys.modules["webrtcvad"] = types.ModuleType("webrtcvad")
+    try:
+        from resemblyzer import VoiceEncoder
+    finally:
+        if placeholder:
+            sys.modules.pop("webrtcvad", None)
+    return VoiceEncoder
+
+
 class ResemblyzerBackend:
     def __init__(self) -> None:
         self._encoder = None
@@ -180,9 +200,7 @@ class ResemblyzerBackend:
 
     def _load(self):
         if self._encoder is None:
-            from resemblyzer import VoiceEncoder
-
-            self._encoder = VoiceEncoder(verbose=False)
+            self._encoder = _import_voice_encoder()(verbose=False)
         return self._encoder
 
     def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
@@ -215,7 +233,7 @@ def resolve_speaker_backend(
             pass
     if name in ("resemblyzer", "lite", "auto"):
         try:
-            from resemblyzer import VoiceEncoder  # noqa: F401
+            _import_voice_encoder()
 
             return ResemblyzerBackend()
         except ImportError:
