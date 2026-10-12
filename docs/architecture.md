@@ -635,6 +635,10 @@ The publisher borrows paths and descriptors without recapturing creation identit
 `util/registry_cleanup.py` preserves initiating errors and drains independent
 releases, including snapshot SQLite close. Unknown creation identity permits
 resource release but not name deletion. Completed final backups are never cleanup targets.
+POSIX source admission of the main/WAL/SHM/journal files uses `lstat` and a path ACL
+query, never a descriptor: closing any descriptor on a file releases every POSIX lock
+the process holds on it, which lets a peer reset the WAL shared memory this process
+still maps (SIGBUS). `tests/test_share_registry_wal_locks.py` pins this.
 
 `edits/share_registry.py` owns the online SQLite snapshot and registry transaction
 recovery. Its narrow `util/registry_backup.py` publisher creates a private disk

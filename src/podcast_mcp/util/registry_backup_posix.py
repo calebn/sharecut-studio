@@ -20,11 +20,15 @@ def identity(value: os.stat_result) -> Identity:
     return value.st_dev, value.st_ino
 
 
-def _check_acl(fd: int) -> None:
+def _check_acl(target: int | str) -> None:
     if sys.platform == "darwin":
         libc = ctypes.CDLL(None, use_errno=True)
-        libc.acl_get_fd_np.argtypes = [ctypes.c_int, ctypes.c_int]
-        libc.acl_get_fd_np.restype = ctypes.c_void_p
+        get_acl = libc.acl_get_fd_np if isinstance(target, int) else libc.acl_get_link_np
+        get_acl.argtypes = [
+            ctypes.c_int if isinstance(target, int) else ctypes.c_char_p,
+            ctypes.c_int,
+        ]
+        get_acl.restype = ctypes.c_void_p
         libc.acl_get_entry.argtypes = [
             ctypes.c_void_p,
             ctypes.c_int,
@@ -32,7 +36,7 @@ def _check_acl(fd: int) -> None:
         ]
         libc.acl_get_tag_type.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)]
         libc.acl_free.argtypes = [ctypes.c_void_p]
-        acl = libc.acl_get_fd_np(fd, 0x100)
+        acl = get_acl(target if isinstance(target, int) else os.fsencode(target), 0x100)
         if not acl:
             if ctypes.get_errno() == errno.ENOENT:
                 return
@@ -54,7 +58,12 @@ def _check_acl(fd: int) -> None:
         finally:
             cleanup([partial(libc.acl_free, acl)])
     elif sys.platform.startswith("linux"):
-        if any(name.startswith("system.posix_acl_") for name in os.listxattr(fd)):
+        names = (
+            os.listxattr(target)
+            if isinstance(target, int)
+            else os.listxattr(target, follow_symlinks=False)
+        )
+        if any(name.startswith("system.posix_acl_") for name in names):
             raise PermissionError("backup paths must not have extended ACL grants")
     else:
         raise OSError(errno.ENOTSUP, "backup ACL verification is unavailable")
@@ -117,6 +126,35 @@ def _check_file(fd: int, *, tighten: bool = False) -> None:
         info = os.fstat(fd)
     if info.st_mode & 0o077:
         raise PermissionError("registry file must be owned and private (0600)")
+
+
+def _tighten_file(parent: int, name: str, expected: Identity) -> None:
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    try:
+        if identity(os.fstat(fd)) != expected:
+            raise PermissionError("registry file changed during access")
+        os.fchmod(fd, 0o600)
+    finally:
+        cleanup([partial(os.close, fd)])
+
+
+def _check_unopened_file(path: Path, parent: int, name: str, *, tighten: bool) -> None:
+    """Check a file SQLite may hold locked without opening it.
+
+    Closing any descriptor on a file drops every POSIX lock this process holds on
+    it, which would let a peer reset the WAL shared memory this process still maps.
+    """
+    before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    if not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid():
+        raise PermissionError("registry file must be regular and owned by the host user")
+    _check_acl(str(path / name))
+    if tighten and before.st_mode & 0o077:
+        _tighten_file(parent, name, identity(before))
+        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    if before.st_mode & 0o077:
+        raise PermissionError("registry file must be owned and private (0600)")
+    if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != identity(before):
+        raise PermissionError("registry file changed during access")
 
 
 def _remove_file(parent: int, name: str, expected: Identity) -> None:
@@ -206,23 +244,11 @@ def registry_scope(
         _verify_chain(chain)
         for name in names:
             try:
-                fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+                _check_unopened_file(path, parent, name, tighten=create)
             except FileNotFoundError:
                 if name != names[0] or allow_missing_main:
                     continue
                 raise
-            try:
-                _check_file(fd, tighten=create)
-                try:
-                    current = os.stat(name, dir_fd=parent, follow_symlinks=False)
-                except FileNotFoundError:
-                    if name != names[0]:
-                        continue
-                    raise
-                if identity(os.fstat(fd)) != identity(current):
-                    raise PermissionError("registry file changed during access")
-            finally:
-                cleanup([partial(os.close, fd)])
 
     try:
         verify()
