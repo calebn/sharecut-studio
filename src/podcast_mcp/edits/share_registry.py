@@ -80,20 +80,6 @@ CREATE TABLE IF NOT EXISTS recording_key_secret (
 );
 """
 
-_ACTIVE_SHARE_COLUMN_MIGRATIONS: dict[str, str] = {
-    "id": "TEXT",
-    "kind": "TEXT NOT NULL DEFAULT 'review'",
-    "role": "TEXT",
-    "session_id": "TEXT",
-}
-
-
-def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
-    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
-    for name, ddl in columns.items():
-        if name not in existing:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
-
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -220,8 +206,6 @@ class SqliteShareRegistry:
                 connection.execute("PRAGMA synchronous=NORMAL")
                 connection.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
                 connection.executescript(_SCHEMA)
-                with immediate_transaction(connection):
-                    _ensure_columns(connection, "active_shares", _ACTIVE_SHARE_COLUMN_MIGRATIONS)
                 verify()
             return connection
         except BaseException:
