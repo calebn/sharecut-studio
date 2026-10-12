@@ -160,7 +160,8 @@ function MoreHub({
         <div className="mobile-more-group">
           {emptySession ? (
             <p className="mobile-ingest-hint">
-              No tracks yet. Import audio adds one dialogue track per file.
+              No tracks yet. Import audio adds one dialogue track per file. One
+              recording of everyone? Import it, then choose Split speakers.
             </p>
           ) : null}
           <CommandButton commandId="media.import">Import audio…</CommandButton>

@@ -206,6 +206,26 @@ describe("SplitSpeakersDialog", () => {
     await expectNoA11yViolations(baseElement);
   });
 
+  it("names the track as it was called before the split renamed it to the first speaker", async () => {
+    const user = userEvent.setup();
+    const settle = heldFollow();
+    vi.mocked(refreshDocumentProject).mockImplementation(async () => {
+      const renamed = minimalProject({
+        tracks: [sampleTrack({ id: "room", label: "Ana" })],
+      });
+      useDawStore.setState({ project: renamed });
+      return renamed;
+    });
+    render(<SplitSpeakersDialog />);
+    await splitTwo(user);
+    await act(async () => settle().ok(finished));
+
+    expect(await screen.findByText("Split Room into 2 tracks.")).toBeTruthy();
+    expect(useDawStore.getState().feedbackToast?.message).toBe(
+      "Split Room into 2 tracks: Ana and Ben.",
+    );
+  });
+
   it("undoes the split from the result and returns to the settings", async () => {
     const user = userEvent.setup();
     const settle = heldFollow();

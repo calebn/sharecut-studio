@@ -105,8 +105,8 @@ describe("split copy", () => {
   it("says what to listen for, and nothing when there is nothing", () => {
     expect(splitSpeakersListenNotes(result)).toEqual([
       "Ben and Cy sound like one person. If fewer people are talking, undo and split again with a lower count.",
-      "1:15 where it is not sure who is talking. Listen there before relying on the tracks.",
-      "12 s where people talk over each other. It plays once, on the track of the speaker it hears most.",
+      "1:15 where the speaker is unclear. Listen there before relying on the tracks.",
+      "12 s where people talk over each other. It plays once, on the track of the speaker heard most.",
     ]);
     expect(
       splitSpeakersListenNotes({

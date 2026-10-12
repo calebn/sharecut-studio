@@ -144,12 +144,9 @@ function SplitSpeakersForm({
           />
         )}
       </Field>
-      <fieldset
-        className="bounce-dialog-fieldset split-speakers-names"
-        aria-describedby={namesHintId}
-      >
+      <fieldset className="split-speakers-names" aria-describedby={namesHintId}>
         <legend>Names (optional)</legend>
-        <p id={namesHintId} className="export-dialog-note">
+        <p id={namesHintId} className="ui-field-hint">
           A blank name becomes Speaker 1, Speaker 2, and so on, in the order
           they first talk.
         </p>

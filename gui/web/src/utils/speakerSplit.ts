@@ -140,12 +140,12 @@ export function splitSpeakersListenNotes(
   );
   if (result.low_confidence_sec >= 1) {
     notes.push(
-      `${seconds(result.low_confidence_sec)} where it is not sure who is talking. Listen there before relying on the tracks.`,
+      `${seconds(result.low_confidence_sec)} where the speaker is unclear. Listen there before relying on the tracks.`,
     );
   }
   if (result.crosstalk_sec >= 1) {
     notes.push(
-      `${seconds(result.crosstalk_sec)} where people talk over each other. It plays once, on the track of the speaker it hears most.`,
+      `${seconds(result.crosstalk_sec)} where people talk over each other. It plays once, on the track of the speaker heard most.`,
     );
   }
   return notes;
