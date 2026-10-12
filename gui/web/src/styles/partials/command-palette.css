@@ -414,7 +414,6 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .split-speakers-name-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
-  column-gap: var(--space-4);
   gap: var(--space-0) var(--space-4);
 }
 
@@ -521,7 +520,6 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .share-dialog-role {
   display: grid;
   grid-template-columns: 1rem minmax(0, 1fr);
-  column-gap: var(--space-4);
   align-items: center;
 }
 
