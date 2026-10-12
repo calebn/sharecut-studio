@@ -100,8 +100,10 @@ def test_a_sample_that_is_mostly_sound_reads_the_room_the_tracks_mode_gives_it()
 
     assert room.spread_db == pytest.approx(1.5, abs=0.6)
     # The anchor is the sample's 5th percentile, which is the room's own 33rd here: the
-    # level reads up to 1.645 spreads over the room's median, never under it.
-    assert room.level_db == pytest.approx(-87.4, abs=0.1)
+    # level reads up to 1.645 spreads over it, the spread being the mode's.
+    anchor = float(np.percentile(sample, 5.0))
+    assert room.level_db == pytest.approx(anchor + 1.645 * room.spread_db, abs=0.001)
+    assert room.level_db == pytest.approx(-87.9, abs=0.7)
 
 
 def test_a_track_a_gate_holds_at_digital_silence_most_of_the_time_has_that_for_a_room() -> None:
@@ -572,3 +574,24 @@ def test_the_mode_of_a_track_reports_the_level_it_piles_up_at() -> None:
     assert mode is not None
     assert mode.level_db == pytest.approx(-92.0, abs=0.8)
     assert mode.spread_db == pytest.approx(1.5, abs=0.6)
+
+
+@pytest.mark.parametrize("offset_db", [-24.0, -12.0, 6.0, 12.0])
+def test_the_mode_of_a_track_moves_with_its_level_whatever_its_quietest_frame_does(
+    offset_db: float,
+) -> None:
+    rng = np.random.default_rng(8)
+    levels = np.concatenate(
+        [_room_levels(500, -92.0, 1.5, seed=9), rng.uniform(-90.0, -20.0, 500), [-193.0, -199.0]]
+    )
+    moved = np.where(
+        levels + offset_db > DIGITAL_SILENCE_DB, levels + offset_db, DIGITAL_SILENCE_DB
+    )
+
+    mode = read_mode(levels, -50.0, LEAST)
+    shifted = read_mode(moved, -50.0 + offset_db, LEAST)
+
+    assert mode is not None
+    assert shifted is not None
+    assert shifted.level_db - mode.level_db == pytest.approx(offset_db, abs=0.001)
+    assert shifted.spread_db == pytest.approx(mode.spread_db, abs=0.001)
