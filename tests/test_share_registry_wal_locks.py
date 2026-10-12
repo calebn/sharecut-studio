@@ -51,3 +51,13 @@ def test_registry_privacy_checks_leave_sqlite_wal_locks_held(tmp_path: Path) -> 
         assert _peer_sees_connection_alive(shm), "a read released the WAL lock"
         registry.recording_key_secret()
         assert _peer_sees_connection_alive(shm), "a write released the WAL lock"
+
+
+def test_tightening_a_loose_sidecar_leaves_a_peer_registrys_locks_held(tmp_path: Path) -> None:
+    path = tmp_path / "registry.sqlite"
+    shm = Path(f"{path}-shm")
+    with closing(SqliteShareRegistry(path)), closing(SqliteShareRegistry(path)):
+        os.chmod(shm, 0o644)
+        with closing(SqliteShareRegistry(path)):
+            assert _peer_sees_connection_alive(shm), "tightening a sidecar released the WAL lock"
+        assert shm.stat().st_mode & 0o077 == 0
