@@ -1447,6 +1447,14 @@ test; other rows are whole tests.
 | no shell row draws over the strip, nor the strip over it: landscape-844 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | live waiver draft survives compact to regular tablet transition | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: phone, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: phone, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: tablet, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: tablet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: desktop, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: desktop, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: desktop-short, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the pending action card stays below the sticky ruler: desktop-short, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Expand keeps the header, Collapse and Close usable at 844x390 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Expand keeps the header, Collapse and Close usable at 844x390 with a 24 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Expand keeps the header, Collapse and Close usable at 844x390 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |

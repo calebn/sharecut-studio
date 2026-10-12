@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type TestInfo, test } from "@playwright/test";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { e2eProjectPath } from "../e2e/env";
 import {
@@ -17,7 +17,6 @@ const VIEWPORTS = {
   desktop: { width: 1280, height: 720 },
   "desktop-short": { width: 1280, height: 440 },
 } as const;
-const THEMES: readonly Theme[] = ["light", "dark"];
 
 let projectPath: string;
 let workspaceDir: string;
@@ -69,49 +68,79 @@ async function measure(page: Page) {
   });
 }
 
-for (const [name, size] of Object.entries(VIEWPORTS)) {
-  for (const theme of THEMES) {
-    test(`the pending action card stays below the sticky ruler: ${name}, ${theme}`, async ({
-      page,
-      browserName,
-    }, info) => {
-      test.setTimeout(40_000);
-      await page.setViewportSize(size);
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(".daw-shell")).toBeVisible();
-      await suggestOnFirstDialogueTrack(page);
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(".daw-shell")).toBeVisible();
-      if (name === "phone") await openPhoneTimeline(page);
-      await setTheme(page, theme);
-      await page
-        .locator("[data-pending-id]")
-        .last()
-        .click({
-          position: { x: 4, y: 4 },
-        });
-      const bar = page.locator(".pending-actionbar");
-      await expect(bar).toBeVisible();
-      await page.waitForTimeout(700);
-      if ((await bar.getAttribute("class"))?.includes("--docked")) {
-        save(
-          info,
-          `${browserName}-${name}-${theme}.png`,
-          await page.screenshot(),
-        );
-        return;
-      }
-      await page.locator(".timeline-scroll").evaluate((el) => {
-        el.scrollTop = el.scrollHeight;
-      });
-      await page.waitForTimeout(700);
-      save(
-        info,
-        `${browserName}-${name}-${theme}.png`,
-        await page.screenshot(),
-      );
-      const { barTop, chromeBottom } = await measure(page);
-      expect(barTop).toBeGreaterThanOrEqual(chromeBottom - 0.5);
+async function expectCardBelowRuler(
+  { page, browserName }: { page: Page; browserName: string },
+  info: TestInfo,
+  name: keyof typeof VIEWPORTS,
+  theme: Theme,
+): Promise<void> {
+  test.setTimeout(40_000);
+  await page.setViewportSize(VIEWPORTS[name]);
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await expect(page.locator(".daw-shell")).toBeVisible();
+  await suggestOnFirstDialogueTrack(page);
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await expect(page.locator(".daw-shell")).toBeVisible();
+  if (name === "phone") await openPhoneTimeline(page);
+  await setTheme(page, theme);
+  await page
+    .locator("[data-pending-id]")
+    .last()
+    .click({
+      position: { x: 4, y: 4 },
     });
+  const bar = page.locator(".pending-actionbar");
+  await expect(bar).toBeVisible();
+  await page.waitForTimeout(700);
+  if ((await bar.getAttribute("class"))?.includes("--docked")) {
+    save(info, `${browserName}-${name}-${theme}.png`, await page.screenshot());
+    return;
   }
+  await page.locator(".timeline-scroll").evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await page.waitForTimeout(700);
+  save(info, `${browserName}-${name}-${theme}.png`, await page.screenshot());
+  const { barTop, chromeBottom } = await measure(page);
+  expect(barTop).toBeGreaterThanOrEqual(chromeBottom - 0.5);
 }
+
+test("the pending action card stays below the sticky ruler: phone, light", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardBelowRuler({ page, browserName }, info, "phone", "light"));
+test("the pending action card stays below the sticky ruler: phone, dark", ({
+  page,
+  browserName,
+}, info) => expectCardBelowRuler({ page, browserName }, info, "phone", "dark"));
+test("the pending action card stays below the sticky ruler: tablet, light", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardBelowRuler({ page, browserName }, info, "tablet", "light"));
+test("the pending action card stays below the sticky ruler: tablet, dark", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardBelowRuler({ page, browserName }, info, "tablet", "dark"));
+test("the pending action card stays below the sticky ruler: desktop, light", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardBelowRuler({ page, browserName }, info, "desktop", "light"));
+test("the pending action card stays below the sticky ruler: desktop, dark", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardBelowRuler({ page, browserName }, info, "desktop", "dark"));
+test("the pending action card stays below the sticky ruler: desktop-short, light", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardBelowRuler({ page, browserName }, info, "desktop-short", "light"));
+test("the pending action card stays below the sticky ruler: desktop-short, dark", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardBelowRuler({ page, browserName }, info, "desktop-short", "dark"));
