@@ -397,7 +397,18 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 }
 
 .split-speakers-names {
+  min-inline-size: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
   gap: var(--space-3);
+}
+
+.split-speakers-names legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-weight: 600;
 }
 
 .split-speakers-name-grid {

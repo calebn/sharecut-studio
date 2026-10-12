@@ -124,8 +124,9 @@ export function StudioShellView({
               {workspace.ingest.coachOpen ? (
                 <div className="box elevated empty-session-coach" role="status">
                   <p>
-                    Drop stems here. Use one file per speaker. Import is also
-                    under Menu ({workspace.ingest.importShortcut}).
+                    Drop stems here. Use one file per speaker. One recording of
+                    everyone? Import it, then choose Split speakers. Import is
+                    also under Menu ({workspace.ingest.importShortcut}).
                   </p>
                   <button
                     type="button"

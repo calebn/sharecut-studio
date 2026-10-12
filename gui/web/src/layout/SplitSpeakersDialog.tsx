@@ -34,6 +34,8 @@ type Flow =
   | {
       kind: "running";
       trackId: string;
+      /** The track's label before the split renames it to the first speaker. */
+      label: string;
       jobId: string | null;
       cancelling: boolean;
       cancelError: string | null;
@@ -41,12 +43,13 @@ type Flow =
   | {
       kind: "done";
       trackId: string;
+      label: string;
       result: SplitSpeakersResult;
       undoing: boolean;
       undoError: string | null;
     }
-  | { kind: "failed"; trackId: string; reason: string }
-  | { kind: "cancelled"; trackId: string };
+  | { kind: "failed"; trackId: string; label: string; reason: string }
+  | { kind: "cancelled"; trackId: string; label: string };
 
 /**
  * Host Split speakers dialog: the same `SpeakerService.split_speakers` as MCP
@@ -80,7 +83,10 @@ export function SplitSpeakersDialog() {
   }
   const shownTrackId = flow.kind === "configure" ? trackId : flow.trackId;
   const track = project?.tracks.find((t) => t.id === shownTrackId);
-  const trackLabel = track?.label || shownTrackId || "this track";
+  const trackLabel =
+    flow.kind === "configure"
+      ? track?.label || shownTrackId || "this track"
+      : flow.label;
 
   const count = settings.count.trim() === "" ? null : Number(settings.count);
   const names =
@@ -88,15 +94,17 @@ export function SplitSpeakersDialog() {
       ? splitSpeakerNames(settings.names, count)
       : null;
 
-  async function finish(job: PipelineJobSnapshot, forTrackId: string) {
+  async function finish(
+    job: PipelineJobSnapshot,
+    forTrackId: string,
+    label: string,
+  ) {
     const result = parseSplitSpeakersResult(job.result);
     if (result == null) {
       throw new Error("The split finished without saying what it made");
     }
     await refreshDocumentProject(projectPath);
     const s = useDawStore.getState();
-    const label =
-      s.project?.tracks.find((t) => t.id === forTrackId)?.label || forTrackId;
     s.announceStatus(splitSpeakersDoneCopy(result, label), {
       undo: result.history_head_id,
     });
@@ -104,6 +112,7 @@ export function SplitSpeakersDialog() {
     setFlow({
       kind: "done",
       trackId: forTrackId,
+      label,
       result,
       undoing: false,
       undoError: null,
@@ -116,9 +125,11 @@ export function SplitSpeakersDialog() {
     }
     const scope = projectScopedSignal(projectPath);
     let jobId: string | null = null;
+    const label = trackLabel;
     setFlow({
       kind: "running",
       trackId,
+      label,
       jobId: null,
       cancelling: false,
       cancelError: null,
@@ -140,6 +151,7 @@ export function SplitSpeakersDialog() {
       await finish(
         await followJobToOk(job.id, "Split failed", { signal: scope.signal }),
         trackId,
+        label,
       );
     } catch (err) {
       if (jobId != null) {
@@ -149,14 +161,19 @@ export function SplitSpeakersDialog() {
         setFlow({ kind: "configure" });
       } else if (err instanceof JobCancelledError) {
         if (parseSplitSpeakersResult(err.job.result) != null) {
-          await finish(err.job, trackId).catch((e: unknown) =>
-            setFlow({ kind: "failed", trackId, reason: errorMessage(e) }),
+          await finish(err.job, trackId, label).catch((e: unknown) =>
+            setFlow({
+              kind: "failed",
+              trackId,
+              label,
+              reason: errorMessage(e),
+            }),
           );
         } else {
-          setFlow({ kind: "cancelled", trackId });
+          setFlow({ kind: "cancelled", trackId, label });
         }
       } else {
-        setFlow({ kind: "failed", trackId, reason: errorMessage(err) });
+        setFlow({ kind: "failed", trackId, label, reason: errorMessage(err) });
       }
     } finally {
       scope.dispose();
