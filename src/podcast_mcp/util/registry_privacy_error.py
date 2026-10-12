@@ -3,8 +3,9 @@
 ``util/registry_backup_posix.py`` raises it at the boundary, where the offending path is known.
 Every adapter already reports a ``CodedError``'s message and code (``util/coded_error.py``), so
 the CLI prints one ``Error:`` line, an MCP tool returns it as a structured refusal, and the GUI
-maps it in ``gui/routes/deps.py``. A share guest gets the message with host paths redacted
-(``util/tool_refusal.py``).
+maps it in ``gui/routes/deps.py``. A share guest never gets that message: the error holds a
+second, fixed ``GUEST_MESSAGE`` with no path and no command, and every guest or relayed
+adapter reads it through ``util/tool_refusal.py``.
 
 The refusal is fail-closed: it names what is wrong and how to fix it, and never repairs anything.
 A fix is a command only when running it on a path the host owns cannot widen access.
@@ -82,3 +83,6 @@ class RegistryPrivacyError(CodedPermissionError):
         self.reason = reason
         self.fix = _FIX[reason].format(**fields)
         super().__init__(f"{_PROBLEM[reason].format(**fields)}; {self.fix}")
+
+    def guest_message(self) -> str:
+        return GUEST_MESSAGE
