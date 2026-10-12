@@ -203,10 +203,33 @@ def test_gated_silence_holds_no_speech_to_clip() -> None:
     quiet = (np.random.default_rng(1).normal(0, 1e-4, RATE)).astype(np.float32)
     assert (
         speech_crossing_at_edge(
-            quiet, RATE, edge_index=RATE // 2, side="onset", config=JoinSpeechConfig()
+            quiet,
+            RATE,
+            edge_index=RATE // 2,
+            side="onset",
+            voice_floor_db=-47.0,
+            config=JoinSpeechConfig(),
         )
         is None
     )
+
+
+@pytest.mark.parametrize("gain_db", [-24.0, -12.0, 0.0, 6.0])
+def test_a_crossing_is_found_at_the_same_edge_at_every_recording_level(gain_db: float) -> None:
+    voice = _voice(3.0, 1.0, 2.2)
+    tail = np.linspace(1.0, 0.03, int(0.3 * RATE))
+    voice[int(2.2 * RATE) : int(2.2 * RATE) + tail.size] = (
+        voice[int(1.8 * RATE) : int(1.8 * RATE) + tail.size] * tail
+    )
+    scaled = (voice * 10 ** (gain_db / 20)).astype(np.float32)
+    edge = int(1.5 * RATE)
+
+    hit = speech_crossing_at_edge(
+        scaled, RATE, edge_index=edge, side="tail", voice_floor_db=-47.0 + gain_db
+    )
+
+    assert hit is not None
+    assert hit[0] / RATE == pytest.approx(2.5, abs=0.05)
 
 
 def test_window_filter_keeps_only_joins_inside_the_timeline_span(tmp_path: Path) -> None:

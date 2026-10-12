@@ -169,12 +169,24 @@ def test_weighted_fusion_in_hits() -> None:
     assert 0.0 <= risk <= 1.0
 
 
-def _tiny_project(minimal_project: Path, sample_wav: Path):
+def _tiny_project(minimal_project: Path, sample_wav: Path, *, gated_tail_sec: float = 0.0):
+    """A host track of a steady tone; ``gated_tail_sec`` of digital silence ends it, as a
+    noise gate leaves a track, so the track has a room to tell its tone from."""
     project = load_project(minimal_project)
     raw = project.workspace_path() / "raw"
     raw.mkdir(exist_ok=True)
     dest = raw / "host.wav"
     dest.write_bytes(sample_wav.read_bytes())
+    if gated_tail_sec:
+        with wave.open(str(dest), "rb") as source:
+            params = source.getparams()
+            frames = bytearray(source.readframes(source.getnframes()))
+        width = params.sampwidth * params.nchannels
+        tail = round(gated_tail_sec * params.framerate) * width
+        frames[len(frames) - tail :] = bytes(tail)
+        with wave.open(str(dest), "wb") as out:
+            out.setparams(params)
+            out.writeframes(bytes(frames))
     project.tracks = [
         Track(
             id="host",
@@ -275,14 +287,19 @@ def test_existing_join_scores_the_splice_sides(minimal_project: Path) -> None:
 
 
 def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
-    """Room tone against gated digital silence is below the audibility floor on both
-    sides: no level-jump fail, one ``inaudible_splice`` hit, verdict pass."""
+    """Room tone against gated digital silence is 18 dB or more under the track's voice floor
+    on both sides: no level-jump fail, one ``inaudible_splice`` hit, verdict pass."""
     project = load_project(minimal_project)
     raw = project.workspace_path() / "raw" / "host.wav"
     sr = 16000
     rng = np.random.default_rng(3)
+    voice = (0.1 * np.sqrt(2) * np.sin(2 * np.pi * 220 * np.arange(sr) / sr)).astype(np.float32)
     samples = np.concatenate(
-        [rng.normal(0, 10 ** (-75 / 20), sr).astype(np.float32), np.zeros(sr, dtype=np.float32)]
+        [
+            rng.normal(0, 10 ** (-75 / 20), sr).astype(np.float32),
+            np.zeros(sr, dtype=np.float32),
+            voice,
+        ]
     )
     pcm = (samples * 32767).astype("<i2")
     with wave.open(str(raw), "wb") as handle:
@@ -295,7 +312,7 @@ def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
             id="host",
             label="Host",
             role=TrackRole.DIALOGUE,
-            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+            media=MediaAsset(path="raw/host.wav", duration_sec=3.0),
         )
     ]
     project.clips = [
@@ -311,10 +328,10 @@ def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
     assert rep.verdict == "pass"
     assert rep.risk == 0.0
     assert [h.name for h in rep.detectors] == ["inaudible_splice"]
-    assert rep.detectors[0].detail["floor_db"] == -60.0
-    assert rep.detectors[0].detail["left_db"] < -60.0
+    assert rep.detectors[0].detail["floor_db"] == pytest.approx(-65.0, abs=0.5)
+    assert rep.detectors[0].detail["left_db"] < -65.0
     assert rep.detectors[0].detail["right_db"] == -200.0
-    assert "inaudible splice: both sides below -60 dBFS" in rep.reasons
+    assert "inaudible splice: both sides below -65 dBFS" in rep.reasons
     proposed = assess_proposed_cut(project, "host", 0.5, 1.5, timebase="source", config=_cfg())
     assert proposed.verdict == "pass"
     assert [h.name for h in proposed.detectors] == ["inaudible_splice"]
@@ -331,7 +348,7 @@ def test_sweep_row_with_a_speech_crossing_is_never_a_pass(
     clipped onset and tail, while the splice itself scores pass."""
     from podcast_mcp.edits.join_continuity import assess_existing_join
 
-    project = _tiny_project(minimal_project, sample_wav)
+    project = _tiny_project(minimal_project, sample_wav, gated_tail_sec=0.5)
     cfg = _cfg()
     rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=cfg)
     assert rep.verdict == "pass"
@@ -683,6 +700,7 @@ def test_proposed_cut_reports_the_highest_tolerated_placement_risk(
         join_continuity, "_resolve_source_samples", lambda *args, **kwargs: np.ones(32000)
     )
     monkeypatch.setattr(join_continuity, "score_splice_samples", score)
+    monkeypatch.setattr(join_continuity, "track_voice_floor_db", lambda *args, **kwargs: -42.0)
     project = load_project(minimal_project)
 
     report = assess_proposed_cut(
@@ -724,6 +742,10 @@ def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path
     i0 = int(1.0 * sr)
     rng = np.random.default_rng(7)
     samples = np.zeros(2 * sr, dtype=np.float32)
+    # The track speaks at -15 dBFS early on, so its voice floor is -42 dBFS and 18 dB under
+    # that is the -60 dBFS an edge must stay under.
+    t = np.arange(sr // 2) / sr
+    samples[: sr // 2] = 10 ** (-15 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * t)
     # Room tone at -62 dBFS before the cut, with 3 ms of -50 dBFS air just outside the
     # 45 ms left window, so the window at L-3 ms reads about -59 dBFS.
     samples[i0 - side : i0] = rng.normal(0, 10 ** (-62 / 20), side)
@@ -761,6 +783,47 @@ def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path
     assert level.detail["post_db"] < -100.0
 
 
+@pytest.mark.parametrize("gain_db", [-24.0, -12.0, 0.0, 6.0])
+def test_a_proposed_cuts_verdict_is_the_same_at_every_recording_level(
+    minimal_project: Path, gain_db: float
+) -> None:
+    project = load_project(minimal_project)
+    sr = 16000
+    side = int(0.045 * sr)
+    i0 = int(1.0 * sr)
+    rng = np.random.default_rng(7)
+    samples = np.zeros(2 * sr, dtype=np.float64)
+    t = np.arange(sr // 2) / sr
+    samples[: sr // 2] = 10 ** (-15 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * t)
+    samples[i0 - side : i0] = rng.normal(0, 10 ** (-62 / 20), side)
+    samples[i0 - side - 48 : i0 - side] = rng.normal(0, 10 ** (-50 / 20), 48)
+    ints = np.rint(samples * 10 ** (gain_db / 20) * 8388607).astype("<i4")
+    with wave.open(str(project.workspace_path() / "raw" / "host.wav"), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(3)
+        handle.setframerate(sr)
+        handle.writeframes(ints.view(np.uint8).reshape(-1, 4)[:, :3].tobytes())
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project = load_project(save_project(project, minimal_project))
+    cfg = _cfg(edge_tolerance_ms=3.0)
+
+    at_edges = assess_proposed_cut(project, "host", 1.0, 1.5, timebase="source", config=cfg)
+    moved = assess_proposed_cut(project, "host", 0.997, 1.5, timebase="source", config=cfg)
+
+    assert (at_edges.verdict, [h.name for h in at_edges.detectors]) == (
+        "pass",
+        ["inaudible_splice"],
+    )
+    assert moved.verdict == "fail"
+
+
 def by_name(hits: list, name: str):
     return next(h for h in hits if h.name == name)
 
@@ -777,7 +840,7 @@ def test_spectral_shape_detectors_lose_weight_on_quiet_air() -> None:
         return dark / linear_rms(dark) * gain, white / linear_rms(white) * gain
 
     full = _cfg(spectral_audibility_db=0.0)
-    ramped = _cfg(spectral_audibility_db=30.0)
+    ramped = _cfg(spectral_audibility_db=30.0).at_voice_floor(-42.0)
 
     quiet_full, hits_full = score_splice_samples(*sides(-50.0), sample_rate=sr, config=full)
     quiet_ramped, hits_ramped = score_splice_samples(*sides(-50.0), sample_rate=sr, config=ramped)

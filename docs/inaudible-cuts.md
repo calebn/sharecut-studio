@@ -195,8 +195,9 @@ where the left clip's source stopped) reads the source before the left clip's
 other instant reads both sides of that one point. Before #775 the sweep mapped
 the join to the resume point alone and scored raw source continuity there, which
 passed a cut that resumed inside a phrase. A splice whose two sides are both below
-`join_continuity.inaudible_floor_db` (-60 dBFS RMS over the 45 ms side windows, e.g.
-room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
+`join_continuity.inaudible_under_voice_floor_db` (18 dB) under the track's voice floor
+(`TrackAudioCache.voice_floor_db`; -60 dBFS at the lab host's -42 dBFS floor; RMS over the 45 ms side windows,
+e.g. room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
 verdict `pass`, one `inaudible_splice` detector carrying both levels, instead of a
 level-jump `fail` nobody can hear. On the lab tape that turned 7 of 8 sweep fails
 into passes and left the one real clipped onset. That floor is the only level rule:
@@ -207,7 +208,9 @@ transcript gate (the mixer's job, not a second copy of it). The lab's caleb join
 therefore still fails after the Lana fix; the skill's loop ends there with one
 listen, then accept or waive. Each sweep row also carries `speech`
 (`edits/join_speech.py` crossings at that join: clipped onset or tail, voice
-edge, `removed_ms`, `suggested_source_sec`, `asr_disagrees`) and the report a
+edge, `removed_ms`, `suggested_source_sec`, `asr_disagrees`; a frame is speech within
+25 dB of the window's loud frames and no more than 8 dB under the track's voice floor, and a
+window whose loud frames stay under 7 dB over that floor holds none) and the report a
 `speech_cross_count`. A row with a `speech` crossing is never a `pass`: the
 continuity detectors score the splice's texture, and a cut through the track's own
 voice is a defect whatever they score, so such a row reads at least `review` with
@@ -257,7 +260,7 @@ flips 74 of 1296 (26 of 108) and 285 of 5712 (94 of 476). The report carries the
 worst placement's detectors and, when it is not the edges as proposed, the reason
 `worst edge placement +0/+3 ms within +-3 ms`.
 Inaudibility is decided at the proposed edges only: a splice both of whose sides
-sit below `inaudible_floor_db` there passes, whatever a placement 3 ms away reads,
+sit below that inaudible floor there passes, whatever a placement 3 ms away reads,
 because the floor is a hard threshold and taking the worst placement across it
 would fail a clean quiet-air cut whose 45 ms window happens to catch a few louder
 samples when moved (caleb 1339.500 on the aligned lab run: −62.1 dBFS at the edge,
@@ -266,7 +269,7 @@ spectral-shape detectors (flux, MFCC / LSF / MCA join costs, F0, bicoherence)
 compare level-normalised spectra, so two windows of −48 dBFS room tone read as a
 full mismatch and a clean solo-pause cut scored 0.47 on trunk, which the worst
 placement pushed past 0.48. Their weight therefore ramps from 0 at
-`inaudible_floor_db` to full `join_continuity.spectral_audibility_db` (30 dB) above
+the inaudible floor to full `join_continuity.spectral_audibility_db` (30 dB) above
 it, judged on the splice's louder side, while the level, noise-floor, click and
 onset detectors keep full weight (a −46 dBFS room tone cut into digital silence
 still fails on its level jump). On the aligned lab run stacked with PR #821, the

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import tempfile
 import wave
 from collections.abc import Callable, Iterator, Sequence
@@ -30,6 +31,9 @@ from podcast_mcp.edits.audio_cache import (
     WAVEFORM_SAMPLE_RATE,
     TrackAudioCache,
     build_track_audio_caches,
+    level_profile,
+    track_voice_floor_db,
+    voice_floor_from_profile,
 )
 from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
@@ -97,13 +101,21 @@ class JoinContinuityConfig:
     weight_late_energy: float = 0.55
     weight_nisqa: float = 1.4
     weight_wavlm: float = 1.4
-    # Both splice sides below this RMS (dBFS) cannot be heard: room tone against
-    # gated digital silence passes as "inaudible splice" instead of scoring a level jump.
-    inaudible_floor_db: float = -60.0
+    # Both splice sides this far under the track's voice floor cannot be heard: room tone
+    # against gated digital silence passes as "inaudible splice" instead of scoring a level
+    # jump. :meth:`at_voice_floor` resolves it to ``inaudible_floor_db`` (dBFS) for a track.
+    inaudible_under_voice_floor_db: float = 18.0
+    inaudible_floor_db: float = -math.inf
     # Spectral-shape detectors compare level-normalised spectra, which read as a
     # mismatch between any two windows of quiet air. Their weight ramps from 0 at
     # inaudible_floor_db to full this many dB above it (louder side); 0 disables.
     spectral_audibility_db: float = 30.0
+
+    def at_voice_floor(self, voice_floor_db: float) -> JoinContinuityConfig:
+        """This config with ``inaudible_floor_db`` set for a track whose voice floor is given."""
+        return replace(
+            self, inaudible_floor_db=voice_floor_db - self.inaudible_under_voice_floor_db
+        )
 
     @classmethod
     def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
@@ -134,7 +146,7 @@ class JoinContinuityConfig:
             weight_late_energy=float(cfg.get("weight_late_energy", 0.55)),
             weight_nisqa=float(cfg.get("weight_nisqa", 1.4)),
             weight_wavlm=float(cfg.get("weight_wavlm", 1.4)),
-            inaudible_floor_db=float(cfg.get("inaudible_floor_db", -60.0)),
+            inaudible_under_voice_floor_db=float(cfg.get("inaudible_under_voice_floor_db", 18.0)),
             spectral_audibility_db=float(cfg.get("spectral_audibility_db", 30.0)),
         )
 
@@ -929,6 +941,7 @@ def _assess_existing_join(
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     if samples is None:
         samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
+        cfg = cfg.at_voice_floor(track_voice_floor_db(project, track_id))
     if points is None:
         points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
     left_i, right_i = _splice_indices(points, cfg.sample_rate)
@@ -1003,6 +1016,9 @@ def assess_proposed_cut(
     if cut_end <= cut_start:
         raise ValueError("cut_end must be > cut_start")
     samples = _resolve_source_samples(project, track_id, cfg.sample_rate, audio_caches=audio_caches)
+    cfg = cfg.at_voice_floor(
+        track_voice_floor_db(project, track_id, (audio_caches or {}).get(track_id))
+    )
     st = SessionTimeline(project)
     if timebase == "timeline":
         mapped0 = st.timeline_to_source(track_id, TimelineSec(cut_start))
@@ -1050,14 +1066,23 @@ def assess_project_joins(
         if not joins:
             continue
         samples = _resolve_source_samples(project, tid, cfg.sample_rate)
+        voice_floor_db = voice_floor_from_profile(
+            level_profile(samples, cfg.sample_rate, whole_track=True)
+        )
+        track_cfg = cfg.at_voice_floor(voice_floor_db)
         natural_p95 = (
-            _natural_baseline_p95(samples, cfg.sample_rate, cfg) if cfg.calibrate else None
+            _natural_baseline_p95(samples, cfg.sample_rate, track_cfg) if cfg.calibrate else None
         )
         source_joins: list[SplicePoints] = [
             (float(prev.source_end), float(cur.source_start)) for prev, cur in joins
         ]
         crossings = find_speech_crossings(
-            project, tid, joins, samples=samples, sample_rate=cfg.sample_rate
+            project,
+            tid,
+            joins,
+            samples=samples,
+            sample_rate=cfg.sample_rate,
+            voice_floor_db=voice_floor_db,
         )
         with _highrate_click_scorer(
             track_audio_path(project, tid), source_joins=source_joins
@@ -1069,7 +1094,7 @@ def assess_project_joins(
                     tid,
                     join_t,
                     timebase="timeline",
-                    config=cfg,
+                    config=track_cfg,
                     defaults=defaults,
                     samples=samples,
                     natural_p95=natural_p95,
