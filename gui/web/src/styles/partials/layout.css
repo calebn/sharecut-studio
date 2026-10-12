@@ -815,11 +815,12 @@ html[data-shell] body {
   white-space: nowrap;
 }
 
-/* Undo and Redo close the rail at its inline end, apart from the tools, as one
-   pair that never wraps or shrinks (#1077). The ingest buttons give way
-   instead: a rail too narrow for all of them hands + Track and Import to
-   Menu > Media and More, which keep both, so a phone in portrait spends no
-   second row on the pair. Icon buttons keep the full touch square. */
+/* Zoom, then Undo and Redo, close the rail at its inline end, apart from the
+   tools, as pairs that never wrap or shrink (#1077, #1028). The ingest
+   buttons give way instead: a rail too narrow for all of them hands + Track
+   and Import to Menu > Media and More, which keep both, so a phone in
+   portrait spends no second row on the pairs. Icon buttons keep the full
+   touch square. */
 .editing-tool-rail-history,
 .editing-tool-rail-zoom {
   display: flex;
@@ -827,8 +828,15 @@ html[data-shell] body {
   gap: var(--space-1);
 }
 
-/* Zoom leads the closing cluster, so Undo and Redo keep the inline end. */
-.editing-tool-rail-zoom {
+/* Zoom leads the closing cluster, so Undo and Redo keep the inline end, and a
+   rail that must wrap moves the whole cluster, and only a line too narrow even
+   for the cluster (200% text on a phone) splits it between its pairs. */
+.editing-tool-rail-end {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
   margin-inline-start: auto;
 }
 
@@ -848,10 +856,6 @@ html[data-shell] body {
   .editing-tool-rail {
     gap: var(--space-1);
     padding-inline: var(--space-3);
-  }
-
-  .editing-tool-rail-zoom {
-    margin-inline-end: var(--space-1);
   }
 
   .editing-tool-rail-range {
