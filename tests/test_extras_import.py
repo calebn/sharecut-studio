@@ -42,6 +42,7 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
         "editables",
     ),
     "speaker": ("torch", "speechbrain.inference.speaker"),
+    # resemblyzer cannot be imported directly (#1284), so its numba dependency stands in.
     "speaker-lite": ("numba",),
     "joinqc": ("torch", "librosa", "transformers"),
     "gui": (
