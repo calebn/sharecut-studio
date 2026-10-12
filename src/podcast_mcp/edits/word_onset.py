@@ -90,8 +90,8 @@ _BURST_DB = 12.0
 # calls a new sound, but a fade-in can cover it.
 _BURST_KIND_DB = 18.0
 # A high-band jump out of the quiet must also reach this far under the track's voice
-# floor: room noise on the lab tape sits near -95 dB in that band and flickers by about
-# 10 dB, and its voice floors (-44 to -40 dBFS) put this level at -72 to -68 dB.
+# floor, so the flicker of room noise in that band (about 10 dB) is not read as a burst.
+# Why 28 dB: docs/filler-cut-quality.md § Policy, Voice floor.
 _BURST_FLOOR_UNDER_VOICE_FLOOR_DB = 28.0
 # A frame counts as the climb's lower step only when it is this far under the next:
 # the dark stretch before a rise is flat to a fraction of a dB, not a ramp.

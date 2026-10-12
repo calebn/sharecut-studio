@@ -6,6 +6,7 @@ from typing import Any
 
 from podcast_mcp.config import join_micro_fade_ms, load_defaults
 from podcast_mcp.edits.audio_cache import (
+    DIGITAL_SILENCE_DB,
     TrackAudioCache,
     speech_db_from_profile,
     track_level_profile,
@@ -163,12 +164,12 @@ def _resume_edge_rms_db(
     t0 = max(0.0, source_resume_sec + start_off)
     t1 = max(t0 + 0.005, source_resume_sec + end_off)
     if audio_cache is not None:
-        return audio_cache.jump.rms_db(t0, t1)
+        return audio_cache.jump.rms_db(t0, t1, floor_db=DIGITAL_SILENCE_DB)
     try:
         path = track_audio_path(project, track_id)
     except ValueError:
         return None
-    return measure_window_rms_db(path, t0, t1)
+    return measure_window_rms_db(path, t0, t1, floor_db=DIGITAL_SILENCE_DB)
 
 
 def post_pad_fade_in_bounds_ms(defaults: dict[str, Any] | None) -> tuple[int, int]:

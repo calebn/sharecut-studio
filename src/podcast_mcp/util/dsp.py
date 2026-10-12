@@ -15,6 +15,8 @@ import numpy as np
 
 # Below this linear RMS a frame is treated as digital silence (-200 dBFS).
 _SILENCE_RMS = 1e-10
+# What ``rms_db`` reports for digital silence unless the caller names its own floor.
+DEFAULT_RMS_FLOOR_DB = -80.0
 
 
 def clamp01(value: float) -> float:
@@ -38,7 +40,7 @@ def linear_rms(samples: np.ndarray, *, epsilon: float = 0.0) -> float:
     return float(np.sqrt(np.mean(np.square(samples, dtype=np.float64)) + epsilon))
 
 
-def rms_db(samples: np.ndarray, *, floor_db: float = -80.0) -> float:
+def rms_db(samples: np.ndarray, *, floor_db: float = DEFAULT_RMS_FLOOR_DB) -> float:
     """RMS level in dBFS; empty or digitally silent input returns ``floor_db``."""
     if samples.size == 0:
         return floor_db
