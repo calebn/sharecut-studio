@@ -371,8 +371,8 @@ The tool does not guess speaker names. List **one file per speaker** in `ingest.
 A room mic or a phone recorder puts several people on one file. `podcast speaker split`
 (MCP `speaker_split_tool`, `SpeakerService.split_speakers`) turns that lane into one
 lane per speaker, so each can be levelled, EQ'd and processed like a multitrack
-episode (#1095). Phase 1 is the engine, service, CLI and MCP; the Studio "Split
-speakers" flow comes after the owner's listening pass.
+episode (#1095). Sharecut Studio runs the same service from the track inspector
+(**Split speakers…**, below).
 
 ```bash
 podcast speaker split --project P --track room --speakers 3 --dry-run
@@ -422,6 +422,32 @@ more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
 - `--room-tone-fill` lays the track's room tone (`edits/room_tone.py`, #1054) under each
   mute. It is off by default: the open lane already carries the bed, so every fill adds
   another copy of it to the mix. A gated recording has no room tone and stays silent.
+
+**In Sharecut Studio.** **Split speakers…** sits beside **Replace audio…** in the track
+inspector (host only) and in the command palette (`track.splitSpeakers`). It is disabled
+with its reason beside it when the track has no audio or is already a lane of a split
+(the project view's `TrackView.speaker_split_id`). The dialog asks for the speaker
+count (2 to 8) and optional names; a blank name becomes `Speaker N`, and the engine
+numbers unnamed speakers by who talks first. It posts `POST /api/speaker/split
+{ path, track_id, speaker_count, names? }`, which starts a `kind=split_speakers`
+pipeline-slot job over `SpeakerService.split_speakers` with `dry_run=False`, the
+`owner` crosstalk mode and no room-tone fill. The route validates first
+(`SpeakerService.check_split`: the count, the names, a real embedding backend, a
+splittable track), so a refusal is a 400 or 409 and no job starts. Enrollment, the
+crosstalk modes and `--room-tone-fill` stay on the CLI and MCP. The job's progress
+counts embedded windows, so the bar moves for the whole attribution; Cancel stops it
+between windows and, once attribution is done, before the project is touched. The
+result is the service's: `lanes[{track_id, name, muted_sec}]`, `crosstalk_sec`,
+`crosstalk_regions`, `low_confidence_sec` and `low_confidence_regions` (turns under
+`LOW_CONFIDENCE` = 0.5), `warnings` (CLI/MCP sentences), `same_voice` (the pairs
+behind them, as names) and `history_head_id` (the `after split speakers` entry).
+Studio refreshes the project, announces "Split Room into 3 tracks: Ana, Ben and Cy."
+with an Undo bound to that history entry, and keeps the dialog open on the result:
+the new tracks with how much of the recording each plays, then what to listen for
+(overlapping speech that plays once, stretches the attribution is unsure of, and
+a pair of speakers that sound like one person, with advice to undo and split again
+with a lower count) and **Undo split**. Redo is the ordinary Redo. The split is one
+undo step, `before split speakers` / `after split speakers`.
 
 **Attribution.** Silero frames (20 ms) → 1 s windows every 0.25 s that are at least 30%
 voiced → embeddings → spherical k-means seeded from the enrollment spans (or k-means++)

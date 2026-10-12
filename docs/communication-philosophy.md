@@ -93,6 +93,9 @@ to UX partners; for UI copy, this table wins.
 | Solo on | The button shown while any track is soloed: in the corner above the track headers on desktop and tablet, in the status row and Mix sheet on phone. It reads "Solo on · Clear solo", and one press unsolos every track. Solo is listen-only: only you hear it | "solo mode", "solo active" |
 | Implied mute | A track silent only because you soloed another track. Its row, lane and clips go grey like a saved mute; its M and identity stripe are dashed, because it is never saved | "auto-muted", "muted by solo" |
 | No mix yet | The status when no mix is rendered (never rendered, or a failed render left none) and Full mix is silent. It replaces "Mix out of date" in the one status pill, chip and Menu item, with "· Refresh" only where the person can refresh. A guest reads it without an action | "No preview", "No premix", a second pill beside "Mix out of date" |
+| Split speakers | Turn one recording of several people into one track per speaker. Every track plays the same audio and goes quiet where someone else talks, so together they sound like the original. The host gives the speaker count; the dialog opens from the track inspector or the command palette. Undo puts the single track back | "diarize", "separate speakers", "demix", "unmix" |
+| Overlapping speech | Two or more people talking at once in a split. It plays once, on the track of the speaker heard most, and the dialog says how long it lasts | "crosstalk" and "bleed" in UI copy (bleed is microphone leakage, a different thing) |
+| Unsure stretch | Time in a split where the speaker is unclear. The dialog says how long and asks the host to listen there before relying on the tracks | "low confidence" in UI copy (that term is for transcript words) |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
 | Stop sharing | Revoke a review link. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception) | "delete link" |
@@ -535,6 +538,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   longer undoes behind it), names its consequence as the dialog's
   description, and returns focus to the control that opened it in
   Safari too; the toast steps off the control just pressed.
+
+- 2026-10-12 Split speakers (#1095 phase 2): the track inspector's **Split speakers…** opens a dialog for the speaker count and optional names, shows progress with **Cancel split**, then the new tracks, what to listen for and one **Undo split**. Added "Split speakers", "Overlapping speech" and "Unsure stretch"; the empty-session coach and the phone hint tell people with one recording of everyone where to go.
 
 - 2026-10-09 Compact feedback (#1205). The header stays outside the single
   content scroller. Feedback and native fields share ordinary scroll order.

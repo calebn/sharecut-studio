@@ -361,7 +361,7 @@ keeps the `cut_speech` it confirmed. See [daw-editing.md § Edit modes](daw-edit
 
 ## Speaker split
 
-`podcast speaker split --apply` (`speaker_split_tool`, `SpeakerService.split_speakers`) is one `ProjectWorkspace.mutate()` entry, `split_speakers`. Attribution runs first, outside the project lock; the mutation then adds the speaker lanes, their clip copies and mute regions, the per-lane transcripts and `editorial.speaker_splits`. Undo restores the single original lane, its transcript and clips together. No media is written, so nothing outside `episode.project.json` and `history/` needs cleaning up. See [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker).
+`podcast speaker split --apply` (`speaker_split_tool`, `SpeakerService.split_speakers`) is one `ProjectWorkspace.mutate()` entry, `split_speakers`. Attribution runs first, outside the project lock; the mutation then adds the speaker lanes, their clip copies and mute regions, the per-lane transcripts and `editorial.speaker_splits`. Undo restores the single original lane, its transcript and clips together. Sharecut Studio's **Split speakers…** job returns the `after split speakers` entry as `history_head_id`, and its toast and result dialog offer Undo scoped to that entry, so an Undo never reverses a later change. No media is written, so nothing outside `episode.project.json` and `history/` needs cleaning up. See [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker).
 
 
 ## Individual Restore and whole-action Undo
