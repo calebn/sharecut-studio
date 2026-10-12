@@ -1,18 +1,22 @@
+/**
+ * `mm:ss.mmm` (`hh:mm:ss.mmm` from an hour or when forced), rounded to the
+ * millisecond it shows so 16.04 reads `00:16.040` and 59.9995 carries to
+ * `01:00.000`. Negative input clamps to zero.
+ */
 export function formatTime(
   sec: number,
   opts?: { forceHours?: boolean },
 ): string {
-  const clamped = Math.max(0, sec);
-  const h = Math.floor(clamped / 3600);
-  const m = Math.floor((clamped % 3600) / 60);
-  const s = clamped % 60;
-  const whole = Math.floor(s);
-  const ms = Math.floor((s - whole) * 1000);
-  if (opts?.forceHours || h > 0) {
-    // Pad hours so playhead/duration share a fixed layout in the transport.
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(whole).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
-  }
-  return `${String(m).padStart(2, "0")}:${String(whole).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+  const totalMs = Math.round(Math.max(0, sec) * 1000);
+  const h = Math.floor(totalMs / 3_600_000);
+  const m = Math.floor((totalMs % 3_600_000) / 60_000);
+  const whole = Math.floor((totalMs % 60_000) / 1000);
+  const ms = totalMs % 1000;
+  const tail = `${String(m).padStart(2, "0")}:${String(whole).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+  // Pad hours so playhead/duration share a fixed layout in the transport.
+  return opts?.forceHours || h > 0
+    ? `${String(h).padStart(2, "0")}:${tail}`
+    : tail;
 }
 
 /** Episodes an hour or longer lay every transport time out as hh:mm:ss. */

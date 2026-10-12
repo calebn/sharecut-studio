@@ -57,6 +57,26 @@ describe("formatTime", () => {
   it("pads hours when forced", () => {
     expect(formatTime(65, { forceHours: true })).toBe("00:01:05.000");
   });
+
+  it("rounds to the displayed millisecond instead of flooring", () => {
+    expect(formatTime(16.04)).toBe("00:16.040");
+    expect(formatTime(0.29)).toBe("00:00.290");
+    expect(formatTime(1.0004)).toBe("00:01.000");
+    expect(formatTime(1.0006)).toBe("00:01.001");
+  });
+
+  it("carries a rounded-up millisecond into seconds, minutes and hours", () => {
+    expect(formatTime(59.9995)).toBe("01:00.000");
+    expect(formatTime(59.9994)).toBe("00:59.999");
+    expect(formatTime(3599.9996)).toBe("01:00:00.000");
+    expect(formatTime(3599.9996, { forceHours: true })).toBe("01:00:00.000");
+  });
+
+  it("reads zero and clamps negative input to zero", () => {
+    expect(formatTime(0)).toBe("00:00.000");
+    expect(formatTime(-3.2)).toBe("00:00.000");
+    expect(formatTime(-0.0004)).toBe("00:00.000");
+  });
 });
 
 describe("formatDurationLabel", () => {

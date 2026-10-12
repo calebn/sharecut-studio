@@ -94,6 +94,32 @@ describe("placePendingActionbar", () => {
     expect(position.top).toBeGreaterThanOrEqual(8);
   });
 
+  it("keeps a card that flips above the lane under the sticky timeline chrome", () => {
+    const withChrome = { ...viewport, top: 120 };
+    const position = availablePlacement(
+      placePendingActionbar(
+        { left: 120, top: 700, bottom: 800, width: 14 },
+        { width: 240, height: 600 },
+        withChrome,
+        8,
+      ),
+    );
+    expect(position.top).toBeGreaterThanOrEqual(128);
+    expect(position.top + position.maxHeight).toBeLessThanOrEqual(700);
+  });
+
+  it("falls to the roomier side when the chrome leaves too little room above", () => {
+    const position = availablePlacement(
+      placePendingActionbar(
+        { left: 120, top: 150, bottom: 240, width: 14 },
+        { width: 240, height: 700 },
+        { ...viewport, top: 140 },
+        8,
+      ),
+    );
+    expect(position.top).toBe(248);
+  });
+
   it("hides inline controls when neither side has room", () => {
     expect(
       placePendingActionbar(
