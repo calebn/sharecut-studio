@@ -8,6 +8,8 @@ export interface PendingActionRect {
 export interface FloatingSize {
   width: number;
   height: number;
+  /** Distance from the card's top to the bottom of its Approve and Reject row. */
+  reach: number;
 }
 
 export interface PendingActionPlacement {
@@ -21,8 +23,8 @@ export interface PendingActionPlacement {
  * budget. `viewport.top` is where free space starts (the bottom of the sticky
  * timeline chrome) and `viewport.height` is where it ends (the top of the
  * bottom panel), so the card never sits over either. Returns null when the
- * card cannot fit between them, leaving the review actions to the inline
- * controls.
+ * review actions (`panel.reach`) cannot fit between them, leaving them to the
+ * inline controls; a taller card is capped and scrolls.
  */
 export function placePendingActionbar(
   anchor: PendingActionRect,
@@ -44,7 +46,7 @@ export function placePendingActionbar(
     floor,
     Math.min(anchor.bottom, viewport.height - gutter),
   );
-  if (panel.height > viewport.height - gutter - floor) {
+  if (panel.reach > viewport.height - gutter - floor) {
     return null;
   }
   const below = Math.max(0, viewport.height - bottomEdge - gutter * 2);

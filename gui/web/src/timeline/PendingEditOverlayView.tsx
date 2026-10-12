@@ -133,6 +133,25 @@ function bottomChromeTop(): number {
   return panel ? panel.getBoundingClientRect().top : window.innerHeight;
 }
 
+/**
+ * How far down the card its Approve and Reject row ends at natural height:
+ * the card less whatever follows the row (an alert, the waiver form), so a
+ * card capped by its max height reports the same reach as an uncapped one.
+ */
+function actionsReach(card: HTMLElement, naturalHeight: number): number {
+  const actions = card.querySelector(".pending-actions");
+  if (!actions) return naturalHeight;
+  let below = 0;
+  for (
+    let next = actions.nextElementSibling;
+    next;
+    next = next.nextElementSibling
+  ) {
+    below += next.getBoundingClientRect().height;
+  }
+  return naturalHeight - below;
+}
+
 function touchTargetPx(): number {
   const targetRem = Number.parseFloat(
     getComputedStyle(document.documentElement).getPropertyValue("--touch-min"),
@@ -534,7 +553,11 @@ function PendingEditRegion({
               bottom: anchor.bottom,
               width: anchor.width,
             },
-            { width: panel.width, height: naturalHeight },
+            {
+              width: panel.width,
+              height: naturalHeight,
+              reach: actionsReach(panelElement, naturalHeight),
+            },
             {
               width: window.innerWidth,
               height: sheetTop ?? bottomChromeTop(),
