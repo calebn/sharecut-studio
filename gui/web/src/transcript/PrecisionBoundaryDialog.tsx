@@ -95,6 +95,8 @@ function seconds(value: number): string {
   return `${value.toFixed(3)} s`;
 }
 
+const LOAD_TIMEOUT_MESSAGE = "The server didn't answer. Try again.";
+
 function isStale(error: unknown): boolean {
   return error instanceof Error && /409|stale|changed/i.test(error.message);
 }
@@ -179,6 +181,7 @@ export function PrecisionBoundaryDialog({
         stableTarget,
         stableExpectedGeometry,
         signal,
+        LOAD_TIMEOUT_MESSAGE,
       ),
     [projectPath, stableExpectedGeometry, stableTarget],
   );

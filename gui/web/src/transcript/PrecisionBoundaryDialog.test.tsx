@@ -380,6 +380,14 @@ describe("PrecisionBoundaryDialog", () => {
     expect(loadBoundaryContext).toHaveBeenCalledTimes(2);
   });
 
+  it("asks the load to say Try again, not that a save was lost, when the server never answers", async () => {
+    render(<PrecisionBoundaryDialog {...boundaryProps()} />);
+    await screen.findByRole("spinbutton");
+    expect(loadBoundaryContext.mock.calls[0]?.[4]).toBe(
+      "The server didn't answer. Try again.",
+    );
+  });
+
   it("keeps the current draft when the parent recreates equal geometry", async () => {
     const props = boundaryProps();
     const view = render(<PrecisionBoundaryDialog {...props} />);

@@ -224,12 +224,14 @@ function parseAudition(value: unknown): BoundaryAudition {
  * server that never answers must not hold the edit's save open for good: Undo
  * refuses while a save is in flight (`trackEditSave`), so the load gives up
  * after a document command's time and the save drops with a plain message.
+ * A caller that saves nothing while it waits passes its own `timeoutMessage`.
  */
 export async function loadBoundaryContext(
   path: string,
   target: BoundaryTarget,
   expectedGeometry: BoundaryGeometryClip[],
   signal?: AbortSignal,
+  timeoutMessage = "The server didn't answer. Nothing was saved.",
 ): Promise<BoundaryContext> {
   const guestToken = shareTokenFromKey(path);
   const url = guestToken
@@ -239,7 +241,7 @@ export async function loadBoundaryContext(
     throw new Error("Invalid guest boundary project key");
   return withAbortTimeout(
     DOCUMENT_COMMAND_TIMEOUT_MS,
-    "The server didn't answer. Nothing was saved.",
+    timeoutMessage,
     async (timeoutSignal) => {
       const response = await (guestToken ? fetch : hostFetch)(url, {
         method: "POST",

@@ -253,6 +253,11 @@ the empty state, not a separate discovery task.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
   Clip Inspector shows the error inline. Repeat the gesture against current values.
+- A server that never answers says what happened to the work. A save
+  waiting on it says "The server didn't answer. Nothing was saved." The
+  Adjust boundary dialog saves nothing while it loads, so a hung load says
+  "The server didn't answer. Try again." Close the dialog and open it again to
+  retry.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.
@@ -532,3 +537,5 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-09 Compact feedback (#1205). The header stays outside the single
   content scroller. Feedback and native fields share ordinary scroll order.
   Clipped feedback pauses its remaining visible lifetime.
+- 2026-10-12 Hung boundary load (#1211). The Adjust boundary dialog says "The
+  server didn't answer. Try again." because nothing was being saved.
