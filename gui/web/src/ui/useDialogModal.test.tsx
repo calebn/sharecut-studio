@@ -222,7 +222,7 @@ describe("useDialogModal", () => {
     ).toBe(false);
   });
 
-  it("returns focus to the clicked opener when the click left focus on <body> (Safari)", async () => {
+  it("returns focus to the clicked opener when the click left focus on <body>", async () => {
     const user = userEvent.setup();
     render(
       <>
@@ -231,7 +231,6 @@ describe("useDialogModal", () => {
       </>,
     );
     expect(document.activeElement).toBe(document.body);
-    // WebKit does not focus a clicked button: the click lands, focus stays put.
     fireEvent.click(screen.getByTestId("open-modal"));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
