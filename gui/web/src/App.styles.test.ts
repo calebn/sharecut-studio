@@ -95,6 +95,18 @@ describe("App styles", () => {
     expect(body).not.toMatch(/outline-offset/);
   });
 
+  it("gives the lane header's Mute and Solo the touch target on a coarse pointer (#1028)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(here, "styles/partials/layout.css"), "utf8");
+    const coarse = src.match(
+      /@media \(pointer: coarse\) \{\s*\.track-transport-btns \.trk-btn \{([^}]*)\}/,
+    );
+    expect(coarse).toBeTruthy();
+    const body = coarse![1] ?? "";
+    expect(body).toMatch(/min-inline-size:\s*var\(--touch-min\)/);
+    expect(body).toMatch(/min-block-size:\s*var\(--touch-min\)/);
+  });
+
   it("paints dialog focus rings inside the scrolling body", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(
