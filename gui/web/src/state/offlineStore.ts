@@ -348,6 +348,11 @@ export async function saveCommandQueue(
   await idbSet(queueKey(token), parseCommandList(queue));
 }
 
+/**
+ * Append `cmd` to the guest queue, or replace the row with its `command_id`
+ * where it stands: a replay re-admits the row it is sending, and moving it to
+ * the tail would reorder it behind later edits if the pass stops there.
+ */
 export async function enqueueCommand(
   token: string,
   cmd: QueuedCommand,
@@ -357,13 +362,18 @@ export async function enqueueCommand(
   await updateStoredList<QueuedCommand, void>(
     queueKey(token),
     parseCommandList,
-    (queue) => ({
-      items: [
-        ...queue.filter((existing) => existing.command_id !== cmd.command_id),
-        cmd,
-      ],
-      result: undefined,
-    }),
+    (queue) => {
+      const index = queue.findIndex(
+        (existing) => existing.command_id === cmd.command_id,
+      );
+      return {
+        items:
+          index < 0
+            ? [...queue, cmd]
+            : queue.map((existing, at) => (at === index ? cmd : existing)),
+        result: undefined,
+      };
+    },
   );
 }
 
