@@ -678,6 +678,21 @@ html[data-shell] body {
   font-size: var(--font-size-micro);
 }
 
+/* A finger gets the full touch target on the lane header's M and S, as it does
+   in the Mix sheet (#1028). Two 44px buttons leave no room for the role beside
+   them, so the role gives way here as it does in compact lanes; the track
+   sheet still names it. */
+@media (pointer: coarse) {
+  .track-transport-btns .trk-btn {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+
+  .track-meta .track-role {
+    display: none;
+  }
+}
+
 .trk-btn.active.mute,
 .trk-btn.mute.active {
   background: var(--color-danger-subtle);
