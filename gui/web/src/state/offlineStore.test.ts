@@ -15,8 +15,6 @@ import {
   removeHostConflictsWhere,
   removeHostQueuedCommands,
   saveCommandQueue,
-  saveConflicts,
-  saveHostConflicts,
 } from "./offlineStore";
 
 const command: QueuedCommand = {
@@ -444,17 +442,7 @@ describe("canonical new write admission", () => {
     {
       key: "conflicts:bucket",
       save: (value: QueuedCommand) =>
-        saveConflicts("bucket", [{ command: value, reason: "" }]),
-    },
-    {
-      key: "conflicts:bucket",
-      save: (value: QueuedCommand) =>
         addConflict("bucket", { command: value, reason: "" }),
-    },
-    {
-      key: "host-conflicts:bucket",
-      save: (value: QueuedCommand) =>
-        saveHostConflicts("bucket", [{ command: value, reason: "" }]),
     },
     {
       key: "host-conflicts:bucket",

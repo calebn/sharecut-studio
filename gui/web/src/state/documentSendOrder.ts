@@ -31,7 +31,8 @@ const landed = new Map<
 
 /**
  * Publish the drain run in progress (`requestHostDrain`, `requestGuestDrain`). Its replays are
- * not live sends, and it removes replayed records only when a pass ends, so a
+ * not live sends, and a pass removes the records it replayed in one batch when
+ * it ends (a guest replay also removes its own row as it lands), so a
  * live command queued behind them waits for the run too. `done` never rejects.
  */
 export function trackDocumentDrain(
