@@ -45,12 +45,8 @@ _SPEECH_PERCENTILE = 90.0
 _PROFILE_CHUNK_SEC = 60.0
 
 # The voice floor, relative to the track's own room (p10) and speech (p90) levels,
-# so a voice ends at the same sound at any recording level. 27 dB under the speech
-# level is where the audibility floor the owner approved (-42 dBFS) sits under the
-# lab tape's speech: 26.7 dB on the host track whose cuts the owner heard, 25.3-28.6
-# dB on all three. At that level the walks are unchanged: "So" at 230.78 still
-# voices until 230.98, and the ``ss`` dip before the approved "uh" at 706.02 still
-# ends "digress.".
+# so a voice ends at the same sound at any recording level. Why 27 dB: docs/filler-cut-quality.md
+# § Policy, Voice floor.
 VOICE_FLOOR_UNDER_SPEECH_DB = 27.0
 # Never closer than this to the room: on a noisy track the speech term alone sits in
 # the room tone and finds no quiet at all. 6 dB clears the frame-to-frame flicker of

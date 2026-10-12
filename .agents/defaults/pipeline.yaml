@@ -149,6 +149,9 @@ tighten:
   filler_post_pad_fade_in_min_ms: 15
   filler_post_pad_fade_in_max_ms: 120
   filler_post_pad_look_ahead_ms: 120
+  # The resume fade reaches its cap when the edge is this far under the track's own
+  # speech level (dB).
+  filler_post_pad_hot_under_speech_db: 7
   # With a pad the cut's edges never meet: each fades against silence, so the
   # splice checks below (breath protection, cut-risk level jumps, the join gate)
   # skip it. Its right edge instead stops 10 ms before the next word's acoustic

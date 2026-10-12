@@ -26,7 +26,11 @@ from podcast_mcp.models import (
 
 RATE = 16_000
 SECONDS = 20
-GAINS_DB = (-18.0, -12.0, 6.0, 12.0)
+# -34 dB puts the speech near -58 dBFS, as on a quiet recording. A gated recording is also
+# held to -40 dB (speech near -64 dBFS); with a room floor the pause-island quiet level is
+# still fixed (#1306), so that gain waits for it.
+GAINS_DB = (-34.0, -18.0, -12.0, 6.0, 12.0)
+GATED_ONLY_GAINS_DB = (-40.0,)
 FRAME_SEC = 0.01
 SPEECH_DB = -24.0
 ROOM_DB = -68.0
@@ -160,19 +164,71 @@ def _proposals(tmp_path: Path, gain_db: float, edit_mode: str, intensity: str, *
     return sorted((d.track_id, d.reason, d.start, d.end, d.review_required) for d in decisions)
 
 
+# What the unscaled (0 dB) recording must propose: (track, reason, start, end, review_required).
+_UNGATED_MUTE = [
+    ("host", "filler:acoustic", 12.14, 12.565, True),
+    ("host", "filler:uh:voiced_edge", 5.84, 6.295, True),
+    ("host", "filler:um", 2.84, 3.47, False),
+]
+_RIPPLE_FILLERS = [
+    ("host", "filler:uh:voiced_edge", 5.84, 6.295, True),
+    ("host", "filler:um", 2.84, 3.47, False),
+]
+_EXPECTED = {
+    (False, "mute", "medium"): _UNGATED_MUTE,
+    (False, "ripple", "medium"): [
+        ("host", "filler:uh", 8.965, 9.5, False),
+        *_RIPPLE_FILLERS,
+        ("host", "pause:1.30s:solo:air_edges", 4.15, 4.85, False),
+        ("host", "pause:2.20s:solo:air_edges", 6.85, 8.45, False),
+        ("host", "pause:3.60s:solo:air_edges", 12.59, 14.45, False),
+    ],
+    (False, "ripple", "aggressive"): [
+        ("host", "filler:uh", 8.965, 9.5, False),
+        *_RIPPLE_FILLERS,
+        ("host", "pause:1.10s:solo:air_edges", 1.66, 2.089, False),
+        ("host", "pause:1.30s:solo:air_edges", 4.15, 5.1, False),
+        ("host", "pause:2.20s:solo:air_edges", 6.85, 8.7, False),
+        ("host", "pause:3.60s:solo:air_edges", 12.59, 14.693, False),
+    ],
+    (True, "mute", "medium"): [
+        ("host", "filler:acoustic", 12.14, 12.501, True),
+        *_RIPPLE_FILLERS,
+    ],
+    (True, "ripple", "medium"): [
+        ("host", "filler:acoustic", 12.14, 12.501, True),
+        ("host", "filler:uh", 8.96, 9.5, False),
+        *_RIPPLE_FILLERS,
+        ("host", "pause:1.30s:solo:air_edges", 4.13, 4.85, False),
+        ("host", "pause:2.20s:solo", 6.83, 8.42, False),
+        ("host", "pause:3.60s:solo:air_edges", 12.53, 14.45, False),
+    ],
+    (True, "ripple", "aggressive"): [
+        ("host", "filler:acoustic", 12.14, 12.501, True),
+        ("host", "filler:uh", 8.96, 9.5, False),
+        *_RIPPLE_FILLERS,
+        ("host", "pause:1.10s:solo:air_edges", 1.65, 2.06, False),
+        ("host", "pause:1.30s:solo:air_edges", 4.13, 5.06, False),
+        ("host", "pause:2.20s:solo:air_edges", 6.83, 8.66, False),
+        ("host", "pause:3.60s:solo:air_edges", 12.53, 14.66, False),
+    ],
+}
+
+
 def _assert_the_same_at_every_level(
     tmp_path: Path, edit_mode: str, intensity: str, *, gated: bool
 ) -> None:
-    reference = _proposals(tmp_path / "0", 0.0, edit_mode, intensity, gated=gated)
-    assert reference, "the scenario must propose something to compare"
-    for gain_db in GAINS_DB:
-        scaled = _proposals(tmp_path / str(gain_db), gain_db, edit_mode, intensity, gated=gated)
-        assert [(t, r, f) for t, r, _, _, f in scaled] == [(t, r, f) for t, r, _, _, f in reference]
-        for (_, _, start, end, _), (_, _, ref_start, ref_end, _) in zip(
-            scaled, reference, strict=True
+    expected = sorted(_EXPECTED[(gated, edit_mode, intensity)])
+    for gain_db in (0.0, *GAINS_DB, *(GATED_ONLY_GAINS_DB if gated else ())):
+        got = _proposals(tmp_path / str(gain_db), gain_db, edit_mode, intensity, gated=gated)
+        assert [(t, r, f) for t, r, _, _, f in got] == [(t, r, f) for t, r, _, _, f in expected], (
+            gain_db
+        )
+        for (_, _, start, end, _), (_, _, want_start, want_end, _) in zip(
+            got, expected, strict=True
         ):
-            assert start == pytest.approx(ref_start, abs=FRAME_SEC + 1e-6), gain_db
-            assert end == pytest.approx(ref_end, abs=FRAME_SEC + 1e-6), gain_db
+            assert start == pytest.approx(want_start, abs=FRAME_SEC + 1e-6), gain_db
+            assert end == pytest.approx(want_end, abs=FRAME_SEC + 1e-6), gain_db
 
 
 @pytest.mark.parametrize(

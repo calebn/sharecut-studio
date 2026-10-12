@@ -15,7 +15,11 @@ import numpy as np
 
 from podcast_mcp.config import bounded_float, join_micro_fade_ms
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig, find_voiced_gap_runs
-from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
+from podcast_mcp.edits.audio_cache import (
+    DIGITAL_SILENCE_DB,
+    TrackAudioCache,
+    build_track_audio_caches,
+)
 from podcast_mcp.edits.breath_detect import (
     PauseAirSkip,
     detect_adjacent_breath,
@@ -820,8 +824,8 @@ def _peer_voiced_in_gap(
     margin = _bleed_dominance_db(defaults)
     for cache in peer_caches:
         for run in voiced_runs(cache.waveform, gap_start, gap_end, floor_db=cache.voice_floor_db):
-            own_db = rms_db(own_cache.window(*run))
-            peer_db = rms_db(cache.window(*run))
+            own_db = rms_db(own_cache.window(*run), floor_db=DIGITAL_SILENCE_DB)
+            peer_db = rms_db(cache.window(*run), floor_db=DIGITAL_SILENCE_DB)
             if own_db - peer_db < margin:
                 return True
     return False
@@ -2308,7 +2312,8 @@ def _gate_cut_edges(
     if (
         checks.audible_only
         and audio_cache is not None
-        and rms_db(audio_cache.window(cut_start, cut_end)) < audio_cache.voice_floor_db
+        and rms_db(audio_cache.window(cut_start, cut_end), floor_db=DIGITAL_SILENCE_DB)
+        < audio_cache.voice_floor_db
     ):
         return _CutRejected("inaudible")
     admissible_spans = None

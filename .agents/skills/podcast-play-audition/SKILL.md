@@ -33,7 +33,7 @@ Reconciliation can measure directed bleed from raw media when stems are absent. 
 `podcast edit join-sweep` / `join_qa_sweep_tool` runs the join checks on **every**
 splice in one call (each row has `speech`, the report `speech_cross_count`); use it
 after a content cut, then `play context` on the flagged joins for the full picture.
-A splice both of whose sides are below -60 dBFS passes as `inaudible_splice`; a row
+A splice both of whose sides are 18 dB or more under the track's own voice floor passes as `inaudible_splice`; a row
 with a `speech` crossing is never a pass (the cut goes through that track's own voice,
 fix it); `review` means listen. A join that still `fail`s after its fix gets one
 listen, then accept or waive (see the table).

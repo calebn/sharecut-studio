@@ -35,7 +35,7 @@ from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
-from podcast_mcp.util.dsp import frame_rms_db, rms_db
+from podcast_mcp.util.dsp import DEFAULT_RMS_FLOOR_DB, frame_rms_db, rms_db
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
@@ -290,14 +290,16 @@ class TrackRmsCache:
             return np.empty(0, dtype=self.samples.dtype)
         return self.samples[rng[0] : rng[1]]
 
-    def rms_db(self, t_start: float, t_end: float) -> float | None:
+    def rms_db(
+        self, t_start: float, t_end: float, *, floor_db: float = DEFAULT_RMS_FLOOR_DB
+    ) -> float | None:
         dur = t_end - t_start
         if dur <= 0.005:
             return None
         window = self.window(t_start, t_end)
         if window.size == 0:
             return None
-        return rms_db(window)
+        return rms_db(window, floor_db=floor_db)
 
 
 @dataclass(frozen=True)
@@ -498,9 +500,10 @@ def measure_window_rms_db(
     *,
     sample_rate: int = _RMS_SAMPLE_RATE,
     cache: TrackRmsCache | None = None,
+    floor_db: float = DEFAULT_RMS_FLOOR_DB,
 ) -> float | None:
     if cache is not None:
-        return cache.rms_db(start_sec, end_sec)
+        return cache.rms_db(start_sec, end_sec, floor_db=floor_db)
     dur = end_sec - start_sec
     if dur <= 0.005:
         return None
@@ -512,7 +515,7 @@ def measure_window_rms_db(
         return None
     if window.size == 0:
         return None
-    return rms_db(window)
+    return rms_db(window, floor_db=floor_db)
 
 
 def _processed_track_path(project: EpisodeProject, track_id: str) -> Path | None:

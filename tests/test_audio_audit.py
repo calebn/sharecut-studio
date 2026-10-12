@@ -1869,3 +1869,10 @@ def test_cache_set_measures_its_bleed_paths_once() -> None:
     (audio,), kwargs = measure.call_args
     assert set(audio) == {"host", "guest"} and kwargs == {"sample_rate": 8000}
     assert TrackRmsCacheSet().echo_pairs() == []
+
+
+def test_rms_cache_reports_digital_silence_at_the_floor_the_caller_names() -> None:
+    cache = TrackRmsCache(np.zeros(16_000, dtype=np.float32), 16_000)
+
+    assert cache.rms_db(0.0, 0.5) == -80.0
+    assert cache.rms_db(0.0, 0.5, floor_db=-200.0) == -200.0
