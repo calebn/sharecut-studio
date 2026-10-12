@@ -38,6 +38,7 @@ from podcast_mcp.gui.routes import (
     project,
     record_host,
     session,
+    speaker,
     transcript,
     waveform,
 )
@@ -283,6 +284,7 @@ def create_app(
     app.include_router(bootstrap.router)
     app.include_router(diagnostics.router)
     app.include_router(export_routes.router)
+    app.include_router(speaker.router)
     app.include_router(comments.router)
     app.include_router(media.router)
 

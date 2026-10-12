@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import itertools
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -44,7 +44,11 @@ import numpy as np
 from podcast_mcp.engines.speaker_hand_overs import frame_levels, settle_hand_overs, voice_runs
 from podcast_mcp.engines.speaker_id import SpeakerBackend
 from podcast_mcp.util.dsp import bool_runs
-from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
+from podcast_mcp.util.progress import (
+    ProgressReporter,
+    raise_if_cancel_requested,
+    resolve_progress_task,
+)
 
 RATE = 16000
 FRAME_SEC = 0.02
@@ -137,11 +141,19 @@ def _window_centers(voiced: np.ndarray, duration: float, window_sec: float) -> n
 
 
 def _embed(
-    samples: np.ndarray, centers: np.ndarray, window_sec: float, backend: SpeakerBackend
+    samples: np.ndarray,
+    centers: np.ndarray,
+    window_sec: float,
+    backend: SpeakerBackend,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> np.ndarray:
     width = round(window_sec * RATE)
     starts = np.clip(np.round((centers - window_sec / 2) * RATE).astype(int), 0, None)
-    return _unit(np.stack([backend.embed(samples[s : s + width], RATE) for s in starts]))
+    embeddings = []
+    for start in starts:
+        raise_if_cancel_requested(cancel_check)
+        embeddings.append(backend.embed(samples[start : start + width], RATE))
+    return _unit(np.stack(embeddings))
 
 
 def _enrollment_centroids(
@@ -344,6 +356,7 @@ def attribute_speakers(
     enrollment: Mapping[int, Sequence[Span]] | None = None,
     window_sec: float = WINDOW_SEC,
     progress: ProgressReporter | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> SpeakerAttribution:
     """Speaker turns of mono ``samples`` at :data:`RATE`, covering the whole recording.
 
@@ -368,7 +381,7 @@ def attribute_speakers(
         if centers.size < speaker_count:
             raise ValueError("too little speech to tell the speakers apart")
         task.message(f"Embedding {centers.size} windows")
-        embeddings = _embed(samples, centers, window_sec, backend)
+        embeddings = _embed(samples, centers, window_sec, backend, cancel_check)
         task.advance(1)
         enrolled = _enrollment_centroids(samples, enrollment or {}, window_sec, backend)
         centroids = _cluster(embeddings, speaker_count, enrolled)
