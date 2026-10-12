@@ -214,13 +214,16 @@ def verify_candidate(c: Candidate, api: Any, *, notes: list[str] | None = None) 
     Advisories that are not drift (a model card with no declared license) are appended
     to ``notes`` when it is given, so the caller can print them without failing.
     """
-    import httpx
     from huggingface_hub.errors import (
         GatedRepoError,
         HfHubHTTPError,
         RepositoryNotFoundError,
         RevisionNotFoundError,
     )
+
+    # The Hub's own HTTP module (httpx2 since huggingface_hub 2.0): transport errors
+    # raised by HfApi are instances of its types, not of the plain ``httpx`` package.
+    from huggingface_hub.utils import httpx
 
     pin = f"revision {c.revision} of {c.hf_repo}"
     try:
