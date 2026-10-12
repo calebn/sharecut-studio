@@ -33,6 +33,7 @@ import {
   HOST_SEND_WAIT_MS,
   type HostSend,
   noteSaveLanded,
+  trackEditSave,
 } from "../state/hostSendOrder";
 import type { QueuedCommand } from "../state/offlineStore";
 import {
@@ -138,7 +139,22 @@ function resolveCommandOptions(
   return resolved;
 }
 
-export async function submitQueuedDocumentCommand(
+export function submitQueuedDocumentCommand(
+  projectPath: string,
+  type: string,
+  payload: Record<string, unknown> = {},
+  opts?: DocumentCommandOptions,
+): Promise<Record<string, unknown>> {
+  const operation = submitQueuedDocumentCommandWithinOwnership(
+    projectPath,
+    type,
+    payload,
+    opts,
+  );
+  return opts?.replaying ? operation : trackEditSave(projectPath, operation);
+}
+
+async function submitQueuedDocumentCommandWithinOwnership(
   projectPath: string,
   type: string,
   payload: Record<string, unknown> = {},
