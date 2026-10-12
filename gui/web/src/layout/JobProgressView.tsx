@@ -8,15 +8,12 @@ import { formatTimeShort } from "../utils/time";
 import { StaleProgressCopy } from "./StaleProgressCopy";
 
 type Props = {
-  /** Null until the start request returns the job. */
   job: PipelineJobSnapshot | null;
   /** The status line; the job's own message when omitted. */
   headline?: string;
   /** Unit for the `current/total` companion; omit it to show the bar alone. */
   unit?: string | null;
-  /** Accessible name of the progress bar. */
   barLabel: string;
-  /** Shown before the job reports a message. */
   startingCopy: string;
   /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
   nowSec?: number;

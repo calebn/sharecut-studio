@@ -18,14 +18,11 @@ export type SplitSpeakersStage =
       count: string;
       /** One entry per speaker; blank means "Speaker N". */
       names: readonly string[];
-      /** Why Split speakers is disabled, shown beside it. */
       blocker: string | null;
-      /** The count's own problem, shown under the count field. */
       countError: string | null;
     }
   | {
       kind: "running";
-      /** Null until the start request returns the job. */
       job: PipelineJobSnapshot | null;
       canCancel: boolean;
       cancelling: boolean;
@@ -47,7 +44,6 @@ export type SplitSpeakersStage =
 export type SplitSpeakersDialogViewProps = {
   open: boolean;
   onClose: () => void;
-  /** Label of the track being split. */
   trackLabel: string;
   stage: SplitSpeakersStage;
   onCountChange: (count: string) => void;
