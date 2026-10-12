@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { isValidFocusTarget } from "../feedback/feedbackActionFocus";
 import { pointerKindFromPointerType } from "../hooks/usePointerType";
 import { Button } from "./Button";
 
@@ -106,6 +107,10 @@ function ToastCard({
   const toastId = toast.id;
   const dismiss = useEffectEvent(onDismiss);
   const lifetime = useRef({ id: toastId, remaining: timeoutMs });
+  const returnFocus = useEffectEvent(() => {
+    const target = returnFocusRef?.current ?? null;
+    if (isValidFocusTarget(target)) target.focus({ preventScroll: true });
+  });
   useEffect(() => {
     if (lifetime.current.id !== toastId)
       lifetime.current = { id: toastId, remaining: timeoutMs };
@@ -125,14 +130,13 @@ function ToastCard({
   }, [toastId, paused, timeoutMs]);
   useLayoutEffect(() => {
     const el = cardRef.current;
-    const returnFocusEl = returnFocusRef?.current ?? null;
     const inside = focusInside;
     return () => {
       const active = document.activeElement;
       const lostToBody =
         inside.current && (active === null || active === document.body);
       if (el?.contains(active) || lostToBody) {
-        returnFocusEl?.focus({ preventScroll: true });
+        returnFocus();
       }
     };
   }, [returnFocusRef]);

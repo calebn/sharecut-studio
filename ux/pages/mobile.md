@@ -170,3 +170,7 @@ room. Ordinary body scrolling exposes the message and its Dismiss or guarded
 Undo action. Clipped feedback pauses its remaining visible lifetime. A saved
 edit preserves the focused or just-pressed control, and Close or a timeline drag
 returns the same card to its floating host.
+Focused Undo and Dismiss stay focused when rotating between phone and tablet
+layouts. Closing a focused feedback action returns focus to the current usable
+inspector Close. Navigating to another selection or project ends that focus
+intent, and an open modal keeps its own focus.

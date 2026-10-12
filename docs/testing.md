@@ -2428,6 +2428,15 @@ compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedbac
 building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
 
+`compact-feedback-focus.spec.ts` preserves each native Undo and Dismiss button
+through the real phone-to-tablet sheet and keyed Inspector remount. This focused
+compatibility regression needs Chromium and WebKit because their native focus
+fixup and portal movement differ. It uses one viewport transition per action,
+without duplicating the existing theme, text-size, or detent matrices. Component
+tests cover the smaller focus-request and current valid return-target contracts.
+PR-only proof measures remaining visible expiry and exercises modal priority,
+refused or disabled actions, and navigation before asynchronous Undo settles.
+
 The feedback detent matrix compares half and full height before and during a
 real history refusal for Envelope and Pending selections. It covers phone and
 short-tablet viewports, both text sizes and themes. Ruler ownership must remain
