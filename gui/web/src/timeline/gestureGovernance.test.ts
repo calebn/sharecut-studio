@@ -14,7 +14,12 @@ import {
   marksSurface,
   ownsPointerDown,
 } from "../test/jsxElements";
-import { SRC_ROOT, sourceFiles } from "../test/sourceFiles";
+import {
+  SRC_ROOT,
+  sourceFiles,
+  srcRelative,
+  walkTsFiles,
+} from "../test/sourceFiles";
 
 const TIMELINE = join(SRC_ROOT, "timeline");
 
@@ -92,41 +97,90 @@ const ARROW_ALLOWLIST: Record<string, string> = {
 /**
  * The one gesture package in use (#1078): React Aria's press hooks, confined to
  * the touch press layer and the chooser's chip buttons. Pointer Events plus
- * `hooks/gestureConstants.ts` do everything else.
+ * `hooks/gestureConstants.ts` do everything else. The guard is a denylist of
+ * known gesture and pointer libraries, not a proof that no other one exists:
+ * add a name here when a new library of that kind appears.
  */
 const PRESS_LIBRARY = "@react-aria/interactions";
 const PRESS_LIBRARY_USERS = new Set([
   "timeline/useTouchPress.ts",
   "timeline/TargetChooser.tsx",
 ]);
-const REJECTED_GESTURE_PACKAGES = [
-  "@use-gesture/react",
-  "@use-gesture/core",
-  "@dnd-kit/core",
-  "@dnd-kit/react",
-  "hammerjs",
-  "framer-motion",
-  "motion",
+const DENIED_GESTURE_PACKAGES = [
+  /^@use-gesture\//,
+  /^react-use-gesture$/,
+  /^@dnd-kit\//,
+  /^hammerjs$/,
+  /^react-hammerjs$/,
+  /^react-swipeable$/,
+  /^interactjs$/,
+  /^@interactjs\//,
+  /^framer-motion$/,
+  /^motion$/,
+  /^react-aria$/,
+  /^react-aria-components$/,
+  /^@react-aria\/(dnd|gridlist|selection)$/,
 ];
 
-describe("timeline gesture governance", () => {
+function isDeniedGesturePackage(name: string): boolean {
+  return DENIED_GESTURE_PACKAGES.some((pattern) => pattern.test(name));
+}
+
+/** Module specifiers a source file imports, requires or dynamically imports. */
+function importedModules(text: string): string[] {
+  const specifier = /\b(?:from|import|require)\s*\(?\s*["']([^"']+)["']/g;
+  return [...text.matchAll(specifier)].map((match) => match[1]);
+}
+
+describe("gesture package governance", () => {
+  it("recognizes known gesture libraries and nothing else", () => {
+    expect(
+      [
+        "@use-gesture/react",
+        "react-swipeable",
+        "@dnd-kit/core",
+        "hammerjs",
+        "react",
+        "@react-aria/interactions",
+      ].map(isDeniedGesturePackage),
+    ).toEqual([true, true, true, true, false, false]);
+    expect(
+      importedModules(
+        'import a from "x";\nconst b = await import("y");\nconst c = require("z");\nexport { d } from "w";',
+      ),
+    ).toEqual(["x", "y", "z", "w"]);
+  });
+
+  // Reads every non-test source file under gui/web/src (about 670), which
+  // took 4 to 9 s cold on a loaded machine, over Vitest's 5 s default.
   it("adopts no gesture package beyond the React Aria press layer (#1078)", () => {
     const manifest = JSON.parse(
       readFileSync(join(SRC_ROOT, "..", "package.json"), "utf8"),
-    ) as { dependencies: Record<string, string> };
-    const declared = Object.keys(manifest.dependencies);
-    expect(
-      declared.filter((name) => REJECTED_GESTURE_PACKAGES.includes(name)),
-    ).toEqual([]);
-    const users = [...sourceFiles(SRC_ROOT)]
-      .filter(
-        ({ rel, text }) =>
-          !rel.includes(".test.") && text.includes(PRESS_LIBRARY),
-      )
-      .map(({ rel }) => rel);
-    expect(new Set(users)).toEqual(PRESS_LIBRARY_USERS);
-  });
+    ) as Record<string, Record<string, string> | undefined>;
+    const declared = [
+      "dependencies",
+      "devDependencies",
+      "optionalDependencies",
+      "peerDependencies",
+    ].flatMap((field) => Object.keys(manifest[field] ?? {}));
+    expect(declared.filter(isDeniedGesturePackage)).toEqual([]);
 
+    const denied: string[] = [];
+    const pressUsers = new Set<string>();
+    for (const file of walkTsFiles(SRC_ROOT)) {
+      const rel = srcRelative(file);
+      if (/\.(test|stories)\./.test(rel)) continue;
+      for (const name of importedModules(readFileSync(file, "utf8"))) {
+        if (isDeniedGesturePackage(name)) denied.push(`${rel} imports ${name}`);
+        if (name === PRESS_LIBRARY) pressUsers.add(rel);
+      }
+    }
+    expect(denied).toEqual([]);
+    expect(pressUsers).toEqual(PRESS_LIBRARY_USERS);
+  }, 30_000);
+});
+
+describe("timeline gesture governance", () => {
   it("keeps touch-specific handling in the router", () => {
     const touch =
       /\bon(Touch(Start|Move|End|Cancel))\s*=|addEventListener\(\s*["']touch|pointerType\s*[!=]==\s*["']touch["']|pointerType:\s*["']touch["']/;
