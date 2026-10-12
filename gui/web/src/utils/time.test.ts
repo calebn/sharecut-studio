@@ -31,6 +31,23 @@ describe("formatTimecodePair", () => {
   });
 });
 
+describe("hour layout at the rounding boundary", () => {
+  it("lays a duration that rounds to one hour out as hh:mm:ss for both times", () => {
+    expect(formatTimecodePair(0, 3599.9996)).toBe(
+      "00:00:00.000 / 01:00:00.000",
+    );
+    expect(transportTimecode(0, 3599.9996)).toEqual({
+      current: "00:00:00.000",
+      total: "01:00:00.000",
+      title: "00:00:00.000 / 01:00:00.000",
+    });
+  });
+
+  it("keeps mm:ss while the duration still rounds below an hour", () => {
+    expect(formatTimecodePair(0, 3599.9994)).toBe("00:00.000 / 59:59.999");
+  });
+});
+
 describe("formatTimecodeCompact", () => {
   it("shows playhead only and respects hour layout", () => {
     expect(formatTimecodeCompact(65, 3500)).toBe("01:05.000");

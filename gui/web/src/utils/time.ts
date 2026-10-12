@@ -19,9 +19,9 @@ export function formatTime(
     : tail;
 }
 
-/** Episodes an hour or longer lay every transport time out as hh:mm:ss. */
+/** Episodes an hour or longer, as `formatTime` rounds them, lay every transport time out as hh:mm:ss. */
 function hoursLayout(durationSec: number): boolean {
-  return durationSec >= 3600;
+  return Math.round(Math.max(0, durationSec) * 1000) >= 3_600_000;
 }
 
 /** Stable transport label: same digit layout for playhead and duration. */
