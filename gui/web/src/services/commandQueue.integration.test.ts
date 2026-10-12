@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const enqueueHostCommand = vi.fn();
 const enqueueCommand = vi.fn();
 const loadHostCommandQueue = vi.fn();
+const removeHostQueuedCommand = vi.fn();
+let persistedHostCommands: { command_id: string; type: string }[] = [];
 
 vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentResult: vi.fn(),
@@ -11,7 +13,7 @@ vi.mock("../document/applyDocumentUpdate", () => ({
 vi.mock("../state/offlineStore", () => ({
   loadHostCommandQueue,
   enqueueHostCommand,
-  removeHostQueuedCommand: vi.fn(),
+  removeHostQueuedCommand,
   enqueueCommand,
   removeQueuedCommand: vi.fn(),
 }));
@@ -23,11 +25,27 @@ describe("queued command identity and landed history", () => {
     sessionStorage.clear();
     vi.resetModules();
     vi.clearAllMocks();
-    loadHostCommandQueue.mockResolvedValue([]);
-    enqueueHostCommand.mockResolvedValue({
-      persisted: true,
-      hadPredecessor: false,
-    });
+    persistedHostCommands = [];
+    loadHostCommandQueue.mockImplementation(async () => [
+      ...persistedHostCommands,
+    ]);
+    enqueueHostCommand.mockImplementation(
+      async (_path: string, command: { command_id: string; type: string }) => {
+        const hadPredecessor =
+          command.type === "UndoHistory" || command.type === "RedoHistory"
+            ? persistedHostCommands.length > 0
+            : false;
+        persistedHostCommands.push(command);
+        return { persisted: true, hadPredecessor };
+      },
+    );
+    removeHostQueuedCommand.mockImplementation(
+      async (_path: string, commandId: string) => {
+        persistedHostCommands = persistedHostCommands.filter(
+          (command) => command.command_id !== commandId,
+        );
+      },
+    );
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -266,7 +284,7 @@ describe("queued command identity and landed history", () => {
     },
   );
 
-  it("keeps the observed own head when a history move is queued without a reply", async () => {
+  it("reports an unknown history outcome and keeps the observed head for a later press", async () => {
     const { api, execute } = await laggingHistory();
     const fetchSpy = vi
       .fn()
@@ -288,7 +306,9 @@ describe("queued command identity and landed history", () => {
     await api.submitDocumentCommand(path, "ApproveEdits", {
       ids: ["range-proposal"],
     });
-    expect(await execute("history.undo")).toEqual({ status: "ok" });
+    await expect(execute("history.undo")).rejects.toThrow(
+      "Undo or Redo may have been applied. Check History before trying again.",
+    );
     expect(await execute("history.undo")).toEqual({ status: "ok" });
     expect(
       fetchSpy.mock.calls.slice(1).map((call) => {

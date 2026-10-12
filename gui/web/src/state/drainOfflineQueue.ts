@@ -3,6 +3,7 @@ import {
   askIfReplayHeldBack,
   clearSupersededCorrectionConflicts,
 } from "../api/documentEdits";
+import { isHistoryCommand } from "../services/commandQueue";
 import { shareProjectKey } from "../shareMode";
 import { isPermanentRejection } from "../utils/apiError";
 import {
@@ -15,6 +16,7 @@ import {
   loadHostCommandQueue,
   type QueuedCommand,
   removeHostQueuedCommands,
+  removeQueuedCommand,
 } from "./offlineStore";
 
 /** What a pass does with one record just before it would send it. */
@@ -60,6 +62,10 @@ export async function replayQueuedCommands(
     const gate = source.gate ? await source.gate(cmd) : "send";
     if (gate === "stop") break;
     if (gate === "skip") continue;
+    if (isHistoryCommand(cmd.type)) {
+      completed.push(cmd.command_id);
+      continue;
+    }
     try {
       const result = await submitDocumentCommand(
         source.path,
@@ -98,6 +104,11 @@ function guestReplaySource(token: string): ReplaySource {
       [...(await loadCommandQueue(token))].sort(
         (a, b) => a.client_seq - b.client_seq,
       ),
+    settle: async (completed) => {
+      await Promise.all(
+        completed.map((commandId) => removeQueuedCommand(token, commandId)),
+      );
+    },
   };
 }
 

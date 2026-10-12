@@ -2,6 +2,7 @@ import { hostFetch } from "../api/documentTransport";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import {
   activateDocumentScope,
+  type DocumentScope,
   isCurrentDocumentScope,
 } from "../document/authorityState";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
@@ -12,6 +13,8 @@ import {
 } from "../edit/cutSpeech";
 import {
   type DocumentCommandOptions,
+  type HistoryCommandType,
+  submitLiveHistoryCommand,
   submitQueuedDocumentCommand,
 } from "../services/commandQueue";
 import {
@@ -58,6 +61,7 @@ export const HISTORY_STALE_CODE = "history_stale";
 
 export type HistoryMoveOptions = {
   rerender?: boolean;
+  scope: DocumentScope;
   /**
    * The head the caller saw (`history.head_id`, `root` before any entry).
    * Required: the server refuses (`history_stale`) once it is not the head.
@@ -66,18 +70,23 @@ export type HistoryMoveOptions = {
 };
 
 async function moveHistoryHead(
-  type: "UndoHistory" | "RedoHistory",
+  type: HistoryCommandType,
   projectPath: string,
   opts: HistoryMoveOptions,
 ): Promise<HistoryEntryId | null> {
-  const result = await submitDocumentCommand(projectPath, type, {
-    rerender: opts.rerender ?? false,
-    expected_head_id: opts.expectedHeadId,
-  });
+  const result = await submitLiveHistoryCommand(
+    projectPath,
+    type,
+    {
+      rerender: opts.rerender ?? false,
+      expected_head_id: opts.expectedHeadId,
+    },
+    opts.scope,
+  );
   return replyHistoryHead(result);
 }
 
-/** Undo; resolves with the head the move left (null when queued offline or a retry). */
+/** Undo while the captured document opening remains current. */
 export function undoHistory(
   projectPath: string,
   opts: HistoryMoveOptions,
@@ -85,7 +94,7 @@ export function undoHistory(
   return moveHistoryHead("UndoHistory", projectPath, opts);
 }
 
-/** Redo; resolves with the head the move left (null when queued offline or a retry). */
+/** Redo while the captured document opening remains current. */
 export function redoHistory(
   projectPath: string,
   opts: HistoryMoveOptions,

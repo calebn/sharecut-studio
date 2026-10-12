@@ -68,6 +68,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     expect(await execute("history.undo")).toEqual({ status: "ok" });
     expect(undoHistory).toHaveBeenCalledWith("/tmp/ep", {
       expectedHeadId: "after-fader-save",
+      scope: expect.objectContaining({
+        path: expect.any(String),
+        generation: expect.any(Number),
+      }),
     });
   });
 
@@ -100,6 +104,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     });
     expect(redoHistory).toHaveBeenCalledWith("/tmp/ep", {
       expectedHeadId: "seen-by-tab",
+      scope: expect.objectContaining({
+        path: expect.any(String),
+        generation: expect.any(Number),
+      }),
     });
   });
 
@@ -143,7 +151,16 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
           announced: true,
         });
         expect(vi.mocked(undoHistory).mock.calls).toEqual([
-          ["/tmp/ep", { expectedHeadId: "seen-by-tab" }],
+          [
+            "/tmp/ep",
+            {
+              expectedHeadId: "seen-by-tab",
+              scope: expect.objectContaining({
+                path: expect.any(String),
+                generation: expect.any(Number),
+              }),
+            },
+          ],
         ]);
         expect(redoHistory).not.toHaveBeenCalled();
       },
@@ -186,8 +203,26 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       expect(await one).toEqual({ status: "ok" });
       expect(await two).toEqual({ status: "ok" });
       expect(vi.mocked(undoHistory).mock.calls).toEqual([
-        ["/tmp/ep", { expectedHeadId: "seen-by-tab" }],
-        ["/tmp/ep", { expectedHeadId: "after-first" }],
+        [
+          "/tmp/ep",
+          {
+            expectedHeadId: "seen-by-tab",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
+        ],
+        [
+          "/tmp/ep",
+          {
+            expectedHeadId: "after-first",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
+        ],
       ]);
     });
 
@@ -206,12 +241,34 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
       expect(results.every((r) => r.status === "ok")).toBe(true);
       expect(vi.mocked(undoHistory).mock.calls.map((c) => c[1])).toEqual([
-        { expectedHeadId: "seen-by-tab" },
-        { expectedHeadId: "landed-1" },
-        { expectedHeadId: "landed-2" },
+        {
+          expectedHeadId: "seen-by-tab",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        },
+        {
+          expectedHeadId: "landed-1",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        },
+        {
+          expectedHeadId: "landed-2",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        },
       ]);
       expect(redoHistory).toHaveBeenCalledWith("/tmp/ep", {
         expectedHeadId: "landed-3",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -232,6 +289,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
       expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
         expectedHeadId: "own-landing",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -246,6 +307,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
       expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
         expectedHeadId: "peer-edit",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -264,6 +329,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
       expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
         expectedHeadId: "after-first",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -281,8 +350,20 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       expect(one.status).toBe("disabled");
       expect(two.status).toBe("disabled");
       expect(vi.mocked(undoHistory).mock.calls.map((c) => c[1])).toEqual([
-        { expectedHeadId: "seen-by-tab" },
-        { expectedHeadId: "seen-by-tab" },
+        {
+          expectedHeadId: "seen-by-tab",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        },
+        {
+          expectedHeadId: "seen-by-tab",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        },
       ]);
     });
 
@@ -291,11 +372,21 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
       await Promise.all([
         execute("history.undo"),
-        execute("history.undo", { expectedHeadId: "toast-entry" }),
+        execute("history.undo", {
+          expectedHeadId: "toast-entry",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        }),
       ]);
 
       expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
         expectedHeadId: "toast-entry",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
   });
@@ -321,6 +412,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
       expect(undoHistory).toHaveBeenCalledWith(projectPath, {
         expectedHeadId: "after-host-approval",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -335,6 +430,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       await execute("history.undo");
       expect(undoHistory).toHaveBeenCalledWith("/tmp/ep", {
         expectedHeadId: "later-peer-head",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -348,6 +447,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       await execute("history.undo");
       expect(undoHistory).toHaveBeenCalledWith("/tmp/ep", {
         expectedHeadId: "seen-by-tab",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -379,11 +482,27 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       await execute("history.undo");
       await execute("history.redo");
       expect(vi.mocked(undoHistory).mock.calls.map((call) => call[1])).toEqual([
-        { expectedHeadId: "after-host-approval" },
-        { expectedHeadId: "before-approval" },
+        {
+          expectedHeadId: "after-host-approval",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        },
+        {
+          expectedHeadId: "before-approval",
+          scope: expect.objectContaining({
+            path: expect.any(String),
+            generation: expect.any(Number),
+          }),
+        },
       ]);
       expect(redoHistory).toHaveBeenCalledWith("/tmp/ep", {
         expectedHeadId: "before-earlier-edit",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -399,6 +518,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       await execute("history.undo");
       expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
         expectedHeadId: "seen-by-tab",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -419,6 +542,10 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       await execute("history.undo");
       expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
         expectedHeadId: "seen-by-tab",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
       });
     });
 
@@ -441,8 +568,20 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         expect(
           vi.mocked(undoHistory).mock.calls.map((call) => call[1]),
         ).toEqual([
-          { expectedHeadId: "after-host-approval" },
-          { expectedHeadId: "after-host-approval" },
+          {
+            expectedHeadId: "after-host-approval",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
+          {
+            expectedHeadId: "after-host-approval",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
         ]);
       },
     );
@@ -466,7 +605,16 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       finishSave();
       expect(await undo).toEqual({ status: "ok" });
       expect(vi.mocked(undoHistory).mock.calls).toEqual([
-        ["/tmp/ep", { expectedHeadId: "after-trim" }],
+        [
+          "/tmp/ep",
+          {
+            expectedHeadId: "after-trim",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
+        ],
       ]);
     });
 
@@ -480,7 +628,16 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       send.finish();
       await undo;
       expect(vi.mocked(redoHistory).mock.calls).toEqual([
-        ["/tmp/ep", { expectedHeadId: "after-send" }],
+        [
+          "/tmp/ep",
+          {
+            expectedHeadId: "after-send",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
+        ],
       ]);
     });
 
@@ -490,7 +647,16 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       await undo;
       later.finish();
       expect(vi.mocked(undoHistory).mock.calls).toEqual([
-        ["/tmp/ep", { expectedHeadId: "seen-by-tab" }],
+        [
+          "/tmp/ep",
+          {
+            expectedHeadId: "seen-by-tab",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
+        ],
       ]);
     });
 
@@ -502,9 +668,24 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
           noteSaveLanded("/tmp/ep", head("saved"), scope),
         ),
       );
-      await execute("history.undo", { expectedHeadId: "toast-entry" });
+      await execute("history.undo", {
+        expectedHeadId: "toast-entry",
+        scope: expect.objectContaining({
+          path: expect.any(String),
+          generation: expect.any(Number),
+        }),
+      });
       expect(vi.mocked(undoHistory).mock.calls).toEqual([
-        ["/tmp/ep", { expectedHeadId: "toast-entry" }],
+        [
+          "/tmp/ep",
+          {
+            expectedHeadId: "toast-entry",
+            scope: expect.objectContaining({
+              path: expect.any(String),
+              generation: expect.any(Number),
+            }),
+          },
+        ],
       ]);
     });
 
