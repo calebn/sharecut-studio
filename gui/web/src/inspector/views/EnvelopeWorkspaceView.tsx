@@ -5,10 +5,14 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { hasValidFocusedFeedbackAction } from "../../feedback/feedbackActionFocus";
+import {
+  hasValidFocusedFeedbackAction,
+  isValidFocusTarget,
+} from "../../feedback/feedbackActionFocus";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
 import { focusAndReveal } from "../../ui/focusAndReveal";
+import { modalShortcuts } from "../../ui/modalGate";
 import { ModifierInspector } from "../ModifierInspector";
 
 export type EnvelopeError = {
@@ -63,18 +67,37 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const initialFocus = useRef(false);
   const formKind = form?.kind ?? null;
   useEffect(() => {
-    if (
-      !initialFocus.current &&
-      !formKind &&
-      !hasValidFocusedFeedbackAction(document)
-    ) {
-      focusAndReveal(points.length ? select.current : add.current);
-    }
-    initialFocus.current = true;
-    if (formKind) focusAndReveal(timeInput.current);
-    else if (priorForm.current)
-      focusAndReveal(points.length ? select.current : add.current);
+    const returningFromForm = priorForm.current && !formKind;
     priorForm.current = formKind != null;
+    if (formKind || returningFromForm) {
+      initialFocus.current = true;
+      focusAndReveal(
+        formKind
+          ? timeInput.current
+          : points.length
+            ? select.current
+            : add.current,
+      );
+      return;
+    }
+    if (initialFocus.current) return;
+    const view = workspace.current;
+    const previous = document.activeElement;
+    const frame = requestAnimationFrame(() => {
+      if (view !== workspace.current || !isValidFocusTarget(view)) return;
+      initialFocus.current = true;
+      const active = document.activeElement;
+      if (
+        hasValidFocusedFeedbackAction(document) ||
+        modalShortcuts() !== null ||
+        (active !== previous && active !== document.body)
+      )
+        return;
+      const target = points.length ? select.current : add.current;
+      if (isValidFocusTarget(target) && view.contains(target))
+        focusAndReveal(target);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [formKind, points.length]);
   useLayoutEffect(() => {
     const active = document.activeElement;
