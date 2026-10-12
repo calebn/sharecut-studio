@@ -8,6 +8,8 @@ import {
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { BottomSheet } from "./BottomSheet";
+import { Dialog } from "./Dialog";
 import { registerFocusHold } from "./focusHold";
 import { closeOverlay, openOverlay } from "./modalGate";
 import { usePressedControl } from "./pressedControl";
@@ -437,5 +439,129 @@ describe("useDialogModal stacking", () => {
     expect(remove).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+  });
+});
+
+describe("useDialogModal fallback focus", () => {
+  const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+
+  it("leaves focus on the control the user moved to when a popover's anchor is gone", async () => {
+    let api: { closePopover: () => void; dropAnchor: () => void } = {
+      closePopover: () => undefined,
+      dropAnchor: () => undefined,
+    };
+    function Popover({
+      anchorRef,
+      onClose,
+    }: {
+      anchorRef: React.RefObject<HTMLElement | null>;
+      onClose: () => void;
+    }) {
+      const panelRef = useRef<HTMLDivElement>(null);
+      useDialogModal({
+        open: true,
+        onClose,
+        panelRef,
+        mode: "sheet",
+        returnFocusRef: anchorRef,
+      });
+      return (
+        <div ref={panelRef} role="dialog" aria-label="Join">
+          <button type="button">Fade</button>
+        </div>
+      );
+    }
+    function App() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [popover, setPopover] = useState(true);
+      const [anchor, setAnchor] = useState(true);
+      api = {
+        closePopover: () => setPopover(false),
+        dropAnchor: () => setAnchor(false),
+      };
+      return (
+        <>
+          <button type="button">Timeline control</button>
+          {anchor ? (
+            <button type="button" ref={anchorRef}>
+              Join badge
+            </button>
+          ) : null}
+          <BottomSheet
+            open
+            onClose={() => undefined}
+            backgroundPolicy="interactive"
+            title="Inspector"
+          >
+            <button type="button">Inspector field</button>
+          </BottomSheet>
+          {popover ? (
+            <Popover anchorRef={anchorRef} onClose={() => setPopover(false)} />
+          ) : null}
+        </>
+      );
+    }
+    render(<App />);
+    await settle();
+    act(() => api.dropAnchor());
+    act(() => screen.getByRole("button", { name: "Timeline control" }).focus());
+    act(() => api.closePopover());
+    await settle();
+    expect(document.activeElement?.textContent).toBe("Timeline control");
+  });
+
+  it("returns focus to a closing sheet's opener, not the sheet beneath, when its confirm closes with it", async () => {
+    let api: { setB: (v: boolean) => void; setConfirm: (v: boolean) => void } =
+      { setB: () => undefined, setConfirm: () => undefined };
+    function App() {
+      const [b, setB] = useState(false);
+      const [confirm, setConfirm] = useState(false);
+      api = { setB, setConfirm };
+      return (
+        <>
+          <button type="button" onClick={() => setB(true)}>
+            Open B
+          </button>
+          <BottomSheet
+            open
+            onClose={() => undefined}
+            backgroundPolicy="interactive"
+            title="A"
+          >
+            <button type="button">A field</button>
+          </BottomSheet>
+          {b ? (
+            <BottomSheet
+              open
+              onClose={() => setB(false)}
+              backgroundPolicy="interactive"
+              title="B"
+            >
+              <button type="button" onClick={() => setConfirm(true)}>
+                Delete
+              </button>
+              <Dialog
+                open={confirm}
+                onClose={() => setConfirm(false)}
+                title="Sure?"
+              >
+                <p>Really?</p>
+              </Dialog>
+            </BottomSheet>
+          ) : null}
+        </>
+      );
+    }
+    render(<App />);
+    await settle();
+    act(() => screen.getByRole("button", { name: "Open B" }).focus());
+    act(() => api.setB(true));
+    await settle();
+    act(() => screen.getByRole("button", { name: "Delete" }).focus());
+    act(() => api.setConfirm(true));
+    await settle();
+    act(() => api.setB(false));
+    await settle();
+    expect(document.activeElement?.textContent).toBe("Open B");
   });
 });
