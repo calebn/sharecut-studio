@@ -1,0 +1,47 @@
+name: tmp-registry-loop
+
+on:
+  push:
+    branches: [fix/1256-registry-wal-locks]
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Runner diagnostics
+        run: |
+          nproc; df -h /dev/shm "$RUNNER_TEMP" /tmp; mount | grep -E "shm|tmp" || true; ulimit -a
+          python -c "import sqlite3; print(sqlite3.sqlite_version)"
+      - name: Loop the concurrent migration test under parallel load
+        run: |
+          cat > loop.py <<'PY'
+          import collections, os, pathlib, sys, tempfile
+          sys.path.insert(0, "tests")
+          def main():
+              import test_registry_lifecycle_actors as t
+              c = collections.Counter()
+              for _ in range(int(sys.argv[1])):
+                  with tempfile.TemporaryDirectory() as d:
+                      try:
+                          t.test_concurrent_legacy_registry_migration_preserves_tokens_and_secret(pathlib.Path(os.path.realpath(d)))
+                          c["ok"] += 1
+                      except BaseException as e:
+                          c[str(e)[:200]] += 1
+              print(dict(c), flush=True)
+          if __name__ == "__main__":
+              main()
+          PY
+          for i in 1 2 3 4 5 6; do python loop.py 60 > loop$i.out 2>&1 & done
+          wait
+          cat loop*.out
+      - name: Lock probe test
+        run: pytest -q --no-cov tests/test_share_registry_wal_locks.py || true
