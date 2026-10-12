@@ -848,3 +848,54 @@ def test_window_score_to_dict():
     data = score.to_dict()
     assert data["best_track_id"] == "host"
     assert data["margin"] == 0.9
+
+
+def _fake_resemblyzer(tmp_path: Path) -> Path:
+    (tmp_path / "webrtcvad.py").write_text(
+        "raise ModuleNotFoundError(\"No module named 'pkg_resources'\")\n", encoding="utf-8"
+    )
+    package = tmp_path / "resemblyzer"
+    package.mkdir()
+    (package / "__init__.py").write_text(
+        "import webrtcvad\n\n\nclass VoiceEncoder:\n    pass\n", encoding="utf-8"
+    )
+    return tmp_path
+
+
+def _isolate_import_state(monkeypatch, root: Path) -> None:
+    import sys
+
+    for name in ("resemblyzer", "webrtcvad", "pkg_resources"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    monkeypatch.syspath_prepend(str(root))
+
+
+def test_resemblyzer_loads_without_webrtcvad_importable(monkeypatch, tmp_path):
+    """webrtcvad 2.0.10 imports pkg_resources, which setuptools 82 removed (#1284)."""
+    import sys
+
+    _isolate_import_state(monkeypatch, _fake_resemblyzer(tmp_path))
+    backend = ResemblyzerBackend()
+    from podcast_mcp.engines.speaker_id import _import_voice_encoder
+
+    assert _import_voice_encoder().__name__ == "VoiceEncoder"
+    assert "webrtcvad" not in sys.modules
+    assert backend.name() == "resemblyzer"
+
+
+def test_resolve_speaker_backend_resemblyzer_without_webrtcvad_importable(monkeypatch, tmp_path):
+    _isolate_import_state(monkeypatch, _fake_resemblyzer(tmp_path))
+    assert resolve_speaker_backend("resemblyzer").name() == "resemblyzer"
+
+
+def test_voice_encoder_import_keeps_an_already_loaded_webrtcvad(monkeypatch, tmp_path):
+    import sys
+    import types
+
+    _isolate_import_state(monkeypatch, _fake_resemblyzer(tmp_path))
+    loaded = types.ModuleType("webrtcvad")
+    monkeypatch.setitem(sys.modules, "webrtcvad", loaded)
+    from podcast_mcp.engines.speaker_id import _import_voice_encoder
+
+    _import_voice_encoder()
+    assert sys.modules["webrtcvad"] is loaded
