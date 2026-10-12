@@ -112,11 +112,17 @@ def _pcm24(samples: np.ndarray) -> bytes:
     return ints.view(np.uint8).reshape(-1, 4)[:, :3].tobytes()
 
 
-def _project(tmp_path: Path, gain_db: float, *, gated: bool) -> EpisodeProject:
+def _project(
+    tmp_path: Path,
+    gain_db: float,
+    *,
+    gated: bool,
+    tracks: tuple[tuple[str, tuple[np.ndarray, list[TranscriptWord]]], ...] | None = None,
+) -> EpisodeProject:
     """The host and a guest, and a third track with no audio at all (a lane that never spoke)."""
     project = EpisodeProject.create("gain", str(tmp_path))
     silent = (np.zeros(SECONDS * RATE), [])
-    for track_id, (audio, words) in (
+    for track_id, (audio, words) in tracks or (
         ("host", _host(gated=gated)),
         ("guest", _guest(gated=gated)),
         ("lull", silent),
@@ -152,7 +158,10 @@ def _project(tmp_path: Path, gain_db: float, *, gated: bool) -> EpisodeProject:
 
 
 def _proposals(tmp_path: Path, gain_db: float, edit_mode: str, intensity: str, *, gated: bool):
-    project = _project(tmp_path, gain_db, gated=gated)
+    return _rows(_proposal(_project(tmp_path, gain_db, gated=gated), edit_mode, intensity))
+
+
+def _proposal(project: EpisodeProject, edit_mode: str, intensity: str):
     defaults = {
         "tighten": {
             "edit_mode": edit_mode,
@@ -160,8 +169,13 @@ def _proposals(tmp_path: Path, gain_db: float, edit_mode: str, intensity: str, *
             "discourse_markers": [],
         }
     }
-    decisions = propose_tighten_edits(project, defaults, intensity=intensity).decisions
-    return sorted((d.track_id, d.reason, d.start, d.end, d.review_required) for d in decisions)
+    return propose_tighten_edits(project, defaults, intensity=intensity)
+
+
+def _rows(proposal) -> list:
+    return sorted(
+        (d.track_id, d.reason, d.start, d.end, d.review_required) for d in proposal.decisions
+    )
 
 
 # What the unscaled (0 dB) recording must propose: (track, reason, start, end, review_required).
@@ -246,3 +260,36 @@ def test_proposals_on_a_gated_recording_are_the_same_at_every_level(
 ) -> None:
     """A noise gate holds the tracks at digital zero between words (Zoom), so the room is -inf."""
     _assert_the_same_at_every_level(tmp_path, edit_mode, "medium", gated=True)
+
+
+def _peer_tracks(*, gated: bool):
+    """The host murmurs in two long pauses; the guest voices over the first only."""
+    host = _room(11, gated=gated)
+    host_words = [("so", 1.0, 1.3), ("end", 3.0, 3.3), ("okay", 6.0, 6.3)]
+    for _, start, end in host_words:
+        _voice(host, start, end)
+    _voice(host, 1.8, 2.1, SPEECH_DB - 22.0)
+    _voice(host, 4.4, 4.7, SPEECH_DB - 22.0)
+    guest = _room(23, gated=gated)
+    _voice(guest, 1.7, 2.2)
+    guest_words = [("right", 1.7, 2.2)]
+    return (
+        ("host", (host, [TranscriptWord(text=t, start=a, end=b) for t, a, b in host_words])),
+        ("guest", (guest, [TranscriptWord(text=t, start=a, end=b) for t, a, b in guest_words])),
+    )
+
+
+@pytest.mark.parametrize("gated", [False, True])
+def test_a_peer_voiced_in_a_pause_blocks_the_hint_at_every_level(
+    tmp_path: Path, gated: bool
+) -> None:
+    """Only the pause the guest is silent in yields an acoustic hint, at any recording level."""
+    for gain_db in (0.0, -34.0, -18.0, 6.0, 12.0):
+        project = _project(
+            tmp_path / str(gain_db), gain_db, gated=gated, tracks=_peer_tracks(gated=gated)
+        )
+        proposal = _proposal(project, "mute", "medium")
+        hints = [row for row in _rows(proposal) if row[1] == "filler:acoustic"]
+        assert proposal.skip_counts.get("acoustic:peer_speaking") == 1, gain_db
+        assert len(hints) == 1, gain_db
+        assert hints[0][2] == pytest.approx(4.4, abs=0.1 + FRAME_SEC), gain_db
