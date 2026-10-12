@@ -1,10 +1,12 @@
 import {
+  act,
   cleanup,
   createEvent,
   fireEvent,
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Profiler, useState } from "react";
@@ -12,6 +14,7 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { stubRaf } from "../test/raf";
 import { BottomSheet } from "./BottomSheet";
+import { Dialog } from "./Dialog";
 
 describe("BottomSheet", () => {
   it("makes stowed controls inert and restores them when the sheet returns", () => {
@@ -580,5 +583,102 @@ describe("BottomSheet", () => {
     expect(dialog.closest(".bottom-sheet-root")).not.toHaveClass("is-stowed");
     await user.click(collapse);
     expect(dialog).toHaveClass("bottom-sheet--peek");
+  });
+
+  describe("with a confirm inside", () => {
+    function Inspector({
+      onCloseSheet = vi.fn(),
+      onCloseConfirm = vi.fn(),
+    }: {
+      onCloseSheet?: () => void;
+      onCloseConfirm?: () => void;
+    }) {
+      return (
+        <BottomSheet
+          open
+          onClose={onCloseSheet}
+          backgroundPolicy="interactive"
+          title="Inspector"
+        >
+          <Dialog open onClose={onCloseConfirm} title="Remove the guest track?">
+            <p>Its clips go too.</p>
+          </Dialog>
+        </BottomSheet>
+      );
+    }
+
+    it("gives entry focus to a confirm rendered in the same commit", async () => {
+      render(<Inspector />);
+      const confirm = screen.getByRole("dialog", {
+        name: "Remove the guest track?",
+      });
+      await waitFor(() =>
+        expect(
+          within(confirm).getByRole("button", { name: "Close" }),
+        ).toHaveFocus(),
+      );
+    });
+
+    it("closes only the confirm on Escape", () => {
+      const onCloseSheet = vi.fn();
+      const onCloseConfirm = vi.fn();
+      render(
+        <Inspector
+          onCloseSheet={onCloseSheet}
+          onCloseConfirm={onCloseConfirm}
+        />,
+      );
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(onCloseConfirm).toHaveBeenCalledOnce();
+      expect(onCloseSheet).not.toHaveBeenCalled();
+    });
+
+    it("hands focus to a sheet that remounted behind the confirm once it closes", async () => {
+      const user = userEvent.setup();
+      let rotate = () => {};
+      function RotatingInspector() {
+        const [epoch, setEpoch] = useState(0);
+        const [confirming, setConfirming] = useState(false);
+        rotate = () => setEpoch((n) => n + 1);
+        return (
+          <>
+            <BottomSheet
+              key={epoch}
+              open
+              onClose={vi.fn()}
+              backgroundPolicy="interactive"
+              title="Inspector"
+            >
+              <button type="button" onClick={() => setConfirming(true)}>
+                Remove track
+              </button>
+            </BottomSheet>
+            <Dialog
+              open={confirming}
+              onClose={() => setConfirming(false)}
+              title="Remove the guest track?"
+            >
+              <p>Its clips go too.</p>
+            </Dialog>
+          </>
+        );
+      }
+      render(<RotatingInspector />);
+      await user.click(screen.getByRole("button", { name: "Remove track" }));
+      const confirm = screen.getByRole("dialog", {
+        name: "Remove the guest track?",
+      });
+      const confirmClose = within(confirm).getByRole("button", {
+        name: "Close",
+      });
+      await waitFor(() => expect(confirmClose).toHaveFocus());
+      act(() => rotate());
+      expect(confirmClose).toHaveFocus();
+      await user.keyboard("{Escape}");
+      const sheet = screen.getByRole("dialog", { name: "Inspector" });
+      expect(
+        within(sheet).getByRole("button", { name: "Close" }),
+      ).toHaveFocus();
+    });
   });
 });

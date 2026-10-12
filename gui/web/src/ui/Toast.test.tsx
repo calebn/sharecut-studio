@@ -5,6 +5,12 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { TOAST_MS, Toast } from "./Toast";
 
 describe("Toast", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.replaceChildren();
+  });
+
   it("uses the current return target when a surviving card closes", () => {
     const oldTarget = document.createElement("button");
     const currentTarget = document.createElement("button");
@@ -28,11 +34,10 @@ describe("Toast", () => {
       />,
     );
     expect(currentTarget).toHaveFocus();
-    currentTarget.remove();
   });
 
   it.each(["disabled", "inert", "hidden", "disconnected"])(
-    "does not focus a %s return target",
+    "does not focus a return target that is %s",
     (invalid) => {
       const target = document.createElement("button");
       document.body.append(target);
@@ -58,11 +63,9 @@ describe("Toast", () => {
         />,
       );
       expect(focus).not.toHaveBeenCalled();
-      target.remove();
     },
   );
 
-  afterEach(() => vi.useRealTimers());
   it("renders the message in a status region and wires Undo/Dismiss", async () => {
     const user = userEvent.setup();
     const onUndo = vi.fn();
@@ -106,7 +109,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(1);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("pauses the timer while focused and resumes after blur", () => {
@@ -134,7 +136,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("pauses the timer while hovered and resumes after pointerleave", () => {
@@ -159,7 +160,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("does not pause on touch pointerenter (no persistent hover)", () => {
@@ -180,7 +180,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("restarts the timer when a new id replaces the toast", () => {
@@ -211,7 +210,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS - 200);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("keeps the hover pause when a new id replaces the toast under the pointer", () => {
@@ -245,7 +243,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("resets the hover pause after the toast closes", () => {
@@ -274,7 +271,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("disables Undo when undoDisabled is set", () => {
@@ -319,7 +315,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(1);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("preserves remaining time while clipped and through presentation changes", () => {
@@ -355,7 +350,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(1);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("returns focus to returnFocusRef when it closes with focus inside", () => {
@@ -412,8 +406,6 @@ describe("Toast", () => {
       />,
     );
     expect(document.activeElement).toBe(other);
-    target.remove();
-    other.remove();
   });
 
   it("returns focus when a disabled Undo was blurred to <body> before closing", () => {
@@ -462,7 +454,6 @@ describe("Toast", () => {
       />,
     );
     expect(document.activeElement).toBe(target);
-    target.remove();
   });
 
   it("does not move focus when focus left the toast for another element", () => {
@@ -494,8 +485,6 @@ describe("Toast", () => {
       />,
     );
     expect(document.activeElement).toBe(other);
-    target.remove();
-    other.remove();
   });
 
   it("is axe-clean with a toast shown", async () => {
@@ -526,7 +515,6 @@ describe("Toast", () => {
       vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("describes Undo by the message it reverses", () => {

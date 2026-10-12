@@ -1,7 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Dialog } from "./Dialog";
 
@@ -73,7 +73,14 @@ it("pins a footer below the scrolling body and marks phone-sheet dialogs", async
   expect(document.querySelector(".command-palette-footer")).toBeNull();
 });
 
-it("focuses only the innermost of two dialogs opened together", async () => {
+afterEach(() => vi.restoreAllMocks());
+
+it("focuses only the innermost of two dialogs opened together", () => {
+  const frames: FrameRequestCallback[] = [];
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frames.push(callback);
+    return frames.length;
+  });
   render(
     <>
       <Dialog open onClose={() => undefined} title="Outer">
@@ -85,9 +92,9 @@ it("focuses only the innermost of two dialogs opened together", async () => {
     </>,
   );
   const inner = screen.getByRole("dialog", { name: "Inner" });
-  await waitFor(() =>
-    expect(
-      within(inner).getByRole("button", { name: /^Close$/ }),
-    ).toHaveFocus(),
-  );
+  // Outer queued its entry frame first; run it last so order alone cannot win.
+  act(() => {
+    for (const frame of frames.reverse()) frame(0);
+  });
+  expect(within(inner).getByRole("button", { name: /^Close$/ })).toHaveFocus();
 });

@@ -92,6 +92,7 @@ describe("JoinPopover", () => {
 
   describe("entry focus", () => {
     let frames: FrameRequestCallback[];
+    const layers: ReturnType<typeof openOverlay>[] = [];
     beforeEach(() => {
       frames = [];
       vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
@@ -100,6 +101,7 @@ describe("JoinPopover", () => {
       });
     });
     afterEach(() => {
+      for (const layer of layers.splice(0)) closeOverlay(layer);
       vi.restoreAllMocks();
     });
 
@@ -117,12 +119,11 @@ describe("JoinPopover", () => {
       render(<Harness />);
       const anchor = screen.getByRole("button", { name: "Anchor" });
       act(() => anchor.focus());
-      const modal = openOverlay(true);
+      layers.push(openOverlay(true));
       act(() => {
         for (const frame of frames.splice(0)) frame(0);
       });
       expect(anchor).toHaveFocus();
-      closeOverlay(modal);
     });
   });
 
