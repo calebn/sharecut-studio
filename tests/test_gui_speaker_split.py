@@ -184,6 +184,24 @@ def test_the_route_starts_a_split_job(room: Path) -> None:
     assert [lane["name"] for lane in job["result"]["lanes"]] == ["Ana", "Ben"]
 
 
+def test_a_relayed_guest_cannot_start_a_split(room: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
+
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    before = room.read_bytes()
+    client = _client()
+    res = client.post(
+        "/api/speaker/split",
+        json={"path": str(room), "track_id": "room", "speaker_count": 2, "names": ["Ana", "Ben"]},
+        headers={"X-Sharecut-Relayed": "1"},
+    )
+    assert res.status_code == 403
+    assert res.json() == {"detail": HOST_ROLE_RELAYED_REASON}
+    assert client.get("/api/pipeline/status").json().get("job") is None
+    assert room.read_bytes() == before
+    assert [t.id for t in ProjectWorkspace.open(room).project.tracks] == ["room"]
+
+
 @pytest.mark.parametrize(
     ("body", "status", "detail"),
     [

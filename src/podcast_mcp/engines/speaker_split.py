@@ -18,10 +18,12 @@ Turns are runs of one speaker and cover the recording with no gaps: a pause belo
 the turn the passes put it in, so splitting along turns sums back to the input.
 
 A speaker count higher than the people talking makes k-means split one voice in two.
-Two speakers whose centroids sit much closer together than the other speakers' do
-(``SAME_VOICE_RATIO`` of the median distance between the other pairs, measured in this
-recording) are reported in ``SpeakerAttribution.same_voice`` as likely one person. With
-two speakers there is no other pair to compare against, so nothing is reported.
+Such a split cuts through one cloud of windows, so a window's nearest neighbours (not
+counting its own stretch of time) are about as often in the other cluster as chance
+would put them; two people are separate clouds and their windows keep to their own. A
+pair whose neighbours mix at least ``SAME_VOICE_MIXING`` of chance, measured in this
+recording alone, is reported in ``SpeakerAttribution.same_voice`` as likely one person.
+It needs no third speaker to compare with, so it holds at a count of two.
 
 Crosstalk is a turn where the runner-up sounds present as well (``_presence``) for at
 least ``window_sec``, or a hand-over settlement left inside a voiced run. A turn's confidence is how far its winner stands above the
@@ -67,9 +69,13 @@ PAUSE_SWITCH = 1.0
 CROSSTALK_PRESENCE = 0.5
 KMEANS_RESTARTS = 10
 KMEANS_ITERATIONS = 50
-# One voice split in two sits at a fraction of the distance between different people;
-# two similar voices beside a third stay above it (docs/multitrack-ingest.md).
-SAME_VOICE_RATIO = 0.4
+# Share of chance at which the neighbours of two clusters' windows mix (1 = the clusters
+# are one cloud, 0 = no window's neighbours cross). Split voices measured 0.4 and up,
+# different people 0.14 and down (docs/multitrack-ingest.md).
+SAME_VOICE_MIXING = 0.25
+SAME_VOICE_NEIGHBORS = 10
+SAME_VOICE_MIN_WINDOWS = 5
+SAME_VOICE_MAX_WINDOWS = 1500
 
 Span = tuple[float, float]
 
@@ -90,12 +96,13 @@ class SpeakerTurn:
 
 @dataclass(frozen=True)
 class SameVoice:
-    """Two speakers who likely are one person: cosine distances between centroids."""
+    """Two speakers who likely are one person."""
 
     speakers: tuple[int, int]
     distance: float
-    others: float
-    """Median distance between every other pair of speakers in the recording."""
+    """Cosine distance between their centroids."""
+    mixing: float
+    """Share of chance at which their windows' nearest neighbours are in the other cluster."""
 
 
 @dataclass(frozen=True)
@@ -227,19 +234,55 @@ def _cluster(embeddings: np.ndarray, count: int, enrolled: Mapping[int, np.ndarr
     return best[1]
 
 
-def _same_voice(centroids: np.ndarray) -> tuple[SameVoice, ...]:
-    """Pairs of speakers far closer together than the other pairs: one voice split in two."""
+def _neighbour_mixing(
+    embeddings: np.ndarray, times: np.ndarray, labels: np.ndarray, window_sec: float
+) -> float:
+    """How often windows of two clusters have a neighbour in the other, as a share of chance.
+
+    Neighbours within two window lengths in time are skipped: they overlap the window.
+    """
+    sizes = [int((labels == q).sum()) for q in (0, 1)]
+    k = min(SAME_VOICE_NEIGHBORS, min(sizes) - 1)
+    if k < 1:
+        return 0.0
+    similarity = embeddings @ embeddings.T
+    similarity[np.abs(times[:, None] - times[None, :]) < 2 * window_sec] = -np.inf
+    nearest = np.argsort(-similarity, axis=1)[:, :k]
+    valid = np.isfinite(np.take_along_axis(similarity, nearest, axis=1))
+    crossing = (labels[nearest] != labels[:, None]) & valid
+    shares = []
+    for q in (0, 1):
+        own = labels == q
+        counted = valid[own].sum()
+        chance = sizes[1 - q] / (len(labels) - 1)
+        shares.append(crossing[own].sum() / counted / chance if counted else 0.0)
+    return float(np.mean(shares))
+
+
+def _same_voice(
+    embeddings: np.ndarray, times: np.ndarray, centroids: np.ndarray, window_sec: float
+) -> tuple[SameVoice, ...]:
+    """Pairs of speakers whose windows form one cloud: one voice split in two."""
+    labels = np.argmax(embeddings @ centroids.T, axis=1)
     distance = 1 - centroids @ centroids.T
-    pairs = list(itertools.combinations(range(len(centroids)), 2))
     found = []
-    for a, b in pairs:
-        others = [float(distance[p]) for p in pairs if p != (a, b)]
-        if others and distance[a, b] < SAME_VOICE_RATIO * float(np.median(others)):
+    for a, b in itertools.combinations(range(len(centroids)), 2):
+        members = np.flatnonzero((labels == a) | (labels == b))
+        if min((labels[members] == a).sum(), (labels[members] == b).sum()) < SAME_VOICE_MIN_WINDOWS:
+            continue
+        members = members[:: -(-len(members) // SAME_VOICE_MAX_WINDOWS)]
+        mixing = _neighbour_mixing(
+            embeddings[members],
+            times[members],
+            (labels[members] == b).astype(int),
+            window_sec,
+        )
+        if mixing >= SAME_VOICE_MIXING:
             found.append(
                 SameVoice(
                     speakers=(a, b),
                     distance=round(float(distance[a, b]), 3),
-                    others=round(float(np.median(others)), 3),
+                    mixing=round(mixing, 3),
                 )
             )
     return tuple(found)
@@ -421,5 +464,5 @@ def attribute_speakers(
         turns=_turns(labels, scores, duration, window_sec, overlap),
         backend=backend.name(),
         method="enroll" if enrolled else "cluster",
-        same_voice=_same_voice(centroids[order]),
+        same_voice=_same_voice(embeddings, centers, centroids[order], window_sec),
     )

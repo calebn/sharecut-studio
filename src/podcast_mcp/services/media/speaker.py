@@ -416,7 +416,7 @@ def _same_voice_pairs(
                     "speakers": names,
                     "unenrolled": unenrolled,
                     "distance": round(pair.distance, 3),
-                    "others": round(pair.others, 3),
+                    "mixing": round(pair.mixing, 3),
                 }
             )
     return pairs
@@ -425,9 +425,9 @@ def _same_voice_pairs(
 def _same_voice_warning(pair: dict[str, Any]) -> str:
     first, second = pair["speakers"]
     return (
-        f"{first} and {second} sound like one person: their voices are "
-        f"{pair['distance']:.2f} apart, against {pair['others']:.2f} between the other "
-        f"speakers. Check the speaker count, or enroll {' and '.join(pair['unenrolled'])}."
+        f"{first} and {second} sound like one person: their stretches of speech run into "
+        f"each other the way one voice's would. Check the speaker count, or enroll "
+        f"{' and '.join(pair['unenrolled'])}."
     )
 
 
