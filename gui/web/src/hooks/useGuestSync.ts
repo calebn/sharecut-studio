@@ -30,6 +30,7 @@ import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { mergeOfflineSnapshot } from "../state/offlineStore";
 import { requestGuestDrainLazy } from "../state/requestDrainLazy";
+import { SANITY_POLL_MS } from "../state/syncCadence";
 import { detachSocket } from "../sync/detachSocket";
 import { enqueueInbound } from "../sync/inboundQueue";
 import type { ProjectView, TimelineComment } from "../types/project";
@@ -320,11 +321,13 @@ export function useGuestSync(
     // Until the socket first opens (onopen stops it), cover the handshake with the
     // fallback poll; no immediate tick, bootstrap just loaded the project (#657).
     startPoll({ immediate: false });
-    const onOnline = () => requestGuestDrainLazy(token);
-    window.addEventListener("online", onOnline);
+    const drain = () => requestGuestDrainLazy(token);
+    window.addEventListener("online", drain);
+    const drainTimer = window.setInterval(drain, SANITY_POLL_MS);
     return () => {
       closed = true;
-      window.removeEventListener("online", onOnline);
+      window.removeEventListener("online", drain);
+      window.clearInterval(drainTimer);
       stopPoll();
       if (retry) {
         clearTimeout(retry);
