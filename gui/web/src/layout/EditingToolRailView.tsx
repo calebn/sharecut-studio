@@ -93,8 +93,10 @@ export function EditingToolRailView({
             Cut at playhead
           </Button>
         ) : null}
-        <ZoomControls zoom={zoom} onZoomIn={onZoomIn} onZoomOut={onZoomOut} />
-        <HistoryControls history={history} onUndo={onUndo} onRedo={onRedo} />
+        <div className="editing-tool-rail-end">
+          <ZoomControls zoom={zoom} onZoomIn={onZoomIn} onZoomOut={onZoomOut} />
+          <HistoryControls history={history} onUndo={onUndo} onRedo={onRedo} />
+        </div>
       </div>
       {bladeAllowed ? (
         <BottomSheet
