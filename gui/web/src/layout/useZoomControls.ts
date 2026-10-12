@@ -8,7 +8,6 @@ import {
 
 export type ZoomAvailability = { canZoomIn: boolean; canZoomOut: boolean };
 
-/** A step that clamps to where the timeline already is does nothing, so it is unavailable. */
 export function zoomAvailability(
   zoomPxPerSec: number,
   sessionSec: number,

@@ -7,7 +7,6 @@ const ZOOM_COPY = {
   out: { label: "Zoom out", reason: "Fully zoomed out", icon: "zoomOut" },
 } as const;
 
-/** Zoom out and Zoom in for the editing tool rail, the same steps as `-` and `=`. */
 export function ZoomControls({
   zoom,
   onZoomIn,
