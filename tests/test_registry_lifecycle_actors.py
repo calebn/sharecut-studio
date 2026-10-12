@@ -52,10 +52,14 @@ def _observe_migration_actors(
             )
         for index in sorted(pending):
             receiver = receivers[index]
-            while receiver.poll():
+            while True:
                 try:
+                    if not receiver.poll():
+                        break
                     message = receiver.recv()
-                except EOFError:
+                except (EOFError, BrokenPipeError) as exc:
+                    if isinstance(exc, BrokenPipeError) and getattr(exc, "winerror", None) != 109:
+                        raise
                     if results[index] is None:
                         raise AssertionError(diagnostic(index, "EOF without result")) from None
                     break
@@ -130,7 +134,7 @@ def test_migration_cleanup_retains_secondary_failure_with_primary(
 
     try:
         with monkeypatch.context() as patch_close:
-            patch_close.setattr(Connection, "close", fail_close)
+            patch_close.setattr(type(receiver), "close", fail_close)
             with pytest.raises(RuntimeError) as caught:
                 try:
                     raise original
