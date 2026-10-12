@@ -169,6 +169,8 @@ While `project === null` (progressive load), Listen keeps its hero with disabled
 
 Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap. **Expand** and **Collapse** change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor. Only the compact inspector below swipes.
 
+**Split speakers…** is a track-inspector button, so the same sheet carries it on a phone, and the More hub's empty-session hint ("One recording of everyone? Import it, then choose Split speakers.") points there. Its dialog is a bottom sheet with **Split speakers**, **Cancel split** or **Undo split** and **Done** pinned in the footer ([communication-philosophy.md](communication-philosophy.md#terminology) names the terms).
+
 A timeline selection in Timeline mode opens the **compact inspector**
 instead: a peek strip with the target's name, its key
 value and rows of 44 px nudges at the keyboard's steps: a clip's fade or

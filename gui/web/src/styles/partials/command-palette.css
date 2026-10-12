@@ -407,14 +407,14 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 
 .split-speakers-names legend {
   padding: 0;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-1);
   font-weight: 600;
 }
 
 .split-speakers-name-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-0) var(--space-4);
 }
 
 .split-speakers-name-grid input {
@@ -424,7 +424,7 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .split-speakers-lanes,
 .split-speakers-notes {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
