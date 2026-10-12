@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { approveEdits, rejectEdits } from "../api";
+import { askConfirm } from "../feedback/ask";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import {
   REFINE_GATE_GUI_MESSAGE,
@@ -16,8 +17,18 @@ import {
 import { Button, InlineError } from "../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
+import {
+  type BulkReviewAction,
+  bulkReviewDoneMessage,
+  bulkReviewQuestion,
+  reviewPassOf,
+} from "../utils/pendingReviewPass";
+
+const REVIEW_FORBIDDEN_REASON =
+  "Only the host or an Editor can review suggestions.";
 
 export function ImpactPanel() {
+  const reviewReasonId = useId();
   const { project, projectPath, shareCapabilities, setSelection } = useDaw(
     (s) => ({
       project: s.project,
@@ -53,27 +64,40 @@ export function ImpactPanel() {
   const reviewRequired = project.pending_edits.filter((e) => e.review_required);
 
   const canReviewAll = canReviewPendingEdit(projectPath, shareCapabilities);
-  const reviewReason = canReviewAll
-    ? undefined
-    : "Only the host or an Editor can review suggestions.";
 
-  const runBulk = async (action: "approve" | "reject") => {
+  const runBulk = async (action: BulkReviewAction) => {
     const live = useDawStore.getState();
     if (live.projectPath !== projectPath || !live.project) return;
-    const pending = live.project.pending_edits.filter((e) => e.review_required);
     if (!canReviewPendingEdit(live.projectPath, live.shareCapabilities)) return;
-    const ids = pending.map((e) => e.id);
+    const shown = reviewPassOf(live.project.pending_edits);
+    if (shown.ids.length === 0) {
+      return;
+    }
+    if (!(await askConfirm(bulkReviewQuestion(action, shown)))) {
+      return;
+    }
+    const fresh = useDawStore.getState();
+    if (fresh.projectPath !== projectPath || !fresh.project) return;
+    const stillWaiting = new Set(reviewPassOf(fresh.project.pending_edits).ids);
+    const ids = shown.ids.filter((id) => stillWaiting.has(id));
     if (ids.length === 0) {
       return;
     }
     setQueued(false);
     await run(async () => {
-      const { queued } =
+      const { queued, asked, historyHead } =
         action === "approve"
           ? await approveEdits(projectPath, ids)
-          : await rejectEdits(projectPath, ids);
+          : { ...(await rejectEdits(projectPath, ids)), asked: false };
       setQueued(queued);
       setSelection(null);
+      if (!queued && !asked) {
+        useDawStore
+          .getState()
+          .announceStatus(bulkReviewDoneMessage(action, ids.length), {
+            undo: historyHead,
+          });
+      }
     });
   };
 
@@ -147,22 +171,33 @@ export function ImpactPanel() {
 
       {reviewRequired.length > 0 && (
         <div className="impact-bulk">
+          <p className="impact-bulk-lead">
+            {reviewRequired.length === 1
+              ? "1 pending edit needs review."
+              : `${reviewRequired.length} pending edits need review.`}
+          </p>
           <div className="impact-bulk-actions">
             <Button
+              variant="primary"
               disabled={busy || !canReviewAll}
-              title={reviewReason}
+              aria-describedby={canReviewAll ? undefined : reviewReasonId}
               onClick={() => void runBulk("approve")}
             >
-              Approve all review-required ({reviewRequired.length})
+              Approve all ({reviewRequired.length})
             </Button>
             <Button
               disabled={busy || !canReviewAll}
-              title={reviewReason}
+              aria-describedby={canReviewAll ? undefined : reviewReasonId}
               onClick={() => void runBulk("reject")}
             >
-              Reject all review-required
+              Reject all ({reviewRequired.length})
             </Button>
           </div>
+          {canReviewAll ? null : (
+            <p id={reviewReasonId} className="impact-bulk-reason">
+              {REVIEW_FORBIDDEN_REASON}
+            </p>
+          )}
         </div>
       )}
       {project.pending_edits.length > 0 ? (

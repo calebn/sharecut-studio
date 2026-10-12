@@ -1,17 +1,19 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { approveEdits, waiveTranscriptRefine } from "../api";
+import { approveEdits, rejectEdits, waiveTranscriptRefine } from "../api";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
+import { answerQuestions } from "../test/ask";
 import {
   appliedEditRecord,
   COMMENTER_CAPABILITIES,
   clipRow,
   minimalProject,
 } from "../test/fixtures";
+import { parseHistoryEntryId } from "../types/project";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { ImpactPanel } from "./ImpactPanel";
 
@@ -79,6 +81,7 @@ describe("ImpactPanel transcript refine recovery", () => {
     vi.mocked(waiveTranscriptRefine).mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", project());
     useDawStore.setState({ guestMode: null, shareCapabilities: [] });
+    answerQuestions(true);
   });
 
   it.each([
@@ -116,10 +119,12 @@ describe("ImpactPanel transcript refine recovery", () => {
       }
       expect(approveAll).toBeDisabled();
       expect(rejectAll).toBeDisabled();
-      expect(approveAll).toHaveAttribute(
-        "title",
+      expect(approveAll).toHaveAccessibleDescription(
         "Only the host or an Editor can review suggestions.",
       );
+      expect(
+        screen.getByText("Only the host or an Editor can review suggestions."),
+      ).toBeVisible();
       expect(approveEdits).not.toHaveBeenCalled();
     },
   );
@@ -170,7 +175,7 @@ describe("ImpactPanel transcript refine recovery", () => {
       trackId: "host",
     });
     expect(
-      screen.getByRole("button", { name: /Approve all review-required \(1\)/ }),
+      screen.getByRole("button", { name: /Approve all \(1\)/ }),
     ).toBeInTheDocument();
   });
 
@@ -269,6 +274,222 @@ describe("ImpactPanel transcript refine recovery", () => {
     expect(
       screen.queryByRole("button", { name: "Waive with reason" }),
     ).toBeNull();
+  });
+});
+
+describe("ImpactPanel bulk review", () => {
+  const head = parseHistoryEntryId("h-7");
+
+  function reviewProject() {
+    const base = project();
+    const waiting = (id: string, track: string, extra = {}) => ({
+      ...base.pending_edits[0]!,
+      id,
+      track_id: track,
+      ...extra,
+    });
+    return {
+      ...base,
+      pending_edits: [
+        waiting("e1", "host"),
+        waiting("e2", "host", {
+          join_risk: { verdict: "review", label: "risky" },
+        }),
+        waiting("e3", "guest"),
+        waiting("manual", "guest", { review_required: false }),
+      ],
+    };
+  }
+
+  function renderPanel() {
+    return render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={reviewProject()}>
+        <ImpactPanel />
+      </DawProvider>,
+    );
+  }
+
+  beforeEach(() => {
+    loadHostCommandCount.mockReset().mockResolvedValue(1);
+    vi.mocked(approveEdits)
+      .mockReset()
+      .mockResolvedValue({ queued: false, asked: false, historyHead: head });
+    vi.mocked(rejectEdits)
+      .mockReset()
+      .mockResolvedValue({ queued: false, historyHead: head });
+    useDawStore.getState().hydrate("/tmp/p.json", reviewProject());
+    useDawStore.setState({
+      guestMode: null,
+      shareCapabilities: [],
+      feedbackToast: null,
+    });
+  });
+
+  it("asks with the count, tracks and risk before approving, then offers one Undo", async () => {
+    const user = userEvent.setup();
+    const { asked } = answerQuestions(true);
+    renderPanel();
+    expect(screen.getByText("3 pending edits need review.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    await waitFor(() =>
+      expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", [
+        "e1",
+        "e2",
+        "e3",
+      ]),
+    );
+    expect(asked).toEqual([
+      {
+        kind: "confirm",
+        title: "Approve 3 pending edits?",
+        message:
+          "Their cuts go into the timeline on 2 tracks. 1 is flagged risky. One Undo takes them back.",
+        keepLabel: "Keep reviewing",
+        actionLabel: "Approve 3",
+        danger: false,
+      },
+    ]);
+    const toast = useDawStore.getState().feedbackToast;
+    expect(toast?.message).toBe("Approved 3 pending edits");
+    expect(toast?.undo).toBe(head);
+  });
+
+  it("asks before rejecting, names it as discarding, and offers one Undo", async () => {
+    const user = userEvent.setup();
+    const { asked } = answerQuestions(true);
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Reject all (3)" }));
+    await waitFor(() =>
+      expect(rejectEdits).toHaveBeenCalledWith("/tmp/p.json", [
+        "e1",
+        "e2",
+        "e3",
+      ]),
+    );
+    expect(asked[0]).toMatchObject({
+      title: "Reject 3 pending edits?",
+      actionLabel: "Reject 3",
+      danger: true,
+    });
+    const toast = useDawStore.getState().feedbackToast;
+    expect(toast?.message).toBe("Rejected 3 pending edits");
+    expect(toast?.undo).toBe(head);
+  });
+
+  it.each([
+    ["Approve all (3)", approveEdits],
+    ["Reject all (3)", rejectEdits],
+  ] as const)(
+    "changes nothing when %s is kept for review",
+    async (name, api) => {
+      const user = userEvent.setup();
+      answerQuestions(null);
+      renderPanel();
+      await user.click(screen.getByRole("button", { name }));
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name })).toBeEnabled(),
+      );
+      expect(api).not.toHaveBeenCalled();
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+    },
+  );
+
+  it("sends only the edits still waiting once the question is answered", async () => {
+    const user = userEvent.setup();
+    answerQuestions(() => {
+      const live = useDawStore.getState();
+      useDawStore.setState({
+        project: {
+          ...live.project!,
+          pending_edits: live.project!.pending_edits.filter(
+            (edit) => edit.id !== "e2",
+          ),
+        },
+      });
+      return true;
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    await waitFor(() =>
+      expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1", "e3"]),
+    );
+    expect(useDawStore.getState().feedbackToast?.message).toBe(
+      "Approved 2 pending edits",
+    );
+  });
+
+  it("sends nothing when every edit was decided while the question was open", async () => {
+    const user = userEvent.setup();
+    answerQuestions(() => {
+      const live = useDawStore.getState();
+      useDawStore.setState({
+        project: { ...live.project!, pending_edits: [] },
+      });
+      return true;
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Reject all (3)" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast).toBeNull(),
+    );
+    expect(rejectEdits).not.toHaveBeenCalled();
+  });
+
+  it("offers no Undo while the approval is still sending", async () => {
+    const user = userEvent.setup();
+    answerQuestions(true);
+    vi.mocked(approveEdits).mockResolvedValue({
+      queued: true,
+      asked: false,
+      historyHead: null,
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Still sending/,
+    );
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
+  it("leaves the toast to the cut-speech prompt when approval asks first", async () => {
+    const user = userEvent.setup();
+    answerQuestions(true);
+    vi.mocked(approveEdits).mockResolvedValue({
+      queued: false,
+      asked: true,
+      historyHead: null,
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    await waitFor(() => expect(approveEdits).toHaveBeenCalledTimes(1));
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
+  it("shows no toast and keeps the edits when approval fails", async () => {
+    const user = userEvent.setup();
+    answerQuestions(true);
+    vi.mocked(approveEdits).mockRejectedValue(new Error("offline"));
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    expect(await screen.findByText("offline")).toBeInTheDocument();
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
+  it("passes axe with the bulk row, for the host and for a commenter", async () => {
+    const { container, unmount } = renderPanel();
+    await expectNoA11yViolations(container);
+    unmount();
+    const { container: guest } = render(
+      <DawProvider
+        projectPath={shareProjectKey("tok")}
+        initialProject={reviewProject()}
+        guestMode="comment"
+        shareCapabilities={[...COMMENTER_CAPABILITIES]}
+      >
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    await expectNoA11yViolations(guest);
   });
 });
 
