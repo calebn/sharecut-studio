@@ -315,6 +315,7 @@ export const createProjectSlice: StateCreator<
             bounceRangeTarget: null,
             bounceDialogOpen: false,
             exportDialogOpen: false,
+            splitSpeakersTrackId: null,
             selection: null,
             // Job-result announcement bookkeeping (#704) is per project: a
             // stale id must not hush a headline on the next project.

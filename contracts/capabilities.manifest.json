@@ -734,6 +734,35 @@
       }
     },
     {
+      "id": "daw.track.splitSpeakers",
+      "label": "Split speakers\u2026",
+      "effect": "project",
+      "service": "Sharecut Studio command bus \u2192 services/media (SpeakerService)",
+      "industry_standard_key": false,
+      "gates": [
+        "canSplitSpeakers"
+      ],
+      "surfaces": {
+        "command": "track.splitSpeakers",
+        "gui": [
+          "SplitSpeakersDialog"
+        ],
+        "mcp": [
+          "speaker_split_tool"
+        ],
+        "cli": "podcast speaker split",
+        "skill": "podcast-speaker-attribution"
+      },
+      "omit": {
+        "keyboard_reason": "opens a dialog that asks for the speaker count; reached from the track inspector and the command palette"
+      },
+      "tooltip": "Split this track into one track per speaker",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.track.reorder",
       "label": "Reorder track",
       "effect": "project",

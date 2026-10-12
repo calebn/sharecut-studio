@@ -176,6 +176,49 @@ describe("TrackInspector", () => {
     );
   });
 
+  describe("Split speakers…", () => {
+    const withAudio: TrackView = { ...hostTrack, media_path: "raw/host.wav" };
+
+    it("opens the Split speakers dialog for a track that has audio", async () => {
+      const user = userEvent.setup();
+      useDawStore
+        .getState()
+        .hydrate("/tmp/ep.json", minimalProject({ tracks: [withAudio] }));
+      render(<TrackInspector track={withAudio} effects={[]} />);
+      await user.click(screen.getByRole("button", { name: "Split speakers…" }));
+      expect(useDawStore.getState().splitSpeakersTrackId).toBe("host");
+    });
+
+    it.each([
+      [hostTrack, "Import this track's audio first"],
+      [
+        { ...withAudio, speaker_split_id: "split_1" },
+        "This track is already split by speaker. Undo the split to split it again.",
+      ],
+    ])("is disabled with its reason beside it: %#", (track, reason) => {
+      render(<TrackInspector track={track} effects={[]} />);
+      const button = screen.getByRole("button", { name: "Split speakers…" });
+      expect(button).toBeDisabled();
+      expect(
+        document.getElementById(button.getAttribute("aria-describedby")!),
+      ).toHaveTextContent(reason);
+    });
+
+    it("is not offered on a review link", () => {
+      useDawStore
+        .getState()
+        .hydrate(
+          shareProjectKey("tok"),
+          minimalProject({ tracks: [withAudio] }),
+          "edit",
+        );
+      render(<TrackInspector track={withAudio} effects={[]} />);
+      expect(
+        screen.queryByRole("button", { name: "Split speakers…" }),
+      ).toBeNull();
+    });
+  });
+
   it("hides the smooth-joins button from a guest without edit", () => {
     useDawStore
       .getState()

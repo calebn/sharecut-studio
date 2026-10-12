@@ -17,6 +17,7 @@ export interface PipelineJobSnapshot {
     | "bounce"
     | "export"
     | "analyze"
+    | "split_speakers"
     | "agent"
     | (string & {});
   label?: string | null;

@@ -156,6 +156,39 @@ def test_turn_taking_mix_is_attributed_frame_by_frame(speakers: int) -> None:
     assert attribution.same_voice == ()
 
 
+class _Updates:
+    def __init__(self) -> None:
+        self.updates: list[tuple[int, int | None]] = []
+
+    def start(self, task_id: str, label: str, total: int | None = None) -> None:
+        pass
+
+    def update(self, task_id: str, current: int, *, total: int | None = None, **_kw) -> None:
+        self.updates.append((current, total))
+
+    def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
+        pass
+
+    def end(self, task_id: str, *, message: str | None = None) -> None:
+        pass
+
+    def fail(self, task_id: str, **_kw) -> None:
+        pass
+
+    def cancel(self, task_id: str, **_kw) -> None:
+        pass
+
+
+def test_attribution_progress_counts_windows_not_three_stages() -> None:
+    audio, _ = _mix(2, 40.0, seed=3)
+    reporter = _Updates()
+    attribute_speakers(audio, speaker_count=2, backend=SpectralBackend(), progress=reporter)
+    last, total = reporter.updates[-1]
+    assert total is not None and total > 3
+    assert last == total
+    assert [c for c, _ in reporter.updates] == sorted(c for c, _ in reporter.updates)
+
+
 @pytest.mark.parametrize(("voices", "count"), [(2, 3), (3, 4)])
 def test_a_count_above_the_voices_present_names_the_likely_merge(voices: int, count: int) -> None:
     audio, _ = _mix(voices, 90.0, seed=2)
@@ -825,6 +858,9 @@ def test_too_high_a_speaker_count_warns_which_two_are_one_person(
     assert "sound like one person" in warning
     assert sum(name in warning for name in ("Ana", "Ben", "Cy")) == 2
     assert len(result["lanes"]) == 3
+    [pair] = result["same_voice"]
+    assert all(name in warning for name in pair["speakers"])
+    assert pair["unenrolled"] == pair["speakers"]
 
 
 NAMES = ["Ana", "Ben", "Cy", "Di"]

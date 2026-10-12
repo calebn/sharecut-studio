@@ -9,6 +9,7 @@ import {
   canSuggestStructural,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
 
@@ -43,6 +44,8 @@ export type CommandContext = {
   canMoveSelectedTrackUp: boolean;
   /** Inspector-selected track has a lane below it. */
   canMoveSelectedTrackDown: boolean;
+  /** Why the inspector-selected track cannot be split by speaker; null when it can. */
+  splitSpeakersBlocker: string | null;
   /** Any inspector selection (clip, track, comment, …). */
   hasInspectorSelection: boolean;
   following: boolean;
@@ -107,6 +110,12 @@ export function buildCommandContext(): CommandContext {
     canMoveSelectedTrackDown:
       selectedTrackIndex >= 0 &&
       selectedTrackIndex < (s.project?.tracks.length ?? 0) - 1,
+    splitSpeakersBlocker: splitSpeakersBlocker(
+      selection?.kind === "track"
+        ? s.project?.tracks.find((track) => track.id === selection.trackId)
+        : undefined,
+      canManageProjects(s.projectPath),
+    ),
     hasInspectorSelection: selection != null,
     following: s.followingClientId != null,
     recordPanelOpen: s.recordPanelOpen,
@@ -263,6 +272,13 @@ export function evaluateWhen(
       return ctx.canMoveSelectedTrackDown
         ? { ok: true }
         : { ok: false, reason: "Already at bottom" };
+    case "canSplitSpeakers":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.splitSpeakersBlocker == null
+        ? { ok: true }
+        : { ok: false, reason: ctx.splitSpeakersBlocker };
     case "hasInspectorSelection":
       if (ctx.commentMode) {
         return { ok: false, reason: "Comment mode owns Escape" };

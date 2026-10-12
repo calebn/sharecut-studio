@@ -13,6 +13,7 @@ import { registerHostCommands } from "./host";
 import { registerNavigationCommands } from "./navigation";
 import { registerProjectMediaCommands } from "./projectMedia";
 import { registerRangeCommands } from "./rangeActions";
+import { registerSpeakerSplitCommands } from "./speakerSplit";
 import { registerTightenCommands } from "./tighten";
 import { registerTrackMixCommands } from "./trackMix";
 import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
@@ -39,6 +40,7 @@ export function registerDawCommands(): void {
   registerPaletteCommands();
   registerHostCommands();
   registerProjectMediaCommands();
+  registerSpeakerSplitCommands();
   registerTranscriptViewCommands();
   registerClipMoveCommands();
   registerCutSpeechCommands();

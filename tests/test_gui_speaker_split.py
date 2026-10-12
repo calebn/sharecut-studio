@@ -97,6 +97,20 @@ def test_the_job_splits_the_track_and_hands_back_the_service_result(room: Path) 
     assert [t.id for t in ProjectWorkspace.open(room).project.tracks] == ["room"]
 
 
+def test_the_project_view_marks_the_lanes_of_a_split(room: Path) -> None:
+    from podcast_mcp.gui.assembler import build_project_view
+
+    assert [t.speaker_split_id for t in build_project_view(room).tracks] == [None]
+    job = PipelineJobManager().start_split_speakers(room, track_id="room", speaker_count=2)
+    _wait(job)
+    lanes = build_project_view(room).tracks
+    split_id = ProjectWorkspace.open(room).project.editorial.speaker_splits[0].id
+    assert [(t.id, t.speaker_split_id) for t in lanes] == [
+        ("room", split_id),
+        ("room_speaker_2", split_id),
+    ]
+
+
 def test_a_split_that_cannot_run_is_refused_before_a_job_starts(room: Path) -> None:
     mgr = PipelineJobManager()
     with pytest.raises(ValueError, match="no media to split"):

@@ -124,6 +124,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Remove track",
     tooltip: "Remove track",
   },
+  "daw.track.splitSpeakers": {
+    label: "Split speakers…",
+    tooltip: "Split this track into one track per speaker",
+  },
   "daw.track.reorder": {
     label: "Reorder track",
     tooltip: "Reorder track",
@@ -504,6 +508,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   bladeConfirmSheet: "daw.edit.bladeCut.cancel",
   clipInspector: "daw.edit.rippleDelete",
   trackInspector: "daw.track.setVolume",
+  SplitSpeakersDialog: "daw.track.splitSpeakers",
   trackHeader: "daw.track.soloToggle",
   cutSpeechDialog: "daw.edit.cutSpeech.cancel",
   trackHeadersWell: "daw.track.deselectAll",

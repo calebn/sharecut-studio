@@ -21,6 +21,7 @@ import { CutSpeechDialog } from "./layout/CutSpeechDialog";
 import { ExportDialog } from "./layout/ExportDialog";
 import { HostMcpDialog } from "./layout/HostMcpDialog";
 import { ShareDialog } from "./layout/ShareDialog";
+import { SplitSpeakersDialog } from "./layout/SplitSpeakersDialog";
 import { StudioShell } from "./layout/StudioShell";
 import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
@@ -209,6 +210,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <BounceDialog />
       <CutSpeechDialog />
       <ExportDialog />
+      <SplitSpeakersDialog />
       <ShareDialog />
       <RecordPanel
         recordingLocally={hostKeeper.recordingLocally}

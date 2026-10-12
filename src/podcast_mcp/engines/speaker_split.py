@@ -145,14 +145,16 @@ def _embed(
     centers: np.ndarray,
     window_sec: float,
     backend: SpeakerBackend,
-    cancel_check: Callable[[], bool] | None = None,
+    after_window: Callable[[], None] | None = None,
 ) -> np.ndarray:
+    """Unit embeddings of the window around each centre; ``after_window`` runs after each."""
     width = round(window_sec * RATE)
     starts = np.clip(np.round((centers - window_sec / 2) * RATE).astype(int), 0, None)
     embeddings = []
     for start in starts:
-        raise_if_cancel_requested(cancel_check)
         embeddings.append(backend.embed(samples[start : start + width], RATE))
+        if after_window is not None:
+            after_window()
     return _unit(np.stack(embeddings))
 
 
@@ -373,16 +375,20 @@ def attribute_speakers(
     if frames == 0:
         raise ValueError("recording is too short to split")
     with resolve_progress_task(
-        "speaker-split", "Speaker split", total=3, prefer_parent=True, progress=progress
+        "speaker-split", "Speaker split", prefer_parent=True, progress=progress
     ) as task:
         detected = voiced_frames(samples)
         voiced = np.ones(frames, dtype=bool) if detected is None else detected
         centers = _window_centers(voiced, duration, window_sec)
         if centers.size < speaker_count:
             raise ValueError("too little speech to tell the speakers apart")
-        task.message(f"Embedding {centers.size} windows")
-        embeddings = _embed(samples, centers, window_sec, backend, cancel_check)
-        task.advance(1)
+        task.advance(0, total=centers.size + 2, message=f"Embedding {centers.size} windows")
+
+        def embedded_one() -> None:
+            raise_if_cancel_requested(cancel_check)
+            task.advance(1)
+
+        embeddings = _embed(samples, centers, window_sec, backend, embedded_one)
         enrolled = _enrollment_centroids(samples, enrollment or {}, window_sec, backend)
         centroids = _cluster(embeddings, speaker_count, enrolled)
         task.advance(1)

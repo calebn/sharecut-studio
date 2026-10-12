@@ -263,6 +263,8 @@ export interface DawState {
   bounceDialogOpen: boolean;
   /** Host Export deliverables dialog (configure, progress, outcome). */
   exportDialogOpen: boolean;
+  /** Track the Split speakers dialog is open for; null while it is closed. */
+  splitSpeakersTrackId: string | null;
   /** Host share management dialog. */
   shareDialogOpen: boolean;
   /** Host record-room control panel. */
@@ -458,6 +460,7 @@ export interface DawState {
     prompt: import("../edit/cutSpeech").CutSpeechPrompt | null,
   ) => void;
   setExportDialogOpen: (on: boolean) => void;
+  setSplitSpeakersTrackId: (trackId: string | null) => void;
   setShareDialogOpen: (on: boolean) => void;
   setRecordPanelOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;

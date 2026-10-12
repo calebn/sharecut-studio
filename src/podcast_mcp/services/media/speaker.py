@@ -344,7 +344,8 @@ class SpeakerService:
             progress=resolve_progress(progress),
             cancel_check=cancel_check,
         )
-        warnings = _same_voice_warnings(attribution, speakers, set(enrollment or {}))
+        same_voice = _same_voice_pairs(attribution, speakers, set(enrollment or {}))
+        warnings = [_same_voice_warning(pair) for pair in same_voice]
         if dry_run:
             return {**_attribution_summary(attribution, speakers), "warnings": warnings}
         raise_if_cancel_requested(cancel_check)
@@ -377,6 +378,7 @@ class SpeakerService:
         return {
             **result,
             "warnings": warnings,
+            "same_voice": same_voice,
             "history_head_id": self.ws.project.history.head_id(),
         }
 
@@ -396,27 +398,37 @@ def _speaker_names(count: int, names: Sequence[str] | None, enrolled: list[str])
     return enrolled + [f"Speaker {i + 1}" for i in range(len(enrolled), count)]
 
 
-def _same_voice_warnings(
+def _same_voice_pairs(
     attribution: SpeakerAttribution, speakers: list[str], enrolled: set[str]
-) -> list[str]:
-    """One warning per close pair that has a speaker the user has not enrolled.
+) -> list[dict[str, Any]]:
+    """Each close pair that has a speaker the user has not enrolled.
 
     Enrolling both speakers is the user's own statement that they are two people, so
-    that pair is not reported. Enrolling the unenrolled one settles it, so the advice
-    names exactly who to enroll.
+    that pair is not reported. ``unenrolled`` names who to enroll to settle it.
     """
-    warnings = []
+    pairs = []
     for pair in attribution.same_voice:
         names = [speakers[i] for i in pair.speakers]
         unenrolled = [name for name in names if name not in enrolled]
-        if not unenrolled:
-            continue
-        warnings.append(
-            f"{names[0]} and {names[1]} sound like one person: their voices are "
-            f"{pair.distance:.2f} apart, against {pair.others:.2f} between the other "
-            f"speakers. Check the speaker count, or enroll {' and '.join(unenrolled)}."
-        )
-    return warnings
+        if unenrolled:
+            pairs.append(
+                {
+                    "speakers": names,
+                    "unenrolled": unenrolled,
+                    "distance": round(pair.distance, 3),
+                    "others": round(pair.others, 3),
+                }
+            )
+    return pairs
+
+
+def _same_voice_warning(pair: dict[str, Any]) -> str:
+    first, second = pair["speakers"]
+    return (
+        f"{first} and {second} sound like one person: their voices are "
+        f"{pair['distance']:.2f} apart, against {pair['others']:.2f} between the other "
+        f"speakers. Check the speaker count, or enroll {' and '.join(pair['unenrolled'])}."
+    )
 
 
 def _attribution_summary(attribution: SpeakerAttribution, speakers: list[str]) -> dict[str, Any]:
