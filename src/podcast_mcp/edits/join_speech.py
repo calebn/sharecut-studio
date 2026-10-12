@@ -16,6 +16,11 @@ from typing import Any, Literal
 
 import numpy as np
 
+from podcast_mcp.edits.audio_cache import (
+    level_profile,
+    track_voice_floor_db,
+    voice_floor_from_profile,
+)
 from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
 from podcast_mcp.models import Clip, EpisodeProject, TranscriptWord
@@ -39,11 +44,12 @@ class JoinSpeechConfig:
     frame_sec: float = 0.02
     hop_sec: float = 0.01
     # A frame is speech when it sits within ``speech_dynamic_db`` of the window's loud
-    # frames (95th percentile) and above ``abs_floor_db``; a window whose loud frames stay
-    # under ``speech_min_db`` holds no speech to clip.
+    # frames (95th percentile) and no more than ``abs_floor_under_voice_floor_db`` under the
+    # track's voice floor; a window whose loud frames stay under ``speech_min_over_voice_floor_db``
+    # over that floor holds no speech to clip.
     speech_dynamic_db: float = 25.0
-    abs_floor_db: float = -50.0
-    speech_min_db: float = -35.0
+    abs_floor_under_voice_floor_db: float = 8.0
+    speech_min_over_voice_floor_db: float = 7.0
     # Dips inside one phrase (stop closures) shorter than this do not end the run.
     bridge_sec: float = 0.03
     min_removed_ms: float = 40.0
@@ -130,11 +136,13 @@ def speech_crossing_at_edge(
     *,
     edge_index: int,
     side: Side,
+    voice_floor_db: float,
     config: JoinSpeechConfig | None = None,
 ) -> tuple[int, float, float] | None:
     """Voiced speech that continues past a clip edge into the audio the cut removed.
 
     ``samples`` is source audio around the edge; ``edge_index`` is the clip edge inside it.
+    ``voice_floor_db`` is the track's (``TrackAudioCache.voice_floor_db``).
     ``side`` is ``onset`` for a clip start (removed audio lies before the edge) or ``tail``
     for a clip end (removed audio lies after it). Returns ``(voice_edge_index, kept_db,
     removed_db)``: where the voice actually starts or ends and the mean level of the run
@@ -148,9 +156,9 @@ def speech_crossing_at_edge(
     if levels.size < 3:
         return None
     loud = float(np.percentile(levels, 95.0))
-    if loud < cfg.speech_min_db:
+    if loud < voice_floor_db + cfg.speech_min_over_voice_floor_db:
         return None
-    floor = max(cfg.abs_floor_db, loud - cfg.speech_dynamic_db)
+    floor = max(voice_floor_db - cfg.abs_floor_under_voice_floor_db, loud - cfg.speech_dynamic_db)
     active = bridge_short_dips(levels >= floor, max(1, round(cfg.bridge_sec / cfg.hop_sec)))
     # The frame whose centre is nearest the edge; onset checks the first kept frame,
     # tail the last one.
@@ -247,6 +255,7 @@ def _crossing(
     side: Side,
     words: Sequence[TranscriptWord],
     cfg: JoinSpeechConfig,
+    voice_floor_db: float,
 ) -> SpeechCrossing | None:
     before = cfg.removed_window_sec if side == "onset" else cfg.kept_window_sec
     after = cfg.kept_window_sec if side == "onset" else cfg.removed_window_sec
@@ -256,7 +265,12 @@ def _crossing(
         return None
     edge_index = round((cut_sec - t0) * reader.sample_rate)
     hit = speech_crossing_at_edge(
-        samples, reader.sample_rate, edge_index=edge_index, side=side, config=cfg
+        samples,
+        reader.sample_rate,
+        edge_index=edge_index,
+        side=side,
+        voice_floor_db=voice_floor_db,
+        config=cfg,
     )
     if hit is None:
         return None
@@ -298,12 +312,14 @@ def find_speech_crossings(
     config: JoinSpeechConfig | None = None,
     samples: np.ndarray | None = None,
     sample_rate: int | None = None,
+    voice_floor_db: float | None = None,
 ) -> list[SpeechCrossing]:
     """Clipped onsets and tails at ``joins`` (``(left, right)`` clip pairs) on one track.
 
     Pass ``samples`` (the whole track decoded at ``sample_rate``) to reuse a decode the
     caller already holds, as the join sweep does; otherwise each edge reads one short
-    source window. A track whose media cannot be read yields no crossings.
+    source window. A track whose media cannot be read yields no crossings. The track's
+    voice floor comes from ``voice_floor_db``, else ``samples``, else the track's audio.
     """
     cfg = config or JoinSpeechConfig()
     rate = sample_rate or cfg.sample_rate
@@ -312,6 +328,12 @@ def find_speech_crossings(
     except ValueError:
         return []
     words = _words_for_track(project, track_id)
+    if voice_floor_db is not None:
+        floor = voice_floor_db
+    elif samples is not None:
+        floor = voice_floor_from_profile(level_profile(samples, rate, whole_track=True))
+    else:
+        floor = track_voice_floor_db(project, track_id)
     out: list[SpeechCrossing] = []
     for prev, cur in joins:
         join_t = float(cur.timeline_start)
@@ -329,6 +351,7 @@ def find_speech_crossings(
                 side=side,
                 words=words,
                 cfg=cfg,
+                voice_floor_db=floor,
             )
             if hit is not None:
                 out.append(hit)

@@ -166,9 +166,6 @@ tighten:
   filler_pad_mode: room_tone
   # Cap how far replace may expand a cut toward flanking words.
   filler_room_tone_max_expand_sec: 2.0
-  # Both splice sides below this RMS (dBFS) are inaudible: room tone against gated
-  # digital silence reads "inaudible splice" (pass) instead of a level jump.
-  inaudible_floor_db: -60.0
   # When another dialogue stem is speaking in the cut window, do not
   # cross-track ripple (avoids mid-word chops when ASR missed a word).
   speech_energy_guard:
@@ -521,9 +518,13 @@ join_continuity:
   edge_tolerance_ms: 3.0
   # The spectral-shape detectors (flux, MFCC/LSF/MCA, F0, bicoherence) compare
   # level-normalised spectra, which read as a mismatch between any two windows of
-  # quiet air. Their weight ramps from 0 at inaudible_floor_db to full this many dB
+  # quiet air. Their weight ramps from 0 at the inaudible floor to full this many dB
   # above it, judged on the splice's louder side. 0 keeps full weight everywhere.
   spectral_audibility_db: 30.0
+  # Both splice sides this far under the track's own voice floor
+  # (TrackAudioCache.voice_floor_db) cannot be heard: room tone against gated digital
+  # silence reads "inaudible splice" (pass) instead of a level jump.
+  inaudible_under_voice_floor_db: 18.0
   sample_rate: 16000
   pass_below: 0.28
   review_below: 0.48

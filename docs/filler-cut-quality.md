@@ -346,7 +346,9 @@ cuts, the trim's own and each peer's:
   half of its quieter frames; the whole recording as room if its speech level (the 90th
   percentile of all its live frames, in place of the words') does not stand 7 dB out of its
   quietest; otherwise the one place its levels pile up under 40 dB below that speech (the
-  densest low mode, with the median of the frames near it as the room's level), else the low
+  densest low mode, with the median of the frames near it as the room's level; its histogram
+  bins start at that ceiling, not at the recording's quietest live frame, which sits at the edge of
+  digital silence and moved the bins, and so the mode, with the recording's level, #1195), else the low
   end of all its frames. That speech level also sets the ceiling and the mode prior for the
   recording, where round 7 had none (a ceiling of infinity, a spread of 4.25 dB for the lab
   host where 1.70 is right), and its sounds are kept whole or removed whole by the same
