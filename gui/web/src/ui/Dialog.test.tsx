@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it } from "vitest";
@@ -71,4 +71,23 @@ it("pins a footer below the scrolling body and marks phone-sheet dialogs", async
     "ui-dialog-root--phone-sheet",
   );
   expect(document.querySelector(".command-palette-footer")).toBeNull();
+});
+
+it("focuses only the innermost of two dialogs opened together", async () => {
+  render(
+    <>
+      <Dialog open onClose={() => undefined} title="Outer">
+        <p>Outer body</p>
+      </Dialog>
+      <Dialog open onClose={() => undefined} title="Inner">
+        <p>Inner body</p>
+      </Dialog>
+    </>,
+  );
+  const inner = screen.getByRole("dialog", { name: "Inner" });
+  await waitFor(() =>
+    expect(
+      within(inner).getByRole("button", { name: /^Close$/ }),
+    ).toHaveFocus(),
+  );
 });

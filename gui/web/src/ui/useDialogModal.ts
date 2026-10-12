@@ -1,8 +1,13 @@
 import { type RefObject, useEffect, useRef } from "react";
-import { hasValidFocusedFeedbackAction } from "../feedback/feedbackActionFocus";
+import { focusHeld } from "./focusHold";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
-import { closeOverlay, isInnermostOverlay, openOverlay } from "./modalGate";
+import {
+  closeOverlay,
+  isInnermostOverlay,
+  modalShortcuts,
+  openOverlay,
+} from "./modalGate";
 import { openerControl } from "./pressedControl";
 
 const FOCUSABLE_SELECTOR =
@@ -109,7 +114,7 @@ export function useDialogModal({
       }
       if (
         mode === "sheet" &&
-        hasValidFocusedFeedbackAction(panel.ownerDocument)
+        (modalShortcuts() !== null || focusHeld(panel.ownerDocument))
       )
         return;
       const preferred = initialFocusRef?.current;

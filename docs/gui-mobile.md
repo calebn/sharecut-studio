@@ -303,9 +303,9 @@ user scrolls through its message and actions. Host changes do not restart the
 timer or remount Undo. Closing or stowing a compact
 inspector returns feedback to the floating host, outside the inert rail.
 An intentionally focused Undo or Dismiss keeps its native identity when the
-phone and tablet inspector hosts remount. Sheet and inspector entry focus yield
-to that action. Dismissing it, removing Undo, or disabling it returns focus to
-the current usable inspector Close. A modal keeps its own focus. Real selection,
+phone and tablet inspector hosts remount. Sheet entry focus and the volume-envelope
+view's first-entry focus yield to that action. Dismissing it, removing Undo, or disabling it returns focus to
+the current usable inspector Close. A sheet that remounts behind an open modal does not take focus from it. Real selection,
 project, or outside-control navigation cancels the remembered action.
 Other workflows retain the existing floating dock. On phones
 `feedback/toastDock.ts` measures bottom chrome and the latest pressed control;

@@ -5,13 +5,11 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import {
-  hasValidFocusedFeedbackAction,
-  isValidFocusTarget,
-} from "../../feedback/feedbackActionFocus";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
 import { focusAndReveal } from "../../ui/focusAndReveal";
+import { focusHeld } from "../../ui/focusHold";
+import { isValidFocusTarget } from "../../ui/focusTarget";
 import { modalShortcuts } from "../../ui/modalGate";
 import { ModifierInspector } from "../ModifierInspector";
 
@@ -84,11 +82,12 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
     const view = workspace.current;
     const previous = document.activeElement;
     const frame = requestAnimationFrame(() => {
-      if (view !== workspace.current || !isValidFocusTarget(view)) return;
+      if (view !== workspace.current) return;
       initialFocus.current = true;
+      if (!isValidFocusTarget(view)) return;
       const active = document.activeElement;
       if (
-        hasValidFocusedFeedbackAction(document) ||
+        focusHeld(document) ||
         modalShortcuts() !== null ||
         (active !== previous && active !== document.body)
       )

@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { type RefObject, useRef } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../api";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
+import { closeOverlay, openOverlay } from "../ui/modalGate";
 import { JoinPopover } from "./JoinPopover";
 import { useJoinEdit } from "./useJoinEdit";
 
@@ -86,6 +87,42 @@ describe("JoinPopover", () => {
       isPlaying: false,
       openJoinId: null,
       joinMutationInFlight: false,
+    });
+  });
+
+  describe("entry focus", () => {
+    let frames: FrameRequestCallback[];
+    beforeEach(() => {
+      frames = [];
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+        frames.push(cb);
+        return frames.length;
+      });
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("moves focus into the popover when it is the innermost overlay", () => {
+      render(<Harness />);
+      act(() => {
+        for (const frame of frames.splice(0)) frame(0);
+      });
+      expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(
+        true,
+      );
+    });
+
+    it("leaves focus alone when a modal opened over it before the entry frame", () => {
+      render(<Harness />);
+      const anchor = screen.getByRole("button", { name: "Anchor" });
+      act(() => anchor.focus());
+      const modal = openOverlay(true);
+      act(() => {
+        for (const frame of frames.splice(0)) frame(0);
+      });
+      expect(anchor).toHaveFocus();
+      closeOverlay(modal);
     });
   });
 

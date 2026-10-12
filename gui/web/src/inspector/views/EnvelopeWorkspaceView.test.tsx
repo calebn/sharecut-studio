@@ -1,6 +1,8 @@
 import { act, render, screen } from "@testing-library/react";
 import { StrictMode, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { hasValidFocusedFeedbackAction } from "../../feedback/feedbackActionFocus";
+import { registerFocusHold } from "../../ui/focusHold";
 import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { useDialogModal } from "../../ui/useDialogModal";
 import {
@@ -45,7 +47,9 @@ describe("envelope initial focus", () => {
   let frames: Map<number, FrameRequestCallback>;
   const extraNodes: HTMLElement[] = [];
   const overlays: ReturnType<typeof openOverlay>[] = [];
+  let unregisterHold: () => void;
   beforeEach(() => {
+    unregisterHold = registerFocusHold(hasValidFocusedFeedbackAction);
     frames = new Map();
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       frames.set(++nextFrame, callback);
@@ -58,6 +62,7 @@ describe("envelope initial focus", () => {
   afterEach(() => {
     for (const node of extraNodes.splice(0)) node.remove();
     for (const layer of overlays.splice(0)) closeOverlay(layer);
+    unregisterHold();
     vi.restoreAllMocks();
   });
   function flushFrames() {
@@ -91,6 +96,44 @@ describe("envelope initial focus", () => {
     act(() => dismiss.focus());
     flushFrames();
     expect(dismiss).toHaveFocus();
+  });
+
+  it("does not steal focus later when first entry was requested while hidden", () => {
+    const outside = outsideControl();
+    const first = { id: "p1", time: 1, value: 1 };
+    const onePoint = [first];
+    const twoPoints = [first, { id: "p2", time: 9, value: 1 }];
+    const view = (points: typeof onePoint, hidden: boolean) => (
+      <div style={{ display: hidden ? "none" : "block" }}>
+        <EnvelopeWorkspaceView {...props} form={null} points={points} />
+      </div>
+    );
+    const { rerender } = render(view(onePoint, true));
+    flushFrames();
+    rerender(view(onePoint, false));
+    flushFrames();
+    act(() => outside.focus());
+    rerender(view(twoPoints, false));
+    flushFrames();
+    expect(outside).toHaveFocus();
+  });
+
+  it("yields only first entry to an intentionally focused feedback action and preserves form entry", () => {
+    const feedback = document.createElement("div");
+    feedback.className = "ui-toast-region--app";
+    const dismiss = document.createElement("button");
+    dismiss.setAttribute("data-feedback-focus", "");
+    feedback.append(dismiss);
+    document.body.append(feedback);
+    extraNodes.push(feedback);
+    dismiss.focus();
+    const { rerender } = render(
+      <EnvelopeWorkspaceView {...props} form={null} />,
+    );
+    flushFrames();
+    expect(dismiss).toHaveFocus();
+    rerender(<EnvelopeWorkspaceView {...props} />);
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveFocus();
   });
 
   it("completes ordinary first entry after StrictMode replays the canceled initial frame", () => {
@@ -162,23 +205,6 @@ describe("envelope initial focus", () => {
 });
 
 describe("envelope error focus", () => {
-  it("yields only first entry to an intentionally focused feedback action and preserves form entry", () => {
-    const feedback = document.createElement("div");
-    feedback.className = "ui-toast-region--app";
-    const dismiss = document.createElement("button");
-    dismiss.setAttribute("data-feedback-focus", "");
-    feedback.append(dismiss);
-    document.body.append(feedback);
-    dismiss.focus();
-    const { rerender } = render(
-      <EnvelopeWorkspaceView {...props} form={null} />,
-    );
-    expect(dismiss).toHaveFocus();
-    rerender(<EnvelopeWorkspaceView {...props} />);
-    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveFocus();
-    feedback.remove();
-  });
-
   it("keeps the current Save control focused and locally visible after an error reflow", () => {
     const { container, rerender } = render(
       <div className="bottom-sheet" style={{ overflowY: "auto" }}>

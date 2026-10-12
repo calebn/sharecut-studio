@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { isValidFocusTarget } from "./feedbackActionFocus";
+import { isValidFocusTarget } from "./focusTarget";
 
-describe("effective feedback focus visibility", () => {
+describe("effective focus target visibility", () => {
   const nodes: HTMLElement[] = [];
   afterEach(() => {
     for (const node of nodes.splice(0)) node.remove();
