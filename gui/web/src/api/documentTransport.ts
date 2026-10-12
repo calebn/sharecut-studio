@@ -16,12 +16,14 @@ export async function hostFetch(
 
 /**
  * A document-command POST whose response (headers and body) has not arrived
- * after this long is aborted and handled as a transport failure: its record
- * stays queued and replays with the same `(client_id, client_seq)`. The server
- * may still be running the original. `DocumentSyncService.submit` checks for a
- * retry under the workspace lock and the document write transaction, so the
- * replay waits for the original and then returns it as `idempotent`
+ * after this long is aborted and handled as a transport failure. Ordinary
+ * document-command records stay queued and replay with the same
+ * `(client_id, client_seq)`. The server may still be running the original.
+ * `DocumentSyncService.submit` checks for a retry under the workspace lock and
+ * document write transaction, so replay waits for the original and then
+ * returns it as `idempotent`
  * (`tests/test_document_sync.py::test_concurrent_same_sequence_submits_apply_once`).
+ * History commands have an unknown outcome after timeout and are never replayed.
  */
 export const DOCUMENT_COMMAND_TIMEOUT_MS = 60_000;
 
