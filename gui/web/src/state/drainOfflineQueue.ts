@@ -104,9 +104,7 @@ function guestReplaySource(token: string): ReplaySource {
   return {
     path: shareProjectKey(token),
     load: async () => {
-      const queue = [...(await loadCommandQueue(token))].sort(
-        (a, b) => a.client_seq - b.client_seq,
-      );
+      const queue = await loadCommandQueue(token);
       historyIds = new Set(
         queue
           .filter((command) => isHistoryCommand(command.type))
@@ -199,7 +197,11 @@ function hostReplaySource(projectPath: string): ReplaySource {
   };
 }
 
-/** Drain persisted share-guest commands in client_seq order after reconnect. */
+/**
+ * Drain persisted share-guest commands in stored insertion order after
+ * reconnect. `client_seq` numbers one client's edits and restarts with each
+ * tab, so it does not order rows from different clients.
+ */
 export function drainOfflineQueue(token: string): Promise<void> {
   return replayQueuedCommands(guestReplaySource(token));
 }

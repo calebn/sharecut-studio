@@ -233,6 +233,40 @@ const routes = [
   },
 ];
 
+describe("guest queue order", () => {
+  const row = (
+    id: string,
+    clientId: string,
+    seq: number,
+    label = id,
+  ): QueuedCommand => ({
+    ...command,
+    command_id: id,
+    client_id: clientId,
+    client_seq: seq,
+    payload: { label },
+  });
+
+  it("appends across client ids and keeps a re-admitted row where it stands", async () => {
+    await enqueueCommand("bucket", row("prior-9", "viewer-prior", 9));
+    await enqueueCommand("bucket", row("prior-12", "viewer-prior", 12));
+    await enqueueCommand("bucket", row("new-1", "viewer-new", 1));
+
+    await enqueueCommand(
+      "bucket",
+      row("prior-9", "viewer-prior", 9, "re-admitted"),
+    );
+
+    const queue = await loadCommandQueue("bucket");
+    expect(queue.map((c) => c.command_id)).toEqual([
+      "prior-9",
+      "prior-12",
+      "new-1",
+    ]);
+    expect(queue[0].payload).toEqual({ label: "re-admitted" });
+  });
+});
+
 describe("transaction admission and settlement", () => {
   it.each(routes)(
     "rejects $key mutation atomically and allows the next operation",

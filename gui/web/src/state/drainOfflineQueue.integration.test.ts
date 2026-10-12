@@ -41,12 +41,15 @@ vi.mock("./offlineStore", () => ({
   loadCommandQueue: async (token: string) => [
     ...(guestQueues.get(token) ?? []),
   ],
-  // Like the real store: re-enqueueing an id moves it to the end.
+  // Like the real store: re-enqueueing an id replaces the row where it stands.
   enqueueCommand: async (token: string, cmd: QueuedCommand) => {
-    guestQueues.set(token, [
-      ...without(guestQueues.get(token), [cmd.command_id]),
-      cmd,
-    ]);
+    const queue = guestQueues.get(token) ?? [];
+    guestQueues.set(
+      token,
+      queue.some((c) => c.command_id === cmd.command_id)
+        ? queue.map((c) => (c.command_id === cmd.command_id ? cmd : c))
+        : [...queue, cmd],
+    );
   },
   removeQueuedCommand: async (token: string, id: string) => {
     guestQueues.set(token, without(guestQueues.get(token), [id]));
@@ -94,11 +97,9 @@ function stubServer(answers: Record<string, number | "offline">): string[] {
   return posted;
 }
 
-/** Queued ids in replay (client_seq) order. */
+/** Queued ids in replay (stored) order. */
 const ids = (queue: QueuedCommand[] | undefined) =>
-  [...(queue ?? [])]
-    .sort((a, b) => a.client_seq - b.client_seq)
-    .map((c) => c.command_id);
+  (queue ?? []).map((c) => c.command_id);
 
 beforeEach(() => {
   conflictReadFailure = false;
