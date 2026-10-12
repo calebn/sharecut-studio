@@ -9,8 +9,17 @@ export function isValidFocusTarget(
     target.closest("[inert], [hidden]")
   )
     return false;
-  const style = target.ownerDocument.defaultView?.getComputedStyle(target);
-  return style?.display !== "none" && style?.visibility !== "hidden";
+  const view = target.ownerDocument.defaultView;
+  const visibility = view?.getComputedStyle(target).visibility;
+  if (visibility === "hidden" || visibility === "collapse") return false;
+  for (
+    let ancestor: HTMLElement | null = target;
+    ancestor;
+    ancestor = ancestor.parentElement
+  ) {
+    if (view?.getComputedStyle(ancestor).display === "none") return false;
+  }
+  return true;
 }
 
 export function isValidFeedbackAction(
