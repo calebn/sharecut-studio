@@ -181,6 +181,96 @@ test("a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs", a
   });
 });
 
+async function suggestPendingEdits(page: Page, projectPath: string) {
+  const trackId = await page.evaluate(async (path) => {
+    const res = await fetch(
+      `/api/project?path=${encodeURIComponent(path)}&phase=shell`,
+    );
+    const body = (await res.json()) as {
+      tracks: { id: string; role?: string }[];
+    };
+    return body.tracks.find((track) => track.role === "dialogue")?.id;
+  }, projectPath);
+  for (const [start, end] of [
+    [4, 6],
+    [8, 9],
+    [12, 13],
+  ])
+    await postDocumentCommand(
+      page,
+      "e2e-phone-chrome",
+      "SuggestPendingEdit",
+      { track_id: trackId, start, end, reason: "guest:suggest" },
+      projectPath,
+    );
+}
+
+test("a touch tablet gives each lane header's Mute and Solo a 44px target", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell")).toBeVisible();
+    const buttons = page.locator(".track-transport-btns .trk-btn");
+    await expect(buttons.first()).toBeVisible();
+    const boxes = await buttons.evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { name: el.getAttribute("aria-label"), w: r.width, h: r.height };
+      }),
+    );
+    expect(boxes.length).toBeGreaterThanOrEqual(4);
+    for (const box of boxes) {
+      expect(box.w, `${box.name} width`).toBeGreaterThanOrEqual(44);
+      expect(box.h, `${box.name} height`).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
+test("Reject all asks with the count, then one Undo brings the pending edits back", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell")).toBeVisible();
+    await suggestPendingEdits(page, projectPath);
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell")).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("button", { name: "More" })
+      .click();
+    await page
+      .getByRole("button", { name: /impact/i })
+      .first()
+      .click();
+
+    const pending = page.locator(".impact-pending-select");
+    await expect(pending).toHaveCount(3);
+    const reject = page.getByRole("button", { name: "Reject all (3)" });
+    expect((await reject.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+    await reject.tap();
+    const dialog = page.getByRole("dialog", {
+      name: "Reject 3 pending edits?",
+    });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Keep reviewing" }).tap();
+    await expect(dialog).toBeHidden();
+    await expect(pending).toHaveCount(3);
+
+    await reject.tap();
+    await dialog.getByRole("button", { name: "Reject 3", exact: true }).tap();
+    const toast = page.locator(".ui-toast-region--app");
+    await expect(toast.getByText("Rejected 3 pending edits")).toBeVisible();
+    await expect(pending).toHaveCount(0);
+    await toast.getByRole("button", { name: /undo/i }).tap();
+    await expect(pending).toHaveCount(3);
+  });
+});
+
 test("the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once", async ({
   page,
 }) => {
