@@ -51,6 +51,9 @@ vi.mock("./offlineStore", () => ({
   removeQueuedCommand: async (token: string, id: string) => {
     guestQueues.set(token, without(guestQueues.get(token), [id]));
   },
+  removeQueuedCommands: async (token: string, ids: string[]) => {
+    guestQueues.set(token, without(guestQueues.get(token), ids));
+  },
   addConflict: async (_token: string, conflict: OfflineConflict) => {
     if (conflictReadFailure) throw new Error("Invalid saved conflict");
     guestConflicts.push(conflict);

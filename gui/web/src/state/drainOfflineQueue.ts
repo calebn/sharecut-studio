@@ -6,6 +6,7 @@ import {
 import { isHistoryCommand } from "../services/commandQueue";
 import { shareProjectKey } from "../shareMode";
 import { isPermanentRejection } from "../utils/apiError";
+import { withCommandSendOwnership } from "./commandSendOwnership";
 import {
   hostSendDone,
   hostSendsFinished,
@@ -16,7 +17,7 @@ import {
   loadHostCommandQueue,
   type QueuedCommand,
   removeHostQueuedCommands,
-  removeQueuedCommand,
+  removeQueuedCommands,
 } from "./offlineStore";
 
 /** What a pass does with one record just before it would send it. */
@@ -38,9 +39,10 @@ export interface ReplaySource {
 }
 
 /**
- * The one ordered-replay driver for both offline queues. Each record is
- * re-sent with its original identity (`command_id`, `client_id`,
- * `client_seq`) and `replaying: true`. A permanent rejection
+ * The one ordered-replay driver for both offline queues. Ordinary records are
+ * re-sent with their original identity (`command_id`, `client_id`,
+ * `client_seq`) and `replaying: true`; history records are discarded without
+ * sending. A permanent rejection
  * (`isPermanentRejection`: a 4xx other than 408 / 429) is skipped. That is
  * only safe because both submit layers (`services/commandQueue.ts`) have
  * already recorded it as a conflict and dequeued it before they throw;
@@ -63,6 +65,7 @@ export async function replayQueuedCommands(
     if (gate === "stop") break;
     if (gate === "skip") continue;
     if (isHistoryCommand(cmd.type)) {
+      await withCommandSendOwnership(source.path, "shared", async () => {});
       completed.push(cmd.command_id);
       continue;
     }
@@ -96,19 +99,26 @@ export async function replayQueuedCommands(
   await source.settle?.(completed);
 }
 
-/** Share-guest records replay in client_seq order; each success dequeues itself. */
 function guestReplaySource(token: string): ReplaySource {
+  let historyIds = new Set<string>();
   return {
     path: shareProjectKey(token),
-    load: async () =>
-      [...(await loadCommandQueue(token))].sort(
+    load: async () => {
+      const queue = [...(await loadCommandQueue(token))].sort(
         (a, b) => a.client_seq - b.client_seq,
-      ),
-    settle: async (completed) => {
-      await Promise.all(
-        completed.map((commandId) => removeQueuedCommand(token, commandId)),
       );
+      historyIds = new Set(
+        queue
+          .filter((command) => isHistoryCommand(command.type))
+          .map((command) => command.command_id),
+      );
+      return queue;
     },
+    settle: (completed) =>
+      removeQueuedCommands(
+        token,
+        completed.filter((id) => historyIds.has(id)),
+      ),
   };
 }
 

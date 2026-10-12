@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { commandLocks } from "../test/commandLocks";
 
 const enqueueHostCommand = vi.fn();
 const enqueueCommand = vi.fn();
@@ -22,6 +23,10 @@ describe("queued command identity and landed history", () => {
   const path = "/tmp/episode.project.json";
 
   beforeEach(() => {
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: commandLocks(),
+    });
     sessionStorage.clear();
     vi.resetModules();
     vi.clearAllMocks();
@@ -541,6 +546,10 @@ describe("queued command identity and landed history", () => {
 
 describe("live identity admission before side effects", () => {
   beforeEach(() => {
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: commandLocks(),
+    });
     sessionStorage.clear();
     vi.resetModules();
     vi.clearAllMocks();

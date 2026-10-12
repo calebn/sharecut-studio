@@ -353,11 +353,18 @@ export async function enqueueCommand(
   cmd: QueuedCommand,
 ): Promise<void> {
   cmd = parseQueuedCommand(cmd);
-  const queue = (await loadCommandQueue(token)).filter(
-    (existing) => existing.command_id !== cmd.command_id,
+  if (typeof indexedDB === "undefined") return;
+  await updateStoredList<QueuedCommand, void>(
+    queueKey(token),
+    parseCommandList,
+    (queue) => ({
+      items: [
+        ...queue.filter((existing) => existing.command_id !== cmd.command_id),
+        cmd,
+      ],
+      result: undefined,
+    }),
   );
-  queue.push(cmd);
-  await saveCommandQueue(token, queue);
 }
 
 export async function loadHostCommandQueue(
@@ -429,10 +436,23 @@ export async function removeQueuedCommand(
   token: string,
   commandId: string,
 ): Promise<void> {
-  const queue = (await loadCommandQueue(token)).filter(
-    (c) => c.command_id !== commandId,
+  await removeQueuedCommands(token, [commandId]);
+}
+
+export async function removeQueuedCommands(
+  token: string,
+  commandIds: string[],
+): Promise<void> {
+  if (commandIds.length === 0 || typeof indexedDB === "undefined") return;
+  const ids = new Set(commandIds);
+  await updateStoredList<QueuedCommand, void>(
+    queueKey(token),
+    parseCommandList,
+    (queue) => ({
+      items: queue.filter((command) => !ids.has(command.command_id)),
+      result: undefined,
+    }),
   );
-  await saveCommandQueue(token, queue);
 }
 
 export async function loadConflicts(token: string): Promise<OfflineConflict[]> {

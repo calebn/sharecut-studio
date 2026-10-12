@@ -22,8 +22,13 @@ until those edits are sent. Undo and Redo are unavailable offline.
 
 The browser may retain a history command briefly in its IndexedDB queue to
 reserve its place relative to other edits. History commands are never replayed.
-If removing one of these rows fails, later drains still skip it and continue
-with ordinary edits. If the server may have received a move but its response
+Browser ownership keeps later live sends and replay behind an active history
+move until its response and cleanup settle, including sends from another tab.
+If the originating tab closes, the browser releases that ownership. The
+abandoned row remains ineligible for replay. If removing an inactive row fails,
+later drains still skip it and continue with ordinary edits. Browsers without
+this ownership support refuse Undo and Redo while ordinary edit recovery stays
+available. If the server may have received a move but its response
 does not arrive, Studio reports that the outcome may be unknown. Check History
 before trying again.
 Podcast MCP uses **non-destructive editing** at two levels:
@@ -261,7 +266,10 @@ reverts the edit the person just made and is not refused as stale by it. The
 handler also checks the document generation after waiting for an earlier
 history move, the edit saves, and pending mix saves. If the project was reopened
 during one of those waits, the handler refuses the press before calling the
-history API. This check does not cancel a history command after API dispatch.
+history API. The command service also checks the original generation after
+browser ownership, persistence, and queue reads, immediately before the HTTP
+POST. Entering the history API does not authorize a later send from another
+opening. Once the HTTP POST starts, the browser cannot cancel a server mutation.
 A reply from a previous generation cannot supply head knowledge for the current
 generation. A boundary token load that the server never answers gives up
 after `DOCUMENT_COMMAND_TIMEOUT_MS` (`loadBoundaryContext`), and the save is dropped with
@@ -271,9 +279,10 @@ peer edit that arrives while a press waits its turn is never adopted; the server
 refuses that press instead. If the move ahead was refused or failed, the waiting press keeps the head the
 tab knew when it was pressed, so it is refused too rather than guessing. The toast's
 Undo keeps its own entry even when it waits behind a Mod+Z. A refusal is announced once
-(the command returns `announced: true`, so the two-finger tap does not repeat it). An
-offline-queued undo keeps its expected head, so a replay after other edits is refused
-(and listed in **Needs attention**) instead of reverting them.
+(the command returns `announced: true`, so the two-finger tap does not repeat it). Undo and Redo are refused offline and never replay. Ordinary refused edits
+remain listed in **Needs attention** under their existing recovery policy.
+An unconfirmed history response reports an unknown outcome. Check History before
+trying again.
 
 A fade drafted before an Undo projection arrives retains its original saved
 fade pair. `EditService.set_clip_fade` compares that pair in the same project
