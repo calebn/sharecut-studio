@@ -145,13 +145,26 @@ def test_migration_cleanup_retains_secondary_failure_with_primary(
         sender.close()
 
 
-def test_migration_observer_identifies_exit_without_result() -> None:
+@pytest.mark.parametrize("closed_poll", [False, True])
+def test_migration_observer_identifies_exit_without_result(
+    monkeypatch: pytest.MonkeyPatch, closed_poll: bool
+) -> None:
     ctx = multiprocessing.get_context("spawn")
     receiver, sender = ctx.Pipe(duplex=False)
     process = ctx.Process(target=_exit_without_result, args=(sender,))
     try:
         process.start()
         sender.close()
+        if closed_poll:
+            process.join(timeout=5)
+            assert process.exitcode == 0
+            closure = BrokenPipeError("The pipe has been ended")
+            closure.winerror = 109
+
+            def poll_closed(connection: Connection, timeout: float = 0.0) -> bool:
+                raise closure
+
+            monkeypatch.setattr(type(receiver), "poll", poll_closed)
         with pytest.raises(
             AssertionError, match=rf"actor 0 PID {process.pid}.*last observed phase"
         ):
