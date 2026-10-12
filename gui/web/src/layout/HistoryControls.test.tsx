@@ -12,7 +12,10 @@ import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
 } from "../commands/history";
-import { documentScope } from "../document/authorityState";
+import {
+  activateDocumentScope,
+  documentScope,
+} from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
   beginHostSend,
@@ -301,10 +304,12 @@ describe("CompactHistoryControls", () => {
       guestMode: "edit",
       shareCapabilities: ["view", "edit"],
     });
+    const scopeAtPress = activateDocumentScope("share:editor");
     render(<CompactHistoryControls />);
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() =>
       expect(undoHistory).toHaveBeenCalledWith("share:editor", {
+        scope: scopeAtPress,
         expectedHeadId: HISTORY_ROOT_ID,
       }),
     );
@@ -314,6 +319,7 @@ describe("CompactHistoryControls", () => {
     const label = action === "undo" ? "Undo" : "Redo";
     const move = action === "undo" ? undoHistory : redoHistory;
     it(`waits for this tab's save before header ${label}`, async () => {
+      const scopeAtPress = documentScope();
       const save = beginHostSend("/tmp/history-controls", `save-${action}`);
       render(<CompactHistoryControls />);
       fireEvent.click(screen.getByRole("button", { name: label }));
@@ -325,6 +331,7 @@ describe("CompactHistoryControls", () => {
       save.finish();
       await waitFor(() =>
         expect(move).toHaveBeenCalledWith("/tmp/history-controls", {
+          scope: scopeAtPress,
           expectedHeadId: HISTORY_ROOT_ID,
         }),
       );

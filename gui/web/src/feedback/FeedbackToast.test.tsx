@@ -7,6 +7,7 @@ import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
 } from "../commands/history";
+import { activateDocumentScope } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -255,8 +256,10 @@ describe("FeedbackToast", () => {
     });
     expect(screen.getByText("Removed Host")).toBeVisible();
     await expectNoA11yViolations(document.body);
+    const scopeAtPress = activateDocumentScope("/tmp/ep");
     await user.click(screen.getByRole("button", { name: "Undo" }));
     expect(undoHistory).toHaveBeenCalledWith("/tmp/ep", {
+      scope: scopeAtPress,
       expectedHeadId: "host-reorder",
     });
     expect(useDawStore.getState().statusAnnouncement).toBe(
@@ -346,8 +349,10 @@ describe("FeedbackToast", () => {
       vi.mocked(undoHistory).mockRejectedValueOnce(
         new ApiError("Did not undo", "history_stale", 409),
       );
+      const scopeAtPress = activateDocumentScope("/tmp/ep");
       await user.click(screen.getByRole("button", { name: "Undo" }));
       expect(undoHistory).toHaveBeenCalledWith("/tmp/ep", {
+        scope: scopeAtPress,
         expectedHeadId: "agent-cut",
       });
       expect(

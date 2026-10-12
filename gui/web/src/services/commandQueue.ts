@@ -23,6 +23,10 @@ import {
   refreshDocumentProject,
 } from "../document/applyDocumentUpdate";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
+import {
+  supportsCommandSendOwnership,
+  withCommandSendOwnership,
+} from "../state/commandSendOwnership";
 import { useDawStore } from "../state/dawStore";
 import {
   beginHostSend,
@@ -42,6 +46,7 @@ import {
   newCommandId,
   nextDocumentClientSeq,
 } from "../utils/documentClient";
+import { raceTimeout } from "../utils/raceTimeout";
 
 type CommandIdentity = Pick<
   QueuedCommand,
@@ -148,7 +153,9 @@ export async function submitQueuedDocumentCommand(
   const scope = active ? activateDocumentScope(projectPath) : documentScope();
   if (active) beginDocumentDraft(commandId, type, payload, resolved.replaying);
   try {
-    const result = await submitCommand(projectPath, type, payload, resolved);
+    const result = await withCommandSendOwnership(projectPath, "shared", () =>
+      submitCommand(projectPath, type, payload, resolved, scope),
+    );
     const head = parseHistoryEntryId(result.history_head_id);
     if (head && result.queued !== true) {
       noteSaveLanded(projectPath, head, scope);
@@ -202,12 +209,15 @@ export async function submitLiveHistoryCommand(
   const active = useDawStore.getState().projectPath === projectPath;
   if (active) beginDocumentDraft(command_id, type, payload, false);
   try {
-    const data = await submitLiveHistoryIntent(
-      projectPath,
-      type,
-      payload,
-      scope,
-      { command_id, client_id, client_seq },
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error("Undo and Redo are unavailable offline");
+    }
+    const data = await withCommandSendOwnership(projectPath, "exclusive", () =>
+      submitLiveHistoryIntent(projectPath, type, payload, scope, {
+        command_id,
+        client_id,
+        client_seq,
+      }),
     );
     const head = parseHistoryEntryId(data.history_head_id);
     if (head) {
@@ -339,13 +349,9 @@ async function submitLiveHistoryIntent(
     const admitted = await queue.enqueueHostCommand(projectPath, cmd);
     requireCurrent();
     if (!admitted.persisted) {
-      throw new Error("Undo and Redo require available local queue storage");
-    }
-    const earlier = await send.earlierWithin(HOST_SEND_WAIT_MS);
-    requireCurrent();
-    if (!earlier) {
-      requestHostDrainLazy(projectPath);
-      throw new Error("Undo and Redo must wait until older edits are sent");
+      throw new Error(
+        "Undo and Redo cannot run right now. Reload the project and try again.",
+      );
     }
     const pending = await queue.loadHostCommandQueue(projectPath);
     requireCurrent();
@@ -394,8 +400,8 @@ async function submitCommand(
   type: string,
   payload: Record<string, unknown>,
   opts: ResolvedCommandOptions,
+  scope: DocumentScope,
 ): Promise<Record<string, unknown>> {
-  const scope = documentScope();
   const { command_id, client_seq } = opts;
   const bodyBase = {
     client_id: opts.client_id,
@@ -496,18 +502,19 @@ async function submitCommand(
   }
 }
 
-/**
- * Wait (at most HOST_SEND_WAIT_MS in total) for this tab's earlier sends and
- * the host drain run in progress, then return this command's persisted record
- * if it is now the queue head. Null keeps it queued; the caller then requests
- * a drain.
- */
-async function queueHeadAfterEarlierSends(
+async function queueHeadAfterPriorSend(
   loadQueue: () => Promise<QueuedCommand[]>,
   commandId: string,
   send: HostSend,
 ): Promise<QueuedCommand | null> {
-  if (!(await send.earlierWithin(HOST_SEND_WAIT_MS))) {
+  const earlier = supportsCommandSendOwnership()
+    ? raceTimeout(
+        send.earlier.then(() => true),
+        HOST_SEND_WAIT_MS,
+        () => false,
+      )
+    : send.earlierWithin(HOST_SEND_WAIT_MS);
+  if (!(await earlier)) {
     return null;
   }
   try {
@@ -579,7 +586,7 @@ async function submitHostDocumentCommand(
     // A predecessor that is this tab's own live send is not an offline edit:
     // wait for it, then send this command if nothing older remains.
     const head = send
-      ? await queueHeadAfterEarlierSends(
+      ? await queueHeadAfterPriorSend(
           () => hostQueue.loadHostCommandQueue(projectPath),
           command_id,
           send,

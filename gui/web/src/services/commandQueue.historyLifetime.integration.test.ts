@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { commandLocks } from "../test/commandLocks";
 import type { HistoryEntryId } from "../types/project";
 
 const queue = vi.hoisted(() => ({
@@ -26,6 +27,10 @@ vi.mock("../state/requestDrainLazy", () => ({
 
 describe("history command lifetime at queue admission", () => {
   beforeEach(() => {
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: commandLocks(),
+    });
     sessionStorage.clear();
     vi.resetModules();
     vi.clearAllMocks();

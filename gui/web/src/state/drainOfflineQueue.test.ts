@@ -22,6 +22,7 @@ vi.mock("./offlineStore", () => ({
   loadHostCommandQueue: hostQueue,
   removeHostQueuedCommands,
   removeQueuedCommand,
+  removeQueuedCommands: vi.fn(async () => {}),
 }));
 
 const cmd = (id: string): QueuedCommand => ({
