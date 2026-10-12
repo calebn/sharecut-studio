@@ -328,7 +328,7 @@ def test_ci_uploads_only_native_playwright_failure_diagnostics() -> None:
         "gui/web/test-results/**/error-context.md",
     ]
     assert upload["if"] == (
-        "always() && hashFiles('" + diagnostic_globs[0] + "', '" + diagnostic_globs[1] + "') != ''"
+        f"always() && hashFiles('{diagnostic_globs[0]}', '{diagnostic_globs[1]}') != ''"
     )
     assert upload["uses"] == "actions/upload-artifact@v7"
     artifact = upload["with"]

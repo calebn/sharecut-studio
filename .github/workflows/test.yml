@@ -262,11 +262,13 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload Playwright traces from failed specs
-        if: failure()
+        if: always() && hashFiles('gui/web/test-results/**/trace.zip', 'gui/web/test-results/**/error-context.md') != ''
         uses: actions/upload-artifact@v7
         with:
           name: playwright-test-results-${{ matrix.name }}
-          path: gui/web/test-results/
+          path: |
+            gui/web/test-results/**/trace.zip
+            gui/web/test-results/**/error-context.md
           retention-days: 7
           if-no-files-found: ignore
 

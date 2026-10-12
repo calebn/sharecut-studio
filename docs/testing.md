@@ -586,7 +586,11 @@ test scope, and separate browser execution from dependency install and
 server/build setup. A local timing run can use
 `PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/main.json npm run test:e2e -- --reporter=json`,
 and `npm run test:e2e -- --shard=2/4` reproduces one CI shard.
-Failed-spec traces remain separate `playwright-test-results-<name>` artifacts.
+Playwright uploads native `trace.zip` and `error-context.md` files as separate
+`playwright-test-results-<name>` artifacts whenever either file exists. This
+also retains diagnostics from a failed attempt when a retry passes. The upload
+keeps the matrix suffix and seven-day retention. It excludes Playwright run
+metadata from clean jobs.
 
 ## What to test where
 
@@ -1612,11 +1616,12 @@ Apple's Safari browser. To exercise an installed branded Chrome locally, set
 `E2E_BRANDED_CHROME=1`; CI intentionally uses the reproducible bundled
 Chromium engine.
 
-Playwright traces (`trace: "retain-on-failure"`) and reports from these runs
-contain guest record-share tokens (`/rec/<token>` URLs and
-`/api/shares/record` responses). CI does not upload them; do not add an
-artifact upload for `gui/web/test-results/` or `playwright-report/` without
-redacting those tokens.
+Playwright traces and JSON reports from these runs can contain guest
+record-share tokens (`/rec/<token>` URLs and `/api/shares/record` responses).
+CI uploads timing reports on every run and uploads only native `trace.zip` and
+`error-context.md` files when they exist. Keep the seven-day retention and
+treat these artifacts as sensitive. Do not widen the upload to all of
+`gui/web/test-results/` or add other capture files without a sanitization plan.
 
 The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with real `caddy` and `docker compose` (see [§ Deploy config validation](#deploy-config-validation)).
 
