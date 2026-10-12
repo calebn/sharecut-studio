@@ -17,6 +17,8 @@ function RailPreview({
   canRedo,
   onUndo,
   onRedo,
+  onZoomIn,
+  onZoomOut,
   onAddTrack,
   onImport,
   onCutAtPlayhead,
@@ -33,6 +35,8 @@ function RailPreview({
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
   onAddTrack: () => void;
   onImport: () => void;
   onCutAtPlayhead: () => void;
@@ -83,6 +87,9 @@ function RailPreview({
         history={mayIngest ? { canUndo, canRedo } : null}
         onUndo={onUndo}
         onRedo={onRedo}
+        zoom={{ canZoomIn: true, canZoomOut: true }}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
         onAddTrack={onAddTrack}
         onImport={onImport}
         onCutAtPlayhead={() => {
@@ -118,6 +125,8 @@ const meta: Meta<typeof RailPreview> = {
     canRedo: false,
     onUndo: fn(),
     onRedo: fn(),
+    onZoomIn: fn(),
+    onZoomOut: fn(),
     onAddTrack: fn(),
     onImport: fn(),
     onCutAtPlayhead: fn(),

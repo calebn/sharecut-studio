@@ -21,6 +21,9 @@ function baseProps() {
     } | null,
     onUndo: vi.fn(),
     onRedo: vi.fn(),
+    zoom: { canZoomIn: true, canZoomOut: true },
+    onZoomIn: vi.fn(),
+    onZoomOut: vi.fn(),
     onAddTrack: vi.fn(),
     onImport: vi.fn(),
     onCutAtPlayhead: vi.fn(),
@@ -30,7 +33,7 @@ function baseProps() {
 }
 
 describe("EditingToolRailView", () => {
-  it("renders null when neither editing nor ingest is allowed", () => {
+  it("gives a viewer Zoom and nothing that edits", async () => {
     const { container } = render(
       <EditingToolRailView
         {...baseProps()}
@@ -39,8 +42,46 @@ describe("EditingToolRailView", () => {
         history={null}
       />,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("group", { name: "Zoom" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Undo and redo" })).toBeNull();
+    expect(screen.queryByTestId("tool-toggle-slot")).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ Track" })).toBeNull();
+    await expectNoA11yViolations(container);
   });
+
+  it("runs Zoom out and Zoom in", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    const { container } = render(<EditingToolRailView {...props} />);
+    await user.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(props.onZoomOut).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(props.onZoomIn).toHaveBeenCalledTimes(1);
+    await expectNoA11yViolations(container);
+  });
+
+  it.each([
+    ["Zoom in", { canZoomIn: false, canZoomOut: true }, "Fully zoomed in"],
+    ["Zoom out", { canZoomIn: true, canZoomOut: false }, "Fully zoomed out"],
+  ])(
+    "dims %s at its limit and says why, without leaving the tab order",
+    async (name, zoom, reason) => {
+      const user = userEvent.setup();
+      const props = baseProps();
+      const { container } = render(
+        <EditingToolRailView {...props} zoom={zoom} />,
+      );
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAccessibleDescription(reason);
+      expect(button).toHaveAttribute("title", reason);
+      await user.click(button);
+      expect(props.onZoomIn).not.toHaveBeenCalled();
+      expect(props.onZoomOut).not.toHaveBeenCalled();
+      await expectNoA11yViolations(container);
+    },
+  );
 
   it("runs Undo and names why Redo is unavailable", async () => {
     const user = userEvent.setup();

@@ -4,6 +4,8 @@ import { BottomSheet, Button, InlineError } from "../ui";
 import { formatTime } from "../utils/time";
 import { HistoryControls } from "./HistoryControls";
 import type { HistoryAvailability } from "./useHistoryControls";
+import type { ZoomAvailability } from "./useZoomControls";
+import { ZoomControls } from "./ZoomControls";
 
 export interface EditingToolRailViewProps {
   inert?: boolean;
@@ -20,6 +22,10 @@ export interface EditingToolRailViewProps {
   history: HistoryAvailability | null;
   onUndo: () => void;
   onRedo: () => void;
+  /** Zoom out and in for everyone who can view the timeline. */
+  zoom: ZoomAvailability;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
   onAddTrack: () => void;
   onImport: () => void;
   onCutAtPlayhead: () => void;
@@ -42,16 +48,15 @@ export function EditingToolRailView({
   history,
   onUndo,
   onRedo,
+  zoom,
+  onZoomIn,
+  onZoomOut,
   onAddTrack,
   onImport,
   onCutAtPlayhead,
   onCancelCut,
   onConfirmCut,
 }: EditingToolRailViewProps) {
-  if (!bladeAllowed && !mayIngest && !history) {
-    return null;
-  }
-
   return (
     <>
       <div
@@ -88,6 +93,7 @@ export function EditingToolRailView({
             Cut at playhead
           </Button>
         ) : null}
+        <ZoomControls zoom={zoom} onZoomIn={onZoomIn} onZoomOut={onZoomOut} />
         <HistoryControls history={history} onUndo={onUndo} onRedo={onRedo} />
       </div>
       {bladeAllowed ? (

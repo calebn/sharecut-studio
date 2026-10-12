@@ -26,6 +26,9 @@ export type IconName =
   | "seek"
   | "undo"
   | "redo"
+  | "zoomIn"
+  | "zoomOut"
+  | "range"
   | "warning"
   | "ripple";
 
@@ -202,6 +205,31 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M12.5 5 16 8.5 12.5 12" />
       <path d="M16 8.5H8.5a4.5 4.5 0 0 0 0 9H11" />
     </>
+  ),
+  zoomIn: (
+    <>
+      <circle cx="8.5" cy="8.5" r="5" />
+      <path d="m12.25 12.25 4.25 4.25" />
+      <path d="M6.25 8.5h4.5" />
+      <path d="M8.5 6.25v4.5" />
+    </>
+  ),
+  zoomOut: (
+    <>
+      <circle cx="8.5" cy="8.5" r="5" />
+      <path d="m12.25 12.25 4.25 4.25" />
+      <path d="M6.25 8.5h4.5" />
+    </>
+  ),
+  range: (
+    <rect
+      x="3.5"
+      y="5.5"
+      width="13"
+      height="9"
+      rx="1"
+      strokeDasharray="2.5 2.5"
+    />
   ),
   seek: (
     <>

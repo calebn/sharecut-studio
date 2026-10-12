@@ -40,12 +40,22 @@ describe("Icon", () => {
     expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
   });
 
-  it.each(["check", "refresh", "seek", "undo", "redo"] as const)(
-    "renders the %s glyph",
-    (name) => {
-      const { container } = render(<Icon name={name} />);
-      const svg = container.querySelector("svg");
-      expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
-    },
-  );
+  it("draws the range glyph as a dashed marquee", () => {
+    const { container } = render(<Icon name="range" />);
+    expect(container.querySelector("rect")).toHaveAttribute("stroke-dasharray");
+  });
+
+  it.each([
+    "check",
+    "refresh",
+    "seek",
+    "undo",
+    "redo",
+    "zoomIn",
+    "zoomOut",
+  ] as const)("renders the %s glyph", (name) => {
+    const { container } = render(<Icon name={name} />);
+    const svg = container.querySelector("svg");
+    expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
+  });
 });

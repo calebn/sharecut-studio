@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { EditingToolRail } from "./EditingToolRail";
@@ -110,6 +111,25 @@ describe("EditingToolRail", () => {
     await user.click(redo);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("status")).toHaveTextContent("Nothing to redo");
+  });
+
+  it("routes Zoom through the command bus for a viewer too", async () => {
+    const user = userEvent.setup();
+    execute.mockResolvedValue({ status: "ok" });
+    bladeCutState.allowed = false;
+    useDawStore
+      .getState()
+      .hydrate(shareProjectKey("viewer"), minimalProject(), "view", ["view"]);
+    render(<EditingToolRail />);
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(execute).toHaveBeenCalledWith("view.zoomIn", {}, { skipWhen: true });
+    await user.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(execute).toHaveBeenCalledWith(
+      "view.zoomOut",
+      {},
+      { skipWhen: true },
+    );
   });
 
   it("announces a failed Undo", async () => {
