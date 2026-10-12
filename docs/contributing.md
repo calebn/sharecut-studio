@@ -144,8 +144,6 @@ Dependabot PRs (`.github/dependabot.yml`) are ordinary PRs against `main`. For t
 package or a new Rust/uv root) needs a new `updates` entry in the same change
 that adds the lockfile — `tests/test_dependabot_config.py` enforces this.
 
-The `uv` entry ignores `setuptools` `>=82` because `webrtcvad` still imports `pkg_resources` (#1168); drop the ignore together with the `setuptools<82` pin in `pyproject.toml`.
-
 The `frontend` CI job also runs `npm audit --omit=dev --audit-level=high` as an
 advisory, non-blocking step; ignoring a real finding it surfaces still needs
 **explicit user approval**, same as any other suppressed check. See

@@ -80,7 +80,7 @@ Smaller heavy subsets when you do not need everything:
 
 ```bash
 uv sync --extra speaker          # torch + speechbrain
-uv sync --extra speaker-lite     # resemblyzer (+ numba, setuptools<82)
+uv sync --extra speaker-lite     # resemblyzer (+ numba)
 uv sync --extra joinqc           # torch + librosa + transformers
 ```
 
@@ -108,7 +108,7 @@ podcast doctor
 | `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
 | `speaker` | torch, speechbrain | Enrollment speaker attribution — **large** |
-| `speaker-lite` | resemblyzer (+ numba floor, `setuptools<82`) | Lighter speaker embeddings. Resemblyzer's `webrtcvad` dependency imports `pkg_resources`, which setuptools 82 removed, so the extra pins `setuptools<82` (#1168) and `.github/dependabot.yml` ignores `setuptools` `>=82` so Dependabot does not widen it |
+| `speaker-lite` | resemblyzer (+ numba floor) | Lighter speaker embeddings. Resemblyzer's `webrtcvad` dependency imports `pkg_resources`, which setuptools 82 removed, so `engines/speaker_id.py` loads `VoiceEncoder` with a placeholder `webrtcvad` (only `preprocess_wav`'s silence trimming uses it, and the backend never calls that); the extra needs no `setuptools` pin (#1284) |
 | `joinqc` | torch, librosa, transformers | Optional neural join continuity — **large** |
 | `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
 | `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling — expect multi‑GB torch/CUDA on Linux |
