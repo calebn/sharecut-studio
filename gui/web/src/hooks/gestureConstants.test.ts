@@ -15,6 +15,16 @@ describe("platform long-press conventions", () => {
     expect(LONG_PRESS_MS).toBe(500);
   });
 
+  it("holds inside Android's 400 ms default and 500 ms legacy long press", () => {
+    expect(LONG_PRESS_MS).toBeGreaterThanOrEqual(400);
+    expect(LONG_PRESS_MS).toBeLessThanOrEqual(500);
+  });
+
+  it("is at least Android's 8 dp touch slop and at most iOS's 10 pt", () => {
+    expect(TOUCH_SLOP_PX).toBeGreaterThanOrEqual(8);
+    expect(TOUCH_SLOP_PX).toBeLessThanOrEqual(10);
+  });
+
   it("lets a held finger drift iOS's 10 pt (Android scrolls after 8 dp)", () => {
     expect(TOUCH_SLOP_PX).toBe(10);
   });

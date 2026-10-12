@@ -5,6 +5,7 @@
  * handler on an element the router cannot see, or its own arrow-key edits.
  * Follows `commands/governance.test.ts`; an allowlist entry needs a reason.
  */
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -88,7 +89,44 @@ const ARROW_ALLOWLIST: Record<string, string> = {
     "the focused handle's key release saves the run edit.setClipFade and edit.trimClipEdge stepped",
 };
 
+/**
+ * The one gesture package in use (#1078): React Aria's press hooks, confined to
+ * the touch press layer and the chooser's chip buttons. Pointer Events plus
+ * `hooks/gestureConstants.ts` do everything else.
+ */
+const PRESS_LIBRARY = "@react-aria/interactions";
+const PRESS_LIBRARY_USERS = new Set([
+  "timeline/useTouchPress.ts",
+  "timeline/TargetChooser.tsx",
+]);
+const REJECTED_GESTURE_PACKAGES = [
+  "@use-gesture/react",
+  "@use-gesture/core",
+  "@dnd-kit/core",
+  "@dnd-kit/react",
+  "hammerjs",
+  "framer-motion",
+  "motion",
+];
+
 describe("timeline gesture governance", () => {
+  it("adopts no gesture package beyond the React Aria press layer (#1078)", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(SRC_ROOT, "..", "package.json"), "utf8"),
+    ) as { dependencies: Record<string, string> };
+    const declared = Object.keys(manifest.dependencies);
+    expect(
+      declared.filter((name) => REJECTED_GESTURE_PACKAGES.includes(name)),
+    ).toEqual([]);
+    const users = [...sourceFiles(SRC_ROOT)]
+      .filter(
+        ({ rel, text }) =>
+          !rel.includes(".test.") && text.includes(PRESS_LIBRARY),
+      )
+      .map(({ rel }) => rel);
+    expect(new Set(users)).toEqual(PRESS_LIBRARY_USERS);
+  });
+
   it("keeps touch-specific handling in the router", () => {
     const touch =
       /\bon(Touch(Start|Move|End|Cancel))\s*=|addEventListener\(\s*["']touch|pointerType\s*[!=]==\s*["']touch["']|pointerType:\s*["']touch["']/;

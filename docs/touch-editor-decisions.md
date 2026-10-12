@@ -299,7 +299,7 @@ inventory or named source/tests; it does not imply every profile was run here.
 | #879 named-device response/frame/long-task profiles | **External pending.** No performance budget or improvement is claimed. |
 | Browser regressions exercise initiation, intermediate state, saved state and recovery | **Real-app browser cases passed** for sheet initiation, half/full geometry, dismissal, focus restoration, nested scrolling, project bytes, storage and document commands. The wheel check is browser mouse input. Existing mobile cases use CDP touch or synthetic events as documented; neither is physical hardware evidence. Other editor-controller combinations remain open. |
 | Physical iOS Safari, Android Chrome, stylus, trackpad, OS gestures and assistive tech | **External pending #301.** Browser automation is not hardware evidence. |
-| Gesture library comparison and independent adoption review | **Research recorded below.** No dependency adopted; runtime adapter spike remains required before future adoption. |
+| Gesture library comparison and independent adoption review | **Compared and decided (#1078).** Native Pointer Events stay and no new dependency is adopted; see the comparison below. |
 
 ## Measured browser result
 
@@ -336,29 +336,121 @@ covers `DragDropProvider` integration for draggable, droppable, and sortable
 content. Those are source-document comparisons; neither package owns Sharecut
 command, permission, history, or stale-update behavior.
 
-No package was installed. No bundle delta, runtime compatibility, maintenance
-advantage, responsiveness, or performance improvement is claimed. A future
-representative native-versus-`@use-gesture/react` adapter spike must measure
-bundle delta, actual responsiveness, Strict Mode listener cleanup, compatibility,
-license, and maintenance before adoption.
+The sections below record the later comparison that settled this.
 
-### Proposed decision: Native pointer events with platform constants for the timeline
+## Gesture-library comparison (#1078)
+
+The bounded comparison the source review required ran on 2026-10-12. The
+throwaway harness is not in the repo: one Vite page with three variants of a
+single press target, each driven through the #1051 cases with Playwright in
+Chromium (touch emulation and CDP touch events) and WebKit (synthetic touch
+pointer events; Playwright's WebKit has no touch-move API). The page rendered in
+`StrictMode` under the Vite dev server.
+
+### What is used today
+
+A search of the source finds one gesture package, `@react-aria/interactions`
+3.28.1 (Apache-2.0), in two files:
+
+- `timeline/useTouchPress.ts`: `usePress` and `useLongPress` own a deferred
+  touch until `HitRouter` decides what it was. `useLongPress` calls
+  `HitRouter.longPress` after `LONG_PRESS_MS`; `usePress` ends the press on
+  `pointercancel` and keeps the browser's click from reaching targets.
+  `TimelineView` and `JoinEditor` use it.
+- `timeline/TargetChooser.tsx`: `usePress` on the chooser's chip buttons, for
+  the picked `pointerType`.
+
+Everything else is native Pointer Events: `hitRouting.ts` (slop, second-finger
+cancel, chip settle, tap on release), `chipGesture.ts`,
+`timelineZoomGestures.ts` (pinch and pan), `useRangeGesture.ts`,
+`hooks/useLongPress.ts`, `hooks/useSwipeLeft.ts` and the drawer. All of them
+read `hooks/gestureConstants.ts`. `gestureGovernance.test.ts` pins this list.
+
+### Results
+
+| | Native + constants | `@use-gesture/react` 10.3.1 | React Aria `usePress` + `useLongPress` |
+| --- | --- | --- | --- |
+| Gzip added to a bare React page (Vite, minified) | +0.7 kB | +8.5 kB (`useDrag` + `usePinch`) | +7.0 kB |
+| Real app, both React Aria call sites stubbed out | | | 6.5 kB gzip of 397.1 kB (1.6%) |
+| Long press at 500 ms with 6 px drift | arms | arms (own timer) | arms |
+| Drift past the 10 px slop before 500 ms | pans, never arms | pans, never arms | still arms |
+| Pan then lift is not a tap | yes | yes | reports a tap (see notes) |
+| Second finger cancels a pending or armed press | yes | no | no |
+| `pointercancel` before arming | cancels | no signal | cancels |
+| `pointercancel` after arming | cancels | no signal | no signal |
+| Tap | tap on release | no event for a stationary press | tap |
+| Pinch | own code (`timelineZoomGestures.ts`) | `usePinch` recognizes it | none |
+| Handler runs after pointerdown | 0.1 ms | 0.1 ms | 0.1 ms |
+| Long press fires at (median of 15, Chromium) | 501.5 ms | 501.4 ms | 501.7 ms |
+| Pointerdown to painted feedback, median / p95 (Chromium, 40 runs) | 9.5 / 16.4 ms | 10.3 / 18.6 ms | 16.6 / 24 ms |
+| Same, WebKit | 8 / 16 ms | 9 / 17 ms | 28 / 31 ms |
+| `StrictMode` (dev double effect) | 2 mounts, 1 cleanup, one tap per tap | one press per press | one press per press |
+
+Notes on reading the table:
+
+- The latency rows time a double `requestAnimationFrame` after the handler's
+  state change, so they are quantized to 16.7 ms frames. Native and
+  `@use-gesture/react` paint within a frame of each other. React Aria paints
+  about one frame later in Chromium and two in WebKit in this spike. That is
+  one run of 40 on one machine, not a measured regression in the app.
+- The harness set `touch-action: none`, so the browser never took a pan to
+  scroll. In the app a scroll ends the touch in `pointercancel`, which the
+  router already handles. The "pan then lift reports a tap" row for React Aria
+  is why the router replays its own tap at release.
+- The `@use-gesture/react` adapter is minimal. The library has no long press,
+  no tap for a stationary press, no cancel signal and no multi-pointer
+  rollback, so each case that #1051 depends on needed hand-written pointer
+  code, the same code the native router already has. A deeper adapter could
+  close some rows, but it would still carry that code. Only pinch recognition
+  came from the library, and `timelineZoomGestures.ts` already has it.
+- Maintenance: `@use-gesture/react` was last published 2024-03-21 (MIT,
+  repository last pushed 2024-07-15, 58 open issues, React peer `>= 16.8.0`).
+  `@react-aria/interactions` is current (Apache-2.0, `adobe/react-spectrum`
+  pushed on the day of the review). `@dnd-kit/react` 0.5.0 (MIT) is pre-1.0 and
+  covers drag and drop only, not press, long press or pinch. Hammer.js is
+  unmaintained.
+- Platform values, from the AOSP `ViewConfiguration.java` source:
+  `DEFAULT_LONG_PRESS_TIMEOUT = 400` ms, `TOUCH_SLOP = 8` dp (its comment calls
+  this a fallback for legacy apps), `TAP_TIMEOUT = 100` ms, key repeat 400 ms
+  then 50 ms. Apple documents `UILongPressGestureRecognizer`
+  `minimumPressDuration` as 0.5 s and `allowableMovement` as 10 pt.
+  `LONG_PRESS_MS` (500) is iOS's value and the top of Android's 400 to 500 ms
+  range. `TOUCH_SLOP_PX` (10) is iOS's value and 2 px above Android's, so a
+  finger that drifts 8 to 10 px still counts as holding where Android would
+  have started a scroll; the browser's own scroll slop takes over first on a
+  scrollable surface. No constant changes. `gestureConstants.test.ts` now pins
+  both ranges.
+
+### Decision: Native pointer events with platform constants for the timeline
 
 <!-- decision
 id: D-timeline-native-pointer-events
-status: proposed
-date: 2026-10-06
+status: accepted
+date: 2026-10-12
 decided-by: calebn
 evidence:
 - #1078 owner, after the #1051 phone test: "are we not using a library for these gestures?"
-- #1078 React Aria prototype: +6,923 B gzip, no pointer code removed, router grew from 503 to 571 lines
+- #1078 React Aria prototype (2026-10-06): +6,923 B gzip, no pointer code removed, router grew from 503 to 571 lines
 - #1078: the library could not express movement slop, second-finger cancel, sliding onto a chip, or tap on release
+- #1078 bounded comparison (2026-10-12), results table: neither library supplies slop, second-finger rollback or both cancel paths; @use-gesture/react adds 8.5 kB gzip, has not been released since 2024-03-21 and needs the same hand-written long press, tap and cancel code
+- #1078 platform check (2026-10-12): the constants already sit inside iOS 0.5 s and 10 pt and Android 400 to 500 ms and 8 dp
+- Decided under the operator's autonomous grant for #1078; the owner can still override
+enforced-by:
+- gui/web/src/timeline/gestureGovernance.test.ts::adopts no gesture package beyond the React Aria press layer (#1078)
+- gui/web/src/hooks/gestureConstants.test.ts::holds inside Android's 400 ms default and 500 ms legacy long press
+- gui/web/src/hooks/gestureConstants.test.ts::is at least Android's 8 dp touch slop and at most iOS's 10 pt
+- gui/web/src/hooks/gestureConstants.test.ts::holds for iOS's 0.5 s, inside Android's 400-500 ms
 -->
 
-The leading option is native Pointer Events with shared platform constants
-for timeline gestures: the UIKit 10 pt slop and 0.5 s long press, and the
-Android 8 dp slop and 400 to 500 ms long press. A library may still suit
-ordinary buttons. No gesture package is adopted until #1078 concludes.
+Timeline touch recognition stays on native Pointer Events with the shared
+constants in `hooks/gestureConstants.ts`. No gesture package is added:
+`@use-gesture/react`, `@dnd-kit`, Hammer.js and Motion are not used for
+gestures. The one existing package, React Aria's press hooks in
+`useTouchPress.ts` and the chooser chips, stays for now. It is 1.6% of the
+bundle, and the approved phone behavior (#1051 rounds 4b to 6) was tuned with
+it. Whether the router can own the press layer itself is a follow-up, because
+moving it needs a phone check, which stays in #960. A library may still suit
+ordinary buttons and controls outside the timeline.
 
 ## Responsive inspector follow-up #961
 
