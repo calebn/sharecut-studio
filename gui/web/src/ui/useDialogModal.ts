@@ -189,7 +189,13 @@ export function useDialogModal({
         !openedPanel?.contains(active);
       if (!movedOutsideSheet) {
         if (restore?.isConnected) restore.focus();
-        else focusInnermostOverlay();
+        else if (
+          !(active instanceof HTMLElement) ||
+          active === document.body ||
+          !active.isConnected
+        ) {
+          focusInnermostOverlay();
+        }
       }
       restoreFocusRef.current = null;
     };
