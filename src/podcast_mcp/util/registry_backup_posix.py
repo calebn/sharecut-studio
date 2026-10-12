@@ -116,27 +116,16 @@ def _verify_chain(chain: list[tuple[int, str | None]]) -> None:
                 raise PermissionError("registry directory changed during access")
 
 
-def _check_file(fd: int, *, tighten: bool = False) -> None:
+def _check_file(fd: int) -> None:
     info = os.fstat(fd)
     if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
         raise PermissionError("registry file must be regular and owned by the host user")
     _check_acl(fd)
-    if tighten and info.st_mode & 0o077:
-        os.fchmod(fd, 0o600)
-        info = os.fstat(fd)
     if info.st_mode & 0o077:
         raise PermissionError("registry file must be owned and private (0600)")
 
 
-def _tighten_file(parent: int, name: str, expected: Identity) -> None:
-    """Tighten by path: opening a descriptor here would drop the process's SQLite locks."""
-    current = os.stat(name, dir_fd=parent, follow_symlinks=False)
-    if identity(current) != expected or not stat.S_ISREG(current.st_mode):
-        raise PermissionError("registry file changed during access")
-    os.chmod(name, 0o600, dir_fd=parent)
-
-
-def _check_unopened_file(path: Path, parent: int, name: str, *, tighten: bool) -> None:
+def _check_unopened_file(path: Path, parent: int, name: str) -> None:
     """Check a file SQLite may hold locked without opening it.
 
     Closing any descriptor on a file drops every POSIX lock this process holds on
@@ -146,9 +135,6 @@ def _check_unopened_file(path: Path, parent: int, name: str, *, tighten: bool) -
     if not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid():
         raise PermissionError("registry file must be regular and owned by the host user")
     _check_acl(str(path / name))
-    if tighten and before.st_mode & 0o077:
-        _tighten_file(parent, name, identity(before))
-        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
     if before.st_mode & 0o077:
         raise PermissionError("registry file must be owned and private (0600)")
     if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != identity(before):
@@ -242,7 +228,7 @@ def registry_scope(
         _verify_chain(chain)
         for name in names:
             try:
-                _check_unopened_file(path, parent, name, tighten=create)
+                _check_unopened_file(path, parent, name)
             except FileNotFoundError:
                 if name != names[0] or allow_missing_main:
                     continue

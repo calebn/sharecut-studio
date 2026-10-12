@@ -297,6 +297,7 @@ def test_constructor_retries_real_process_wal_contention_and_bounds_timeout(
     monkeypatch.setattr(share_registry.sqlite3, "connect", observed_connect)
     try:
         assert ready.wait(10)
+        path.chmod(0o600)
         if release_on_busy:
             registry = share_registry.SqliteShareRegistry(path)
             try:

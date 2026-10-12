@@ -231,6 +231,7 @@ def test_registry_migrates_legacy_db_adds_kind_columns(tmp_path: Path):
     )
     conn.commit()
     conn.close()
+    path.chmod(0o600)
 
     registry = SqliteShareRegistry(path)
     row = registry.get_active("old-style-token")
@@ -449,16 +450,6 @@ def test_explicit_non_default_path_is_separate_registry(tmp_path: Path):
         assert other.db_path == (tmp_path / "other.sqlite").resolve()
     finally:
         other.close()
-
-
-def test_chmod_oserror_ignored(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(
-        "podcast_mcp.edits.share_registry.os.chmod",
-        lambda *_a, **_k: (_ for _ in ()).throw(OSError("nope")),
-    )
-    reg = SqliteShareRegistry(tmp_path / "chmod.sqlite")
-    assert reg.get_active("x") is None
-    reg.close()
 
 
 def test_claim_integrity_error(registry: SqliteShareRegistry):
