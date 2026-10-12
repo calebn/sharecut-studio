@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import multiprocessing
-import queue
 import sqlite3
+import sys
+import time
 from collections.abc import Iterator
 from contextlib import closing
+from multiprocessing.connection import Connection, wait
+from multiprocessing.process import BaseProcess
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -19,17 +22,96 @@ from test_share_registry_recovery import ProbeConnection
 
 
 def _observe_migration_actors(
-    processes: list[Any], receivers: list[Any], timeout: float
+    processes: list[BaseProcess], receivers: list[Connection], timeout: float
 ) -> list[Any]:
-    results = []
-    for receiver in receivers:
-        if not receiver.poll(timeout):
-            raise queue.Empty
-        results.append(receiver.recv())
+    results: list[Any] = [None] * len(processes)
+    phases = ["entry unobserved"] * len(processes)
+    pending = set(range(len(processes)))
+    deadline = time.monotonic() + timeout
+
+    def diagnostic(index: int, reason: str) -> str:
+        process = processes[index]
+        return (
+            f"actor {index} PID {process.pid} exitcode={process.exitcode}: {reason}; "
+            f"last observed phase={phases[index]}"
+        )
+
+    while pending:
+        remaining = deadline - time.monotonic()
+        ready = (
+            wait(
+                [receivers[i] for i in pending] + [processes[i].sentinel for i in pending],
+                timeout=remaining,
+            )
+            if remaining > 0
+            else []
+        )
+        if not ready:
+            raise AssertionError(
+                "; ".join(diagnostic(i, "result deadline expired") for i in sorted(pending))
+            )
+        for index in sorted(pending):
+            receiver = receivers[index]
+            while receiver.poll():
+                try:
+                    message = receiver.recv()
+                except EOFError:
+                    if results[index] is None:
+                        raise AssertionError(diagnostic(index, "EOF without result")) from None
+                    break
+                if not isinstance(message, tuple) or len(message) != 2:
+                    raise AssertionError(diagnostic(index, "invalid report envelope"))
+                tag, payload = message
+                if tag == "progress" and isinstance(payload, str):
+                    phases[index] = payload
+                elif tag == "result" and isinstance(payload, tuple) and len(payload) == 3:
+                    if results[index] is not None:
+                        raise AssertionError(diagnostic(index, "duplicate result"))
+                    if payload[0] == "error":
+                        if not isinstance(payload[1], str) or not isinstance(payload[2], str):
+                            raise AssertionError(diagnostic(index, "invalid error report"))
+                        raise AssertionError(diagnostic(index, f"{payload[1]}: {payload[2]}"))
+                    if payload[0] != "ok":
+                        raise AssertionError(diagnostic(index, "invalid result status"))
+                    results[index] = payload
+                    phases[index] = "result received"
+                else:
+                    raise AssertionError(diagnostic(index, "invalid report envelope"))
+            if results[index] is not None:
+                pending.remove(index)
+            elif processes[index].sentinel in ready:
+                processes[index].join(timeout=0)
+                raise AssertionError(diagnostic(index, "exited without result"))
     return results
 
 
-def _exit_without_result(sender: Any) -> None:
+def _join_migration_actor(process: BaseProcess, index: int) -> None:
+    process.join(timeout=20)
+    assert process.exitcode == 0, (
+        f"actor {index} PID {process.pid} exitcode={process.exitcode}: "
+        "clean exit required; last observed phase=result received"
+    )
+
+
+def _cleanup_migration_actors(started: list[BaseProcess], endpoints: list[Connection]) -> None:
+    initiating_failure = sys.exception()
+    cleanup_failure = None
+    for process in started:
+        try:
+            reap(process, timeout=0)
+            process.close()
+        except BaseException as exc:
+            cleanup_failure = cleanup_failure or exc
+    for endpoint in endpoints:
+        try:
+            endpoint.close()
+        except BaseException as exc:
+            cleanup_failure = cleanup_failure or exc
+    if cleanup_failure is not None and initiating_failure is None:
+        raise cleanup_failure
+
+
+def _exit_without_result(sender: Connection) -> None:
     sender.close()
 
 
@@ -45,10 +127,108 @@ def test_migration_observer_identifies_exit_without_result() -> None:
         ):
             _observe_migration_actors([process], [receiver], timeout=5)
     finally:
-        reap(process, timeout=0)
-        process.close()
-        receiver.close()
+        _cleanup_migration_actors([process] if process.pid else [], [receiver, sender])
+
+
+def _stalled_migration_report(sender: Connection, entered: Any) -> None:
+    try:
+        sender.send(("progress", "target entered"))
+        entered.set()
+        multiprocessing.Event().wait()
+    finally:
         sender.close()
+
+
+def _failed_migration_report(sender: Connection, entered: Any) -> None:
+    try:
+        sender.send(("progress", "reading migrated state"))
+        sender.send(("result", ("error", "RuntimeError", "controlled state read failure")))
+        entered.set()
+    finally:
+        sender.close()
+
+
+def _completed_migration_report(sender: Connection, label: str, exitcode: int) -> None:
+    try:
+        sender.send(("result", ("ok", label, b"private-control-secret")))
+    finally:
+        sender.close()
+    raise SystemExit(exitcode)
+
+
+@pytest.mark.parametrize(
+    ("target", "phase", "reason"),
+    [
+        (_stalled_migration_report, "target entered", "result deadline expired"),
+        (
+            _failed_migration_report,
+            "reading migrated state",
+            "RuntimeError: controlled state read failure",
+        ),
+    ],
+)
+def test_migration_observer_attributes_live_stall_and_explicit_error(
+    target: Any, phase: str, reason: str
+) -> None:
+    ctx = multiprocessing.get_context("spawn")
+    pipes = [ctx.Pipe(duplex=False) for _ in range(2)]
+    entered = ctx.Event()
+    processes = [
+        ctx.Process(target=_completed_migration_report, args=(pipes[0][1], "first", 0)),
+        ctx.Process(target=target, args=(pipes[1][1], entered)),
+    ]
+    started = []
+    try:
+        for process, (_, sender) in zip(processes, pipes, strict=True):
+            process.start()
+            started.append(process)
+            sender.close()
+        assert entered.wait(timeout=5)
+        with pytest.raises(AssertionError) as caught:
+            _observe_migration_actors(processes, [r for r, _ in pipes], timeout=0.2)
+        message = str(caught.value)
+        assert f"actor 1 PID {processes[1].pid} exitcode=" in message
+        assert reason in message
+        assert f"last observed phase={phase}" in message
+        assert "private-control-secret" not in message
+        assert "first" not in message
+    finally:
+        _cleanup_migration_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
+
+
+@pytest.mark.parametrize("exitcode", [0, 7])
+def test_migration_result_arrival_preserves_order_and_requires_clean_exit(exitcode: int) -> None:
+    ctx = multiprocessing.get_context("spawn")
+    pipes = [ctx.Pipe(duplex=False) for _ in range(2)]
+    processes = [
+        ctx.Process(target=_completed_migration_report, args=(sender, str(index), exitcode))
+        for index, (_, sender) in enumerate(pipes)
+    ]
+    started = []
+    try:
+        for process, (_, sender) in zip(processes, pipes, strict=True):
+            process.start()
+            started.append(process)
+            sender.close()
+        for process in processes:
+            process.join(timeout=5)
+            assert process.exitcode == exitcode
+        results = _observe_migration_actors(processes, [r for r, _ in pipes], timeout=5)
+        assert results == [
+            ("ok", "0", b"private-control-secret"),
+            ("ok", "1", b"private-control-secret"),
+        ]
+        for index, process in enumerate(processes):
+            if exitcode:
+                with pytest.raises(AssertionError) as caught:
+                    _join_migration_actor(process, index)
+                assert f"actor {index} PID {process.pid} exitcode=7" in str(caught.value)
+                assert "last observed phase=result received" in str(caught.value)
+                assert "private-control-secret" not in str(caught.value)
+            else:
+                _join_migration_actor(process, index)
+    finally:
+        _cleanup_migration_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
 
 
 @pytest.mark.parametrize("mutation", ["claim", "release", "demote"])
@@ -103,7 +283,15 @@ def test_failed_token_commit_and_rollback_quarantines_pending_state_and_recovers
         registry.close()
 
 
-def _migration_actor(path: str, barrier: Any, queue: Any) -> None:
+def _migration_actor(path: str, barrier: Any, sender: Connection) -> None:
+    try:
+        sender.send(("progress", "target entered"))
+        _run_migration_actor(path, barrier, sender)
+    finally:
+        sender.close()
+
+
+def _run_migration_actor(path: str, barrier: Any, sender: Connection) -> None:
     connect = sqlite3.connect
 
     class UncommittedSchemaProbeRows:
@@ -128,14 +316,22 @@ def _migration_actor(path: str, barrier: Any, queue: Any) -> None:
 
     registry = None
     try:
-        with patch("podcast_mcp.edits.share_registry.sqlite3.connect", open_connection):
-            registry = SqliteShareRegistry(Path(path))
-        queue.put(("ok", registry.get_active("legacy-token"), registry.recording_key_secret()))
-    except BaseException as exc:
-        queue.put(("error", type(exc).__name__, str(exc)))
+        try:
+            sender.send(("progress", "constructing registry"))
+            with patch("podcast_mcp.edits.share_registry.sqlite3.connect", open_connection):
+                registry = SqliteShareRegistry(Path(path))
+            sender.send(("progress", "reading migrated state"))
+            result = ("ok", registry.get_active("legacy-token"), registry.recording_key_secret())
+            sender.send(("progress", "reporting result"))
+            sender.send(("result", result))
+        except BaseException as exc:
+            sender.send(("result", ("error", type(exc).__name__, str(exc))))
     finally:
         if registry:
-            registry.close()
+            try:
+                sender.send(("progress", "closing registry"))
+            finally:
+                registry.close()
 
 
 def test_concurrent_legacy_registry_migration_preserves_tokens_and_secret(tmp_path: Path) -> None:
@@ -165,20 +361,24 @@ def test_concurrent_legacy_registry_migration_preserves_tokens_and_secret(tmp_pa
         )
         connection.execute("INSERT INTO recording_key_secret VALUES (1, ?)", (secret,))
     ctx = multiprocessing.get_context("spawn")
-    barrier, queue = ctx.Barrier(2), ctx.Queue()
+    barrier = ctx.Barrier(2)
+    pipes = [ctx.Pipe(duplex=False) for _ in range(2)]
     processes = [
-        ctx.Process(target=_migration_actor, args=(str(path), barrier, queue)) for _ in range(2)
+        ctx.Process(target=_migration_actor, args=(str(path), barrier, sender))
+        for _, sender in pipes
     ]
     started = []
     try:
-        for process in processes:
+        for process, (_, sender) in zip(processes, pipes, strict=True):
             process.start()
             started.append(process)
-        results = [queue.get(timeout=20) for _ in processes]
-        for process in processes:
-            process.join(timeout=20)
-            assert process.exitcode == 0
-        assert [r[0] for r in results] == ["ok", "ok"], results
+            sender.close()
+        results = _observe_migration_actors(
+            processes, [receiver for receiver, _ in pipes], timeout=20
+        )
+        for index, process in enumerate(processes):
+            _join_migration_actor(process, index)
+        assert [r[0] for r in results] == ["ok", "ok"]
         for _, row, saved_secret in results:
             assert row["token"] == "legacy-token"
             assert row["project_workspace"] == "/legacy/workspace"
@@ -192,13 +392,7 @@ def test_concurrent_legacy_registry_migration_preserves_tokens_and_secret(tmp_pa
                 observer.execute("SELECT secret FROM recording_key_secret").fetchone()[0] == secret
             )
     finally:
-        for process in started:
-            if process.is_alive():
-                process.terminate()
-            process.join()
-            process.close()
-        queue.close()
-        queue.join_thread()
+        _cleanup_migration_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
 
 
 @pytest.mark.parametrize("stage", ["wal_read", "retry_sleep"])
