@@ -135,6 +135,28 @@ describe("boundary API", () => {
       vi.useRealTimers();
     });
 
+    it("gives up after the timeout when the caller's signal never aborts", async () => {
+      vi.useFakeTimers();
+      hang();
+      const caller = new AbortController();
+      const pending = loadBoundaryContext(
+        "/tmp/episode.json",
+        target,
+        [],
+        caller.signal,
+      );
+      const failure = expect(pending).rejects.toThrow(
+        "The server didn't answer. Nothing was saved.",
+      );
+      await vi.advanceTimersByTimeAsync(DOCUMENT_COMMAND_TIMEOUT_MS - 1);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await failure;
+      expect(caller.signal.aborted).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+      vi.useRealTimers();
+    });
+
     it("still stops at once when the caller aborts", async () => {
       vi.useFakeTimers();
       hang();
