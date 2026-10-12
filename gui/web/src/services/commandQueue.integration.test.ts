@@ -31,6 +31,10 @@ describe("queued command identity and landed history", () => {
     vi.resetModules();
     vi.clearAllMocks();
     persistedHostCommands = [];
+    enqueueCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: false,
+    });
     loadHostCommandQueue.mockImplementation(async () => [
       ...persistedHostCommands,
     ]);
@@ -554,6 +558,10 @@ describe("live identity admission before side effects", () => {
     vi.resetModules();
     vi.clearAllMocks();
     loadHostCommandQueue.mockResolvedValue([]);
+    enqueueCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: false,
+    });
     enqueueHostCommand.mockResolvedValue({
       persisted: true,
       hadPredecessor: false,

@@ -641,6 +641,7 @@ describe("host document command queue", () => {
     const calls: string[] = [];
     enqueueCommand.mockImplementation(async () => {
       calls.push("enqueue");
+      return { persisted: true, hadPredecessor: false };
     });
     const queuedId = "guest-command";
     vi.stubGlobal(
@@ -926,7 +927,10 @@ describe("host document command queue", () => {
   });
 
   it("keeps a guest command queued when its POST times out", async () => {
-    enqueueCommand.mockResolvedValue(undefined);
+    enqueueCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: false,
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
