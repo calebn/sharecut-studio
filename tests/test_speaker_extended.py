@@ -852,7 +852,8 @@ def test_window_score_to_dict():
 
 def _fake_resemblyzer(tmp_path: Path) -> Path:
     (tmp_path / "webrtcvad.py").write_text(
-        "raise ModuleNotFoundError(\"No module named 'pkg_resources'\")\n", encoding="utf-8"
+        "raise ModuleNotFoundError(\"No module named 'pkg_resources'\", name='pkg_resources')\n",
+        encoding="utf-8",
     )
     package = tmp_path / "resemblyzer"
     package.mkdir()
@@ -929,10 +930,29 @@ def test_voice_encoder_import_keeps_an_already_loaded_webrtcvad(monkeypatch, tmp
     import sys
     import types
 
-    _isolate_import_state(monkeypatch, _fake_resemblyzer(tmp_path))
+    root = _fake_resemblyzer(tmp_path)
+    _isolate_import_state(monkeypatch, root)
     loaded = types.ModuleType("webrtcvad")
     monkeypatch.setitem(sys.modules, "webrtcvad", loaded)
     from podcast_mcp.engines.speaker_id import _import_voice_encoder
 
-    _import_voice_encoder()
+    (root / "resemblyzer" / "__init__.py").write_text(
+        "raise ModuleNotFoundError(\"No module named 'pkg_resources'\", name='pkg_resources')\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ImportError, match="pkg_resources"):
+        _import_voice_encoder()
     assert sys.modules["webrtcvad"] is loaded
+
+
+def test_voice_encoder_import_reports_resemblyzer_missing(monkeypatch, tmp_path):
+    import sys
+
+    _isolate_import_state(monkeypatch, tmp_path)
+    monkeypatch.setitem(sys.modules, "resemblyzer", None)
+    from podcast_mcp.engines.speaker_id import _import_voice_encoder
+
+    with pytest.raises(ImportError) as caught:
+        _import_voice_encoder()
+    assert caught.value.name == "resemblyzer"
+    assert "webrtcvad" not in sys.modules

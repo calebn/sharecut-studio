@@ -173,6 +173,9 @@ class SpeechBrainBackend:
         return emb.squeeze().detach().cpu().numpy().astype(np.float32)
 
 
+_WEBRTCVAD_IMPORT_FAILURES = frozenset({"webrtcvad", "pkg_resources"})
+
+
 def _unavailable_webrtcvad(name: str) -> Any:
     if name.startswith("__"):
         raise AttributeError(name)
@@ -188,12 +191,15 @@ def _import_voice_encoder() -> Any:
 
     resemblyzer imports webrtcvad at module scope for `preprocess_wav`'s silence
     trimming, which this repo never calls. webrtcvad 2.0.10 imports `pkg_resources`,
-    which setuptools 82 removed, so a placeholder stands in only when the real module
-    fails to import.
+    which setuptools 82 removed. Only when that import fails, and no `webrtcvad` is
+    already loaded, a placeholder stands in for the duration of the import. Any other
+    ImportError, including resemblyzer not being installed, propagates unchanged.
     """
     try:
         return _resemblyzer_voice_encoder()
-    except ImportError:
+    except ImportError as exc:
+        if exc.name not in _WEBRTCVAD_IMPORT_FAILURES or "webrtcvad" in sys.modules:
+            raise
         sys.modules["webrtcvad"] = _webrtcvad_placeholder()
         try:
             return _resemblyzer_voice_encoder()
