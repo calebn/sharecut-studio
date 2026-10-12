@@ -128,9 +128,8 @@ function ToastCard({
       );
     };
   }, [toastId, paused, timeoutMs]);
-  // Moving the card to another host detaches a focused action without a blur
-  // event (WebKit, Firefox), and a stowed or modal-covered host may refuse to
-  // take it back; the pause follows where focus really is after each commit.
+  // A host move detaches a focused action without a blur event, and a stowed
+  // or modal-covered host may refuse to take it back.
   useEffect(() => {
     if (focused && !cardRef.current?.contains(document.activeElement))
       setFocused(false);

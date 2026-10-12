@@ -4,7 +4,7 @@ import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
 import {
   closeOverlay,
-  enterInnermostOverlay,
+  focusInnermostOverlay,
   isInnermostOverlay,
   openOverlay,
 } from "./modalGate";
@@ -189,7 +189,7 @@ export function useDialogModal({
         !openedPanel?.contains(active);
       if (!movedOutsideSheet) {
         if (restore?.isConnected) restore.focus();
-        else enterInnermostOverlay();
+        else focusInnermostOverlay();
       }
       restoreFocusRef.current = null;
     };

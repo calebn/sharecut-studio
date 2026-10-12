@@ -3,11 +3,6 @@
  * peek sheets), innermost last. Escape and entry focus belong to the innermost
  * one: an in-app confirm over the Inspector sheet closes only the confirm.
  *
- * A modal stays above every non-modal layer opened while it is open: a sheet
- * that remounts behind a confirm, or a confirm rendered inside a sheet in the
- * same commit (the child's effect pushes first), sits below the modal. No
- * non-modal overlay opens from inside a modal, which makes the chrome inert.
- *
  * An open modal dialog holds every app shortcut, as the browser's own
  * `confirm()` did: the Daw keymap runs nothing behind it (no Mod+Z undoing an
  * edit behind "Remove the guest track?"), except the shortcuts the innermost
@@ -17,19 +12,23 @@ type Layer = {
   readonly modal: boolean;
   /** Keymap command ids this modal lets through while it is innermost. */
   readonly shortcuts: readonly string[];
-  /** Takes entry focus; runs again when the layer above closes without a focus target. */
-  readonly enter: () => void;
+  readonly takeEntryFocus: () => void;
 };
 
 const layers: Layer[] = [];
 
-/** Register an overlay as it opens; pass the result to `closeOverlay`. */
+/**
+ * Register an overlay as it opens; pass the result to `closeOverlay`. A
+ * non-modal layer goes below the topmost open modal: nothing non-modal opens
+ * from inside a modal (it makes the chrome inert), so a sheet that remounts
+ * or renders beneath one belongs under it.
+ */
 export function openOverlay(
   modal: boolean,
   shortcuts: readonly string[] = [],
-  enter: () => void = () => undefined,
+  takeEntryFocus: () => void = () => undefined,
 ): Layer {
-  const layer = { modal, shortcuts, enter };
+  const layer = { modal, shortcuts, takeEntryFocus };
   const topModal = modal ? -1 : layers.findLastIndex((open) => open.modal);
   layers.splice(topModal >= 0 ? topModal : layers.length, 0, layer);
   return layer;
@@ -45,9 +44,8 @@ export function isInnermostOverlay(layer: Layer): boolean {
   return layers.at(-1) === layer;
 }
 
-/** Entry focus for the innermost open overlay, when a closing one left none. */
-export function enterInnermostOverlay(): void {
-  layers.at(-1)?.enter();
+export function focusInnermostOverlay(): void {
+  layers.at(-1)?.takeEntryFocus();
 }
 
 /**
