@@ -77,6 +77,13 @@ def test_every_update_is_weekly_grouped_and_conventional() -> None:
         assert "labels" not in update
 
 
+def test_uv_entry_ignores_setuptools_that_removed_pkg_resources() -> None:
+    """webrtcvad (via resemblyzer) imports pkg_resources, which setuptools 82 removed (#1168)."""
+    config = load_github_yaml(DEPENDABOT)
+    (uv_update,) = [u for u in config["updates"] if u["package-ecosystem"] == "uv"]
+    assert {"dependency-name": "setuptools", "versions": [">=82"]} in uv_update["ignore"]
+
+
 def test_frontend_job_runs_nonblocking_prod_audit_after_install() -> None:
     workflow = load_github_yaml(TEST_WORKFLOW)
     job = workflow["jobs"]["frontend"]
