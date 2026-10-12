@@ -107,8 +107,12 @@ def _cleanup_migration_actors(started: list[BaseProcess], endpoints: list[Connec
             endpoint.close()
         except BaseException as exc:
             cleanup_failure = cleanup_failure or exc
-    if cleanup_failure is not None and initiating_failure is None:
-        raise cleanup_failure
+    if cleanup_failure is not None:
+        if initiating_failure is None:
+            raise cleanup_failure
+        initiating_failure.add_note(
+            f"Actor cleanup failed: {type(cleanup_failure).__name__}: {cleanup_failure}"
+        )
 
 
 def _exit_without_result(sender: Connection) -> None:
