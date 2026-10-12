@@ -273,7 +273,9 @@ opening. Once the HTTP POST starts, the browser cannot cancel a server mutation.
 A reply from a previous generation cannot supply head knowledge for the current
 generation. A boundary token load that the server never answers gives up
 after `DOCUMENT_COMMAND_TIMEOUT_MS` (`loadBoundaryContext`), and the save is dropped with
-"The server didn't answer. Nothing was saved.", so Undo is not refused for good. Saves
+"The server didn't answer. Nothing was saved.", so Undo is not refused for good. A caller
+that saves nothing while it waits, the Adjust boundary dialog, passes its own message ("The
+server didn't answer. Try again."). Saves
 that begin after the press are not waited for. A
 peer edit that arrives while a press waits its turn is never adopted; the server
 refuses that press instead. If the move ahead was refused or failed, the waiting press keeps the head the

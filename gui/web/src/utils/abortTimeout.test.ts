@@ -27,6 +27,33 @@ describe("withAbortTimeout", () => {
     expect(e.message).toBe("slow");
   });
 
+  it("rejects with the TimeoutError when fn fails with a generic abort", async () => {
+    const p = withAbortTimeout(
+      100,
+      "slow",
+      (signal) =>
+        new Promise((_, reject) => {
+          signal.addEventListener("abort", () =>
+            reject(new DOMException("Fetch is aborted", "AbortError")),
+          );
+        }),
+    );
+    const caught = p.catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(100);
+    const e = (await caught) as DOMException;
+    expect(e.name).toBe("TimeoutError");
+    expect(e.message).toBe("slow");
+  });
+
+  it("keeps fn's own failure when the timeout never fired", async () => {
+    const failure = new DOMException("Cancelled", "AbortError");
+    await expect(
+      withAbortTimeout(100, "slow", async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+  });
+
   it("clears the timer when fn settles", async () => {
     await expect(withAbortTimeout(100, "x", async () => 7)).resolves.toBe(7);
     expect(vi.getTimerCount()).toBe(0);

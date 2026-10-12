@@ -157,6 +157,24 @@ describe("boundary API", () => {
       vi.useRealTimers();
     });
 
+    it("says what the caller asked when nothing is being saved", async () => {
+      vi.useFakeTimers();
+      hang();
+      const pending = loadBoundaryContext(
+        "/tmp/episode.json",
+        target,
+        [],
+        new AbortController().signal,
+        "The server didn't answer. Try again.",
+      );
+      const failure = expect(pending).rejects.toThrow(
+        "The server didn't answer. Try again.",
+      );
+      await vi.advanceTimersByTimeAsync(DOCUMENT_COMMAND_TIMEOUT_MS);
+      await failure;
+      vi.useRealTimers();
+    });
+
     it("still stops at once when the caller aborts", async () => {
       vi.useFakeTimers();
       hang();
