@@ -115,6 +115,32 @@ def _exit_without_result(sender: Connection) -> None:
     sender.close()
 
 
+def test_migration_cleanup_retains_secondary_failure_with_primary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receiver, sender = multiprocessing.Pipe(duplex=False)
+    original = RuntimeError("original observation failure")
+
+    def fail_close(connection: Connection) -> None:
+        raise OSError("controlled endpoint close failure")
+
+    try:
+        with monkeypatch.context() as patch_close:
+            patch_close.setattr(Connection, "close", fail_close)
+            with pytest.raises(RuntimeError) as caught:
+                try:
+                    raise original
+                finally:
+                    _cleanup_migration_actors([], [receiver])
+        assert caught.value is original
+        assert getattr(original, "__notes__", []) == [
+            "Actor cleanup failed: OSError: controlled endpoint close failure"
+        ]
+    finally:
+        receiver.close()
+        sender.close()
+
+
 def test_migration_observer_identifies_exit_without_result() -> None:
     ctx = multiprocessing.get_context("spawn")
     receiver, sender = ctx.Pipe(duplex=False)
