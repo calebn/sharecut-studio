@@ -29,10 +29,13 @@ export function pipelineUnitsLabel(
   return `${job.current}/${job.total} ${unit}`;
 }
 
-/** Unit noun for a job's `current/total`: Analyze counts dialogue tracks, everything else steps. */
+/** Unit noun for a job's `current/total`: Analyze counts dialogue tracks, Split speakers embedded windows, everything else steps. */
 export function pipelineUnitNoun(
   kind: PipelineJobSnapshot["kind"] | undefined,
 ): string {
+  if (kind === "split_speakers") {
+    return "windows";
+  }
   return isAnalyzeJob({ kind }) ? "tracks" : "steps";
 }
 

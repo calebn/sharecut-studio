@@ -191,6 +191,8 @@ def test_the_route_starts_a_split_job(room: Path) -> None:
         ({"track_id": "room", "speaker_count": 1}, 422, None),
         ({"track_id": "room", "speaker_count": 9}, 422, None),
         ({"track_id": "room", "speaker_count": 2, "names": ["Ana"]}, 400, "expected 2"),
+        ({"track_id": "room", "speaker_count": 2, "names": ["Ana", "B" * 81]}, 422, None),
+        ({"track_id": "room", "speaker_count": 8, "names": ["x"] * 9}, 422, None),
     ],
 )
 def test_the_route_refuses_what_the_service_would(
