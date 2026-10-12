@@ -511,15 +511,38 @@ its own voice, and the reply played on the neighbour's lane. After the Viterbi p
 
 **Too high a count.** With more speakers than voices, k-means splits one voice into
 two clusters, and the split would silently put one person on two lanes. After
-clustering, each pair of speakers is compared with the other pairs in the same
-recording: a pair whose centroids sit closer than 0.4 of the median cosine distance
-between the other pairs is reported as likely one person. The dry run and the split
-both return `warnings`, for example "Speaker 2 and Speaker 3 sound like one person:
-their voices are 0.05 apart, against 0.60 between the other speakers. Check the speaker
-count, or enroll Speaker 2 and Speaker 3." The advice names the speakers in the pair
-who are not enrolled. A pair whose speakers are both enrolled is not reported:
-enrolling is the user's own statement that they are two people. With two speakers
-there is no other pair to compare, so nothing is reported.
+clustering, each pair of speakers is checked on the recording's own windows: for every
+window of the two clusters, take its ten nearest windows (skipping any within two
+window lengths in time, which overlap it) and count how often they sit in the other
+cluster, as a share of how often chance would put them there. Two people are separate
+clouds, so their windows keep to their own cluster; a voice cut in two is one cloud, so
+the neighbours mix. A pair at 0.25 of chance or more (`SAME_VOICE_MIXING`) is reported
+as likely one person. The check compares a pair with its own windows, not with the other
+pairs, so it holds at the default count of two, and a pair with fewer than five windows
+in a cluster is not judged. The dry run and the split both return `warnings`, for
+example "Speaker 2 and Speaker 3 sound like one person: their stretches of speech run
+into each other the way one voice's would. Check the speaker count, or enroll Speaker 2
+and Speaker 3." The advice names the speakers in the pair who are not enrolled. A pair
+whose speakers are both enrolled is not reported: enrolling is the user's own statement
+that they are two people. `same_voice` carries each pair's `mixing` and the centroid
+`distance`.
+
+Measured with the ECAPA backend (before: the old median-of-other-pairs rule reported
+nothing at a count of two or on any one-voice file):
+
+| Recording | Count | Mixing of the split pairs | Reported |
+| --- | --- | --- | --- |
+| `aligned_dialogue` reference (one voice) | 2 | 0.53 | yes |
+| same | 3 | 0.40, 0.46, 0.54 | yes (all three pairs) |
+| lab solo tracks, 150 s (one voice each) | 2 | 0.56 to 0.64 | yes |
+| lab mixdown (three people) | 3 | 0.01 to 0.08 | no |
+| lab mixdown halves, 90 s each (excerpts) | 2 | 0.05, 0.07 | no |
+| lab mixdown (three people) | 4 | 0.52 for one pair, 0.14 and under for the rest | the one pair |
+
+The two groups are 0.14 and 0.40 apart, so the threshold is not tuned to either
+recording; the count-of-four row is the check working as intended (a fourth lane for a
+voice already heard). The measurement was made with ECAPA only; the Resemblyzer backend
+shares the code path but is not measured.
 
 ### Known limitations
 
