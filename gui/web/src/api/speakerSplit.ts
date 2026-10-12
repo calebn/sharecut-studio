@@ -2,7 +2,6 @@ import { hostFetch } from "../api/documentTransport";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { readApiError } from "../utils/apiError";
 
-/** `POST /api/speaker/split`: the host's speaker count and optional names. */
 export type SplitSpeakersRequest = {
   trackId: string;
   speakerCount: number;

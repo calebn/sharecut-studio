@@ -98,7 +98,6 @@ export function splitSpeakerNames(
   return names.map((name, i) => name || `Speaker ${i + 1}`);
 }
 
-/** Why Split speakers is disabled in the dialog, or null when the request is fine. */
 export function splitSpeakersRequestBlocker(
   count: number | null,
   names: readonly string[] | null,
@@ -121,7 +120,6 @@ function seconds(sec: number): string {
   return sec < 60 ? `${Math.round(sec)} s` : formatTimeShort(sec);
 }
 
-/** Status line for a finished split. */
 export function splitSpeakersDoneCopy(
   result: SplitSpeakersResult,
   trackLabel: string,
