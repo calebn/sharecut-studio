@@ -89,7 +89,7 @@ def _join_migration_actor(process: BaseProcess, index: int) -> None:
     process.join(timeout=20)
     assert process.exitcode == 0, (
         f"actor {index} PID {process.pid} exitcode={process.exitcode}: "
-        "clean exit required; last observed phase=result received"
+        "clean exit required; last observed phase at result=result received"
     )
 
 
@@ -223,7 +223,7 @@ def test_migration_result_arrival_preserves_order_and_requires_clean_exit(exitco
                 with pytest.raises(AssertionError) as caught:
                     _join_migration_actor(process, index)
                 assert f"actor {index} PID {process.pid} exitcode=7" in str(caught.value)
-                assert "last observed phase=result received" in str(caught.value)
+                assert "last observed phase at result=result received" in str(caught.value)
                 assert "private-control-secret" not in str(caught.value)
             else:
                 _join_migration_actor(process, index)
