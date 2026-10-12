@@ -2431,7 +2431,8 @@ building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
 
 `compact-feedback-focus.spec.ts` preserves each native Undo and Dismiss button
-through the real phone-to-tablet sheet and keyed Inspector remount. This focused
+through the phone-to-tablet shell switch, which remounts the sheet and
+Inspector. This focused
 compatibility regression needs Chromium and WebKit because their native focus
 fixup and portal movement differ. It uses one viewport transition per action,
 without duplicating the existing theme, text-size, or detent matrices. Component

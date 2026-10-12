@@ -4,8 +4,8 @@ import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
 import {
   closeOverlay,
+  enterInnermostOverlay,
   isInnermostOverlay,
-  modalShortcuts,
   openOverlay,
 } from "./modalGate";
 import { openerControl } from "./pressedControl";
@@ -96,11 +96,6 @@ export function useDialogModal({
     if (background) {
       background.inert = true;
     }
-    const layer = openOverlay(
-      mode === "modal",
-      shortcutIds ? shortcutIds.split(" ") : [],
-    );
-
     const focusInitial = () => {
       const panel = panelRef.current;
       if (
@@ -112,11 +107,7 @@ export function useDialogModal({
       ) {
         return;
       }
-      if (
-        mode === "sheet" &&
-        (modalShortcuts() !== null || focusHeld(panel.ownerDocument))
-      )
-        return;
+      if (mode === "sheet" && focusHeld(panel.ownerDocument)) return;
       const preferred = initialFocusRef?.current;
       if (preferred) {
         preferred.focus();
@@ -124,6 +115,11 @@ export function useDialogModal({
       }
       listFocusable(panel)[0]?.focus();
     };
+    const layer = openOverlay(
+      mode === "modal",
+      shortcutIds ? shortcutIds.split(" ") : [],
+      focusInitial,
+    );
     const raf = requestAnimationFrame(focusInitial);
     let escaped = false;
 
@@ -191,8 +187,9 @@ export function useDialogModal({
         active !== previous &&
         active.isConnected &&
         !openedPanel?.contains(active);
-      if (restore?.isConnected && !movedOutsideSheet) {
-        restore.focus();
+      if (!movedOutsideSheet) {
+        if (restore?.isConnected) restore.focus();
+        else enterInnermostOverlay();
       }
       restoreFocusRef.current = null;
     };
