@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import queue
 import sqlite3
 from collections.abc import Iterator
 from contextlib import closing
@@ -12,8 +13,42 @@ import pytest
 
 from podcast_mcp.edits.share_registry import SqliteShareRegistry
 from podcast_mcp.services.session_sync import sqlite as session_sqlite
+from process_helpers import reap
 from test_share_registry import _share_template
 from test_share_registry_recovery import ProbeConnection
+
+
+def _observe_migration_actors(
+    processes: list[Any], receivers: list[Any], timeout: float
+) -> list[Any]:
+    results = []
+    for receiver in receivers:
+        if not receiver.poll(timeout):
+            raise queue.Empty
+        results.append(receiver.recv())
+    return results
+
+
+def _exit_without_result(sender: Any) -> None:
+    sender.close()
+
+
+def test_migration_observer_identifies_exit_without_result() -> None:
+    ctx = multiprocessing.get_context("spawn")
+    receiver, sender = ctx.Pipe(duplex=False)
+    process = ctx.Process(target=_exit_without_result, args=(sender,))
+    try:
+        process.start()
+        sender.close()
+        with pytest.raises(
+            AssertionError, match=rf"actor 0 PID {process.pid}.*last observed phase"
+        ):
+            _observe_migration_actors([process], [receiver], timeout=5)
+    finally:
+        reap(process, timeout=0)
+        process.close()
+        receiver.close()
+        sender.close()
 
 
 @pytest.mark.parametrize("mutation", ["claim", "release", "demote"])
