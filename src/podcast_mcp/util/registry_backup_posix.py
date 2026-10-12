@@ -12,6 +12,7 @@ from pathlib import Path
 
 from podcast_mcp.util.pinned_media import descriptor_walk_supported, open_nofollow_dir
 from podcast_mcp.util.registry_cleanup import cleanup
+from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
 
 Identity = tuple[int, int]
 
@@ -20,7 +21,7 @@ def identity(value: os.stat_result) -> Identity:
     return value.st_dev, value.st_ino
 
 
-def _check_acl(target: int | str) -> None:
+def _check_acl(target: int | str, path: Path) -> None:
     if sys.platform == "darwin":
         libc = ctypes.CDLL(None, use_errno=True)
         get_acl = libc.acl_get_fd_np if isinstance(target, int) else libc.acl_get_link_np
@@ -53,7 +54,7 @@ def _check_acl(target: int | str) -> None:
                 if libc.acl_get_tag_type(entry, ctypes.byref(tag)) != 0:
                     raise OSError(ctypes.get_errno(), "cannot inspect backup ACL grant")
                 if tag.value == 1:
-                    raise PermissionError("backup paths must not have extended ACL grants")
+                    raise RegistryPrivacyError(path, RegistryPrivacyReason.ACL)
                 selector = -1
         finally:
             cleanup([partial(libc.acl_free, acl)])
@@ -64,24 +65,47 @@ def _check_acl(target: int | str) -> None:
             else os.listxattr(target, follow_symlinks=False)
         )
         if any(name.startswith("system.posix_acl_") for name in names):
-            raise PermissionError("backup paths must not have extended ACL grants")
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.ACL)
     else:
         raise OSError(errno.ENOTSUP, "backup ACL verification is unavailable")
 
 
-def _check_directory(fd: int, *, private: bool, tighten: bool = False) -> None:
+def _check_directory(fd: int, path: Path, *, private: bool, tighten: bool = False) -> None:
     info = os.fstat(fd)
     if info.st_uid not in (0, os.geteuid()) or not stat.S_ISDIR(info.st_mode):
-        raise PermissionError("backup ancestry must be owned by the host user or root")
-    _check_acl(fd)
+        owner = (
+            RegistryPrivacyReason.DIRECTORY_OWNER if private else RegistryPrivacyReason.PARENT_OWNER
+        )
+        raise RegistryPrivacyError(path, owner)
+    _check_acl(fd, path)
     if private and tighten and info.st_uid == os.geteuid() and info.st_mode & 0o077:
         os.fchmod(fd, 0o700)
         info = os.fstat(fd)
     if private:
-        if info.st_uid != os.geteuid() or info.st_mode & 0o077:
-            raise PermissionError("backup directory must be owned and private (0700)")
+        if info.st_uid != os.geteuid():
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.DIRECTORY_OWNER)
+        if info.st_mode & 0o077:
+            raise RegistryPrivacyError(
+                path, RegistryPrivacyReason.DIRECTORY_MODE, mode=info.st_mode
+            )
     elif info.st_mode & 0o022 and not (info.st_mode & stat.S_ISVTX):
-        raise PermissionError("backup ancestry permits another user to replace entries")
+        reason = (
+            RegistryPrivacyReason.PARENT_WRITABLE
+            if info.st_uid == os.geteuid()
+            else RegistryPrivacyReason.PARENT_WRITABLE_NOT_MINE
+        )
+        raise RegistryPrivacyError(path, reason)
+
+
+def _open_component(name: str, parent: int, path: Path) -> int:
+    try:
+        return open_nofollow_dir(name, dir_fd=parent)
+    except OSError as exc:
+        if exc.errno in (errno.ELOOP, errno.ENOTDIR) and stat.S_ISLNK(
+            os.stat(name, dir_fd=parent, follow_symlinks=False).st_mode
+        ):
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.SYMLINK) from exc
+        raise
 
 
 def _open_chain(
@@ -92,37 +116,44 @@ def _open_chain(
     chain: list[tuple[int, str | None]] = []
     try:
         chain.append((open_nofollow_dir(path.anchor), None))
-        for part in path.parts[1:]:
+        for depth, part in enumerate(path.parts[1:], start=2):
             parent = chain[-1][0]
-            _check_directory(parent, private=False)
+            _check_directory(parent, Path(*path.parts[: depth - 1]), private=False)
             if create:
                 with suppress(FileExistsError):
                     os.mkdir(part, 0o700, dir_fd=parent)
-            chain.append((open_nofollow_dir(part, dir_fd=parent), part))
-        _check_directory(chain[-1][0], private=True, tighten=tighten)
-        _verify_chain(chain)
+            chain.append((_open_component(part, parent, Path(*path.parts[:depth])), part))
+        _check_directory(chain[-1][0], path, private=True, tighten=tighten)
+        _verify_chain(chain, path)
         return chain
     except BaseException:
         cleanup([partial(os.close, fd) for fd, _ in reversed(chain)])
         raise
 
 
-def _verify_chain(chain: list[tuple[int, str | None]]) -> None:
+def _verify_chain(chain: list[tuple[int, str | None]], path: Path) -> None:
     for index, (fd, name) in enumerate(chain):
-        _check_directory(fd, private=index == len(chain) - 1)
+        _check_directory(fd, Path(*path.parts[: index + 1]), private=index == len(chain) - 1)
         if name is not None:
             current = os.stat(name, dir_fd=chain[index - 1][0], follow_symlinks=False)
             if identity(current) != identity(os.fstat(fd)):
                 raise PermissionError("registry directory changed during access")
 
 
-def _check_file(fd: int) -> None:
-    info = os.fstat(fd)
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
-        raise PermissionError("registry file must be regular and owned by the host user")
-    _check_acl(fd)
+def _check_file_state(info: os.stat_result, path: Path, acl_target: int | str) -> None:
+    if stat.S_ISLNK(info.st_mode):
+        raise RegistryPrivacyError(path, RegistryPrivacyReason.SYMLINK)
+    if not stat.S_ISREG(info.st_mode):
+        raise RegistryPrivacyError(path, RegistryPrivacyReason.FILE_NOT_REGULAR)
+    if info.st_uid != os.geteuid():
+        raise RegistryPrivacyError(path, RegistryPrivacyReason.FILE_OWNER)
+    _check_acl(acl_target, path)
     if info.st_mode & 0o077:
-        raise PermissionError("registry file must be owned and private (0600)")
+        raise RegistryPrivacyError(path, RegistryPrivacyReason.FILE_MODE, mode=info.st_mode)
+
+
+def _check_file(fd: int, *, path: Path) -> None:
+    _check_file_state(os.fstat(fd), path, fd)
 
 
 def _check_unopened_file(path: Path, parent: int, name: str) -> None:
@@ -132,11 +163,7 @@ def _check_unopened_file(path: Path, parent: int, name: str) -> None:
     it, which would let a peer reset the WAL shared memory this process still maps.
     """
     before = os.stat(name, dir_fd=parent, follow_symlinks=False)
-    if not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid():
-        raise PermissionError("registry file must be regular and owned by the host user")
-    _check_acl(str(path / name))
-    if before.st_mode & 0o077:
-        raise PermissionError("registry file must be owned and private (0600)")
+    _check_file_state(before, path / name, str(path / name))
     if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != identity(before):
         raise PermissionError("registry file changed during access")
 
@@ -225,7 +252,7 @@ def registry_scope(
     allow_missing_main = create
 
     def verify() -> None:
-        _verify_chain(chain)
+        _verify_chain(chain, path)
         for name in names:
             try:
                 _check_unopened_file(path, parent, name)
@@ -239,7 +266,7 @@ def registry_scope(
         if create:
             with _new_file(path, parent, names[0], partial(_remove_file, parent)) as created:
                 if created.acquire(allow_existing=True):
-                    _check_file(created.fd)
+                    _check_file(created.fd, path=created.path)
                     allow_missing_main = False
                     verify()
                     created.close_descriptor()
@@ -262,7 +289,7 @@ class BackupDirectory:
         return self._chain[-1][0]
 
     def verify(self) -> None:
-        _verify_chain(self._chain)
+        _verify_chain(self._chain, self.path)
 
     def exists(self, name: str) -> bool:
         try:
@@ -310,7 +337,7 @@ class BackupDirectory:
             info = os.fstat(fd)
             if identity(info) != expected or not stat.S_ISREG(info.st_mode):
                 raise PermissionError("backup file identity changed")
-            _check_file(fd)
+            _check_file(fd, path=self.path / name)
         finally:
             cleanup([partial(os.close, fd)])
 

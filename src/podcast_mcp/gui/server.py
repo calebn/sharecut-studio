@@ -41,7 +41,11 @@ from podcast_mcp.gui.routes import (
     transcript,
     waveform,
 )
-from podcast_mcp.gui.routes.deps import project_busy_exception_handler, require_host
+from podcast_mcp.gui.routes.deps import (
+    project_busy_exception_handler,
+    registry_privacy_exception_handler,
+    require_host,
+)
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.gui.static_assets import (
     ImmutableAssetsStaticFiles,
@@ -54,6 +58,7 @@ from podcast_mcp.runtime_config import normalize_exact_origin
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.progress import register_guest_progress_sink, register_progress_sink
+from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError
 
 __all__ = ["apply_ws_client_message", "apply_ws_viewer_state", "create_app"]
 
@@ -252,6 +257,7 @@ def create_app(
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     # App-wide fallback for a route that does not map its own busy-lock contract (#488).
     app.add_exception_handler(Timeout, project_busy_exception_handler)
+    app.add_exception_handler(RegistryPrivacyError, registry_privacy_exception_handler)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),
