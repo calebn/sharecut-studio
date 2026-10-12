@@ -135,6 +135,7 @@ can require all of its guests to reconnect.
 |-----------|------------------|
 | Host / tunnel offline | Relay offline page — retry later. The host sees the same state in Share (“Reconnecting…” or “Not reachable online”) and in the `podcast tunnel` output |
 | Host stopped sharing (or a date the host chose on the CLI passed) | Link fails to load project (treat as dead link; copy TBD). Links never expire on their own |
+| Host's share registry is not private to the host's account (a loose file mode, a foreign owner, an ACL, or a symlink) | Guest request fails with "The host's sharing setup needs attention; ask the host to check it." No path, command or `internal error`. The host sees the exact path and fix in the CLI, Share, or the owner tools |
 
 Product still needs polished “link died” copy and a free-tier story ([Backlog](#/backlog) item 8).
 
@@ -158,7 +159,8 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 ---
 
 Guest request failures keep host diagnostics private. Deliberate refusals show
-safe detail; an unexpected failure shows `internal error`. A recording socket
+safe detail, including the fixed host-setup line for a registry that is not private;
+an unexpected failure shows `internal error`. A recording socket
 can reconnect after a transient internal failure. A file acknowledged before
 landing fails stays saved for a later landing attempt.
 

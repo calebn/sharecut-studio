@@ -101,6 +101,7 @@ to UX partners; for UI copy, this table wins.
 | Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |
 | Reconnecting… | Online sharing lost its connection and is retrying; the line adds "Trying again in N s" (a still clock time under reduced motion). Guests may see a brief interruption | "Tunnel reconnecting", "Guests see Host offline" |
 | Not reachable online | Online sharing is set up but guests can't open links: it failed, was refused, or stopped responding | "Offline", "Host offline", "Tunnel failed" |
+| Sharing setup needs attention | The guest's line when the host's share registry is not private to the host's account, so the host's sharing refuses to run. The guest sees it as a request failure; the host sees the path and fix on their own computer (CLI, Share, owner tools). Never a path, `chmod` or command in guest copy | "internal error", "registry", "permissions", a raw path or `chmod` line |
 | Online sharing is off | Set up but not running, or stopped on purpose. Neutral, not an error. A host with no online sharing set up sees no line at all | "Offline", "Disconnected" |
 
 Why this matters: Surface 2's audit found users confusing producer
