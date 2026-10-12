@@ -3,7 +3,6 @@ import type { PendingEditView } from "../types/project";
 
 export type BulkReviewAction = "approve" | "reject";
 
-/** The edits waiting on a person, as the confirm counts them and the command sends them. */
 export type ReviewPass = {
   ids: string[];
   trackCount: number;
@@ -61,7 +60,6 @@ export function bulkReviewQuestion(
   };
 }
 
-/** What the toast says once a bulk review has saved, beside its Undo. */
 export function bulkReviewDoneMessage(
   action: BulkReviewAction,
   count: number,

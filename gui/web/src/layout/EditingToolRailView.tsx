@@ -22,7 +22,6 @@ export interface EditingToolRailViewProps {
   history: HistoryAvailability | null;
   onUndo: () => void;
   onRedo: () => void;
-  /** Zoom out and in for everyone who can view the timeline. */
   zoom: ZoomAvailability;
   onZoomIn: () => void;
   onZoomOut: () => void;
