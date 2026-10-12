@@ -186,62 +186,6 @@ def test_touch_last_used_throttled(registry: SqliteShareRegistry):
     assert row["last_used_at"] == ts
 
 
-_LEGACY_ACTIVE_SCHEMA = """
-CREATE TABLE IF NOT EXISTS active_shares (
-  token TEXT PRIMARY KEY,
-  project_workspace TEXT NOT NULL,
-  review_version_id TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  last_used_at TEXT NOT NULL,
-  expires_at TEXT,
-  capabilities TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS cooldown_shares (
-  token TEXT PRIMARY KEY,
-  last_used_at TEXT NOT NULL,
-  reserved_until TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  project_workspace TEXT
-);
-"""
-
-
-def test_registry_migrates_legacy_db_adds_kind_columns(tmp_path: Path):
-    import sqlite3
-
-    path = tmp_path / "legacy.sqlite"
-    conn = sqlite3.connect(str(path))
-    conn.executescript(_LEGACY_ACTIVE_SCHEMA)
-    conn.execute(
-        """
-        INSERT INTO active_shares (
-          token, project_workspace, review_version_id,
-          created_at, last_used_at, expires_at, capabilities
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            "old-style-token",
-            "/tmp/ws",
-            "v1",
-            _iso(datetime.now(UTC)),
-            _iso(datetime.now(UTC)),
-            None,
-            "[]",
-        ),
-    )
-    conn.commit()
-    conn.close()
-    path.chmod(0o600)
-
-    registry = SqliteShareRegistry(path)
-    row = registry.get_active("old-style-token")
-    assert row is not None
-    assert row["kind"] == "review"
-    assert row["role"] is None
-    assert row["session_id"] is None
-    registry.close()
-
-
 def test_claim_active_record_kind_round_trip(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "record-guest-slug"

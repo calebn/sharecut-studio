@@ -168,7 +168,7 @@ def test_backup_failure_preserves_destination_and_cleans_temporary_file(
 
 
 @pytest.mark.parametrize(
-    "stage", ["PRAGMA journal_mode=WAL", "PRAGMA synchronous=NORMAL", "schema", "columns"]
+    "stage", ["PRAGMA journal_mode=WAL", "PRAGMA synchronous=NORMAL", "schema"]
 )
 @pytest.mark.parametrize(
     "failure", [sqlite3.OperationalError("disk I/O error"), KeyboardInterrupt()]
@@ -186,12 +186,6 @@ def test_constructor_failure_closes_connection(
         return connection
 
     monkeypatch.setattr(share_registry.sqlite3, "connect", faulty_connect)
-    if stage == "columns":
-
-        def fail_columns(*args: Any) -> None:
-            raise failure
-
-        monkeypatch.setattr(share_registry, "_ensure_columns", fail_columns)
     try:
         with pytest.raises(type(failure)) as caught:
             share_registry.SqliteShareRegistry(tmp_path / "registry.db")

@@ -4,7 +4,6 @@ import multiprocessing
 import sqlite3
 import sys
 import time
-from collections.abc import Iterator
 from contextlib import closing
 from multiprocessing.connection import Connection, wait
 from multiprocessing.process import BaseProcess
@@ -21,7 +20,7 @@ from test_share_registry import _share_template
 from test_share_registry_recovery import ProbeConnection
 
 
-def _observe_migration_actors(
+def _observe_registry_actors(
     processes: list[BaseProcess], receivers: list[Connection], timeout: float
 ) -> list[Any]:
     results: list[Any] = [None] * len(processes)
@@ -89,7 +88,7 @@ def _observe_migration_actors(
     return results
 
 
-def _join_migration_actor(process: BaseProcess, index: int) -> None:
+def _join_registry_actor(process: BaseProcess, index: int) -> None:
     process.join(timeout=20)
     assert process.exitcode == 0, (
         f"actor {index} PID {process.pid} exitcode={process.exitcode}: "
@@ -97,7 +96,7 @@ def _join_migration_actor(process: BaseProcess, index: int) -> None:
     )
 
 
-def _cleanup_migration_actors(started: list[BaseProcess], endpoints: list[Connection]) -> None:
+def _cleanup_registry_actors(started: list[BaseProcess], endpoints: list[Connection]) -> None:
     initiating_failure = sys.exception()
     cleanup_failure = None
     for process in started:
@@ -123,7 +122,7 @@ def _exit_without_result(sender: Connection) -> None:
     sender.close()
 
 
-def test_migration_cleanup_retains_secondary_failure_with_primary(
+def test_registry_cleanup_retains_secondary_failure_with_primary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receiver, sender = multiprocessing.Pipe(duplex=False)
@@ -139,7 +138,7 @@ def test_migration_cleanup_retains_secondary_failure_with_primary(
                 try:
                     raise original
                 finally:
-                    _cleanup_migration_actors([], [receiver])
+                    _cleanup_registry_actors([], [receiver])
         assert caught.value is original
         assert getattr(original, "__notes__", []) == [
             "Actor cleanup failed: OSError: controlled endpoint close failure"
@@ -150,7 +149,7 @@ def test_migration_cleanup_retains_secondary_failure_with_primary(
 
 
 @pytest.mark.parametrize("closed_poll", [False, True])
-def test_migration_observer_identifies_exit_without_result(
+def test_registry_observer_identifies_exit_without_result(
     monkeypatch: pytest.MonkeyPatch, closed_poll: bool
 ) -> None:
     ctx = multiprocessing.get_context("spawn")
@@ -172,12 +171,12 @@ def test_migration_observer_identifies_exit_without_result(
         with pytest.raises(
             AssertionError, match=rf"actor 0 PID {process.pid}.*last observed phase"
         ):
-            _observe_migration_actors([process], [receiver], timeout=5)
+            _observe_registry_actors([process], [receiver], timeout=5)
     finally:
-        _cleanup_migration_actors([process] if process.pid else [], [receiver, sender])
+        _cleanup_registry_actors([process] if process.pid else [], [receiver, sender])
 
 
-def _stalled_migration_report(sender: Connection, entered: Any) -> None:
+def _stalled_registry_report(sender: Connection, entered: Any) -> None:
     try:
         sender.send(("progress", "target entered"))
         entered.set()
@@ -186,16 +185,16 @@ def _stalled_migration_report(sender: Connection, entered: Any) -> None:
         sender.close()
 
 
-def _failed_migration_report(sender: Connection, entered: Any) -> None:
+def _failed_registry_report(sender: Connection, entered: Any) -> None:
     try:
-        sender.send(("progress", "reading migrated state"))
+        sender.send(("progress", "reading registry state"))
         sender.send(("result", ("error", "RuntimeError", "controlled state read failure")))
         entered.set()
     finally:
         sender.close()
 
 
-def _completed_migration_report(sender: Connection, label: str, exitcode: int) -> None:
+def _completed_registry_report(sender: Connection, label: str, exitcode: int) -> None:
     try:
         sender.send(("result", ("ok", label, b"private-control-secret")))
     finally:
@@ -206,22 +205,22 @@ def _completed_migration_report(sender: Connection, label: str, exitcode: int) -
 @pytest.mark.parametrize(
     ("target", "phase", "reason"),
     [
-        (_stalled_migration_report, "target entered", "result deadline expired"),
+        (_stalled_registry_report, "target entered", "result deadline expired"),
         (
-            _failed_migration_report,
-            "reading migrated state",
+            _failed_registry_report,
+            "reading registry state",
             "RuntimeError: controlled state read failure",
         ),
     ],
 )
-def test_migration_observer_attributes_live_stall_and_explicit_error(
+def test_registry_observer_attributes_live_stall_and_explicit_error(
     target: Any, phase: str, reason: str
 ) -> None:
     ctx = multiprocessing.get_context("spawn")
     pipes = [ctx.Pipe(duplex=False) for _ in range(2)]
     entered = ctx.Event()
     processes = [
-        ctx.Process(target=_completed_migration_report, args=(pipes[0][1], "first", 0)),
+        ctx.Process(target=_completed_registry_report, args=(pipes[0][1], "first", 0)),
         ctx.Process(target=target, args=(pipes[1][1], entered)),
     ]
     started = []
@@ -232,7 +231,7 @@ def test_migration_observer_attributes_live_stall_and_explicit_error(
             sender.close()
         assert entered.wait(timeout=5)
         with pytest.raises(AssertionError) as caught:
-            _observe_migration_actors(processes, [r for r, _ in pipes], timeout=0.2)
+            _observe_registry_actors(processes, [r for r, _ in pipes], timeout=0.2)
         message = str(caught.value)
         assert f"actor 1 PID {processes[1].pid} exitcode=" in message
         assert reason in message
@@ -240,15 +239,15 @@ def test_migration_observer_attributes_live_stall_and_explicit_error(
         assert "private-control-secret" not in message
         assert "first" not in message
     finally:
-        _cleanup_migration_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
+        _cleanup_registry_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
 
 
 @pytest.mark.parametrize("exitcode", [0, 7])
-def test_migration_result_arrival_preserves_order_and_requires_clean_exit(exitcode: int) -> None:
+def test_registry_result_arrival_preserves_order_and_requires_clean_exit(exitcode: int) -> None:
     ctx = multiprocessing.get_context("spawn")
     pipes = [ctx.Pipe(duplex=False) for _ in range(2)]
     processes = [
-        ctx.Process(target=_completed_migration_report, args=(sender, str(index), exitcode))
+        ctx.Process(target=_completed_registry_report, args=(sender, str(index), exitcode))
         for index, (_, sender) in enumerate(pipes)
     ]
     started = []
@@ -260,7 +259,7 @@ def test_migration_result_arrival_preserves_order_and_requires_clean_exit(exitco
         for process in processes:
             process.join(timeout=5)
             assert process.exitcode == exitcode
-        results = _observe_migration_actors(processes, [r for r, _ in pipes], timeout=5)
+        results = _observe_registry_actors(processes, [r for r, _ in pipes], timeout=5)
         assert results == [
             ("ok", "0", b"private-control-secret"),
             ("ok", "1", b"private-control-secret"),
@@ -268,14 +267,14 @@ def test_migration_result_arrival_preserves_order_and_requires_clean_exit(exitco
         for index, process in enumerate(processes):
             if exitcode:
                 with pytest.raises(AssertionError) as caught:
-                    _join_migration_actor(process, index)
+                    _join_registry_actor(process, index)
                 assert f"actor {index} PID {process.pid} exitcode=7" in str(caught.value)
                 assert "last observed phase at result=result received" in str(caught.value)
                 assert "private-control-secret" not in str(caught.value)
             else:
-                _join_migration_actor(process, index)
+                _join_registry_actor(process, index)
     finally:
-        _cleanup_migration_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
+        _cleanup_registry_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
 
 
 @pytest.mark.parametrize("mutation", ["claim", "release", "demote"])
@@ -330,36 +329,24 @@ def test_failed_token_commit_and_rollback_quarantines_pending_state_and_recovers
         registry.close()
 
 
-def _migration_actor(path: str, barrier: Any, sender: Connection) -> None:
+def _construction_actor(path: str, barrier: Any, sender: Connection) -> None:
     try:
         sender.send(("progress", "target entered"))
-        _run_migration_actor(path, barrier, sender)
+        _run_construction_actor(path, barrier, sender)
     finally:
         sender.close()
 
 
-def _run_migration_actor(path: str, barrier: Any, sender: Connection) -> None:
+def _run_construction_actor(path: str, barrier: Any, sender: Connection) -> None:
     connect = sqlite3.connect
 
-    class UncommittedSchemaProbeRows:
-        def __init__(self, rows: list[sqlite3.Row]) -> None:
-            self.rows = rows
-
-        def __iter__(self) -> Iterator[sqlite3.Row]:
-            return iter(self.rows)
-
-    class UncommittedSchemaProbeConnection(sqlite3.Connection):
-        def execute(self, sql: str, *args: Any, **kwargs: Any) -> Any:
-            result = super().execute(sql, *args, **kwargs)
-            is_schema_probe = sql == "PRAGMA table_info(active_shares)"
-            if is_schema_probe and not self.in_transaction:
-                rows = result.fetchall()
-                barrier.wait(timeout=15)
-                return UncommittedSchemaProbeRows(rows)
-            return result
+    class SchemaRaceConnection(sqlite3.Connection):
+        def executescript(self, sql_script: str) -> sqlite3.Cursor:
+            barrier.wait(timeout=15)
+            return super().executescript(sql_script)
 
     def open_connection(*args: Any, **kwargs: Any) -> sqlite3.Connection:
-        return connect(*args, **kwargs, factory=UncommittedSchemaProbeConnection)
+        return connect(*args, **kwargs, factory=SchemaRaceConnection)
 
     registry = None
     try:
@@ -367,10 +354,10 @@ def _run_migration_actor(path: str, barrier: Any, sender: Connection) -> None:
             sender.send(("progress", "constructing registry"))
             with patch("podcast_mcp.edits.share_registry.sqlite3.connect", open_connection):
                 registry = SqliteShareRegistry(Path(path))
-            sender.send(("progress", "reading migrated state"))
-            result = ("ok", registry.get_active("legacy-token"), registry.recording_key_secret())
+            sender.send(("progress", "reading registry state"))
+            secret = registry.recording_key_secret()
             sender.send(("progress", "reporting result"))
-            sender.send(("result", result))
+            sender.send(("result", ("ok", secret, None)))
         except BaseException as exc:
             sender.send(("result", ("error", type(exc).__name__, str(exc))))
     finally:
@@ -381,38 +368,13 @@ def _run_migration_actor(path: str, barrier: Any, sender: Connection) -> None:
                 registry.close()
 
 
-def test_concurrent_legacy_registry_migration_preserves_tokens_and_secret(tmp_path: Path) -> None:
-    path = tmp_path / "legacy.db"
-    secret = b"l" * 32
-    with closing(sqlite3.connect(path, isolation_level=None)) as connection:
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("""CREATE TABLE active_shares (
-            token TEXT PRIMARY KEY, project_workspace TEXT NOT NULL,
-            review_version_id TEXT NOT NULL, created_at TEXT NOT NULL,
-            last_used_at TEXT NOT NULL, expires_at TEXT, capabilities TEXT NOT NULL
-        )""")
-        connection.execute(
-            "INSERT INTO active_shares VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                "legacy-token",
-                "/legacy/workspace",
-                "v1",
-                "2026-10-09T00:00:00+00:00",
-                "2026-10-09T00:00:00+00:00",
-                None,
-                '["play"]',
-            ),
-        )
-        connection.execute(
-            "CREATE TABLE recording_key_secret (singleton INTEGER PRIMARY KEY, secret BLOB NOT NULL)"
-        )
-        connection.execute("INSERT INTO recording_key_secret VALUES (1, ?)", (secret,))
-    path.chmod(0o600)
+def test_concurrent_registry_construction_shares_one_schema_and_secret(tmp_path: Path) -> None:
+    path = tmp_path / "registry.db"
     ctx = multiprocessing.get_context("spawn")
     barrier = ctx.Barrier(2)
     pipes = [ctx.Pipe(duplex=False) for _ in range(2)]
     processes = [
-        ctx.Process(target=_migration_actor, args=(str(path), barrier, sender))
+        ctx.Process(target=_construction_actor, args=(str(path), barrier, sender))
         for _, sender in pipes
     ]
     started = []
@@ -421,26 +383,26 @@ def test_concurrent_legacy_registry_migration_preserves_tokens_and_secret(tmp_pa
             process.start()
             started.append(process)
             sender.close()
-        results = _observe_migration_actors(
+        results = _observe_registry_actors(
             processes, [receiver for receiver, _ in pipes], timeout=20
         )
         for index, process in enumerate(processes):
-            _join_migration_actor(process, index)
+            _join_registry_actor(process, index)
         assert [r[0] for r in results] == ["ok", "ok"]
-        for _, row, saved_secret in results:
-            assert row["token"] == "legacy-token"
-            assert row["project_workspace"] == "/legacy/workspace"
-            assert row["kind"] == "review" and row["capabilities"] == ["play"]
-            assert saved_secret == secret
+        secrets_seen = {r[1] for r in results}
+        assert len(secrets_seen) == 1 and len(next(iter(secrets_seen))) == 32
         with closing(sqlite3.connect(path)) as observer:
-            assert observer.execute("SELECT token FROM active_shares").fetchall() == [
-                ("legacy-token",)
-            ]
-            assert (
-                observer.execute("SELECT secret FROM recording_key_secret").fetchone()[0] == secret
-            )
+            assert observer.execute("SELECT secret FROM recording_key_secret").fetchone()[
+                0
+            ] == next(iter(secrets_seen))
+        registry = SqliteShareRegistry(path)
+        try:
+            registry.claim_active(_share_template(token="after-race", id="after-race-id"))
+            assert registry.get_active("after-race") is not None
+        finally:
+            registry.close()
     finally:
-        _cleanup_migration_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
+        _cleanup_registry_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
 
 
 @pytest.mark.parametrize("stage", ["wal_read", "retry_sleep"])
