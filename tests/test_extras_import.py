@@ -169,3 +169,9 @@ def test_extras_workflow_runs_the_clean_venv_check() -> None:
     assert run["env"]["PODCAST_CHECK_EXTRAS"] == "1"
     assert "tests/test_extras_import.py" in run["run"]
     assert "schedule" in workflow["on"]
+
+
+def test_extras_workflow_triggers_on_the_modules_the_probe_exercises() -> None:
+    workflow = load_github_yaml(ROOT / ".github" / "workflows" / "extras-import.yml")
+    for event in ("pull_request", "push"):
+        assert "src/podcast_mcp/engines/speaker_id.py" in workflow["on"][event]["paths"]
