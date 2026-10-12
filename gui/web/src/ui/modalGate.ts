@@ -44,6 +44,20 @@ export function isInnermostOverlay(layer: Layer): boolean {
   return layers.at(-1) === layer;
 }
 
+const claimedEscapes = new WeakSet<Event>();
+
+/**
+ * True for the first overlay to ask about this Escape. Listeners run in the
+ * order their overlays mounted, which a remount can invert, and the innermost
+ * overlay may close (and leave the stack) before the next listener runs: that
+ * one must not take the same keypress.
+ */
+export function claimEscape(event: Event): boolean {
+  if (claimedEscapes.has(event)) return false;
+  claimedEscapes.add(event);
+  return true;
+}
+
 export function focusInnermostOverlay(): void {
   layers.at(-1)?.takeEntryFocus();
 }

@@ -6,7 +6,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
+import { flushSync } from "react-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BottomSheet } from "./BottomSheet";
 import { Dialog } from "./Dialog";
@@ -563,5 +564,76 @@ describe("useDialogModal fallback focus", () => {
     act(() => api.setB(false));
     await settle();
     expect(document.activeElement?.textContent).toBe("Open B");
+  });
+});
+
+describe("useDialogModal Escape across a remount", () => {
+  it("closes only the confirm when the sheet beneath it remounted after the confirm opened", async () => {
+    // A browser commits a store update in the microtask after the listener that
+    // made it, before the next listener of the same key event; jsdom runs them
+    // in one task, so the confirm's close commits inside its handler instead.
+    let confirmOpen = false;
+    const listeners = new Set<() => void>();
+    const setConfirmOpen = (open: boolean) => {
+      confirmOpen = open;
+      for (const listener of listeners) listener();
+    };
+    let api = {
+      remount: () => undefined as void,
+      confirm: setConfirmOpen,
+    };
+    const sheetCloses = vi.fn();
+    function App() {
+      const [generation, setGeneration] = useState(0);
+      const confirm = useSyncExternalStore(
+        (listener) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        () => confirmOpen,
+      );
+      api = {
+        remount: () => setGeneration((n) => n + 1),
+        confirm: setConfirmOpen,
+      };
+      return (
+        <>
+          <BottomSheet
+            key={generation}
+            open
+            onClose={sheetCloses}
+            backgroundPolicy="interactive"
+            title="Inspector"
+          >
+            <button type="button">Remove track</button>
+          </BottomSheet>
+          <Dialog
+            open={confirm}
+            onClose={() => flushSync(() => setConfirmOpen(false))}
+            title="Remove?"
+          >
+            <p>Sure?</p>
+          </Dialog>
+        </>
+      );
+    }
+    const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+    render(<App />);
+    await settle();
+    act(() => api.confirm(true));
+    await settle();
+    act(() => api.remount());
+    await settle();
+
+    const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    env.IS_REACT_ACT_ENVIRONMENT = false;
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    env.IS_REACT_ACT_ENVIRONMENT = true;
+
+    expect(screen.queryByRole("dialog", { name: "Remove?" })).toBeNull();
+    expect(sheetCloses).not.toHaveBeenCalled();
   });
 });
