@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { rulerWidthPx } from "../e2e/deepZoom";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
@@ -133,6 +134,50 @@ test("a phone in portrait keeps Undo and Redo on the tool row and five lanes", a
     await expect(rail.getByRole("button", { name: "Import" })).toBeHidden();
 
     expect((await visibleLanes(page))!.full).toBeGreaterThanOrEqual(5);
+  });
+});
+
+test("a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await openPhoneTimeline(page);
+
+    const rail = page.getByRole("group", { name: "Editing tools" });
+    const names = [
+      "Select",
+      "Blade",
+      "Select range",
+      "Zoom out",
+      "Zoom in",
+      "Undo",
+      "Redo",
+    ];
+    const boxes = await Promise.all(
+      names.map((name) =>
+        rail.getByRole("button", { name, exact: true }).boundingBox(),
+      ),
+    );
+    const railBox = (await rail.boundingBox())!;
+    for (const box of boxes) {
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(Math.abs(box!.y - boxes[0]!.y)).toBeLessThanOrEqual(1);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(
+        railBox.x + railBox.width,
+      );
+    }
+
+    const zoomIn = rail.getByRole("button", { name: "Zoom in" });
+    const before = await rulerWidthPx(page);
+    await zoomIn.tap();
+    await expect.poll(() => rulerWidthPx(page)).toBeGreaterThan(before);
+    const zoomed = await rulerWidthPx(page);
+    await rail.getByRole("button", { name: "Zoom out" }).tap();
+    await expect.poll(() => rulerWidthPx(page)).toBeLessThan(zoomed);
   });
 });
 

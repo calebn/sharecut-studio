@@ -1187,6 +1187,7 @@
       "surfaces": {
         "command": "view.zoomIn",
         "gui": [
+          "editingToolRail",
           "transport.menu"
         ],
         "keyboard": "=",
@@ -1214,6 +1215,7 @@
       "surfaces": {
         "command": "view.zoomOut",
         "gui": [
+          "editingToolRail",
           "transport.menu"
         ],
         "keyboard": "-",

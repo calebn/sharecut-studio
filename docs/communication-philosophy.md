@@ -120,8 +120,9 @@ is the fix, enforced in copy review.
   reserved for titles, status, and infrequent controls. (Surfaces 1,
   3, 5 — the phone bottom nav and EditingToolRail are the reference
   implementations, with Undo and Redo in the compact inspector header
-  while a selection is open; the REC chip stranded in the top bar and zoom
-  buried in the top overflow menu are the violations.)
+  while a selection is open and Zoom beside them; the REC chip stranded in
+  the top bar is the violation, and zoom buried in the top overflow menu was
+  one until #1028.)
 - **One primary action per view.** If two buttons compete, one of them
   is not primary — demote it. (Surface 3 bulk approve/reject.) Bulk
   approval follows [UI philosophy § 1](ui-philosophy.md#1-show-and-undo-every-automated-change):
@@ -254,7 +255,7 @@ the empty state, not a separate discovery task.
   tab's own edit is still saving, five seconds past the press, runs nothing
   and says "Your last edit is still saving. Nothing was undone." ("…Nothing
   was redone."), so it never reverses the edit before the slow one. Tighten apply, skip and Apply
-  eligible, track reorder and track removal offer it; blade, trim and the other timeline edits
+  eligible, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
@@ -547,3 +548,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   Clipped feedback pauses its remaining visible lifetime.
 - 2026-10-12 Hung boundary load (#1211). The Adjust boundary dialog says "The
   server didn't answer. Try again." because nothing was being saved.
+- 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sit in
+  the phone and tablet tool rail; Impact's Approve all and Reject all ask first
+  with counts and answer with one toast Undo; the tablet lane header's M and S
+  reach the 44 px target on touch. Track lock stays out of scope: it was a
+  product gap, not an established violation.

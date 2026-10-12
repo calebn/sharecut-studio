@@ -76,8 +76,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Toggle track solo | session | `track.soloToggle` | `S` | — | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
 | Clear solo | session | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | — | `trackHeaders.soloChip`, `mobileShell.statusRow`, `trackMix` | — | — | — | — | none · hear |
 | Set track volume | project | `track.setVolume` | — (slider: arrow keys step the focused fader) | — | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
-| Zoom in | view | `view.zoomIn` | `=` | `pinch` | `transport.menu` | — | — | — | — | none · look |
-| Zoom out | view | `view.zoomOut` | `-` | `pinch` | `transport.menu` | — | — | — | — | none · look |
+| Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editingToolRail`, `transport.menu` | — | — | — | — | none · look |
+| Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editingToolRail`, `transport.menu` | — | — | — | — | none · look |
 | Fit session width | view | `view.fit` | `\` | — | `transport.fit` | — | — | — | — | none · look |
 | Switch editor tab | view | `view.setTab` | — (not industry-standard; tab click) | — | `tabBar` | — | — | — | — | anchor · look |
 | Switch phone mode | view | `view.setMobileMode` | — (not industry-standard; tab click) | — | `mobileNav` | — | — | — | — | anchor · look |
