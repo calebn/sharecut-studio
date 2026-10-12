@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { undoHistory } from "../api";
@@ -12,6 +12,7 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
+import { closeOverlay, openOverlay } from "../ui/modalGate";
 import { ApiError } from "../utils/apiError";
 import { FeedbackToast } from "./FeedbackToast";
 
@@ -42,6 +43,99 @@ let reportVisibility = (_visible: boolean) => {};
 const disconnect = vi.fn();
 
 describe("FeedbackToast", () => {
+  function compactHost() {
+    const panel = document.createElement("div");
+    panel.className = "bottom-sheet";
+    panel.setAttribute("role", "dialog");
+    const close = document.createElement("button");
+    close.className = "dialog-close";
+    close.textContent = "Close current inspector";
+    const host = document.createElement("div");
+    panel.append(close, host);
+    document.body.append(panel);
+    return { panel, close, host };
+  }
+
+  it("returns focused Dismiss to the current host Close after a remount", () => {
+    const old = compactHost();
+    const current = compactHost();
+    const { rerender, unmount } = render(<FeedbackToast host={old.host} />);
+    act(() => useDawStore.getState().announceStatus("Saved"));
+    const dismiss = screen.getByRole("button", { name: "Dismiss" });
+    act(() => dismiss.focus());
+    old.panel.remove();
+    rerender(<FeedbackToast host={current.host} />);
+    expect(dismiss).toHaveFocus();
+    act(() =>
+      useDawStore
+        .getState()
+        .dismissFeedbackToast(useDawStore.getState().feedbackToast!.id),
+    );
+    expect(current.close).toHaveFocus();
+    unmount();
+    current.panel.remove();
+  });
+
+  it("hands a removed focused Undo to Close without disturbing an innermost modal", () => {
+    const { host, close, panel } = compactHost();
+    const { unmount } = render(<FeedbackToast host={host} />);
+    act(() =>
+      useDawStore
+        .getState()
+        .announceStatus("Removed Host", { undo: entry("host-reorder") }),
+    );
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    act(() => atHead("agent-cut"));
+    expect(close).toHaveFocus();
+    act(() =>
+      useDawStore
+        .getState()
+        .announceStatus("Applied hit", { undo: entry("agent-cut") }),
+    );
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    const modal = document.createElement("button");
+    document.body.append(modal);
+    const layer = openOverlay(true);
+    act(() => modal.focus());
+    act(() => atHead("next-cut"));
+    expect(modal).toHaveFocus();
+    closeOverlay(layer);
+    unmount();
+    panel.remove();
+    modal.remove();
+  });
+
+  it.each(["selection", "project", "pointer"])(
+    "cancels remembered feedback on %s navigation even if native focus has not moved",
+    (navigation) => {
+      const old = compactHost();
+      const current = compactHost();
+      const { rerender, unmount } = render(<FeedbackToast host={old.host} />);
+      act(() => useDawStore.getState().announceStatus("Saved"));
+      const dismiss = screen.getByRole("button", { name: "Dismiss" });
+      act(() => dismiss.focus());
+      act(() => {
+        if (navigation === "selection") {
+          useDawStore
+            .getState()
+            .setSelection({ kind: "envelope", trackId: "new-track" });
+          useDawStore.getState().setSelection(null);
+        }
+        if (navigation === "project")
+          useDawStore.setState({
+            projectEpoch: useDawStore.getState().projectEpoch + 1,
+          });
+        if (navigation === "pointer") fireEvent.pointerDown(current.close);
+      });
+      expect(dismiss).not.toHaveAttribute("data-feedback-focus");
+      old.panel.remove();
+      rerender(<FeedbackToast host={current.host} />);
+      expect(dismiss).not.toHaveFocus();
+      unmount();
+      current.panel.remove();
+    },
+  );
+
   it.each(["Time +0.01", "Level +0.01"])(
     "keeps another visible compact control clear after %s by using the flow host",
     async (action) => {
