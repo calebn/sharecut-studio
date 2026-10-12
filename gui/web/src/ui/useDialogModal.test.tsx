@@ -1,7 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { closeOverlay, openOverlay } from "./modalGate";
 import { usePressedControl } from "./pressedControl";
 import { useDialogModal } from "./useDialogModal";
 
@@ -79,6 +86,83 @@ function ReturnFocusHarness({ explicit = true }: { explicit?: boolean }) {
 }
 
 describe("useDialogModal", () => {
+  it("preserves a focused feedback action at sheet entry but keeps modal priority", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    function Entry({ mode }: { mode: "sheet" | "modal" }) {
+      const panelRef = useRef<HTMLDivElement>(null);
+      useDialogModal({ open: true, onClose: vi.fn(), panelRef, mode });
+      return (
+        <div ref={panelRef}>
+          <button type="button">Close entry</button>
+          <div className="ui-toast-region--app">
+            <button type="button" data-feedback-focus>
+              Undo entry
+            </button>
+          </div>
+        </div>
+      );
+    }
+    const { unmount } = render(<Entry mode="sheet" />);
+    act(() => screen.getByRole("button", { name: "Undo entry" }).focus());
+    act(() => frames.shift()?.(0));
+    expect(screen.getByRole("button", { name: "Undo entry" })).toHaveFocus();
+    unmount();
+    render(<Entry mode="modal" />);
+    act(() => screen.getByRole("button", { name: "Undo entry" }).focus());
+    act(() => frames.shift()?.(0));
+    expect(screen.getByRole("button", { name: "Close entry" })).toHaveFocus();
+    vi.restoreAllMocks();
+  });
+
+  it.each(["replaced", "disconnected", "inert", "covered"])(
+    "rejects a %s sheet before its initial frame",
+    (obsolete) => {
+      let frame: FrameRequestCallback | undefined;
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation(
+        (callback) => {
+          frame = callback;
+          return 1;
+        },
+      );
+      const panelRef = { current: document.createElement("div") };
+      const close = document.createElement("button");
+      panelRef.current.append(close);
+      document.body.append(panelRef.current);
+      function Entry() {
+        useDialogModal({
+          open: true,
+          onClose: vi.fn(),
+          panelRef,
+          mode: "sheet",
+        });
+        return null;
+      }
+      const original = panelRef.current;
+      const { unmount } = render(<Entry />);
+      if (obsolete === "replaced") {
+        panelRef.current = document.createElement("div");
+        panelRef.current.append(document.createElement("button"));
+        document.body.append(panelRef.current);
+      }
+      if (obsolete === "disconnected") original.remove();
+      if (obsolete === "inert") original.setAttribute("inert", "");
+      const overlay = obsolete === "covered" ? openOverlay(true) : null;
+      const focus = vi.spyOn(close, "focus");
+      act(() => frame?.(0));
+      expect(focus).not.toHaveBeenCalled();
+      expect(panelRef.current.querySelector("button")).not.toHaveFocus();
+      if (overlay) closeOverlay(overlay);
+      unmount();
+      original.remove();
+      panelRef.current.remove();
+      vi.restoreAllMocks();
+    },
+  );
+
   afterEach(() => {
     const chrome = document.querySelector<HTMLElement>("[data-daw-app-chrome]");
     if (chrome) {

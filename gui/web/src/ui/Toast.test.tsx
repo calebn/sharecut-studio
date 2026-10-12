@@ -5,6 +5,63 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { TOAST_MS, Toast } from "./Toast";
 
 describe("Toast", () => {
+  it("uses the current return target when a surviving card closes", () => {
+    const oldTarget = document.createElement("button");
+    const currentTarget = document.createElement("button");
+    document.body.append(oldTarget, currentTarget);
+    const returnFocusRef = { current: oldTarget };
+    const { rerender } = render(
+      <Toast
+        toast={{ id: 1, message: "Saved" }}
+        onDismiss={vi.fn()}
+        returnFocusRef={returnFocusRef}
+      />,
+    );
+    act(() => screen.getByRole("button", { name: "Dismiss" }).focus());
+    oldTarget.remove();
+    returnFocusRef.current = currentTarget;
+    rerender(
+      <Toast
+        toast={null}
+        onDismiss={vi.fn()}
+        returnFocusRef={returnFocusRef}
+      />,
+    );
+    expect(currentTarget).toHaveFocus();
+    currentTarget.remove();
+  });
+
+  it.each(["disabled", "inert", "hidden", "disconnected"])(
+    "does not focus a %s return target",
+    (invalid) => {
+      const target = document.createElement("button");
+      document.body.append(target);
+      const returnFocusRef = { current: target };
+      const { rerender } = render(
+        <Toast
+          toast={{ id: 1, message: "Saved" }}
+          onDismiss={vi.fn()}
+          returnFocusRef={returnFocusRef}
+        />,
+      );
+      act(() => screen.getByRole("button", { name: "Dismiss" }).focus());
+      if (invalid === "disabled") target.disabled = true;
+      if (invalid === "inert") target.setAttribute("inert", "");
+      if (invalid === "hidden") target.style.display = "none";
+      if (invalid === "disconnected") target.remove();
+      const focus = vi.spyOn(target, "focus");
+      rerender(
+        <Toast
+          toast={null}
+          onDismiss={vi.fn()}
+          returnFocusRef={returnFocusRef}
+        />,
+      );
+      expect(focus).not.toHaveBeenCalled();
+      target.remove();
+    },
+  );
+
   afterEach(() => vi.useRealTimers());
   it("renders the message in a status region and wires Undo/Dismiss", async () => {
     const user = userEvent.setup();

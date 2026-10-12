@@ -38,6 +38,23 @@ const rect = (top: number, height: number): DOMRect => ({
 });
 
 describe("envelope error focus", () => {
+  it("yields only first entry to an intentionally focused feedback action and preserves form entry", () => {
+    const feedback = document.createElement("div");
+    feedback.className = "ui-toast-region--app";
+    const dismiss = document.createElement("button");
+    dismiss.setAttribute("data-feedback-focus", "");
+    feedback.append(dismiss);
+    document.body.append(feedback);
+    dismiss.focus();
+    const { rerender } = render(
+      <EnvelopeWorkspaceView {...props} form={null} />,
+    );
+    expect(dismiss).toHaveFocus();
+    rerender(<EnvelopeWorkspaceView {...props} />);
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveFocus();
+    feedback.remove();
+  });
+
   it("keeps the current Save control focused and locally visible after an error reflow", () => {
     const { container, rerender } = render(
       <div className="bottom-sheet" style={{ overflowY: "auto" }}>
