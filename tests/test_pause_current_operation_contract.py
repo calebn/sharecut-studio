@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from pause_policy_public_helpers import (
+    RATE,
     configure,
     defaults,
     files,
@@ -23,9 +24,13 @@ from podcast_mcp.models import EditDecisionType, TranscriptWord, load_project
 from podcast_mcp.services.document import EditService
 
 
-def _stored_remove(tmp_path, *, db=-70, seconds=6, seed=1214):
+def _stored_remove(tmp_path, *, rustle=False, seconds=6, seed=1214):
+    """A stored pause removal; with ``rustle``, 0.3 s of unvoiced noise 10 dB over the room
+    and 40 dB under the voice sits inside the pause."""
     result = project(tmp_path)
-    audio = room(seconds, db=db, seed=seed)
+    audio = room(seconds, seed=seed)
+    if rustle:
+        audio[round(2.0 * RATE) : round(2.3 * RATE)] += room(0.3, db=-30, seed=seed + 1)
     intervals = [(0, 0.2), (5, 5.2), (5.4, 5.8)]
     if seconds == 12:
         intervals = [(0, 0.2), (5, 5.2), (11, 11.2), (11.4, 11.8)]
@@ -94,7 +99,7 @@ def test_saved_remove_uses_ripple_policy_after_current_proposal_mode_changes_to_
     configure(monkeypatch, cfg)
     monkeypatch.setattr("podcast_mcp.edits.source_removals.load_defaults", lambda: cfg)
     original_config = copy.deepcopy(cfg)
-    ws = workspace(_stored_remove(tmp_path, db=-40))
+    ws = workspace(_stored_remove(tmp_path, rustle=True))
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     if delivery == "suggested":
@@ -129,7 +134,7 @@ def test_explicit_stored_mute_still_keeps_time_and_has_no_ripple_effects(tmp_pat
     cfg = defaults(acoustic=False)
     cfg["tighten"]["edit_mode"] = "mute"
     configure(monkeypatch, cfg)
-    result = _stored_remove(tmp_path, db=-40)
+    result = _stored_remove(tmp_path, rustle=True)
     edit = result.edit_decisions[0]
     edit.type = EditDecisionType.MUTE
     edit.reason = "filler:um"

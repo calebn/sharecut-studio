@@ -489,6 +489,9 @@ run (`_word_indexes`). On a 1-hour, 4-track episode with 300 pauses the levels c
 own window took 52 s (172 ms a call).
 The track's speech level, the ceiling a trim removes a sound whole under, is read from the same
 blocks once for the whole track, so every pause classifies a sound alike.
+The track's voice floor (`TrackAudioCache.voice_floor_db`, #1195) is likewise measured once per track and run from its
+whole-track level profile; a caller with no decoded track (approving a cut, a natural-language edit) reads it through
+`track_voice_floor_db`, which decodes the audio once per file and keeps the profile in memory.
 The full cleanup report passes one processed-stem cache set through its
 subanalyses, and the project join sweep shares source decode and calibration
 per track while checking each join with a bounded high-rate window.

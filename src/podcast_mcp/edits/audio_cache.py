@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import subprocess
 import threading
 from collections.abc import Callable, Iterable
@@ -42,6 +43,21 @@ _ROOM_PERCENTILE = 10.0
 _SPEECH_PERCENTILE = 90.0
 # A whole track is framed a minute at a time, never as one hour-long float64 copy.
 _PROFILE_CHUNK_SEC = 60.0
+
+# The voice floor, relative to the track's own room (p10) and speech (p90) levels,
+# so a voice ends at the same sound at any recording level. 27 dB under the speech
+# level is where the audibility floor the owner approved (-42 dBFS) sits under the
+# lab tape's speech: 26.7 dB on the host track whose cuts the owner heard, 25.3-28.6
+# dB on all three. At that level the walks are unchanged: "So" at 230.78 still
+# voices until 230.98, and the ``ss`` dip before the approved "uh" at 706.02 still
+# ends "digress.".
+VOICE_FLOOR_UNDER_SPEECH_DB = 27.0
+# Never closer than this to the room: on a noisy track the speech term alone sits in
+# the room tone and finds no quiet at all. 6 dB clears the frame-to-frame flicker of
+# steady room tone and stays under the 9.5 dB over the room where a breath begins
+# (``breath_detect._BREATH_ABOVE_FLOOR_DB``), so a kept word's own breath never
+# reads as quiet.
+VOICE_FLOOR_OVER_ROOM_DB = 6.0
 
 
 def room_floor_db(
@@ -92,6 +108,22 @@ def level_profile(
         return None
     floor_db = room_floor_db(levels, among=None if whole_track else levels > DIGITAL_SILENCE_DB)
     return db_to_amplitude(floor_db), db_to_amplitude(speech_db)
+
+
+def speech_db_from_profile(profile: tuple[float, float] | None) -> float:
+    """The speech level (dBFS) of a :func:`level_profile`; ``-inf`` without one."""
+    return -math.inf if profile is None else 20.0 * math.log10(profile[1])
+
+
+def voice_floor_from_profile(profile: tuple[float, float] | None) -> float:
+    """The voice floor (dBFS) of a :func:`level_profile`: ``max(S - 27 dB, R + 6 dB)``.
+
+    ``inf`` without a profile (no live audio): every frame is quiet.
+    """
+    if profile is None:
+        return math.inf
+    room_db, speech_db = (20.0 * math.log10(rms) for rms in profile)
+    return max(speech_db - VOICE_FLOOR_UNDER_SPEECH_DB, room_db + VOICE_FLOOR_OVER_ROOM_DB)
 
 
 class BandLevels:
@@ -210,6 +242,60 @@ class TrackAudioCache:
         return level_profile(
             self.waveform.samples, int(self.waveform.sample_rate), whole_track=True
         )
+
+    @cached_property
+    def speech_db(self) -> float:
+        """The track's own speech level (dBFS): the 90th percentile of its live 10 ms frames.
+
+        ``-inf`` on a track with no live audio.
+        """
+        return speech_db_from_profile(self.track_profile)
+
+    @cached_property
+    def voice_floor_db(self) -> float:
+        """The level under which a frame of this track holds no voice (dBFS).
+
+        ``max(S - 27 dB, R + 6 dB)`` for the track's speech level S and room R. Every
+        tighten rule that asks whether a frame is quiet or audible reads this one
+        floor, never a fixed dBFS level: tighten reads raw, unnormalized tracks, and
+        a fixed floor moves its answers with the recording level. ``inf`` on a track
+        with no live audio at all: every frame is digital silence, so every frame is
+        quiet.
+        """
+        return voice_floor_from_profile(self.track_profile)
+
+
+_PROFILE_MEMO: dict[tuple[str, int, int], tuple[float, float] | None] = {}
+_PROFILE_MEMO_LOCK = threading.Lock()
+
+
+def track_level_profile(
+    project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
+) -> tuple[float, float] | None:
+    """The track's whole-track :func:`level_profile`: ``audio_cache``'s, else measured once per file.
+
+    Callers with no decode of the track (a cut re-optimized at approval, a natural-language
+    edit) read the same levels the proposals did.
+    """
+    if audio_cache is not None:
+        return audio_cache.track_profile
+    path = track_audio_path(project, track_id)
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    with _PROFILE_MEMO_LOCK:
+        if key in _PROFILE_MEMO:
+            return _PROFILE_MEMO[key]
+    waveform = TrackRmsCache.from_timeline_stem(path, sample_rate=WAVEFORM_SAMPLE_RATE)
+    profile = level_profile(waveform.samples, int(waveform.sample_rate), whole_track=True)
+    with _PROFILE_MEMO_LOCK:
+        _PROFILE_MEMO[key] = profile
+    return profile
+
+
+def track_voice_floor_db(
+    project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
+) -> float:
+    return voice_floor_from_profile(track_level_profile(project, track_id, audio_cache))
 
 
 def build_track_audio_caches(

@@ -39,7 +39,10 @@ _NOISE_PERCENTILE = 20.0
 _MIN_CONTRAST_DB = 12.0
 # Active frames must clear the noise estimate by this margin.
 _ACTIVE_MARGIN_DB = 8.0
-_ABS_FLOOR_DB = -55.0
+# Active frames also sit at least this far under the track's own speech level, so a
+# gated track, whose gap noise estimate is digital silence, still has a floor to clear.
+# At the lab tape's speech level (about -15 dBFS) this is the -55 dBFS it replaces.
+_FLOOR_UNDER_SPEECH_DB = 40.0
 # A run filling most of the gap is a level plateau, not a hidden filler.
 _MAX_GAP_COVERAGE = 0.8
 # Speech F0 search range and normalized autocorrelation threshold.
@@ -155,7 +158,7 @@ def find_voiced_gap_runs(
     noise = float(np.percentile(levels, _NOISE_PERCENTILE))
     if float(np.max(levels)) - noise < _MIN_CONTRAST_DB:
         return []
-    floor = max(_ABS_FLOOR_DB, noise + _ACTIVE_MARGIN_DB)
+    floor = max(cache.speech_db - _FLOOR_UNDER_SPEECH_DB, noise + _ACTIVE_MARGIN_DB)
     # Bridge only very short dips; do not turn two unrelated noises into one hit.
     active = bridge_short_dips(levels >= floor, max(1, round(_BRIDGE_SEC / _HOP_SEC)))
     runs: list[AcousticGapRun] = []

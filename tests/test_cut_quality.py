@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.edits import cut_quality
 from podcast_mcp.edits.cut_quality import (
     _measure_join_jump_cached,
     assess_cut_risk,
@@ -19,6 +20,18 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
 )
+
+SPEECH_DB = -15.0
+ROOM_DB = -90.0
+
+
+@pytest.fixture(autouse=True)
+def _track_levels(monkeypatch):
+    """The tests' project has no audio: the track speaks at -15 dBFS over a -90 dBFS room,
+    so its voice floor is -42 dBFS and a hot onset is -22 dBFS."""
+    profile = (10 ** (ROOM_DB / 20), 10 ** (SPEECH_DB / 20))
+    monkeypatch.setattr(cut_quality, "track_level_profile", lambda *_a, **_k: profile)
+    monkeypatch.setattr(cut_quality, "track_voice_floor_db", lambda *_a, **_k: SPEECH_DB - 27.0)
 
 
 def _minimal_project() -> EpisodeProject:
@@ -304,8 +317,6 @@ def test_recommend_post_pad_fade_in_quiet_uses_min():
                 "tighten": {
                     "filler_post_pad_fade_in_min_ms": 15,
                     "filler_post_pad_fade_in_max_ms": 120,
-                    "filler_post_pad_quiet_db": -48.0,
-                    "filler_post_pad_hot_db": -22.0,
                     "filler_post_pad_look_ahead_ms": 120,
                 }
             },
@@ -334,8 +345,6 @@ def test_recommend_post_pad_fade_in_covers_late_hot_onset():
                 "tighten": {
                     "filler_post_pad_fade_in_min_ms": 15,
                     "filler_post_pad_fade_in_max_ms": 120,
-                    "filler_post_pad_quiet_db": -48.0,
-                    "filler_post_pad_hot_db": -22.0,
                     "filler_post_pad_look_ahead_ms": 120,
                 }
             },
@@ -364,7 +373,7 @@ def test_post_pad_fade_in_ends_before_the_next_burst(onset_after_resume_ms, expe
             "host",
             1.0,
             next_burst_sec=onset,
-            defaults={"tighten": {"filler_post_pad_quiet_db": -48.0}},
+            defaults={"tighten": {}},
         )
     assert fade == expected
 
@@ -390,7 +399,6 @@ def test_recommend_prev_word_lead_out_waits_for_quiet():
                 "tighten": {
                     "filler_prev_word_lead_out_min_ms": 40,
                     "filler_prev_word_lead_out_max_ms": 250,
-                    "filler_prev_word_quiet_db": -42.0,
                     "filler_prev_word_look_ahead_ms": 300,
                 }
             },
@@ -415,7 +423,6 @@ def test_recommend_prev_word_lead_out_uses_max_when_never_quiet():
                 "tighten": {
                     "filler_prev_word_lead_out_min_ms": 40,
                     "filler_prev_word_lead_out_max_ms": 180,
-                    "filler_prev_word_quiet_db": -42.0,
                     "filler_prev_word_look_ahead_ms": 100,
                 }
             },
@@ -446,7 +453,6 @@ def test_recommend_prev_word_lead_out_respects_max_available():
                 "tighten": {
                     "filler_prev_word_lead_out_min_ms": 40,
                     "filler_prev_word_lead_out_max_ms": 250,
-                    "filler_prev_word_quiet_db": -42.0,
                     "filler_prev_word_look_ahead_ms": 300,
                 }
             },
@@ -472,8 +478,6 @@ def test_recommend_post_pad_fade_in_swaps_inverted_min_max():
                 "tighten": {
                     "filler_post_pad_fade_in_min_ms": 100,
                     "filler_post_pad_fade_in_max_ms": 20,
-                    "filler_post_pad_quiet_db": -48.0,
-                    "filler_post_pad_hot_db": -22.0,
                     "filler_post_pad_look_ahead_ms": 40,
                 }
             },

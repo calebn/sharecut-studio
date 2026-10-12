@@ -817,10 +817,9 @@ def _peer_voiced_in_gap(
     quiet or gated cut track never explains a peer run, so a peer carrying a
     voice the cut track lost still blocks (#945).
     """
-    floor = _audibility_floor_db(defaults)
     margin = _bleed_dominance_db(defaults)
     for cache in peer_caches:
-        for run in voiced_runs(cache.waveform, gap_start, gap_end, floor_db=floor):
+        for run in voiced_runs(cache.waveform, gap_start, gap_end, floor_db=cache.voice_floor_db):
             own_db = rms_db(own_cache.window(*run))
             peer_db = rms_db(cache.window(*run))
             if own_db - peer_db < margin:
@@ -1407,13 +1406,9 @@ def _flanking_speech_rms(
     audio_cache: TrackAudioCache,
     word: TranscriptWord,
     nxt: TranscriptWord,
-    defaults: dict[str, Any],
 ) -> float | None:
     """Use the quieter of two short word windows as local speech context."""
-    audibility_db = float(
-        defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0)
-    )
-    floor = db_to_amplitude(audibility_db)
+    floor = db_to_amplitude(audio_cache.voice_floor_db)
     windows = (
         audio_cache.window(max(word.start, word.end - 0.2), word.end),
         audio_cache.window(nxt.start, min(nxt.end, nxt.start + 0.2)),
@@ -1451,7 +1446,7 @@ def _collect_acoustic_candidates(
         if _peer_voiced_in_gap(audio_cache, peer_caches, gap_start, gap_end, defaults or {}):
             _count_skip(skip_counts, "acoustic:peer_speaking")
             continue
-        reference = _flanking_speech_rms(audio_cache, word, nxt, defaults or {})
+        reference = _flanking_speech_rms(audio_cache, word, nxt)
 
         def count_breath_rejection() -> None:
             _count_skip(skip_counts, "acoustic:breath")
@@ -1845,10 +1840,6 @@ def _onset_guard_sec(defaults: dict[str, Any]) -> float:
     return max(_ONSET_GUARD_SEC, join_micro_fade_ms(defaults) / 1000.0)
 
 
-def _audibility_floor_db(defaults: dict[str, Any]) -> float:
-    return float(defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0))
-
-
 def _bleed_dominance_db(defaults: dict[str, Any]) -> float:
     heuristics = defaults.get("analysis", {}).get("heuristics", {})
     return float(heuristics.get("bleed_dominance_db", AnalysisPolicy.bleed_dominance_db))
@@ -1870,12 +1861,7 @@ def _shrink_to_next_onset(
     # Look as far as the longest post-pad fade-in could reach: an onset there does
     # not move the cut, but approval must still end the fade before it.
     fade_reach = post_pad_fade_in_bounds_ms(defaults)[1] / 1000.0
-    onset = next_onset(
-        audio_cache,
-        candidate.end,
-        plan.end + guard + fade_reach,
-        quiet_db=_audibility_floor_db(defaults),
-    )
+    onset = next_onset(audio_cache, candidate.end, plan.end + guard + fade_reach)
     if onset is None:
         return plan
     burst = onset.sec if onset.kind is OnsetKind.BURST else None
@@ -2059,11 +2045,15 @@ def _check_voiced_speech(
     defaults: dict[str, Any],
     peer_caches: Sequence[TrackAudioCache] = (),
 ) -> _VoicedSpeechCheck:
-    floor = _audibility_floor_db(defaults)
     reach = _EDGE_NUDGE_MAX_SEC + _VOICE_EDGE_PAD_SEC + FRAME_SEC
     window_lo, window_hi = cut_start - reach, cut_end + reach
-    own_runs = voiced_runs(audio_cache.waveform, window_lo, window_hi, floor_db=floor)
-    peer_runs = [voiced_runs(c.waveform, window_lo, window_hi, floor_db=floor) for c in peer_caches]
+    own_runs = voiced_runs(
+        audio_cache.waveform, window_lo, window_hi, floor_db=audio_cache.voice_floor_db
+    )
+    peer_runs = [
+        voiced_runs(c.waveform, window_lo, window_hi, floor_db=c.voice_floor_db)
+        for c in peer_caches
+    ]
     span_lo = min(candidate.start, cut_start)
     span_hi = max(candidate.end, cut_end)
 
@@ -2106,7 +2096,9 @@ def _check_voiced_speech(
         return _VoicedSpeechCheck(cut_start, cut_end, "interior_speech")
     if candidate.cut_kind == "pause" and any(
         voiced_sec_inside(
-            audible_runs(c.waveform, cut_start, cut_end, floor_db=floor), cut_start, cut_end
+            audible_runs(c.waveform, cut_start, cut_end, floor_db=c.voice_floor_db),
+            cut_start,
+            cut_end,
         )
         >= _INTERIOR_SPEECH_MIN_SEC
         for c in (audio_cache, *peer_caches)
@@ -2316,7 +2308,7 @@ def _gate_cut_edges(
     if (
         checks.audible_only
         and audio_cache is not None
-        and rms_db(audio_cache.window(cut_start, cut_end)) < _audibility_floor_db(defaults)
+        and rms_db(audio_cache.window(cut_start, cut_end)) < audio_cache.voice_floor_db
     ):
         return _CutRejected("inaudible")
     admissible_spans = None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
@@ -214,12 +215,23 @@ def test_propose_and_apply_edits(tmp_path, monkeypatch):
     path = mcp_server.episode_create(str(ws))
     proj = load_project(Path(path))
     finite_primary_recording(proj)
+    raw = proj.workspace_path() / "raw" / "host.wav"
+    with wave.open(str(raw), "rb") as source:
+        params, frames = source.getparams(), bytearray(source.readframes(source.getnframes()))
+    # A noise gate holds the track at digital zero around the filler and the word after it:
+    # a track is only quiet against the level it speaks at.
+    for lo, hi in ((0.0, 0.4), (0.62, 1.0), (1.4, params.nframes / params.framerate)):
+        first, last = (round(t * params.framerate) * params.sampwidth for t in (lo, hi))
+        frames[first:last] = bytes(len(frames[first:last]))
+    with wave.open(str(raw), "wb") as out:
+        out.setparams(params)
+        out.writeframes(bytes(frames))
     proj.transcripts.append(
         Transcript(
             track_id="host",
             words=[
-                TranscriptWord(text="um", start=0.0, end=0.1),
-                TranscriptWord(text="uh", start=0.15, end=0.25),
+                TranscriptWord(text="um", start=0.5, end=0.6),
+                TranscriptWord(text="so", start=1.0, end=1.3),
             ],
         )
     )

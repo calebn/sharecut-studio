@@ -8,14 +8,12 @@ from podcast_mcp.edits.word_onset import (
     OnsetKind,
     next_onset,
     voice_end,
-    voice_floor_db,
     voice_onset,
     voice_separates,
 )
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 
 RATE = 16_000
-QUIET_DB = -42.0
 
 
 def _db(level_db: float) -> float:
@@ -32,10 +30,11 @@ def _cache(
     *segments: tuple[float, np.ndarray], room_db: float = -95.0, gain_db: float = 0.0
 ) -> TrackAudioCache:
     """Room noise at ``room_db`` with each ``(start_sec, samples)`` segment added on top,
-    all recorded ``gain_db`` hotter."""
+    all recorded ``gain_db`` hotter. A second of -20 dBFS speech after the segments is the
+    track's own speech level, which the voice floor reads."""
     rng = np.random.default_rng(7)
-    samples = rng.standard_normal(3 * RATE) * _db(room_db)
-    for start, segment in segments:
+    samples = rng.standard_normal(4 * RATE) * _db(room_db)
+    for start, segment in (*segments, (3.0, _voice(RATE))):
         i = round(start * RATE)
         samples[i : i + segment.size] += segment
     track = TrackRmsCache((samples * _db(gain_db)).astype(np.float32), RATE)
@@ -72,7 +71,7 @@ def test_plosive_out_of_quiet_is_a_burst_even_below_the_audibility_floor():
         (burst_at, _burst(-50.0)),
         (1.45, _voice(round(0.3 * RATE), level_db=-18.0)),
     )
-    onset = next_onset(cache, 1.3, 1.62, quiet_db=QUIET_DB)
+    onset = next_onset(cache, 1.3, 1.62)
     assert onset is not None
     assert onset.sec == pytest.approx(1.41)
     assert onset.kind is OnsetKind.BURST
@@ -86,17 +85,41 @@ def test_fricative_out_of_quiet_ramps_and_is_gradual():
         (1.42, ramp),
         (1.52, _ramp(4000, from_db=-50.0, to_db=-35.0)),
     )
-    onset = next_onset(cache, 1.3, 1.7, quiet_db=QUIET_DB)
+    onset = next_onset(cache, 1.3, 1.7)
     assert onset is not None
     assert onset.sec == pytest.approx(1.47, abs=0.03)
     assert onset.kind is OnsetKind.GRADUAL
+
+
+@pytest.mark.parametrize("gain_db", [-18.0, -12.0, 0.0, 6.0, 12.0])
+def test_next_onset_is_the_same_at_every_recording_level(gain_db):
+    plosive = _cache(
+        (1.0, _voice(round(0.3 * RATE))),
+        (1.42, _burst(-50.0)),
+        (1.45, _voice(round(0.3 * RATE), level_db=-18.0)),
+        gain_db=gain_db,
+    )
+    fricative = _cache(
+        (1.0, _voice(round(0.3 * RATE))),
+        (1.42, _ramp(round(0.1 * RATE), from_db=-90.0, to_db=-50.0)),
+        (1.52, _ramp(4000, from_db=-50.0, to_db=-35.0)),
+        gain_db=gain_db,
+    )
+
+    burst = next_onset(plosive, 1.3, 1.62)
+    ramp = next_onset(fricative, 1.3, 1.7)
+
+    assert burst is not None
+    assert (burst.sec, burst.kind) == (pytest.approx(1.41), OnsetKind.BURST)
+    assert ramp is not None
+    assert (ramp.sec, ramp.kind) == (pytest.approx(1.45, abs=0.011), OnsetKind.GRADUAL)
 
 
 def test_onset_in_continuous_voice_is_the_foot_of_the_rise_not_the_trough():
     # "uh, we" at 706.3-706.5: the level falls into a low, dark stretch and the vowel
     # climbs out of it. The owner still heard "uh" with the cut at the trough.
     cache = _cache(_voice_envelope(*_FILLER_DECAY, (1.48, -18.0), (1.68, -18.0)))
-    onset = next_onset(cache, 1.3, 1.6, quiet_db=QUIET_DB)
+    onset = next_onset(cache, 1.3, 1.6)
     assert onset is not None
     assert onset.sec == pytest.approx(1.43, abs=0.011)
     assert onset.kind is OnsetKind.GRADUAL
@@ -108,7 +131,7 @@ def test_continuous_voice_into_a_ramp_is_gradual(seconds):
     # (lab 706.45): a new sound, but one a fade-in can cover.
     ramp = _ramp(round(seconds * RATE), from_db=-80.0, to_db=-40.0)
     cache = _cache(_voice_envelope(*_FILLER_DECAY, (1.65, -35.4)), (1.45, ramp))
-    onset = next_onset(cache, 1.3, 1.6, quiet_db=QUIET_DB)
+    onset = next_onset(cache, 1.3, 1.6)
     assert onset is not None
     assert onset.sec == pytest.approx(1.44, abs=0.02)
     assert onset.kind is OnsetKind.GRADUAL
@@ -116,15 +139,15 @@ def test_continuous_voice_into_a_ramp_is_gradual(seconds):
 
 def test_plosive_in_continuous_voice_is_a_burst():
     cache = _cache(_voice_envelope(*_FILLER_DECAY, (1.65, -35.4)), (1.5, _burst(-30.0)))
-    onset = next_onset(cache, 1.3, 1.6, quiet_db=QUIET_DB)
+    onset = next_onset(cache, 1.3, 1.6)
     assert onset is not None
     assert onset.kind is OnsetKind.BURST
 
 
 def test_no_onset_before_the_planned_end():
     cache = _cache((1.0, _voice(round(0.3 * RATE))), (2.0, _voice(round(0.3 * RATE))))
-    assert next_onset(cache, 1.3, 1.9, quiet_db=QUIET_DB) is None
-    onset = next_onset(cache, 1.3, 2.1, quiet_db=QUIET_DB)
+    assert next_onset(cache, 1.3, 1.9) is None
+    onset = next_onset(cache, 1.3, 2.1)
     assert onset is not None
     assert onset.sec == pytest.approx(1.99)
 
@@ -173,14 +196,14 @@ def test_voice_floor_is_relative_to_the_tracks_speech_and_room(room_db, floor_db
     # Speech fills 0.9 of 3 s, so the 90th percentile is the speech and the 10th the room.
     cache = _cache((1.0, _voice(round(0.9 * RATE))), room_db=room_db)
 
-    assert voice_floor_db(cache) == pytest.approx(floor_db, abs=1.0)
+    assert cache.voice_floor_db == pytest.approx(floor_db, abs=1.0)
 
 
 def test_a_track_of_digital_silence_is_quiet_everywhere():
     track = TrackRmsCache(np.zeros(3 * RATE, dtype=np.float32), RATE)
     cache = TrackAudioCache(track, track)
 
-    assert voice_floor_db(cache) == np.inf
+    assert cache.voice_floor_db == np.inf
     assert voice_end(cache, 1.0, 1.5) == 1.0
     assert voice_onset(cache, 1.6, 1.0) == 1.6
 
@@ -195,7 +218,7 @@ def test_voice_floor_of_a_gated_track_reads_its_digital_silence_as_room():
     track = TrackRmsCache(samples.astype(np.float32), RATE)
 
     # 27 dB under the words' 90th percentile, not 6 dB over their faded edges.
-    assert voice_floor_db(TrackAudioCache(track, track)) == pytest.approx(-47.0, abs=1.0)
+    assert TrackAudioCache(track, track).voice_floor_db == pytest.approx(-47.0, abs=1.0)
 
 
 def _noise_envelope(*knots: tuple[float, float]) -> tuple[float, np.ndarray]:
@@ -260,7 +283,7 @@ def test_voice_edges_are_the_same_at_every_recording_level(gain_db):
 def test_a_valley_near_the_floor_ends_a_voice(ss_db, dip_db, onset):
     cache = _so_then_ss_uh(ss_db=ss_db, dip_db=dip_db)
 
-    assert voice_floor_db(cache) == pytest.approx(-47.0, abs=0.5)
+    assert cache.voice_floor_db == pytest.approx(-47.0, abs=0.5)
     found = voice_onset(cache, 1.95, 1.45)
     assert found == (None if onset is None else pytest.approx(onset, abs=0.011))
 

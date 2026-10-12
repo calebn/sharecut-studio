@@ -198,13 +198,13 @@ def test_trailing_energy_extends_short_cut_end(tmp_path: Path) -> None:
         min_word_margin_ms=0,
         short_cut_max_sec=1.2,
         trailing_energy_extend_ms=200,
-        trailing_energy_hot_db=-30.0,
-        trailing_energy_quiet_db=-40.0,
+        trailing_energy_hot_over_floor_db=8.0,
+        trailing_energy_quiet_over_floor_db=-2.0,
         trailing_energy_hop_ms=10,
     )
     # Mid-burst naive end; search capped at next word
     new_end, extended = _extend_end_past_trailing_energy(
-        wav, 0.30, 0.45, config=cfg, sample_rate=sr, search_until=0.70
+        wav, 0.30, 0.45, config=cfg, floor_db=-38.0, sample_rate=sr, search_until=0.70
     )
     assert extended
     assert new_end > 0.50  # past the burst into quiet
@@ -245,13 +245,13 @@ def test_trailing_energy_picks_quietest_not_first_trough(tmp_path: Path) -> None
 
     cfg = InaudibleCutConfig(
         trailing_energy_extend_ms=250,
-        trailing_energy_hot_db=-30.0,
-        trailing_energy_quiet_db=-40.0,
+        trailing_energy_hot_over_floor_db=8.0,
+        trailing_energy_quiet_over_floor_db=-2.0,
         trailing_energy_hop_ms=10,
         short_cut_max_sec=1.2,
     )
     new_end, extended = _extend_end_past_trailing_energy(
-        wav, 0.30, 0.45, config=cfg, sample_rate=sr, search_until=0.70
+        wav, 0.30, 0.45, config=cfg, floor_db=-38.0, sample_rate=sr, search_until=0.70
     )
     assert extended
     # Must pass the shallow trough and land near the deep quiet plateau.
@@ -283,14 +283,14 @@ def test_trailing_energy_chews_past_next_word_when_still_hot(tmp_path: Path) -> 
 
     cfg = InaudibleCutConfig(
         trailing_energy_extend_ms=200,
-        trailing_energy_hot_db=-30.0,
-        trailing_energy_quiet_db=-40.0,
+        trailing_energy_hot_over_floor_db=8.0,
+        trailing_energy_quiet_over_floor_db=-2.0,
         trailing_energy_hop_ms=10,
         short_cut_max_sec=1.2,
     )
     # Next word starts mid-burst; quietest before it is still hot → expand.
     new_end, extended = _extend_end_past_trailing_energy(
-        wav, 0.30, 0.45, config=cfg, sample_rate=sr, search_until=0.50
+        wav, 0.30, 0.45, config=cfg, floor_db=-38.0, sample_rate=sr, search_until=0.50
     )
     assert extended
     assert new_end > 0.50
@@ -315,7 +315,7 @@ def test_trailing_energy_skips_when_end_already_quiet(tmp_path: Path) -> None:
         w.writeframes(pcm.tobytes())
     cfg = InaudibleCutConfig(trailing_energy_extend_ms=200, short_cut_max_sec=1.2)
     new_end, extended = _extend_end_past_trailing_energy(
-        wav, 0.1, 0.2, config=cfg, sample_rate=sr, search_until=0.4
+        wav, 0.1, 0.2, config=cfg, floor_db=-38.0, sample_rate=sr, search_until=0.4
     )
     assert extended is False
     assert new_end == 0.2
@@ -340,13 +340,13 @@ def test_trailing_energy_disabled_or_long_cut_is_noop(tmp_path: Path) -> None:
     wav = tmp_path / "unused.wav"
     disabled = InaudibleCutConfig(trailing_energy_extend_ms=0, short_cut_max_sec=1.2)
     end, extended = _extend_end_past_trailing_energy(
-        wav, 0.0, 0.2, config=disabled, sample_rate=16000
+        wav, 0.0, 0.2, config=disabled, floor_db=-38.0, sample_rate=16000
     )
     assert end == 0.2 and extended is False
 
     long_cut = InaudibleCutConfig(trailing_energy_extend_ms=200, short_cut_max_sec=0.1)
     end, extended = _extend_end_past_trailing_energy(
-        wav, 0.0, 0.5, config=long_cut, sample_rate=16000
+        wav, 0.0, 0.5, config=long_cut, floor_db=-38.0, sample_rate=16000
     )
     assert end == 0.5 and extended is False
 
@@ -594,7 +594,7 @@ def test_absorb_trailing_silence_extends_to_breath_floor(tmp_path: Path) -> None
         absorb_trailing_silence=True,
         absorb_trailing_silence_retain_sec=0.4,
         absorb_trailing_silence_max_sec=2.0,
-        absorb_trailing_silence_quiet_db=-40.0,
+        absorb_trailing_silence_quiet_over_floor_db=-2.0,
     )
     new_end, absorbed = _absorb_trailing_silence(p, "host", wav, 1.5, config=cfg, sample_rate=sr)
     assert absorbed is True
@@ -661,7 +661,11 @@ def test_absorb_trailing_silence_skips_when_gap_not_quiet(tmp_path: Path) -> Non
     wav = raw / "host.wav"
     sr = 16000
     t = np.arange(sr * 4, dtype=np.float32) / sr
-    sig = 0.3 * np.sin(2 * np.pi * 220 * t)
+    sig = 1e-4 * np.random.default_rng(3).standard_normal(t.size).astype(np.float32)
+    voice = (t < 1.0) | (t >= 2.2)
+    sig[voice] += 0.3 * np.sin(2 * np.pi * 220 * t[voice])
+    breath = (t >= 1.4) & (t < 1.8)
+    sig[breath] += 0.05 * np.sin(2 * np.pi * 220 * t[breath])
     pcm = (np.clip(sig, -1, 1) * 32767).astype(np.int16)
     with wave.open(str(wav), "wb") as w:
         w.setnchannels(1)
@@ -691,7 +695,7 @@ def test_absorb_trailing_silence_skips_when_gap_not_quiet(tmp_path: Path) -> Non
     cfg = InaudibleCutConfig(
         absorb_trailing_silence_max_sec=2.0,
         absorb_trailing_silence_retain_sec=0.4,
-        absorb_trailing_silence_quiet_db=-45.0,
+        absorb_trailing_silence_quiet_over_floor_db=-3.0,
     )
     new_end, absorbed = _absorb_trailing_silence(p, "host", wav, 1.0, config=cfg, sample_rate=sr)
     assert absorbed is False
