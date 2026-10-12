@@ -21,8 +21,8 @@ type Outcome = "docked" | "floating" | "covered" | "inline";
 
 /**
  * Where the review actions end up: docked in the compact sheet; floating
- * between the sticky ruler and the bottom panel; floating there but covered
- * by the open inspector sheet of a tall tablet, whose own buttons take over;
+ * between the sticky ruler and the bottom panel; floating there on a tall
+ * tablet, where the inspector sheet's own Approve and Reject stay reachable;
  * or, when the card cannot fit between ruler and panel, left to the
  * inspector's inline controls.
  */
@@ -217,11 +217,11 @@ test("pending actions at tablet-short: docks in the inspector sheet, dark", ({
   browserName,
 }, info) =>
   expectCardOutcome({ page, browserName }, info, "tablet-short", "dark"));
-test("pending actions at tablet: floats under the open inspector sheet, light", ({
+test("pending actions at tablet: floats between the ruler and the bottom panel; the inspector sheet's Approve and Reject stay reachable, light", ({
   page,
   browserName,
 }, info) => expectCardOutcome({ page, browserName }, info, "tablet", "light"));
-test("pending actions at tablet: floats under the open inspector sheet, dark", ({
+test("pending actions at tablet: floats between the ruler and the bottom panel; the inspector sheet's Approve and Reject stay reachable, dark", ({
   page,
   browserName,
 }, info) => expectCardOutcome({ page, browserName }, info, "tablet", "dark"));
