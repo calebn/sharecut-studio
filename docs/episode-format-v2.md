@@ -174,6 +174,13 @@ Influenced by OpenTimelineIO (tracks/clips), Descript (transcript-first edits), 
 
 `EditDecision.exact_range` stores an `exact_range` target with ordered disjoint timeline intervals, explicit destination `track_ids`, observed clips, and opaque `media_seals`. Its flat timing fields are a display envelope. Source Snap and timing updates reject this variant. `Track.timeline_empty` records an intentionally empty lane. Render and mapping preserve silence until new material is added.
 
+`set_track_clips` sets `timeline_empty` when explicit placements become empty,
+clears it when placements are added, and preserves it for empty-to-empty
+replacement. An implicit unclipped lane therefore retains primary-media playback.
+Project-aware raw timeline samples and windows honor intentional silence with
+their existing decoded lengths and channel layouts. Raw source audition remains
+available.
+
 Approved range mutes become occurrence-local, source-clock `mute_regions`. Rendering a shorter window preserves the original envelope endpoints so playback does not restart a fade inside an existing mute. Reviewed bleed proposals use this same exact-range contract. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
 
 `timeline.duration_sec` retains the pre-punch extent when a range Cut removes the

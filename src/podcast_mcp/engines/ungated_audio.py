@@ -118,13 +118,14 @@ def raw_timeline_samples(
         if spans
         else [track_audio_path(project, track_id).resolve()]
     )
-    return raw_samples_on_timeline(
+    samples = raw_samples_on_timeline(
         spans,
         paths,
         sources=sources if sources is not None else {},
         sample_rate=sample_rate,
         preserve_channels=preserve_channels,
     )
+    return np.zeros_like(samples) if not spans and track.timeline_empty else samples
 
 
 def raw_timeline_window(
@@ -145,12 +146,13 @@ def raw_timeline_window(
     spans = SessionTimeline(project).lane_clip_spans(track_id)
     if not spans:
         loader = load_wav_channels_window if preserve_channels else load_mono_window
-        return loader(
+        window = loader(
             track_audio_path(project, track_id),
             start_sec=start,
             duration_sec=end - start,
             sample_rate=sample_rate,
         )
+        return np.zeros_like(window) if track.timeline_empty else window
     samples: np.ndarray | None = None
     for span in spans:
         mapped = clip_timeline_overlap_to_source(span.clip, start, end)

@@ -18,6 +18,11 @@ profile data, not authoritative timing choices.
 Project-aware clip replacement copies manual per-clip ingest entries onto
 surviving same-source subclips in `meta.ingest_alignment`. No new lineage store is
 introduced; existing editable snapshots restore inherited locks and placements.
+The existing `timeline.tracks[].timeline_empty` flag persists intentional silence
+after the final explicit placement is removed. Clip replacement preserves the
+flag for empty-to-empty updates and clears it when placements return. Project
+JSON and editable history snapshots retain this state through reload, undo, and
+redo. Source media and shared decoded PCM remain unchanged.
 Local alignment reads bounded evidence windows and retains no whole-lane PCM cache.
 Timing decisions optionally persist an opaque normalized-recording digest in
 `media_key`. Equivalent primary/explicit source references retain the choice;

@@ -108,6 +108,11 @@ Implicit full-media timelines remain playable but local retiming abstains until
 explicit clip placements exist. Missing or unmatched direct phrases are reported.
 `set_track_clips` carries manual per-clip ingest metadata onto surviving
 same-source subclips, so a split or scoped override preserves other placement locks.
+Replacing explicit placements with an empty list sets `timeline_empty`. Adding
+placements clears it. Empty-to-empty replacement preserves the flag, including
+implicit primary-media playback. Project-aware raw timeline readers silence
+flagged lanes without placements while retaining decoded sample shapes and
+shared source PCM. Raw source audition remains available.
 Saved choices include an optional opaque digest of the normalized recording path;
 primary media and equivalent explicit source references share that identity.
 No host path is added to editorial metadata. Legacy choices resolve through their

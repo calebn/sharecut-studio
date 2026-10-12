@@ -112,10 +112,13 @@ def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -
     from podcast_mcp.edits.conversation_align import ingest_alignment_key
 
     track = project.track_by_id(track_id)
-    if track is not None and clips:
-        track.timeline_empty = False
-    entries = project.meta.ingest_alignment
     previous = clips_for_track(project, track_id)
+    if track is not None:
+        if clips:
+            track.timeline_empty = False
+        elif previous:
+            track.timeline_empty = True
+    entries = project.meta.ingest_alignment
     if track is not None and entries:
         old_ids = {clip.id for clip in previous}
         for original in previous:
