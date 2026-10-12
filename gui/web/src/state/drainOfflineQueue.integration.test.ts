@@ -44,12 +44,14 @@ vi.mock("./offlineStore", () => ({
   // Like the real store: re-enqueueing an id replaces the row where it stands.
   enqueueCommand: async (token: string, cmd: QueuedCommand) => {
     const queue = guestQueues.get(token) ?? [];
+    const hadPredecessor = queue.length > 0;
     guestQueues.set(
       token,
       queue.some((c) => c.command_id === cmd.command_id)
         ? queue.map((c) => (c.command_id === cmd.command_id ? cmd : c))
         : [...queue, cmd],
     );
+    return { persisted: true, hadPredecessor };
   },
   removeQueuedCommand: async (token: string, id: string) => {
     guestQueues.set(token, without(guestQueues.get(token), [id]));
@@ -221,4 +223,48 @@ describe("guest drain against the real submit layer", () => {
       expect(ids(guestQueues.get(TOKEN))).toEqual(["held", "c"]);
     },
   );
+
+  describe("a live edit made while older rows are queued", () => {
+    const live = async (id: string) => {
+      const { submitDocumentCommand } = await import("../api");
+      return submitDocumentCommand(
+        `share:${TOKEN}`,
+        "SetTrackMeta",
+        { label: id },
+        { command_id: id },
+      );
+    };
+
+    it("stays queued behind a held replay, is not POSTed, and replays after it", async () => {
+      guestQueues.set(TOKEN, [rec("old", 9)]);
+      const answers: Record<string, number | "offline"> = { old: 503 };
+      const posted = stubServer(answers);
+      await drain();
+      expect(posted).toEqual(["old"]);
+
+      const result = await live("live");
+
+      expect(result).toMatchObject({ queued: true, command_id: "live" });
+      await vi.waitFor(() => expect(posted.length).toBeGreaterThan(1));
+      expect(posted).not.toContain("live");
+      expect(ids(guestQueues.get(TOKEN))).toEqual(["old", "live"]);
+
+      delete answers.old;
+      posted.length = 0;
+      await drain();
+      expect(posted).toEqual(["old", "live"]);
+      expect(ids(guestQueues.get(TOKEN))).toEqual([]);
+    });
+
+    it("posts live edits made back to back in call order when nothing is queued", async () => {
+      const posted = stubServer({});
+
+      const [first, second] = await Promise.all([live("one"), live("two")]);
+
+      expect(first.queued).toBeUndefined();
+      expect(second.queued).toBeUndefined();
+      expect(posted).toEqual(["one", "two"]);
+      expect(ids(guestQueues.get(TOKEN))).toEqual([]);
+    });
+  });
 });
