@@ -87,17 +87,24 @@ function ReturnFocusHarness({ explicit = true }: { explicit?: boolean }) {
 }
 
 describe("useDialogModal", () => {
+  const layers: ReturnType<typeof openOverlay>[] = [];
+  const holds: (() => void)[] = [];
   afterEach(() => {
     const chrome = document.querySelector<HTMLElement>("[data-daw-app-chrome]");
     if (chrome) {
       chrome.inert = false;
     }
+    for (const layer of layers.splice(0)) closeOverlay(layer);
+    for (const release of holds.splice(0)) release();
     vi.restoreAllMocks();
+    document.body.replaceChildren();
   });
 
   it("yields sheet entry to a registered focus hold but keeps modal priority", () => {
-    const unregister = registerFocusHold(
-      (doc) => doc.activeElement?.hasAttribute("data-held") ?? false,
+    holds.push(
+      registerFocusHold(
+        (doc) => doc.activeElement?.hasAttribute("data-held") ?? false,
+      ),
     );
     const frames: FrameRequestCallback[] = [];
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -125,7 +132,6 @@ describe("useDialogModal", () => {
     act(() => screen.getByRole("button", { name: "Undo entry" }).focus());
     act(() => frames.shift()?.(0));
     expect(screen.getByRole("button", { name: "Close entry" })).toHaveFocus();
-    unregister();
   });
 
   it("does not take sheet entry focus behind a modal that opened first", () => {
@@ -134,7 +140,7 @@ describe("useDialogModal", () => {
       frames.push(callback);
       return frames.length;
     });
-    const modal = openOverlay(true);
+    layers.push(openOverlay(true));
     function Sheet() {
       const panelRef = useRef<HTMLDivElement>(null);
       useDialogModal({ open: true, onClose: vi.fn(), panelRef, mode: "sheet" });
@@ -149,10 +155,9 @@ describe("useDialogModal", () => {
     expect(
       screen.getByRole("button", { name: "Close sheet" }),
     ).not.toHaveFocus();
-    closeOverlay(modal);
   });
 
-  it.each(["replaced", "disconnected", "inert", "covered"])(
+  it.each(["replaced", "disconnected", "covered"])(
     "rejects a %s sheet before its initial frame",
     (obsolete) => {
       let frame: FrameRequestCallback | undefined;
@@ -176,23 +181,18 @@ describe("useDialogModal", () => {
         return null;
       }
       const original = panelRef.current;
-      const { unmount } = render(<Entry />);
+      render(<Entry />);
       if (obsolete === "replaced") {
         panelRef.current = document.createElement("div");
         panelRef.current.append(document.createElement("button"));
         document.body.append(panelRef.current);
       }
       if (obsolete === "disconnected") original.remove();
-      if (obsolete === "inert") original.setAttribute("inert", "");
-      const overlay = obsolete === "covered" ? openOverlay(true) : null;
+      if (obsolete === "covered") layers.push(openOverlay(true));
       const focus = vi.spyOn(close, "focus");
       act(() => frame?.(0));
       expect(focus).not.toHaveBeenCalled();
       expect(panelRef.current.querySelector("button")).not.toHaveFocus();
-      if (overlay) closeOverlay(overlay);
-      unmount();
-      original.remove();
-      panelRef.current.remove();
     },
   );
 

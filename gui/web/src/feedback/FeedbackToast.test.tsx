@@ -13,6 +13,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import { closeOverlay, openOverlay } from "../ui/modalGate";
+import { TOAST_MS } from "../ui/Toast";
 import { ApiError } from "../utils/apiError";
 import { FeedbackToast } from "./FeedbackToast";
 
@@ -43,6 +44,14 @@ let reportVisibility = (_visible: boolean) => {};
 const disconnect = vi.fn();
 
 describe("FeedbackToast", () => {
+  const layers: ReturnType<typeof openOverlay>[] = [];
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    for (const layer of layers.splice(0)) closeOverlay(layer);
+    document.body.replaceChildren();
+  });
+
   function compactHost() {
     const panel = document.createElement("div");
     panel.className = "bottom-sheet";
@@ -59,26 +68,42 @@ describe("FeedbackToast", () => {
   it("hands refused native action restoration to the usable current Close", () => {
     const old = compactHost();
     const current = compactHost();
-    const { rerender, unmount } = render(<FeedbackToast host={old.host} />);
+    const { rerender } = render(<FeedbackToast host={old.host} />);
     act(() => useDawStore.getState().announceStatus("Saved"));
     const dismiss = screen.getByRole("button", { name: "Dismiss" });
     act(() => dismiss.focus());
-    const refused = vi.spyOn(dismiss, "focus").mockImplementation(() => {});
+    vi.spyOn(dismiss, "focus").mockImplementation(() => {});
     old.panel.remove();
     rerender(<FeedbackToast host={current.host} />);
-    const focused = document.activeElement;
-    const stillOwned = dismiss.hasAttribute("data-feedback-focus");
-    refused.mockRestore();
-    unmount();
-    current.panel.remove();
-    expect(focused).toBe(current.close);
-    expect(stillOwned).toBe(false);
+    expect(current.close).toHaveFocus();
+    expect(dismiss).not.toHaveAttribute("data-feedback-focus");
   });
+
+  it.each(["modal-covered", "stowed"])(
+    "resumes the timer when a %s host refuses the focused action it moved",
+    (host) => {
+      vi.useFakeTimers();
+      const old = compactHost();
+      const current = compactHost();
+      const { rerender } = render(<FeedbackToast host={old.host} />);
+      act(() => useDawStore.getState().announceStatus("Saved"));
+      act(() => screen.getByRole("button", { name: "Dismiss" }).focus());
+      if (host === "modal-covered") layers.push(openOverlay(true));
+      else current.panel.setAttribute("inert", "");
+      old.panel.remove();
+      rerender(<FeedbackToast host={current.host} />);
+      expect(document.body).toHaveFocus();
+      act(() => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    },
+  );
 
   it("returns focused Dismiss to the current host Close after a remount", () => {
     const old = compactHost();
     const current = compactHost();
-    const { rerender, unmount } = render(<FeedbackToast host={old.host} />);
+    const { rerender } = render(<FeedbackToast host={old.host} />);
     act(() => useDawStore.getState().announceStatus("Saved"));
     const dismiss = screen.getByRole("button", { name: "Dismiss" });
     act(() => dismiss.focus());
@@ -91,13 +116,11 @@ describe("FeedbackToast", () => {
         .dismissFeedbackToast(useDawStore.getState().feedbackToast!.id),
     );
     expect(current.close).toHaveFocus();
-    unmount();
-    current.panel.remove();
   });
 
   it("hands a removed focused Undo to Close without disturbing an innermost modal", () => {
-    const { host, close, panel } = compactHost();
-    const { unmount } = render(<FeedbackToast host={host} />);
+    const { host, close } = compactHost();
+    render(<FeedbackToast host={host} />);
     act(() =>
       useDawStore
         .getState()
@@ -114,14 +137,10 @@ describe("FeedbackToast", () => {
     act(() => screen.getByRole("button", { name: "Undo" }).focus());
     const modal = document.createElement("button");
     document.body.append(modal);
-    const layer = openOverlay(true);
+    layers.push(openOverlay(true));
     act(() => modal.focus());
     act(() => atHead("next-cut"));
     expect(modal).toHaveFocus();
-    closeOverlay(layer);
-    unmount();
-    panel.remove();
-    modal.remove();
   });
 
   it.each(["selection", "project", "pointer"])(
@@ -129,7 +148,7 @@ describe("FeedbackToast", () => {
     (navigation) => {
       const old = compactHost();
       const current = compactHost();
-      const { rerender, unmount } = render(<FeedbackToast host={old.host} />);
+      const { rerender } = render(<FeedbackToast host={old.host} />);
       act(() => useDawStore.getState().announceStatus("Saved"));
       const dismiss = screen.getByRole("button", { name: "Dismiss" });
       act(() => dismiss.focus());
@@ -150,8 +169,6 @@ describe("FeedbackToast", () => {
       old.panel.remove();
       rerender(<FeedbackToast host={current.host} />);
       expect(dismiss).not.toHaveFocus();
-      unmount();
-      current.panel.remove();
     },
   );
 
@@ -160,7 +177,7 @@ describe("FeedbackToast", () => {
     async (action) => {
       const host = document.createElement("div");
       document.body.append(host);
-      const { unmount } = render(<FeedbackToast host={host} />);
+      render(<FeedbackToast host={host} />);
       act(() => useDawStore.getState().announceStatus(`${action} saved`));
       const message = screen.getByText(`${action} saved`);
       expect(host).toContainElement(message);
@@ -169,21 +186,14 @@ describe("FeedbackToast", () => {
       );
       expect(message.closest(".ui-toast-region")).not.toHaveAttribute("style");
       await expectNoA11yViolations(host);
-      unmount();
-      host.remove();
     },
   );
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  });
 
   it("keeps the card, focus pause and timer across flow, stow and floating transitions", () => {
     vi.useFakeTimers();
     const host = document.createElement("div");
     document.body.append(host);
-    const { rerender, unmount } = render(<FeedbackToast />);
+    const { rerender } = render(<FeedbackToast />);
     act(() =>
       useDawStore
         .getState()
@@ -216,14 +226,13 @@ describe("FeedbackToast", () => {
       vi.advanceTimersByTime(8000);
     });
     expect(screen.queryByText("Removed Host")).not.toBeInTheDocument();
-    unmount();
   });
 
   it("pauses clipped feedback and retains remaining time across host teardown", () => {
     vi.useFakeTimers();
     const host = document.createElement("div");
     document.body.append(host);
-    const { rerender, unmount } = render(<FeedbackToast host={host} />);
+    const { rerender } = render(<FeedbackToast host={host} />);
     act(() =>
       useDawStore
         .getState()
@@ -250,7 +259,6 @@ describe("FeedbackToast", () => {
       vi.advanceTimersByTime(1);
     });
     expect(screen.queryByText("Saved Time")).not.toBeInTheDocument();
-    unmount();
   });
 
   it("keeps a card paused when compact and floating presentations both clip it", () => {
@@ -276,7 +284,7 @@ describe("FeedbackToast", () => {
     );
     const host = document.createElement("div");
     document.body.append(host);
-    const { rerender, unmount } = render(<FeedbackToast host={host} />);
+    const { rerender } = render(<FeedbackToast host={host} />);
     act(() =>
       useDawStore.getState().announceStatus("Removed long workshop recording", {
         undo: entry("host-reorder"),
@@ -298,14 +306,13 @@ describe("FeedbackToast", () => {
     ).toBe(card);
     expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
     expect(undoHistory).not.toHaveBeenCalled();
-    unmount();
   });
 
   it("does not restart an unpaused timer when the presentation changes", () => {
     vi.useFakeTimers();
     const host = document.createElement("div");
     document.body.append(host);
-    const { rerender, unmount } = render(<FeedbackToast />);
+    const { rerender } = render(<FeedbackToast />);
     act(() => useDawStore.getState().announceStatus("Saved"));
     act(() => {
       vi.advanceTimersByTime(3000);
@@ -319,8 +326,6 @@ describe("FeedbackToast", () => {
       vi.advanceTimersByTime(1);
     });
     expect(screen.queryByText("Saved")).not.toBeInTheDocument();
-    unmount();
-    host.remove();
   });
 
   beforeEach(() => {
@@ -441,9 +446,7 @@ describe("FeedbackToast", () => {
       const host = document.createElement("div");
       document.body.append(host);
       const user = userEvent.setup();
-      const { unmount } = render(
-        <FeedbackToast host={presentation === "flow" ? host : null} />,
-      );
+      render(<FeedbackToast host={presentation === "flow" ? host : null} />);
       act(() =>
         useDawStore
           .getState()
@@ -476,8 +479,6 @@ describe("FeedbackToast", () => {
       expect(
         screen.queryByRole("button", { name: "Undo" }),
       ).not.toBeInTheDocument();
-      unmount();
-      host.remove();
     },
   );
 
