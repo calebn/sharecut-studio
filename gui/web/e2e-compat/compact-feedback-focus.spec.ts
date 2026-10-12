@@ -18,7 +18,10 @@ for (const name of ["Undo", "Dismiss"] as const) {
     await rememberInspectorDetent(page, "peek");
     await openAt(page, SIZES.portrait);
     await page
-      .getByRole("button", { name: "Reorder track reference", exact: true })
+      .getByRole("button", {
+        name: "Open track details, reference",
+        exact: true,
+      })
       .click();
     await expect(page.locator(".modifier-inspector")).toBeVisible();
     const close = page
