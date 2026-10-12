@@ -271,6 +271,11 @@ export function requestHostDrain(projectPath: string): Promise<void> {
  * overlapping passes would POST every record twice. Never rejects.
  */
 export function requestGuestDrain(token: string): Promise<void> {
-  return coalescedDrain(guestDrainRuns, token, () => drainOfflineQueue(token))
-    .done;
+  const { done, started } = coalescedDrain(guestDrainRuns, token, () =>
+    drainOfflineQueue(token),
+  );
+  if (started) {
+    trackHostDrain(shareProjectKey(token), done);
+  }
+  return done;
 }

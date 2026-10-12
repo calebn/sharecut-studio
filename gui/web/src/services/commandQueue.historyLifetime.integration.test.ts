@@ -40,7 +40,10 @@ describe("history command lifetime at queue admission", () => {
       persisted: true,
       hadPredecessor: false,
     });
-    queue.enqueueCommand.mockResolvedValue(undefined);
+    queue.enqueueCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: false,
+    });
     drainRequests.host.mockReset();
     drainRequests.guest.mockReset();
   });
@@ -198,24 +201,18 @@ describe("history command lifetime at queue admission", () => {
       const rows: { command_id: string; type: string; payload: object }[] = [];
       const enqueue = (command: (typeof rows)[number]) => {
         rows.push(command);
-        return route === "host"
-          ? { persisted: true, hadPredecessor: rows.length > 1 }
-          : undefined;
+        return { persisted: true, hadPredecessor: rows.length > 1 };
       };
       const remove = (_key: string, commandId: string) => {
         const index = rows.findIndex((row) => row.command_id === commandId);
         if (index >= 0) rows.splice(index, 1);
       };
-      queue.enqueueHostCommand.mockImplementation(
-        async (_path, command) =>
-          enqueue(command as (typeof rows)[number]) as {
-            persisted: true;
-            hadPredecessor: boolean;
-          },
+      queue.enqueueHostCommand.mockImplementation(async (_path, command) =>
+        enqueue(command as (typeof rows)[number]),
       );
-      queue.enqueueCommand.mockImplementation(async (_token, command) => {
-        enqueue(command as (typeof rows)[number]);
-      });
+      queue.enqueueCommand.mockImplementation(async (_token, command) =>
+        enqueue(command as (typeof rows)[number]),
+      );
       queue.loadHostCommandQueue.mockImplementation(
         async () => [...rows] as never,
       );
