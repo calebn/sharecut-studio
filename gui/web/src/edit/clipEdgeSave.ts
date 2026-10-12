@@ -5,7 +5,7 @@
  */
 import { setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
-import { trackEditSave } from "../state/hostSendOrder";
+import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
 

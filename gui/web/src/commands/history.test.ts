@@ -8,11 +8,11 @@ import {
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
-  beginHostSend,
-  HOST_SEND_WAIT_MS,
+  beginDocumentSend,
+  DOCUMENT_SEND_WAIT_MS,
   noteSaveLanded,
   trackEditSave,
-} from "../state/hostSendOrder";
+} from "../state/documentSendOrder";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import { ApiError } from "../utils/apiError";
@@ -619,7 +619,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     });
 
     it("waits for a live send that has gone out and expects the head its reply left", async () => {
-      const send = beginHostSend("/tmp/ep", "trim-1");
+      const send = beginDocumentSend("/tmp/ep", "trim-1");
       const undo = execute("history.redo");
       await flushTurns();
       expect(redoHistory).not.toHaveBeenCalled();
@@ -643,7 +643,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
 
     it("does not wait for a save that begins after the press", async () => {
       const undo = execute("history.undo");
-      const later = beginHostSend("/tmp/ep", "nudge-2");
+      const later = beginDocumentSend("/tmp/ep", "nudge-2");
       await undo;
       later.finish();
       expect(vi.mocked(undoHistory).mock.calls).toEqual([
@@ -700,9 +700,9 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       it(`runs no ${action} while a live send is still out after the host send wait, and says so`, async () => {
         vi.useFakeTimers();
         try {
-          const stalled = beginHostSend("/tmp/ep", "stalled");
+          const stalled = beginDocumentSend("/tmp/ep", "stalled");
           const press = execute(`history.${action}`);
-          await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS - 1);
+          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS - 1);
           expect(move).not.toHaveBeenCalled();
           await vi.advanceTimersByTimeAsync(1);
           expect(await press).toEqual({
@@ -724,7 +724,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         vi.useFakeTimers();
         try {
           const slowToken = new Promise<void>((resolve) => {
-            setTimeout(resolve, HOST_SEND_WAIT_MS + 1_000);
+            setTimeout(resolve, DOCUMENT_SEND_WAIT_MS + 1_000);
           });
           const scope = documentScope();
           void trackEditSave(
@@ -734,7 +734,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
             ),
           );
           const press = execute(`history.${action}`);
-          await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS + 1_000);
+          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS + 1_000);
           expect(await press).toEqual({
             status: "disabled",
             reason: SAVING[action],

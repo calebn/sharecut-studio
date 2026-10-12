@@ -30,7 +30,7 @@ import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { trackEditSave } from "../state/hostSendOrder";
+import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
 import { clipMediaStartSec } from "../waveform/mediaRef";

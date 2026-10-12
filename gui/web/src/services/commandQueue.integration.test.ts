@@ -343,7 +343,7 @@ describe("queued command identity and landed history", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const { submitDocumentCommand } = await import("../api");
     const { headLandedSince, savesLandedMark } = await import(
-      "../state/hostSendOrder"
+      "../state/documentSendOrder"
     );
     const mark = savesLandedMark(path);
     const scope = (await import("../document/authorityState")).documentScope();
@@ -470,7 +470,7 @@ describe("queued command identity and landed history", () => {
       );
       const { submitDocumentCommand } = await import("../api");
       const { headLandedSince, savesLandedMark } = await import(
-        "../state/hostSendOrder"
+        "../state/documentSendOrder"
       );
       const mark = savesLandedMark(path);
       const scope = (
@@ -493,7 +493,7 @@ describe("queued command identity and landed history", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const { submitDocumentCommand } = await import("../api");
     const { headLandedSince, savesLandedMark } = await import(
-      "../state/hostSendOrder"
+      "../state/documentSendOrder"
     );
     const mark = savesLandedMark(path);
     const scope = (await import("../document/authorityState")).documentScope();
@@ -585,7 +585,7 @@ describe("live identity admission before side effects", () => {
       const draft = vi.spyOn(drafts, "beginDocumentDraft");
       const { useDawStore } = await import("../state/dawStore");
       useDawStore.setState({ projectPath: path });
-      const { savesLandedMark } = await import("../state/hostSendOrder");
+      const { savesLandedMark } = await import("../state/documentSendOrder");
       const mark = savesLandedMark(path);
       const { submitQueuedDocumentCommand } = await import("./commandQueue");
       await expect(

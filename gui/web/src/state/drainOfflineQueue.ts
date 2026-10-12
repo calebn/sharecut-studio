@@ -8,10 +8,10 @@ import { shareProjectKey } from "../shareMode";
 import { isPermanentRejection } from "../utils/apiError";
 import { withCommandSendOwnership } from "./commandSendOwnership";
 import {
-  hostSendDone,
-  hostSendsFinished,
-  trackHostDrain,
-} from "./hostSendOrder";
+  documentSendDone,
+  documentSendsFinished,
+  trackDocumentDrain,
+} from "./documentSendOrder";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
@@ -99,27 +99,6 @@ export async function replayQueuedCommands(
   await source.settle?.(completed);
 }
 
-function guestReplaySource(token: string): ReplaySource {
-  let historyIds = new Set<string>();
-  return {
-    path: shareProjectKey(token),
-    load: async () => {
-      const queue = await loadCommandQueue(token);
-      historyIds = new Set(
-        queue
-          .filter((command) => isHistoryCommand(command.type))
-          .map((command) => command.command_id),
-      );
-      return queue;
-    },
-    settle: (completed) =>
-      removeQueuedCommands(
-        token,
-        completed.filter((id) => historyIds.has(id)),
-      ),
-  };
-}
-
 /**
  * In-flight live sends a drain already waits on, keyed by project and command
  * id (`liveSendKey`): repeated drains add no second wake-up.
@@ -131,10 +110,41 @@ function liveSendKey(projectPath: string, commandId: string): string {
 }
 
 /**
- * Host records replay in insertion order, coordinated with this tab's live
- * sends, and are removed in one batch when the pass ends.
+ * One persisted queue (host project or share guest) with the calls a replay
+ * pass needs. `path` is the project key live sends and drains are tracked under.
  */
-function hostReplaySource(projectPath: string): ReplaySource {
+interface QueueNamespace {
+  path: string;
+  load: () => Promise<QueuedCommand[]>;
+  remove: (commandIds: string[]) => Promise<void>;
+  requestDrain: () => Promise<void>;
+}
+
+function hostNamespace(projectPath: string): QueueNamespace {
+  return {
+    path: projectPath,
+    load: () => loadHostCommandQueue(projectPath),
+    remove: (ids) => removeHostQueuedCommands(projectPath, ids),
+    requestDrain: () => requestHostDrain(projectPath),
+  };
+}
+
+function guestNamespace(token: string): QueueNamespace {
+  return {
+    path: shareProjectKey(token),
+    load: () => loadCommandQueue(token),
+    remove: (ids) => removeQueuedCommands(token, ids),
+    requestDrain: () => requestGuestDrain(token),
+  };
+}
+
+/**
+ * Records replay in insertion order, coordinated with this tab's live sends,
+ * and are removed in one batch when the pass ends. Host and guest queues share
+ * this policy.
+ */
+function queueReplaySource(ns: QueueNamespace): ReplaySource {
+  const projectPath = ns.path;
   let finishedSeen = 0;
   let sentLive = new Set<string>();
   let recheckAll = false;
@@ -143,31 +153,31 @@ function hostReplaySource(projectPath: string): ReplaySource {
     path: projectPath,
     load: async () => {
       // Read before the snapshot, so a send that finishes while it loads counts.
-      finishedSeen = hostSendsFinished(projectPath);
-      const queue = await loadHostCommandQueue(projectPath);
+      finishedSeen = documentSendsFinished(projectPath);
+      const queue = await ns.load();
       // Live sends use fresh command ids, so a live send can dequeue only a
       // snapshot record it was already sending. Live edits made during a long
       // replay append after the snapshot and never force a re-read.
       sentLive = new Set(
         queue
           .map((c) => c.command_id)
-          .filter((id) => hostSendDone(projectPath, id) !== null),
+          .filter((id) => documentSendDone(projectPath, id) !== null),
       );
       // A send that finished while the snapshot loaded may have dequeued any record.
-      recheckAll = hostSendsFinished(projectPath) !== finishedSeen;
+      recheckAll = documentSendsFinished(projectPath) !== finishedSeen;
       return queue;
     },
     gate: async (cmd) => {
       // This tab is still POSTing it live: replaying now would send it twice.
       // Stop to keep order, and drain again once that send settles.
-      const live = hostSendDone(projectPath, cmd.command_id);
+      const live = documentSendDone(projectPath, cmd.command_id);
       if (live) {
         const key = liveSendKey(projectPath, cmd.command_id);
         if (!awaitedLiveSends.has(key)) {
           awaitedLiveSends.add(key);
           void live.then(() => {
             awaitedLiveSends.delete(key);
-            return requestHostDrain(projectPath);
+            return ns.requestDrain();
           });
         }
         return "stop";
@@ -176,14 +186,12 @@ function hostReplaySource(projectPath: string): ReplaySource {
       // finished since the last read: each read loads every queued payload.
       if (
         (recheckAll || sentLive.has(cmd.command_id)) &&
-        hostSendsFinished(projectPath) !== finishedSeen
+        documentSendsFinished(projectPath) !== finishedSeen
       ) {
-        finishedSeen = hostSendsFinished(projectPath);
+        finishedSeen = documentSendsFinished(projectPath);
         recheckAll = false;
         try {
-          present = new Set(
-            (await loadHostCommandQueue(projectPath)).map((c) => c.command_id),
-          );
+          present = new Set((await ns.load()).map((c) => c.command_id));
         } catch {
           // Unreadable queue: stop this pass but still remove what already
           // committed; the next drain retries the rest in order.
@@ -193,7 +201,7 @@ function hostReplaySource(projectPath: string): ReplaySource {
       return present && !present.has(cmd.command_id) ? "skip" : "send";
     },
     // One persisted update replaces N full-array rewrites on a long replay.
-    settle: (completed) => removeHostQueuedCommands(projectPath, completed),
+    settle: (completed) => ns.remove(completed),
   };
 }
 
@@ -203,12 +211,12 @@ function hostReplaySource(projectPath: string): ReplaySource {
  * tab, so it does not order rows from different clients.
  */
 export function drainOfflineQueue(token: string): Promise<void> {
-  return replayQueuedCommands(guestReplaySource(token));
+  return replayQueuedCommands(queueReplaySource(guestNamespace(token)));
 }
 
 /** Drain persisted host commands in insertion order after reconnect. */
 export function drainHostOfflineQueue(projectPath: string): Promise<void> {
-  return replayQueuedCommands(hostReplaySource(projectPath));
+  return replayQueuedCommands(queueReplaySource(hostNamespace(projectPath)));
 }
 
 type DrainRun = { again: boolean; done: Promise<void> };
@@ -248,34 +256,37 @@ function coalescedDrain(
   return { done: run.done, started: true };
 }
 
-const hostDrainRuns = new Map<string, DrainRun>();
-const guestDrainRuns = new Map<string, DrainRun>();
+const drainRuns = new Map<string, DrainRun>();
+
+function requestQueueDrain(
+  path: string,
+  pass: () => Promise<void>,
+): Promise<void> {
+  const { done, started } = coalescedDrain(drainRuns, path, pass);
+  if (started) {
+    trackDocumentDrain(path, done);
+  }
+  return done;
+}
 
 /**
  * Drain the host queue now, or once more after the drain in progress, so a
  * request made mid-drain is never lost. Never rejects.
  */
 export function requestHostDrain(projectPath: string): Promise<void> {
-  const { done, started } = coalescedDrain(hostDrainRuns, projectPath, () =>
+  return requestQueueDrain(projectPath, () =>
     drainHostOfflineQueue(projectPath),
   );
-  if (started) {
-    trackHostDrain(projectPath, done);
-  }
-  return done;
 }
 
 /**
  * Replay this share guest's queue now, or once more after the replay in
- * progress: WebSocket reconnect and `online` can fire together, and two
- * overlapping passes would POST every record twice. Never rejects.
+ * progress: WebSocket reconnect, `online` and the sanity timer can fire
+ * together, and two overlapping passes would POST every record twice. Never
+ * rejects.
  */
 export function requestGuestDrain(token: string): Promise<void> {
-  const { done, started } = coalescedDrain(guestDrainRuns, token, () =>
+  return requestQueueDrain(shareProjectKey(token), () =>
     drainOfflineQueue(token),
   );
-  if (started) {
-    trackHostDrain(shareProjectKey(token), done);
-  }
-  return done;
 }

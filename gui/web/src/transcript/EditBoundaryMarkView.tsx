@@ -24,7 +24,7 @@ import {
 } from "../edit/ghostPreview";
 import { clampToRollInterval, type RollJoinInterval } from "../edit/rollLimits";
 import { useDawStore } from "../state/dawStore";
-import { trackEditSave } from "../state/hostSendOrder";
+import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, EditBoundaryView } from "../types/project";
 import type { BoundaryPresentation } from "./boundaryPresentation";
 import { GhostWordChips } from "./GhostWordChips";

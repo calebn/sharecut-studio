@@ -10,7 +10,7 @@ import {
 import { resetDocumentSeqForTests } from "../document/cursor";
 import { beginDocumentDraft } from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
-import { editSavesInFlight } from "../state/hostSendOrder";
+import { editSavesInFlight } from "../state/documentSendOrder";
 import { deferred } from "../test/deferred";
 import { clipRow, sampleTrack } from "../test/fixtures";
 import { initializeCommentProject } from "../test/trimNudgeData";

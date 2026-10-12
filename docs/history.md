@@ -258,9 +258,9 @@ expects the head the reply returned (`history_head_id`), so pressing Mod+Z twice
 quickly undoes two changes: the tab's own undo moved the head, and that is not
 someone else's change. A press also waits, before calling the history API, for
 edit saves that were in flight when the press was made. This wait lasts up to
-`HOST_SEND_WAIT_MS` (5 s) and covers live sends and saves still preparing their
+`DOCUMENT_SEND_WAIT_MS` (5 s) and covers this tab's live sends, host and share guest alike, and saves still preparing their
 send, such as a trim or roll loading its boundary token (`trackEditSave` in
-`state/hostSendOrder.ts`). It then expects the head left by the latest of this
+`state/documentSendOrder.ts`). It then expects the head left by the latest of this
 tab's own commands in that document generation (`noteSaveLanded`), so Undo
 reverts the edit the person just made and is not refused as stale by it. The
 handler also checks the document generation after waiting for an earlier

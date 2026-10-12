@@ -173,6 +173,15 @@ describe("host drain against the real submit layer", () => {
 describe("guest drain against the real submit layer", () => {
   const drain = async () =>
     (await import("./drainOfflineQueue")).drainOfflineQueue(TOKEN);
+  const live = async (id: string) => {
+    const { submitDocumentCommand } = await import("../api");
+    return submitDocumentCommand(
+      `share:${TOKEN}`,
+      "SetTrackMeta",
+      { label: id },
+      { command_id: id },
+    );
+  };
 
   it("skips a refused replay only after the submit layer recorded and dequeued it", async () => {
     guestQueues.set(TOKEN, [rec("a", 1), rec("bad", 2), rec("c", 3)]);
@@ -225,16 +234,6 @@ describe("guest drain against the real submit layer", () => {
   );
 
   describe("a live edit made while older rows are queued", () => {
-    const live = async (id: string) => {
-      const { submitDocumentCommand } = await import("../api");
-      return submitDocumentCommand(
-        `share:${TOKEN}`,
-        "SetTrackMeta",
-        { label: id },
-        { command_id: id },
-      );
-    };
-
     it("stays queued behind a held replay, is not POSTed, and replays after it", async () => {
       guestQueues.set(TOKEN, [rec("old", 9)]);
       const answers: Record<string, number | "offline"> = { old: 503 };
@@ -255,29 +254,9 @@ describe("guest drain against the real submit layer", () => {
       expect(posted).toEqual(["old", "live"]);
       expect(ids(guestQueues.get(TOKEN))).toEqual([]);
     });
-
-    it("posts live edits made back to back in call order when nothing is queued", async () => {
-      const posted = stubServer({});
-
-      const [first, second] = await Promise.all([live("one"), live("two")]);
-
-      expect(first.queued).toBeUndefined();
-      expect(second.queued).toBeUndefined();
-      expect(posted).toEqual(["one", "two"]);
-      expect(ids(guestQueues.get(TOKEN))).toEqual([]);
-    });
   });
 
-  describe("audit: a live guest send still in flight", () => {
-    const live = async (id: string) => {
-      const { submitDocumentCommand } = await import("../api");
-      return submitDocumentCommand(
-        `share:${TOKEN}`,
-        "SetTrackMeta",
-        { label: id },
-        { command_id: id },
-      );
-    };
+  describe("a live guest send still in flight", () => {
     function gatedServer(held: string) {
       const posted: string[] = [];
       let release!: () => void;
@@ -322,8 +301,7 @@ describe("guest drain against the real submit layer", () => {
       release();
       await first;
 
-      const result = await second;
-
+      await second;
       expect(beforeRelease).toEqual(["one"]);
       expect(posted).toEqual(["one", "two"]);
     });

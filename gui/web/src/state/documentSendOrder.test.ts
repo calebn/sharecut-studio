@@ -1,26 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  activeHostDrain,
-  beginHostSend,
-  hostSendDone,
-  hostSendsFinished,
-  trackHostDrain,
-} from "./hostSendOrder";
+  activeDocumentDrain,
+  beginDocumentSend,
+  documentSendDone,
+  documentSendsFinished,
+  trackDocumentDrain,
+} from "./documentSendOrder";
 
-describe("hostSendOrder", () => {
+describe("documentSendOrder", () => {
   it("exposes a command's in-flight send until it finishes", async () => {
-    const send = beginHostSend("/p", "a");
-    expect(hostSendDone("/p", "a")).not.toBeNull();
-    expect(hostSendDone("/q", "a")).toBeNull();
-    const done = hostSendDone("/p", "a") as Promise<void>;
+    const send = beginDocumentSend("/p", "a");
+    expect(documentSendDone("/p", "a")).not.toBeNull();
+    expect(documentSendDone("/q", "a")).toBeNull();
+    const done = documentSendDone("/p", "a") as Promise<void>;
     send.finish();
     await done;
-    expect(hostSendDone("/p", "a")).toBeNull();
+    expect(documentSendDone("/p", "a")).toBeNull();
   });
 
   it("earlierWithin reports true when earlier sends finish in time", async () => {
-    const first = beginHostSend("/p", "a");
-    const second = beginHostSend("/p", "b");
+    const first = beginDocumentSend("/p", "a");
+    const second = beginDocumentSend("/p", "b");
     const within = second.earlierWithin(1000);
     first.finish();
     await expect(within).resolves.toBe(true);
@@ -30,8 +30,8 @@ describe("hostSendOrder", () => {
   it("earlierWithin gives up on a stalled earlier send", async () => {
     vi.useFakeTimers();
     try {
-      const first = beginHostSend("/p", "a");
-      const second = beginHostSend("/p", "b");
+      const first = beginDocumentSend("/p", "a");
+      const second = beginDocumentSend("/p", "b");
       const within = second.earlierWithin(1000);
       await vi.advanceTimersByTimeAsync(1000);
       await expect(within).resolves.toBe(false);
@@ -44,13 +44,13 @@ describe("hostSendOrder", () => {
 
   it("earlierWithin also waits for the host drain run in progress", async () => {
     let finishDrain!: () => void;
-    trackHostDrain(
+    trackDocumentDrain(
       "/d",
       new Promise<void>((r) => {
         finishDrain = r;
       }),
     );
-    const send = beginHostSend("/d", "a");
+    const send = beginDocumentSend("/d", "a");
     let settled = false;
     const within = send.earlierWithin(1000).then((v) => {
       settled = true;
@@ -60,15 +60,15 @@ describe("hostSendOrder", () => {
     expect(settled).toBe(false);
     finishDrain();
     await expect(within).resolves.toBe(true);
-    expect(activeHostDrain("/d")).toBeNull();
+    expect(activeDocumentDrain("/d")).toBeNull();
     send.finish();
   });
 
   it("earlierWithin gives up on a drain that outlasts ms", async () => {
     vi.useFakeTimers();
     try {
-      trackHostDrain("/e", new Promise<void>(() => undefined));
-      const send = beginHostSend("/e", "a");
+      trackDocumentDrain("/e", new Promise<void>(() => undefined));
+      const send = beginDocumentSend("/e", "a");
       const within = send.earlierWithin(1000);
       await vi.advanceTimersByTimeAsync(1000);
       await expect(within).resolves.toBe(false);
@@ -79,8 +79,8 @@ describe("hostSendOrder", () => {
   });
 
   it("makes a later send wait for earlier ones", async () => {
-    const first = beginHostSend("/p", "a");
-    const second = beginHostSend("/p", "b");
+    const first = beginDocumentSend("/p", "a");
+    const second = beginDocumentSend("/p", "b");
     let settled = false;
     void second.earlier.then(() => {
       settled = true;
@@ -94,19 +94,19 @@ describe("hostSendOrder", () => {
   });
 
   it("does not make an earlier send wait on later ones", async () => {
-    const first = beginHostSend("/p", "a");
-    const second = beginHostSend("/p", "b");
+    const first = beginDocumentSend("/p", "a");
+    const second = beginDocumentSend("/p", "b");
     await first.earlier;
     first.finish();
     second.finish();
   });
 
   it("counts finished sends per project", () => {
-    const before = hostSendsFinished("/count");
-    const send = beginHostSend("/count", "a");
-    expect(hostSendsFinished("/count")).toBe(before);
+    const before = documentSendsFinished("/count");
+    const send = beginDocumentSend("/count", "a");
+    expect(documentSendsFinished("/count")).toBe(before);
     send.finish();
-    expect(hostSendsFinished("/count")).toBe(before + 1);
-    expect(hostSendsFinished("/other-count")).toBe(0);
+    expect(documentSendsFinished("/count")).toBe(before + 1);
+    expect(documentSendsFinished("/other-count")).toBe(0);
   });
 });
