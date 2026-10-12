@@ -129,13 +129,11 @@ def _check_file(fd: int, *, tighten: bool = False) -> None:
 
 
 def _tighten_file(parent: int, name: str, expected: Identity) -> None:
-    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
-    try:
-        if identity(os.fstat(fd)) != expected:
-            raise PermissionError("registry file changed during access")
-        os.fchmod(fd, 0o600)
-    finally:
-        cleanup([partial(os.close, fd)])
+    """Tighten by path: opening a descriptor here would drop the process's SQLite locks."""
+    current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    if identity(current) != expected or not stat.S_ISREG(current.st_mode):
+        raise PermissionError("registry file changed during access")
+    os.chmod(name, 0o600, dir_fd=parent)
 
 
 def _check_unopened_file(path: Path, parent: int, name: str, *, tighten: bool) -> None:
