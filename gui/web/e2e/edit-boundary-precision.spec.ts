@@ -422,6 +422,10 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     ).toBeTruthy();
 
     await openTranscript(page);
+    const restoredWord = page.locator(
+      '.transcript-list button[data-transcript-word][data-track-id="reference"][data-word-index="8"]',
+    );
+    await expect(restoredWord).toHaveText("dissatisfied");
     const restoredBoundary = restored.edit_boundaries?.find(
       (candidate) => candidate.left_clip_id === boundary.left_clip_id,
     );
