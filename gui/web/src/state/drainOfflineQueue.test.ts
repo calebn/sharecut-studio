@@ -390,22 +390,29 @@ describe("drainOfflineQueue (guest)", () => {
     guestQueue.mockReset();
   });
 
-  it("replays in client_seq order, not storage order", async () => {
+  it("replays prior-client rows before later new-client rows, whatever their sequences", async () => {
+    const row = (id: string, clientId: string, seq: number) => ({
+      ...queued(id, seq),
+      client_id: clientId,
+    });
     guestQueue.mockResolvedValue([
-      queued("c", 3),
-      queued("a", 1),
-      queued("b", 2),
-      queued("d", 4),
+      row("prior-9", "viewer-prior", 9),
+      row("prior-12", "viewer-prior", 12),
+      row("new-1", "viewer-new", 1),
+      row("new-3", "viewer-new", 3),
     ]);
     const { drainOfflineQueue } = await import("./drainOfflineQueue");
 
     await drainOfflineQueue("tok");
 
     expect(submit.mock.calls.map((call) => call[3].command_id)).toEqual([
-      "a",
-      "b",
-      "c",
-      "d",
+      "prior-9",
+      "prior-12",
+      "new-1",
+      "new-3",
+    ]);
+    expect(submit.mock.calls.map((call) => call[3].client_seq)).toEqual([
+      9, 12, 1, 3,
     ]);
     for (const call of submit.mock.calls) {
       expect(call[3]).toMatchObject({ replaying: true });
