@@ -459,6 +459,48 @@ describe("history command lifetime at queue admission", () => {
     expect(drainRequests.host).toHaveBeenCalledWith(path);
   });
 
+  it("keeps a prior-client guest edit ahead of a new history reservation", async () => {
+    const path = "share:history-prior-client-edit";
+    const token = "history-prior-client-edit";
+    const { useDawStore } = await import("../state/dawStore");
+    const { minimalProject } = await import("../test/fixtures");
+    const authority = await import("../document/authorityState");
+    useDawStore.setState({ projectPath: path, project: minimalProject() });
+    authority.resetDocumentAuthority(path);
+    queue.enqueueCommand.mockImplementationOnce(async (_token, history) => {
+      queue.loadCommandQueue.mockResolvedValueOnce([
+        {
+          command_id: "prior-tab-edit",
+          client_id: "prior-tab",
+          client_seq: 9,
+          type: "SetTrackMeta",
+          payload: {},
+          created_at: 1,
+        },
+        history,
+      ]);
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { submitLiveHistoryCommand } = await import("./commandQueue");
+
+    await expect(
+      submitLiveHistoryCommand(
+        path,
+        "UndoHistory",
+        { expected_head_id: "visible-head" },
+        authority.documentScope(),
+      ),
+    ).rejects.toThrow("Undo and Redo must wait until older edits are sent");
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(queue.removeQueuedCommand).toHaveBeenCalledWith(
+      token,
+      expect.any(String),
+    );
+    expect(drainRequests.guest).toHaveBeenCalledWith(token);
+  });
+
   it("refuses guest history when its reservation was not stored", async () => {
     const path = "share:history-unavailable-storage";
     const { useDawStore } = await import("../state/dawStore");

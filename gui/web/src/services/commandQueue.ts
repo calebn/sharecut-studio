@@ -305,9 +305,7 @@ async function submitLiveHistoryIntent(
     await queue.enqueueCommand(token, cmd);
     try {
       requireCurrent();
-      const pending = [...(await queue.loadCommandQueue(token))].sort(
-        (a, b) => a.client_seq - b.client_seq,
-      );
+      const pending = await queue.loadCommandQueue(token);
       requireCurrent();
       if (!pending.some((item) => item.command_id === identity.command_id)) {
         throw new Error(
