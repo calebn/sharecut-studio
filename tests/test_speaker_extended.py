@@ -945,14 +945,51 @@ def test_voice_encoder_import_keeps_an_already_loaded_webrtcvad(monkeypatch, tmp
     assert sys.modules["webrtcvad"] is loaded
 
 
-def test_voice_encoder_import_reports_resemblyzer_missing(monkeypatch, tmp_path):
+def test_voice_encoder_import_does_not_retry_with_placeholder_for_other_modules(
+    monkeypatch, tmp_path
+):
+    """A failing dependency other than webrtcvad/pkg_resources is raised once, not retried.
+
+    The fake resemblyzer logs whether webrtcvad is already in sys.modules on each run.
+    A retry with the placeholder would log a second run with True.
+    """
     import sys
 
-    _isolate_import_state(monkeypatch, tmp_path)
-    monkeypatch.setitem(sys.modules, "resemblyzer", None)
+    root = tmp_path / "root"
+    root.mkdir()
+    log = tmp_path / "runs.log"
+    package = root / "resemblyzer"
+    package.mkdir()
+    (package / "__init__.py").write_text(
+        "import sys\n"
+        f"with open({str(log)!r}, 'a', encoding='utf-8') as fh:\n"
+        "    fh.write(f\"{'webrtcvad' in sys.modules}\\n\")\n"
+        "raise ModuleNotFoundError(\"No module named 'numba'\", name='numba')\n",
+        encoding="utf-8",
+    )
+    _isolate_import_state(monkeypatch, root)
     from podcast_mcp.engines.speaker_id import _import_voice_encoder
 
     with pytest.raises(ImportError) as caught:
         _import_voice_encoder()
-    assert caught.value.name == "resemblyzer"
+    assert caught.value.name == "numba"
+    assert log.read_text(encoding="utf-8").split() == ["False"]
+    assert "webrtcvad" not in sys.modules
+
+
+def test_voice_encoder_import_propagates_non_import_errors_unchanged(monkeypatch, tmp_path):
+    """Only ImportError is tolerated; a RuntimeError from webrtcvad propagates as raised."""
+    import sys
+
+    root = _fake_resemblyzer(tmp_path)
+    (root / "webrtcvad.py").write_text(
+        "raise RuntimeError('webrtcvad exploded during import')\n", encoding="utf-8"
+    )
+    _isolate_import_state(monkeypatch, root)
+    from podcast_mcp.engines.speaker_id import _import_voice_encoder
+
+    with pytest.raises(RuntimeError) as caught:
+        _import_voice_encoder()
+    assert type(caught.value) is RuntimeError
+    assert str(caught.value) == "webrtcvad exploded during import"
     assert "webrtcvad" not in sys.modules
