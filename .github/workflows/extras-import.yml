@@ -10,6 +10,7 @@ on:
   pull_request:
     paths: &extras-paths
       - "pyproject.toml"
+      - "src/podcast_mcp/engines/speaker_id.py"
       - "tests/test_extras_import.py"
       - ".github/workflows/extras-import.yml"
   push:

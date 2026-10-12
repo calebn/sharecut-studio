@@ -875,12 +875,49 @@ def test_resemblyzer_loads_without_webrtcvad_importable(monkeypatch, tmp_path):
     import sys
 
     _isolate_import_state(monkeypatch, _fake_resemblyzer(tmp_path))
-    backend = ResemblyzerBackend()
     from podcast_mcp.engines.speaker_id import _import_voice_encoder
 
     assert _import_voice_encoder().__name__ == "VoiceEncoder"
     assert "webrtcvad" not in sys.modules
-    assert backend.name() == "resemblyzer"
+
+
+def test_resemblyzer_keeps_the_real_webrtcvad_when_it_imports(monkeypatch, tmp_path):
+    import sys
+
+    root = _fake_resemblyzer(tmp_path)
+    (root / "webrtcvad.py").write_text("class Vad:\n    pass\n", encoding="utf-8")
+    (root / "resemblyzer" / "__init__.py").write_text(
+        "import webrtcvad\n\n\nclass VoiceEncoder:\n    vad = webrtcvad\n", encoding="utf-8"
+    )
+    _isolate_import_state(monkeypatch, root)
+    from podcast_mcp.engines.speaker_id import _import_voice_encoder
+
+    try:
+        encoder = _import_voice_encoder()
+        assert hasattr(encoder.vad, "Vad")
+        assert sys.modules["webrtcvad"] is encoder.vad
+    finally:
+        for name in ("resemblyzer", "webrtcvad"):
+            sys.modules.pop(name, None)
+
+
+def test_webrtcvad_placeholder_raises_a_readable_import_error(monkeypatch, tmp_path):
+    import sys
+
+    root = _fake_resemblyzer(tmp_path)
+    (root / "resemblyzer" / "__init__.py").write_text(
+        "import webrtcvad\n\n\nclass VoiceEncoder:\n    vad = webrtcvad\n", encoding="utf-8"
+    )
+    _isolate_import_state(monkeypatch, root)
+    from podcast_mcp.engines.speaker_id import _import_voice_encoder
+
+    try:
+        placeholder = _import_voice_encoder().vad
+        with pytest.raises(ImportError, match="silence trimming"):
+            _ = placeholder.Vad
+        assert not hasattr(placeholder, "__path__")
+    finally:
+        sys.modules.pop("resemblyzer", None)
 
 
 def test_resolve_speaker_backend_resemblyzer_without_webrtcvad_importable(monkeypatch, tmp_path):

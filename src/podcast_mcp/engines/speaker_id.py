@@ -173,21 +173,43 @@ class SpeechBrainBackend:
         return emb.squeeze().detach().cpu().numpy().astype(np.float32)
 
 
+def _unavailable_webrtcvad(name: str) -> Any:
+    if name.startswith("__"):
+        raise AttributeError(name)
+    raise ImportError(
+        f"webrtcvad.{name} is unavailable: webrtcvad does not import in this environment, "
+        "so silence trimming via resemblyzer.preprocess_wav cannot run. "
+        "Sharecut only uses the voice encoder."
+    )
+
+
 def _import_voice_encoder() -> Any:
-    """Import resemblyzer's VoiceEncoder without importing webrtcvad.
+    """Import resemblyzer's VoiceEncoder, tolerating a webrtcvad that cannot import.
 
     resemblyzer imports webrtcvad at module scope for `preprocess_wav`'s silence
     trimming, which this repo never calls. webrtcvad 2.0.10 imports `pkg_resources`,
-    which setuptools 82 removed, so a placeholder stands in while resemblyzer loads.
+    which setuptools 82 removed, so a placeholder stands in only when the real module
+    fails to import.
     """
-    placeholder = "webrtcvad" not in sys.modules
-    if placeholder:
-        sys.modules["webrtcvad"] = types.ModuleType("webrtcvad")
     try:
-        from resemblyzer import VoiceEncoder
-    finally:
-        if placeholder:
+        return _resemblyzer_voice_encoder()
+    except ImportError:
+        sys.modules["webrtcvad"] = _webrtcvad_placeholder()
+        try:
+            return _resemblyzer_voice_encoder()
+        finally:
             sys.modules.pop("webrtcvad", None)
+
+
+def _webrtcvad_placeholder() -> types.ModuleType:
+    placeholder = types.ModuleType("webrtcvad")
+    placeholder.__dict__["__getattr__"] = _unavailable_webrtcvad
+    return placeholder
+
+
+def _resemblyzer_voice_encoder() -> Any:
+    from resemblyzer import VoiceEncoder
+
     return VoiceEncoder
 
 
