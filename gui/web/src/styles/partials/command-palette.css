@@ -413,12 +413,29 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 
 .split-speakers-name-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
+  column-gap: var(--space-4);
   gap: var(--space-0) var(--space-4);
 }
 
 .split-speakers-name-grid input {
   min-block-size: var(--touch-min);
+  inline-size: 100%;
+  box-sizing: border-box;
+}
+
+.split-speakers-subhead {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.split-speakers-panel .pipeline-bar {
+  background: var(--color-border);
+}
+
+.split-speakers-panel .pipeline-bar-fill {
+  min-inline-size: var(--space-4);
 }
 
 .split-speakers-lanes,
