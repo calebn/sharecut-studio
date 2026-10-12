@@ -42,7 +42,9 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
         "editables",
     ),
     "speaker": ("torch", "speechbrain.inference.speaker"),
-    # resemblyzer cannot be imported directly (#1284), so its numba dependency stands in.
+    # In a clean unlocked venv with setuptools>=82, resemblyzer cannot be imported (#1284:
+    # webrtcvad needs the removed pkg_resources), so its numba dependency stands in. The
+    # locked env pins setuptools 81, where resemblyzer imports.
     "speaker-lite": ("numba",),
     "joinqc": ("torch", "librosa", "transformers"),
     "gui": (
@@ -62,8 +64,9 @@ EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
 }
 ALL_EXTRA = "all"
 
-# `import resemblyzer` itself fails on webrtcvad's removed `pkg_resources` import (#1284);
-# the backend loads it past that, so the probe drives the backend instead.
+# In a clean unlocked venv with setuptools>=82, `import resemblyzer` fails on webrtcvad's
+# removed `pkg_resources` import (#1284). The backend loads it past that, so the probe
+# drives the backend instead.
 EXTRA_EXERCISE: dict[str, str] = {
     "speaker-lite": (
         "import numpy as np; "
