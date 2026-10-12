@@ -13,9 +13,11 @@ the exception's ``__cause__`` chain:
 Anything else is a crash and returns ``None``: the adapter logs it on the host and the caller
 sees only ``Error executing tool <name>`` (#1178, #1182).
 
-A share guest is not the host: ``for_guest=True`` replaces each host filesystem path in a
-refusal's message with ``[path]`` (``util.redact.redact_host_paths``), so a refusal written
-for the host's own agent, such as ``raw media not found: <path>``, can reach a guest too.
+A share guest is not the host: ``for_guest=True`` uses the refusal's ``guest_message()``. By
+default that is the message with each host filesystem path replaced by ``[path]``
+(``util.redact.redact_host_paths``), so a refusal written for the host's own agent, such as
+``raw media not found: <path>``, can reach a guest too; a refusal that carries a path and a
+command (``RegistryPrivacyError``) overrides it with a fixed text.
 
 The same rule covers what a guest sees while a call fails, not only its result:
 ``guest_failure_detail`` is the hook guest progress (``install_guest_tool_progress``) uses,
@@ -32,7 +34,6 @@ from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp.util.coded_error import coded_cause
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
-from podcast_mcp.util.redact import redact_host_paths
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 
@@ -75,10 +76,7 @@ def tool_refusal(exc: BaseException, *, for_guest: bool = False) -> ToolRefusal 
     refusal = coded_cause(exc)
     if refusal is None:
         return None
-    message = str(refusal)
-    if for_guest:
-        message = redact_host_paths(message)
-    return ToolRefusal(message, refusal.code)
+    return ToolRefusal(refusal.guest_message() if for_guest else str(refusal), refusal.code)
 
 
 def guest_failure_detail(exc: BaseException) -> str | None:

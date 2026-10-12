@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable
 
@@ -9,8 +10,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from podcast_mcp.gui.routes.guest_errors import guest_http_error
 from podcast_mcp.services.collaboration import lookup_share
 from podcast_mcp.services.share_auth import require_share_access
+
+log = logging.getLogger(__name__)
 
 _REVIEW_API = re.compile(r"^/api/review/([^/]+)(?:/|$)")
 # Claude/custom connectors sometimes append /mcp to the share URL.
@@ -31,6 +35,13 @@ class ShareIdentityMiddleware(BaseHTTPMiddleware):
         except KeyError:
             # Let the route return its own 404 / capability errors.
             return await call_next(request)
+        except Exception as exc:
+            failure = guest_http_error(exc, logger=log, operation="share identity")
+            return JSONResponse(
+                status_code=failure.status_code,
+                content={"detail": failure.detail},
+                headers=failure.headers,
+            )
         try:
             require_share_access(request, row)
         except Exception as exc:

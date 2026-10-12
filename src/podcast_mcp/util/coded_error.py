@@ -9,7 +9,7 @@ guest) keep its text on the server.
 
 Every adapter reports the same message and code: the MCP tool result's
 ``structured_content.error_code`` (``mcp/tool_errors.py`` and guest remote MCP, both through
-``util/tool_refusal.py``, which redacts host paths from the message for a share guest), the CLI's
+``util/tool_refusal.py``, which reads ``guest_message()`` instead for a share guest), the CLI's
 ``Error: <message> (code <code>)`` line (``cli/busy.py``) and, on routes that map one, the
 GUI's ``X-Sharecut-Error-Code`` header. ``project_busy`` (a lock timeout) uses the same
 adapters but is not a ``CodedError``; see ``util/project_state.py``.
@@ -25,6 +25,8 @@ the builtin keep working, or give a named guard class both bases and a class-lev
 from __future__ import annotations
 
 from typing import Any
+
+from podcast_mcp.util.redact import redact_host_paths
 
 
 class CodedError(Exception):
@@ -45,6 +47,14 @@ class CodedError(Exception):
     def __str__(self) -> str:
         # The message as written, also for a KeyError subclass (KeyError quotes its arg).
         return str(self.args[0]) if self.args else ""
+
+    def guest_message(self) -> str:
+        """The message for a share guest: host paths replaced by ``[path]``.
+
+        A refusal whose host message carries a path and a command overrides this with a
+        fixed, path-free text instead of relying on the redaction.
+        """
+        return redact_host_paths(str(self))
 
     def __reduce__(self) -> tuple[Any, ...]:
         # Exception pickling re-calls ``cls(*args)``, which loses a per-raise ``code`` (it is

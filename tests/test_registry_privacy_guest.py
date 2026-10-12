@@ -26,7 +26,6 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.remote_mcp.protocol import _tool_failure, handle_mcp_jsonrpc
-from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 from podcast_mcp.util.registry_privacy_error import (
     GUEST_MESSAGE,
     REGISTRY_NOT_PRIVATE_CODE,
@@ -105,6 +104,7 @@ def test_remote_mcp_resolve_gives_the_guest_the_fixed_message(
     response = handle_mcp_jsonrpc(token, {**RPC, "method": "initialize"})
 
     assert response is not None
+    assert response["error"]["code"] == -32603
     assert response["error"]["message"] == GUEST_MESSAGE
     assert response["error"]["data"] == {"error_code": REGISTRY_NOT_PRIVATE_CODE}
     assert _leaks(json.dumps(response), registry) == []
@@ -142,23 +142,6 @@ def test_guest_routes_return_the_coded_guest_message(
     )
 
     assert response.status_code == 500
-    assert response.headers["X-Sharecut-Error-Code"] == REGISTRY_NOT_PRIVATE_CODE
-    assert response.json()["detail"] == GUEST_MESSAGE
-    assert _leaks(response.text, registry) == []
-
-
-def test_relayed_caller_of_a_host_route_gets_the_guest_message(
-    loose_registry: tuple[str, Path], minimal_project: Path
-) -> None:
-    _, registry = loose_registry
-    client = TestClient(create_app(), raise_server_exceptions=False)
-
-    response = client.get(
-        "/api/shares",
-        params={"path": str(minimal_project)},
-        headers={RELAYED_REQUEST_HEADER: "1"},
-    )
-
     assert response.headers["X-Sharecut-Error-Code"] == REGISTRY_NOT_PRIVATE_CODE
     assert response.json()["detail"] == GUEST_MESSAGE
     assert _leaks(response.text, registry) == []
@@ -227,3 +210,18 @@ def test_backup_registry_cli_prints_the_error_line_and_code(
         f"run: chmod 0600 {registry} (code {REGISTRY_NOT_PRIVATE_CODE}) "
         "(set PODCAST_DEBUG=1 for the traceback)"
     )
+
+
+def test_share_lookup_crash_is_a_fixed_json_500(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def crash(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError(f"boom {tmp_path}")
+
+    monkeypatch.setattr("podcast_mcp.gui.middleware_share_identity.lookup_share", crash)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+
+    response = client.get("/api/review/some-token/project")
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "internal error"}

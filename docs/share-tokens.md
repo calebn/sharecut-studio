@@ -153,9 +153,13 @@ POSIX mode may tighten to `0700` after ACL inspection. A main, WAL, SHM, or jour
 file with group or other access fails closed and is never repaired.
 
 On POSIX hosts a refusal is the coded error `registry_not_private`: the CLI, owner MCP tools and host GUI
-routes report one line that names the offending path and why, and a share guest sees it with
-host paths redacted. To recover from a loose file or folder, run the `chmod` it prints
-(`chmod 0600` for a main, WAL, SHM, or journal file, `chmod 0700` for the registry folder);
+routes report one line that names the offending path and why. A share guest never sees that line:
+the error holds a second, fixed message with no path and no command ("The host's sharing
+setup needs attention; ask the host to check it.", `util/registry_privacy_error.py`), and
+every guest or relayed surface reports it with the same `registry_not_private` code. To
+recover from a loose file or folder, run the `chmod` it prints (`chmod 0600` for a main,
+WAL, SHM, or journal file, `chmod 0700` for the registry folder, `chmod go-w` for a parent
+folder another user can write to);
 for a foreign owner, an ACL, or a symlink it says what is wrong and offers no command, so fix
 it yourself or point `PODCAST_SHARE_REGISTRY` at a registry you own.
 

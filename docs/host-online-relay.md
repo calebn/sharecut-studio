@@ -770,7 +770,11 @@ with private paths and path-free diagnostic secrets.
   `util.progress.install_guest_tool_progress`). A crash,
   a plain `ValueError` / `KeyError` / `TypeError`, an OS `PermissionError`, or a share whose
   project moved returns fixed text (`Error executing tool <name>`, `share not found`,
-  `internal error`) and is logged on the host. Refusal messages never embed another
+  `internal error`) and is logged on the host. The one exception is a registry that is not
+  private (`RegistryPrivacyError`): its host message names the path and a `chmod`, so the
+  guest reads a fixed, path-free `GUEST_MESSAGE` and the `registry_not_private` code
+  instead, on every guest surface, including the share-identity middleware and the remote MCP
+  resolve step (JSON-RPC `-32603` with `data.error_code`). Refusal messages never embed another
   exception's text (`HistoryRerenderError`'s render error, ffprobe's error on an upload
   stay in the log). See § Remote MCP › Routing.
 - **Rate limiting**: see § Rate limiting above. Optional **Caddy `rate_limit` module** (edge IP limits) is later ops polish if that Caddy plugin is installed; the relay IP bucket already covers MVP.

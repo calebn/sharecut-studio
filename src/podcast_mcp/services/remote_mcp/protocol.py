@@ -33,6 +33,7 @@ from podcast_mcp.services.remote_mcp.tools import (
     call_tool,
     list_tool_defs,
 )
+from podcast_mcp.util.coded_error import coded_cause
 from podcast_mcp.util.progress import (
     _mcp_progress_token,
     clear_guest_progress_context,
@@ -54,6 +55,7 @@ SUPPORTED_PROTOCOL_VERSIONS = frozenset(
 SERVER_NAME = "podcast-guest-mcp"
 SERVER_VERSION = "0.1.0"
 
+_CAPABILITY_REQUIRED_CODE = "share_capability_required"
 SHARE_NOT_FOUND = "share not found"
 INTERNAL_ERROR = "internal error"
 
@@ -90,6 +92,10 @@ def internal_error(req_id: Any) -> dict[str, Any]:
 def _is_capability_denial(exc: PermissionError) -> bool:
     # Share capability checks raise ``PermissionError(message)``, written for the guest. The
     # OS raises one with an errno and the host path it could not open: that is a crash.
+    # Any other coded refusal (``tool_refusal``) reports its own guest message and code.
+    refusal = coded_cause(exc)
+    if refusal is not None:
+        return refusal.code == _CAPABILITY_REQUIRED_CODE
     return exc.errno is None
 
 
@@ -123,10 +129,13 @@ def handle_mcp_jsonrpc(
     try:
         ctx = resolve_remote_mcp_context(token)
     except PermissionError as exc:
-        if not _is_capability_denial(exc):
+        if _is_capability_denial(exc):
+            return _error(req_id, -32003, str(exc))
+        refusal = tool_refusal(exc, for_guest=True)
+        if refusal is None:
             logger.error("Resolving a guest MCP share failed", exc_info=exc)
             return internal_error(req_id)
-        return _error(req_id, -32003, str(exc))
+        return _error(req_id, -32603, refusal.message, data={"error_code": refusal.code})
     except (KeyError, FileNotFoundError):
         # Revoked, expired, or its project moved: the message would name host paths.
         return _error(req_id, -32004, SHARE_NOT_FOUND)

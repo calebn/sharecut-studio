@@ -8,7 +8,7 @@ import typer
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService, ShareService
-from podcast_mcp.util.coded_error import describe_error
+from podcast_mcp.util.coded_error import CodedError, describe_error
 
 review_app = typer.Typer(
     help="Review mix versions and public review links (collaboration extension).",
@@ -337,6 +337,8 @@ def review_backup_registry_cmd(
     src = default_share_registry_db_path()
     try:
         out = backup_share_registry(dest)
+    except CodedError:
+        raise
     except OSError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
