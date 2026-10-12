@@ -140,8 +140,8 @@ function guestNamespace(token: string): QueueNamespace {
 
 /**
  * Records replay in insertion order, coordinated with this tab's live sends,
- * and are removed in one batch when the pass ends. Host and guest queues share
- * this policy.
+ * and are removed in one batch when the pass ends (a guest replay also removes
+ * its own row as it lands). Host and guest queues share this policy.
  */
 function queueReplaySource(ns: QueueNamespace): ReplaySource {
   const projectPath = ns.path;

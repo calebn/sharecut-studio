@@ -322,25 +322,6 @@ export async function mergeOfflineSnapshot(
   });
 }
 
-export async function clearConflicts(token: string): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  await updateStoredList<OfflineConflict, void>(
-    conflictKey(token),
-    parseConflictList,
-    () => ({ items: [], result: undefined }),
-  );
-}
-
-export async function removeConflict(
-  token: string,
-  commandId: string,
-): Promise<void> {
-  const list = (await loadConflicts(token)).filter(
-    (c) => c.command.command_id !== commandId,
-  );
-  await saveConflicts(token, list);
-}
-
 export async function loadCommandQueue(
   token: string,
 ): Promise<QueuedCommand[]> {
@@ -477,96 +458,95 @@ export async function removeQueuedCommands(
   );
 }
 
-export async function loadConflicts(token: string): Promise<OfflineConflict[]> {
-  return parseConflictList(await idbGet<unknown>(conflictKey(token)));
+async function loadConflictList(key: string): Promise<OfflineConflict[]> {
+  return parseConflictList(await idbGet<unknown>(key));
 }
 
-export async function saveConflicts(
-  token: string,
-  conflicts: OfflineConflict[],
+function updateConflictList(
+  key: string,
+  update: (conflicts: OfflineConflict[]) => OfflineConflict[],
 ): Promise<void> {
-  await idbSet(conflictKey(token), parseConflictList(conflicts));
+  return updateStoredList<OfflineConflict, void>(
+    key,
+    parseConflictList,
+    (conflicts) => ({ items: update(conflicts), result: undefined }),
+  );
 }
 
-export async function addConflict(
-  token: string,
+async function clearConflictList(key: string): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  await updateConflictList(key, () => []);
+}
+
+async function addToConflictList(
+  key: string,
   conflict: OfflineConflict,
 ): Promise<void> {
   const admitted = parseConflictList([conflict]);
-  const list = await loadConflicts(token);
-  list.push(...admitted);
-  await saveConflicts(token, list);
+  await updateConflictList(key, (conflicts) => [
+    ...conflicts.filter(
+      (existing) => existing.command.command_id !== conflict.command.command_id,
+    ),
+    ...admitted,
+  ]);
 }
 
-export async function loadHostConflicts(
+async function removeFromConflictList(
+  key: string,
+  superseded: (conflict: OfflineConflict) => boolean,
+): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  await updateConflictList(key, (conflicts) =>
+    conflicts.filter((conflict) => !superseded(conflict)),
+  );
+}
+
+export function loadConflicts(token: string): Promise<OfflineConflict[]> {
+  return loadConflictList(conflictKey(token));
+}
+
+export function clearConflicts(token: string): Promise<void> {
+  return clearConflictList(conflictKey(token));
+}
+
+export function addConflict(
+  token: string,
+  conflict: OfflineConflict,
+): Promise<void> {
+  return addToConflictList(conflictKey(token), conflict);
+}
+
+/** Drop the guest conflicts `superseded` matches, e.g. an earlier refused correction of a word just corrected (#746). */
+export function removeConflictsWhere(
+  token: string,
+  superseded: (conflict: OfflineConflict) => boolean,
+): Promise<void> {
+  return removeFromConflictList(conflictKey(token), superseded);
+}
+
+export function loadHostConflicts(
   projectPath: string,
 ): Promise<OfflineConflict[]> {
-  return parseConflictList(await idbGet<unknown>(hostConflictKey(projectPath)));
+  return loadConflictList(hostConflictKey(projectPath));
 }
 
-export async function saveHostConflicts(
-  projectPath: string,
-  conflicts: OfflineConflict[],
-): Promise<void> {
-  await idbSet(hostConflictKey(projectPath), parseConflictList(conflicts));
+export function clearHostConflicts(projectPath: string): Promise<void> {
+  return clearConflictList(hostConflictKey(projectPath));
 }
 
-export async function clearHostConflicts(projectPath: string): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  await updateStoredList<OfflineConflict, void>(
-    hostConflictKey(projectPath),
-    parseConflictList,
-    () => ({ items: [], result: undefined }),
-  );
-}
-
-export async function addHostConflict(
+export function addHostConflict(
   projectPath: string,
   conflict: OfflineConflict,
 ): Promise<void> {
-  const admitted = parseConflictList([conflict]);
-  await updateStoredList<OfflineConflict, void>(
-    hostConflictKey(projectPath),
-    parseConflictList,
-    (list) => ({
-      items: [
-        ...list.filter(
-          (existing) =>
-            existing.command.command_id !== conflict.command.command_id,
-        ),
-        ...admitted,
-      ],
-      result: undefined,
-    }),
-  );
+  return addToConflictList(hostConflictKey(projectPath), conflict);
 }
 
 /** Drop the host conflicts `superseded` matches, e.g. an earlier refused correction of a word just corrected (#746). */
-export async function removeHostConflictsWhere(
+export function removeHostConflictsWhere(
   projectPath: string,
   superseded: (conflict: OfflineConflict) => boolean,
 ): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  await updateStoredList<OfflineConflict, void>(
-    hostConflictKey(projectPath),
-    parseConflictList,
-    (list) => ({
-      items: list.filter((conflict) => !superseded(conflict)),
-      result: undefined,
-    }),
-  );
-}
-
-/** Guest-token twin of `removeHostConflictsWhere`. */
-export async function removeConflictsWhere(
-  token: string,
-  superseded: (conflict: OfflineConflict) => boolean,
-): Promise<void> {
-  const list = await loadConflicts(token);
-  const kept = list.filter((conflict) => !superseded(conflict));
-  if (kept.length !== list.length) {
-    await saveConflicts(token, kept);
-  }
+  return removeFromConflictList(hostConflictKey(projectPath), superseded);
 }
 
 function recordParticipantKey(token: string): string {

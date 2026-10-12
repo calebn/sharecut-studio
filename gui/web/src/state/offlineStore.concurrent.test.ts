@@ -1,8 +1,15 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  addConflict,
+  addHostConflict,
   enqueueCommand,
   loadCommandQueue,
+  loadConflicts,
+  loadHostConflicts,
+  type OfflineConflict,
   type QueuedCommand,
+  removeConflictsWhere,
+  removeHostConflictsWhere,
   removeQueuedCommand,
   saveCommandQueue,
 } from "./offlineStore";
@@ -116,3 +123,64 @@ it("keeps a prior client's rows ahead of a new client's row admitted during thei
     (await loadCommandQueue("guest")).map((command) => command.command_id),
   ).toEqual(["prior-9", "new-1"]);
 });
+
+const refused = (id: string, label = id): OfflineConflict => ({
+  command: {
+    client_id: "guest",
+    command_id: id,
+    client_seq: 1,
+    type: "SetTrackMeta",
+    payload: { label },
+    created_at: 1,
+  },
+  reason: `refused ${id}`,
+});
+
+const ids = (conflicts: OfflineConflict[]) =>
+  conflicts.map((conflict) => conflict.command.command_id);
+
+const namespaces = [
+  {
+    name: "guest",
+    add: (conflict: OfflineConflict) => addConflict("ns", conflict),
+    removeWhere: (p: (conflict: OfflineConflict) => boolean) =>
+      removeConflictsWhere("ns", p),
+    load: () => loadConflicts("ns"),
+  },
+  {
+    name: "host",
+    add: (conflict: OfflineConflict) => addHostConflict("ns", conflict),
+    removeWhere: (p: (conflict: OfflineConflict) => boolean) =>
+      removeHostConflictsWhere("ns", p),
+    load: () => loadHostConflicts("ns"),
+  },
+];
+
+describe.each(namespaces)(
+  "$name conflicts list",
+  ({ add, removeWhere, load }) => {
+    it("keeps a refused edit added while a superseded entry is removed", async () => {
+      stubSerializedIndexedDb();
+      await add(refused("old-correction"));
+      await Promise.all([
+        removeWhere((c) => c.command.command_id === "old-correction"),
+        add(refused("new-409")),
+      ]);
+      expect(ids(await load())).toEqual(["new-409"]);
+    });
+
+    it("keeps both entries of two concurrent adds and one of a repeated command", async () => {
+      stubSerializedIndexedDb();
+      await Promise.all([
+        add(refused("first")),
+        add(refused("second")),
+        add(refused("second", "again")),
+      ]);
+      const kept = await load();
+      expect(ids(kept).sort()).toEqual(["first", "second"]);
+      expect(
+        kept.find((c) => c.command.command_id === "second")?.command.payload,
+      ).toEqual({ label: "again" });
+    });
+  },
+);
