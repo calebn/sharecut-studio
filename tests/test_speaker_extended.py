@@ -945,6 +945,19 @@ def test_voice_encoder_import_keeps_an_already_loaded_webrtcvad(monkeypatch, tmp
     assert sys.modules["webrtcvad"] is loaded
 
 
+def test_voice_encoder_import_reports_resemblyzer_missing(monkeypatch, tmp_path):
+    import sys
+
+    _isolate_import_state(monkeypatch, tmp_path)
+    monkeypatch.setitem(sys.modules, "resemblyzer", None)
+    from podcast_mcp.engines.speaker_id import _import_voice_encoder
+
+    with pytest.raises(ImportError) as caught:
+        _import_voice_encoder()
+    assert caught.value.name == "resemblyzer"
+    assert "webrtcvad" not in sys.modules
+
+
 def test_voice_encoder_import_does_not_retry_with_placeholder_for_other_modules(
     monkeypatch, tmp_path
 ):
