@@ -2418,7 +2418,7 @@ hidden detent range. The floating lifetime case removes a genuinely long named
 track through the production confirmation, then closes a compact selection while
 that same guarded card remains clipped. Browser RED receipts precede repairs.
 
-Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper admits the actual compact Expand control before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. The original Pending ruler click assertions remain unchanged.
+Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper admits the actual compact Expand control before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. Native horizontal wheel readiness waits for the intended local `x300,y12` coordinate to enter the canonical visible bounds before evaluating ruler permission. The original Pending ruler click assertions remain unchanged.
 
 The phone navigation focus matrix traverses every Primary navigation button
 with native Tab at 16px and 32px root sizes in light and dark themes. It runs
