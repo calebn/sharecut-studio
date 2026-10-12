@@ -304,9 +304,15 @@ timer or remount Undo. Closing or stowing a compact
 inspector returns feedback to the floating host, outside the inert rail.
 An intentionally focused Undo or Dismiss keeps its native identity when the
 phone and tablet inspector hosts remount. Sheet entry focus and the volume-envelope
-view's first-entry focus yield to that action. Dismissing it, removing Undo, or disabling it returns focus to
-the current usable inspector Close. A sheet that remounts behind an open modal does not take focus from it. Real selection,
-project, or outside-control navigation cancels the remembered action.
+view's first-entry focus yield to that action. Dismissing it, or this tab's own
+undo removing or disabling Undo, returns focus to the current usable inspector
+Close; Undo removed by another client's edit leaves focus on the page body
+(#1291). A sheet that remounts behind an open modal stays below it and does not
+take focus from it; when that modal closes and its own return target is gone,
+the sheet's Close takes focus. A host move that drops a focused action without
+a blur, such as into a modal-covered or stowed host, resumes the toast timer.
+Real selection, project, or outside-control navigation cancels the remembered
+action.
 Other workflows retain the existing floating dock. On phones
 `feedback/toastDock.ts` measures bottom chrome and the latest pressed control;
 its full-sheet fallback can cover scrolling content in those other workflows.

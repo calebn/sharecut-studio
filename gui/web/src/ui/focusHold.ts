@@ -3,13 +3,15 @@ type FocusHold = (document: Document) => boolean;
 const holds = new Set<FocusHold>();
 
 /**
- * Lets a feature module mark focus it must keep (a toast action the user
- * moved to on purpose) so entry focus in `ui/` and views yields to it.
- * Returns the unregister function.
+ * Marks focus that entry focus in `ui/` and views must leave alone: a hold
+ * answers true while the user is on a control they chose on purpose. Each
+ * registration is its own entry, so unregistering one never drops another
+ * that shares its predicate. Returns the unregister function.
  */
 export function registerFocusHold(hold: FocusHold): () => void {
-  holds.add(hold);
-  return () => holds.delete(hold);
+  const entry: FocusHold = (document) => hold(document);
+  holds.add(entry);
+  return () => holds.delete(entry);
 }
 
 export function focusHeld(document: Document): boolean {
