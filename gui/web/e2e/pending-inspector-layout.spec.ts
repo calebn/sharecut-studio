@@ -193,7 +193,7 @@ test.describe("Pending inspector layout", () => {
       recovery.getByRole("button", { name: "Waive with reason" }),
     ).toBeAttached();
 
-    await page.setViewportSize({ width: 1280, height: 360 });
+    await page.setViewportSize({ width: 1280, height: 480 });
     await expect
       .poll(() =>
         actionbar.evaluate((panel) => panel.scrollHeight > panel.clientHeight),

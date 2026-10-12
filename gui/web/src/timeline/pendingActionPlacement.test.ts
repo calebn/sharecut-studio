@@ -9,7 +9,7 @@ function availablePlacement(
 }
 
 describe("placePendingActionbar", () => {
-  const panel = { width: 240, height: 120 };
+  const panel = { width: 240, height: 120, reach: 120 };
   const viewport = { width: 390, height: 844 };
 
   it("places the actions below the lane without covering its handles", () => {
@@ -43,7 +43,7 @@ describe("placePendingActionbar", () => {
     const position = availablePlacement(
       placePendingActionbar(
         { left: 120, top: 400, bottom: 500, width: 14 },
-        { width: 240, height: 400 },
+        { width: 240, height: 400, reach: 82 },
         viewport,
         8,
       ),
@@ -56,7 +56,7 @@ describe("placePendingActionbar", () => {
     const position = availablePlacement(
       placePendingActionbar(
         { left: 120, top: 400, bottom: 500, width: 14 },
-        { width: 240, height: 700 },
+        { width: 240, height: 700, reach: 82 },
         viewport,
         8,
       ),
@@ -99,7 +99,7 @@ describe("placePendingActionbar", () => {
     const position = availablePlacement(
       placePendingActionbar(
         { left: 120, top: 700, bottom: 800, width: 14 },
-        { width: 240, height: 600 },
+        { width: 240, height: 600, reach: 82 },
         withChrome,
         8,
       ),
@@ -112,7 +112,7 @@ describe("placePendingActionbar", () => {
     const position = availablePlacement(
       placePendingActionbar(
         { left: 120, top: 150, bottom: 240, width: 14 },
-        { width: 240, height: 600 },
+        { width: 240, height: 600, reach: 82 },
         { ...viewport, top: 140 },
         8,
       ),
@@ -124,18 +124,29 @@ describe("placePendingActionbar", () => {
     expect(
       placePendingActionbar(
         { left: 600, top: 200, bottom: 260, width: 14 },
-        { width: 240, height: 82 },
+        { width: 240, height: 82, reach: 82 },
         { width: 1280, height: 212, top: 153 },
         8,
       ),
     ).toBeNull();
   });
 
+  it("caps a tall card whose actions fit between the ruler and the bottom panel", () => {
+    expect(
+      placePendingActionbar(
+        { left: 600, top: 200, bottom: 260, width: 14 },
+        { width: 240, height: 600, reach: 82 },
+        { width: 1280, height: 400, top: 153 },
+        8,
+      ),
+    ).toEqual({ left: 487, top: 268, maxHeight: 124 });
+  });
+
   it("still places a card that fits between the ruler and the bottom panel", () => {
     expect(
       placePendingActionbar(
         { left: 600, top: 200, bottom: 260, width: 14 },
-        { width: 240, height: 82 },
+        { width: 240, height: 82, reach: 82 },
         { width: 1280, height: 400, top: 153 },
         8,
       ),
