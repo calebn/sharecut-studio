@@ -108,10 +108,22 @@ for (const viewport of [
                   await page.mouse.move(area.bounds.right - 8, point.y);
                   await page.mouse.wheel(180, 0);
                   await expect
-                    .poll(() =>
-                      timelineScroll.evaluate((element) => element.scrollLeft),
-                    )
-                    .toBeGreaterThan(scrollLeftBefore);
+                    .poll(async () => {
+                      const ruler = await controlGeometry(slider);
+                      const area = ruler.measured[0].visibleArea;
+                      const point = {
+                        x: ruler.rect.left + 300,
+                        y: ruler.rect.top + 12,
+                      };
+                      return (
+                        area.state === "positive" &&
+                        point.x >= area.bounds.left &&
+                        point.x <= area.bounds.right &&
+                        point.y >= area.bounds.top &&
+                        point.y <= area.bounds.bottom
+                      );
+                    })
+                    .toBe(true);
                   ruler = await controlGeometry(slider);
                   area = ruler.measured[0].visibleArea;
                   point = {
