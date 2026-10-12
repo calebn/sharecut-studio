@@ -116,6 +116,17 @@ function rootRem(): number {
   );
 }
 
+/** Viewport y where the sticky ruler and marker lane end; 0 when neither shows. */
+function timelineChromeBottom(): number {
+  return Math.max(
+    0,
+    ...[".time-ruler", ".marker-lane"].flatMap((selector) => {
+      const chrome = document.querySelector(selector);
+      return chrome ? [chrome.getBoundingClientRect().bottom] : [];
+    }),
+  );
+}
+
 function touchTargetPx(): number {
   const targetRem = Number.parseFloat(
     getComputedStyle(document.documentElement).getPropertyValue("--touch-min"),
@@ -521,6 +532,7 @@ function PendingEditRegion({
             {
               width: window.innerWidth,
               height: sheetTop ?? window.innerHeight,
+              top: timelineChromeBottom(),
             },
             VIEWPORT_GUTTER_REM * rem,
           );

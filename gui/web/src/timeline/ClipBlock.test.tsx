@@ -2078,7 +2078,7 @@ describe("ClipBlock waveform", () => {
       />,
     );
     const block = container.querySelector(".clip-block") as HTMLElement;
-    expect(block.title).toBe("Select Dialogue clip at 00:01.234, 2s");
+    expect(block.title).toBe("Select Dialogue clip at 00:01.235, 2s");
   });
 
   describe("join roll", () => {
