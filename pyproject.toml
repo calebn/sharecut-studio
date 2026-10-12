@@ -19,7 +19,7 @@ dependencies = [
     # Imported directly by the opt-in forced aligner (#714); faster-whisper already
     # installs both, so this only makes the dependency explicit (deptry DEP003).
     "onnxruntime>=1.17.0",
-    "huggingface-hub>=0.23.0",
+    "huggingface-hub>=2.0",
     "numpy>=1.26.0",
     "rich>=13.7.0",
     "coolname>=5.0.0",

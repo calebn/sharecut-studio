@@ -2100,7 +2100,7 @@ requires-dist = [
     { name = "hatchling", marker = "extra == 'dev'", specifier = ">=1.27.0" },
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27.0" },
     { name = "httpx", marker = "extra == 'gui'", specifier = ">=0.27.0" },
-    { name = "huggingface-hub", specifier = ">=0.23.0" },
+    { name = "huggingface-hub", specifier = ">=2.0" },
     { name = "librosa", marker = "extra == 'all'", specifier = ">=0.10.0" },
     { name = "librosa", marker = "extra == 'joinqc'", specifier = ">=0.10.0" },
     { name = "mcp", specifier = ">=2.2,<3" },

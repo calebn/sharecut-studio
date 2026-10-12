@@ -155,7 +155,7 @@ def _fake_hub(
 
 
 def _hub_error(cls, status=404):
-    import httpx
+    from huggingface_hub.utils import httpx
 
     request = httpx.Request("GET", "https://huggingface.co/api/models/x/revision/y")
     return cls(f"{cls.__name__} for url", response=httpx.Response(status, request=request))
@@ -216,7 +216,7 @@ def test_verify_candidate_reports_hub_errors_by_kind(error_name, status, wording
 
 
 def test_verify_candidate_reports_network_failures_without_aborting() -> None:
-    import httpx
+    from huggingface_hub.utils import httpx
 
     candidate = bfa.load_candidates(labels=["onnx-base"])[0]
     request = httpx.Request("GET", "https://huggingface.co/api/models/x")
