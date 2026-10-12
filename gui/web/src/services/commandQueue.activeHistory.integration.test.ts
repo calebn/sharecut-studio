@@ -7,7 +7,9 @@ const storage = vi.hoisted(() => ({
 }));
 vi.mock("../state/offlineStore", () => ({
   enqueueCommand: async (_: string, command: (typeof storage.rows)[number]) => {
+    const hadPredecessor = storage.rows.length > 0;
     storage.rows.push(command);
+    return { persisted: true, hadPredecessor };
   },
   enqueueHostCommand: async (
     _: string,

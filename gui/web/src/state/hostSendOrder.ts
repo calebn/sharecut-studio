@@ -1,11 +1,11 @@
 /**
- * Live host sends started by this tab, per project.
+ * Live sends started by this tab, per project key (host path or `share:{token}`).
  *
- * A live command is persisted to the host queue before it is POSTed and leaves
+ * A live command is persisted to its queue before it is POSTed and leaves
  * it only after the response. A second live command therefore sees the first
  * as a queue predecessor even though nothing is offline. This registry lets it
  * tell its own tab's in-flight send apart from real leftovers.
- * It also publishes the host drain run in progress, which a live command waits for as well.
+ * It also publishes the drain run in progress (host or guest), which a live command waits for as well.
  * Per tab only: another tab's in-flight record looks like an offline leftover, and the caller requests a drain.
  */
 interface Send {
@@ -30,7 +30,7 @@ const landed = new Map<
 >();
 
 /**
- * Publish the host drain run in progress (`requestHostDrain`). Its replays are
+ * Publish the drain run in progress (`requestHostDrain`, `requestGuestDrain`). Its replays are
  * not live sends, and it removes replayed records only when a pass ends, so a
  * live command queued behind them waits for the run too. `done` never rejects.
  */

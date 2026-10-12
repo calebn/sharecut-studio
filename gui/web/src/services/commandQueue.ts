@@ -71,7 +71,7 @@ export function isHistoryCommand(type: string): type is HistoryCommandType {
   return type === "UndoHistory" || type === "RedoHistory";
 }
 
-interface HostCommandBody {
+interface DocumentCommandBody {
   scope: DocumentScope;
   command_id: string;
   client_seq: number;
@@ -431,94 +431,113 @@ async function submitCommand(
     ...(opts.structural_mode ? { structural_mode: opts.structural_mode } : {}),
   };
 
-  if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const structural =
-      type === "SplitAtTime" ||
-      type === "DeleteClip" ||
-      type === "EditSelectedRange";
-    const offline =
-      opts.offline === true ||
-      (typeof navigator !== "undefined" && navigator.onLine === false);
-    const structural_mode =
-      opts.structural_mode ?? (offline && structural ? "propose" : undefined);
-
-    const { enqueueCommand, removeQueuedCommand } = await import(
-      "../state/offlineStore"
+  const send = opts.replaying ? null : beginHostSend(projectPath, command_id);
+  try {
+    if (isShareProjectKey(projectPath)) {
+      return await submitGuestDocumentCommand(
+        projectPath,
+        { scope, command_id, client_seq, type, payload, bodyBase },
+        opts,
+        send,
+      );
+    }
+    return await submitHostDocumentCommand(
+      projectPath,
+      { scope, command_id, client_seq, type, payload, bodyBase },
+      opts,
+      send,
     );
-    await enqueueCommand(token, {
-      command_id,
-      client_id: bodyBase.client_id,
-      client_seq,
-      type,
-      payload,
-      structural_mode,
-      created_at: Date.now(),
-    });
-
-    let reply: DocumentCommandReply;
-    try {
-      reply = await postGuestDocumentCommand(token, {
-        ...bodyBase,
-        role: "guest",
-        ...(structural_mode ? { structural_mode } : {}),
-      });
-    } catch (err) {
-      // The request never reached the server, or its reply did not arrive in
-      // time. The command stays queued and replays on reconnect, so the
-      // caller keeps its optimistic value.
-      if (opts.replaying) {
-        throw err;
-      }
-      return queuedResult(command_id, client_seq);
-    }
-    if (!reply.ok) {
-      const failure = reply.failure;
-      if (opts.replaying && isRetryLater(failure)) {
-        // Nobody awaits a replay: keep it queued for the next drain.
-        throw failure;
-      }
-      if (reply.status === 409 || opts.replaying) {
-        // Record it, so the banner says why the edit was dropped.
-        const { addConflict } = await import("../state/offlineStore");
-        await addConflict(token, {
-          command: { ...bodyBase, structural_mode, created_at: Date.now() },
-          reason: failure.message,
-        });
-      }
-      // The caller reports a live refusal now. Replaying it later would
-      // overwrite newer edits, as on the host. The drain
-      // (`replayQueuedCommands`) skips past a permanent rejection, so it
-      // must be dequeued before this throws.
-      await removeQueuedCommand(token, command_id);
-      throw failure;
-    }
-    try {
-      await removeQueuedCommand(token, command_id);
-    } catch {}
-    const data = reply.data;
-    if (useDawStore.getState().projectPath === projectPath) {
-      applyDocumentResult(data, scope);
-    }
-    return data;
+  } finally {
+    send?.finish();
   }
-  const hostBody: HostCommandBody = {
-    scope,
+}
+
+async function submitGuestDocumentCommand(
+  projectPath: string,
+  body: DocumentCommandBody,
+  opts: ResolvedCommandOptions,
+  send: HostSend | null,
+): Promise<Record<string, unknown>> {
+  const { command_id, client_seq, type, payload, bodyBase } = body;
+  const token = shareTokenFromKey(projectPath)!;
+  const structural =
+    type === "SplitAtTime" ||
+    type === "DeleteClip" ||
+    type === "EditSelectedRange";
+  const offline =
+    opts.offline === true ||
+    (typeof navigator !== "undefined" && navigator.onLine === false);
+  const structural_mode =
+    opts.structural_mode ?? (offline && structural ? "propose" : undefined);
+
+  const guestQueue = await import("../state/offlineStore");
+  const admitted = await guestQueue.enqueueCommand(token, {
     command_id,
+    client_id: bodyBase.client_id,
     client_seq,
     type,
     payload,
-    bodyBase,
-  };
-  if (opts.replaying) {
-    return submitHostDocumentCommand(projectPath, hostBody, opts, null);
+    structural_mode,
+    created_at: Date.now(),
+  });
+  if (admitted.hadPredecessor && !opts.replaying) {
+    const head = send
+      ? await queueHeadAfterPriorSend(
+          () => guestQueue.loadCommandQueue(token),
+          command_id,
+          send,
+        )
+      : null;
+    if (!head) {
+      requestGuestDrainLazy(token);
+      return queuedResult(command_id, client_seq);
+    }
   }
-  const send = beginHostSend(projectPath, command_id);
+
+  let reply: DocumentCommandReply;
   try {
-    return await submitHostDocumentCommand(projectPath, hostBody, opts, send);
-  } finally {
-    send.finish();
+    reply = await postGuestDocumentCommand(token, {
+      ...bodyBase,
+      role: "guest",
+      ...(structural_mode ? { structural_mode } : {}),
+    });
+  } catch (err) {
+    // The request never reached the server, or its reply did not arrive in
+    // time. The command stays queued and replays on reconnect, so the
+    // caller keeps its optimistic value.
+    if (opts.replaying) {
+      throw err;
+    }
+    return queuedResult(command_id, client_seq);
   }
+  if (!reply.ok) {
+    const failure = reply.failure;
+    if (opts.replaying && isRetryLater(failure)) {
+      // Nobody awaits a replay: keep it queued for the next drain.
+      throw failure;
+    }
+    if (reply.status === 409 || opts.replaying) {
+      // Record it, so the banner says why the edit was dropped.
+      await guestQueue.addConflict(token, {
+        command: { ...bodyBase, structural_mode, created_at: Date.now() },
+        reason: failure.message,
+      });
+    }
+    // The caller reports a live refusal now. Replaying it later would
+    // overwrite newer edits, as on the host. The drain
+    // (`replayQueuedCommands`) skips past a permanent rejection, so it
+    // must be dequeued before this throws.
+    await guestQueue.removeQueuedCommand(token, command_id);
+    throw failure;
+  }
+  try {
+    await guestQueue.removeQueuedCommand(token, command_id);
+  } catch {}
+  const data = reply.data;
+  if (useDawStore.getState().projectPath === projectPath) {
+    applyDocumentResult(data, body.scope);
+  }
+  return data;
 }
 
 async function queueHeadAfterPriorSend(
@@ -547,7 +566,7 @@ async function queueHeadAfterPriorSend(
 
 async function submitHostDocumentCommand(
   projectPath: string,
-  body: HostCommandBody,
+  body: DocumentCommandBody,
   opts: ResolvedCommandOptions,
   send: HostSend | null,
 ): Promise<Record<string, unknown>> {

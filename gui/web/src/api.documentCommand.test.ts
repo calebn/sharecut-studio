@@ -46,6 +46,10 @@ describe("host document command queue", () => {
       persisted: true,
       hadPredecessor: false,
     });
+    enqueueCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: false,
+    });
     removeHostQueuedCommand.mockResolvedValue(undefined);
     addHostConflict.mockResolvedValue(undefined);
   });

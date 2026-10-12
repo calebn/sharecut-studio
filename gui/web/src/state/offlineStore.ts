@@ -17,6 +17,12 @@ export interface QueuedCommand {
   created_at: number;
 }
 
+/** What admitting a command to a persisted queue found: stored, and whether older rows precede it. */
+export interface QueueAdmission {
+  persisted: boolean;
+  hadPredecessor: boolean;
+}
+
 export interface OfflineConflict {
   command: QueuedCommand;
   reason: string;
@@ -352,14 +358,17 @@ export async function saveCommandQueue(
  * Append `cmd` to the guest queue, or replace the row with its `command_id`
  * where it stands: a replay re-admits the row it is sending, and moving it to
  * the tail would reorder it behind later edits if the pass stops there.
+ * `hadPredecessor` tells a live send whether older rows are queued ahead.
  */
 export async function enqueueCommand(
   token: string,
   cmd: QueuedCommand,
-): Promise<void> {
+): Promise<QueueAdmission> {
   cmd = parseQueuedCommand(cmd);
-  if (typeof indexedDB === "undefined") return;
-  await updateStoredList<QueuedCommand, void>(
+  if (typeof indexedDB === "undefined") {
+    return { persisted: false, hadPredecessor: false };
+  }
+  return updateStoredList<QueuedCommand, QueueAdmission>(
     queueKey(token),
     parseCommandList,
     (queue) => {
@@ -371,7 +380,10 @@ export async function enqueueCommand(
           index < 0
             ? [...queue, cmd]
             : queue.map((existing, at) => (at === index ? cmd : existing)),
-        result: undefined,
+        result: {
+          persisted: true,
+          hadPredecessor: index < 0 ? queue.length > 0 : index > 0,
+        },
       };
     },
   );
@@ -393,7 +405,7 @@ export async function enqueueHostCommand(
   projectPath: string,
   cmd: QueuedCommand,
   onPersistenceFailure?: () => void,
-): Promise<{ persisted: boolean; hadPredecessor: boolean }> {
+): Promise<QueueAdmission> {
   cmd = parseQueuedCommand(cmd);
   if (typeof indexedDB === "undefined") {
     return { persisted: false, hadPredecessor: false };
