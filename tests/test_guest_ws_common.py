@@ -40,12 +40,14 @@ class _Ws:
         self.closed: list[tuple[int, str]] = []
         self.sent: list[dict] = []
         self.headers: dict[str, str] = {}
+        self.close_event = asyncio.Event()
 
     async def accept(self) -> None:
         self.accepted = True
 
     async def close(self, code: int, reason: str) -> None:
         self.closed.append((code, reason))
+        self.close_event.set()
 
     async def send_json(self, payload: dict) -> None:
         self.sent.append(payload)
@@ -124,7 +126,7 @@ async def test_start_accepts_and_rechecks(monkeypatch):
     assert conn is not None
     guard = await conn.start(lambda: False)
     assert ws.accepted is True
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(ws.close_event.wait(), timeout=2)
     assert (4403, "share revoked or expired") in ws.closed
     assert guard.closed is True
     await conn.stop_tasks()
