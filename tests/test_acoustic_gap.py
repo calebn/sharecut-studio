@@ -223,6 +223,15 @@ def test_a_run_cut_by_a_seam_is_not_reported_short() -> None:
     assert run.end - run.start >= 1.1
 
 
+def test_a_burst_straddling_a_seam_is_reported_whole_not_cut_at_the_seam() -> None:
+    cache = _cache(_bursts(20.0, [6.2], length=0.5))
+
+    (run,) = find_voiced_gap_runs(cache, 0.4, 19.6)
+
+    assert abs((run.end - run.start) - 0.5) <= 0.04
+    assert 6.15 <= run.start and run.end <= 6.75
+
+
 def test_a_long_gap_is_judged_window_by_window_so_hum_in_one_does_not_hide_a_burst_in_another() -> (
     None
 ):
