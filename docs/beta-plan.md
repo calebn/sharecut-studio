@@ -153,6 +153,18 @@ Release candidate target: 2026-11-03 (set by the owner on 2026-10-13; moved
 from 2026-10-27 for an owner vacation week), reviewed weekly; at each review, cut scope (a journey or a shell) rather than
 lower a bar.
 
+### Schedule
+
+The owner is unavailable from 2026-10-28 to 2026-11-04.
+
+| Date | What happens |
+| --- | --- |
+| 2026-10-20 and 2026-10-27 | Weekly reviews. |
+| By 2026-10-27 | The steps that need the owner happen. These are the #960 device and listening session (around 2026-10-22), the #962 signing and installers, and a release candidate dry run in which the owner edits one real episode end to end. |
+| 2026-10-28 to 2026-11-03 | Stabilize, run by agents. Fixes only. File new issues only for regressions and S1 defects. Agents run the journey proofs and prepare the known-issues list for the owner. |
+| 2026-11-03 | Release candidate target. |
+| 2026-11-05 | The owner signs off the release candidate. |
+
 The owner sources the holdout recording from their own catalogue (#1273).
 
 ## Convergence
