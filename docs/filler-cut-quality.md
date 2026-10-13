@@ -692,6 +692,7 @@ evidence:
 - #1365 owner: these are "judgement calls that should just be brought up or flagged during editing", with probably no strict rule that gets them right
 - Owner (2026-10-13): keeping laughter is usually good, though at times it can make another speaker hard to hear
 - Owner (2026-10-13) accepted common podcast-editing practice as the basis without citations: keep laughter, lower a laugh that covers another speaker on that speaker's own track, lower or shorten breaths rather than remove them all, cut false starts, keep some hesitations for rhythm
+- Owner (2026-10-13): a user who wants a quick result applies the suggested actions in bulk instead of reviewing each one, and can change any single decision later
 enforcement: pending #1434
 -->
 
@@ -704,7 +705,7 @@ suggested action:
 | **Cut** | Removes the sound under the filler rules above (ripple or mute). |
 | **Shorten** | Removes part of a long sound and keeps its start, under the same edge rules. |
 | **Lower** | Turns the sound down on its own track for its span and leaves timing alone. |
-| **Leave** | Keeps the sound. The proposal stays visible with its label so the editor can choose another action. |
+| **Leave** | Keeps the sound. It stays listed with its label so the editor can choose another action. |
 
 Default action by kind:
 
@@ -723,9 +724,15 @@ The rules that follow from it:
 1. **Detection labels and suggests. It never hides a proposal.** A wrong label
    then costs one click instead of a missed cut. On the #1365 clips a detector
    that hid laughs would have hidden three sounds the owner wanted cut.
-2. **The editor decides.** Every non-speech suggestion other than a cut the
-   filler rules already apply waits for review. Leave and Lower are not counted
-   as Apply eligible.
+2. **The editor decides, one at a time or all at once.** Each suggestion can
+   be reviewed alone. One bulk action, **Apply suggested actions**, applies
+   every pending suggestion's own action in one undoable step: cuts and
+   shortens are cut, lowers are lowered, and leaves are marked kept. A
+   suggestion the speech guard holds for review (**Decision: A guard-blocked
+   filler waits for review**) stays pending, because applying it would cut
+   another speaker's words; the result says how many stayed. Every applied
+   action stays editable afterward: the editor can change one sound's action
+   (for example Cut to Leave) without undoing the rest.
 3. **A laugh over someone else is a level problem.** Each speaker has a track,
    so lowering the laugh keeps both the laugh and the other speaker's words.
    Lower reuses the per-track attenuation bleed handling already uses.
