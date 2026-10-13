@@ -478,10 +478,19 @@ def test_a_peer_with_no_audio_never_speaks(tmp_path: Path) -> None:
         assert _speaking(project, cached=True) == (), gain
 
 
-def test_a_lone_peer_with_no_contrast_and_nothing_to_read_it_against_speaks(
+def test_a_flat_peer_as_loud_as_the_owner_with_nothing_to_read_it_against_is_no_voice(
     tmp_path: Path,
 ) -> None:
-    """The guard asks, never cuts through a peer it cannot rule out."""
+    host = ("host", (np.random.default_rng(3).normal(0, 0.001, SECONDS * RATE), []))
+    guest = ("guest", (np.random.default_rng(4).normal(0, 0.001, SECONDS * RATE), []))
+    project = _project(tmp_path, 0.0, gated=True, tracks=(host, guest))
+    assert _speaking(project, cached=False) == ()
+
+
+def test_a_flat_peer_over_a_silent_owner_with_nothing_to_read_it_against_speaks(
+    tmp_path: Path,
+) -> None:
+    """A flat peer over a silent owner is the louder one, at any recording level."""
     host_silent = ("host", (np.zeros(SECONDS * RATE), []))
     guest = ("guest", (np.random.default_rng(3).normal(0, 0.001, SECONDS * RATE), []))
     project = _project(tmp_path, 0.0, gated=True, tracks=(host_silent, guest))

@@ -552,16 +552,15 @@ def _voice_reach_db(
 
 def _peer_voice_in_mean(
     project: EpisodeProject, peer_track_id: str, rms: float, caches: TrackRmsCacheSet | None
-) -> bool:
+) -> bool | None:
     """Whether a peer's whole-span mean level ``rms`` (recorded dB) holds its voice.
 
     Where no frame-by-frame calibration can be made, the span's mean is held to the level
     the peer's voice reaches (:func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`):
     a peer with no live audio never speaks. A peer whose loudest frames show no contrast with
     its room has no voice level of its own to read, so it is held to the voice level of the
-    session's other tracks (the median of theirs), at any recording level. With no track in
-    the session to read it against, a live peer counts as speaking: the guard asks, never
-    cuts through a peer it cannot rule out.
+    session's other tracks (the median of theirs), at any recording level. ``None`` when the
+    session has no track to read it against.
     """
     reach = _voice_reach_db(project, peer_track_id, caches)
     if reach == -math.inf:
@@ -570,7 +569,9 @@ def _peer_voice_in_mean(
             for tid in dialogue_track_ids(project)
             if math.isfinite(r := _voice_reach_db(project, tid, caches))
         ]
-        reach = float(np.median(session)) if session else -math.inf
+        if not session:
+            return None
+        reach = float(np.median(session))
     return rms >= reach
 
 
@@ -666,8 +667,11 @@ def measure_peer_speech(
                 else None,
             )
             if calibrated is None:
-                calibrated = _peer_voice_in_mean(project, tid, rms, caches) and (
-                    span_owner is None or span_owner - rms < dominance
+                voiced = _peer_voice_in_mean(project, tid, rms, caches)
+                calibrated = (
+                    span_owner is None or rms - span_owner >= dominance
+                    if voiced is None
+                    else voiced and (span_owner is None or span_owner - rms < dominance)
                 )
             speaks |= calibrated
         if speaks:
