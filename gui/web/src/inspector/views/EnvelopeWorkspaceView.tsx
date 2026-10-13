@@ -43,6 +43,8 @@ export type EnvelopeWorkspaceViewProps = {
   onDelete: () => void;
   onReload: () => void;
   onDone: () => void;
+  /** Touch input: opening the form must not raise the software keyboard. */
+  touch?: boolean;
 };
 
 export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
@@ -58,6 +60,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   } = props;
   const id = useId();
   const workspace = useRef<HTMLDivElement>(null);
+  const timeInput = useRef<HTMLInputElement>(null);
   const formHeading = useRef<HTMLHeadingElement>(null);
   const select = useRef<HTMLSelectElement>(null);
   const add = useRef<HTMLButtonElement>(null);
@@ -71,7 +74,9 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       initialFocus.current = true;
       focusAndReveal(
         formKind
-          ? formHeading.current
+          ? props.touch
+            ? formHeading.current
+            : timeInput.current
           : points.length
             ? select.current
             : add.current,
@@ -117,17 +122,6 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       props.onCancel();
     }
   };
-  const cancel = useRef(cancelOnEscape);
-  cancel.current = cancelOnEscape;
-  const hasForm = form != null;
-  useEffect(() => {
-    const heading = formHeading.current;
-    if (!hasForm || !heading) return;
-    const onKeyDown = (event: globalThis.KeyboardEvent) =>
-      cancel.current(event);
-    heading.addEventListener("keydown", onKeyDown);
-    return () => heading.removeEventListener("keydown", onKeyDown);
-  }, [hasForm]);
   const selected = points.find((point) => point.id === pointId);
   return (
     <ModifierInspector
@@ -224,6 +218,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
             <label htmlFor={`${id}-time`}>
               Time (seconds on timeline)
               <input
+                ref={timeInput}
                 id={`${id}-time`}
                 aria-invalid={error?.target === "time" || undefined}
                 aria-describedby={

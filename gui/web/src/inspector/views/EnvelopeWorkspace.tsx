@@ -40,6 +40,7 @@ export function EnvelopeWorkspace({
     shareCapabilities,
     projectEpoch,
     selectFromInspector,
+    pointerKind,
   } = useDaw((state) => ({
     project: state.project,
     projectPath: state.projectPath,
@@ -47,6 +48,7 @@ export function EnvelopeWorkspace({
     shareCapabilities: state.shareCapabilities,
     projectEpoch: state.projectEpoch,
     selectFromInspector: state.selectFromInspector,
+    pointerKind: state.pointerKind,
   }));
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<EnvelopeError | null>(null);
@@ -232,6 +234,7 @@ export function EnvelopeWorkspace({
       form={draft?.form ?? null}
       busy={busy}
       error={error}
+      touch={pointerKind === "coarse"}
       collisionId={collisionId}
       onSelect={select}
       onAdd={() => start("add")}

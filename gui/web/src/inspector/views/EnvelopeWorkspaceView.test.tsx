@@ -133,10 +133,7 @@ describe("envelope initial focus", () => {
     flushFrames();
     expect(dismiss).toHaveFocus();
     rerender(<EnvelopeWorkspaceView {...props} />);
-    expect(screen.getByRole("heading", { name: "Add point" })).toHaveFocus();
-    expect(
-      screen.getByLabelText("Time (seconds on timeline)"),
-    ).not.toHaveFocus();
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveFocus();
   });
 
   it("completes ordinary first entry after StrictMode replays the canceled initial frame", () => {
@@ -156,10 +153,7 @@ describe("envelope initial focus", () => {
     );
     expect(document.activeElement).toBe(document.body);
     rerender(<EnvelopeWorkspaceView {...props} />);
-    expect(screen.getByRole("heading", { name: "Add point" })).toHaveFocus();
-    expect(
-      screen.getByLabelText("Time (seconds on timeline)"),
-    ).not.toHaveFocus();
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveFocus();
     const save = screen.getByRole("button", { name: "Save point" });
     act(() => save.focus());
     flushFrames();
