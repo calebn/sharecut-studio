@@ -142,10 +142,7 @@ export function useFollowUi(): void {
         }
       }
       if (selChanged) {
-        const next = selectionFromWire(
-          target.meta?.selection,
-          s.project?.envelopes,
-        );
+        const next = selectionFromWire(target.meta?.selection, s.project);
         s.setSelection(next);
         if (next?.kind === "envelopePoint") {
           s.setLayerVisible("showLevels", true);

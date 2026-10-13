@@ -1,4 +1,8 @@
-import type { AutomationEnvelope, Selection } from "../types/project";
+import type {
+  AutomationEnvelope,
+  ProjectView,
+  Selection,
+} from "../types/project";
 import type { SessionSelection, ViewerSessionSnapshot } from "../types/session";
 import { sortedVolumePoints } from "../utils/envelopes";
 
@@ -64,9 +68,51 @@ export function selectionToWire(
   return null;
 }
 
+/**
+ * The local selection a wire selection names, or null when it is malformed or
+ * its target is not in `project`, so a remote selection never opens an
+ * inspector on something that is gone.
+ */
 export function selectionFromWire(
   sel: SessionSelection | null | undefined,
-  envelopes?: AutomationEnvelope[],
+  project: ProjectView | null | undefined,
+): Selection {
+  const parsed = parseWireSelection(sel, project?.envelopes);
+  return parsed && project && selectionExists(parsed, project) ? parsed : null;
+}
+
+function selectionExists(
+  sel: NonNullable<Selection>,
+  project: ProjectView,
+): boolean {
+  switch (sel.kind) {
+    case "clip":
+      return Object.values(project.clips.tracks).some((clips) =>
+        clips.some((c) => c.id === sel.id),
+      );
+    case "pending":
+      return project.pending_edits.some((e) => e.id === sel.id);
+    case "applied":
+      return project.applied_edits.records.some((r) => r.id === sel.id);
+    case "social":
+      return (project.social_clips ?? []).some((c) => c.id === sel.id);
+    case "comment":
+      return (project.comments ?? []).some((c) => c.id === sel.id);
+    case "track":
+    case "envelope":
+    case "envelopePoint":
+    case "transcriptWord":
+    case "transcriptRange":
+      return project.tracks.some((t) => t.id === sel.trackId);
+    case "chapter":
+    case "range":
+      return true;
+  }
+}
+
+function parseWireSelection(
+  sel: SessionSelection | null | undefined,
+  envelopes: AutomationEnvelope[] | undefined,
 ): Selection {
   if (!sel) {
     return null;

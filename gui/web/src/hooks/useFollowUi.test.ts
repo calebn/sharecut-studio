@@ -1,8 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sessionRoster } from "../test/fixtures";
+import { minimalProject, sampleTrack, sessionRoster } from "../test/fixtures";
 import { useFollowUi } from "./useFollowUi";
+
+const tracks = [sampleTrack({ id: "host" })];
 
 function leader(
   ui: Record<string, unknown>,
@@ -18,7 +20,9 @@ function leader(
 
 describe("useFollowUi", () => {
   beforeEach(() => {
-    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+    useDawStore
+      .getState()
+      .hydrate("/tmp/ep.project.json", minimalProject({ tracks }));
     useDawStore.setState({
       shellBreakpoint: "desktop",
       guestMode: null,
@@ -260,6 +264,7 @@ describe("useFollowUi", () => {
     useDawStore.getState().hydrate(
       "/tmp/ep.project.json",
       minimalProject({
+        tracks,
         envelopes: [
           {
             track_id: "host",
