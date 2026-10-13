@@ -17,7 +17,7 @@ def adopt(owned, open_file):
     return True
 
 
-def native_identity(handle):
+def native_identity(handle, path=None):
     info = os.fstat(handle)
     return info.st_dev, info.st_ino
 
@@ -146,7 +146,7 @@ def test_public_windows_reader_metadata_failure_after_crt_transfer_closes_only_d
         transferred.add(handle)
         return handle
 
-    def inspect(fd):
+    def inspect(fd, path=None):
         if read_fd and fd == read_fd[0] and fd in transferred:
             raise failure
         info = native_fstat(fd)
@@ -155,7 +155,10 @@ def test_public_windows_reader_metadata_failure_after_crt_transfer_closes_only_d
     api = SimpleNamespace(
         create_directory=lambda path, acquired: (path.mkdir(mode=0o700), acquired()),
         create_file=lambda owned, **kwargs: adopt(owned, open_file),
-        file_identity=lambda handle: (native_fstat(handle).st_dev, native_fstat(handle).st_ino),
+        file_identity=lambda handle, path=None: (
+            native_fstat(handle).st_dev,
+            native_fstat(handle).st_ino,
+        ),
         open_directory=lambda path: os.open(path, os.O_RDONLY),
         open_file=lambda path: open_file(path, 0, 0, None, 3, 0, None),
         verify_handle=lambda handle, **kwargs: SimpleNamespace(
