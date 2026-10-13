@@ -111,6 +111,8 @@ and saved mix mutes are also respected. Corrections and choices remain undoable.
 These are shipped CLI/agent behaviors; this section does not claim a dedicated
 bleed-alignment review control in the Studio UI.
 
+Known limits: a music bed that two microphones share, or own sound that follows the peer's pitch (singing or speaking along), can read as a copy and be turned down. Listen to those passages after cleanup. See [bleed gate limitations](https://github.com/calebn/sharecut-studio/blob/main/docs/audio-engineering.md#known-limitations-of-the-bleed-gate).
+
 ---
 
 ## Design principles
