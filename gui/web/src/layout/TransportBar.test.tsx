@@ -594,7 +594,8 @@ describe("TransportBar wide layout", () => {
     );
     expect(useDawStore.getState().layoutMode).toBe("text");
     expect(screen.queryByRole("menu", { name: "View menu" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(
       screen.getByRole("menuitemradio", { name: "Maximize transcript" }),
     ).toHaveAttribute("aria-checked", "true");

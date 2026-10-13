@@ -57,7 +57,7 @@ import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
 import { HistoryControls } from "./HistoryControls";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
-import { LAYOUT_MODES } from "./layoutModes";
+import { LAYOUT_MODES, layoutModeCopy } from "./layoutModes";
 import { OverlayLegend } from "./OverlayLegend";
 import { LegendCheckbox } from "./OverlayLegendView";
 import { ToolModeToggle } from "./ToolModeToggle";
@@ -187,6 +187,8 @@ export function TransportBar({
     Boolean(
       transportError ||
         sessionRegion ||
+        ingestBusy ||
+        (showLayout && layoutModeCopy(layoutMode).chipLabel) ||
         (showRecordingChip && recordChipVisible),
     );
 

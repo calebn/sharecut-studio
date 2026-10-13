@@ -25,7 +25,11 @@ describe("TransportBar desktop edit controls", () => {
         },
       }),
     );
-    useDawStore.setState({ zoomPxPerSec: 20 });
+    useDawStore.setState({
+      zoomPxPerSec: 20,
+      ingestBusy: false,
+      layoutMode: "default",
+    });
     useRecordHostStore.getState().setSnapshot(null);
     execute.mockReset();
     execute.mockResolvedValue({ status: "ok" });
@@ -77,7 +81,7 @@ describe("TransportBar desktop edit controls", () => {
       .spyOn(HTMLElement.prototype, "clientWidth", "get")
       .mockReturnValue(1920);
     try {
-      render(<TransportBar />);
+      render(<TransportBar showLayout />);
       const expectEditingControls = () => {
         for (const label of ["Undo", "Redo", "Zoom out", "Zoom in"]) {
           expect(screen.getByRole("button", { name: label })).toBeVisible();
@@ -91,6 +95,7 @@ describe("TransportBar desktop edit controls", () => {
           audioError: null,
           sessionRegion: { start_sec: 120, end_sec: 150 },
         },
+        { ingestBusy: true },
       ]) {
         act(() => useDawStore.setState(status));
         expectEditingControls();
@@ -98,8 +103,30 @@ describe("TransportBar desktop edit controls", () => {
           screen.queryByRole("button", { name: "View" }),
         ).not.toBeInTheDocument();
         act(() =>
-          useDawStore.setState({ audioError: null, sessionRegion: null }),
+          useDawStore.setState({
+            audioError: null,
+            sessionRegion: null,
+            ingestBusy: false,
+          }),
         );
+        expect(screen.getByRole("button", { name: "View" })).toBeVisible();
+      }
+      for (const layoutMode of ["timeline", "text", "review"] as const) {
+        act(() => useDawStore.setState({ layoutMode }));
+        expectEditingControls();
+        expect(
+          screen.queryByRole("button", { name: "View" }),
+        ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: /^Restore$/ }));
+        expect(execute).toHaveBeenLastCalledWith(
+          "layout.default",
+          {},
+          { skipWhen: true },
+        );
+        act(() => useDawStore.setState({ layoutMode: "default" }));
+        expect(
+          screen.queryByRole("button", { name: /^Restore$/ }),
+        ).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: "View" })).toBeVisible();
       }
       act(() =>
