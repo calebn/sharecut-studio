@@ -66,7 +66,7 @@ EXTERNAL_MUTATE_CLIENT_ID = "server:external"
 # Domain errors meaning "the client's view of the target is stale": each is a 409 conflict,
 # raised before mutation, history, or the command log (#650). They subclass ValueError, so
 # ``_apply`` must catch them before its generic ValueError branch.
-STALE_TARGET_ERRORS: tuple[type[ValueError], ...] = (
+STALE_TARGET_ERRORS: tuple[type[CodedError], ...] = (
     StaleHistoryError,
     RangeChangedError,
     PendingEditChangedError,
@@ -779,8 +779,7 @@ class DocumentSyncService:
         except STALE_TARGET_ERRORS as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
-            code = exc.code if isinstance(exc, CodedError) else None
-            raise DocumentConflictError(str(exc), code=code) from exc
+            raise DocumentConflictError.wrapping(exc, code=exc.code) from exc
         except KeyError as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
@@ -791,7 +790,7 @@ class DocumentSyncService:
                     DocumentConflictError,
                 )
 
-                raise DocumentConflictError(str(exc)) from exc
+                raise DocumentConflictError.wrapping(exc) from exc
             raise
         except HISTORY_RERENDER_ERRORS as exc:
             # A history move with rerender=true is saved before these are raised. A 409
@@ -799,7 +798,7 @@ class DocumentSyncService:
             # the client from replaying the move.
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
-            raise DocumentConflictError(str(exc)) from exc
+            raise DocumentConflictError.wrapping(exc) from exc
 
     def _apply_saving_command(
         self,

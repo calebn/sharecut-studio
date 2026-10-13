@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from podcast_mcp.gui.routes import review_share
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
 
 @pytest.mark.parametrize(
@@ -144,25 +145,25 @@ def test_guest_refusal_contract(guest_client, monkeypatch, caplog, wrapped, kind
             ),
             403,
             "share_capability_required",
-            "denied [path]",
+            GENERIC_GUEST_MESSAGE,
         ),
         "input": (
             CodedValueError("bad input /private/host/project.json", code="invalid_input"),
             400,
             "invalid_input",
-            "bad input [path]",
+            GENERIC_GUEST_MESSAGE,
         ),
         "missing": (
             CodedKeyError("missing /private/host/project.json", code="target_not_found"),
             404,
             "target_not_found",
-            "missing [path]",
+            GENERIC_GUEST_MESSAGE,
         ),
         "conflict": (
             DocumentConflictError("changed /private/host/project.json", code="history_stale"),
             409,
             "history_stale",
-            {"detail": "changed [path]", "conflict": True},
+            {"detail": GENERIC_GUEST_MESSAGE, "conflict": True},
         ),
         "busy": (
             Timeout("/private/host/project.json.lock"),
@@ -312,7 +313,7 @@ def test_guest_waveform_refusal_preserves_cache_retry_and_releases_slot(
                 "denied /private/host/media.wav", code="share_capability_required"
             ),
             403,
-            "denied [path]",
+            GENERIC_GUEST_MESSAGE,
             "share_capability_required",
         ),
         "busy": (
@@ -383,7 +384,7 @@ def test_guest_ws_coded_permission_reason_is_redacted_and_byte_bounded(monkeypat
         with TestClient(app).websocket_connect("/api/review/token/daw/ws") as socket:
             socket.receive_json()
     assert failure.value.code == 4403
-    assert failure.value.reason.startswith("denied [path] ")
+    assert failure.value.reason == GENERIC_GUEST_MESSAGE
     assert len(failure.value.reason.encode("utf-8")) <= 120
     assert "/private/host" not in failure.value.reason
     assert "private secret phrase" not in failure.value.reason

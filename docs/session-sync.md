@@ -454,7 +454,7 @@ Share guests with the `view` capability connect to:
 - **Auth:** opaque share token (`lookup_share` + `authorize_share_token`); `view` required. Close `4403` on failure; `4429` when `PODCAST_GUEST_WS_CONCURRENT` is exceeded.
 - **Service failures:** Admission, setup, and foreground crashes close with `1011`
   and fixed `internal error`, with a host traceback. Deliberate capability refusals
-  keep `4403` and path-redacted detail. `gui/routes/guest_errors.py` uses the same
+  keep `4403` and the refusal's path-free guest message. `gui/routes/guest_errors.py` uses the same
   refusal policy as guest HTTP and remote MCP. Shielded teardown releases queues,
   service identities, pumps, and the admission slot after a failure.
 - **Shared admission:** `daw/ws` and `WS /api/rec/{token}/ws` both admit through `gui/routes/guest_ws_common.py`. `guest_ws_share_row` closes unknown, revoked, expired and wrong-kind tokens `4403 "invalid or revoked share token"`. `admit_guest_ws` takes the per-token `PODCAST_GUEST_WS_CONCURRENT` slot (`4429` when full). `GuestWsConnection.start` accepts, builds `GuestWsGuard` (30 s idle / 5 s on-frame share recheck, `4403` on revoke) and starts the recheck loop. `stop_tasks` / `release` tear down pumps, then the slot. Pump bookkeeping is `WsTaskSet` (same module), which the owner `/api/host/ws` also uses: `stop()` cancels and awaits every task, logs task failures, and re-raises an outer cancel (e.g. shutdown) that arrives while it is awaiting, once all tasks have finished; called from a `finally` that is already unwinding a cancel, it returns normally so the original `CancelledError` keeps propagating. New guest sockets must reuse this path, not copy it.

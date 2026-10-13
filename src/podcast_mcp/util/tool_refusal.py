@@ -13,11 +13,11 @@ the exception's ``__cause__`` chain:
 Anything else is a crash and returns ``None``: the adapter logs it on the host and the caller
 sees only ``Error executing tool <name>`` (#1178, #1182).
 
-A share guest is not the host: ``for_guest=True`` uses the refusal's ``guest_message()``. By
-default that is the message with each host filesystem path replaced by ``[path]``
-(``util.redact.redact_host_paths``), so a refusal written for the host's own agent, such as
-``raw media not found: <path>``, can reach a guest too; a refusal that carries a path and a
-command (``RegistryPrivacyError``) overrides it with a fixed text.
+A share guest is not the host: ``for_guest=True`` uses the refusal's ``guest_message()``: the
+fixed, path-free text the raise site gave, else the message when it names no host path, else
+one generic line. A message that names a path is never partly redacted (#1327), so a refusal
+written for the host's own agent, such as ``raw media not found: <path>``, cannot leak a
+folder name to a guest.
 
 The same rule covers what a guest sees while a call fails, not only its result:
 ``guest_failure_detail`` is the hook guest progress (``install_guest_tool_progress``) uses,

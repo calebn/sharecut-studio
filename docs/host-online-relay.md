@@ -481,7 +481,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 5. `POST …/mcp` speaks **Streamable HTTP JSON-RPC** (`initialize`, `tools/list`, `tools/call`, `ping`); negotiates protocol `2024-11-05` / `2025-03-26` / `2025-06-18`
 6. Tools are filtered by [`services/remote_mcp/allowlist.py`](../src/podcast_mcp/services/remote_mcp/allowlist.py); project is bound from the token (clients never pass `project_path`)
 7. `tools/call` reads `params._meta.progressToken` and emits MCP `notifications/progress` on that token (no second protocol) as Streamable HTTP SSE (`event: message` frames, then the JSON-RPC result) when the token is set; requests without a token stay JSON. The relay `/mcp/{token}` proxy forwards the upstream body in chunks (event-stream uses unbuffered `aiter_bytes`) so those frames pass the tunnel. Long work also fans `plane: "progress"` on this share’s guest WS only — never host jobs or other tokens. The progress WS is token-scoped and does not require `view`, so any holder of that share (including commenters) can observe tool ids / status / messages from concurrent remote MCP on the same token. See [progress.md](progress.md). Both the JSON and SSE paths run `handle_mcp_jsonrpc` on one dedicated guest pool ([`services/remote_mcp/executor.py`](../src/podcast_mcp/services/remote_mcp/executor.py), `GUEST_MCP_MAX_WORKERS` = 8 threads named `guest-mcp-*`), never on the event loop and never on the AnyIO worker pool that FastAPI's synchronous host routes share. A tool call waiting up to 30 s on `project_commit_lock` / `render_lock` therefore stalls neither other requests nor the host GUI; once all 8 workers are busy, further guest calls (across all share tokens, which the per-token `check_host_bucket` does not cap) queue on that pool.
-8. A failed guest tool call follows the owner MCP server's rule, shared in [`util/tool_refusal.py`](../src/podcast_mcp/util/tool_refusal.py) (#1182), and is a tool result, not a JSON-RPC error: a refusal returns `isError: true` with its message as text and `structuredContent {ok: false, error, error_code}`, the shape the owner server returns. A refusal is a `CodedError` (its own code, such as `comment_not_found`, `edit_not_found`, `job_not_found`, `job_running`, `upload_too_large` or `invalid_audio`) or a `project_commit_lock` / `render_lock` timeout (`ProjectBusyError` / `RenderBusyError`, or a raw `filelock.Timeout`), which returns `error_code: "project_busy"`, the code the host GUI's 503s and the owner's MCP tool results use, so a caller can branch on one string everywhere (#488). Any other exception is a crash: the guest gets `isError: true` with only `Error executing tool <name>`, and the host logs the traceback. JSON-RPC errors are for the protocol: `-32601` an unknown method, `-32602` an unknown tool or arguments that do not fit the tool's schema (checked before it runs; `data.error_code: "invalid_arguments"`), `-32003` a share capability denial, `-32004` a share that no longer resolves (`share not found`), and `-32603` a failure outside any tool (`internal error`). Progress follows the same rule, so a failed task's `notifications/progress` message and share-page WebSocket frame read `<name> failed` for a crash and add the refusal's message (host paths redacted) only for a refusal. See § Security notes.
+8. A failed guest tool call follows the owner MCP server's rule, shared in [`util/tool_refusal.py`](../src/podcast_mcp/util/tool_refusal.py) (#1182), and is a tool result, not a JSON-RPC error: a refusal returns `isError: true` with its message as text and `structuredContent {ok: false, error, error_code}`, the shape the owner server returns. A refusal is a `CodedError` (its own code, such as `comment_not_found`, `edit_not_found`, `job_not_found`, `job_running`, `upload_too_large` or `invalid_audio`) or a `project_commit_lock` / `render_lock` timeout (`ProjectBusyError` / `RenderBusyError`, or a raw `filelock.Timeout`), which returns `error_code: "project_busy"`, the code the host GUI's 503s and the owner's MCP tool results use, so a caller can branch on one string everywhere (#488). Any other exception is a crash: the guest gets `isError: true` with only `Error executing tool <name>`, and the host logs the traceback. JSON-RPC errors are for the protocol: `-32601` an unknown method, `-32602` an unknown tool or arguments that do not fit the tool's schema (checked before it runs; `data.error_code: "invalid_arguments"`), `-32003` a share capability denial, `-32004` a share that no longer resolves (`share not found`), and `-32603` a failure outside any tool (`internal error`). Progress follows the same rule, so a failed task's `notifications/progress` message and share-page WebSocket frame read `<name> failed` for a crash and add the refusal's guest message only for a refusal. See § Security notes.
 
 ### Cap → tool matrix
 
@@ -692,8 +692,8 @@ src/podcast_mcp/
 Guest HTTP, WebSocket, upload, and remote MCP failures use the refusal policy
 in `util/tool_refusal.py`. Deliberate guards opt in with `CodedError`; ordinary
 exceptions disclose no text. Lock timeouts and SQLite busy or locked errors use
-fixed busy messages, even inside a coded wrapper. Guest refusal messages redact
-host paths. Coded HTTP refusals carry `X-Sharecut-Error-Code` and their domain status;
+fixed busy messages, even inside a coded wrapper. A guest never reads a host path or a
+piece of one in a refusal (see the Remote MCP errors note below). Coded HTTP refusals carry `X-Sharecut-Error-Code` and their domain status;
 unexpected failures return `500` with `internal error` and a host traceback.
 WebSocket admission and command crashes log on the host and close with
 `1011` and `internal error`. Coded recording refusals keep `code=invalid_state`
@@ -756,27 +756,35 @@ with private paths and path-free diagnostic secrets.
 - **Remote MCP**: disabled by default; requires `PODCAST_REMOTE_MCP=1` on the host and
   explicit `mcp` capability on the share token. Tools are **capability-filtered** (guest
   parity), not the full host stdio MCP registry.
-- **Remote MCP errors** (#1182): a guest sees an exception's text only for a refusal (a
-  `CodedError` or a busy lock), with every host filesystem path in it replaced by `[path]`
-  (`util.redact.redact_host_paths`, the redaction guest progress already used). That
-  redaction is a backstop, not the rule: it reads folder names with spaces, `~/` and
-  `~user/`, Windows drive and UNC paths, non-ASCII segments and `file:` URLs, but a path's
-  end is ambiguous in prose, so it errs long. Guest-reachable refusals therefore name the
-  artifact by its track or file name (`raw media for track host not found`,
-  `A wav not found: A.wav`), never by an absolute path. The same rule covers progress: a
-  failed task's progress message (the MCP `progressToken` stream and the share page
-  WebSocket) is `<name> failed` for a crash, and carries a refusal's message only for a
-  refusal (`util.tool_refusal.guest_failure_detail`, applied in
-  `util.progress.install_guest_tool_progress`). A crash,
+- **Remote MCP errors** (#1182, #1327): a guest sees an exception's text only for a refusal (a
+  `CodedError` or a busy lock), and only through `CodedError.guest_message()`: the fixed,
+  path-free text the raise site gave (`guest_message=`), else the message itself when it names
+  no host path (`util.redact.mentions_host_path`), else the generic
+  `GENERIC_GUEST_MESSAGE`. A path in prose is never partly redacted: where it ends is
+  ambiguous (`Talkin' Shop` stops at the apostrophe), and what is left over spells part of a
+  folder name, so a message that names a path is replaced whole. Refusals that name a path
+  for the host therefore give the guest a fixed line: `review_media_not_found` reads "This
+  review's audio isn't available right now; ask the host to republish.", `project_not_found`
+  reads "This link isn't available right now; ask the host to check it." Guest-reachable
+  refusals otherwise name the artifact by its track or file name (`raw media for track host
+  not found`, `A wav not found: A.wav`), never by an absolute path. The same rule covers
+  progress: a failed task's progress message (the MCP `progressToken` stream and the share
+  page WebSocket) is `<name> failed` for a crash, and carries a refusal's guest message only
+  for a refusal (`util.tool_refusal.guest_failure_detail`, applied in
+  `util.progress.install_guest_tool_progress`); any other progress text that names a host
+  path is dropped (`scrub_guest_progress_text`). A crash,
   a plain `ValueError` / `KeyError` / `TypeError`, an OS `PermissionError`, or a share whose
   project moved returns fixed text (`Error executing tool <name>`, `share not found`,
-  `internal error`) and is logged on the host. The one exception is a registry that is not
-  private (`RegistryPrivacyError`): its host message names the path and a `chmod`, so the
-  guest reads a fixed, path-free `GUEST_MESSAGE` and the `registry_not_private` code
-  instead, on every guest surface, including the share-identity middleware and the remote MCP
+  `internal error`) and is logged on the host. A registry that is not private
+  (`RegistryPrivacyError`) is one such refusal: its host message names the path and a `chmod`,
+  so the guest reads its fixed `GUEST_MESSAGE` and the `registry_not_private` code instead, on
+  every guest surface, including the share-identity middleware and the remote MCP
   resolve step (JSON-RPC `-32603` with `data.error_code`). Refusal messages never embed another
   exception's text (`HistoryRerenderError`'s render error, ffprobe's error on an upload
-  stay in the log). See § Remote MCP › Routing.
+  stay in the log). `tests/test_guest_host_path_sweep.py` builds a share under folders named
+  with apostrophes, quotes, `?`, spaces and non-ASCII and reads every guest surface (review and
+  record HTTP, remote MCP, the share and record pages, both WebSocket admissions, the progress
+  stream) for any word of the folder name. See § Remote MCP › Routing.
 - **Rate limiting**: see § Rate limiting above. Optional **Caddy `rate_limit` module** (edge IP limits) is later ops polish if that Caddy plugin is installed; the relay IP bucket already covers MVP.
 - **Presence**: guests with `view` see other participants' cursors, selection, playhead, and viewport, fanned out server-side as per-client `PresenceDelta`s rather than a full-roster resend on every tick, with a `RosterRequest` frame for the guest to resync on a version gap (`docs/session-sync.md` § Server → client: `Presence` / `PresenceDelta` / `RosterRequest`). Session-plane WS messages echo the assigned `guest-{token}-…` `client_id` (the query string keeps the tab’s original id) so the guest never draws their own ghost. The guest DAW WebSocket accepts `Presence` and `RosterRequest` frames only, with a 4 KiB size cap, per-connection and per-token rate limits, a malformed-frame close (`4400` after 20), mid-session share revocation re-check, and an Origin allow-list check for restricted shares. A `RosterRequest` reply is additionally throttled to one per second per assigned guest client id, which survives a reconnect (the `ws_roster_request` host limiter, `PODCAST_WS_ROSTER_REQUEST_RPM` / `_BURST`). The relay `ws_presence` bucket is a coarse prefix pre-filter (`is_presence_ws_text` classifies both `Presence` and `RosterRequest` into it); the host limiter is authoritative. An invalid guest `playhead_sec` (negative, NaN, infinite, or not a JSON number) is dropped by the host and the last good one is kept; the frame is not counted as malformed.
 

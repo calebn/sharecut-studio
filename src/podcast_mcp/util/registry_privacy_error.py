@@ -82,7 +82,6 @@ class RegistryPrivacyError(CodedPermissionError):
         self.path = path
         self.reason = reason
         self.fix = _FIX[reason].format(**fields)
-        super().__init__(f"{_PROBLEM[reason].format(**fields)}; {self.fix}")
-
-    def guest_message(self) -> str:
-        return GUEST_MESSAGE
+        super().__init__(
+            f"{_PROBLEM[reason].format(**fields)}; {self.fix}", guest_message=GUEST_MESSAGE
+        )

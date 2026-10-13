@@ -60,7 +60,6 @@ _HOST_PATH = re.compile(
     rf"|(?<![\w/\\:.)\]-])/(?:{_DIR}{_SEP})+{_FILE}"
     r")"
 )
-HOST_PATH_PLACEHOLDER = "[path]"
 _LOOPBACK_V4 = re.compile(r"^127\.")
 _LOOPBACK_V6 = frozenset({"::1", "0:0:0:0:0:0:0:1"})
 
@@ -154,11 +153,12 @@ def redact_secrets(text: str, secrets: Sequence[str] = ()) -> str:
     return _HEX_RUN.sub("<hex>", out)
 
 
-def redact_host_paths(text: str) -> str:
-    """Replace each host filesystem path in ``text`` with ``[path]``, without knowing the paths.
+def mentions_host_path(text: str) -> bool:
+    """Whether ``text`` names a host filesystem path, without knowing which paths are the host's.
 
-    For text bound for share guests (guest progress, guest remote MCP refusals), where
-    any host path is too much. Unlike ``sanitize`` it needs no home or workspace and keeps
-    everything else as written.
+    The guest boundary uses it to withhold text, never to scrub it: a path's end is ambiguous
+    in prose (``Talkin' Shop`` ends at an apostrophe), so replacing the part that matched leaves
+    folder-name fragments behind. Text bound for a share guest either has no path or is replaced
+    whole (``CodedError.guest_message``, ``scrub_guest_progress_text``).
     """
-    return _HOST_PATH.sub(HOST_PATH_PLACEHOLDER, text)
+    return _HOST_PATH.search(text) is not None

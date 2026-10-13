@@ -311,7 +311,7 @@ still be writing it. Assembled WAV lands in `artifacts/record/acked/` until land
 
 Guest upload operations project pre-ACK service failures through the shared
 guest boundary. `RecordUploadError` is a coded `record_upload_refused` refusal,
-reported as HTTP `400` with path-redacted detail and `X-Sharecut-Error-Code`.
+reported as HTTP `400` with the refusal's path-free guest message and `X-Sharecut-Error-Code`.
 Unmarked ingest failures return fixed HTTP `500` and log their traceback on the
 host. Consent and lease checks run again after the bounded body read.
 Once ingest acknowledges the file, a subsequent landing failure keeps HTTP

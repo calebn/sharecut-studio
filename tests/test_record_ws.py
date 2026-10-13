@@ -25,6 +25,7 @@ from podcast_mcp.services.record.service import (
     reset_record_runtime_for_tests,
     route_record_ws_message,
 )
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
 
 def _isolate() -> None:
@@ -1832,7 +1833,7 @@ def test_guest_record_state_refusal_redacts_paths_and_keeps_socket_usable(
             "plane": "record",
             "type": "Error",
             "code": "invalid_state",
-            "detail": "not ready [path]",
+            "detail": GENERIC_GUEST_MESSAGE,
             "error_code": "record_state_refused",
         }
         socket.send_json(command)

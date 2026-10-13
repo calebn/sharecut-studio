@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.review_versions import REVIEW_AUDIO_UNAVAILABLE_GUEST_MESSAGE
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
@@ -2614,7 +2615,7 @@ def test_guest_review_mix_missing_is_coded_404(
     response = TestClient(create_app()).get(f"/api/review/{token}/audio")
     assert response.status_code == 404
     assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
-    assert response.json() == {"detail": "review mix missing: [path]"}
+    assert response.json() == {"detail": REVIEW_AUDIO_UNAVAILABLE_GUEST_MESSAGE}
 
 
 def test_guest_audio_pin_missing_is_coded_404(

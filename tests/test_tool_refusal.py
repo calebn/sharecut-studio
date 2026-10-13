@@ -14,6 +14,7 @@ import pytest
 from filelock import Timeout
 
 from podcast_mcp.util.coded_error import (
+    GENERIC_GUEST_MESSAGE,
     CodedError,
     CodedFileNotFoundError,
     CodedKeyError,
@@ -73,19 +74,19 @@ def test_busy_lock_is_project_busy_without_the_lock_path() -> None:
     assert tool_refusal(busy) == ToolRefusal(str(busy), PROJECT_BUSY_CODE)
 
 
-def test_guest_refusal_redacts_host_paths_owner_keeps_them() -> None:
+def test_guest_refusal_withholds_host_paths_owner_keeps_them() -> None:
     exc = CodedFileNotFoundError(f"raw media not found: {HOST_PATH}", code="file_not_found")
     assert tool_refusal(exc) == ToolRefusal(f"raw media not found: {HOST_PATH}", "file_not_found")
     guest = tool_refusal(exc, for_guest=True)
-    assert guest == ToolRefusal("raw media not found: [path]", "file_not_found")
+    assert guest == ToolRefusal(GENERIC_GUEST_MESSAGE, "file_not_found")
 
 
-def test_windows_and_home_paths_are_redacted_for_guests() -> None:
+def test_windows_and_home_paths_are_withheld_from_guests() -> None:
     for path in (r"C:\Users\host\episode\raw\a.wav", "~/episodes/one/raw/a.wav"):
         refusal = tool_refusal(CodedValueError(f"bad media {path}", code="x"), for_guest=True)
         assert refusal is not None
         assert path not in refusal.message
-        assert refusal.message == "bad media [path]"
+        assert refusal.message == GENERIC_GUEST_MESSAGE
 
 
 def test_refusal_and_crash_results_have_the_owner_server_shape() -> None:
@@ -129,7 +130,7 @@ def test_coded_errors_round_trip_through_pickle(exc: CodedError) -> None:
 def test_guest_failure_detail_is_a_refusals_guest_message_and_nothing_for_a_crash() -> None:
     refusal = CodedValueError(f"bad window in {HOST_PATH}", code="invalid_range")
 
-    assert guest_failure_detail(refusal) == "bad window in [path]"
+    assert guest_failure_detail(refusal) == GENERIC_GUEST_MESSAGE
     assert guest_failure_detail(RuntimeError(f"ffmpeg died on {HOST_PATH}")) is None
     assert guest_failure_detail(OSError(2, "No such file", HOST_PATH)) is None
 
@@ -160,3 +161,45 @@ def test_sqlite_error_code_prevents_false_busy_refusal():
     error = sqlite3.OperationalError("busy private secret")
     error.sqlite_errorcode = sqlite3.SQLITE_ERROR
     assert tool_refusal(error, for_guest=True) is None
+
+
+@pytest.mark.parametrize(
+    "folder", ["Talkin' Shop", "Rock 'n' Roll Hour", '"Best"', "What? Show", "Café Ünï ☕"]
+)
+def test_guest_message_never_holds_part_of_a_folder_name(folder: str) -> None:
+    path = f"/Users/host/{folder}/ep1/raw/host.wav"
+    unmarked = CodedFileNotFoundError(f"raw media not found: {path}", code="file_not_found")
+    marked = CodedFileNotFoundError(
+        f"raw media not found: {path}", code="file_not_found", guest_message="Not available."
+    )
+
+    assert unmarked.guest_message() == GENERIC_GUEST_MESSAGE
+    assert marked.guest_message() == "Not available."
+    assert str(marked) == f"raw media not found: {path}"
+    assert tool_refusal(unmarked, for_guest=True) == ToolRefusal(
+        GENERIC_GUEST_MESSAGE, "file_not_found"
+    )
+
+
+def test_guest_message_is_the_message_when_it_names_no_path() -> None:
+    exc = CodedValueError("unknown track_id: 'Talkin' Shop'", code="track_not_found")
+
+    assert exc.guest_message() == "unknown track_id: 'Talkin' Shop'"
+
+
+def test_a_marked_guest_message_survives_pickle() -> None:
+    exc = CodedValueError("bad /Users/host/x.wav", code="x", guest_message="Fixed.")
+
+    assert pickle.loads(pickle.dumps(exc)).guest_message() == "Fixed."
+
+
+def test_a_conflict_wrapping_a_refusal_keeps_the_refusals_guest_message() -> None:
+    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
+    cause = CodedValueError("gone /Users/host/Talkin' Shop/x.wav", code="clip_not_found")
+
+    conflict = DocumentConflictError.wrapping(cause, code=cause.code)
+
+    assert str(conflict) == str(cause)
+    assert conflict.guest_message() == GENERIC_GUEST_MESSAGE
+    assert conflict.code == "clip_not_found"

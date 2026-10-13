@@ -35,6 +35,7 @@ from podcast_mcp.services.record.upload import (
     parse_upload_kind,
     sha256_hex,
 )
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 from podcast_mcp.util.wav import pcm_wav_header
 
 
@@ -1678,7 +1679,7 @@ def test_upload_pre_ack_refusal_is_owned_by_request_shell(
     monkeypatch.setattr(RecordUploadService, "ingest_part", refuse)
     if audience == "guest":
         response = _post_keeper(client, room["guest"]["token"], pid, lease, take=0)
-        assert response.json() == {"detail": "part refused [path]"}
+        assert response.json() == {"detail": GENERIC_GUEST_MESSAGE}
         assert response.headers["x-sharecut-error-code"] == "record_upload_refused"
     else:
         pcm, digest, wav_hash = _pcm_part(64)
