@@ -1218,7 +1218,7 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
             "podcast_mcp.edits.session_air.load_mono_window", return_value=np.zeros(4000)
         ) as lane,
     ):
-        assert aa._timeline_window_samples(project, "host", 0.0, 0.5) is not None
+        assert aa.timeline_window_samples(project, "host", 0.0, 0.5) is not None
     stem_read.assert_not_called()
     lane.assert_called_once()
 
@@ -1230,7 +1230,7 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
         ) as stem_read,
         patch("podcast_mcp.edits.session_air.load_mono_window") as lane,
     ):
-        assert aa._timeline_window_samples(project, "host", 0.0, 0.5) is not None
+        assert aa.timeline_window_samples(project, "host", 0.0, 0.5) is not None
     stem_read.assert_called_once()
     lane.assert_not_called()
 

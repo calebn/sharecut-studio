@@ -551,7 +551,7 @@ def _word_timeline_span(
     return (start, end) if start is not None and end is not None else None
 
 
-def _timeline_window_samples(
+def timeline_window_samples(
     project: EpisodeProject,
     track_id: str,
     t_start: float,
@@ -615,7 +615,7 @@ def _rms_for_track_at_timeline(
     elif t_end - t_start <= 0.005:
         return None
     else:
-        read = _timeline_window_samples(project, track_id, t_start, t_end)
+        read = timeline_window_samples(project, track_id, t_start, t_end)
         if read is None or read[0].size == 0:
             return None
         rms = rms_db(read[0])
@@ -637,7 +637,7 @@ def timeline_frame_levels_db(
     Only frames wholly inside timeline ``[t_start, t_end)`` count. ``None`` when the
     track cannot be read there or no frame fits.
     """
-    read = _timeline_window_samples(project, track_id, t_start, t_end, caches=caches)
+    read = timeline_window_samples(project, track_id, t_start, t_end, caches=caches)
     if read is None:
         return None
     samples, rate = read

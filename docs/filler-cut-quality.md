@@ -75,6 +75,18 @@ protect peer activity. Without another qualifying frame, the existing mean
 fallback applies and does not prove exact sample membership. General reader
 rounding and mixed-contribution limits remain tracked in
 [#1258](https://github.com/calebn/sharecut-studio/issues/1258).
+Dense owner bleed can fill a peer's reference frames, so its room cannot be read
+from them (#1252). The peer's own frames, those the owner does not dominate,
+then show it. A run of them is room when it carries no speech pitch
+(`voiced_runs.carries_speech_pitch`, the three-probe autocorrelation peak that
+keeps breaths, clicks and room tone out of voiced runs) and no frame of it rises
+more than `VOICE_FLOOR_OVER_ROOM_DB` (6 dB) over the quietest of the peer's own
+frames. Both tests are relative to the peer's own sound, so recording gain, the
+owner's pitch and a same-gender pair change nothing. A run that carries pitch,
+rises above that quiet, is under three probes (60 ms) or cannot be read blocks as
+before. Supported boundary: a quiet unvoiced peer sound (breath, soft fricative,
+click) or a voice above 350 Hz reads as room in this case only, and a steady
+periodic hum in the peer's room reads as voice and still blocks.
 Initial proposal queries retain the outward pad. After
 edge protection, a non-pause cut checks only its finalized mapped removal;
 approval repeats that check on the current validated removal geometry.
