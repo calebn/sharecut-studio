@@ -243,8 +243,8 @@ error. Tap or use Enter/Space to open the host precision dialog for a signed
 offset, 10 ms or 1 ms nudges, and separate current/proposed affected-track audio.
 It distinguishes fully restored words from partial spans, keeps an unchanged or
 cancelled draft out of history, and reports an offline Apply as queued. A load
-that gets no answer says "The server didn't answer. Try again." and saves
-nothing. New ripple cuts retain the removed source words for boundary previews. Expanding far
+that gets no answer says "The server didn't answer. Try again.", saves
+nothing, and offers **Try again** to load the controls in place. New ripple cuts retain the removed source words for boundary previews. Expanding far
 enough to restore a complete word brings its text and suppression choices back
 with the audio. Partial words remain archived. Existing older cuts without a
 word archive require History recovery.
