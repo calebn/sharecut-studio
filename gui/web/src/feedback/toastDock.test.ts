@@ -138,4 +138,25 @@ describe("usePhoneToastDock", () => {
     unmount();
     expect(bottom * 16).toBe(window.innerHeight - 655 + 8);
   });
+
+  it("docks above Listen's comment field so a posted comment's toast leaves the field free", () => {
+    document.documentElement.dataset.shell = "phone";
+    const region = document.createElement("div");
+    const card = document.createElement("div");
+    card.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    region.append(card);
+    document.body.append(region);
+    boxes.push(region);
+    box("mobile-nav", 792, 844);
+    box("mobile-dock", 690, 792);
+    const { unmount } = renderHook(() =>
+      usePhoneToastDock({ current: region }, true),
+    );
+    const bottom = Number.parseFloat(
+      region.style.getPropertyValue("--toast-dock-bottom"),
+    );
+    unmount();
+    expect(bottom * 16).toBe(window.innerHeight - 690 + 8);
+  });
 });
