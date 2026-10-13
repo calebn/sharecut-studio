@@ -12,6 +12,7 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
+import type { SessionState } from "../types/session";
 import { closeOverlay, openOverlay } from "../ui/modalGate";
 import { TOAST_MS } from "../ui/Toast";
 import { ApiError } from "../utils/apiError";
@@ -38,6 +39,31 @@ function atHead(headId: string, cursor = 399) {
       },
     },
   });
+}
+
+function peerSession(partial: Partial<SessionState>): SessionState {
+  return {
+    version: 1,
+    server_seq: 1,
+    origin: "viewer",
+    last_role: "viewer",
+    updated_at_ns: 0,
+    last_command_id: null,
+    playhead_sec: 0,
+    is_playing: false,
+    audition_mode: "mix",
+    region: null,
+    source: null,
+    track_id: null,
+    query: null,
+    match_index: null,
+    selection: null,
+    viewer_mute: {},
+    solo_tracks: {},
+    tier: null,
+    dry_run: false,
+    ...partial,
+  };
 }
 
 let reportVisibility = (_visible: boolean) => {};
@@ -141,6 +167,61 @@ describe("FeedbackToast", () => {
     act(() => modal.focus());
     act(() => atHead("next-cut"));
     expect(modal).toHaveFocus();
+  });
+
+  it("keeps a focused action across a render while its torn-down host awaits the next one", () => {
+    const old = compactHost();
+    const current = compactHost();
+    const { rerender } = render(<FeedbackToast host={old.host} />);
+    act(() => useDawStore.getState().announceStatus("Saved"));
+    const dismiss = screen.getByRole("button", { name: "Dismiss" });
+    act(() => dismiss.focus());
+    old.panel.remove();
+    rerender(<FeedbackToast host={old.host} />);
+    rerender(<FeedbackToast host={current.host} />);
+    expect(dismiss).toHaveFocus();
+    act(() =>
+      useDawStore
+        .getState()
+        .dismissFeedbackToast(useDawStore.getState().feedbackToast!.id),
+    );
+    expect(current.close).toHaveFocus();
+  });
+
+  it("hands a floating toast's removed Undo to the Close of the sheet it floats above", () => {
+    const { close } = compactHost();
+    render(<FeedbackToast />);
+    act(() =>
+      useDawStore
+        .getState()
+        .announceStatus("Removed Host", { undo: entry("host-reorder") }),
+    );
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    act(() => atHead("peer-mute"));
+    expect(close).toHaveFocus();
+  });
+
+  it("hands a focused Undo to Close when a peer's selection and edit land together", () => {
+    const { host, close } = compactHost();
+    render(<FeedbackToast host={host} />);
+    act(() =>
+      useDawStore
+        .getState()
+        .announceStatus("Removed Host", { undo: entry("host-reorder") }),
+    );
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    act(() =>
+      useDawStore
+        .getState()
+        .applyAgentSession(
+          peerSession({ selection: { kind: "chapter", id: "Intro", time: 3 } }),
+        ),
+    );
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "chapter",
+    });
+    act(() => atHead("peer-mute"));
+    expect(close).toHaveFocus();
   });
 
   it.each(["selection", "project", "pointer"])(
