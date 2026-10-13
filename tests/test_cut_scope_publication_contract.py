@@ -20,10 +20,12 @@ from podcast_mcp.edits.speech_energy_guard import (
     assess_cross_track_speech,
     resolve_cut_scope,
     speech_energy_on_conflict,
+    validate_speech_energy_on_conflict,
 )
 from podcast_mcp.edits.tighten import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.models import EditDecisionType, TranscriptWord, load_project
 from podcast_mcp.services.document import EditService
+from podcast_mcp.services.pipeline.config import merge_pipeline_config
 
 
 def _filler(tmp_path, monkeypatch, *, moved=False, guest=None):
@@ -293,15 +295,23 @@ def test_saved_session_approval_unavailable_hold_preserves_saved_bytes(
     assert load_project(ws.path).model_dump(mode="json") == before_model
 
 
-def test_the_shipped_and_the_fallback_conflict_policy_is_review():
+def test_the_shipped_and_the_unset_conflict_policy_is_review():
     assert load_defaults()["tighten"]["speech_energy_guard"]["on_conflict"] == "review"
     assert speech_energy_on_conflict({}) == "review"
-    assert (
-        speech_energy_on_conflict(
-            {"tighten": {"speech_energy_guard": {"on_conflict": "track_local"}}}
-        )
-        == "review"
-    )
+    assert merge_pipeline_config()["tighten"]["speech_energy_guard"]["on_conflict"] == "review"
+
+
+@pytest.mark.parametrize("policy", ["review", "skip", " Skip "])
+def test_a_known_conflict_policy_loads(policy):
+    merged = merge_pipeline_config({"tighten": {"speech_energy_guard": {"on_conflict": policy}}})
+    assert validate_speech_energy_on_conflict(merged) == policy.strip().lower()
+
+
+@pytest.mark.parametrize("policy", ["track_local", "bogus", ""])
+def test_an_unknown_conflict_policy_is_rejected_at_load(policy):
+    with pytest.raises(ValueError, match=r"on_conflict.*valid values: review, skip") as err:
+        merge_pipeline_config({"tighten": {"speech_energy_guard": {"on_conflict": policy}}})
+    assert repr(policy) in str(err.value)
 
 
 def test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied(

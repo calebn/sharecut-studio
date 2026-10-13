@@ -13,6 +13,7 @@ import yaml
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
+from podcast_mcp.edits.speech_energy_guard import validate_speech_energy_on_conflict
 from podcast_mcp.effects.presets import resolve_presets
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import DIGITAL_SILENCE_LSB, PEAK_BLOCK_SEC
@@ -61,6 +62,7 @@ def merge_pipeline_config(
     root = copy.deepcopy(base) if base is not None else load_defaults()
     merged = deep_merge(root, whitelist_overrides(overrides))
     filler_pad_mode(merged)
+    validate_speech_energy_on_conflict(merged)
     return merged
 
 

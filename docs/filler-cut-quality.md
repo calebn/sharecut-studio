@@ -177,7 +177,8 @@ evidence:
 - Owner trim-mode decision (2026-10-06, #1137): a ripple edit ripples every dialogue track, and cutting another speaker's speech is a warning the user confirms, not a silent local edit
 - Operator decision (2026-10-13) on #1370: when the speech guard blocks cutting a filler across all dialogue tracks, it must not auto-apply as a one-track punch; the default `on_conflict` becomes `review`, and `track_local` is deleted because no current product workflow asks for a local punch
 enforced-by:
-- tests/test_cut_scope_publication_contract.py::test_the_shipped_and_the_fallback_conflict_policy_is_review
+- tests/test_cut_scope_publication_contract.py::test_an_unknown_conflict_policy_is_rejected_at_load
+- tests/test_cut_scope_publication_contract.py::test_the_shipped_and_the_unset_conflict_policy_is_review
 - tests/test_cut_scope_publication_contract.py::test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied
 - tests/test_cut_scope_publication_contract.py::test_mute_mode_ignores_peer_speech_and_needs_no_review
 - tests/test_cut_scope_publication_contract.py::test_known_peer_generated_controls_preserve_conflict_policy
@@ -190,9 +191,9 @@ In ripple mode, a filler (or a manual NL cut) that a peer is speaking over is a
 pending suggestion marked `review_required` with the reason `:other_speaking:<peers>`.
 `apply_edits` and the `tighten_from_transcript` step never apply it, so no filler
 leaves a hole on one track while the others keep their time.
-`tighten.speech_energy_guard.on_conflict` takes `review` (the default, also the
-value for any unrecognized setting) or `skip`, which refuses the cut. The
-`track_local` value is gone. A mute is a track-scope edit by design, so mute mode
+`tighten.speech_energy_guard.on_conflict` takes `review` (the default) or `skip`,
+which refuses the cut. Any other value, including the removed `track_local`, is
+rejected with a `ValueError` when the pipeline config loads. A mute is a track-scope edit by design, so mute mode
 never consults peer speech and is unchanged.
 
 ### Superseded decision: Pause trims cut only air
