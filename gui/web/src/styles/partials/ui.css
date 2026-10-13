@@ -541,12 +541,13 @@ button.pill.pill--info {
   overflow-y: auto;
 }
 
-/* A Menu's panel: portaled to <body> and fixed where ui/Menu.tsx places it
-   against the visual viewport (below its trigger, flipped above, clamped
-   --menu-edge-margin inside every edge). */
+/* A Menu's panel is a popover: the browser draws it in the top layer, and
+   ui/Menu.tsx fixes it against the visual viewport (below its trigger,
+   flipped above, clamped --menu-edge-margin inside every edge). */
 .ui-menu-popup {
   position: fixed;
-  z-index: var(--z-menu);
+  inset: auto;
+  margin: 0;
   inline-size: min-content;
   min-inline-size: min(15rem, var(--menu-available-width));
   max-inline-size: var(--menu-available-width);
@@ -590,17 +591,17 @@ button.pill.pill--info {
 }
 
 /* Row height stays at zero added specificity so the compact touch rule
-   below (44pt rows on the phone and tablet shells) always wins. */
+   below (44pt rows when the transport is narrow) always wins. */
 .ui-menu-panel :where(.ui-control--quiet, button[role="menuitem"]) {
   min-block-size: var(--control-height);
 }
 
-/* The panel is portaled out of .transport, so the narrow-transport container
-   no longer reaches it: the phone and tablet shells (the same width band) stand in. */
-html:is([data-shell="phone"], [data-shell="tablet"])
-  .ui-menu-popup
-  :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
-  min-block-size: var(--touch-min);
+/* Menu is nested in .transport (container: transport / inline-size). */
+@container transport (inline-size < 68.75rem) {
+  .ui-menu-panel
+    :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
+    min-block-size: var(--touch-min);
+  }
 }
 
 /* Checked menu radios / checkboxes: the selected chip plus a check mark, so

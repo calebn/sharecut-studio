@@ -8,6 +8,13 @@ import { resetQuestions } from "./ask";
 // axe color-contrast probes canvas; jsdom has no implementation.
 HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
 
+// jsdom has no Popover API and its UA stylesheet hides every closed
+// [popover]: showing one drops the attribute so Menu panels render.
+HTMLElement.prototype.showPopover ??= function showPopover(this: HTMLElement) {
+  this.removeAttribute("popover");
+};
+HTMLElement.prototype.hidePopover ??= () => undefined;
+
 class ResizeObserverStub {
   observe(): void {}
   unobserve(): void {}
