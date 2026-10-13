@@ -348,11 +348,8 @@ def add_remove_decision(
         raise PeerSpeechBlocked(guard.blocking_track_ids)
     if guard is not None and guard.blocked:
         peers = ",".join(guard.blocking_track_ids)
-        if guard.action == "review":
-            review = True
-            cut_reason = f"{reason}:other_speaking:{peers}"
-        else:
-            cut_reason = f"{reason}:track_local:{peers}"
+        review = True
+        cut_reason = f"{reason}:other_speaking:{peers}"
         replace_gap = None
         scope = "track"
 

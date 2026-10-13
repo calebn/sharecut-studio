@@ -14,12 +14,14 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.speech_energy_guard import (
     assess_cross_track_speech,
     resolve_cut_scope,
+    speech_energy_on_conflict,
 )
-from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.edits.tighten import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.models import EditDecisionType, TranscriptWord, load_project
 from podcast_mcp.services.document import EditService
 
@@ -27,7 +29,7 @@ from podcast_mcp.services.document import EditService
 def _filler(tmp_path, monkeypatch, *, moved=False, guest=None):
     cfg = defaults()
     cfg["tighten"].update({"filler_words": ["um"], "max_pause_sec": 100})
-    cfg["tighten"]["speech_energy_guard"].update({"enabled": True, "on_conflict": "track_local"})
+    cfg["tighten"]["speech_energy_guard"].update({"enabled": True, "on_conflict": "review"})
     configure(monkeypatch, cfg)
     result = project(tmp_path, guest=guest)
     result.transcripts[0].words.insert(1, TranscriptWord(text="um", start=1, end=1.5))
@@ -84,7 +86,7 @@ def test_clear_to_known_peer_scope_flip_needs_available_regate_assessment(
     assert [(d.start, d.end, d.scope) for d in control.decisions] == [
         (pytest.approx(0.78), pytest.approx(1.5), "track")
     ]
-    assert "track_local:guest" in control.decisions[0].reason
+    assert "other_speaking:guest" in control.decisions[0].reason
     before = result.model_dump(mode="json")
     assessed = []
     completed_peers = []
@@ -198,7 +200,7 @@ def test_mute_proposal_stays_publishable_with_a_failing_peer_assessor(
     assert primary_spans(result, "guest") == [(0, 6, 0)]
 
 
-@pytest.mark.parametrize("policy", ["skip", "review", "track_local"])
+@pytest.mark.parametrize("policy", ["skip", "review"])
 def test_known_peer_generated_controls_preserve_conflict_policy(tmp_path, monkeypatch, policy):
     result, cfg = _filler(tmp_path, monkeypatch, guest="quiet")
     peer = room(seed=1215)
@@ -206,7 +208,7 @@ def test_known_peer_generated_controls_preserve_conflict_policy(tmp_path, monkey
     write_wav(tmp_path / "raw" / "guest.wav", peer)
     control = propose_tighten_edits(result.model_copy(deep=True), cfg, replace_existing=False)
     assert [(d.start, d.end, d.scope) for d in control.decisions] == [(1, 1.5, "track")]
-    assert "track_local:guest" in control.decisions[0].reason
+    assert "other_speaking:guest" in control.decisions[0].reason
     cfg["tighten"]["speech_energy_guard"]["on_conflict"] = policy
     before = result.model_dump(mode="json")
 
@@ -218,9 +220,8 @@ def test_known_peer_generated_controls_preserve_conflict_policy(tmp_path, monkey
         assert result.model_dump(mode="json") == before
     else:
         assert [(d.start, d.end, d.scope) for d in proposal.decisions] == [(1, 1.5, "track")]
-        marker = "other_speaking:guest" if policy == "review" else "track_local:guest"
-        assert marker in proposal.decisions[0].reason
-        assert proposal.decisions[0].review_required is (policy == "review")
+        assert "other_speaking:guest" in proposal.decisions[0].reason
+        assert proposal.decisions[0].review_required is True
         assert proposal.decisions[0].replace_gap_sec is None
         assert [d.id for d in result.edit_decisions] == ["kept", proposal.decisions[0].id]
 
@@ -290,3 +291,50 @@ def test_saved_session_approval_unavailable_hold_preserves_saved_bytes(
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
     assert load_project(ws.path).model_dump(mode="json") == before_model
+
+
+def test_the_shipped_and_the_fallback_conflict_policy_is_review():
+    assert load_defaults()["tighten"]["speech_energy_guard"]["on_conflict"] == "review"
+    assert speech_energy_on_conflict({}) == "review"
+    assert (
+        speech_energy_on_conflict(
+            {"tighten": {"speech_energy_guard": {"on_conflict": "track_local"}}}
+        )
+        == "review"
+    )
+
+
+def test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied(
+    tmp_path, monkeypatch
+):
+    result, cfg = _filler(tmp_path, monkeypatch, guest="quiet")
+    del cfg["tighten"]["speech_energy_guard"]["on_conflict"]
+    configure(monkeypatch, cfg)
+    peer = room(seed=1215)
+    voice(peer, 1.1, 1.3)
+    write_wav(tmp_path / "raw" / "guest.wav", peer)
+
+    proposal = propose_tighten_edits(result, cfg, replace_existing=False, edit_mode="ripple")
+
+    (decision,) = proposal.decisions
+    assert decision.review_required is True
+    assert "other_speaking:guest" in decision.reason
+    assert apply_tighten_decisions(result) == 0
+    assert decision.applied is False
+    assert [(d.type, d.scope, d.review_required) for d in result.edit_decisions if d.applied] == []
+
+
+def test_mute_mode_ignores_peer_speech_and_needs_no_review(tmp_path, monkeypatch):
+    result, cfg = _filler(tmp_path, monkeypatch, moved=True, guest="quiet")
+    del cfg["tighten"]["speech_energy_guard"]["on_conflict"]
+    configure(monkeypatch, cfg)
+    peer = room(seed=1215)
+    voice(peer, 0.82, 0.92, db=-12)
+    write_wav(tmp_path / "raw" / "guest.wav", peer)
+
+    proposal = propose_tighten_edits(result, cfg, replace_existing=False, edit_mode="mute")
+
+    (decision,) = proposal.decisions
+    assert (decision.type, decision.scope) == (EditDecisionType.MUTE, "track")
+    assert decision.review_required is False
+    assert "other_speaking" not in decision.reason

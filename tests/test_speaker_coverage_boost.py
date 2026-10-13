@@ -368,13 +368,10 @@ def test_cut_span_bleed_from_speaker_match_metadata() -> None:
     assert _cut_span_is_bleed_not_owner(project, "host", 1.0, 1.3) is True
 
 
-def test_speech_energy_on_conflict_invalid_defaults_to_track_local() -> None:
+def test_speech_energy_on_conflict_invalid_defaults_to_review() -> None:
     from podcast_mcp.edits.speech_energy_guard import speech_energy_on_conflict
 
-    assert (
-        speech_energy_on_conflict({"speech_energy_guard": {"on_conflict": "bogus"}})
-        == "track_local"
-    )
+    assert speech_energy_on_conflict({"speech_energy_guard": {"on_conflict": "bogus"}}) == "review"
 
 
 def test_label_track_home_speaker_short_region_breaks(tmp_path, sample_wav) -> None:

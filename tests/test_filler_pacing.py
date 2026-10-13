@@ -1088,7 +1088,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
     assert "other_speaking" in analyzed.reason
 
 
-def test_analyze_candidate_track_local_on_blocked_peer() -> None:
+def test_analyze_candidate_blocked_peer_waits_for_review_on_its_own_track() -> None:
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
@@ -1114,7 +1114,7 @@ def test_analyze_candidate_track_local_on_blocked_peer() -> None:
     risk = type("R", (), {"too_risky": False})()
     guard = SpeechEnergyGuardResult(
         blocking_track_ids=("guest",),
-        action="track_local",
+        action="review",
     )
     with (
         patch("podcast_mcp.edits.fillers.optimize_and_assess", return_value=(opt, risk)),
@@ -1133,4 +1133,5 @@ def test_analyze_candidate_track_local_on_blocked_peer() -> None:
     assert analyzed is not None
     assert analyzed.scope == "track"
     assert analyzed.replace_gap_sec is None
-    assert "track_local" in analyzed.reason
+    assert analyzed.review_required is True
+    assert "other_speaking:guest" in analyzed.reason

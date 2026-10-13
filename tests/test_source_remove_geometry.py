@@ -288,7 +288,7 @@ def test_saved_scope_holds_keep_real_cause_and_audio(tmp_path: Path, monkeypatch
 
     ws = _workspace(tmp_path)
     ws.mutate("before pending", "after pending", lambda p: p.edit_decisions.append(_cut()))
-    guard = SpeechEnergyGuardResult(("guest",), "track_local") if cause == "peer_speech" else None
+    guard = SpeechEnergyGuardResult(("guest",), "review") if cause == "peer_speech" else None
     monkeypatch.setattr(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
         lambda *_args, **_kwargs: (
