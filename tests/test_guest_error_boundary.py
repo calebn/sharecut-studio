@@ -9,6 +9,31 @@ from podcast_mcp.gui.routes import review_share
 from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
 
+def test_disabled_guest_render_projects_safe_http_refusal(monkeypatch):
+    import logging
+
+    from podcast_mcp.gui.routes.guest_errors import guest_http_error
+    from podcast_mcp.util.coded_error import CodedPermissionError
+    from podcast_mcp.util.guest_render import require_guest_render
+    from podcast_mcp.util.tool_refusal import ToolRefusal, tool_refusal
+
+    monkeypatch.delenv("PODCAST_GUEST_RENDER", raising=False)
+    with pytest.raises(CodedPermissionError) as failure:
+        require_guest_render()
+
+    projected = guest_http_error(
+        failure.value, logger=logging.getLogger(__name__), operation="render preview"
+    )
+    assert projected.status_code == 403
+    assert projected.detail == "That didn't work; ask the host to check this episode."
+    assert projected.headers == {"X-Sharecut-Error-Code": "share_capability_required"}
+    assert tool_refusal(failure.value) == ToolRefusal(
+        "Guest render_preview is disabled. Set PODCAST_GUEST_RENDER=1 on the host "
+        "to allow edit/mcp shares to rebuild stems/premix.",
+        "share_capability_required",
+    )
+
+
 @pytest.mark.parametrize(
     "error",
     [
