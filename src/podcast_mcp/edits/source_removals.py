@@ -18,16 +18,13 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
 )
 from podcast_mcp.edits.ripple import ripple_track_ids
-from podcast_mcp.edits.room_tone import SampleAbsent
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,
-    RoomTonePad,
-    insert_bound_room_tone_pad,
     insert_gap,
+    insert_room_tone_pad,
     plan_ripple_delete,
     punch_delete,
     ripple_delete,
-    room_tone_pad,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, origin_track_id_for_clip
 from podcast_mcp.models import (
@@ -58,7 +55,6 @@ class CutScopeHold:
         "pause_imperceptible",
         "media_extent_unavailable",
         "operation_scope",
-        "pad_unavailable",
         "pause_air",
         "pause_join",
     ] = "peer_speech"
@@ -67,17 +63,6 @@ class CutScopeHold:
 
 
 _LANE_PROBLEMS = {
-    "missing_track": "is missing from the project",
-    "missing_media": "has no audio",
-    "missing_file": "has no audio file",
-    "unreadable_file": "has audio that could not be read",
-    "window_unreadable": "has audio that could not be read",
-    "no_quiet_run": "has no quiet stretch to use as room tone",
-    "too_short": "has no quiet stretch long enough to use as room tone",
-    "excluded": "has only quiet stretches that other pending cuts use",
-    "rejected": "has no quiet stretch that sounds like room tone",
-    "candidate_limit": "has no nearby quiet stretch that sounds like room tone",
-    "missing_seam": "has no audio at the cut to match",
     "media_extent_unavailable": "has a recording whose length is unknown",
     "implicit_playback_with_parked_source": "plays audio the cut cannot measure",
     "effect_media_unavailable": "has audio the join check could not read",
@@ -86,18 +71,10 @@ _LANE_PROBLEMS = {
 }
 _UNCHECKED_LANE = "could not be checked"
 _SELECT_OR_REJECT = "Select the part to cut on the timeline, or reject the held cuts."
-_HOLD_ADVICE = {
-    "pad_unavailable": (
-        "Set filler_pad_mode to silence to cut without room tone, or reject the held cuts."
-    ),
-}
 
 
 def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
-    cause = lane.cause.cause if isinstance(lane.cause, SampleAbsent) else lane.cause
-    return (
-        f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(cause, _UNCHECKED_LANE)}"
-    )
+    return f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(lane.cause, _UNCHECKED_LANE)}"
 
 
 def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
@@ -130,7 +107,6 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             "operation_scope": "the selected audio plays outside the tracks this cut removes",
             "pause_not_shorter": "the replacement pad would leave the pause as long or longer",
             "pause_imperceptible": "the pause would shorten too little to hear",
-            "pad_unavailable": "it needs room tone",
             "pause_air": "the pause cannot retain enough original quiet audio safely",
             "pause_join": "the final pause join did not pass its audio checks",
         }
@@ -145,11 +121,10 @@ class ScopeChangedAtApproval(CodedError, ValueError):
                 problems = "; ".join(
                     _lane_problem(lane, speakers) for lane in hold.unavailable_lanes
                 )
-                why += f" and {problems}" if hold.reason == "pad_unavailable" else f" ({problems})"
+                why += f" ({problems})"
             label = self.cuts.get(hold.edit_id, "A selected cut")
             details.append(f"{label} was not applied because {why}.")
-        advice = dict.fromkeys(_HOLD_ADVICE.get(h.reason, _SELECT_OR_REJECT) for h in held)
-        super().__init__(" ".join([*details, *advice]))
+        super().__init__(" ".join([*details, _SELECT_OR_REJECT]))
 
     def for_delivery(self, delivery: Literal["saved", "suggested"]) -> ScopeChangedAtApproval:
         error = ScopeChangedAtApproval(self.held, self.speakers, self.cuts)
@@ -296,39 +271,6 @@ def _pending_playing_source_spans(
     return spans
 
 
-_SILENCE_IS_THE_ROOM = frozenset({"digital_silence", "gated_live"})
-
-
-class _PadUnavailable(Exception):
-    def __init__(self, lanes: tuple[LaneUnavailable, ...]) -> None:
-        super().__init__("a live track has no room tone for the pad")
-        self.lanes = lanes
-
-
-def _lanes_that_would_drop_out(pad: RoomTonePad) -> tuple[LaneUnavailable, ...]:
-    """Lanes the pad would leave digitally silent although the track has a live room.
-
-    A track gated to digital silence between words has no room to match, so its hole
-    is the faithful fill. Any other absence leaves a dropout against that track's noise.
-    """
-    return tuple(
-        lane
-        for lane in pad.lanes
-        if isinstance(lane, LaneUnavailable)
-        and not (isinstance(lane.cause, SampleAbsent) and lane.cause.cause in _SILENCE_IS_THE_ROOM)
-    )
-
-
-def _room_tone_pad_wanted(edit: EditDecision) -> bool:
-    gap = edit.replace_gap_sec
-    return (
-        gap is not None
-        and gap > 0
-        and getattr(edit, "scope", "session") != "track"
-        and filler_pad_mode() == "room_tone"
-    )
-
-
 def _apply_replace_gap_pad(
     project: EpisodeProject,
     edit: EditDecision,
@@ -347,12 +289,9 @@ def _apply_replace_gap_pad(
         else _nearest_ripple_join_time(project, tl_start)
     )
     if filler_pad_mode() == "room_tone":
-        pad = room_tone_pad(
+        report = insert_room_tone_pad(
             project, pad_start_sec, gap, avoid=_pending_playing_source_spans(project, edit)
         )
-        if dropouts := _lanes_that_would_drop_out(pad):
-            raise _PadUnavailable(dropouts)
-        report = insert_bound_room_tone_pad(project, pad)
         samples = report["pad_samples"]
     else:
         insert_gap(project, pad_start_sec, gap)
@@ -399,7 +338,6 @@ def consume_source_remove(
     """
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
     from podcast_mcp.edits.track_media import full_span_clip
-    from podcast_mcp.project_merge import adopt_project_state
 
     scope = edit.scope or "session"
     seed = inspect_source_remove_placement(project, edit)
@@ -425,16 +363,13 @@ def consume_source_remove(
         )
         if isinstance(preparation, _CutRejected):
             reason: Literal[
-                "pad_unavailable",
                 "pause_imperceptible",
                 "pause_not_shorter",
                 "source_geometry",
                 "scope_unavailable",
                 "pause_air",
             ] = (
-                "pad_unavailable"
-                if preparation.skip == "pad_unavailable"
-                else "pause_imperceptible"
+                "pause_imperceptible"
                 if preparation.skip == "imperceptible"
                 else "pause_not_shorter"
                 if preparation.skip == "pause_not_shorter"
@@ -592,7 +527,6 @@ def consume_source_remove(
     )
     if isinstance(clearance, CutSpeechConfirmation):
         return clearance
-    unpadded = project.model_copy(deep=True) if _room_tone_pad_wanted(actual) else None
     if working is not project:
         project.clips.extend(implicit)
     report = ripple_delete(
@@ -604,17 +538,7 @@ def consume_source_remove(
     tl_start, tl_end = report["timeline_start"], report["timeline_end"]
     per_track = report["per_track_source"]
     track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
-    try:
-        samples = _apply_replace_gap_pad(project, actual, tl_start, exact_seam=pause)
-    except _PadUnavailable as unavailable:
-        if unpadded is not None:
-            adopt_project_state(project, unpadded)
-        return CutScopeHold(
-            edit.id,
-            tuple(lane.track_id for lane in unavailable.lanes),
-            "pad_unavailable",
-            unavailable.lanes,
-        )
+    samples = _apply_replace_gap_pad(project, actual, tl_start, exact_seam=pause)
     effects = prepared_pause.plan.effects if prepared_pause is not None else ()
     matches = []
     for edge in effects:
