@@ -9,8 +9,8 @@ silent while their voice is on the host's mic.
 
 Each scene plants one voiced "uh" on the guest ("audra") whose copy reaches the host
 ("caleb") ``copy_delay`` after the guest says it, while the guest's own track carries it
-``latency`` later. Reconcile's lag is the difference. The "uh" is shorter than every lag, so
-at the same instant one track is silent where the other sounds.
+``latency`` later. Reconcile's lag is the difference. Unless a scene says otherwise the "uh" is
+shorter than the lag, so at the same instant one track is silent where the other sounds.
 """
 
 from __future__ import annotations
@@ -81,11 +81,6 @@ class Scene:
         """Where Audra's own track carries her "uh"."""
         return UH[0] + self.latency, UH[0] + self.uh_sec + self.latency
 
-    @property
-    def copy_uh(self) -> tuple[float, float]:
-        """Where Caleb's mic carries the copy of it."""
-        return UH[0] + self.copy_delay, UH[0] + self.uh_sec + self.copy_delay
-
 
 def _tone(
     start: float, end: float, amplitude: float, hz: float = 150.0, edge: float = 0.25
@@ -129,7 +124,7 @@ def _audio(scene: Scene) -> dict[str, np.ndarray]:
 
 
 def _project(tmp_path: Path, scene: Scene, *, owner: str) -> EpisodeProject:
-    """``owner`` has a long word gap; the other track has words only when it is the host."""
+    """Only ``owner`` has words, so only it has a word gap to scan."""
     project = EpisodeProject.create("peer-lag", str(tmp_path))
     lag = {"caleb": 0.0, "audra": scene.latency}
 
@@ -243,7 +238,7 @@ def test_the_finding_does_not_depend_on_the_recording_level(tmp_path: Path, gain
 def test_the_hosts_copy_of_the_guests_filler_is_read_against_the_guest_at_the_lag(
     tmp_path: Path, scene: Scene
 ) -> None:
-    """The copy is only 8 dB under the filler: half of it overlaps the filler at one instant, and that half is only 5 dB over."""
+    """The copy is 8 dB under the filler. At one instant only half the filler overlaps it, which is 5 dB over."""
     scene = replace(scene, copy_gain=0.4, uh_sec=0.5)
     project = _project(tmp_path, scene, owner="audra")
 
@@ -294,7 +289,7 @@ def test_the_guests_voice_on_the_hosts_mic_is_not_the_hosts_filler(
 def test_an_unmeasured_lag_reads_the_guest_at_the_same_instant(
     tmp_path: Path, scene: Scene
 ) -> None:
-    """With no confident lag the pair keeps the same-instant reading, as before the lag was measured."""
+    """With no confident lag the guest is read at 0 lag, so the host's mic carries a filler the guest's track lacks."""
     scene = replace(scene, copy_gain=0.5, host_speech=(), host_uh=HOST_UH)
     project = _project(tmp_path, scene, owner="caleb")
 
