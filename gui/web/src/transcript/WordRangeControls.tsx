@@ -53,10 +53,10 @@ function StepButton({
   return (
     <Button
       type="button"
-      className="ui-control--compact range-word-step"
       disabled={reason !== null}
       aria-describedby={reason ? reasonId : undefined}
       {...hold}
+      className={`ui-control--compact range-word-step ${hold.className}`}
     >
       {label}
     </Button>
