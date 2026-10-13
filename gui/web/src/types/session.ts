@@ -94,6 +94,8 @@ export interface SessionState {
   query: string | null;
   match_index: number | null;
   selection: SessionSelection | null;
+  /** `server_seq` of the selection's last write while an agent wrote it; 0 once anyone else wrote it. */
+  agent_selection_seq?: number;
   viewer_mute: Record<string, boolean>;
   solo_tracks: Record<string, boolean>;
   tier: string | null;

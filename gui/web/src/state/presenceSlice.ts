@@ -33,6 +33,7 @@ type PresenceSlice = Pick<
   | "stopFollow"
   | "lastAppliedRevision"
   | "lastAppliedCommandId"
+  | "lastAppliedAgentSelectionSeq"
   | "suppressPublish"
   | "pendingWireSelection"
   | "remoteSelectionRevision"
@@ -117,6 +118,7 @@ export const createPresenceSlice: StateCreator<
   // --- session publish ---
   lastAppliedRevision: 0,
   lastAppliedCommandId: null as string | null,
+  lastAppliedAgentSelectionSeq: 0,
   suppressPublish: false,
   pendingWireSelection: null,
   remoteSelectionRevision: 0,
@@ -136,6 +138,11 @@ export const createPresenceSlice: StateCreator<
       set({ suppressPublish: false, _suppressTimer: null });
     }, 1200);
     const fromAgent = (state.last_role ?? state.origin) === "agent";
+    const agentSelectionSeq = state.agent_selection_seq ?? 0;
+    const adoptSelection =
+      fromAgent &&
+      state.selection !== undefined &&
+      agentSelectionSeq > get().lastAppliedAgentSelectionSeq;
     const guestHear = guestHearsMixOnly(get().guestMode);
     const hear = guestHear
       ? { auditionMode: "mix" as const }
@@ -164,11 +171,14 @@ export const createPresenceSlice: StateCreator<
         sourcePreview: null,
         sourcePreviewGeneration: get().sourcePreviewGeneration + 1,
         ...hear,
-        ...(state.selection !== undefined
-          ? remoteSelectionPatch(
-              wireSelectionPatch(state.selection, get().project),
-              get().remoteSelectionRevision,
-            )
+        ...(adoptSelection
+          ? {
+              ...remoteSelectionPatch(
+                wireSelectionPatch(state.selection, get().project),
+                get().remoteSelectionRevision,
+              ),
+              lastAppliedAgentSelectionSeq: agentSelectionSeq,
+            }
           : {}),
         ...(state.clients
           ? {

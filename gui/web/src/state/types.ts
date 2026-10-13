@@ -240,6 +240,8 @@ export interface DawState {
   playUntilSec: number | null;
   lastAppliedRevision: number;
   lastAppliedCommandId: string | null;
+  /** Newest `agent_selection_seq` this tab has adopted, so an agent selection applies once. */
+  lastAppliedAgentSelectionSeq: number;
   suppressPublish: boolean;
   /** A remote selection whose target this client does not have yet; resolved when the project arrives or changes. */
   pendingWireSelection: SessionSelection | null;

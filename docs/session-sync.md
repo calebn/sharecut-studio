@@ -99,7 +99,7 @@ unknown command can have an empty transport patch. Explicit `null`, `false`, and
 empty collections remain values, so clients merge only keys that are present.
 The transport scope is `TRANSPORT_FIELDS`: `playhead_sec`, `is_playing`,
 `audition_mode`, `region`, `source`, `track_id`, `query`, `match_index`, `selection`,
-`viewer_mute`, `solo_tracks`, `tier`, `dry_run`, `wav`, and `compare_segments`.
+`agent_selection_seq`, `viewer_mute`, `solo_tracks`, `tier`, `dry_run`, `wav`, and `compare_segments`.
 `snapshot.clients` and `snapshot.fields` never travel on the sparse path. HTTP/MCP
 `submit()` responses, `GET /api/session/state`, and hello WS `Snapshot` remain
 full, including roster and field attribution.
@@ -149,7 +149,7 @@ The viewer publish adapter reads the authority once to compare durable fields, t
 | Other `viewer` `SetPlaying` / playhead | No — each tab owns its clock |
 | Other `viewer` mode / mute | Yes (discrete UI sync) |
 | Other `viewer` selection | No — every tab, host or guest, keeps its own selection (#1346, #1394). It mirrors someone else's only through Follow |
-| Role `agent` selection | Yes, in every tab |
+| Role `agent` selection | Yes, in every tab, once: when the agent sets it (`agent_selection_seq` advances). A later agent command does not re-assert it |
 
 Every adopted selection (an agent's or a followed leader's) goes through `selectionFromWire(selection, project)` in `session/wire.ts`, which returns null when the named clip, edit, record, comment, social clip, or track is not in the loaded project. A stale selection in the stored session snapshot therefore clears silently instead of opening an Inspector reading "Edit not found" (#1339). A selection that arrives while the target is not here yet (the session snapshot lands before the project loads on a reload, or the agent or a followed leader selects something that has not reached this client) is held in `pendingWireSelection` and resolved by the store subscription in `state/dawStore.ts` when the project loads or changes, so a valid agent-set selection survives a reload. A pending selection that never resolves shows nothing, and any selection the person makes clears it.
 
@@ -164,18 +164,28 @@ evidence:
 - Operator decision 2026-10-13: a host's own browser tabs must not share one selection; each tab keeps its own, the way guests do, Follow stays the explicit way to mirror someone, and agent-set selections still apply
 - #1371, #1343, #1351, #1291: selecting in one host tab selected in the other through the session presence echo
 - #1346: a review-link guest already keeps its own selection
+- #1406: the stored agent selection was re-applied to every tab by any later agent command (a SetPlaying after the person picked something else), so an agent selection applies once
 enforced-by:
 - gui/web/src/state/dawStore.test.ts::a host tab keeps its own selection when another host tab selects
 - gui/web/src/state/dawStore.test.ts::a host tab with nothing selected stays empty when another host tab selects
 - gui/web/src/state/dawStore.test.ts::never restores a viewer tab's selection that arrived before the project loaded
 - gui/web/src/state/dawStore.test.ts::a share guest keeps its own selection when another viewer selects
+- gui/web/src/state/dawStore.test.ts::an agent SetPlaying after the agent selected A leaves the person's B selected
+- gui/web/src/state/dawStore.test.ts::a new agent SetSelection still applies
+- gui/web/src/state/dawStore.test.ts::restores the agent selection on reload only while it is still the latest
+- tests/test_session_applied_delta.py::test_agent_selection_seq_names_the_agent_write_and_resets_on_a_viewer_write
 - gui/web/src/hooks/useFollowUi.test.ts::mirrors the leader inspector selection without unfollowing
 - gui/web/e2e/host-tab-selection.spec.ts::a host tab keeps its own selection when another host tab selects, and an agent selection reaches both
 - docs-sync: decision-session-selection
 -->
 
-`applyAgentSession` adopts a selection only from an agent-authored session state;
-`useFollowUi` adopts the followed leader's. A viewer echo (another tab, or this
+`applyAgentSession` adopts a selection only from an agent-authored session state
+whose `agent_selection_seq` is newer than the tab's `lastAppliedAgentSelectionSeq`;
+`useFollowUi` adopts the followed leader's. The server sets `agent_selection_seq`
+to the command's `server_seq` when an agent writes `selection` (`SetSelection`, or
+the `selection` an agent region or audition carries) and to 0 when anyone else
+writes it, so an agent's `SetPlaying` or other unrelated command never re-asserts
+it, and a viewer's later selection leaves nothing for a reload to restore. A viewer echo (another tab, or this
 tab's own publish coming back) never touches `selection`. There is no per-tab
 selection persistence, so a reload restores only an agent-set selection
 (#1343), which waits in `pendingWireSelection` until its target is here.

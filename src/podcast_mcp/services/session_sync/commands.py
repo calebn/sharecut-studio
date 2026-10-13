@@ -74,6 +74,7 @@ TRANSPORT_FIELDS = frozenset(
         "query",
         "match_index",
         "selection",
+        "agent_selection_seq",
         "viewer_mute",
         "solo_tracks",
         "tier",
