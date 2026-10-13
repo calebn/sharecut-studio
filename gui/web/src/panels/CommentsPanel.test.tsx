@@ -393,6 +393,7 @@ describe("CommentsPanel", () => {
     await user.keyboard("{Escape}");
     expect(useDawStore.getState().commentDraft).toBeNull();
 
+    expect(screen.queryByText(/^Selection is/)).toBeNull();
     await edit("0:20");
     expect(useDawStore.getState().commentDraft).toEqual({
       startSec: 20,
@@ -400,6 +401,17 @@ describe("CommentsPanel", () => {
       trackIds: ["host"],
       intervals: [{ start: 20, end: 25.4 }],
     });
+    expect(screen.getByText("Selection is 0:04–0:09")).toBeInTheDocument();
+    await edit("0:30–0:25");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "End must be after start",
+    );
+    expect(useDawStore.getState().commentDraft).toMatchObject({
+      startSec: 20,
+    });
+    await user.click(chip());
+    expect(screen.queryByRole("alert")).toBeNull();
+    await user.keyboard("{Escape}");
     await edit("0:21–0:30");
     expect(useDawStore.getState().commentDraft).toMatchObject({
       startSec: 21,
@@ -424,6 +436,9 @@ describe("CommentsPanel", () => {
     expect(
       screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
     ).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Try 0:42 or 0:20–0:30",
+    );
     await user.click(
       screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
     );

@@ -145,3 +145,20 @@ export function Inspector() {
       return null;
   }
 }
+
+/**
+ * The inspector as a bottom sheet's body. While Select range is armed, its In
+ * and Out fields sit here above whatever else is selected, so no shell has to
+ * put them in a bar behind the sheet's scrim.
+ */
+export function SheetInspector() {
+  const showRangeFields = useDaw(
+    (s) => s.rangeArmed && !isRangeSelection(s.selection),
+  );
+  return (
+    <>
+      {showRangeFields ? <RangeActions sheet /> : null}
+      <Inspector />
+    </>
+  );
+}

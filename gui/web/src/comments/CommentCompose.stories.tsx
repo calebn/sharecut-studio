@@ -61,7 +61,7 @@ type Story = StoryObj<typeof CommentCompose>;
 
 export const Empty: Story = {
   args: {
-    anchor: <CommentTimeChip label="0:00" onCommit={fn()} />,
+    anchor: <CommentTimeChip label="0:00" onCommit={fn(() => null)} />,
   },
   parameters: {
     docs: {

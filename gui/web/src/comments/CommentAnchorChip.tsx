@@ -5,6 +5,7 @@ import {
   commentAnchorLabel,
   resolveCommentAnchor,
   retimeCommentDraft,
+  selectionDiffersNote,
 } from "./commentAnchor";
 
 /**
@@ -12,12 +13,14 @@ import {
  * picks a time on the ruler, selects a range, or types one into the chip.
  */
 export function CommentAnchorChip() {
-  const label = useDaw((s) =>
-    commentAnchorLabel(resolveCommentAnchor(s).draft),
-  );
+  const { label, selectionLabel } = useDaw((s) => ({
+    label: commentAnchorLabel(resolveCommentAnchor(s).draft),
+    selectionLabel: selectionDiffersNote(s),
+  }));
   return (
     <CommentTimeChip
       label={label}
+      selectionLabel={selectionLabel}
       onCommit={(text) => {
         const state = useDawStore.getState();
         const next = retimeCommentDraft(
@@ -25,7 +28,8 @@ export function CommentAnchorChip() {
           text,
           state.project?.timeline_duration_sec ?? Number.NaN,
         );
-        if (next) state.setCommentDraft(next);
+        if (next && "draft" in next) state.setCommentDraft(next.draft);
+        return next && "refusal" in next ? next.refusal : null;
       }}
     />
   );

@@ -14,7 +14,7 @@ import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
-import { Inspector } from "../inspector/Inspector";
+import { SheetInspector } from "../inspector/Inspector";
 import { InspectorPeek } from "../inspector/InspectorPeek";
 import { RelatedCommands } from "../inspector/RelatedCommands";
 import { CommentsPanel } from "../panels/CommentsPanel";
@@ -36,7 +36,6 @@ import {
   guestShareBannerLabel,
 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { SoloChip } from "../tracks/SoloChip";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
@@ -549,12 +548,7 @@ function MobileShellAdapter({
             canvas: <TimelineView fixedPlayhead headerSlot={headerSlot} />,
             tools: (
               <EditingToolRail
-                inert={
-                  inspectorOpen &&
-                  !rangeArmed &&
-                  compact != null &&
-                  !compact.stowed
-                }
+                inert={inspectorOpen && compact != null && !compact.stowed}
               />
             ),
           }
@@ -580,23 +574,15 @@ function MobileShellAdapter({
           setRangeArmed(false);
           closeSheet();
         },
-        compact:
-          compact && !rangeArmed ? compactSheetProps(compact) : undefined,
-        content:
-          strip && !rangeArmed ? (
-            <InspectorPeek peek={strip} />
-          ) : (
-            <>
-              <Inspector />
-              {rangeArmed ? (
-                isRangeSelection(selection) ? null : (
-                  <RangeActions sheet />
-                )
-              ) : (
-                <RelatedCommands selection={selection} />
-              )}
-            </>
-          ),
+        compact: compact ? compactSheetProps(compact) : undefined,
+        content: strip ? (
+          <InspectorPeek peek={strip} />
+        ) : (
+          <>
+            <SheetInspector />
+            {rangeArmed ? null : <RelatedCommands selection={selection} />}
+          </>
+        ),
       }
     : mixEligible
       ? {

@@ -20,7 +20,7 @@ import {
   newTracksDropLabel,
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
-import { Inspector } from "../inspector/Inspector";
+import { Inspector, SheetInspector } from "../inspector/Inspector";
 import { InspectorPeek } from "../inspector/InspectorPeek";
 import { displayShortcutFor } from "../keymap/registry";
 import { CommentsPanel } from "../panels/CommentsPanel";
@@ -62,6 +62,7 @@ function StudioShellAdapter({
   const {
     project,
     selection,
+    rangeArmed,
     setSelection,
     activeTab,
     pipelineJob,
@@ -78,6 +79,7 @@ function StudioShellAdapter({
   } = useDaw((s) => ({
     project: s.project,
     selection: s.selection,
+    rangeArmed: s.rangeArmed,
     setSelection: s.setSelection,
     activeTab: s.activeTab,
     pipelineJob: s.pipelineJob,
@@ -183,9 +185,10 @@ function StudioShellAdapter({
     selection != null &&
     layoutMode !== "text" &&
     layoutMode !== "review";
-  // A sheet that hosts the range actions replaces the bar, so they never sit
-  // under the sheet's scrim.
-  const rangeActionsInSheet = sheetOpen && isRangeSelection(selection);
+  // A sheet that hosts the range controls replaces the bar, so they never sit
+  // under the sheet's scrim: Range actions for a range, In and Out while armed.
+  const rangeActionsInSheet =
+    sheetOpen && (rangeArmed || isRangeSelection(selection));
   // Only the ingest drop target keeps headers outside the timeline; any drawn
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;
@@ -297,7 +300,7 @@ function StudioShellAdapter({
                   compact?.view === "peek" ? (
                     <InspectorPeek peek={compact.peek} />
                   ) : (
-                    <Inspector />
+                    <SheetInspector />
                   ),
                 onClose: () => {
                   setSelection(null);
