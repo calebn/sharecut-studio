@@ -155,11 +155,16 @@ describe("App styles", () => {
     expect(track![1]).toMatch(/min-block-size:\s*var\(--control-height\)/);
     const tokens = read("styles/theme/tokens.css");
     expect(tokens).toMatch(
-      /@media \(pointer: coarse\) \{[^@]*?--status-height:\s*calc\(var\(--touch-min\)/,
+      /@media \(pointer: coarse\) \{\s*:root \{[^}]*--status-height:\s*calc\(var\(--touch-min\)[^}]*--status-chip-min-block:\s*var\(--touch-min\)/,
     );
-    const chips = read("styles/partials/responsive.css").match(
-      /\.mobile-status-chips \{([^}]*)\}/,
+    expect(tokens).toMatch(
+      /\(orientation: landscape\) and \(max-width: 59\.9375rem\) \{\s*:root \{[^}]*--status-height:\s*1\.75rem;[^}]*--status-chip-min-block:\s*0rem/,
     );
+    const responsive = read("styles/partials/responsive.css");
+    expect(responsive).toMatch(
+      /@media \(pointer: coarse\) \{\s*\.status-bar \.status-chip \{\s*min-block-size:\s*var\(--status-chip-min-block\)/,
+    );
+    const chips = responsive.match(/\.mobile-status-chips \{([^}]*)\}/);
     expect(chips![1]).toMatch(/align-items:\s*center/);
   });
 
