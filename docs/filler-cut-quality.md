@@ -672,6 +672,71 @@ Limits. The rule reads levels, so it can only see what a level shows:
 
 Listened: the owner listened to every #1055 round 4 to 7 clip set and approved them all (round 7: 107 clips); every kept round 8 trim has the span of a round 7 trim.
 
+## Non-speech sounds
+
+Laughs, breaths, mouth sounds, false starts and short vocalizations sit between
+words. Whether to remove one is often an editorial call that no detector can
+settle: the same burst can be a laugh or a sharp inhale, and a real laugh can
+still be worth trimming. This section sets what the tools suggest for them.
+
+### Decision: Non-speech sounds get a suggested action, not a cut-or-keep verdict
+
+<!-- decision
+id: D-non-speech-sound-actions
+status: accepted
+date: 2026-10-13
+decided-by: calebn
+evidence:
+- #1355 owner listening (2026-10-13): cut mouth sounds, abandoned word starts and short vocalizations; keep laughs and playful vocal phrases such as "boop boop boop boop"
+- #1365 owner listening on nine clips the burst-run laugh detector in #1428 read as laughs (2026-10-13): five were laughs; the other four were a retracted word start, a breath between two words, a breath before a word, and a sharp inhale before "um", three of which the owner would cut
+- #1365 owner: these are "judgement calls that should just be brought up or flagged during editing", with probably no strict rule that gets them right
+- Owner (2026-10-13): keeping laughter is usually good, though at times it can make another speaker hard to hear
+- Owner (2026-10-13) accepted common podcast-editing practice as the basis without citations: keep laughter, lower a laugh that covers another speaker on that speaker's own track, lower or shorten breaths rather than remove them all, cut false starts, keep some hesitations for rhythm
+enforcement: pending #1434
+-->
+
+Each non-speech sound or disfluency a detector finds is a pending proposal with
+a label in plain words (for example "likely laugh" or "breath") and one
+suggested action:
+
+| Action | What it does |
+| --- | --- |
+| **Cut** | Removes the sound under the filler rules above (ripple or mute). |
+| **Shorten** | Removes part of a long sound and keeps its start, under the same edge rules. |
+| **Lower** | Turns the sound down on its own track for its span and leaves timing alone. |
+| **Leave** | Keeps the sound. The proposal stays visible with its label so the editor can choose another action. |
+
+Default action by kind:
+
+| Kind | Default | Note |
+| --- | --- | --- |
+| False start or abandoned word | Cut | |
+| Hard filler (`um`, `uh`) | Cut | The filler rules above apply. The editor keeps some for rhythm. |
+| Mouth click or smack in a gap | Cut | |
+| Breath | Leave | A long breath between sentences may be suggested as Shorten. A breath next to a cut can still go with it (**Breath co-removal**), and no edge falls inside a breath. |
+| Laugh | Leave | When it overlaps another speaker's words on another track, Lower on the laughing track for the overlap. |
+| Backchannel (`mm-hmm`) | Leave | Lower when it covers another speaker, as for a laugh. |
+| Playful vocal phrase | Leave | |
+
+The rules that follow from it:
+
+1. **Detection labels and suggests. It never hides a proposal.** A wrong label
+   then costs one click instead of a missed cut. On the #1365 clips a detector
+   that hid laughs would have hidden three sounds the owner wanted cut.
+2. **The editor decides.** Every non-speech suggestion other than a cut the
+   filler rules already apply waits for review. Leave and Lower are not counted
+   as Apply eligible.
+3. **A laugh over someone else is a level problem.** Each speaker has a track,
+   so lowering the laugh keeps both the laugh and the other speaker's words.
+   Lower reuses the per-track attenuation bleed handling already uses.
+4. **One table, not a detector per sound.** Adding a kind adds a row to the
+   table and to its one table-driven test. Owner verdicts on clips are evidence
+   for the defaults, never targets to tune a threshold against.
+
+Shipped today: none of this table. Hard fillers, backchannels and acoustic gap
+runs behave as described elsewhere in this doc. #1434 builds the table and its
+checks; until it lands, this block records the target.
+
 ## Mute vs cut
 
 `tighten.edit_mode` (default **`ripple`**) still proposes `EditDecisionType.REMOVE` and applies via session ripple; a cut a peer is speaking over waits for review (**Decision: A guard-blocked filler waits for review**). Set **`edit_mode: mute`** (config, or `propose_edits(..., edit_mode="mute")` / `--edit-mode mute`) to propose **`MUTE`** decisions instead: the same filler candidate pipeline and `filler:` reasons, same `review_required` gating, but apply/approve writes **`Clip.mute_regions`** (`{start_s, end_s, fade_out_ms, fade_in_ms, fill?}` source-media seconds) and does **not** move clips or change `timeline.duration_sec`. Render fades the clip out over each region's first `fade_out_ms` and back in over its last `fade_in_ms` (5 ms each unless set) and lays the region's fill under it, so the hole does not click.
