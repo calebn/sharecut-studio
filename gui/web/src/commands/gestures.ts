@@ -48,7 +48,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
       "Hosts: swipe left on an open comment in the list to resolve it. Undo appears briefly afterwards.",
   },
   {
-    gesture: "Long-press words, then drag",
+    gesture: "Hold a word, then drag",
     touch: "long-press-arm-drag",
     commandIds: ["transcript.extendRange"],
     description:
