@@ -119,8 +119,9 @@ audibility floor, no lower than 27 dB (`VOICE_FLOOR_UNDER_SPEECH_DB`) under its 
 a sparse speaker whose 90th percentile is room tone does not put the floor under the room. A peer
 with no live audio never speaks. A peer whose loudest frames show no contrast with its room has
 no voice level of its own, so it is held to the median voice reach of the session's other
-tracks, and with none to read it against it counts as speaking: the guard asks and does not cut
-through a peer it cannot rule out. There is no fixed dBFS level and no
+tracks, and with none to read it against it speaks only when its mean is `dominance_db` or more over
+the owner's own mean in the span (a flat track as loud as the owner's is no voice, a flat track over a
+silent owner is one). There is no fixed dBFS level and no
 `tighten.speech_energy_guard.min_other_rms_db` setting; the same recording at +12, 0, -12, -24
 and -36 dB names the same speaking peers (`tests/test_tighten_gain_invariance.py`, including a
 sparse speaker, unequal per-track gains, and two voices of one pitch told apart by level)

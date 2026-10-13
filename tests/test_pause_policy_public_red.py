@@ -144,7 +144,7 @@ def test_original_pause_does_not_consume_an_unavailable_manual_pad_lane(
         assert (asked.status, asked.reason) == ("needs_confirmation", "cuts_other_speech")
         assert [track.track_id for track in asked.speech.tracks] == ["guest"]
         assert [(span.start, span.end) for span in asked.speech.tracks[0].sound_spans] == [
-            pytest.approx((0.2, 1.75))
+            pytest.approx((0.975, 1.3625))
         ]
         assert ws.project.model_dump(mode="json") == before_model
         assert files(tmp_path) == before_files

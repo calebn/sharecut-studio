@@ -150,6 +150,7 @@ def add_guest(result: EpisodeProject, tmp_path: Path, kind: str) -> None:
         voice(audio, 5, 5.2)
     if kind == "rejected":
         audio = room(seed=1215, db=-40)
+        voice(audio, 1.0, 1.2)
         voice(audio, 5, 5.2)
     write_wav(tmp_path / "raw" / "guest.wav", audio)
 
