@@ -303,6 +303,7 @@ export const createProjectSlice: StateCreator<
             lastAgentQuery: null,
             lastAppliedRevision: 0,
             lastAppliedCommandId: null,
+            lastAppliedAgentSelectionSeq: 0,
             playUntilSec: null,
             highlightStaleRender: false,
             renderPreviewBusy: false,

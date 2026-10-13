@@ -35,6 +35,7 @@ def empty_snapshot() -> dict[str, Any]:
         "query": None,
         "match_index": None,
         "selection": None,
+        "agent_selection_seq": 0,
         "viewer_mute": {},
         "solo_tracks": {},
         "tier": None,
@@ -197,6 +198,14 @@ def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
 
     def set_f(key: str, value: Any) -> None:
         _set_field(snap, key, value, server_seq=server_seq, client_id=client_id)
+        if key == "selection":
+            _set_field(
+                snap,
+                "agent_selection_seq",
+                server_seq if cmd["role"] == "agent" else 0,
+                server_seq=server_seq,
+                client_id=client_id,
+            )
 
     handler = _COMMAND_HANDLERS.get(ctype)
     if handler is not None:
