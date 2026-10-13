@@ -48,6 +48,7 @@ from podcast_mcp.util import atomic_file
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import project_state_lock
+from podcast_mcp.util.review_privacy_error import ReviewPrivacyError
 from review_platform import (
     REVIEW_FAILED_CLEANUP_SUPPORTED,
     REVIEW_STALE_CLEANUP_SUPPORTED,
@@ -538,7 +539,7 @@ def test_publication_rejects_writable_root_before_media_write(
         def export_mp3(self, wav, mp3, *, bitrate_kbps):
             pytest.fail("encoding must not start in an untrusted review root")
 
-    with pytest.raises(PermissionError, match="owned and private"):
+    with pytest.raises(ReviewPrivacyError, match="chmod go-w"):
         publish_version(project, label="new", eng=UnexpectedEngine())
     assert not list(root.glob(".staging-review-*"))
 

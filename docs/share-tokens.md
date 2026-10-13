@@ -163,6 +163,16 @@ folder another user can write to);
 for a foreign owner, an ACL, or a symlink it says what is wrong and offers no command, so fix
 it yourself or point `PODCAST_SHARE_REGISTRY` at a registry you own.
 
+The review artifacts folder (`artifacts/review`, where published review mixes are staged and
+promoted) is held to the same rule. On POSIX hosts a review folder that another user owns or that
+group or others can write, or a staging folder that is not private, is the coded error
+`review_artifacts_not_private` (`util/review_privacy_error.py`). Publishing from the CLI, an owner
+MCP tool or the host GUI reports one line that names the folder and why; the fix is the `chmod go-w`
+it prints for a loose review folder, `chmod 0700` for a loose staging folder, or restoring your
+ownership of it (or moving the project to a folder you own) when another user owns it. A share
+guest, relayed or not, reads only the fixed line "The host's review files need attention; ask the
+host to check them." with the same code. Nothing is repaired automatically.
+
 New main files are exclusively created empty with private permissions before SQLite
 receives the path. New Windows directories have protected owner, SYSTEM, and
 Administrators grants with `OI|CI` inheritance. SQLite children inherit the verified

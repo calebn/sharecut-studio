@@ -18,7 +18,7 @@ import stat
 from enum import StrEnum
 from pathlib import Path
 
-from podcast_mcp.util.coded_error import CodedPermissionError
+from podcast_mcp.util.coded_error import HostSetupError
 
 REGISTRY_NOT_PRIVATE_CODE = "registry_not_private"
 GUEST_MESSAGE = "The host's sharing setup needs attention; ask the host to check it."
@@ -66,7 +66,7 @@ _FIX = {
 }
 
 
-class RegistryPrivacyError(CodedPermissionError):
+class RegistryPrivacyError(HostSetupError):
     """A registry file, folder or ancestor is not private to the host user."""
 
     code = REGISTRY_NOT_PRIVATE_CODE

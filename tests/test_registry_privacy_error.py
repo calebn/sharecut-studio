@@ -20,7 +20,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.edits.share_registry import SqliteShareRegistry, reset_share_registry_for_tests
-from podcast_mcp.gui.routes.deps import registry_privacy_exception_handler
+from podcast_mcp.gui.routes.deps import host_setup_exception_handler
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.util import registry_backup_posix as posix
@@ -303,7 +303,7 @@ def test_gui_route_gives_the_host_the_path_and_the_fix(
 
 def test_gui_handler_redacts_the_path_for_a_relayed_guest(tmp_path: Path) -> None:
     app = FastAPI()
-    app.add_exception_handler(RegistryPrivacyError, registry_privacy_exception_handler)
+    app.add_exception_handler(RegistryPrivacyError, host_setup_exception_handler)
 
     @app.get("/refuse")
     def refuse() -> None:

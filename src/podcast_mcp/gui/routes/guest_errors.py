@@ -7,9 +7,8 @@ from fastapi import HTTPException
 
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import StaleWaveformKeyError, WaveformBusyError
-from podcast_mcp.util.coded_error import coded_cause
+from podcast_mcp.util.coded_error import HostSetupError, coded_cause
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
-from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError
 from podcast_mcp.util.tool_refusal import ToolRefusal, tool_refusal
 
 
@@ -45,7 +44,7 @@ def guest_http_error(
         )
     if isinstance(cause, StaleWaveformKeyError) or refusal.code == "job_running":
         status = 409
-    elif isinstance(cause, RegistryPrivacyError):
+    elif isinstance(cause, HostSetupError):
         status = 500
     elif isinstance(cause, PermissionError):
         status = 403
