@@ -6,6 +6,44 @@ import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { parseTimecodeSec } from "./timecode";
 
+async function expectInspectorFooterTouchTargets(page: Page) {
+  const controls = page.locator(".modifier-footer-actions button");
+  await expect(controls.first()).toBeVisible();
+  expect(await page.evaluate(() => document.doctype?.name)).toBe("html");
+  expect(await page.evaluate(() => document.compatMode)).toBe("CSS1Compat");
+  await page.evaluate(() => document.fonts.ready);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    const { root } = await cdp.send("DOM.getDocument");
+    const { nodeId } = await cdp.send("DOM.querySelector", {
+      nodeId: root.nodeId,
+      selector: ".modifier-footer-actions button",
+    });
+    const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+    expect(
+      fonts.some(
+        (font) => font.isCustomFont && font.familyName === "IBM Plex Sans",
+      ),
+    ).toBe(true);
+  } finally {
+    await cdp.detach();
+  }
+  await expect(
+    page.getByRole("button", { name: "Replace audio…" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove track", exact: true }),
+  ).toBeVisible();
+  for (const control of await controls.all()) {
+    await control.scrollIntoViewIfNeeded();
+    const box = await control.boundingBox();
+    expect(box?.height, await control.innerText()).toBeGreaterThanOrEqual(44);
+    expect(box?.width, await control.innerText()).toBeGreaterThanOrEqual(44);
+  }
+}
+
 test.describe("Sharecut Studio mobile smoke", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -138,6 +176,10 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await expect(
       sheet.getByRole("button", { name: "Move track up" }),
     ).toHaveCount(0);
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: fine)").matches),
+    ).toBe(true);
+    await expectInspectorFooterTouchTargets(page);
     const trackActions = sheet.getByRole("button", { name: "Track actions" });
     await trackActions.scrollIntoViewIfNeeded();
     const triggerBox = await trackActions.boundingBox();
@@ -463,5 +505,19 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await expect(word).toHaveClass(/selected/);
     await expect(page.locator('[role="dialog"]')).toBeVisible();
     await expect(page.getByLabel("Corrected text")).toBeVisible();
+  });
+});
+
+test.describe("Inspector footer with a desktop coarse pointer", () => {
+  test.use({ viewport: { width: 1440, height: 900 }, hasTouch: true });
+
+  test("every footer control reaches the touch target", async ({ page }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(page.locator("html")).toHaveAttribute("data-shell", "desktop");
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+    ).toBe(true);
+    await page.locator(".track-header-open").first().click();
+    await expectInspectorFooterTouchTargets(page);
   });
 });
