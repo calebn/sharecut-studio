@@ -66,18 +66,38 @@ class CutScopeHold:
     detail: str | None = None
 
 
-_NO_ROOM_TONE_CAUSES = {
-    "missing_track": "its track is missing",
-    "missing_media": "it has no audio",
-    "missing_file": "its audio file is missing",
-    "unreadable_file": "its audio could not be read",
-    "no_quiet_run": "it has no quiet stretch",
-    "too_short": "its quiet stretches are too short",
-    "excluded": "its quiet stretches belong to other pending cuts",
-    "rejected": "no quiet stretch sounds like room tone",
-    "window_unreadable": "its audio could not be read",
-    "candidate_limit": "no nearby quiet stretch sounds like room tone",
+_LANE_PROBLEMS = {
+    "missing_track": "is missing from the project",
+    "missing_media": "has no audio",
+    "missing_file": "has no audio file",
+    "unreadable_file": "has audio that could not be read",
+    "window_unreadable": "has audio that could not be read",
+    "no_quiet_run": "has no quiet stretch to use as room tone",
+    "too_short": "has no quiet stretch long enough to use as room tone",
+    "excluded": "has only quiet stretches that other pending cuts use",
+    "rejected": "has no quiet stretch that sounds like room tone",
+    "candidate_limit": "has no nearby quiet stretch that sounds like room tone",
+    "missing_seam": "has no audio at the cut to match",
+    "media_extent_unavailable": "has a recording whose length is unknown",
+    "implicit_playback_with_parked_source": "plays audio the cut cannot measure",
+    "effect_media_unavailable": "has audio the join check could not read",
+    "effect_source_geometry": "does not play as one continuous piece at the join",
+    "unsafe_inherited_fade": "has a fade at the join that is too long to keep",
 }
+_UNCHECKED_LANE = "could not be checked"
+_SELECT_OR_REJECT = "Select the part to cut on the timeline, or reject the held cuts."
+_HOLD_ADVICE = {
+    "pad_unavailable": (
+        "Set filler_pad_mode to silence to cut without room tone, or reject the held cuts."
+    ),
+}
+
+
+def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
+    cause = lane.cause.cause if isinstance(lane.cause, SampleAbsent) else lane.cause
+    return (
+        f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(cause, _UNCHECKED_LANE)}"
+    )
 
 
 def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
@@ -110,7 +130,7 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             "operation_scope": "the selected audio plays outside the tracks this cut removes",
             "pause_not_shorter": "the replacement pad would leave the pause as long or longer",
             "pause_imperceptible": "the pause would shorten too little to hear",
-            "pad_unavailable": "a track has no room tone to fill the beat this cut leaves",
+            "pad_unavailable": "it needs room tone",
             "pause_air": "the pause cannot retain enough original quiet audio safely",
             "pause_join": "the final pause join did not pass its audio checks",
         }
@@ -122,17 +142,14 @@ class ScopeChangedAtApproval(CodedError, ValueError):
                 f"{peers or 'another track'} is speaking where the session cut would remove it",
             )
             if hold.unavailable_lanes:
-                why += ": " + ", ".join(
-                    f"{speakers.get(lane.track_id, lane.track_id)} "
-                    f"({_NO_ROOM_TONE_CAUSES.get(lane.cause.cause, lane.cause.cause) if isinstance(lane.cause, SampleAbsent) else lane.cause})"
-                    for lane in hold.unavailable_lanes
+                problems = "; ".join(
+                    _lane_problem(lane, speakers) for lane in hold.unavailable_lanes
                 )
+                why += f" and {problems}" if hold.reason == "pad_unavailable" else f" ({problems})"
             label = self.cuts.get(hold.edit_id, "A selected cut")
-            details.append(f"{label} was not applied ({hold.edit_id}): {why}")
-        super().__init__(
-            "; ".join(details)
-            + ". Select the part to cut on the timeline, or reject the held cuts."
-        )
+            details.append(f"{label} was not applied because {why}.")
+        advice = dict.fromkeys(_HOLD_ADVICE.get(h.reason, _SELECT_OR_REJECT) for h in held)
+        super().__init__(" ".join([*details, *advice]))
 
     def for_delivery(self, delivery: Literal["saved", "suggested"]) -> ScopeChangedAtApproval:
         error = ScopeChangedAtApproval(self.held, self.speakers, self.cuts)

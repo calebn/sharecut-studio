@@ -18,6 +18,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Ripple / Leave a gap** | The two edit modes for trim, delete, cut and paste. Ripple closes or opens the time on every speaker's track, so everyone stays in sync; Leave a gap leaves silence (or pastes over) and moves nothing else |
 | **Cut anyway** | The confirmation a ripple asks for when it would also cut another speaker's words or voice. A dialog names who, when and what; nothing changes until you choose Cut anyway or Leave a gap |
 | **Comment** | A note at a time on the mix |
+| **Room tone** | A track's own quiet background sound, laid into the gap a cut leaves so the track never drops to dead silence. A cut that needs it and finds none is held, and the message says which cut, which track and why |
 | **Review mix** | Frozen listen file for guests (link previews and agents) |
 | **Review link** | `/r/…` URL with limited powers. It works until the host chooses **Stop sharing**; it never expires on its own |
 | **Viewer / Commenter / Editor** | Review-link roles, as in Google Docs. Viewer views and plays; Commenter (default) also comments and suggests edits; Editor also edits directly and approves or rejects suggestions |

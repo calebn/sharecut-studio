@@ -79,7 +79,7 @@ to UX partners; for UI copy, this table wins.
 | Stop take | End the open take for everyone in the record room. Stop sits alone behind a divider and asks once: "Stop this take? Recording ends for everyone in the room." [Keep recording] [Stop take] | "End take", "Finish recording" |
 | Start blocker | One reason Start is disabled, listed under Start with its fix when the host has one: "No guest has joined yet." [Copy guest link], "Waiting for Ava to accept recording." | a comma-joined list of bare names |
 | Full-quality recording | Each participant's lossless recording, captured on their own device and saved to the project during the session. Its status reads "Saving to project…", then "Saved to project", shown per participant and per segment wherever the host or a guest can see it. A segment is saved once the host holds the verified file; landing it on the timeline is the separate Land step. The copy kept on the person's device is "this device's copy". "Keeper" stays in code and schema only | "keeper", "local keeper", "local recording", "local backup", "uploading" |
-| Room tone | The ambient-noise capture step | — |
+| Room tone | The track's own quiet ambient sound, laid into the gap a cut leaves. A cut that needs it and finds none is held, and the message names the cut, the track and why. Fix it with `filler_pad_mode: silence` or by rejecting the cut | "beat", "pad", a raw cause code such as `missing_seam` |
 | Tighten hit | One candidate tightening decision | — |
 | Pending edit | A proposed edit awaiting approve/reject | — |
 | Suggest cut | Propose a cut from the transcript | — |
@@ -562,3 +562,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-13 Phone comment field (#1338 round 2). Posting from the phone Listen
   dock closes the keyboard so the guest goes back to listening; tablet and
   desktop keep the field focused for the next comment.
+- 2026-10-13 — Hold message (#1212 review): a held cut is named by speaker, kind and time, never by its edit id; the room tone cause reads as a sentence, and the advice fixes that cause. The Room tone term gained its Never-say column.

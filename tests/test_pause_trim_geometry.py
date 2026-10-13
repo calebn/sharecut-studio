@@ -346,12 +346,14 @@ def test_http_geometry_hold_retains_code_and_saved_project(tmp_path: Path, sugge
             )
     assert response.status_code == 400
     assert response.headers["X-Sharecut-Error-Code"] == "cut_scope_changed"
-    assert "pause trim at 0:" in response.json()["detail"]
-    assert "was not applied (pause)" in response.json()["detail"]
     guarantee = (
         "Suggested preview is unavailable. The saved project is unchanged."
         if suggested
         else "None of the selected edits were applied."
     )
-    assert guarantee in response.json()["detail"]
+    assert response.json()["detail"] == (
+        "Host's pause trim at 0:01.0 was not applied because the selected audio no longer "
+        "has one complete, continuous placement. Select the part to cut on the timeline, "
+        f"or reject the held cuts. {guarantee}"
+    )
     assert ws.path.read_bytes() == before
