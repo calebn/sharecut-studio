@@ -4,7 +4,7 @@ import {
   resetServerClock,
   setServerClockOffsetForTests,
 } from "../presence/clock";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, pendingEditView, sampleTrack } from "../test/fixtures";
 import type { SessionState } from "../types/session";
 import { LANE_HEIGHT_STORAGE_KEY } from "../utils/laneHeightPref";
 import { estimateTimelineViewportWidth, useDawStore } from "./dawStore";
@@ -711,7 +711,14 @@ describe("dawStore chapter add pending", () => {
   });
 });
 
+const twoTrackProject = () =>
+  minimalProject({
+    tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+    pending_edits: [pendingEditView({ id: "cut_1", track_id: "host" })],
+  });
+
 it("keeps the local envelope workspace when viewer presence echoes its track projection", () => {
+  useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
   const store = useDawStore.getState();
   store.setSelection({ kind: "envelope", trackId: "host" });
   store.applyAgentSession(
@@ -736,4 +743,33 @@ it("keeps the local envelope workspace when viewer presence echoes its track pro
     kind: "track",
     trackId: "guest",
   });
+});
+
+it("clears a stored selection whose edit is gone instead of adopting it", () => {
+  useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+  useDawStore.getState().setSelection({ kind: "track", trackId: "host" });
+  for (const role of ["viewer", "agent"] as const) {
+    useDawStore.getState().applyAgentSession(
+      agentSession({
+        origin: role,
+        last_role: role,
+        selection: { kind: "pending", id: "cut_gone", track_id: "host" },
+      }),
+    );
+    expect(useDawStore.getState().selection).toBeNull();
+  }
+});
+
+it("a share guest keeps its own selection when another viewer selects", () => {
+  useDawStore
+    .getState()
+    .hydrate("share:tok", twoTrackProject(), "comment", ["view", "comment"]);
+  useDawStore.getState().applyAgentSession(
+    agentSession({
+      origin: "viewer",
+      last_role: "viewer",
+      selection: { kind: "pending", id: "cut_1", track_id: "host" },
+    }),
+  );
+  expect(useDawStore.getState().selection).toBeNull();
 });

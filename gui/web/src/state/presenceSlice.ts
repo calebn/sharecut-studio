@@ -129,10 +129,7 @@ export const createPresenceSlice: StateCreator<
     // selection-ish fields without stomping local play/pause or auto-stop.
     // Guests hear Full mix only — never copy host audition / mute / solo maps.
     if (fromAgent) {
-      const nextSel = selectionFromWire(
-        state.selection,
-        get().project?.envelopes,
-      );
+      const nextSel = selectionFromWire(state.selection, get().project);
       set({
         suppressPublish: true,
         _suppressTimer: timer,
@@ -163,24 +160,24 @@ export const createPresenceSlice: StateCreator<
       });
       return;
     }
-    const nextSel = selectionFromWire(
-      state.selection,
-      get().project?.envelopes,
-    );
+    const nextSel = selectionFromWire(state.selection, get().project);
     const localSelection = get().selection;
     const workspaceEcho =
       localSelection?.kind === "envelope" &&
       nextSel?.kind === "track" &&
       localSelection.trackId === nextSel.trackId;
+    // A guest keeps its own selection; Follow is how it mirrors someone else's.
+    const adoptSelection =
+      state.selection !== undefined &&
+      !workspaceEcho &&
+      get().guestMode == null;
     set({
       suppressPublish: true,
       _suppressTimer: timer,
       lastAppliedRevision: state.server_seq,
       lastAppliedCommandId: state.last_command_id,
       ...hear,
-      ...(state.selection !== undefined && !workspaceEcho
-        ? { selection: nextSel }
-        : {}),
+      ...(adoptSelection ? { selection: nextSel } : {}),
       ...(state.clients
         ? {
             sessionClients: rosterFromList(state.clients, get().sessionClients),

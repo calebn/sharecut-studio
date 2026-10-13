@@ -1,4 +1,11 @@
 import { describe, expect, it } from "vitest";
+import {
+  appliedEditRecord,
+  minimalProject,
+  pendingEditView,
+  sampleComment,
+  sampleTrack,
+} from "../test/fixtures";
 import { selectionFromWire, selectionToWire } from "./wire";
 
 const envelopes = [
@@ -13,12 +20,23 @@ const envelopes = [
   },
 ];
 
+const project = minimalProject({
+  tracks: [sampleTrack({ id: "host" })],
+  envelopes,
+  applied_edits: {
+    count: 1,
+    records: [appliedEditRecord({ id: "alog_1" })],
+  },
+  pending_edits: [pendingEditView({ id: "cut_1", track_id: "host" })],
+  comments: [sampleComment({ id: "c1" })],
+});
+
 describe("selection wire", () => {
   it("sends a session-wide applied selection without a track id", () => {
     const local = { kind: "applied" as const, id: "alog_1" };
     const wire = selectionToWire(local);
     expect(wire).toStrictEqual({ kind: "applied", id: "alog_1" });
-    expect(selectionFromWire(wire)).toStrictEqual(local);
+    expect(selectionFromWire(wire, project)).toStrictEqual(local);
   });
 
   it("round-trips an applied selection on a track", () => {
@@ -29,7 +47,7 @@ describe("selection wire", () => {
       id: "alog_1",
       track_id: "host",
     });
-    expect(selectionFromWire(wire)).toStrictEqual(local);
+    expect(selectionFromWire(wire, project)).toStrictEqual(local);
   });
 
   it("round-trips transcriptWord", () => {
@@ -44,7 +62,7 @@ describe("selection wire", () => {
       track_id: "host",
       word_index: 12,
     });
-    expect(selectionFromWire(wire)).toEqual(local);
+    expect(selectionFromWire(wire, project)).toEqual(local);
   });
 
   it("round-trips transcriptRange", () => {
@@ -61,7 +79,7 @@ describe("selection wire", () => {
       word_index: 2,
       word_end: 5,
     });
-    expect(selectionFromWire(wire)).toEqual(local);
+    expect(selectionFromWire(wire, project)).toEqual(local);
   });
 
   it("round-trips envelopePoint by exact ID", () => {
@@ -77,7 +95,47 @@ describe("selection wire", () => {
       id: "c",
       time: 9,
     });
-    expect(selectionFromWire(wire, envelopes)).toEqual(local);
+    expect(selectionFromWire(wire, project)).toEqual(local);
+  });
+
+  it("keeps a pending edit and a comment that the project still has", () => {
+    expect(
+      selectionFromWire(
+        { kind: "pending", id: "cut_1", track_id: "host" },
+        project,
+      ),
+    ).toEqual({ kind: "pending", id: "cut_1", trackId: "host" });
+    expect(selectionFromWire({ kind: "comment", id: "c1" }, project)).toEqual({
+      kind: "comment",
+      id: "c1",
+    });
+  });
+
+  it("drops a selection whose target is gone from the project", () => {
+    expect(
+      selectionFromWire(
+        { kind: "pending", id: "cut_gone", track_id: "host" },
+        project,
+      ),
+    ).toBeNull();
+    expect(
+      selectionFromWire({ kind: "comment", id: "c_gone" }, project),
+    ).toBeNull();
+    expect(
+      selectionFromWire({ kind: "applied", id: "alog_gone" }, project),
+    ).toBeNull();
+    expect(
+      selectionFromWire({ kind: "clip", id: "g9", track_id: "host" }, project),
+    ).toBeNull();
+    expect(
+      selectionFromWire({ kind: "track", track_id: "guest" }, project),
+    ).toBeNull();
+  });
+
+  it("drops every selection before the project has loaded", () => {
+    expect(
+      selectionFromWire({ kind: "track", track_id: "host" }, null),
+    ).toBeNull();
   });
 });
 
@@ -85,13 +143,13 @@ it("does not recover a missing point by matching or nearby time", () => {
   expect(
     selectionFromWire(
       { kind: "envelopePoint", track_id: "host", time: 4 },
-      envelopes,
+      project,
     ),
   ).toBeNull();
   expect(
     selectionFromWire(
       { kind: "envelopePoint", track_id: "host", id: "missing", time: 4 },
-      envelopes,
+      project,
     ),
   ).toBeNull();
 });
@@ -108,7 +166,7 @@ it("keeps coincident points distinct and resolves current time by ID", () => {
   expect(
     selectionFromWire(
       { kind: "envelopePoint", track_id: "host", id: "b", time: 100 },
-      tied,
+      { ...project, envelopes: tied },
     ),
   ).toEqual({ kind: "envelopePoint", trackId: "host", pointId: "b" });
 });
