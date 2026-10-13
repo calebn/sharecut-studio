@@ -1129,6 +1129,20 @@
       }
     },
     {
+      "id": "decision-session-selection",
+      "when": "Decision: every tab keeps its own selection",
+      "update": "The decision blocks in `docs/session-sync.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/session-sync.md"
+      ],
+      "advisory": {
+        "include": [
+          "gui/web/src/state/presenceSlice.ts",
+          "gui/web/src/hooks/useFollowUi.ts"
+        ]
+      }
+    },
+    {
       "id": "decision-track-mix",
       "when": "Decision: saved mute and volume, listen-only solo",
       "update": "The decision blocks in `docs/gui-integration.md`; a waiver names the decision it keeps",

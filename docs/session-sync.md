@@ -147,9 +147,38 @@ The viewer publish adapter reads the authority once to compare durable fields, t
 | Role `agent` (`SetRegion`, `AuditionInViewer`, `SetPlaying`, …) | Yes |
 | Same tab’s own Applied echoes | No (advance ack cursor only) |
 | Other `viewer` `SetPlaying` / playhead | No — each tab owns its clock |
-| Other `viewer` selection / mode / mute | Yes (discrete UI sync). A review-link guest keeps its own selection (#1346) and mirrors one only through Follow |
+| Other `viewer` mode / mute | Yes (discrete UI sync) |
+| Other `viewer` selection | No — every tab, host or guest, keeps its own selection (#1346, #1394). It mirrors someone else's only through Follow |
+| Role `agent` selection | Yes, in every tab |
 
-Every adopted selection (agent, viewer, or a followed leader) goes through `selectionFromWire(selection, project)` in `session/wire.ts`, which returns null when the named clip, edit, record, comment, social clip, or track is not in the loaded project. A stale selection in the stored session snapshot therefore clears silently instead of opening an Inspector reading "Edit not found" (#1339). A selection that arrives while the target is not here yet (the session snapshot lands before the project loads on a reload, or a peer selects something that has not reached this client) is held in `pendingWireSelection` and resolved by the store subscription in `state/dawStore.ts` when the project loads or changes, so a valid agent-set selection survives a reload; a guest still adopts only an agent's or a followed leader's. A pending selection that never resolves shows nothing, and any selection the person makes clears it.
+Every adopted selection (an agent's or a followed leader's) goes through `selectionFromWire(selection, project)` in `session/wire.ts`, which returns null when the named clip, edit, record, comment, social clip, or track is not in the loaded project. A stale selection in the stored session snapshot therefore clears silently instead of opening an Inspector reading "Edit not found" (#1339). A selection that arrives while the target is not here yet (the session snapshot lands before the project loads on a reload, or the agent or a followed leader selects something that has not reached this client) is held in `pendingWireSelection` and resolved by the store subscription in `state/dawStore.ts` when the project loads or changes, so a valid agent-set selection survives a reload. A pending selection that never resolves shows nothing, and any selection the person makes clears it.
+
+### Decision: Every tab keeps its own selection
+
+<!-- decision
+id: D-tabs-keep-own-selection
+status: accepted
+date: 2026-10-13
+decided-by: calebn
+evidence:
+- Operator decision 2026-10-13: a host's own browser tabs must not share one selection; each tab keeps its own, the way guests do, Follow stays the explicit way to mirror someone, and agent-set selections still apply
+- #1371, #1343, #1351, #1291: selecting in one host tab selected in the other through the session presence echo
+- #1346: a review-link guest already keeps its own selection
+enforced-by:
+- gui/web/src/state/dawStore.test.ts::a host tab keeps its own selection when another host tab selects
+- gui/web/src/state/dawStore.test.ts::a host tab with nothing selected stays empty when another host tab selects
+- gui/web/src/state/dawStore.test.ts::never restores a viewer tab's selection that arrived before the project loaded
+- gui/web/src/state/dawStore.test.ts::a share guest keeps its own selection when another viewer selects
+- gui/web/src/hooks/useFollowUi.test.ts::mirrors the leader inspector selection without unfollowing
+- gui/web/e2e/host-tab-selection.spec.ts::a host tab keeps its own selection when another host tab selects, and an agent selection reaches both
+- docs-sync: decision-session-selection
+-->
+
+`applyAgentSession` adopts a selection only from an agent-authored session state;
+`useFollowUi` adopts the followed leader's. A viewer echo (another tab, or this
+tab's own publish coming back) never touches `selection`. There is no per-tab
+selection persistence, so a reload restores only an agent-set selection
+(#1343), which waits in `pendingWireSelection` until its target is here.
 
 Local DAW **Play** clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Local DAW **Stop** (button / **K**) returns the playhead to where local playback last started (any playhead move while stopped or paused, including following someone and an agent seek applied through `applyAgentSession`, becomes the new start; a seek during playback, or an agent pause, does not). Agent/CLI stop (`stop_session_tool`, `podcast session stop`, `SessionControlService.stop`) pauses in place and clears the region, and an agent stop applied through `applyAgentSession` leaves the playhead where it is. Prefer `clients[]` playhead for “what am I hearing?” while transport is rolling.
 

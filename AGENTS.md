@@ -98,6 +98,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Decision blocks (a heading plus a decision comment) in a doc | `docs/decisions/README.md`: regenerate it with `make decisions-index` |
 | Decision: guest powers, review-link roles, share-link expiry | The decision blocks in `docs/share-tokens.md`; a waiver names the decision it keeps |
 | Decision: exact selected range targets | The decision blocks in `docs/daw-editing.md`; a waiver names the decision it keeps |
+| Decision: every tab keeps its own selection | The decision blocks in `docs/session-sync.md`; a waiver names the decision it keeps |
 | Decision: saved mute and volume, listen-only solo | The decision blocks in `docs/gui-integration.md`; a waiver names the decision it keeps |
 | Decision: configurable master levels | The decision blocks in `docs/audio-engineering.md`; a waiver names the decision it keeps |
 | Decision: bleed handling | The decision blocks in `docs/audio-engineering.md`; a waiver names the decision it keeps |

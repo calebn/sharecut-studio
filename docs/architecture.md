@@ -260,8 +260,8 @@ or guarded Undo. Its native action carries the single feedback focus intent.
 Sheet entry focus (`useDialogModal`) and the volume-envelope view's first-entry
 focus yield to that valid intent through the generic `ui/focusHold` seam, which
 the feedback module registers; no other inspector view defers entry focus.
-The person's own navigation clears the intent; a selection adopted from the wire
-(`adoptRemoteSelection`, `remoteSelectionRevision`) does not. The current compact Close supplies the existing Toast
+The person's own navigation clears the intent; a selection adopted from the agent or a followed leader
+(`adoptRemoteSelection`, `remoteSelectionRevision`) does not. No other client's selection reaches a tab (D-tabs-keep-own-selection). The current compact Close supplies the existing Toast
 return-focus ref, validated when this tab's own undo removes or disables the
 focused action, including when a peer edit removes it. `ui/modalGate` keeps a
 modal above every non-modal layer opened while it is open, so a sheet opened or
