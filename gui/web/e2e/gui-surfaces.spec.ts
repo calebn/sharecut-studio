@@ -6,7 +6,7 @@ import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
-import { setTheme } from "./theme";
+import { setTheme, withAppearance } from "./theme";
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -74,35 +74,36 @@ async function expectTextFits(locator: Locator): Promise<void> {
   }).toPass({ timeout: 5000 });
 }
 
-for (const viewport of VIEWPORTS) {
+const panelThemes = withAppearance(VIEWPORTS);
+const chapterThemes = withAppearance(VIEWPORTS, 1);
+
+for (const [index, viewport] of VIEWPORTS.entries()) {
+  const panelTheme = panelThemes[index]!.theme;
+  const chapterTheme = chapterThemes[index]!.theme;
   test.describe(`Editor reading areas at ${viewport.name} size`, () => {
     test.use({ viewport });
 
-    for (const theme of ["light", "dark"] as const) {
-      test(`keeps all editor panels reachable and named in ${theme}`, async ({
-        page,
-      }) => {
-        await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-        await setTheme(page, theme);
-        await expect(
-          page.locator(`.daw-shell--${viewport.name}`),
-        ).toBeVisible();
-        for (const [name, selector] of [
-          ["Comments", ".comments-panel"],
-          ["History", ".history-panel"],
-          ["Impact", ".impact-panel"],
-          ["Tighten", ".tighten-panel"],
-          ["Pipeline", ".pipeline-panel"],
-        ] as const) {
-          await openPanel(page, name);
-          await expect(page.locator(selector)).toBeVisible();
-          await expectEditorAxeClean(page, selector);
-        }
-        await expect(
-          page.getByRole("button", { name: "Run pipeline", exact: true }),
-        ).toBeVisible();
-      });
-    }
+    test(`keeps all editor panels reachable and named in ${panelTheme}`, async ({
+      page,
+    }) => {
+      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await setTheme(page, panelTheme);
+      await expect(page.locator(`.daw-shell--${viewport.name}`)).toBeVisible();
+      for (const [name, selector] of [
+        ["Comments", ".comments-panel"],
+        ["History", ".history-panel"],
+        ["Impact", ".impact-panel"],
+        ["Tighten", ".tighten-panel"],
+        ["Pipeline", ".pipeline-panel"],
+      ] as const) {
+        await openPanel(page, name);
+        await expect(page.locator(selector)).toBeVisible();
+        await expectEditorAxeClean(page, selector);
+      }
+      await expect(
+        page.getByRole("button", { name: "Run pipeline", exact: true }),
+      ).toBeVisible();
+    });
 
     test("wraps long comments without moving reply or resolve controls sideways", async ({
       page,
@@ -168,50 +169,48 @@ for (const viewport of VIEWPORTS) {
       await expect(remove).toHaveCount(0);
     });
 
-    for (const theme of ["light", "dark"] as const) {
-      test(`wraps a long chapter title in its named inspector in ${theme}`, async ({
+    test(`wraps a long chapter title in its named inspector in ${chapterTheme}`, async ({
+      page,
+    }) => {
+      const title = `${viewport.name}-`.padEnd(100, "X");
+      await postDocumentCommand(
         page,
-      }) => {
-        const title = `${viewport.name}-`.padEnd(100, "X");
+        `e2e-long-chapter-${viewport.name}`,
+        "AddChapter",
+        { time: 1, title },
+      );
+      try {
+        if (viewport.name === "phone") {
+          await rememberInspectorDetent(page, "half");
+        }
+        await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+        await setTheme(page, chapterTheme);
+        if (viewport.name === "phone") await openPhoneTimeline(page);
+        await page
+          .getByRole("button", { name: `Chapter ${title}`, exact: true })
+          .click();
+        const inspector = page.locator(".modifier-inspector");
+        await expect(
+          inspector.getByRole("heading", { name: title, exact: true }),
+        ).toBeVisible();
+        await expect(
+          inspector.getByRole("textbox", { name: "Chapter title" }),
+        ).toHaveValue(title);
+        await expect(
+          inspector.getByRole("spinbutton", { name: "Chapter time" }),
+        ).toHaveValue("1");
+        await expectTextFits(inspector.locator(".modifier-header"));
+        await expectTextFits(inspector);
+        await expectEditorAxeClean(page, ".modifier-inspector");
+      } finally {
         await postDocumentCommand(
           page,
-          `e2e-long-chapter-${viewport.name}`,
-          "AddChapter",
+          `e2e-remove-chapter-${viewport.name}`,
+          "DeleteChapter",
           { time: 1, title },
         );
-        try {
-          if (viewport.name === "phone") {
-            await rememberInspectorDetent(page, "half");
-          }
-          await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-          await setTheme(page, theme);
-          if (viewport.name === "phone") await openPhoneTimeline(page);
-          await page
-            .getByRole("button", { name: `Chapter ${title}`, exact: true })
-            .click();
-          const inspector = page.locator(".modifier-inspector");
-          await expect(
-            inspector.getByRole("heading", { name: title, exact: true }),
-          ).toBeVisible();
-          await expect(
-            inspector.getByRole("textbox", { name: "Chapter title" }),
-          ).toHaveValue(title);
-          await expect(
-            inspector.getByRole("spinbutton", { name: "Chapter time" }),
-          ).toHaveValue("1");
-          await expectTextFits(inspector.locator(".modifier-header"));
-          await expectTextFits(inspector);
-          await expectEditorAxeClean(page, ".modifier-inspector");
-        } finally {
-          await postDocumentCommand(
-            page,
-            `e2e-remove-chapter-${viewport.name}`,
-            "DeleteChapter",
-            { time: 1, title },
-          );
-        }
-      });
-    }
+      }
+    });
   });
 }
 

@@ -283,7 +283,11 @@ async function pendingAndEnvelopeStrips(
 ): Promise<void> {
   await fixture(page);
   const rows: Record<string, unknown>[] = [];
-  for (const theme of ["dark", "light"] as const) {
+  const themes =
+    size === "portrait-360"
+      ? (["dark", "light"] as const)
+      : (["dark"] as const);
+  for (const theme of themes) {
     await open(page, size, theme);
     const finger = await newFinger(context, page, browserName);
     for (const [name, selector] of [

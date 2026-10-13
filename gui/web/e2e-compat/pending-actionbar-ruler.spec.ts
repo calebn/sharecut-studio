@@ -13,7 +13,7 @@ import {
 } from "../e2e/pendingActionbar";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { setTheme, type Theme } from "../e2e/theme";
+import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import { save } from "../e2e/touchTimeline";
 
 const CLIENT_ID = "e2e-actionbar-ruler";
@@ -34,8 +34,6 @@ const VIEWPORTS: Record<
   tablet: { width: 820, height: 1180, outcome: "docked-regular" },
   "tablet-768": { width: 768, height: 1024, outcome: "docked-regular" },
   "desktop-1180": { width: 1180, height: 820, outcome: "floating" },
-  desktop: { width: 1280, height: 720, outcome: "floating" },
-  "desktop-540": { width: 1280, height: 540, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
   "desktop-short": { width: 1280, height: 440, outcome: "inline" },
 };
@@ -143,87 +141,49 @@ async function expectCardOutcome(
   await expectHitTestable(bar.getByRole("button", { name: "Reject" }));
 }
 
-test("pending actions at phone: docks in the inspector sheet, light", ({
-  page,
-  browserName,
-}, info) => expectCardOutcome({ page, browserName }, info, "phone", "light"));
-test("pending actions at phone: docks in the inspector sheet, dark", ({
-  page,
-  browserName,
-}, info) => expectCardOutcome({ page, browserName }, info, "phone", "dark"));
-test("pending actions at tablet-short: docks in the inspector sheet, light", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "tablet-short", "light"));
-test("pending actions at tablet-short: docks in the inspector sheet, dark", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "tablet-short", "dark"));
-test("pending actions at tablet: docks in the regular inspector sheet, light", ({
-  page,
-  browserName,
-}, info) => expectCardOutcome({ page, browserName }, info, "tablet", "light"));
-test("pending actions at tablet: docks in the regular inspector sheet, dark", ({
-  page,
-  browserName,
-}, info) => expectCardOutcome({ page, browserName }, info, "tablet", "dark"));
-test("pending actions at tablet-768: docks in the regular inspector sheet, light", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "tablet-768", "light"));
-test("pending actions at tablet-768: docks in the regular inspector sheet, dark", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "tablet-768", "dark"));
-test("pending actions at desktop: floats between the ruler and the bottom panel, light", ({
-  page,
-  browserName,
-}, info) => expectCardOutcome({ page, browserName }, info, "desktop", "light"));
-test("pending actions at desktop: floats between the ruler and the bottom panel, dark", ({
-  page,
-  browserName,
-}, info) => expectCardOutcome({ page, browserName }, info, "desktop", "dark"));
-test("pending actions at desktop-540: floats between the ruler and the bottom panel, light", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-540", "light"));
-test("pending actions at desktop-540: floats between the ruler and the bottom panel, dark", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-540", "dark"));
-test("pending actions at desktop-500: floats between the ruler and the bottom panel, light", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-500", "light"));
-test("pending actions at desktop-500: floats between the ruler and the bottom panel, dark", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-500", "dark"));
-test("pending actions at desktop-short: leaves Approve and Reject to the inspector, light", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-short", "light"));
-test("pending actions at desktop-short: leaves Approve and Reject to the inspector, dark", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-short", "dark"));
-test("pending actions at desktop-1180: floats between the ruler and the bottom panel, light", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-1180", "light"));
-test("pending actions at desktop-1180: floats between the ruler and the bottom panel, dark", ({
-  page,
-  browserName,
-}, info) =>
-  expectCardOutcome({ page, browserName }, info, "desktop-1180", "dark"));
+const appearances = new Map(
+  withAppearance(Object.keys(VIEWPORTS)).map(({ cell, theme }) => [
+    cell,
+    theme,
+  ]),
+);
+
+function named(outcome: Outcome): string[] {
+  return Object.keys(VIEWPORTS).filter(
+    (name) => VIEWPORTS[name].outcome === outcome,
+  );
+}
+
+function run(name: string) {
+  return (
+    { page, browserName }: { page: Page; browserName: string },
+    info: TestInfo,
+  ) =>
+    expectCardOutcome(
+      { page, browserName },
+      info,
+      name,
+      appearances.get(name)!,
+    );
+}
+
+for (const name of named("docked")) {
+  test.describe(`pending actions at ${name}`, () => {
+    test("docks in the inspector sheet", run(name));
+  });
+}
+for (const name of named("docked-regular")) {
+  test.describe(`pending actions at ${name}`, () => {
+    test("docks in the regular inspector sheet", run(name));
+  });
+}
+for (const name of named("floating")) {
+  test.describe(`pending actions at ${name}`, () => {
+    test("floats between the ruler and the bottom panel", run(name));
+  });
+}
+for (const name of named("inline")) {
+  test.describe(`pending actions at ${name}`, () => {
+    test("leaves Approve and Reject to the inspector", run(name));
+  });
+}

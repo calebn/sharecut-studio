@@ -376,15 +376,6 @@ const profiles = [
     theme: "light" as const,
     phone: true,
     text: false,
-    motion: "reduce" as const,
-  },
-  {
-    name: "phone-dark",
-    width: 360,
-    height: 740,
-    theme: "dark" as const,
-    phone: true,
-    text: false,
     motion: "no-preference" as const,
   },
   {

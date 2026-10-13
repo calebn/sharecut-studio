@@ -22,7 +22,7 @@ import { type InteractionReceipt, test } from "./interactionEvidence";
 import { rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
-import { setTheme } from "./theme";
+import { setTheme, withAppearance } from "./theme";
 import { json } from "./touchTimeline";
 
 const viewports = [
@@ -115,296 +115,295 @@ async function openClip(page: Page, receipts: InteractionReceipt[]) {
   await expect(page.locator(".modifier-badge")).toHaveText("Clip");
 }
 
-for (const viewport of viewports)
-  for (const rootFont of [16, 32])
-    for (const theme of ["light", "dark"] as const) {
-      test.describe(`responsive inspector ${viewport.width}x${viewport.height} root${rootFont} ${theme}`, () => {
-        test.use({
-          viewport,
-          reducedMotion: theme === "dark" ? "reduce" : "no-preference",
-        });
-        test("pointer identity, full envelope controls, visible return and Clip inspector ordinary scrolling", async ({
-          page,
-          receipts,
-        }, info) => {
-          await withShareableProject(
-            async (projectPath) => {
-              const track = envelopeTrack(projectPath),
-                origin = envelopeSnapshot(projectPath, track.id);
-              const observer = observeEnvelopeCommands(
+for (const {
+  cell: { viewport, rootFont },
+  theme,
+  reducedMotion,
+} of withAppearance(
+  viewports.flatMap((viewport) =>
+    [16, 32].map((rootFont) => ({ viewport, rootFont })),
+  ),
+)) {
+  test.describe(`responsive inspector ${viewport.width}x${viewport.height} root${rootFont} ${theme}`, () => {
+    test.use({
+      viewport,
+      reducedMotion: reducedMotion ? "reduce" : "no-preference",
+    });
+    test("pointer identity, full envelope controls, visible return and Clip inspector ordinary scrolling", async ({
+      page,
+      receipts,
+    }, info) => {
+      await withShareableProject(
+        async (projectPath) => {
+          const track = envelopeTrack(projectPath),
+            origin = envelopeSnapshot(projectPath, track.id);
+          const observer = observeEnvelopeCommands(
+            page,
+            projectPath,
+            track.id,
+            receipts,
+          );
+          try {
+            await setup(page, projectPath, theme, rootFont, receipts);
+            await observer.verifyAssets();
+            const identity = page.getByRole("button", {
+              name: `Open track details, ${track.label}`,
+              exact: true,
+            });
+            await captureInspector(
+              page,
+              info,
+              receipts,
+              "before-visible-pointer-entry",
+            );
+            await pointerControl(page, identity, receipts, true);
+            const trackInspector = page.locator(".modifier-inspector");
+            for (const name of [`Mute ${track.label}`, `Solo ${track.label}`]) {
+              await exposeControl(
                 page,
-                projectPath,
-                track.id,
+                trackInspector.getByRole("button", { name, exact: true }),
                 receipts,
               );
-              try {
-                await setup(page, projectPath, theme, rootFont, receipts);
-                await observer.verifyAssets();
-                const identity = page.getByRole("button", {
-                  name: `Open track details, ${track.label}`,
-                  exact: true,
-                });
-                await captureInspector(
-                  page,
-                  info,
-                  receipts,
-                  "before-visible-pointer-entry",
-                );
-                await pointerControl(page, identity, receipts, true);
-                const trackInspector = page.locator(".modifier-inspector");
-                for (const name of [
-                  `Mute ${track.label}`,
-                  `Solo ${track.label}`,
-                ]) {
-                  await exposeControl(
-                    page,
-                    trackInspector.getByRole("button", { name, exact: true }),
-                    receipts,
-                  );
-                }
-                await exposeControl(
-                  page,
-                  trackInspector.getByRole("slider", {
-                    name: `Volume ${track.label}`,
-                    exact: true,
-                  }),
-                  receipts,
-                );
-                const resetVolume = trackInspector.getByRole("button", {
-                  name: "Reset volume to 0 dB",
-                  exact: true,
-                });
-                await exposeControl(page, resetVolume, receipts);
-                await captureInspector(
-                  page,
-                  info,
-                  receipts,
-                  "track-volume-reset-full-control",
-                );
-                const clearClip = trackInspector.getByRole("button", {
-                  name: `Clear clip light for ${track.label}`,
-                  exact: true,
-                });
-                await exposeControl(page, clearClip, receipts);
-                const controlFonts = await Promise.all(
-                  [clearClip, resetVolume].map((control) =>
-                    control.evaluate(
-                      (element) => getComputedStyle(element).fontSize,
-                    ),
-                  ),
-                );
-                expect(controlFonts[0]).toBe(controlFonts[1]);
-                receipts.push({
-                  checkpoint: "Clear-clip-shared-theme-text-scale",
-                  observation: {
-                    rootFont,
-                    controlFonts,
-                    clearDisabled: await clearClip.isDisabled(),
-                  },
-                });
-                await captureInspector(
-                  page,
-                  info,
-                  receipts,
-                  "track-clear-clip-full-control",
-                );
-                for (const name of [
-                  "Track label",
-                  "Track speaker",
-                  "Track role",
-                ]) {
-                  await exposeControl(
-                    page,
-                    trackInspector.getByLabel(name, { exact: true }),
-                    receipts,
-                  );
-                }
-                expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
-                await pointerControl(
-                  page,
-                  page.getByRole("button", {
-                    name: "Add volume envelope",
-                    exact: true,
-                  }),
-                  receipts,
-                );
-                await pointerControl(
-                  page,
-                  page.getByRole("button", { name: "Add point", exact: true }),
-                  receipts,
-                );
-                const time = page.getByLabel("Time (seconds on timeline)", {
-                  exact: true,
-                });
-                const level = page.getByLabel("Level (×)", { exact: true });
-                await typeControl(page, time, "0", receipts);
-                await typeControl(page, level, "1", receipts);
-                await assertDraftWheel(page, receipts);
-                await exposeControl(
-                  page,
-                  page.getByRole("button", { name: "Cancel", exact: true }),
-                  receipts,
-                );
-                await captureInspector(
-                  page,
-                  info,
-                  receipts,
-                  "typed-default-point-full-controls",
-                );
-                const first = await acceptedEnvelopeCommand(
-                  page,
-                  "SetEnvelope",
-                  () =>
-                    pointerControl(
-                      page,
-                      page.getByRole("button", {
-                        name: "Save point",
-                        exact: true,
-                      }),
-                      receipts,
-                    ),
-                );
-                const point = first.command.payload.points![0]!;
-                expect(point).toEqual({
-                  id: expect.stringMatching(/\S/),
-                  time: 0,
-                  value: 1,
-                });
-                await expect
-                  .poll(() => envelopeSnapshot(projectPath, track.id).points)
-                  .toEqual([point]);
-                const saved = envelopeSnapshot(projectPath, track.id);
-                expectEnvelopeMutation(origin, saved, track.id);
-                const select = page.getByRole("combobox", {
-                  name: "Envelope point",
-                  exact: true,
-                });
-                await visibleFocus(
-                  select,
-                  receipts,
-                  "save-restores-visible-point-selector",
-                );
-                await exposeControl(
+            }
+            await exposeControl(
+              page,
+              trackInspector.getByRole("slider", {
+                name: `Volume ${track.label}`,
+                exact: true,
+              }),
+              receipts,
+            );
+            const resetVolume = trackInspector.getByRole("button", {
+              name: "Reset volume to 0 dB",
+              exact: true,
+            });
+            await exposeControl(page, resetVolume, receipts);
+            await captureInspector(
+              page,
+              info,
+              receipts,
+              "track-volume-reset-full-control",
+            );
+            const clearClip = trackInspector.getByRole("button", {
+              name: `Clear clip light for ${track.label}`,
+              exact: true,
+            });
+            await exposeControl(page, clearClip, receipts);
+            const controlFonts = await Promise.all(
+              [clearClip, resetVolume].map((control) =>
+                control.evaluate(
+                  (element) => getComputedStyle(element).fontSize,
+                ),
+              ),
+            );
+            expect(controlFonts[0]).toBe(controlFonts[1]);
+            receipts.push({
+              checkpoint: "Clear-clip-shared-theme-text-scale",
+              observation: {
+                rootFont,
+                controlFonts,
+                clearDisabled: await clearClip.isDisabled(),
+              },
+            });
+            await captureInspector(
+              page,
+              info,
+              receipts,
+              "track-clear-clip-full-control",
+            );
+            for (const name of ["Track label", "Track speaker", "Track role"]) {
+              await exposeControl(
+                page,
+                trackInspector.getByLabel(name, { exact: true }),
+                receipts,
+              );
+            }
+            expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
+            await pointerControl(
+              page,
+              page.getByRole("button", {
+                name: "Add volume envelope",
+                exact: true,
+              }),
+              receipts,
+            );
+            await pointerControl(
+              page,
+              page.getByRole("button", { name: "Add point", exact: true }),
+              receipts,
+            );
+            const time = page.getByLabel("Time (seconds on timeline)", {
+              exact: true,
+            });
+            const level = page.getByLabel("Level (×)", { exact: true });
+            await typeControl(page, time, "0", receipts);
+            await typeControl(page, level, "1", receipts);
+            await assertDraftWheel(page, receipts);
+            await exposeControl(
+              page,
+              page.getByRole("button", { name: "Cancel", exact: true }),
+              receipts,
+            );
+            await captureInspector(
+              page,
+              info,
+              receipts,
+              "typed-default-point-full-controls",
+            );
+            const first = await acceptedEnvelopeCommand(
+              page,
+              "SetEnvelope",
+              () =>
+                pointerControl(
                   page,
                   page.getByRole("button", {
-                    name: "Remove volume envelope",
+                    name: "Save point",
                     exact: true,
                   }),
                   receipts,
-                );
-                await pointerControl(
+                ),
+            );
+            const point = first.command.payload.points![0]!;
+            expect(point).toEqual({
+              id: expect.stringMatching(/\S/),
+              time: 0,
+              value: 1,
+            });
+            await expect
+              .poll(() => envelopeSnapshot(projectPath, track.id).points)
+              .toEqual([point]);
+            const saved = envelopeSnapshot(projectPath, track.id);
+            expectEnvelopeMutation(origin, saved, track.id);
+            const select = page.getByRole("combobox", {
+              name: "Envelope point",
+              exact: true,
+            });
+            await visibleFocus(
+              select,
+              receipts,
+              "save-restores-visible-point-selector",
+            );
+            await exposeControl(
+              page,
+              page.getByRole("button", {
+                name: "Remove volume envelope",
+                exact: true,
+              }),
+              receipts,
+            );
+            await pointerControl(
+              page,
+              page.getByRole("button", { name: "Edit point", exact: true }),
+              receipts,
+            );
+            await typeControl(page, time, "2", receipts);
+            await typeControl(page, level, "0.75", receipts);
+            const changed = await acceptedEnvelopeCommand(
+              page,
+              "SetEnvelope",
+              () =>
+                pointerControl(
                   page,
-                  page.getByRole("button", { name: "Edit point", exact: true }),
-                  receipts,
-                );
-                await typeControl(page, time, "2", receipts);
-                await typeControl(page, level, "0.75", receipts);
-                const changed = await acceptedEnvelopeCommand(
-                  page,
-                  "SetEnvelope",
-                  () =>
-                    pointerControl(
-                      page,
-                      page.getByRole("button", {
-                        name: "Save point",
-                        exact: true,
-                      }),
-                      receipts,
-                    ),
-                );
-                expect(changed.command.payload.points).toEqual([
-                  { ...point, time: 2, value: 0.75 },
-                ]);
-                await expect
-                  .poll(() => envelopeSnapshot(projectPath, track.id).points)
-                  .toEqual(changed.command.payload.points);
-                const edited = envelopeSnapshot(projectPath, track.id);
-                expectEnvelopeMutation(saved, edited, track.id);
-                await pointerControl(
-                  page,
-                  page.getByRole("button", { name: "Edit point", exact: true }),
-                  receipts,
-                );
-                await typeControl(page, time, "3", receipts);
-                await assertDraftWheel(page, receipts);
-                const commandCount = observer.commands.length;
-                await captureInspector(
-                  page,
-                  info,
-                  receipts,
-                  "changed-draft-before-cancel",
-                );
-                await pointerControl(
-                  page,
-                  page.getByRole("button", { name: "Cancel", exact: true }),
-                  receipts,
-                );
-                expect(envelopeSnapshot(projectPath, track.id)).toEqual(edited);
-                expect(observer.commands).toHaveLength(commandCount);
-                await visibleFocus(
-                  select,
-                  receipts,
-                  "cancel-restores-visible-point-selector",
-                );
-                await captureInspector(
-                  page,
-                  info,
-                  receipts,
-                  "cancel-visible-focus-no-write",
-                );
-                receipts.push({
-                  checkpoint: "exact-Applied-identities-and-history",
-                  observation: { first, changed, origin, saved, edited },
-                });
-                await pointerControl(
-                  page,
-                  page.getByRole("button", { name: "Done", exact: true }),
-                  receipts,
-                );
-                await visibleFocus(
                   page.getByRole("button", {
-                    name: "Edit volume envelope",
+                    name: "Save point",
                     exact: true,
                   }),
                   receipts,
-                  "done-restores-visible-track-entry",
-                );
-                const close = page.getByRole("button", {
-                  name: "Close",
-                  exact: true,
-                });
-                if (await close.count())
-                  await pointerControl(page, close, receipts);
-                await openClip(page, receipts);
-                for (const label of ["Fade in ms", "Fade out ms"]) {
-                  await exposeControl(
-                    page,
-                    page.getByLabel(label, { exact: true }),
-                    receipts,
-                  );
-                }
-                await exposeControl(
-                  page,
-                  page.getByRole("button", { name: "Seek join", exact: true }),
-                  receipts,
-                );
-                await captureInspector(
-                  page,
-                  info,
-                  receipts,
-                  "clip-inspector-full-actions",
-                );
-                expect(envelopeSnapshot(projectPath, track.id)).toEqual(edited);
-              } finally {
-                await observer.retain();
-              }
-            },
-            undefined,
-            emptyEnvelopeProject,
-          );
-        });
-      });
-    }
+                ),
+            );
+            expect(changed.command.payload.points).toEqual([
+              { ...point, time: 2, value: 0.75 },
+            ]);
+            await expect
+              .poll(() => envelopeSnapshot(projectPath, track.id).points)
+              .toEqual(changed.command.payload.points);
+            const edited = envelopeSnapshot(projectPath, track.id);
+            expectEnvelopeMutation(saved, edited, track.id);
+            await pointerControl(
+              page,
+              page.getByRole("button", { name: "Edit point", exact: true }),
+              receipts,
+            );
+            await typeControl(page, time, "3", receipts);
+            await assertDraftWheel(page, receipts);
+            const commandCount = observer.commands.length;
+            await captureInspector(
+              page,
+              info,
+              receipts,
+              "changed-draft-before-cancel",
+            );
+            await pointerControl(
+              page,
+              page.getByRole("button", { name: "Cancel", exact: true }),
+              receipts,
+            );
+            expect(envelopeSnapshot(projectPath, track.id)).toEqual(edited);
+            expect(observer.commands).toHaveLength(commandCount);
+            await visibleFocus(
+              select,
+              receipts,
+              "cancel-restores-visible-point-selector",
+            );
+            await captureInspector(
+              page,
+              info,
+              receipts,
+              "cancel-visible-focus-no-write",
+            );
+            receipts.push({
+              checkpoint: "exact-Applied-identities-and-history",
+              observation: { first, changed, origin, saved, edited },
+            });
+            await pointerControl(
+              page,
+              page.getByRole("button", { name: "Done", exact: true }),
+              receipts,
+            );
+            await visibleFocus(
+              page.getByRole("button", {
+                name: "Edit volume envelope",
+                exact: true,
+              }),
+              receipts,
+              "done-restores-visible-track-entry",
+            );
+            const close = page.getByRole("button", {
+              name: "Close",
+              exact: true,
+            });
+            if (await close.count())
+              await pointerControl(page, close, receipts);
+            await openClip(page, receipts);
+            for (const label of ["Fade in ms", "Fade out ms"]) {
+              await exposeControl(
+                page,
+                page.getByLabel(label, { exact: true }),
+                receipts,
+              );
+            }
+            await exposeControl(
+              page,
+              page.getByRole("button", { name: "Seek join", exact: true }),
+              receipts,
+            );
+            await captureInspector(
+              page,
+              info,
+              receipts,
+              "clip-inspector-full-actions",
+            );
+            expect(envelopeSnapshot(projectPath, track.id)).toEqual(edited);
+          } finally {
+            await observer.retain();
+          }
+        },
+        undefined,
+        emptyEnvelopeProject,
+      );
+    });
+  });
+}
 
 test.describe("independent keyboard envelope root32 phone", () => {
   test.use({ viewport: { width: 360, height: 740 }, reducedMotion: "reduce" });

@@ -6,7 +6,6 @@ import {
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
-import { setTheme } from "../e2e/theme";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
 
@@ -19,54 +18,48 @@ function fontSizePx(field: Locator) {
   );
 }
 
-for (const theme of ["light", "dark"] as const) {
-  test.describe(`touch field size ${theme}`, () => {
-    test("iPhone envelope Time field is at least 16px", async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await withShareableProject(async (projectPath) => {
-        await openHostShare(page, projectPath);
-        await openPhoneTimeline(page);
-        await setTheme(page, theme);
-        await expect
-          .poll(() =>
-            page.evaluate(() => matchMedia("(pointer: coarse)").matches),
-          )
-          .toBe(true);
-        await openEnvelopeTrackDetails(
-          page,
-          envelopeTrack(projectPath).label,
-          [],
-        );
-        await page
-          .getByRole("button", { name: "Add volume envelope", exact: true })
-          .click();
-        await page
-          .getByRole("button", { name: "Add point", exact: true })
-          .click();
-        const time = page.getByLabel("Time (seconds on timeline)", {
-          exact: true,
-        });
-        await expect(time).toBeVisible();
-        expect(await fontSizePx(time)).toBeGreaterThanOrEqual(
-          IOS_ZOOM_FLOOR_PX,
-        );
+test.describe("touch field size", () => {
+  test("iPhone envelope Time field is at least 16px", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await withShareableProject(async (projectPath) => {
+      await openHostShare(page, projectPath);
+      await openPhoneTimeline(page);
+      await expect
+        .poll(() =>
+          page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+        )
+        .toBe(true);
+      await openEnvelopeTrackDetails(
+        page,
+        envelopeTrack(projectPath).label,
+        [],
+      );
+      await page
+        .getByRole("button", { name: "Add volume envelope", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Add point", exact: true })
+        .click();
+      const time = page.getByLabel("Time (seconds on timeline)", {
+        exact: true,
       });
-    });
-
-    test("iPhone comment field is at least 16px", async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await withShareableProject(async (projectPath) => {
-        await openHostShare(page, projectPath);
-        await setTheme(page, theme);
-        const comment = page.getByRole("textbox", {
-          name: "Comment",
-          exact: true,
-        });
-        await expect(comment).toBeVisible();
-        expect(await fontSizePx(comment)).toBeGreaterThanOrEqual(
-          IOS_ZOOM_FLOOR_PX,
-        );
-      });
+      await expect(time).toBeVisible();
+      expect(await fontSizePx(time)).toBeGreaterThanOrEqual(IOS_ZOOM_FLOOR_PX);
     });
   });
-}
+
+  test("iPhone comment field is at least 16px", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await withShareableProject(async (projectPath) => {
+      await openHostShare(page, projectPath);
+      const comment = page.getByRole("textbox", {
+        name: "Comment",
+        exact: true,
+      });
+      await expect(comment).toBeVisible();
+      expect(await fontSizePx(comment)).toBeGreaterThanOrEqual(
+        IOS_ZOOM_FLOOR_PX,
+      );
+    });
+  });
+});

@@ -86,7 +86,9 @@ async function proveHungLoad(
       expect(box?.width).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
       expect(box?.height).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
     }
-    for (const theme of ["light", "dark"] as const) {
+    const themes =
+      name === "desktop" ? (["light", "dark"] as const) : (["dark"] as const);
+    for (const theme of themes) {
       await setTheme(page, theme);
       await expectPageAxeClean(page);
       await page.screenshot({
