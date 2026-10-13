@@ -641,7 +641,7 @@ Analyze's `digital_silence` check streams `engines.asr_silence.peak_envelope`, a
 peak envelope, and flags a dialogue track whose source audio is mostly under
 `DIGITAL_SILENCE_PEAK_DBFS` (-60 dBFS) as a likely gated stem worth transcribing with VAD
 on. That level only separates a gate's zeros from any recorded sound; it is still a fixed
-level, so a quiet ungated recording reads more silent (follow-up filed from #1366).
+level, so a quiet ungated recording reads more silent (#1381).
 
 ## RNNoise noise reduction (`noise_reduction_rnnoise`)
 
