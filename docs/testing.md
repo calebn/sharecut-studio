@@ -1505,6 +1505,8 @@ test; other rows are whole tests.
 | the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | native Tab keeps every Primary navigation indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Track actions opens inside a 390 and a 393 wide phone viewport in both detents and its first item works | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an app toast stays topmost and tappable over a transport menu opened after it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an app toast stays topmost and tappable over a transport menu that was open before it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Undo survives phone to tablet host remount | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Dismiss survives phone to tablet host remount | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a peer's selection and edit that remove the focused Undo hand focus to the sheet Close | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
