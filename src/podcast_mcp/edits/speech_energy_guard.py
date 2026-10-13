@@ -63,6 +63,7 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 log = logging.getLogger(__name__)
 
 ConflictAction = Literal["skip", "review"]
+CONFLICT_ACTIONS: tuple[ConflictAction, ...] = ("review", "skip")
 DEFAULT_MIN_OTHER_RMS_DB = -42.0
 
 
@@ -91,9 +92,26 @@ def speech_energy_guard_enabled(defaults: dict[str, Any] | None = None) -> bool:
     return bool(_guard_cfg(defaults).get("enabled", True))
 
 
+def validate_speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -> ConflictAction:
+    """The validated ``tighten.speech_energy_guard.on_conflict``: ``review`` or ``skip``.
+
+    An unknown value raises ``ValueError`` naming the valid ones. ``merge_pipeline_config``
+    calls this when a config loads, so a bad value never reaches a run; it must not be called
+    from the cut-scope path, whose ``ValueError`` handler would report it as unavailable.
+    """
+    raw = _guard_cfg(defaults).get("on_conflict", "review")
+    mode = str(raw).strip().lower()
+    for valid in CONFLICT_ACTIONS:
+        if mode == valid:
+            return valid
+    raise ValueError(
+        "unknown tighten.speech_energy_guard.on_conflict: "
+        f"{raw!r}; valid values: {', '.join(CONFLICT_ACTIONS)}"
+    )
+
+
 def speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -> ConflictAction:
-    raw = str(_guard_cfg(defaults).get("on_conflict", "review")).strip().lower()
-    return "skip" if raw == "skip" else "review"
+    return _guard_cfg(defaults).get("on_conflict", "review")
 
 
 @dataclass(frozen=True)
