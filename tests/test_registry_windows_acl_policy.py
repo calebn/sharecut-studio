@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import ctypes
+from pathlib import PureWindowsPath
 from types import SimpleNamespace
 
 import pytest
 
 from podcast_mcp.util import registry_backup_windows as windows
+
+PATH = PureWindowsPath(r"C:\Users\Ada Lovelace\registry")
 
 
 @pytest.mark.parametrize("flags", [1 | 8, 2 | 8, 1 | 2 | 8, 1 | 2])
@@ -46,9 +49,9 @@ def test_private_directory_child_grants_are_limited_to_trusted_accounts(flags, t
     api.sid_string = lambda pointer: "owner" if getattr(pointer, "value", pointer) == 1 else trustee
     if trustee == "everyone":
         with pytest.raises(PermissionError):
-            api.verify_handle(123, private=True, directory=True)
+            api.verify_handle(123, private=True, directory=True, path=PATH)
     else:
-        assert api.verify_handle(123, private=True, directory=True).index_low == 1
+        assert api.verify_handle(123, private=True, directory=True, path=PATH).index_low == 1
 
 
 def test_private_directory_creation_descriptor_protects_future_children(tmp_path, monkeypatch):
@@ -141,14 +144,14 @@ def test_owner_rights_bind_to_each_validated_object_owner(private, owner, truste
     api.security = SimpleNamespace(GetSecurityInfo=security, GetAce=get_ace)
     api.sid_string = sid
     if owner == "installer" and private:
-        with pytest.raises(PermissionError, match="untrusted owner"):
-            api.verify_handle(123, private=True, directory=True)
+        with pytest.raises(PermissionError, match="owned by another user"):
+            api.verify_handle(123, private=True, directory=True, path=PATH)
     elif accepted:
-        assert api.verify_handle(123, private=private, directory=True).index_low == 123
+        assert api.verify_handle(123, private=private, directory=True, path=PATH).index_low == 123
     elif not private and flags & 8:
-        assert api.verify_handle(123, private=False, directory=True).index_low == 123
+        assert api.verify_handle(123, private=False, directory=True, path=PATH).index_low == 123
     else:
         with pytest.raises(PermissionError):
-            api.verify_handle(123, private=private, directory=True)
-    with pytest.raises(PermissionError, match="untrusted owner"):
-        api.verify_handle(124, private=private, directory=True)
+            api.verify_handle(123, private=private, directory=True, path=PATH)
+    with pytest.raises(PermissionError, match="owned by another user"):
+        api.verify_handle(124, private=private, directory=True, path=PATH)

@@ -152,16 +152,24 @@ fail closed without repair or source replacement. Only an owned parent directory
 POSIX mode may tighten to `0700` after ACL inspection. A main, WAL, SHM, or journal
 file with group or other access fails closed and is never repaired.
 
-On POSIX hosts a refusal is the coded error `registry_not_private`: the CLI, owner MCP tools and host GUI
+On POSIX and Windows hosts a refusal is the coded error `registry_not_private`: the CLI, owner MCP tools and host GUI
 routes report one line that names the offending path and why. A share guest never sees that line:
 the error holds a second, fixed message with no path and no command ("The host's sharing
 setup needs attention; ask the host to check it.", `util/registry_privacy_error.py`), and
-every guest or relayed surface reports it with the same `registry_not_private` code. To
-recover from a loose file or folder, run the `chmod` it prints (`chmod 0600` for a main,
-WAL, SHM, or journal file, `chmod 0700` for the registry folder, `chmod go-w` for a parent
-folder another user can write to);
-for a foreign owner, an ACL, or a symlink it says what is wrong and offers no command, so fix
-it yourself or point `PODCAST_SHARE_REGISTRY` at a registry you own.
+every guest or relayed surface reports it with the same `registry_not_private` code. No message
+names an account identifier (a Windows SID stays out of the line, the guest message and the
+logs at default level). To recover on POSIX from a loose file or folder, run the `chmod` it
+prints (`chmod 0600` for a main, WAL, SHM, or journal file, `chmod 0700` for the registry folder,
+`chmod go-w` for a parent folder another user can write to); for a foreign owner, an ACL, or a
+symlink it says what is wrong and offers no command, so fix it yourself or point
+`PODCAST_SHARE_REGISTRY` at a registry you own. On Windows the line shows the path in double
+quotes and never prints a command, because a command could widen access: it tells you to open
+the path's Security settings and leave only your account, SYSTEM and Administrators (an
+unsafe or unreadable permission entry, or no permission list), to restore your ownership
+(a foreign owner), to replace a junction or other reparse point with the real folder, to move
+the registry to a local NTFS drive (a network share, alternate stream, other filesystem or one
+without stable file identities), or to try again (the folder was replaced while it was being
+checked). Pointing `PODCAST_SHARE_REGISTRY` at a registry you own is the other way out.
 
 The review artifacts folder (`artifacts/review`, where published review mixes are staged and
 promoted) is held to the same rule. On POSIX hosts a review folder that another user owns or that

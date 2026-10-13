@@ -24,13 +24,13 @@ def _assert_private(path: Path, *, directory: bool = False) -> None:
     if directory:
         handle = api.open_directory(path)
         try:
-            api.verify_handle(handle, private=True, directory=True)
+            api.verify_handle(handle, private=True, directory=True, path=path)
         finally:
             api.kernel.CloseHandle(handle)
     else:
         fd = os.open(path, os.O_RDONLY)
         try:
-            api.verify_handle(api.crt.get_osfhandle(fd), private=True, directory=False)
+            api.verify_handle(api.crt.get_osfhandle(fd), private=True, directory=False, path=path)
         finally:
             os.close(fd)
 

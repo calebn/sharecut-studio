@@ -1,6 +1,7 @@
 """The refusal for a share registry path that is not private to the host user.
 
-``util/registry_backup_posix.py`` raises it at the boundary, where the offending path is known.
+``util/registry_backup_posix.py`` and ``util/registry_backup_windows.py`` raise it at the
+boundary, where the offending path is known. It never carries an account identifier (a SID).
 Every adapter already reports a ``CodedError``'s message and code (``util/coded_error.py``), so
 the CLI prints one ``Error:`` line, an MCP tool returns it as a structured refusal, and the GUI
 maps it in ``gui/routes/deps.py``. A share guest never gets that message: the error holds a
@@ -16,7 +17,7 @@ from __future__ import annotations
 import shlex
 import stat
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from podcast_mcp.util.coded_error import HostSetupError
 
@@ -36,6 +37,11 @@ class RegistryPrivacyReason(StrEnum):
     PARENT_WRITABLE = "parent_writable"
     PARENT_WRITABLE_NOT_MINE = "parent_writable_not_mine"
     PARENT_OWNER = "parent_owner"
+    REPARSE_POINT = "reparse_point"
+    NOT_LOCAL_NTFS = "not_local_ntfs"
+    NOT_A_FOLDER = "not_a_folder"
+    WINDOWS_ACL = "windows_acl"
+    PATH_CHANGED = "path_changed"
 
 
 _PROBLEM = {
@@ -49,6 +55,11 @@ _PROBLEM = {
     RegistryPrivacyReason.PARENT_WRITABLE: "folder {path} above the registry lets other users replace entries",
     RegistryPrivacyReason.PARENT_WRITABLE_NOT_MINE: "folder {path} above the registry lets other users replace entries",
     RegistryPrivacyReason.PARENT_OWNER: "folder {path} above the registry is owned by another user",
+    RegistryPrivacyReason.REPARSE_POINT: "registry path {path} is a junction or other reparse point, which is never followed",
+    RegistryPrivacyReason.NOT_LOCAL_NTFS: "registry path {path} is not on a local NTFS drive",
+    RegistryPrivacyReason.NOT_A_FOLDER: "registry folder {path} is not a folder",
+    RegistryPrivacyReason.WINDOWS_ACL: "registry path {path} has permissions that are not limited to your account, SYSTEM and Administrators",
+    RegistryPrivacyReason.PATH_CHANGED: "registry path {path} was replaced while it was being checked",
 }
 
 _FIX = {
@@ -63,6 +74,13 @@ _FIX = {
     RegistryPrivacyReason.PARENT_WRITABLE_NOT_MINE: "ask its owner to remove write access for others, or "
     + _PIN,
     RegistryPrivacyReason.PARENT_OWNER: "move the registry under a folder you own, or " + _PIN,
+    RegistryPrivacyReason.REPARSE_POINT: "replace it with the real folder, or " + _PIN,
+    RegistryPrivacyReason.NOT_LOCAL_NTFS: "move the registry to a local NTFS drive (not a network share or alternate stream), or "
+    + _PIN,
+    RegistryPrivacyReason.NOT_A_FOLDER: "move it aside, or " + _PIN,
+    RegistryPrivacyReason.WINDOWS_ACL: "in its Security settings, remove other accounts and reset it to your account, SYSTEM and Administrators only",
+    RegistryPrivacyReason.PATH_CHANGED: "try again, and if it keeps happening, find what is replacing it, or "
+    + _PIN,
 }
 
 
@@ -74,7 +92,7 @@ class RegistryPrivacyError(HostSetupError):
     def __init__(
         self, path: Path, reason: RegistryPrivacyReason, *, mode: int | None = None
     ) -> None:
-        shown = shlex.quote(str(path))
+        shown = f'"{path}"' if isinstance(path, PureWindowsPath) else shlex.quote(str(path))
         fields = {
             "path": shown,
             "mode": f"{stat.S_IMODE(mode):04o}" if mode is not None else "unknown",
