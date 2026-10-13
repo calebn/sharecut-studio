@@ -304,3 +304,20 @@ def test_a_recording_with_no_words_is_not_read_through_the_sessions_silence() ->
 
     assert set(asked) == {"host"}
     assert any(s.lo < 6.0 < s.hi for s in sounds)
+
+
+def test_a_recording_with_no_words_takes_its_speech_level_from_its_own_levels() -> None:
+    # The guest has no transcript. Its speech level, read from all its live frames, puts a
+    # sound 45 dB under its speech below the ceiling, so a trim may remove it whole; the
+    # word itself stays one sound to keep.
+    project = _with_guest(_host_project(_fixture_words()))
+    word = _harmonic_tone(4800, _SPEECH_RMS)
+    breath = _harmonic_tone(4800, _SPEECH_RMS * 10 ** (-45.0 / 20.0))
+    reader = _reader(host=_fake_windows(), guest=_gated((word, 6.0), (breath, 9.0)))
+
+    with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=reader):
+        sounds = SessionAir(project).sounds_in(5.8, 9.6)
+
+    (spoken,) = [s for s in sounds if s.lo == pytest.approx(5.97)]
+    (quiet,) = [s for s in sounds if s.lo == pytest.approx(8.97)]
+    assert (spoken.removable, quiet.removable) == (False, True)

@@ -565,6 +565,50 @@ def test_a_talker_with_no_room_mode_falls_back_to_the_low_end_of_all_its_frames(
     assert room == read_conservative_room(smooth, LEAST)
 
 
+def test_a_talker_whose_room_is_a_small_share_of_its_frames_still_reads_the_rooms_mode() -> None:
+    # 300 frames of room under 3000 of speech: the 5th percentile of all its frames is
+    # speech, a spread of tens of dB, so only the mode finds the room.
+    rng = np.random.default_rng(3)
+    smooth = smoothed(
+        np.concatenate([_room_levels(300, -91.0, 1.5, seed=9), rng.uniform(-60.0, -12.0, 3000)])
+    )
+
+    room, basis = read_unwatched_room(smooth, LEAST, speech_level_db(smooth))
+
+    assert basis is RoomBasis.OWN_LEVELS
+    assert room.level_db == pytest.approx(-91.0, abs=0.8)
+    assert room.spread_db < 2.5
+    assert read_conservative_room(smooth, LEAST).spread_db > 20.0
+
+
+def test_a_talker_gated_over_a_third_of_its_frames_has_the_gates_silence_for_its_room() -> None:
+    # Digital silence is 35% of all its frames and 70% of the quieter half: a gate holds it
+    # there between words. The live frames are all speech.
+    rng = np.random.default_rng(4)
+    smooth = smoothed(
+        np.concatenate([np.full(350, DIGITAL_SILENCE_DB), rng.uniform(-40.0, -15.0, 650)])
+    )
+
+    read = read_unwatched_room(smooth, LEAST, speech_level_db(smooth))
+
+    assert read == (Room(DIGITAL_SILENCE_DB, LEAST), RoomBasis.OWN_LEVELS)
+
+
+@pytest.mark.parametrize("level_db", [-90.24, -90.2, -90.05])
+def test_the_level_of_a_mode_is_the_median_of_its_frames_not_the_middle_of_its_bin(
+    level_db: float,
+) -> None:
+    rng = np.random.default_rng(1)
+    levels = np.concatenate(
+        [np.full(400, level_db), rng.uniform(-96.0, -84.0, 100), rng.uniform(-80.0, -20.0, 500)]
+    )
+
+    mode = read_mode(levels, -50.0, LEAST)
+
+    assert mode is not None
+    assert mode.level_db == pytest.approx(level_db, abs=0.01)
+
+
 def test_the_mode_of_a_track_reports_the_level_it_piles_up_at() -> None:
     rng = np.random.default_rng(8)
     levels = np.concatenate([_room_levels(500, -92.0, 1.5, seed=9), rng.uniform(-90.0, -20.0, 500)])
