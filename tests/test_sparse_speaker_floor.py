@@ -17,6 +17,7 @@ from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCache,
+    TrackRmsCacheSet,
     compute_word_audibility_map,
 )
 from podcast_mcp.models import TranscriptWord
@@ -81,3 +82,23 @@ def test_stretched_token_trims_onto_its_voice_whatever_the_gain(
     caps = WordSpanCaps.from_defaults({"tighten": {"filler_words": ["uh"]}})
     trim_implausible_words(words, cache, caps)
     assert (round(words[0].start, 1), round(words[0].end, 1)) == (111.0, 111.3)
+
+
+def _dense_host() -> np.ndarray:
+    audio = np.random.default_rng(3).normal(0, 10 ** (ROOMS_DB[0] / 20), SECONDS * RATE)
+    for start in np.arange(1.0, SECONDS - 1.0, 1.0):
+        _voice(audio, float(start), float(start) + 0.6, SPEECH_DB)
+    return audio
+
+
+@pytest.mark.parametrize("speech_share", SPEECH_SHARES)
+@pytest.mark.parametrize("gain_db", (12.0, 0.0, -24.0))
+def test_a_sparse_guest_does_not_move_the_session_reference(speech_share: float, gain_db: float):
+    """The reference gain follows the voices, not a guest's room tone (#1324)."""
+    scale = np.float32(10 ** (gain_db / 20))
+    host = TrackRmsCache(samples=_dense_host().astype(np.float32) * scale, sample_rate=RATE)
+    guest_audio, _ = _scene(speech_share, ROOMS_DB[0])
+    guest = TrackRmsCache(samples=guest_audio.astype(np.float32) * scale, sample_rate=RATE)
+    alone = TrackRmsCacheSet(caches={"host": host})
+    together = TrackRmsCacheSet(caches={"host": host, "guest": guest})
+    assert together.reference_gain_db == pytest.approx(alone.reference_gain_db, abs=1.0)
