@@ -265,11 +265,15 @@ specs should protect layout/native input/media/storage/network seams or complete
 user outcomes. Before pruning a browser case, name its remaining coverage owner.
 See [Browser test scope and runtime](../../docs/testing.md#browser-test-scope-and-runtime)
 for placement rules and the CI `playwright-reports-<name>` timing artifacts
-(`main-1of4` ... `main-4of4`, `compat-chromium`, `compat-webkit`). Each suite's live project is shared,
-so Playwright requires one worker. CI shards the main suite and runs the full
-compatibility suite once per engine on separate runners, with zero retries and
-20-minute job limits; the existing `frontend-e2e` check requires every one
-to succeed.
+(`main-1of4` ... `main-4of4`, `compat-chromium`, `compat-webkit`; PRs run
+`compat-webkit-1of2` and `compat-webkit-2of2` instead of the two compat
+engines). Each suite's live project is shared, so Playwright requires one
+worker. CI shards the main suite and, on `main` and nightly, runs the full
+compatibility suite once per engine on separate runners. Both suites retry a
+failed test once in CI. The required `frontend-e2e` check requires every
+planned suite to succeed, and PRs that change nothing GUI-facing skip the
+browser suites and Vitest
+([Which jobs a run needs](../../docs/testing.md#which-jobs-a-run-needs)).
 
 Transcript word lookup and inclusive timeline ranges for clipboard, inspector, and
 remote presence live in `src/utils/transcript.ts`. Ranges prefer mapped timeline
