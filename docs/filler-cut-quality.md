@@ -6,6 +6,11 @@
 `tighten_from_transcript` skip in the pipeline until re-enabled. Manual
 `propose-edits` / `apply-edits` still work for experiments.
 
+**Exception, once #1434 lands:** the pipeline applies the suggested actions for
+non-speech sounds by default (**Decision: Non-speech sounds get a suggested
+action**). The owner accepted that on 2026-10-13 ahead of the gates below,
+because every action is reversible in one undo and editable one at a time.
+
 **Why:** On real dialogue (e.g. Shot of Truth — Eladio), auto-tighten applied
 ~150 cuts (~80% `filler:like`). Selection treated fluent / quotative / comparative
 “like” as fillers, but the deeper failure was **edit location**: flow from the
@@ -188,7 +193,7 @@ evidence:
 - #1370 lab (Whisper word times, ripple, light then aggressive apply): one of 20 applied records was a one-track punch, `filler:like:track_local:caleb`, Audra's track only, 1400.01 to 1400.73 (0.72 s), with Caleb speaking over it; aligned word times, ripple: 0 of 43
 - Owner trim-mode decision (2026-10-06, #1137): a ripple edit ripples every dialogue track, and cutting another speaker's speech is a warning the user confirms, not a silent local edit
 - Operator decision (2026-10-13) on #1370: when the speech guard blocks cutting a filler across all dialogue tracks, it must not auto-apply as a one-track punch; the default `on_conflict` becomes `review`, and `track_local` is deleted because no current product workflow asks for a local punch
-- Owner (2026-10-13, amended in place): the editor's own bulk Apply suggested actions applies a held cut too, rippled across every track, because it is reversible (**Decision: Non-speech sounds get a suggested action**)
+- Owner (2026-10-13, amended in place): the editor's own bulk Apply suggested actions and, by default, the pipeline apply a held cut too, rippled across every track, because it is reversible (**Decision: Non-speech sounds get a suggested action**)
 enforced-by:
 - tests/test_cut_scope_publication_contract.py::test_an_unknown_conflict_policy_is_rejected_at_load
 - tests/test_cut_scope_publication_contract.py::test_the_shipped_and_the_unset_conflict_policy_is_review
@@ -203,9 +208,10 @@ enforced-by:
 In ripple mode, a filler (or a manual NL cut) that a peer is speaking over is a
 pending suggestion marked `review_required` with the reason `:other_speaking:<peers>`.
 `apply_edits` and the `tighten_from_transcript` step never apply it, so no filler
-leaves a hole on one track while the others keep their time. The editor's own
-**Apply suggested actions** does apply it, as a ripple across every dialogue
-track, and names it in the result (**Non-speech sounds**).
+leaves a hole on one track while the others keep their time. Once #1434 lands,
+**Apply suggested actions** and the pipeline's default apply of non-speech
+suggestions do apply it, as a ripple across every dialogue track, and name it
+in the result (**Non-speech sounds**).
 `tighten.speech_energy_guard.on_conflict` takes `review` (the default) or `skip`,
 which refuses the cut. Any other value, including the removed `track_local`, is
 rejected with a `ValueError` when the pipeline config loads. A mute is a track-scope edit by design, so mute mode
@@ -696,6 +702,7 @@ evidence:
 - Owner (2026-10-13): keeping laughter is usually good, though at times it can make another speaker hard to hear
 - Owner (2026-10-13) accepted common podcast-editing practice as the basis without citations: keep laughter, lower a laugh that covers another speaker on that speaker's own track, lower or shorten breaths rather than remove them all, cut false starts, keep some hesitations for rhythm
 - Owner (2026-10-13): a user who wants a quick result applies the suggested actions in bulk instead of reviewing each one, and can change any single decision later; bulk apply is "as low risk as labeling cause it's not permanent"
+- Owner (2026-10-13): the pipeline applies the suggested actions by default, "it's low risk and could potentially save the user a lot of time"
 enforcement: pending #1434
 -->
 
@@ -738,10 +745,15 @@ The rules that follow from it:
    speaker so the editor can check them first. Every applied action stays
    editable afterward: the editor can change one sound's action (for example
    Cut to Leave) without undoing the rest.
-3. **A laugh over someone else is a level problem.** Each speaker has a track,
+3. **The pipeline applies them by default.** A pipeline run proposes the
+   non-speech suggestions and applies them as Apply suggested actions would,
+   held cuts included, in one undo step, and its summary names what it applied
+   and how many cuts went over another speaker. A pipeline setting turns this
+   off, leaving the suggestions pending.
+4. **A laugh over someone else is a level problem.** Each speaker has a track,
    so lowering the laugh keeps both the laugh and the other speaker's words.
    Lower reuses the per-track attenuation bleed handling already uses.
-4. **One table, not a detector per sound.** Adding a kind adds a row to the
+5. **One table, not a detector per sound.** Adding a kind adds a row to the
    table and to its one table-driven test. Owner verdicts on clips are evidence
    for the defaults, never targets to tune a threshold against.
 
