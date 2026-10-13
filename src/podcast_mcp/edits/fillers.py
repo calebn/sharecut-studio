@@ -1514,9 +1514,10 @@ def _collect_acoustic_candidates(
                 _count_skip(skip_counts, "acoustic:peer_speaking")
                 continue
             own_runs.append(run)
-        phrase = phrase_hit_indexes(own_runs, step_ceiling)
-        for index, run in enumerate(own_runs):
-            if index in phrase:
+        free = [run for run in own_runs if lo < run.start and run.end < hi]
+        phrase = {free[i] for i in phrase_hit_indexes(free, step_ceiling)}
+        for run in own_runs:
+            if run in phrase:
                 _count_skip(skip_counts, "acoustic:phrase")
                 continue
             start, end = max(lo, run.start), min(hi, run.end)
