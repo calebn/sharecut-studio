@@ -219,3 +219,113 @@ def test_command_cannot_attach_envelope_after_track_deletion(envelope_project):
     assert HistoryService(current).list_entries() == history
     assert envelope_project.read_bytes() == before
     assert service.document_snapshot()["server_seq"] == seq
+
+
+TIMELINE_END = 10.0
+
+
+def _with_timeline_end(envelope_project, end: float = TIMELINE_END) -> ProjectWorkspace:
+    ws = ProjectWorkspace.open(envelope_project)
+    ws.project.timeline.duration_sec = end
+    ws.save()
+    return ProjectWorkspace.open(envelope_project)
+
+
+def _volume_times(envelope_project) -> list[float]:
+    envelope = ProjectWorkspace.open(envelope_project).project.volume_envelope_for("host")
+    return [] if envelope is None else [p.time for p in envelope.points]
+
+
+def test_set_envelope_accepts_times_from_zero_to_the_timeline_end(envelope_project):
+    ws = _with_timeline_end(envelope_project)
+    PipelineService(ws).set_envelope(
+        "host",
+        [{"id": "a", "time": 0.0, "value": 1.0}, {"id": "b", "time": TIMELINE_END, "value": 0.5}],
+    )
+    assert _volume_times(envelope_project) == [0.0, TIMELINE_END]
+
+
+def test_set_envelope_rejects_a_time_past_the_timeline_end_and_saves_nothing(envelope_project):
+    import pytest
+
+    from podcast_mcp.services.document import HistoryService
+
+    ws = _with_timeline_end(envelope_project)
+    history = HistoryService(ws).list_entries()
+    before = envelope_project.read_bytes()
+    with pytest.raises(ValueError, match=r"from 0 to 10 seconds, the end of the timeline"):
+        PipelineService(ws).set_envelope(
+            "host",
+            [{"id": "a", "time": 0.0, "value": 1.0}, {"id": "b", "time": 10.001, "value": 1.0}],
+        )
+    assert HistoryService(ProjectWorkspace.open(envelope_project)).list_entries() == history
+    assert envelope_project.read_bytes() == before
+
+
+def test_set_envelope_rejects_a_negative_time(envelope_project):
+    import pytest
+
+    ws = _with_timeline_end(envelope_project)
+    with pytest.raises(ValueError):
+        PipelineService(ws).set_envelope("host", [{"id": "a", "time": -0.001, "value": 1.0}])
+    assert _volume_times(envelope_project) == []
+
+
+def test_an_empty_timeline_only_takes_a_point_at_zero(envelope_project):
+    import pytest
+
+    ws = _with_timeline_end(envelope_project, end=0.0)
+    PipelineService(ws).set_envelope("host", [{"id": "a", "time": 0.0, "value": 1.0}])
+    with pytest.raises(ValueError, match=r"from 0 to 0 seconds"):
+        PipelineService(ws).set_envelope("host", [{"id": "a", "time": 0.5, "value": 1.0}])
+
+
+def test_a_point_left_past_a_shortened_timeline_is_kept_but_cannot_be_moved_further_out(
+    envelope_project,
+):
+    import pytest
+
+    ws = _with_timeline_end(envelope_project, end=20.0)
+    PipelineService(ws).set_envelope(
+        "host",
+        [{"id": "a", "time": 1.0, "value": 1.0}, {"id": "late", "time": 18.0, "value": 1.0}],
+    )
+    ws = _with_timeline_end(envelope_project, end=TIMELINE_END)
+    PipelineService(ws).set_envelope(
+        "host",
+        [{"id": "a", "time": 2.0, "value": 0.5}, {"id": "late", "time": 18.0, "value": 1.0}],
+    )
+    assert _volume_times(envelope_project) == [2.0, 18.0]
+    with pytest.raises(ValueError, match="end of the timeline"):
+        PipelineService(ws).set_envelope(
+            "host",
+            [{"id": "a", "time": 2.0, "value": 0.5}, {"id": "late", "time": 19.0, "value": 1.0}],
+        )
+    assert _volume_times(envelope_project) == [2.0, 18.0]
+
+
+def test_set_envelope_document_command_refuses_a_past_end_time(envelope_project):
+    import pytest
+
+    from podcast_mcp.services.document_sync import DocumentSyncService
+    from podcast_mcp.services.document_sync.commands import DocumentCommand
+
+    _with_timeline_end(envelope_project)
+    service = DocumentSyncService.open(envelope_project)
+    seq = service.document_snapshot()["server_seq"]
+    with pytest.raises(ValueError, match="end of the timeline"):
+        service.submit(
+            DocumentCommand(
+                type="SetEnvelope",
+                client_id="viewer",
+                role="viewer",
+                client_seq=1,
+                payload={
+                    "track_id": "host",
+                    "points": [{"id": "far", "time": 40.0, "value": 1.0}],
+                    "expected_points": [],
+                },
+            )
+        )
+    assert _volume_times(envelope_project) == []
+    assert service.document_snapshot()["server_seq"] == seq

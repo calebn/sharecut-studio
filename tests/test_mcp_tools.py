@@ -1011,3 +1011,16 @@ def test_transcript_vocabulary_parity_rejects_overflow_and_preserves_context(tmp
     assert saved["terms"] == ["New"]
     assert svc.get_context()["show_title"] == "My Show"
     assert svc.get_context()["preserve_tokens"] == ["keep"]
+
+
+def test_set_envelope_refuses_a_time_past_the_timeline_end(tmp_path):
+    path = mcp_server.episode_create(str(tmp_path / "workspace"))
+    project = load_project(Path(path))
+    project.timeline.tracks.append(Track(id="music", label="Music"))
+    project.timeline.duration_sec = 30.0
+    save_project(project)
+    assert mcp_server.set_envelope(path, "music", [{"time": 30, "value": 1}]) == (
+        "Envelope set for music (1 points)"
+    )
+    with pytest.raises(ValueError, match="from 0 to 30 seconds, the end of the timeline"):
+        mcp_server.set_envelope(path, "music", [{"time": 31, "value": 1}])
