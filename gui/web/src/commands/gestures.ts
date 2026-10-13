@@ -32,7 +32,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     gesture: "Long-press",
     label: "Open inspector",
     description:
-      "Open the selection sheet for clips, comments, and tracks; on a transcript word, open correction (hosts).",
+      "Open the selection sheet for clips, comments, and tracks; on a transcript word, open correction (hosts). In Select mode, hold a word and drag to select a range.",
   },
   {
     gesture: "Pinch",

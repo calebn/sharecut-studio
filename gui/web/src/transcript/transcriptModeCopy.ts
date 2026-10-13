@@ -18,6 +18,20 @@ export const TRANSCRIPT_GUEST_SELECT_HINT: Record<"edit" | "suggest", string> =
       "Select: pick words, then Suggest cut or Suggest mute sends them to the host for review. Nothing changes until the host approves.",
   };
 
+/** Select hint on coarse pointers: the hold-and-drag gesture and the Range actions replace Mod+X and Mod+V. */
+export const TRANSCRIPT_SELECT_TOUCH_HINT =
+  "Select (edits audio): hold a word and drag across more, or tap a word and add words in Range actions. Cut and Mute are there too. Ignore strikes through and mutes the selection at render, non-destructively; Restore brings it back.";
+
+/** Guest Select hint on coarse pointers. */
+export const TRANSCRIPT_GUEST_SELECT_TOUCH_HINT: Record<
+  "edit" | "suggest",
+  string
+> = {
+  edit: "Select (edits audio): hold a word and drag across more, then Cut or Mute in Range actions edits the timeline. Undo restores it.",
+  suggest:
+    "Select: hold a word and drag across more, then Suggest cut or Suggest mute sends them to the host for review. Nothing changes until the host approves.",
+};
+
 /** Navigate hint on coarse pointers: double-tap opens the Correct sheet, not the inline editor. */
 export const TRANSCRIPT_NAVIGATE_TOUCH_HINT =
   "Double-tap a word to correct its text in the word editor. Text fixes never move or cut audio.";
