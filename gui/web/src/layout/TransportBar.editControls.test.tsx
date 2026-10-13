@@ -89,7 +89,7 @@ describe("TransportBar desktop edit controls", () => {
         { audioError: "Failed to load audio (mix)", sessionRegion: null },
         {
           audioError: null,
-          sessionRegion: { start_sec: 120, end_sec: 150, track_ids: ["host"] },
+          sessionRegion: { start_sec: 120, end_sec: 150 },
         },
       ]) {
         act(() => useDawStore.setState(status));
@@ -142,9 +142,7 @@ describe("TransportBar desktop edit controls", () => {
               audioError:
                 pressure === "error" ? "Failed to load audio (mix)" : null,
               sessionRegion:
-                pressure === "region"
-                  ? { start_sec: 120, end_sec: 150, track_ids: ["host"] }
-                  : null,
+                pressure === "region" ? { start_sec: 120, end_sec: 150 } : null,
             });
             useRecordHostStore
               .getState()
@@ -161,15 +159,11 @@ describe("TransportBar desktop edit controls", () => {
           ]) {
             let control = screen.queryByRole("button", {
               name: direct,
-              exact: true,
             });
             if (!control) {
-              fireEvent.click(
-                screen.getByRole("button", { name: "Menu", exact: true }),
-              );
+              fireEvent.click(screen.getByRole("button", { name: "Menu" }));
               control = screen.getByRole("menuitem", {
                 name: menuLabel,
-                exact: true,
               });
             }
             fireEvent.click(control);
@@ -182,7 +176,6 @@ describe("TransportBar desktop edit controls", () => {
           if (pressure === "error") {
             const menu = screen.getByRole("button", {
               name: "Menu",
-              exact: true,
             });
             expect(menu).toHaveAttribute(
               "title",
@@ -210,9 +203,7 @@ describe("TransportBar desktop edit controls", () => {
             ).toBeVisible();
           }
           if (pressure === "region") {
-            fireEvent.click(
-              screen.getByRole("button", { name: "Menu", exact: true }),
-            );
+            fireEvent.click(screen.getByRole("button", { name: "Menu" }));
             expect(screen.getByText("Region 120.0–150.0s")).toBeVisible();
             fireEvent.keyDown(window, { key: "Escape" });
           }
@@ -227,7 +218,7 @@ describe("TransportBar desktop edit controls", () => {
     const user = userEvent.setup();
     useDawStore.setState({ audioError: "Failed to load audio (mix)" });
     render(<TransportBar />);
-    const menu = screen.getByRole("button", { name: "Menu", exact: true });
+    const menu = screen.getByRole("button", { name: "Menu" });
     expect(menu).toHaveAttribute(
       "title",
       "Audio failed to load. Open Menu for details.",
@@ -256,9 +247,7 @@ describe("TransportBar desktop edit controls", () => {
         ]);
       useDawStore.setState({ toolMode: "blade", commentMode: false });
       render(<TransportBar />);
-      await user.click(
-        screen.getByRole("button", { name: "Menu", exact: true }),
-      );
+      await user.click(screen.getByRole("button", { name: "Menu" }));
       expect(
         screen.getByRole("menuitem", { name: "Select tool" }),
       ).toBeEnabled();
@@ -283,7 +272,7 @@ describe("TransportBar desktop edit controls", () => {
     const user = userEvent.setup();
     useDawStore.setState({ toolMode: "select", commentMode: false });
     render(<TransportBar />);
-    await user.click(screen.getByRole("button", { name: "Menu", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Menu" }));
     expect(
       screen.queryByRole("menuitem", { name: "Cut at playhead" }),
     ).toBeNull();
@@ -382,7 +371,7 @@ describe("TransportBar desktop edit controls", () => {
       render(<TransportBar {...props} />);
       expect(screen.queryByRole("group", { name: "Undo and redo" })).toBeNull();
       expect(screen.queryByRole("group", { name: "Zoom" })).toBeNull();
-      const menu = screen.getByRole("button", { name: "Menu", exact: true });
+      const menu = screen.getByRole("button", { name: "Menu" });
       expect(menu).toHaveAttribute("title", "Layers, zoom, theme, and more");
       await user.click(menu);
       expect(
@@ -398,7 +387,7 @@ describe("TransportBar desktop edit controls", () => {
     const user = userEvent.setup();
     useDawStore.setState({ project: null });
     render(<TransportBar />);
-    await user.click(screen.getByRole("button", { name: "Menu", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Menu" }));
     expect(
       screen.getByRole("menuitem", { name: "Select tool" }),
     ).toBeDisabled();
@@ -411,9 +400,7 @@ describe("TransportBar desktop edit controls", () => {
     act(() =>
       useDawStore.setState({ audioError: "Failed to load audio (mix)" }),
     );
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Menu", exact: true }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Menu" }));
     await expectNoA11yViolations(container);
   });
 });
