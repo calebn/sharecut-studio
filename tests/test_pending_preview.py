@@ -23,6 +23,11 @@ from podcast_mcp.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _silent_pads(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("podcast_mcp.edits.source_removals.filler_pad_mode", lambda: "silence")
+
+
 def _project() -> EpisodeProject:
     proj = EpisodeProject.create("preview", "/tmp/preview")
     proj.tracks = [
@@ -337,12 +342,12 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
     def mix_a_premix(*_args, **_kwargs):
         raise AssertionError("the pending preview mixed a premix")
 
-    monkeypatch.setattr(play_module, "rerender_preview", mix_a_premix)
     play = PlayService(ws)
-    current = play.play_pending_preview("cut", mode="current", pad_sec=0.5, dry_run=True)
-    suggested = play.play_pending_preview("cut", mode="suggested", pad_sec=0.5, dry_run=True)
-    trim = play.mix_trim_db()
-    monkeypatch.undo()
+    with monkeypatch.context() as patched:
+        patched.setattr(play_module, "rerender_preview", mix_a_premix)
+        current = play.play_pending_preview("cut", mode="current", pad_sec=0.5, dry_run=True)
+        suggested = play.play_pending_preview("cut", mode="suggested", pad_sec=0.5, dry_run=True)
+        trim = play.mix_trim_db()
 
     fresh_current, premix_trim = _premix_window(ws, 1.5, 3.1)
     fresh_suggested, _ = _premix_window(ws, 1.5, 3.4, approve="cut")
