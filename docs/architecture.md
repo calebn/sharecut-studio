@@ -435,6 +435,22 @@ Mute masks belong to each playback occurrence and are bounded before abutting cl
 merge. An unmuted continuation or replay retains its own words. Positive mute fade
 wings retain kept words, while a mix listening mute retains the lane's turn evidence.
 The renderer and placement masks share source sample rounding and short-fade behavior.
+
+**Native sample grid** (`engines/sample_grid.py`, #1258). Every reader that turns clips into
+samples asks one function. At a reader's rate `r` a clip piece plays source samples
+`[round(source_start * r), round(source_end * r))`. Its edges round in the source clock, as
+the renderer's per-piece trim does, so the two pieces a split makes share one real boundary
+and neither loses nor repeats a sample. Its first sample lands on timeline sample
+`round(timeline_start * r)`; a piece whose timeline start meets the previous piece's end
+is laid straight after it when that is within one sample, so a ripple that closed a gap
+leaves no overlap and no hole, and nothing drifts more than a sample from the timeline.
+`raw_samples_on_timeline` (the raw projection and the cached guard), `session_air.lane_window`
+(placed playback) and the peer guard's removed-sample spans all use it, so after the same
+removal they keep the same samples: a sample is removed when no remaining piece covers it.
+Exactness holds at the reader's own rate; a file read at another rate rounds on the reader's
+grid. Where two recordings play in one cell (an overlay), the guard reads the removed one
+alone, from its file, so a retained recording's sound is never taken for removed audio and a
+removed one is never hidden behind it.
 Raw transcript spans remain the separate authority for room calibration and voice anchors.
 
 Pause effects change only their owned edge. A left effect changes the outgoing

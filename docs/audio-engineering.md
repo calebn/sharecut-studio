@@ -21,7 +21,7 @@ A rendered stem is the timeline as it was rendered, so after an edit moves the t
 holds other audio at the same seconds. The audit reads a stem's audio only while
 `stem_is_fresh` says it is fresh (`_fresh_stem_path`), including when it decodes each track
 once for a long cut's speech guard (`build_track_rms_caches`); otherwise it reads the
-recordings through each track's clips (`edits/session_air.lane_window`).
+recordings through each track's clips (`edits/session_air.lane_window`, on the same native sample grid as the raw projection: `engines/sample_grid.py`).
 
 ## Reading a spectrogram
 

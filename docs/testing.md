@@ -609,6 +609,7 @@ metadata from clean jobs.
 | Config / defaults | `test_config.py`; `test_pipeline_config.py` asserts every `ParamField.default` equals `.agents/defaults/pipeline.yaml`, and that the align module constants match it |
 | History / undo-redo | `test_history.py` |
 | Source↔timeline mapping | `test_session_timeline.py`, `test_timebase_regression.py`, `test_pause_trim_geometry.py` |
+| Native sample grid (raw projection, placed playback and the peer guard keep the same samples) | `test_native_sample_grid.py` |
 | Timebase architecture guards / conformance | `test_timebase_guards.py`, `test_time_conformance.py` |
 | Agent ↔ DAW session sync | `test_session_sync.py`, `test_gui_api.py` (session endpoints) |
 | Document-command contract (schema + boundary rejects) | `test_document_command_payloads.py`, `test_document_command_boundary.py` (HTTP/WS/MCP 422/-32602 + OpenAPI↔schema) |
