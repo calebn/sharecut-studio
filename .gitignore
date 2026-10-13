@@ -39,6 +39,7 @@ htmlcov/
 .cursor/
 .DS_Store
 *.orig
+/node_modules/
 gui/desktop/node_modules/
 gui/desktop/src-tauri/target/
 gui/desktop/src-tauri/gen/
