@@ -225,6 +225,24 @@ The same rules, in imperative form for agents, are in
    [issue claims](../.agents/skills/sharecut-poteto/references/issue-claims.md)
    before you start.
 
+## Ask the owner
+
+Agents never wait on the owner and never message them. When work needs the
+owner, such as a product call, a listening or device judgment, or a decision
+that proved harmful, the agent does this.
+
+1. Add the `needs-user-input` label to the issue or PR.
+2. Post one comment that starts with `**Owner question:**`. It holds the
+   question, the options, a recommendation, the default if nobody answers, and
+   the evidence.
+3. Keep the PR unmerged if the answer could change it. Otherwise proceed on the
+   default and say so in the comment.
+4. Move to other beta work.
+
+The owner answers in a comment when convenient. The next coordinator or agent
+pass removes the label, applies the answer, and records it. Do not pick up an
+issue that carries `needs-user-input` unless its question is answered.
+
 ## Architecture decisions
 
 Five structural fixes stop the root causes that produced 55 of the 113 issues
