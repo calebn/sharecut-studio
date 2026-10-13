@@ -50,6 +50,7 @@ import { joinSentences } from "../utils/format";
 import { MIX_FRESH_LABEL, staleMixLabel } from "../utils/staleRender";
 import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
+import { HistoryControls } from "./HistoryControls";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 import { LAYOUT_MODES } from "./layoutModes";
 import { OverlayLegend } from "./OverlayLegend";
@@ -60,7 +61,10 @@ import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
 import { transportMenuTitle } from "./transportMenuTitle";
 import { transportPlayHandlers } from "./transportPlay";
+import { useHistoryControls } from "./useHistoryControls";
+import { useZoomControls } from "./useZoomControls";
 import { WaveformViewSections } from "./WaveformViewSections";
+import { ZoomControls } from "./ZoomControls";
 
 /** Transport collapses labeled chrome when shell is tablet/phone or bar width ≤ this. */
 export const TRANSPORT_COLLAPSE_PX = 720;
@@ -125,6 +129,8 @@ export function TransportBar({
     laneHeightMode: s.laneHeightMode,
   }));
   const fitTracks = laneHeightMode === "fit";
+  const historyControls = useHistoryControls();
+  const zoomControls = useZoomControls();
   const { preference, setPreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [viewOpenState, setViewOpenState] = useState(false);
@@ -602,6 +608,12 @@ export function TransportBar({
         ) : null}
 
         <div className="transport-primary-actions">
+          {!compact ? (
+            <div className="transport-edit-controls">
+              <HistoryControls {...historyControls} variant="compact" />
+              <ZoomControls {...zoomControls} />
+            </div>
+          ) : null}
           {!collapsed ? (
             <>
               <ToolModeToggle />

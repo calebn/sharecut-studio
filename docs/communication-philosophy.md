@@ -130,7 +130,7 @@ is the fix, enforced in copy review.
   implementations, with Undo and Redo in the compact inspector header
   while a selection is open and Zoom beside them; the REC chip stranded in
   the top bar is the violation, and zoom buried in the top overflow menu was
-  one until #1028.)
+  one until #1028. Desktop uses visible transport Undo, Redo, Zoom out, and Zoom in under the owner decision in #1326.)
 - **One primary action per view.** If two buttons compete, one of them
   is not primary — demote it. (Surface 3 bulk approve/reject.) Bulk
   approval follows [UI philosophy § 1](ui-philosophy.md#1-show-and-undo-every-automated-change):
