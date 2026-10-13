@@ -153,6 +153,13 @@
   padding: var(--space-1) var(--space-3);
 }
 
+@media (pointer: coarse) {
+  .transport--collapsed .transport-icon-btn {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+}
+
 .transport--collapsed .play-btn,
 .transport--collapsed .stop-btn {
   min-width: 2.75rem;

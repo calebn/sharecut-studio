@@ -128,16 +128,33 @@ describe("App styles", () => {
     expect(words![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
   });
 
-  it("gives every link-style button the touch target on a coarse pointer (#1315)", () => {
+  it("gives every ui-control variant and action pill the touch target on a coarse pointer (#1315, #1388)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
     const coarse = src.match(
-      /@media \(pointer: coarse\) \{\s*\.ui-control\.linkish,\s*\.ui-control\[data-variant="link"\] \{([^}]*)\}/,
+      /@media \(pointer: coarse\) \{\s*\.ui-control,\s*button\.pill\.pill--action \{([^}]*)\}/,
     );
     expect(coarse).toBeTruthy();
     const body = coarse![1] ?? "";
     expect(body).toMatch(/min-block-size:\s*var\(--touch-min\)/);
     expect(body).toMatch(/min-inline-size:\s*var\(--touch-min\)/);
+    expect(
+      src.indexOf("@media (pointer: coarse) {\n  .ui-control,"),
+    ).toBeGreaterThan(src.indexOf(".ui-control--compact {"));
+  });
+
+  it("gives the collapsed transport icon buttons the touch target on a coarse pointer (#1388)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(
+      join(here, "styles/partials/transport.css"),
+      "utf8",
+    );
+    const coarse = src.match(
+      /@media \(pointer: coarse\) \{\s*\.transport--collapsed \.transport-icon-btn \{([^}]*)\}/,
+    );
+    expect(coarse).toBeTruthy();
+    expect(coarse![1]).toMatch(/min-width:\s*var\(--touch-min\)/);
+    expect(coarse![1]).toMatch(/min-height:\s*var\(--touch-min\)/);
   });
 
   it("stacks each Tighten hit in a narrow panel so Apply and Skip never sit past the edge (#1029)", () => {

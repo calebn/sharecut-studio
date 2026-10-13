@@ -265,14 +265,6 @@ button.pill.pill--info {
   padding-inline: var(--space-1);
 }
 
-@media (pointer: coarse) {
-  .ui-control.linkish,
-  .ui-control[data-variant="link"] {
-    min-block-size: var(--touch-min);
-    min-inline-size: var(--touch-min);
-  }
-}
-
 .ui-control--quiet,
 .ui-control[data-ui-kind="tab"] {
   background: transparent;
@@ -288,6 +280,17 @@ button.pill.pill--info {
   padding: var(--space-1) var(--space-3);
   min-block-size: 2rem;
   font-size: var(--font-size-small);
+}
+
+/* Every button variant (default, primary, danger, link, quiet, compact) and
+   action pill meets the touch target. After the variants above so it beats
+   .ui-control--compact's 2rem floor at equal specificity. */
+@media (pointer: coarse) {
+  .ui-control,
+  button.pill.pill--action {
+    min-block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+  }
 }
 
 .ui-control[aria-pressed="true"],

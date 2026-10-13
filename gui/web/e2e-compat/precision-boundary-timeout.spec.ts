@@ -15,6 +15,7 @@ import { setTheme } from "../e2e/theme";
 import { DOCUMENT_COMMAND_TIMEOUT_MS } from "../src/api/documentTransport";
 
 const CLIENT_ID = "e2e-precision-boundary-timeout";
+const TOUCH_TARGET_PX = 44;
 const VIEWPORTS = {
   phone: { width: 390, height: 844 },
   desktop: { width: 1280, height: 800 },
@@ -80,6 +81,11 @@ async function proveHungLoad(
     ).toBeHidden();
     const tryAgain = dialog.getByRole("button", { name: "Try again" });
     await expect(tryAgain).toBeVisible();
+    if (name === "phone") {
+      const box = await tryAgain.boundingBox();
+      expect(box?.width).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
+      expect(box?.height).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
+    }
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme);
       await expectPageAxeClean(page);
@@ -110,11 +116,15 @@ async function proveHungLoad(
   }
 }
 
-test("phone: a boundary load the server never answers says to try again and recovers on Try again", async ({
-  page,
-  browserName,
-}, testInfo) => {
-  await proveHungLoad(page, browserName, testInfo, "phone");
+test.describe("on a touch phone", () => {
+  test.use({ hasTouch: true, isMobile: true });
+
+  test("phone: a boundary load the server never answers says to try again and recovers on Try again", async ({
+    page,
+    browserName,
+  }, testInfo) => {
+    await proveHungLoad(page, browserName, testInfo, "phone");
+  });
 });
 
 test("desktop: a boundary load the server never answers says to try again and recovers on Try again", async ({
