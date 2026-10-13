@@ -1450,16 +1450,18 @@ export function TranscriptPanel() {
                               return;
                             }
                             if (intent === "select" && wordIndex != null) {
-                              if (
-                                e.shiftKey &&
-                                rangeAnchorRef.current?.trackId === u.track_id
-                              ) {
-                                setRange(
-                                  u.track_id,
-                                  rangeAnchorRef.current.wordIndex,
-                                  wordIndex,
-                                );
-                                return;
+                              if (e.shiftKey) {
+                                dragExtendedRef.current = false;
+                                if (
+                                  rangeAnchorRef.current?.trackId === u.track_id
+                                ) {
+                                  setRange(
+                                    u.track_id,
+                                    rangeAnchorRef.current.wordIndex,
+                                    wordIndex,
+                                  );
+                                  return;
+                                }
                               }
                               // mouseup clears draggingRef before click; keep drag range.
                               if (dragExtendedRef.current) {
