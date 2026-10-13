@@ -23,7 +23,12 @@ from podcast_mcp.edits.fillers import (
 )
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.tighten import apply_tighten_decisions, propose_tighten_edits
-from podcast_mcp.edits.voiced_runs import run_straddling, voiced_runs, voiced_sec_inside
+from podcast_mcp.edits.voiced_runs import (
+    carries_speech_pitch,
+    run_straddling,
+    voiced_runs,
+    voiced_sec_inside,
+)
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.gui.assembler import build_project_view
 from podcast_mcp.models import (
@@ -145,6 +150,17 @@ def test_voiced_runs_ignore_the_window_placement_and_digital_silence() -> None:
         cache, 0.5, 3.0, floor_db=-42.0
     )
     assert voiced_runs(cache, 1.6, 3.0, floor_db=-42.0) == []
+
+
+@pytest.mark.parametrize("gain", [1.0, 0.001])
+def test_carries_speech_pitch_reads_voice_noise_and_runs_too_short_to_judge(gain: float) -> None:
+    clock = np.arange(RATE // 10) / RATE
+    voice = gain * sum(np.sin(2 * np.pi * 180 * k * clock) / k for k in range(1, 6))
+    noise = gain * np.random.default_rng(3).normal(0.0, 0.3, clock.size)
+    assert carries_speech_pitch(voice, RATE) is True
+    assert carries_speech_pitch(noise, RATE) is False
+    assert carries_speech_pitch(voice[: RATE // 50], RATE) is None
+    assert carries_speech_pitch(np.empty(0), RATE) is None
 
 
 def test_kept_word_overlaps_excludes_the_cut_word() -> None:

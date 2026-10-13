@@ -59,24 +59,35 @@ def audible_runs(
     return [(t0 + i * hop / sr, t0 + ((j - 1) * hop + frame) / sr) for i, j in bool_runs(active)]
 
 
+def carries_speech_pitch(samples: np.ndarray, sample_rate: int) -> bool | None:
+    """Whether ``samples`` carry speech pitch: a clear peak in at least three probes.
+
+    ``None`` when they are too short for three probes, so nothing can be said either way.
+    Level-free, so it reads the same at any recording gain.
+    """
+    probes = voicing_probes(
+        samples,
+        sample_rate,
+        probe_sec=_PROBE_SEC,
+        hop_sec=HOP_SEC,
+        fmin=_F0_MIN_HZ,
+        fmax=_F0_MAX_HZ,
+    )
+    if int(np.count_nonzero(probes >= VOICED_PEAK)) >= _MIN_VOICED_FRAMES:
+        return True
+    return False if probes.size >= _MIN_VOICED_FRAMES else None
+
+
 def voiced_runs(
     audio: TrackRmsCache, start: float, end: float, *, floor_db: float
 ) -> list[VoicedRun]:
     """The :func:`audible_runs` that carry a clear speech-pitch peak in three probes."""
     sr = int(audio.sample_rate)
-    runs: list[VoicedRun] = []
-    for run in audible_runs(audio, start, end, floor_db=floor_db):
-        probes = voicing_probes(
-            audio.window(*run),
-            sr,
-            probe_sec=_PROBE_SEC,
-            hop_sec=HOP_SEC,
-            fmin=_F0_MIN_HZ,
-            fmax=_F0_MAX_HZ,
-        )
-        if int(np.count_nonzero(probes >= VOICED_PEAK)) >= _MIN_VOICED_FRAMES:
-            runs.append(run)
-    return runs
+    return [
+        run
+        for run in audible_runs(audio, start, end, floor_db=floor_db)
+        if carries_speech_pitch(audio.window(*run), sr)
+    ]
 
 
 def run_straddling(runs: Sequence[VoicedRun], t: float) -> VoicedRun | None:
