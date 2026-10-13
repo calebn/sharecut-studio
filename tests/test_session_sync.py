@@ -1751,6 +1751,7 @@ def test_playback_materializer_exact_fields_and_order(ctype, playing, dry_run) -
         "wav": None,
         "compare_segments": None,
         "selection": {"track_id": "host"},
+        "agent_selection_seq": 0,
     }
     assert list(snap["fields"]) == list(expected)
     assert {key: row["value"] for key, row in snap["fields"].items()} == expected

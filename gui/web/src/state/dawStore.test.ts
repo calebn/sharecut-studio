@@ -97,6 +97,10 @@ describe("dawStore timeline viewport width", () => {
   });
 });
 
+beforeEach(() => {
+  useDawStore.setState({ lastAppliedAgentSelectionSeq: 0 });
+});
+
 function agentSession(partial: Partial<SessionState> = {}): SessionState {
   return {
     version: 1,
@@ -608,6 +612,7 @@ describe("dawStore follow presence", () => {
           origin: "agent",
           last_role: "agent",
           selection: { kind: "track", track_id: "guest" },
+          agent_selection_seq: 1,
         }),
       );
       expect(useDawStore.getState().selection).toEqual({
@@ -804,6 +809,7 @@ it("keeps the local envelope workspace when a viewer echoes its track projection
       origin: "agent",
       last_role: "agent",
       selection: { kind: "track", track_id: "guest" },
+      agent_selection_seq: 1,
     }),
   );
   expect(useDawStore.getState().selection).toEqual({
@@ -820,6 +826,7 @@ it("clears a stored selection whose edit is gone instead of adopting it", () => 
       origin: "agent",
       last_role: "agent",
       selection: { kind: "pending", id: "cut_gone", track_id: "host" },
+      agent_selection_seq: 1,
     }),
   );
   expect(useDawStore.getState().selection).toBeNull();
@@ -847,6 +854,7 @@ describe("remote selection revision", () => {
         origin: "agent",
         last_role: "agent",
         selection: { kind: "track", track_id: "host" },
+        agent_selection_seq: 1,
       }),
     );
 
@@ -884,14 +892,106 @@ describe("remote selection revision", () => {
   });
 });
 
+describe("an agent selection applies once", () => {
+  const selecting = (track_id: string, seq: number) =>
+    agentSession({
+      server_seq: seq,
+      last_command_id: `c${seq}`,
+      selection: { kind: "track", track_id },
+      agent_selection_seq: seq,
+    });
+  const unrelated = (
+    seq: number,
+    selection: SessionState["selection"],
+    selectedAt: number,
+  ) =>
+    agentSession({
+      server_seq: seq,
+      last_command_id: `c${seq}`,
+      selection,
+      agent_selection_seq: selectedAt,
+    });
+
+  beforeEach(() => {
+    useDawStore.setState({ guestMode: null, shareCapabilities: null });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+  });
+
+  it("an agent SetPlaying after the agent selected A leaves the person's B selected", () => {
+    const store = useDawStore.getState();
+    store.applyAgentSession(selecting("host", 1));
+    expect(useDawStore.getState().selection).toMatchObject({ trackId: "host" });
+    store.setSelection({ kind: "track", trackId: "guest" });
+    const revision = useDawStore.getState().remoteSelectionRevision;
+    store.applyAgentSession(
+      unrelated(2, { kind: "track", track_id: "host" }, 1),
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "track",
+      trackId: "guest",
+    });
+    expect(useDawStore.getState().remoteSelectionRevision).toBe(revision);
+  });
+
+  it("a new agent SetSelection still applies", () => {
+    const store = useDawStore.getState();
+    store.applyAgentSession(selecting("host", 1));
+    store.setSelection({ kind: "track", trackId: "guest" });
+    store.applyAgentSession(selecting("host", 3));
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "track",
+      trackId: "host",
+    });
+  });
+
+  it("restores the agent selection on reload only while it is still the latest", () => {
+    useDawStore.getState().applyAgentSession(selecting("guest", 4));
+    expect(useDawStore.getState().selection).toMatchObject({
+      trackId: "guest",
+    });
+    useDawStore.setState({ selection: null, lastAppliedAgentSelectionSeq: 0 });
+    useDawStore.getState().applyAgentSession(
+      agentSession({
+        server_seq: 5,
+        selection: { kind: "track", track_id: "host" },
+        agent_selection_seq: 0,
+      }),
+    );
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("resolves a late-arriving agent selection once, then leaves the person's choice alone", () => {
+    useDawStore.setState({
+      project: null,
+      projectPath: "/tmp/ep.project.json",
+      selection: null,
+      pendingWireSelection: null,
+      lastAppliedAgentSelectionSeq: 0,
+    });
+    useDawStore.getState().applyAgentSession(selecting("host", 2));
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+    expect(useDawStore.getState().selection).toMatchObject({ trackId: "host" });
+    useDawStore.getState().setSelection({ kind: "track", trackId: "guest" });
+    useDawStore
+      .getState()
+      .applyAgentSession(unrelated(3, { kind: "track", track_id: "host" }, 2));
+    expect(useDawStore.getState().selection).toMatchObject({
+      trackId: "guest",
+    });
+  });
+});
+
 describe("remote selection before its target is here", () => {
   const wire = { kind: "pending" as const, id: "cut_1", track_id: "host" };
   const reload = (partial: Partial<SessionState> = {}) =>
-    useDawStore
-      .getState()
-      .applyAgentSession(
-        agentSession({ origin: "agent", last_role: "agent", ...partial }),
-      );
+    useDawStore.getState().applyAgentSession(
+      agentSession({
+        origin: "agent",
+        last_role: "agent",
+        agent_selection_seq: 1,
+        ...partial,
+      }),
+    );
 
   beforeEach(() => {
     useDawStore.setState({

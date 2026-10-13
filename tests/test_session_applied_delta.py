@@ -62,7 +62,7 @@ def test_wire_snapshot_skips_invalid_attribution(metadata):
             {"viewer_mute": {}, "solo_tracks": {}},
             {"viewer_mute": {}, "solo_tracks": {}},
         ),
-        ("SetSelection", {"selection": None}, {"selection": None}),
+        ("SetSelection", {"selection": None}, {"selection": None, "agent_selection_seq": 1}),
     ],
 )
 def test_wire_delta_preserves_explicit_clears_and_attributed_unchanged_values(
@@ -170,3 +170,34 @@ def test_cross_process_without_cursor_includes_only_head_fields(minimal_project)
     assert event is not None
     assert event["prev_seq"] == head["server_seq"] - 1
     assert _transport(event["snapshot"]) == {"playhead_sec": 8.0}
+
+
+def test_agent_selection_seq_names_the_agent_write_and_resets_on_a_viewer_write(minimal_project):
+    svc = SessionSyncService(load_project(minimal_project))
+    first = svc.submit_control("SetSelection", {"selection": {"kind": "track", "track_id": "a"}})
+    assert first["snapshot"]["agent_selection_seq"] == 1
+
+    playing = svc.submit_control("SetPlaying", {"is_playing": True})
+    assert playing["snapshot"]["agent_selection_seq"] == 1
+    assert playing["snapshot"]["fields"]["agent_selection_seq"]["server_seq"] == 1
+
+    viewer = svc.submit_control(
+        "SetSelection",
+        {"selection": {"kind": "track", "track_id": "b"}},
+        client_id="tab-1",
+        role="viewer",
+    )
+    assert viewer["snapshot"]["agent_selection_seq"] == 0
+
+    second = svc.submit_control("SetSelection", {"selection": None})
+    assert second["snapshot"]["agent_selection_seq"] == 4
+
+
+def test_unrelated_agent_command_carries_no_selection_revision_on_the_wire(minimal_project):
+    from podcast_mcp.services.session_sync.service import wire_session_event
+
+    svc = SessionSyncService(load_project(minimal_project))
+    svc.submit_control("SetSelection", {"selection": {"kind": "track", "track_id": "a"}})
+    result = svc.submit_control("SetPlaying", {"is_playing": True})
+    event = wire_session_event(result["command"], result["snapshot"], roster_version=0)
+    assert _transport(event["snapshot"]) == {"is_playing": True}
