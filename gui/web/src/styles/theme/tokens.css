@@ -222,5 +222,8 @@
 @media (pointer: coarse) {
   :root {
     --font-size-field-min: 1rem;
+    /* The status bar's chips are buttons: the bar holds the touch floor plus
+       its 1px top border. */
+    --status-height: calc(var(--touch-min) + 0.0625rem);
   }
 }
