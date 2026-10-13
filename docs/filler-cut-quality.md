@@ -315,7 +315,6 @@ enforced-by:
 - tests/test_approval_order.py::test_original_auto_trims_keep_the_intervening_guest_without_replaying_source
 - tests/test_approval_order.py::test_the_pipeline_applies_the_same_auto_trims_apply_all_safe_does
 - tests/test_room_tone.py::test_room_tone_is_not_taken_from_source_a_pending_cut_still_plays
-- tests/test_room_tone.py::test_a_pad_never_leaves_a_live_track_without_room_tone
 - tests/test_room_model.py::test_a_talker_whose_room_is_a_small_share_of_its_frames_still_reads_the_rooms_mode
 - tests/test_room_model.py::test_a_talker_gated_over_a_third_of_its_frames_has_the_gates_silence_for_its_room
 - tests/test_room_model.py::test_the_level_of_a_mode_is_the_median_of_its_frames_not_the_middle_of_its_bin
@@ -670,7 +669,7 @@ Lab (`aligned-ready`, refine waived; ripple proposal byte-identical throughout).
 
 **No gap to keep** (#1064) — Pacing's gap rule is for a ripple. It shrinks a cut, or drops it as `pacing`, so that the flanking words keep `min_gap_after_filler_sec` once the gap closes. A mute closes nothing, so pacing never shrinks or drops one (`apply_filler_pacing(keeps_time=True)`), and an acoustic run is muted whole. The room-tone expansion still sets a word filler's span, so a mute silences what a padded ripple would remove. Lab (rev 3b414c4c, `aligned-ready`, mute): proposals went from 54 to 57 and `acoustic:pacing` from 7 to 0. All 7 runs sat in 0.36 s gaps. That is the narrowest gap the 0.35 s scan floor admits on 20 ms word times, and too short to keep 0.35 s and still cut 20 ms. Each run starts 25 ms after the previous word ends. Unshrunk, 6 fail `voiced_edge` and 1 fails `breath`, so none is proposed. Shrinking had hidden the same verdicts behind `too_short` (23 to 1) and `reparandum` (5 to 0). 3 runs are newly proposed (230.81, since dropped by **Kept words keep their voice**, 1644.50, 1646.56), 2 are muted whole instead of shrunk (60.80, 874.78), and the word fillers and every ripple proposal are unchanged. With Whisper word times (`edit-ready`) mute proposals went from 39 to 38: the one `pacing` skip fails `voiced_edge`, 3 runs are muted whole, and the run at 267.24 is dropped as `inaudible`, because its full span averages under the track's voice floor where the shrunk one did not.
 
-**Fill, not hole** — Dialogue editors fill a gap with matching room tone, because dead air on a track with a noise floor reads as a dropout. Approving a mute lays under it the fill a ripple pad gets from `tighten.filler_pad_mode`. `silence` leaves digital silence. With `room_tone` (the default), approval picks a sample once with the ripple pad's sampler (**Where room tone comes from** below), nearest the middle of the mute. It stores the sample on the region as `fill` (`{source_id, start_s, end_s}`), and render tiles it under the region with fades that cross the clip's: in over the region's fade-out, out over its fade-in. A track with no bed and no room tone keeps a silent mute. A ripple pad does the same only on a Zoom-gated track, whose gaps are already digital silence; on a live room the cut is held (**Where room tone comes from**). GUI exact-range mutes stay silent.
+**Fill, not hole** — Dialogue editors fill a gap with matching room tone, because dead air on a track with a noise floor reads as a dropout. Approving a mute lays under it the fill a ripple pad gets from `tighten.filler_pad_mode`. `silence` leaves digital silence. With `room_tone` (the default), approval picks a sample once with the ripple pad's sampler (**Where room tone comes from** below), nearest the middle of the mute. It stores the sample on the region as `fill` (`{source_id, start_s, end_s}`), and render tiles it under the region with fades that cross the clip's: in over the region's fade-out, out over its fade-in. A track with no bed and no room tone keeps a silent mute, as a ripple pad does (**Where room tone comes from**). GUI exact-range mutes stay silent.
 
 **Where room tone comes from** (#1054, `edits/room_tone.py`). With `room_tone`, a ripple pad, an approved mute and `fill_with_room_tone` all ask one sampler for a stretch of the track's room near the cut. A recorded `track.room_tone` bed wins when its `sources[]` entry exists and it is not digital silence. Otherwise the sample comes from the track's own audio, read once per file version as 10 ms frame levels at 16 kHz. Word times are not consulted, because a transcript gap can hold speech the transcript missed (#979).
 
@@ -687,7 +686,7 @@ Lab (`aligned-ready`, refine waived; ripple proposal byte-identical throughout).
 | `voiced` | Silero speech probability under 0.5 | No voice, even at the floor |
 | Pending cuts | A ripple pad skips source seconds that another pending cut on the track still plays (`avoid`) | A cut maps to the session time its source seconds play at. A pad that replays them elsewhere makes the cut play in two places, and approving it removes all between, other tracks' words included. Approving a batch then asked to confirm, or the pipeline held the cut |
 
-The first window that passes every check is the fill; the caller tiles it when it is shorter than the gap, fading only the pad's outer edges (10 ms in on the first tile, 10 ms out on the last) so the seams carry no dip. A window that cannot be measured (an unreadable file, or a Silero error) fails like any other check. A track gated to digital silence (a Zoom track) keeps a silent pad or mute, because its gaps already are silence. A ripple pad over any other track with no passing window (no quiet run, runs too short, every window rejected, or its quiet runs claimed by other pending cuts) is not applied: the cut is held as `pad_unavailable` and names the track and why, since a hole of digital silence in a live room reads as a dropout. A mute on such a track stays silent. Spectral flatness is not a check: on the lab tape the room floor's flatness (median 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold separates them.
+The first window that passes every check is the fill; the caller tiles it when it is shorter than the gap, fading only the pad's outer edges (10 ms in on the first tile, 10 ms out on the last) so the seams carry no dip. A window that cannot be measured (an unreadable file, or a Silero error) fails like any other check. A track with no passing window keeps a silent pad or mute. On a track gated to digital silence (a Zoom track) that matches the room, because its gaps already are silence. On a live room (no quiet run, runs too short, every window rejected, or its quiet runs claimed by other pending cuts) the operator chose the cut over the fill (2026-10-13, #1393): the cut applies with a silent pad on that track, the other tracks keep their room tone, and nothing is held. The silent hole is the cost of landing the cut; the edit log's `pad_samples` omits that track. Spectral flatness is not a check: on the lab tape the room floor's flatness (median 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold separates them.
 
 Lab tape (`aligned-ready`, every ripple and mute proposal approved with `room_tone`): main picked 69 samples and none sat within 6 dB of its track's floor. 39 were within 30 dB of speech, and one was 0.8 dB louder than Caleb's speech level. Audra's speech at −23.7 dBFS filled a pad at 615.93. With the sampler, all 51 picks on Caleb's track sit −3.0 to +6.5 dB from his −75.3 dBFS floor and at least 53.6 dB under his speech; Audra's and Lana's gated tracks stay silent. Without the 0.15 s edge guard, 36 of the 42 distinct mute fills started or ended within 50 ms of louder audio, and 8 rose more than 3 dB in the 80–400 Hz voice band over their first or last 60 ms (a word's tail or onset); with it, none and 2. Caleb's tails take 130 ms to settle to the quiet run's median level at the 90th percentile, and onsets 70 ms. The guard leaves fewer runs, so his fills come from a median 24.7 s from the cut instead of 1.0 s, all at his floor. Reading the three 28-minute tracks costs about 1.2 s each, once per process.
 
@@ -711,25 +710,26 @@ decided-by: calebn
 evidence:
 - 2026-10-06 owner: room tone is the default pause fill, so `tighten.filler_pad_mode` defaults to `room_tone`
 - #1054, #1114 the sampler picks only a steady stretch at the track's floor
-- 2026-10-13 #1212, #1369 (amended in place) a ripple pad never leaves a live room digitally silent: only a track gated to digital silence keeps a silent pad, and a live track with no sample holds the cut
+- 2026-10-13 #1212, #1369 held a ripple pad over a live room with no sample as `pad_unavailable`
+- 2026-10-13 #1393 operator reversed that (amended in place): a cut lands with a silent pad on any track with no room-tone sample, because the operator prefers the cut to land over being held
 enforced-by:
 - tests/test_filler_pacing.py::test_filler_pad_mode_defaults_to_room_tone
 - tests/test_filler_pacing.py::test_shipped_defaults_fill_pads_with_room_tone
-- tests/test_room_tone.py::test_a_pad_never_leaves_a_live_track_without_room_tone
+- tests/test_room_tone.py::test_a_live_track_with_no_room_tone_gets_a_silent_pad
 - tests/test_room_tone.py::test_a_gated_track_keeps_its_silent_pad_while_the_live_track_gets_room_tone
-- tests/test_room_tone.py::test_a_lane_problem_that_is_not_a_missing_sample_reads_as_a_sentence
+- tests/test_room_tone.py::test_a_lane_problem_reads_as_a_sentence
 - docs-sync: decision-filler-cuts
 -->
 
 A ripple pad and an approved mute fill with the track's room, because dead air
 on a track with a noise floor reads as a dropout (**Fill, not hole**). The
 sampler (**Where room tone comes from**) takes only true room floor. A track
-gated to digital silence, such as a Zoom-gated track, keeps a silent pad,
-because its gaps already are silence. A ripple pad over any other track with no
-such stretch is held, and the hold names the cut, the track and why, because a
-hole of digital silence in a live room reads as a dropout. An approved mute on
-such a track stays silent. Set `tighten.filler_pad_mode: silence` for a hard gap
-on every track, which is also the way to cut a track the sampler holds. Any other value is rejected
+with no such stretch keeps a silent pad, and so does an approved mute. On a
+track gated to digital silence, such as a Zoom-gated track, that matches the
+room. On a live room it leaves a hole of digital silence that can read as a
+dropout; the operator accepted that on 2026-10-13 (#1393) so the cut lands
+instead of being held, reversing the #1369 hold. Set
+`tighten.filler_pad_mode: silence` for a hard gap on every track. Any other value is rejected
 when the config is loaded, with an error naming `silence` and `room_tone`.
 
 ## Risk model

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -412,6 +413,13 @@ def test_word_onsets_and_tails_are_never_room_tone(
     assert [(s, e) for s, e in heard if start < e and s < end] == []
 
 
+def _host_timeline(project: EpisodeProject) -> list[tuple[float, float]]:
+    clips = sorted(
+        (c for c in project.clips if c.track_id == "host"), key=lambda c: c.timeline_start
+    )
+    return [(round(c.timeline_start, 3), round(c.timeline_end, 3)) for c in clips]
+
+
 def _padded_filler(replace_gap_sec: float = 0.3) -> EditDecision:
     return EditDecision(
         id="um",
@@ -432,42 +440,46 @@ def _talking_all_through() -> np.ndarray:
     return track
 
 
-def test_a_pad_never_leaves_a_live_track_without_room_tone(tmp_path: Path) -> None:
-    project = _project(tmp_path, host=_talking_all_through(), guest=_gated_steady_word())
+def _chopped_by_speech() -> np.ndarray:
+    track = _noise(FLOOR_DB, seed=1213)
+    for start in np.arange(0.0, DURATION_SEC, 0.5):
+        _add_voice(track, start + 0.05, start + 0.42, VOICE_DB)
+    return track
+
+
+@pytest.mark.parametrize("live_host", [_talking_all_through, _chopped_by_speech])
+def test_a_live_track_with_no_room_tone_gets_a_silent_pad(
+    tmp_path: Path, live_host: Callable[[], np.ndarray]
+) -> None:
+    project = _project(tmp_path, host=live_host(), guest=_gated_steady_word())
     project.edit_decisions = [_padded_filler()]
-    before = project.model_dump()
 
-    with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, ["um"], confirm_cut_speech=True)
+    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
 
-    assert held.value.held[0].reason == "pad_unavailable"
-    assert held.value.held[0].peers == ("host",)
-    assert project.model_dump() == before
-    assert str(held.value) == (
-        "Host's cut at 0:04.0 was not applied because it needs room tone and Host has no "
-        "quiet stretch that sounds like room tone. Set filler_pad_mode to silence to cut "
-        "without room tone, or reject the held cuts."
-    )
+    record = project.editorial.edit_log[-1]
+    assert record.params["pad_samples"] == []
+    assert record.params["per_track_source"].keys() == {"host", "guest"}
+    assert _host_timeline(project) == [(0.0, 4.0), (4.3, 9.8)]
+    assert project.edit_decisions == []
 
 
 @pytest.mark.parametrize(
     "cause,sentence",
     [
-        ("missing_seam", "Host has no audio at the cut to match"),
         ("media_extent_unavailable", "Host has a recording whose length is unknown"),
+        ("effect_source_geometry", "Host does not play as one continuous piece at the join"),
         ("never_heard_of_it", "Host could not be checked"),
     ],
 )
-def test_a_lane_problem_that_is_not_a_missing_sample_reads_as_a_sentence(
-    cause: str, sentence: str
-) -> None:
-    held = CutScopeHold("um", ("host",), "pad_unavailable", (LaneUnavailable("host", cause),))
+def test_a_lane_problem_reads_as_a_sentence(cause: str, sentence: str) -> None:
+    held = CutScopeHold("um", ("host",), "pause_air", (LaneUnavailable("host", cause),))
 
     message = str(ScopeChangedAtApproval([held], {"host": "Host"}, {"um": "Host's cut at 0:04.0"}))
 
     assert message == (
-        f"Host's cut at 0:04.0 was not applied because it needs room tone and {sentence}. "
-        "Set filler_pad_mode to silence to cut without room tone, or reject the held cuts."
+        "Host's cut at 0:04.0 was not applied because the pause cannot retain enough original "
+        f"quiet audio safely ({sentence}). "
+        "Select the part to cut on the timeline, or reject the held cuts."
     )
 
 
@@ -482,23 +494,6 @@ def test_a_gated_track_keeps_its_silent_pad_while_the_live_track_gets_room_tone(
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host"}
     assert record.params["per_track_source"].keys() == {"host", "guest"}
-
-
-def _chopped_by_speech() -> np.ndarray:
-    track = _noise(FLOOR_DB, seed=1213)
-    for start in np.arange(0.0, DURATION_SEC, 0.5):
-        _add_voice(track, start + 0.05, start + 0.42, VOICE_DB)
-    return track
-
-
-def test_a_track_whose_quiet_stretches_are_all_too_short_holds_the_pad(tmp_path: Path) -> None:
-    project = _project(tmp_path, host=_chopped_by_speech(), guest=_gated_steady_word())
-    project.edit_decisions = [_padded_filler()]
-
-    with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, ["um"], confirm_cut_speech=True)
-
-    assert held.value.held[0].reason == "pad_unavailable"
 
 
 @pytest.mark.usefixtures("no_voice_detector")
