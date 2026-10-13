@@ -8,7 +8,10 @@ import {
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { EMPTY_OBJ } from "../utils/empty";
-import { bulkReviewDoneMessage } from "../utils/pendingReviewPass";
+import {
+  capturePendingReview,
+  finishPendingReview,
+} from "../utils/pendingReviewPass";
 import {
   PendingEditOverlayView,
   type PendingEditOverlayViewProps,
@@ -98,27 +101,13 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
         "You do not have permission to review this pending edit.",
       );
     }
+    const capture = capturePendingReview(action, capturedPath, current);
     const result =
       action === "approve"
-        ? approveEdits(capturedPath, [editId])
+        ? approveEdits(capturedPath, [editId], false, true, capture)
         : rejectEdits(capturedPath, [editId]);
     const outcome = await result;
-    const after = useDawStore.getState();
-    if (
-      after.projectPath === capturedPath &&
-      after.projectEpoch === capturedEpoch &&
-      after.selection?.kind === "pending" &&
-      after.selection.id === editId &&
-      !outcome.queued &&
-      !("asked" in outcome && outcome.asked)
-    ) {
-      after.announceStatus(bulkReviewDoneMessage(action, 1), {
-        undo: outcome.historyHead,
-      });
-      if (!after.project?.pending_edits.some((edit) => edit.id === editId)) {
-        after.setSelection(null);
-      }
-    }
+    if (!outcome.queued) finishPendingReview(capture, outcome);
     return outcome;
   }, []);
   return (

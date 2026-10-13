@@ -106,14 +106,22 @@ test.describe("Pending inspector layout", () => {
           await page
             .getByRole("button", { name: "Timeline", exact: true })
             .click();
-          const sheet = page.locator(".bottom-sheet--compact");
-          await sheet
-            .getByRole("button", { name: "Expand to half height" })
-            .click();
-          await sheet
-            .getByRole("button", { name: "Expand to full height" })
-            .click();
+          const sheet = page.locator(".bottom-sheet--inspector");
+          await expect(sheet).toBeVisible();
+          for (let step = 0; step < 2; step++) {
+            const expand = sheet.getByRole("button", {
+              name: /^Expand(?: to (?:half|full) height)?$/,
+              exact: true,
+            });
+            if (!(await expand.count())) break;
+            await expand.click();
+          }
           root = sheet.getByRole("complementary");
+          await exposeControl(
+            page,
+            root.getByRole("button", { name: action, exact: true }),
+            [],
+          );
         }
         await root.getByRole("button", { name: action, exact: true }).click();
         const feedback = page.getByRole("region", { name: "Status messages" });

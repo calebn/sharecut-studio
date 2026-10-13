@@ -37,6 +37,12 @@ import {
 } from "../types/project";
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
+import {
+  capturePendingReview,
+  type PendingReviewCapture,
+  type ReviewOutcome,
+  requireCurrentPendingReview,
+} from "../utils/pendingReviewPass";
 import { loadBoundaryContext } from "./boundary";
 import { loadDocumentState } from "./project";
 
@@ -130,7 +136,26 @@ export function askIfReplayHeldBack(
   payload: Record<string, unknown>,
   result: Record<string, unknown>,
 ): void {
+  if (type === "ApproveEdits") {
+    const review = capturePendingReview("approve", projectPath);
+    const choices: CutSpeechChoices = {
+      kind: "pending-review",
+      review,
+      cutAnyway: async () => {
+        requireCurrentPendingReview(review);
+        const reply = await submitDocumentCommand(projectPath, type, {
+          ...payload,
+          confirm_cut_speech: true,
+        });
+        return reviewOutcome(projectPath, reply, choices);
+      },
+      leaveGap: null,
+    };
+    rippleOutcome(projectPath, result, choices);
+    return;
+  }
   rippleOutcome(projectPath, result, {
+    kind: "ripple",
     cutAnyway: () =>
       submitDocumentCommand(projectPath, type, {
         ...payload,
@@ -158,25 +183,48 @@ export function replyHistoryHead(
   return parseHistoryEntryId(result.history_head_id);
 }
 
-/** `queued`: saved and sent later by the drain, so the outcome is not known yet. */
+function reviewOutcome(
+  projectPath: string,
+  result: Record<string, unknown>,
+  choices?: CutSpeechChoices,
+): ReviewOutcome {
+  if (result.queued === true)
+    return { queued: true, asked: false, count: null, historyHead: null };
+  if (choices && rippleOutcome(projectPath, result, choices).asked)
+    return { queued: false, asked: true, count: null, historyHead: null };
+  const command = result.command;
+  const payload = isSuggestionRecord(command) ? command.payload : null;
+  const review = isSuggestionRecord(payload) ? payload.result : null;
+  const count = isSuggestionRecord(review) ? review.count : null;
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)
+    throw new Error("The review reply is missing its affected edit count.");
+  return {
+    queued: false,
+    asked: false,
+    count,
+    historyHead: replyHistoryHead(result),
+  };
+}
+
 export async function approveEdits(
   projectPath: string,
   ids: string[],
   confirmCutSpeech = false,
   allowReview = true,
-): Promise<RippleOutcome & { historyHead: HistoryEntryId | null }> {
+  review: PendingReviewCapture = capturePendingReview("approve", projectPath),
+): Promise<ReviewOutcome> {
+  if (confirmCutSpeech) requireCurrentPendingReview(review);
   const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
     ids,
     allow_review: allowReview,
     ...confirmed(confirmCutSpeech),
   });
-  return {
-    ...rippleOutcome(projectPath, result, {
-      cutAnyway: () => approveEdits(projectPath, ids, true, allowReview),
-      leaveGap: null,
-    }),
-    historyHead: replyHistoryHead(result),
-  };
+  return reviewOutcome(projectPath, result, {
+    kind: "pending-review",
+    review,
+    cutAnyway: () => approveEdits(projectPath, ids, true, allowReview, review),
+    leaveGap: null,
+  });
 }
 
 export async function waiveTranscriptRefine(
@@ -197,14 +245,11 @@ export async function waiveTranscriptRefine(
 export async function rejectEdits(
   projectPath: string,
   ids: string[],
-): Promise<{ queued: boolean; historyHead: HistoryEntryId | null }> {
+): Promise<ReviewOutcome> {
   const result = await submitDocumentCommand(projectPath, "RejectEdits", {
     ids,
   });
-  return {
-    queued: result.queued === true,
-    historyHead: replyHistoryHead(result),
-  };
+  return reviewOutcome(projectPath, result);
 }
 
 export type SourceRange = Readonly<{ start: number; end: number }>;
@@ -403,6 +448,7 @@ export async function trimClipEdge(
     ...confirmed(confirmCutSpeech),
   });
   return rippleOutcome(projectPath, result, {
+    kind: "ripple",
     cutAnyway: () =>
       trimClipEdge(
         projectPath,
@@ -839,6 +885,7 @@ export async function rippleDeleteClips(
     ...confirmed(confirmCutSpeech),
   });
   return rippleOutcome(projectPath, result, {
+    kind: "ripple",
     cutAnyway: () => rippleDeleteClips(projectPath, clipIds, true),
     leaveGap: () => deleteClips(projectPath, clipIds),
   });

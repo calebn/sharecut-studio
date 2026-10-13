@@ -20,9 +20,15 @@ vi.mock("../api", async (importOriginal) => {
     approveEdits: vi.fn(async () => ({
       queued: false,
       asked: false,
+      count: 1,
       historyHead: null,
     })),
-    rejectEdits: vi.fn(async () => ({ queued: false, historyHead: null })),
+    rejectEdits: vi.fn(async () => ({
+      asked: false,
+      queued: false,
+      count: 1,
+      historyHead: null,
+    })),
   };
 });
 
@@ -128,7 +134,7 @@ describe("tighten commands", () => {
       status: "disabled",
       reason: "Tighten action in progress",
     });
-    release({ queued: false, asked: false, historyHead: null });
+    release({ queued: false, asked: false, count: 1, historyHead: null });
     expect(await first).toEqual({ status: "ok" });
   });
 
@@ -136,6 +142,7 @@ describe("tighten commands", () => {
     vi.mocked(approveEdits).mockResolvedValueOnce({
       queued: true,
       asked: false,
+      count: null,
       historyHead: null,
     });
     useDawStore
@@ -155,7 +162,9 @@ describe("tighten commands", () => {
 
   it("skipHit keeps the selection and says Still sending when the rejection is queued", async () => {
     vi.mocked(rejectEdits).mockResolvedValueOnce({
+      asked: false,
       queued: true,
+      count: null,
       historyHead: null,
     });
     useDawStore
@@ -231,6 +240,12 @@ describe("tighten commands", () => {
   });
 
   it("apply-all retains deliberate review authority with Avoid harsh cuts off", async () => {
+    vi.mocked(approveEdits).mockResolvedValueOnce({
+      queued: false,
+      asked: false,
+      count: 2,
+      historyHead: null,
+    });
     const result = await execute("tighten.applyAllSafe", {
       avoidHarsh: false,
       ids: ["e1", "e2"],

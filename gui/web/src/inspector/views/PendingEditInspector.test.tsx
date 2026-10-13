@@ -57,7 +57,12 @@ vi.mock("../../api", () => ({
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
-  rejectEdits: vi.fn(async () => ({ queued: false })),
+  rejectEdits: vi.fn(async () => ({
+    queued: false,
+    asked: false,
+    count: 1,
+    historyHead: null,
+  })),
   updatePendingEdit: (...args: unknown[]) => updatePendingEdit(...args),
   loadPendingCutSuggestion: (...args: unknown[]) =>
     loadPendingCutSuggestion(...args),
@@ -104,7 +109,12 @@ describe("PendingEditInspector", () => {
       .mockImplementation(() => new Promise(() => {}));
     patchComment.mockReset().mockResolvedValue(null);
     refreshProject.mockReset();
-    approveEdits.mockReset().mockResolvedValue({ queued: false });
+    approveEdits.mockReset().mockResolvedValue({
+      queued: false,
+      asked: false,
+      count: 1,
+      historyHead: null,
+    });
     waiveTranscriptRefine.mockReset();
     waiveTranscriptRefine.mockResolvedValue(undefined);
     refreshProject.mockResolvedValue(

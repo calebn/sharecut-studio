@@ -872,7 +872,7 @@ describe("host document command queue", () => {
           false,
           allowReview,
         ),
-      ).toEqual({ queued: true, asked: false, historyHead: null });
+      ).toEqual({ queued: true, asked: false, count: null, historyHead: null });
       const command = enqueueHostCommand.mock.calls[0][1] as {
         command_id: string;
         client_id: string;
@@ -906,7 +906,12 @@ describe("host document command queue", () => {
     const { approveEdits } = await import("./api");
     await expect(
       approveEdits("/tmp/episode.project.json", ["a"]),
-    ).resolves.toEqual({ queued: true, asked: false, historyHead: null });
+    ).resolves.toEqual({
+      queued: true,
+      asked: false,
+      count: null,
+      historyHead: null,
+    });
   });
 
   it("reports a sent approval as not queued, with the history entry it recorded", async () => {
@@ -915,7 +920,11 @@ describe("host document command queue", () => {
       vi.fn(
         async () =>
           new Response(
-            JSON.stringify({ ok: true, history_head_id: "a1b2c3d4e5f6" }),
+            JSON.stringify({
+              ok: true,
+              history_head_id: "a1b2c3d4e5f6",
+              command: { payload: { result: { count: 1 } } },
+            }),
             { status: 200 },
           ),
       ),
@@ -926,9 +935,68 @@ describe("host document command queue", () => {
     ).resolves.toEqual({
       queued: false,
       asked: false,
+      count: 1,
       historyHead: "a1b2c3d4e5f6",
     });
   });
+
+  it.each([
+    ["approve", 0, null],
+    ["reject", 0, "a1b2c3d4e5f6"],
+    ["approve", 2, "a1b2c3d4e5f6"],
+    ["reject", 2, "a1b2c3d4e5f6"],
+  ] as const)(
+    "%s preserves actual count %i and its own head",
+    async (action, count, head) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                history_head_id: head,
+                command: { payload: { result: { count } } },
+              }),
+              { status: 200 },
+            ),
+        ),
+      );
+      const { approveEdits, rejectEdits } = await import("./api");
+      const result = await (action === "approve" ? approveEdits : rejectEdits)(
+        "/tmp/episode.project.json",
+        ["a"],
+      );
+      expect(result).toEqual({
+        queued: false,
+        asked: false,
+        count,
+        historyHead: head,
+      });
+    },
+  );
+
+  it.each([undefined, -1, 0.5, "1", null])(
+    "refuses malformed settled review count %s",
+    async (count) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                history_head_id: "a1b2c3d4e5f6",
+                command: { payload: { result: { count } } },
+              }),
+              { status: 200 },
+            ),
+        ),
+      );
+      const { rejectEdits } = await import("./api");
+      await expect(
+        rejectEdits("/tmp/episode.project.json", ["a"]),
+      ).rejects.toThrow("The review reply is missing its affected edit count.");
+    },
+  );
 
   it("keeps a guest command queued when its POST times out", async () => {
     enqueueCommand.mockResolvedValue({

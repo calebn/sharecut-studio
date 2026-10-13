@@ -33,7 +33,10 @@ import {
   pendingTypeLabel,
 } from "../../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
-import { bulkReviewDoneMessage } from "../../utils/pendingReviewPass";
+import {
+  capturePendingReview,
+  finishPendingReview,
+} from "../../utils/pendingReviewPass";
 import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
@@ -88,7 +91,6 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     guestMode,
     shareCapabilities,
     shareAuthor,
-    setSelection,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -96,7 +98,6 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     shareAuthor: s.shareAuthor,
-    setSelection: s.setSelection,
   }));
   const canApply = canReviewPendingEdit(projectPath, shareCapabilities);
   const canNudge =
@@ -264,11 +265,12 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     )
       return;
     const selection = live.selection;
+    const capture = capturePendingReview(action, projectPath, currentEdit);
     setQueued(false);
     await run(async () => {
       const outcome =
         action === "approve"
-          ? await approveEdits(projectPath, [edit.id])
+          ? await approveEdits(projectPath, [edit.id], false, true, capture)
           : await rejectEdits(projectPath, [edit.id]);
       const current = useDawStore.getState();
       if (
@@ -283,15 +285,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
         setQueued(true);
         return;
       }
-      if ("asked" in outcome && outcome.asked) return;
-      current.announceStatus(bulkReviewDoneMessage(action, 1), {
-        undo: outcome.historyHead,
-      });
-      const next = useDawStore.getState().project;
-      const stillThere = next?.pending_edits.some((e) => e.id === edit.id);
-      if (!stillThere) {
-        setSelection(null);
-      }
+      if (outcome.asked) return;
+      finishPendingReview(capture, outcome);
     });
   };
 
