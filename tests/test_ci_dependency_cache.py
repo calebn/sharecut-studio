@@ -10,6 +10,7 @@ LOCKED_INSTALL = "./.github/actions/install-locked-python"
 def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     jobs = load_github_yaml(WORKFLOW)["jobs"]
     assert set(jobs) == {
+        "changes",
         "pytest",
         "pytest-python-floor",
         "frontend",
@@ -41,7 +42,8 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     assert "cache" not in frontend_python["with"]
     pytest_steps = jobs["pytest"]["steps"]
     test = next(step for step in pytest_steps if step.get("name") == "Run tests with coverage gate")
-    assert "if" not in test and not test.get("continue-on-error")
+    assert test["if"] == "steps.plan.outputs.pytest != 'web'"
+    assert not test.get("continue-on-error")
     assert (
         test["run"]
         == 'set -o pipefail\npytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\ncoverage report --fail-under=95\n'
@@ -58,15 +60,8 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
     assert browser["run"] == "npm ci\nnpx playwright install --with-deps ${{ matrix.browser }}\n"
     assert "if" not in browser and not browser.get("continue-on-error")
-    include = jobs["frontend-e2e-suites"]["strategy"]["matrix"]["include"]
-    assert [(entry["name"], entry["browser"]) for entry in include] == [
-        ("main-1of4", "chromium"),
-        ("main-2of4", "chromium"),
-        ("main-3of4", "chromium"),
-        ("main-4of4", "chromium"),
-        ("compat-chromium", "chromium"),
-        ("compat-webkit", "webkit"),
-    ]
+    matrix = jobs["frontend-e2e-suites"]["strategy"]["matrix"]
+    assert matrix == "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
 
 
 def test_release_wheel_rebuilds_when_ffmpeg_contract_changes() -> None:
