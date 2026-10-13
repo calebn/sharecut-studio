@@ -28,37 +28,13 @@ _IPV6 = re.compile(
 )
 _HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{32,}(?![0-9A-Fa-f])")
 _B64_RUN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{32,}={1,2}(?![A-Za-z0-9+/=])")
-# A host filesystem path in free text. Folder names routinely hold spaces ("My Show",
-# "Application Support", "Caleb Nelson"), so a directory segment may contain them; the file
-# name at the end stops at whitespace unless it carries an extension ("Ep 1 raw.wav"). Both
-# separators work in every form. When a path's end is ambiguous the match runs long: a
-# redaction that eats a few extra words is safe, one that leaves a show name behind is not.
-_SEP = r"[\\/]"
-# A directory segment: spaces, non-ASCII and an apostrophe inside a word ("Caleb's") are fine.
-_DIR = r"(?:[^\\/:*?\"'<>|\r\n\t]|'(?=\w))+"
-_FILE = (
-    r"(?:[^\\/:*?\"'<>|\r\n\t]*?\.[A-Za-z0-9]{1,5}(?![A-Za-z0-9])"
-    r"|[^\s\\/:*?\"'<>|()\[\],;]+)"
-)
-_TAIL = rf"{_SEP}(?:{_DIR}{_SEP})*{_FILE}"  # one or more segments below a root
-_HOME_TAIL = rf"{_SEP}{_DIR}(?:{_TAIL})?"  # an account directory, then anything below it
-_SYSTEM_ROOTS = "tmp|var|opt|private|Volumes|mnt|root|srv|etc|usr|Library|Applications|System|data"
 _HOST_PATH = re.compile(
-    r"(?:"
-    # file: URL, with or without spaces and drive letter
-    rf"file:/{{1,3}}(?:[A-Za-z]:)?(?:{_SEP}?{_DIR}{_SEP})*{_FILE}"
-    # UNC share
-    rf"|\\\\[^\s\\/]+{_TAIL}"
-    # drive-letter path, with the user's account folder read as one segment
-    rf"|(?<![A-Za-z0-9])[A-Za-z]:{_SEP}(?i:users){_HOME_TAIL}"
-    rf"|(?<![A-Za-z0-9])[A-Za-z]:{_SEP}(?:{_DIR}{_SEP})*{_FILE}"
-    # ~/ and ~user/
-    rf"|(?<![\w~])~[\w.-]*{_TAIL}"
-    # POSIX home directories, then other well-known roots, then any two-segment path
-    rf"|(?<![\w.)\]-])/(?:Users|home){_HOME_TAIL}"
-    rf"|(?<![\w.)\]-])/(?:{_SYSTEM_ROOTS})(?![A-Za-z0-9_])(?:{_TAIL})?"
-    rf"|(?<![\w/\\:.)\]-])/(?:{_DIR}{_SEP})+{_FILE}"
-    r")"
+    r"[A-Za-z]:[\\/]"
+    r"|\\{2}"
+    r"|[\\/](?i:Users|home)"
+    r"|~[\w.-]*[\\/]"
+    r"|/\S"
+    r"|(?i:%2f)"
 )
 _LOOPBACK_V4 = re.compile(r"^127\.")
 _LOOPBACK_V6 = frozenset({"::1", "0:0:0:0:0:0:0:1"})
@@ -154,11 +130,13 @@ def redact_secrets(text: str, secrets: Sequence[str] = ()) -> str:
 
 
 def mentions_host_path(text: str) -> bool:
-    """Whether ``text`` names a host filesystem path, without knowing which paths are the host's.
+    """Whether ``text`` contains a possible host path prefix.
 
     The guest boundary uses it to withhold text, never to scrub it: a path's end is ambiguous
     in prose (``Talkin' Shop`` ends at an apostrophe), so replacing the part that matched leaves
     folder-name fragments behind. Text bound for a share guest either has no path or is replaced
     whole (``CodedError.guest_message``, ``scrub_guest_progress_text``).
+    Detection conservatively matches slash-separated prose and URLs. Bare filenames without a
+    path prefix remain allowed.
     """
     return _HOST_PATH.search(text) is not None
