@@ -58,6 +58,8 @@ function SheetWithMenu() {
 
 describe("Menu", () => {
   beforeEach(() => {
+    document.documentElement.style.setProperty("--menu-edge-margin", "0.5rem");
+    document.documentElement.style.setProperty("--menu-anchor-gap", "0.25rem");
     if (typeof HTMLElement.prototype.scrollIntoView !== "function") {
       HTMLElement.prototype.scrollIntoView = () => undefined;
     }
@@ -219,7 +221,13 @@ describe("Menu", () => {
     const rect = vi
       .spyOn(HTMLButtonElement.prototype, "getBoundingClientRect")
       .mockImplementation(
-        () => ({ bottom: triggerBottom }) as unknown as DOMRect,
+        () =>
+          ({
+            left: 20,
+            right: 60,
+            top: triggerBottom - 32,
+            bottom: triggerBottom,
+          }) as unknown as DOMRect,
       );
     try {
       render(<Fixture />);
@@ -228,8 +236,10 @@ describe("Menu", () => {
       const rootPx = Number.parseFloat(
         getComputedStyle(document.documentElement).fontSize,
       );
+      const edge = 0.5 * rootPx;
+      const gap = 0.25 * rootPx;
       const remFor = (bottom: number) =>
-        `${(800 - bottom - 0.25 * rootPx) / rootPx}rem`;
+        `${(800 - edge - bottom - gap) / rootPx}rem`;
       expect(panel.style.getPropertyValue("--menu-available-height")).toBe(
         remFor(100),
       );
@@ -242,6 +252,41 @@ describe("Menu", () => {
     } finally {
       rect.mockRestore();
       innerHeight.mockRestore();
+    }
+  });
+
+  it("portals the panel to the body and keeps it inside the viewport", async () => {
+    const user = userEvent.setup();
+    const innerWidth = vi.spyOn(window, "innerWidth", "get");
+    innerWidth.mockReturnValue(393);
+    const innerHeight = vi.spyOn(window, "innerHeight", "get");
+    innerHeight.mockReturnValue(659);
+    const rect = vi
+      .spyOn(HTMLButtonElement.prototype, "getBoundingClientRect")
+      .mockImplementation(
+        () =>
+          ({
+            left: 16,
+            right: 130,
+            top: 500,
+            bottom: 540,
+          }) as unknown as DOMRect,
+      );
+    const width = vi
+      .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+      .mockReturnValue(240);
+    try {
+      const { container } = render(<Fixture />);
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      const panel = screen.getByRole("menu", { name: "Test menu" });
+      expect(container.contains(panel)).toBe(false);
+      expect(panel.parentElement).toBe(document.body);
+      expect(panel.style.left).toBe(`${0.5 * 16}px`);
+    } finally {
+      width.mockRestore();
+      rect.mockRestore();
+      innerHeight.mockRestore();
+      innerWidth.mockRestore();
     }
   });
 

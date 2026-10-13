@@ -265,24 +265,6 @@
   position: relative;
 }
 
-.transport-overflow-menu {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  right: 0;
-  z-index: var(--z-menu);
-  min-width: 15rem;
-  min-height: 0;
-  padding: var(--space-1);
-  background: var(--color-bg-overlay);
-  color: var(--color-text-on-overlay);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  box-shadow: var(--shadow-floating);
-}
-
 /* Fixed-dark paint: controls, segments, pills and the playing state. */
 .transport-primary-actions > .ui-control,
 :is(.transport, .listen-hero) .transport-more-btn {

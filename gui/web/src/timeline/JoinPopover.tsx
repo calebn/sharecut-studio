@@ -5,13 +5,14 @@ import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import {
   InspectorSeekFooter,
+  placeAnchored,
   useDialogModal,
   useOutsidePointerDown,
   useResizeObserver,
+  visualViewportBox,
 } from "../ui";
 import { useStableCallback } from "../utils/useStableCallback";
 import { JoinPopoverView } from "./JoinPopoverView";
-import { placeJoinPopover } from "./joinPopoverPlacement";
 import type { JoinEdit } from "./useJoinEdit";
 
 export interface JoinPopoverProps {
@@ -66,15 +67,12 @@ export function JoinPopover({
     const rootPx =
       Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
       16;
-    const { left: x, top: y } = placeJoinPopover(
+    const viewport = visualViewportBox(railRef.current);
+    const { left: x, top: y } = placeAnchored(
       anchor.getBoundingClientRect(),
       { width: panel.offsetWidth, height: panel.offsetHeight },
-      {
-        width: window.innerWidth,
-        height:
-          railRef.current?.getBoundingClientRect().top ?? window.innerHeight,
-      },
-      0.5 * rootPx,
+      viewport,
+      { margin: 0.5 * rootPx, gap: 0.5 * rootPx, align: "center" },
     );
     panel.style.left = `${x}px`;
     panel.style.top = `${y}px`;
