@@ -1,6 +1,10 @@
 import { cutSpeakers, joinNames } from "../edit/cutSpeech";
 import { useDawStore } from "../state/dawStore";
 import { errorMessage } from "../utils/apiError";
+import {
+  finishPendingReview,
+  requireCurrentPendingReview,
+} from "../utils/pendingReviewPass";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
@@ -17,6 +21,15 @@ async function choose(choice: Choice): Promise<ExecuteResult> {
     return { status: "disabled", reason: "This edit cannot leave a gap" };
   const names = joinNames(cutSpeakers(prompt.speech));
   try {
+    if (prompt.kind === "pending-review") {
+      requireCurrentPendingReview(prompt.review);
+      const outcome = await prompt.cutAnyway();
+      const live = useDawStore.getState();
+      if (live.cutSpeechPrompt !== prompt) return { status: "ok" };
+      if (!outcome.asked) live.setCutSpeechPrompt(null);
+      finishPendingReview(prompt.review, outcome);
+      return { status: "ok" };
+    }
     await run();
     const live = useDawStore.getState();
     if (live.cutSpeechPrompt === prompt) live.setCutSpeechPrompt(null);
@@ -28,7 +41,12 @@ async function choose(choice: Choice): Promise<ExecuteResult> {
     return { status: "ok" };
   } catch (error) {
     const reason = errorMessage(error);
-    useDawStore.getState().announceStatus(`Cut failed: ${reason}`);
+    const live = useDawStore.getState();
+    if (
+      live.cutSpeechPrompt === prompt &&
+      live.projectPath === prompt.projectPath
+    )
+      live.announceStatus(`Cut failed: ${reason}`);
     return { status: "disabled", reason };
   }
 }

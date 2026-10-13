@@ -66,7 +66,12 @@ const proposal: PendingCutProposal = {
 
 describe("pending timing queue settlement", () => {
   beforeEach(() => {
-    mocks.approveEdits.mockReset().mockResolvedValue({ queued: true });
+    mocks.approveEdits.mockReset().mockResolvedValue({
+      queued: true,
+      asked: false,
+      count: null,
+      historyHead: null,
+    });
     mocks.loadHostCommandQueue.mockReset().mockResolvedValue([]);
     mocks.loadHostConflicts.mockReset().mockResolvedValue([]);
     mocks.loadPendingCutSuggestion.mockReset().mockResolvedValue(proposal);

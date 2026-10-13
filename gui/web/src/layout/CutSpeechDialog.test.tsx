@@ -89,7 +89,11 @@ function project() {
 /** The first command the host holds back; every later one applies. */
 function askOnce() {
   submit.mockReset();
-  submit.mockResolvedValueOnce(ASKED).mockResolvedValue({ ok: true });
+  submit.mockResolvedValueOnce(ASKED).mockResolvedValue({
+    ok: true,
+    history_head_id: "1b0040fb2927",
+    command: { payload: { result: { count: 1 } } },
+  });
 }
 
 function sent(index: number) {
@@ -216,6 +220,7 @@ describe("CutSpeechDialog", () => {
     expect(await approveEdits("/tmp/ep", ["e1"])).toEqual({
       queued: false,
       asked: true,
+      count: null,
       historyHead: null,
     });
     expect(
@@ -242,6 +247,7 @@ describe("CutSpeechDialog", () => {
         {
           queued: false,
           asked: true,
+          count: null,
           historyHead: null,
         },
       );
@@ -267,7 +273,11 @@ describe("CutSpeechDialog", () => {
 
   it("speech confirmation on replay keeps a safe bulk command's review refusal", async () => {
     const user = userEvent.setup();
-    submit.mockReset().mockResolvedValue({ ok: true });
+    submit.mockReset().mockResolvedValue({
+      ok: true,
+      history_head_id: "1b0040fb2927",
+      command: { payload: { result: { count: 1 } } },
+    });
     render(<CutSpeechDialog />);
     askIfReplayHeldBack(
       "/tmp/ep",
@@ -287,7 +297,11 @@ describe("CutSpeechDialog", () => {
 
   it("asks for a queued ripple the host held back on replay", async () => {
     const user = userEvent.setup();
-    submit.mockReset().mockResolvedValue({ ok: true });
+    submit.mockReset().mockResolvedValue({
+      ok: true,
+      history_head_id: "1b0040fb2927",
+      command: { payload: { result: { count: 1 } } },
+    });
     render(<CutSpeechDialog />);
 
     askIfReplayHeldBack(

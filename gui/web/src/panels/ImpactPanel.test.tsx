@@ -30,9 +30,15 @@ vi.mock("../api", () => ({
   approveEdits: vi.fn(async () => ({
     queued: false,
     asked: false,
+    count: 1,
     historyHead: null,
   })),
-  rejectEdits: vi.fn(async () => ({ queued: false, historyHead: null })),
+  rejectEdits: vi.fn(async () => ({
+    asked: false,
+    queued: false,
+    count: 1,
+    historyHead: null,
+  })),
   waiveTranscriptRefine: vi.fn(),
 }));
 
@@ -75,9 +81,12 @@ function project() {
 describe("ImpactPanel transcript refine recovery", () => {
   beforeEach(() => {
     loadHostCommandCount.mockReset().mockResolvedValue(1);
-    vi.mocked(approveEdits)
-      .mockReset()
-      .mockResolvedValue({ queued: false, asked: false, historyHead: null });
+    vi.mocked(approveEdits).mockReset().mockResolvedValue({
+      queued: false,
+      asked: false,
+      count: 1,
+      historyHead: null,
+    });
     vi.mocked(waiveTranscriptRefine).mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", project());
     useDawStore.setState({ guestMode: null, shareCapabilities: [] });
@@ -184,6 +193,7 @@ describe("ImpactPanel transcript refine recovery", () => {
     vi.mocked(approveEdits).mockResolvedValue({
       queued: true,
       asked: false,
+      count: null,
       historyHead: null,
     });
     render(
@@ -202,6 +212,7 @@ describe("ImpactPanel transcript refine recovery", () => {
     vi.mocked(approveEdits).mockResolvedValue({
       queued: true,
       asked: false,
+      count: null,
       historyHead: null,
     });
     render(
@@ -311,12 +322,18 @@ describe("ImpactPanel bulk review", () => {
 
   beforeEach(() => {
     loadHostCommandCount.mockReset().mockResolvedValue(1);
-    vi.mocked(approveEdits)
-      .mockReset()
-      .mockResolvedValue({ queued: false, asked: false, historyHead: head });
-    vi.mocked(rejectEdits)
-      .mockReset()
-      .mockResolvedValue({ queued: false, historyHead: head });
+    vi.mocked(approveEdits).mockReset().mockResolvedValue({
+      queued: false,
+      asked: false,
+      count: 3,
+      historyHead: head,
+    });
+    vi.mocked(rejectEdits).mockReset().mockResolvedValue({
+      asked: false,
+      queued: false,
+      count: 3,
+      historyHead: head,
+    });
     useDawStore.getState().hydrate("/tmp/p.json", reviewProject());
     useDawStore.setState({
       guestMode: null,
@@ -395,6 +412,12 @@ describe("ImpactPanel bulk review", () => {
   );
 
   it("sends only the edits still waiting once the question is answered", async () => {
+    vi.mocked(approveEdits).mockResolvedValueOnce({
+      queued: false,
+      asked: false,
+      count: 2,
+      historyHead: head,
+    });
     const user = userEvent.setup();
     answerQuestions(() => {
       const live = useDawStore.getState();
@@ -441,6 +464,7 @@ describe("ImpactPanel bulk review", () => {
     vi.mocked(approveEdits).mockResolvedValue({
       queued: true,
       asked: false,
+      count: null,
       historyHead: null,
     });
     renderPanel();
@@ -457,6 +481,7 @@ describe("ImpactPanel bulk review", () => {
     vi.mocked(approveEdits).mockResolvedValue({
       queued: false,
       asked: true,
+      count: null,
       historyHead: null,
     });
     renderPanel();

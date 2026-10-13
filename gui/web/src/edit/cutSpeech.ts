@@ -1,3 +1,8 @@
+import type {
+  PendingReviewCapture,
+  ReviewOutcome,
+} from "../utils/pendingReviewPass";
+
 /**
  * The host's speech guard, client side: a ripple that would cut another
  * track's speech changes nothing and replies `needs_confirmation`. The person
@@ -28,10 +33,19 @@ export type CutSpeech = Readonly<{
 }>;
 
 /** The two ways forward from a refused ripple; `leaveGap` is null when the edit has no gap form (approving a suggestion). */
-export type CutSpeechChoices = Readonly<{
-  cutAnyway: () => Promise<unknown>;
-  leaveGap: (() => Promise<unknown>) | null;
-}>;
+export type CutSpeechChoices = Readonly<
+  | {
+      kind: "ripple";
+      cutAnyway: () => Promise<unknown>;
+      leaveGap: (() => Promise<unknown>) | null;
+    }
+  | {
+      kind: "pending-review";
+      review: PendingReviewCapture;
+      cutAnyway: () => Promise<ReviewOutcome>;
+      leaveGap: null;
+    }
+>;
 
 export type CutSpeechPrompt = CutSpeechChoices &
   Readonly<{ projectPath: string; speech: CutSpeech }>;
