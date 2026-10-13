@@ -272,7 +272,9 @@ the empty state, not a separate discovery task.
   waiting on it says "The server didn't answer. Nothing was saved." The
   Adjust boundary dialog saves nothing while it loads, so a hung load says
   "The server didn't answer. Try again." Close the dialog and open it again to
-  retry.
+  retry. The banner over a project whose transcript and history never loaded
+  says "Could not load transcript and history. The server didn't answer." with
+  a **Retry** button.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.

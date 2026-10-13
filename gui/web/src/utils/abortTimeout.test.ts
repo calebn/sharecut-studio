@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { sourceFiles } from "../test/sourceFiles";
 import { withAbortTimeout } from "./abortTimeout";
 
 describe("withAbortTimeout", () => {
@@ -66,9 +67,19 @@ describe("withAbortTimeout", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("is the only place a caller signal meets a timeout: no AbortSignal.any in src", () => {
+    const offenders: string[] = [];
+    for (const { rel, text } of sourceFiles()) {
+      if (rel.endsWith(".test.ts") || rel.endsWith(".test.tsx")) continue;
+      if (text.includes("AbortSignal.any")) offenders.push(rel);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   describe("with a caller signal", () => {
     const settleOnAbort = (signal: AbortSignal) =>
       new Promise<never>((_, reject) => {
+        if (signal.aborted) reject(signal.reason);
         signal.addEventListener("abort", () => reject(signal.reason));
       });
 
