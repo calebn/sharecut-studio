@@ -17,6 +17,7 @@ from podcast_mcp.edits.fillers import (
     normalize_edit_mode,
 )
 from podcast_mcp.edits.mute_regions import muted_source_spans
+from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
@@ -131,6 +132,7 @@ def propose_tighten_edits(
         project, {*dialogue_track_ids(project), *(t.track_id for t in project.transcripts)}
     )
     peer_indexes = _peer_speech_indexes(project)
+    copy_lags = PeerCopyLags(project)
     max_workers = cfg.get("performance", {}).get("max_workers")
 
     def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
@@ -149,6 +151,7 @@ def propose_tighten_edits(
             project=project,
             audio_cache=audio_caches.get(transcript.track_id),
             audio_caches=audio_caches,
+            copy_lags=copy_lags,
             skip_counts=counts,
         )
         return found, counts

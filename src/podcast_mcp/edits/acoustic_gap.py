@@ -33,6 +33,8 @@ _FRAME_SEC = 0.025
 _HOP_SEC = 0.010
 _VOICING_SEC = 0.040
 _BRIDGE_SEC = 0.06
+# A run this close to the seam between two scan windows may be cut short by it.
+_SEAM_SEC = _FRAME_SEC
 # Noise estimate: a low percentile of the gap's frame levels.
 _NOISE_PERCENTILE = 20.0
 # The loudest frame must stand this far above the gap's noise estimate; a flat
@@ -135,12 +137,15 @@ def find_voiced_gap_runs(
 ) -> list[AcousticGapRun]:
     """Find short voiced runs wholly inside one inter-word gap.
 
-    The scan is capped by ``max_frames`` and never reads beyond the cache's
-    decoded source span.  A gap whose level is flat (hum, HVAC, steady bleed)
-    is rejected by the contrast check; active frames must clear a low-percentile
-    noise estimate, runs covering most of the gap are rejected as plateaus, and
-    each run must pass a speech-pitch periodicity check (rejecting white noise
-    and most breaths).
+    A gap longer than ``max_frames`` frames is scanned in overlapping windows of that
+    size, so the cost of one scan stays bounded however long the speaker is silent. The
+    windows overlap by more than the longest run, so every run is seen whole in one of
+    them; a run that touches the seam between two windows is left to the window that holds
+    it whole. Each window is judged on its own level: a gap is flat (hum, HVAC, steady
+    bleed) and rejected by the contrast check, active frames must clear a low-percentile
+    noise estimate, runs covering most of the window are rejected as plateaus, and each
+    run must pass a speech-pitch periodicity check (rejecting white noise and most
+    breaths). The scan never reads beyond the cache's decoded source span.
     """
     gap = gap_end - gap_start
     if gap < min_gap_sec or gap <= 0:
@@ -148,10 +153,66 @@ def find_voiced_gap_runs(
     sr = int(cache.waveform.sample_rate)
     frame = max(1, round(sr * _FRAME_SEC))
     hop = max(1, round(sr * _HOP_SEC))
-    max_span = (max_frames - 1) * hop / sr + frame / sr
-    if gap > max_span:
+    window_sec = (max_frames - 1) * hop / sr + frame / sr
+
+    def scan(start: float, end: float) -> list[AcousticGapRun]:
+        return _scan_window(
+            cache,
+            start,
+            end,
+            frame=frame,
+            hop=hop,
+            max_frames=max_frames,
+            min_run_sec=min_run_sec,
+            max_run_sec=max_run_sec,
+            vad_backend=vad_backend,
+            defaults=defaults,
+            speech_reference_rms=speech_reference_rms,
+            on_breath_rejected=on_breath_rejected,
+        )
+
+    if gap <= window_sec:
+        return scan(gap_start, gap_end)
+    stride = window_sec - (max_run_sec + 2 * _SEAM_SEC)
+    if stride <= 0:
         return []
-    samples = cache.window(gap_start, gap_end)
+    runs: list[AcousticGapRun] = []
+    w_start = gap_start
+    while True:
+        w_end = min(w_start + window_sec, gap_end)
+        w_start = max(gap_start, w_end - window_sec)
+        for run in scan(w_start, w_end):
+            if (w_start > gap_start and run.start < w_start + _SEAM_SEC) or (
+                w_end < gap_end and run.end > w_end - _SEAM_SEC
+            ):
+                continue
+            if runs and run.start < runs[-1].end:
+                continue
+            runs.append(run)
+        if w_end >= gap_end:
+            return runs
+        w_start += stride
+
+
+def _scan_window(
+    cache: TrackAudioCache,
+    start: float,
+    end: float,
+    *,
+    frame: int,
+    hop: int,
+    max_frames: int,
+    min_run_sec: float,
+    max_run_sec: float,
+    vad_backend: str,
+    defaults: dict[str, Any] | None,
+    speech_reference_rms: float | None,
+    on_breath_rejected: Callable[[], None] | None,
+) -> list[AcousticGapRun]:
+    """The voiced runs inside one window of at most ``max_frames`` frames."""
+    sr = int(cache.waveform.sample_rate)
+    window = end - start
+    samples = cache.window(start, end)
     levels = frame_rms_db(samples, frame, hop, max_frames=max_frames)
     if levels.size == 0:
         return []
@@ -163,20 +224,20 @@ def find_voiced_gap_runs(
     active = bridge_short_dips(levels >= floor, max(1, round(_BRIDGE_SEC / _HOP_SEC)))
     runs: list[AcousticGapRun] = []
     for i, j in bool_runs(active):
-        start = gap_start + i * hop / sr
-        end = min(gap_end, gap_start + ((j - 1) * hop + frame) / sr)
-        dur = end - start
-        if not (min_run_sec <= dur <= max_run_sec) or dur > _MAX_GAP_COVERAGE * gap:
+        run_start = start + i * hop / sr
+        run_end = min(end, start + ((j - 1) * hop + frame) / sr)
+        dur = run_end - run_start
+        if not (min_run_sec <= dur <= max_run_sec) or dur > _MAX_GAP_COVERAGE * window:
             continue
         if not _run_is_voiced(samples, sr, i, j, hop):
             continue
         # Classify only this run. A separate breath elsewhere in the gap must
         # not veto a voiced candidate at a different time.
-        run_samples = cache.window(start, end)
+        run_samples = cache.window(run_start, run_end)
         if (
             classify_breath_samples(
                 run_samples,
-                start,
+                run_start,
                 sample_rate=sr,
                 vad_backend=vad_backend,
                 defaults=defaults,
@@ -190,6 +251,6 @@ def find_voiced_gap_runs(
             continue
         confidence = (float(np.mean(levels[i:j])) - floor) / 24.0
         runs.append(
-            AcousticGapRun(start=start, end=end, confidence=min(0.99, max(0.2, confidence)))
+            AcousticGapRun(start=run_start, end=run_end, confidence=min(0.99, max(0.2, confidence)))
         )
     return runs

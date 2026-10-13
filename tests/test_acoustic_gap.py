@@ -179,12 +179,59 @@ def test_noise_short_gap_and_empty_window_are_rejected() -> None:
     assert find_voiced_gap_runs(_cache(np.zeros(RATE, dtype=np.float32)), 5.0, 6.0) == []
 
 
-def test_gap_longer_than_frame_budget_is_skipped_even_with_voiced_run() -> None:
+def test_window_too_short_to_hold_a_run_whole_scans_no_longer_gap() -> None:
     cache = _cache(_tone(3.0, 1.0, 1.3))
 
     assert find_voiced_gap_runs(cache, 0.4, 2.0)
-    # 100 frames ~= 1.0 s of analysis; the 1.6 s gap is never scanned.
+    # 100 frames ~= 1.0 s of analysis, under the longest run plus its seam margins.
     assert find_voiced_gap_runs(cache, 0.4, 2.0, max_frames=100) == []
+
+
+def _bursts(total_sec: float, starts: list[float], length: float = 0.3) -> np.ndarray:
+    samples = np.zeros(int(total_sec * RATE), dtype=np.float32)
+    for start in starts:
+        samples += _tone(total_sec, start, start + length)
+    return samples
+
+
+def test_gap_longer_than_one_window_is_scanned_whole_in_overlapping_windows() -> None:
+    """A 40 s gap holds bursts everywhere, among them at each seam of the 6 s windows."""
+    starts = [0.9, 3.0, 5.5, 6.2, 6.9, 9.5, 10.6, 14.9, 20.0, 29.8, 34.7, 39.0]
+    cache = _cache(_bursts(41.0, starts))
+
+    runs = find_voiced_gap_runs(cache, 0.4, 40.6)
+
+    assert len(runs) == len(starts)
+    for run, start in zip(runs, starts, strict=True):
+        assert start - 0.05 <= run.start < run.end <= start + 0.35
+
+
+def test_every_offset_of_a_burst_is_found_once_across_the_seams() -> None:
+    for offset in np.arange(3.0, 12.0, 0.17):
+        cache = _cache(_bursts(20.0, [float(offset)]))
+
+        runs = find_voiced_gap_runs(cache, 0.4, 19.6)
+
+        assert len(runs) == 1, offset
+
+
+def test_a_run_cut_by_a_seam_is_not_reported_short() -> None:
+    cache = _cache(_bursts(20.0, [6.3], length=1.2))
+
+    (run,) = find_voiced_gap_runs(cache, 0.4, 19.6)
+
+    assert run.end - run.start >= 1.1
+
+
+def test_a_long_gap_is_judged_window_by_window_so_hum_in_one_does_not_hide_a_burst_in_another() -> (
+    None
+):
+    samples = _bursts(41.0, [30.0])
+    samples[: 20 * RATE] += _dbfs_sine(20.0, 120.0, -53.0)
+
+    runs = find_voiced_gap_runs(_cache(samples), 0.4, 40.6)
+
+    assert len(runs) == 1 and 29.9 <= runs[0].start < 30.4
 
 
 def test_flat_hum_and_rumble_never_yield_candidates() -> None:
@@ -518,13 +565,15 @@ def test_peer_voice_while_the_cut_track_is_quiet_blocks_the_gap(tmp_path: Path) 
     assert skips == {"acoustic:peer_speaking": 1}
 
 
-def test_peer_voice_while_the_cut_track_is_gated_shut_blocks_the_gap(tmp_path: Path) -> None:
+def test_peer_voice_while_the_cut_track_is_gated_shut_leaves_nothing_to_propose(
+    tmp_path: Path,
+) -> None:
     found, skips = _peer_gap_skips(
         tmp_path, np.zeros(3 * RATE, dtype=np.float32), _tone(3.0, 0.8, 1.2, amp=0.2)
     )
 
     assert found == []
-    assert skips == {"acoustic:peer_speaking": 1}
+    assert skips == {}
 
 
 def test_independent_voices_at_similar_levels_block_the_gap(tmp_path: Path) -> None:

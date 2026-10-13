@@ -45,6 +45,7 @@ from podcast_mcp.edits.mute_regions import (
     muted_source_spans,
     source_span_is_muted,
 )
+from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause, SessionAir
 from podcast_mcp.edits.shared_pause import PauseClaim, shared_pause_twins
 from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
@@ -803,28 +804,57 @@ def _peer_speaking_in_gap(
     )
 
 
-def _peer_voiced_in_gap(
+# A voiced run needs three voiced probes, so a window that clips a peer's run short can lose it.
+_PEER_VOICE_CONTEXT_SEC = 0.1
+
+
+@dataclass(frozen=True)
+class _AcousticPeers:
+    """The other dialogue tracks' decodes, and how far each pair's own track trails its copy."""
+
+    caches: Mapping[str, TrackAudioCache]
+    lags: PeerCopyLags
+
+
+def _peer_voiced_at(
+    track_id: str,
     own_cache: TrackAudioCache,
-    peer_caches: Sequence[TrackAudioCache],
-    gap_start: float,
-    gap_end: float,
+    peers: _AcousticPeers,
+    start: float,
+    end: float,
     defaults: dict[str, Any],
 ) -> bool:
-    """True when a peer's own track carries voice of its own inside the gap.
+    """True when a peer's own track carries voice of its own where ``[start, end)`` sounds here.
 
     Peer occupancy is measured from peer audio, never from its ASR word spans: a
     mistimed word can span seconds of digital silence on a gated track. The runs
-    are the same voiced-run evidence the cut gate reads at cut edges. A peer run
-    that sits ``analysis.heuristics.bleed_dominance_db`` or more under the cut
-    track's own level over the same frames is that track's voice bleeding onto
-    the peer's mic, the audit's own bleed test seen from the other side (#994). A
-    quiet or gated cut track never explains a peer run, so a peer carrying a
-    voice the cut track lost still blocks (#945).
+    are the same voiced-run evidence the cut gate reads at cut edges.
+
+    A peer's voice reaches this mic before the peer's own track carries it when that track
+    trails its copy (``PeerCopyLags``), so the peer is read that much later than the span.
+    A peer run that sits ``analysis.heuristics.bleed_dominance_db`` or more under the cut
+    track's own level over the same sound is that track's voice bleeding onto the peer's mic,
+    the audit's own bleed test seen from the other side (#994): the peer's copy of this
+    track's voice is read against this track that much later too. A quiet or gated cut
+    track never explains a peer run, so a peer carrying a voice the cut track lost still
+    blocks (#945).
     """
     margin = _bleed_dominance_db(defaults)
-    for cache in peer_caches:
-        for run in voiced_runs(cache.waveform, gap_start, gap_end, floor_db=cache.voice_floor_db):
-            own_db = rms_db(own_cache.window(*run), floor_db=DIGITAL_SILENCE_DB)
+    for peer_id, cache in peers.caches.items():
+        reach = peers.lags.sec(peer_id, track_id)
+        copy = peers.lags.sec(track_id, peer_id)
+        lo, hi = start + reach, end + reach
+        for run in voiced_runs(
+            cache.waveform,
+            lo - _PEER_VOICE_CONTEXT_SEC,
+            hi + _PEER_VOICE_CONTEXT_SEC,
+            floor_db=cache.voice_floor_db,
+        ):
+            if run[1] <= lo or run[0] >= hi:
+                continue
+            own_db = rms_db(
+                own_cache.window(run[0] + copy, run[1] + copy), floor_db=DIGITAL_SILENCE_DB
+            )
             peer_db = rms_db(cache.window(*run), floor_db=DIGITAL_SILENCE_DB)
             if own_db - peer_db < margin:
                 return True
@@ -1436,19 +1466,19 @@ def _collect_acoustic_candidates(
     occupied: HalfOpenIntervalIndex,
     *,
     defaults: dict[str, Any] | None = None,
-    peer_caches: Sequence[TrackAudioCache] = (),
+    peers: _AcousticPeers | None = None,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_CutCandidate]:
-    """Review-only ``filler:acoustic`` candidates for voiced runs in owner gaps."""
+    """Review-only ``filler:acoustic`` candidates for voiced runs in owner gaps.
+
+    A peer voiced where a run sounds makes that run most likely bleed; a peer voiced
+    elsewhere in the gap says nothing about it.
+    """
     candidates: list[_CutCandidate] = []
     for word, nxt in _acoustic_scan_gaps(words, cfg):
         gap_start, gap_end = word.end, nxt.start
         if _word_not_owner(word, track_id) or _word_not_owner(nxt, track_id):
             _count_skip(skip_counts, "acoustic:not_owner")
-            continue
-        # A peer voiced in the gap makes voiced energy here most likely bleed.
-        if _peer_voiced_in_gap(audio_cache, peer_caches, gap_start, gap_end, defaults or {}):
-            _count_skip(skip_counts, "acoustic:peer_speaking")
             continue
         reference = _flanking_speech_rms(audio_cache, word, nxt)
 
@@ -1469,6 +1499,11 @@ def _collect_acoustic_candidates(
         )
         lo, hi = gap_start + _ACOUSTIC_EDGE_MARGIN_SEC, gap_end - _ACOUSTIC_EDGE_MARGIN_SEC
         for run in runs:
+            if peers is not None and _peer_voiced_at(
+                track_id, audio_cache, peers, run.start, run.end, defaults or {}
+            ):
+                _count_skip(skip_counts, "acoustic:peer_speaking")
+                continue
             start, end = max(lo, run.start), min(hi, run.end)
             if end - start < _ACOUSTIC_MIN_CUT_SEC:
                 _count_skip(skip_counts, "acoustic:edge_margin")
@@ -1500,12 +1535,13 @@ def _add_acoustic_candidates(
     project: EpisodeProject | None = None,
     audio_cache: TrackAudioCache | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
+    copy_lags: PeerCopyLags | None = None,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_CutCandidate]:
     """``candidates`` plus acoustic gap candidates when enabled and audio decoded.
 
     ``audio_caches`` holds the dialogue tracks' decodes; the other tracks' voiced
-    runs decide whether a gap is peer bleed.
+    runs decide whether a run is peer bleed, read at the pair's ``copy_lags``.
     """
     cfg = AcousticGapConfig.from_tighten(defaults.get("tighten"))
     if transcript.source_id is not None or not cfg.enabled:
@@ -1526,10 +1562,13 @@ def _add_acoustic_candidates(
         audio_cache,
         occupied,
         defaults=defaults,
-        peer_caches=(
-            _peer_audio_caches(project, transcript.track_id, "session", audio_caches)
+        peers=(
+            _AcousticPeers(
+                _peer_cache_map(project, transcript.track_id, audio_caches),
+                copy_lags if copy_lags is not None else PeerCopyLags(project),
+            )
             if project is not None
-            else ()
+            else None
         ),
         skip_counts=skip_counts,
     )
@@ -2129,6 +2168,21 @@ class _GatedCut:
     heard_pause: float | None = None
 
 
+def _peer_cache_map(
+    project: EpisodeProject,
+    track_id: str,
+    audio_caches: Mapping[str, TrackAudioCache] | None,
+) -> dict[str, TrackAudioCache]:
+    """The other dialogue tracks' decodes, by track."""
+    if not audio_caches:
+        return {}
+    return {
+        tid: audio_caches[tid]
+        for tid in dialogue_track_ids(project)
+        if tid != track_id and tid in audio_caches
+    }
+
+
 def _peer_audio_caches(
     project: EpisodeProject,
     track_id: str,
@@ -2136,13 +2190,9 @@ def _peer_audio_caches(
     audio_caches: Mapping[str, TrackAudioCache] | None,
 ) -> list[TrackAudioCache]:
     """The other dialogue tracks' decodes, when a session ripple removes their audio too."""
-    if scope != "session" or not audio_caches:
+    if scope != "session":
         return []
-    return [
-        audio_caches[tid]
-        for tid in dialogue_track_ids(project)
-        if tid != track_id and tid in audio_caches
-    ]
+    return list(_peer_cache_map(project, track_id, audio_caches).values())
 
 
 def _cut_scope(
@@ -3071,6 +3121,7 @@ def analyze_fillers_and_pauses(
         project=project,
         audio_cache=audio_cache,
         audio_caches=audio_caches,
+        copy_lags=PeerCopyLags(project),
         skip_counts=skip_counts,
     )
     speaker_context = _speaker_cut_context(project) if candidates else None
