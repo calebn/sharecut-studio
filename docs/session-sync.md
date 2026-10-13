@@ -147,7 +147,9 @@ The viewer publish adapter reads the authority once to compare durable fields, t
 | Role `agent` (`SetRegion`, `AuditionInViewer`, `SetPlaying`, …) | Yes |
 | Same tab’s own Applied echoes | No (advance ack cursor only) |
 | Other `viewer` `SetPlaying` / playhead | No — each tab owns its clock |
-| Other `viewer` selection / mode / mute | Yes (discrete UI sync) |
+| Other `viewer` selection / mode / mute | Yes (discrete UI sync). A review-link guest keeps its own selection and mirrors one only through Follow |
+
+Every adopted selection (agent, viewer, or a followed leader) goes through `selectionFromWire(selection, project)` in `session/wire.ts`, which returns null when the named clip, edit, record, comment, social clip, or track is not in the loaded project. A stale selection in the stored session snapshot therefore clears silently instead of opening an Inspector reading "Edit not found" (#1339).
 
 Local DAW **Play** clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Local DAW **Stop** (button / **K**) returns the playhead to where local playback last started (any playhead move while stopped or paused, including following someone and an agent seek applied through `applyAgentSession`, becomes the new start; a seek during playback, or an agent pause, does not). Agent/CLI stop (`stop_session_tool`, `podcast session stop`, `SessionControlService.stop`) pauses in place and clears the region, and an agent stop applied through `applyAgentSession` leaves the playhead where it is. Prefer `clients[]` playhead for “what am I hearing?” while transport is rolling.
 
