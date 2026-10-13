@@ -317,10 +317,20 @@ describe("EnvelopeWorkspace timeline bound (#1336)", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("end of the timeline");
     expect(setEnvelope).not.toHaveBeenCalled();
   });
-  it("opens the add form on its heading, not a numeric field, so no software keyboard opens", async () => {
+  it("on touch opens the add form on its heading, not a numeric field, so no software keyboard opens", async () => {
+    useDawStore.setState({ pointerKind: "coarse" });
     mount();
     await userEvent.click(screen.getByRole("button", { name: "Add point" }));
     expect(screen.getByRole("heading", { name: "Add point" })).toHaveFocus();
+    expect(
+      screen.getByLabelText("Time (seconds on timeline)"),
+    ).not.toHaveFocus();
+  });
+  it("with a mouse or keyboard still lands in the Time field", async () => {
+    useDawStore.setState({ pointerKind: "fine" });
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "Add point" }));
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveFocus();
   });
 });
 
