@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import clips_for_track
@@ -18,12 +18,16 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
 )
 from podcast_mcp.edits.ripple import ripple_track_ids
+from podcast_mcp.edits.room_tone import SampleAbsent
 from podcast_mcp.edits.timeline_ops import (
+    LaneUnavailable,
+    RoomTonePad,
+    insert_bound_room_tone_pad,
     insert_gap,
-    insert_room_tone_pad,
     plan_ripple_delete,
     punch_delete,
     ripple_delete,
+    room_tone_pad,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, origin_track_id_for_clip
 from podcast_mcp.models import (
@@ -34,11 +38,8 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.media_identity import same_recording
-from podcast_mcp.util.timebase import SourceSec, TimelineSec
+from podcast_mcp.util.timebase import SourceSec, TimelineSec, clock_label
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path
-
-if TYPE_CHECKING:
-    from podcast_mcp.edits.timeline_ops import LaneUnavailable
 
 _PAD_EDGE_MATCH_SEC = 0.05
 
@@ -65,13 +66,41 @@ class CutScopeHold:
     detail: str | None = None
 
 
+_NO_ROOM_TONE_CAUSES = {
+    "missing_track": "its track is missing",
+    "missing_media": "it has no audio",
+    "missing_file": "its audio file is missing",
+    "unreadable_file": "its audio could not be read",
+    "no_quiet_run": "it has no quiet stretch",
+    "too_short": "its quiet stretches are too short",
+    "excluded": "its quiet stretches belong to other pending cuts",
+    "rejected": "no quiet stretch sounds like room tone",
+    "window_unreadable": "its audio could not be read",
+    "candidate_limit": "no nearby quiet stretch sounds like room tone",
+}
+
+
+def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
+    """People's name for a pending cut: whose, what kind and where in the recording."""
+    track = project.track_by_id(edit.track_id)
+    who = (track.speaker or track.label or track.id) if track else edit.track_id
+    kind = "pause trim" if (edit.reason or "").startswith("pause:") else "cut"
+    return f"{who}'s {kind} at {clock_label(edit.start)}"
+
+
 class ScopeChangedAtApproval(CodedError, ValueError):
     code = "cut_scope_changed"
 
-    def __init__(self, held: Sequence[CutScopeHold], speakers: dict[str, str]):
+    def __init__(
+        self,
+        held: Sequence[CutScopeHold],
+        speakers: dict[str, str],
+        cuts: Mapping[str, str] | None = None,
+    ):
         self.ids = tuple(h.edit_id for h in held)
         self.held = tuple(held)
         self.speakers = speakers
+        self.cuts = dict(cuts or {})
         reasons = {
             "source_geometry": "the selected audio no longer has one complete, continuous placement",
             "stored_track_pause": "a pause must shorten the session and cannot silence only one track",
@@ -81,7 +110,7 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             "operation_scope": "the selected audio plays outside the tracks this cut removes",
             "pause_not_shorter": "the replacement pad would leave the pause as long or longer",
             "pause_imperceptible": "the pause would shorten too little to hear",
-            "pad_unavailable": "the pause needs room tone that is unavailable",
+            "pad_unavailable": "a track has no room tone to fill the beat this cut leaves",
             "pause_air": "the pause cannot retain enough original quiet audio safely",
             "pause_join": "the final pause join did not pass its audio checks",
         }
@@ -93,20 +122,20 @@ class ScopeChangedAtApproval(CodedError, ValueError):
                 f"{peers or 'another track'} is speaking where the session cut would remove it",
             )
             if hold.unavailable_lanes:
-                from podcast_mcp.edits.room_tone import SampleAbsent
-
                 why += ": " + ", ".join(
-                    f"{speakers.get(lane.track_id, lane.track_id)} ({lane.cause.cause if isinstance(lane.cause, SampleAbsent) else lane.cause})"
+                    f"{speakers.get(lane.track_id, lane.track_id)} "
+                    f"({_NO_ROOM_TONE_CAUSES.get(lane.cause.cause, lane.cause.cause) if isinstance(lane.cause, SampleAbsent) else lane.cause})"
                     for lane in hold.unavailable_lanes
                 )
-            details.append(f"not applied ({hold.edit_id}): {why}")
+            label = self.cuts.get(hold.edit_id, "A selected cut")
+            details.append(f"{label} was not applied ({hold.edit_id}): {why}")
         super().__init__(
             "; ".join(details)
             + ". Select the part to cut on the timeline, or reject the held cuts."
         )
 
     def for_delivery(self, delivery: Literal["saved", "suggested"]) -> ScopeChangedAtApproval:
-        error = ScopeChangedAtApproval(self.held, self.speakers)
+        error = ScopeChangedAtApproval(self.held, self.speakers, self.cuts)
         suffix = (
             " None of the selected edits were applied."
             if delivery == "saved"
@@ -211,7 +240,7 @@ def require_source_remove(
         return
     assessment = inspect_source_remove(project, edit, heard_pause_sec=heard_pause_sec)
     if isinstance(assessment, CutScopeHold):
-        raise ScopeChangedAtApproval([assessment], {})
+        raise ScopeChangedAtApproval([assessment], {}, {edit.id: cut_label(project, edit)})
 
 
 def _nearest_ripple_join_time(project: EpisodeProject, near_sec: float) -> float:
@@ -250,6 +279,39 @@ def _pending_playing_source_spans(
     return spans
 
 
+_SILENCE_IS_THE_ROOM = frozenset({"digital_silence", "gated_live"})
+
+
+class _PadUnavailable(Exception):
+    def __init__(self, lanes: tuple[LaneUnavailable, ...]) -> None:
+        super().__init__("a live track has no room tone for the pad")
+        self.lanes = lanes
+
+
+def _lanes_that_would_drop_out(pad: RoomTonePad) -> tuple[LaneUnavailable, ...]:
+    """Lanes the pad would leave digitally silent although the track has a live room.
+
+    A track gated to digital silence between words has no room to match, so its hole
+    is the faithful fill. Any other absence leaves a dropout against that track's noise.
+    """
+    return tuple(
+        lane
+        for lane in pad.lanes
+        if isinstance(lane, LaneUnavailable)
+        and not (isinstance(lane.cause, SampleAbsent) and lane.cause.cause in _SILENCE_IS_THE_ROOM)
+    )
+
+
+def _room_tone_pad_wanted(edit: EditDecision) -> bool:
+    gap = edit.replace_gap_sec
+    return (
+        gap is not None
+        and gap > 0
+        and getattr(edit, "scope", "session") != "track"
+        and filler_pad_mode() == "room_tone"
+    )
+
+
 def _apply_replace_gap_pad(
     project: EpisodeProject,
     edit: EditDecision,
@@ -268,9 +330,12 @@ def _apply_replace_gap_pad(
         else _nearest_ripple_join_time(project, tl_start)
     )
     if filler_pad_mode() == "room_tone":
-        report = insert_room_tone_pad(
+        pad = room_tone_pad(
             project, pad_start_sec, gap, avoid=_pending_playing_source_spans(project, edit)
         )
+        if dropouts := _lanes_that_would_drop_out(pad):
+            raise _PadUnavailable(dropouts)
+        report = insert_bound_room_tone_pad(project, pad)
         samples = report["pad_samples"]
     else:
         insert_gap(project, pad_start_sec, gap)
@@ -317,6 +382,7 @@ def consume_source_remove(
     """
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
     from podcast_mcp.edits.track_media import full_span_clip
+    from podcast_mcp.project_merge import adopt_project_state
 
     scope = edit.scope or "session"
     seed = inspect_source_remove_placement(project, edit)
@@ -509,6 +575,7 @@ def consume_source_remove(
     )
     if isinstance(clearance, CutSpeechConfirmation):
         return clearance
+    unpadded = project.model_copy(deep=True) if _room_tone_pad_wanted(actual) else None
     if working is not project:
         project.clips.extend(implicit)
     report = ripple_delete(
@@ -520,7 +587,17 @@ def consume_source_remove(
     tl_start, tl_end = report["timeline_start"], report["timeline_end"]
     per_track = report["per_track_source"]
     track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
-    samples = _apply_replace_gap_pad(project, actual, tl_start, exact_seam=pause)
+    try:
+        samples = _apply_replace_gap_pad(project, actual, tl_start, exact_seam=pause)
+    except _PadUnavailable as unavailable:
+        if unpadded is not None:
+            adopt_project_state(project, unpadded)
+        return CutScopeHold(
+            edit.id,
+            tuple(lane.track_id for lane in unavailable.lanes),
+            "pad_unavailable",
+            unavailable.lanes,
+        )
     effects = prepared_pause.plan.effects if prepared_pause is not None else ()
     matches = []
     for edge in effects:
