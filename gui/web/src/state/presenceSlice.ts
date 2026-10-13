@@ -166,7 +166,7 @@ export const createPresenceSlice: StateCreator<
         ...hear,
         ...(state.selection !== undefined
           ? remoteSelectionPatch(
-              wireSelectionPatch(state.selection, get().project, true),
+              wireSelectionPatch(state.selection, get().project),
               get().remoteSelectionRevision,
             )
           : {}),
@@ -183,26 +183,14 @@ export const createPresenceSlice: StateCreator<
       });
       return;
     }
-    const wirePatch = wireSelectionPatch(state.selection, get().project, false);
-    const localSelection = get().selection;
-    const workspaceEcho =
-      localSelection?.kind === "envelope" &&
-      wirePatch.selection?.kind === "track" &&
-      localSelection.trackId === wirePatch.selection.trackId;
-    // A guest keeps its own selection; Follow is how it mirrors someone else's.
-    const adoptSelection =
-      state.selection !== undefined &&
-      !workspaceEcho &&
-      get().guestMode == null;
+    // Every tab keeps its own selection, host or guest. Only an agent's
+    // selection (above) or Follow moves it.
     set({
       suppressPublish: true,
       _suppressTimer: timer,
       lastAppliedRevision: state.server_seq,
       lastAppliedCommandId: state.last_command_id,
       ...hear,
-      ...(adoptSelection
-        ? remoteSelectionPatch(wirePatch, get().remoteSelectionRevision)
-        : {}),
       ...(state.clients
         ? {
             sessionClients: rosterFromList(state.clients, get().sessionClients),

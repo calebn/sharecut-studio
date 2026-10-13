@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { resolvePendingWireSelection } from "../session/wire";
+import { selectionFromWire } from "../session/wire";
 import { createPresenceSlice } from "./presenceSlice";
 import { createProjectSlice } from "./projectSlice";
 import { createTransportSlice } from "./transportSlice";
@@ -38,11 +38,7 @@ useDawStore.subscribe((state, prev) => {
   if (!pendingWireSelection || !project || project === prev.project) {
     return;
   }
-  const selection = resolvePendingWireSelection(
-    pendingWireSelection,
-    project,
-    state.guestMode != null,
-  );
+  const selection = selectionFromWire(pendingWireSelection, project);
   if (selection) {
     state.adoptRemoteSelection(selection);
   }

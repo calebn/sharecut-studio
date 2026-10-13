@@ -28,7 +28,7 @@ test("focused feedback Dismiss survives phone to tablet host remount", async ({
   await checkRemount(page, info, "Dismiss");
 });
 
-test("a peer's selection and edit that remove the focused Undo hand focus to the sheet Close", async ({
+test("an agent's selection and a peer's edit that remove the focused Undo hand focus to the sheet Close", async ({
   page,
   context,
 }) => {
@@ -37,13 +37,26 @@ test("a peer's selection and edit that remove the focused Undo hand focus to the
   await peer.setViewportSize(SIZES.portrait);
   await peer.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await openPhoneTimeline(peer);
-  await peer
-    .getByRole("button", { name: "Open track details, reference", exact: true })
-    .click();
+  const selected = await peer.request.post(
+    `/api/session/command?path=${encodeURIComponent(projectPath)}`,
+    {
+      data: {
+        type: "SetSelection",
+        payload: { selection: { kind: "track", track_id: "reference" } },
+        client_id: "e2e-selection-agent",
+        client_seq: 1,
+        role: "agent",
+      },
+    },
+  );
+  expect(selected.ok(), await selected.text()).toBe(true);
   const sheet = page.locator(".bottom-sheet").filter({ hasText: "Track" });
   await expect(sheet.getByRole("group", { name: "Track mixer" })).toBeVisible();
   await expect(action).toBeFocused();
 
+  await peer
+    .getByRole("button", { name: "Open track details, reference", exact: true })
+    .click();
   await peer
     .getByRole("group", { name: "Track mixer" })
     .getByRole("button", { name: /^Mute/ })
