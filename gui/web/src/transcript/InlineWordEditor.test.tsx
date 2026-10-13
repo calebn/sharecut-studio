@@ -100,6 +100,29 @@ describe("InlineWordEditor", () => {
     });
   });
 
+  it("answers a commit with a toast whose Undo names the history entry", async () => {
+    vi.mocked(correctTranscriptWord).mockResolvedValueOnce("h-inline" as never);
+    const user = userEvent.setup();
+    render(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hello"
+        onClose={vi.fn()}
+      />,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: /Correct word/ }),
+      "x{Enter}",
+    );
+    await waitFor(() => {
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Word text fixed",
+        undo: "h-inline",
+      });
+    });
+  });
+
   it("closes without a call when the text is unchanged", async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
@@ -161,8 +184,8 @@ describe("InlineWordEditor", () => {
     let resolve: () => void = () => {};
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       () =>
-        new Promise<void>((r) => {
-          resolve = r;
+        new Promise<null>((r) => {
+          resolve = () => r(null);
         }),
     );
     const onClose = vi.fn();
@@ -193,7 +216,7 @@ describe("InlineWordEditor", () => {
     let reject: (e: Error) => void = () => {};
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       () =>
-        new Promise<void>((_r, rej) => {
+        new Promise<null>((_r, rej) => {
           reject = rej;
         }),
     );
@@ -229,8 +252,8 @@ describe("InlineWordEditor", () => {
       let resolve: () => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
         () =>
-          new Promise<void>((r) => {
-            resolve = r;
+          new Promise<null>((r) => {
+            resolve = () => r(null);
           }),
       );
       const onClose = vi.fn();
@@ -266,7 +289,7 @@ describe("InlineWordEditor", () => {
       let reject: (e: Error) => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
         () =>
-          new Promise<void>((_r, rej) => {
+          new Promise<null>((_r, rej) => {
             reject = rej;
           }),
       );
@@ -361,7 +384,7 @@ describe("InlineWordEditor", () => {
     let reject: (e: Error) => void = () => {};
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       () =>
-        new Promise<void>((_r, rej) => {
+        new Promise<null>((_r, rej) => {
           reject = rej;
         }),
     );
@@ -399,8 +422,8 @@ describe("InlineWordEditor", () => {
     let resolve: () => void = () => {};
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       () =>
-        new Promise<void>((r) => {
-          resolve = r;
+        new Promise<null>((r) => {
+          resolve = () => r(null);
         }),
     );
     const onClose = vi.fn();

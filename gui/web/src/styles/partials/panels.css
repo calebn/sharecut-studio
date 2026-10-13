@@ -1619,7 +1619,16 @@ button.history-row {
 .tighten-row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: var(--space-1) var(--space-3);
+}
+
+/* Touch: every row action, and the time that goes to the hit, is a 44px target. */
+@media (pointer: coarse) {
+  .tighten-row-actions .ui-control,
+  .tighten-table td .linkish {
+    min-block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+  }
 }
 
 .tighten-badge {

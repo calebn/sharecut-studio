@@ -124,6 +124,18 @@ The checks (#1096) live with the code:
   command's column from the grammar (the create menu, the kinds' commands
   and the Gestures sheet).
 
+### Transcript word ranges follow the grammar (#1029)
+
+Select mode in the transcript applies the same grammar to word ranges, with no
+new gesture. One finger moving scrolls and never selects. A long press on a
+word arms a range there, and only then does moving on extend it over the words
+under the finger; a hold that lifts without moving is still the word-correction
+long press. A second finger cancels the drag and puts the earlier selection
+back. The visible equivalent is Range actions' **Add word before**, **Add word
+after**, **Drop first word** and **Drop last word**, which repeat while held, as
+a strip nudge does (`transcript.extendRange`). Tests:
+`TranscriptPanel.rangeDrag.test.tsx`, `WordRangeControls.test.tsx`.
+
 ### Decision: A plain grab at a join rolls it
 
 <!-- decision

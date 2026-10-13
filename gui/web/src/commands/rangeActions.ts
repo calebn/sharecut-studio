@@ -1,4 +1,4 @@
-import { submitDocumentCommand } from "../api/documentEdits";
+import { replyHistoryHead, submitDocumentCommand } from "../api/documentEdits";
 import { hostFetch } from "../api/documentTransport";
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
@@ -185,6 +185,7 @@ export async function runRangeAction(
           applies
             ? `Range ${action} applied. Use Undo to restore it.`
             : "Range suggestion sent for host review",
+          applies ? { undo: replyHistoryHead(result) } : {},
         );
       }
       return { status: "ok" };

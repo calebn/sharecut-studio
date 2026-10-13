@@ -15,7 +15,10 @@ import {
 import { RangeActions } from "../timeline/RangeActions";
 import { TranscriptPanel } from "./TranscriptPanel";
 
-vi.mock("../api/documentEdits", () => ({ submitDocumentCommand: vi.fn() }));
+vi.mock("../api/documentEdits", async (orig) => ({
+  ...(await orig<typeof import("../api/documentEdits")>()),
+  submitDocumentCommand: vi.fn(),
+}));
 
 const project = minimalProject({
   timeline_duration_sec: 4,
@@ -167,7 +170,10 @@ describe("guest transcript Select follows share capabilities", () => {
   });
 
   it("an edit guest selects words and Cut applies like the host", async () => {
-    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      type: "Applied",
+      history_head_id: "h-cut",
+    });
     const { container } = openShare(EDIT);
     const q = within(container);
     expect(q.queryByRole("button", { name: /^Correct/ })).toBeNull();
@@ -192,6 +198,7 @@ describe("guest transcript Select follows share capabilities", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Range cut applied. Use Undo to restore it.",
     );
+    expect(useDawStore.getState().feedbackToast?.undo).toBe("h-cut");
     expect(useDawStore.getState().selection).toBeNull();
     await expectNoA11yViolations(container);
   });

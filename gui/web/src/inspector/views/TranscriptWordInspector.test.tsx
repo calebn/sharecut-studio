@@ -116,6 +116,7 @@ function projectWithWords(texts: string[]) {
 function applyingWords(texts: string[]) {
   return async () => {
     useDawStore.setState({ project: projectWithWords(texts) });
+    return null;
   };
 }
 
@@ -238,6 +239,7 @@ describe("TranscriptWordInspector", () => {
     useDawStore.setState({ project: projectWithLockedWord() });
     vi.mocked(setTranscriptWordAutomatic).mockImplementationOnce(async () => {
       useDawStore.setState({ project: projectWithSuppressedWord() });
+      return null;
     });
     render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
     const button = screen.getByRole("button", { name: "Return to automatic" });
@@ -478,6 +480,35 @@ describe("TranscriptWordInspector", () => {
         true,
         "there",
       );
+    });
+  });
+
+  it("Suppress answers with a toast whose Undo names the history entry it left", async () => {
+    vi.mocked(setTranscriptWordSuppressed).mockResolvedValueOnce(
+      "h-suppress" as never,
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
+    await vi.waitFor(() => {
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Word dropped from the transcript text",
+        undo: "h-suppress",
+      });
+    });
+  });
+
+  it("Apply answers with a toast and Undo for a word fix", async () => {
+    vi.mocked(correctTranscriptWord).mockResolvedValueOnce("h-fix" as never);
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Word text fixed",
+        undo: "h-fix",
+      });
     });
   });
 

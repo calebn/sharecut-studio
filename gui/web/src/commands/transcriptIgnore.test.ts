@@ -46,7 +46,7 @@ describe("transcript.ignoreWords", () => {
     clearRegisteredCommands();
     registerTranscriptIgnoreCommands();
     vi.mocked(api.setTranscriptWordsIgnored).mockReset();
-    vi.mocked(api.setTranscriptWordsIgnored).mockResolvedValue(undefined);
+    vi.mocked(api.setTranscriptWordsIgnored).mockResolvedValue(null);
     useDawStore.setState({
       projectPath: "/tmp/ep",
       guestMode: null,
@@ -74,6 +74,25 @@ describe("transcript.ignoreWords", () => {
       "w0 w1",
     );
     expect(useDawStore.getState().statusAnnouncement).toBe("Ignored selection");
+  });
+
+  it("offers Undo on the toast for the history entry the command left", async () => {
+    vi.mocked(api.setTranscriptWordsIgnored).mockResolvedValue(
+      "h-ignore" as never,
+    );
+    await execute("transcript.ignoreWords", {});
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Ignored selection",
+      undo: "h-ignore",
+    });
+  });
+
+  it("offers no Undo when the change was queued and moved no history", async () => {
+    await execute("transcript.ignoreWords", {});
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Ignored selection",
+      undo: null,
+    });
   });
 
   it("sends null expected text when a word in the range is not loaded", async () => {
