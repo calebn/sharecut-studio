@@ -3,7 +3,12 @@ import { assertDisposableE2eProject, e2eProjectPath } from "../e2e/env";
 
 const STATE_LOAD_TIMEOUT_MS = 30_000;
 
-async function proveHungLoadRecovers(page: Page): Promise<void> {
+const TOUCH_TARGET_PX = 44;
+
+async function proveHungLoadRecovers(
+  page: Page,
+  options: { touchTarget?: boolean } = {},
+): Promise<void> {
   test.setTimeout(120_000);
   assertDisposableE2eProject(e2eProjectPath);
   const stateRequests: Request[] = [];
@@ -23,8 +28,15 @@ async function proveHungLoadRecovers(page: Page): Promise<void> {
   );
   const attempts = stateRequests.length;
 
+  const retry = banner.getByRole("button", { name: "Retry" });
+  if (options.touchTarget) {
+    const box = await retry.boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
+    expect(box?.height).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
+  }
+
   answering = true;
-  await banner.getByRole("button", { name: "Retry" }).click();
+  await retry.click();
   await expect.poll(() => stateRequests.length).toBe(attempts + 1);
   await expect(banner).toBeHidden();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
@@ -48,6 +60,6 @@ test.describe("on a touch phone", () => {
   test("the banner sits in view, not under the fixed shell, and its retry recovers", async ({
     page,
   }) => {
-    await proveHungLoadRecovers(page);
+    await proveHungLoadRecovers(page, { touchTarget: true });
   });
 });
