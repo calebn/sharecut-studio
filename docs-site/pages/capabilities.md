@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**119** capabilities · **103** Sharecut Studio commands · **54** keyed · **180** MCP tools · **17** skills on rows (+ **19** hub skills).
+**120** capabilities · **104** Sharecut Studio commands · **54** keyed · **180** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -113,6 +113,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Adjust word timing | project | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | — | `transcript.wordbar` | `set_word_timing_tool` | `podcast transcript set-word-timing` | — | — | anchor · none |
 | Edit focused transcript word | project | `transcript.editWordInline` | `F2` | — | — | `correct_transcript_tool` | `podcast transcript correct` | — | — | anchor · none |
 | Select transcript range | view | `transcript.selectIntent` | — (toolbar toggle; no industry-standard key) | — | `transcript.select` | — | — | — | — | anchor · look |
+| Extend transcript range | view | `transcript.extendRange` | — (Range action buttons are keyboard operable; no industry-standard key) | `long-press-arm-drag` | `rangeActions.words` | — | — | — | — | anchor · look |
 | Ignore / restore transcript words | project | `transcript.ignoreWords` | — (no industry-standard key (#649)) | — | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore` | `set_words_ignored_tool` | — | — | — | anchor · look |
 | Next low-confidence word | session | `transcript.nextLowConfidence` | — (no industry-standard key (#649); command palette) | — | `transcript.lowConfidenceNext` | — | — | `podcast-transcript-correct` | — | anchor · look |
 | Previous low-confidence word | session | `transcript.prevLowConfidence` | — (no industry-standard key (#649); command palette) | — | `transcript.lowConfidencePrev` | — | — | `podcast-transcript-correct` | — | anchor · look |

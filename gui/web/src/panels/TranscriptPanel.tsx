@@ -34,6 +34,7 @@ import {
   prominentWordKey,
   prominentWordKeys,
 } from "../transcript/prominence";
+import { selectedWordsMessage } from "../transcript/rangeSelect";
 import { TranscriptFindReplace } from "../transcript/TranscriptFindReplace";
 import { TranscriptSpeakerEditor } from "../transcript/TranscriptSpeakerEditor";
 import {
@@ -50,6 +51,8 @@ import {
   TRANSCRIPT_NAVIGATE_TOUCH_HINT,
   type TranscriptIntent,
 } from "../transcript/transcriptModeCopy";
+import { useKeepSelectionClear } from "../transcript/useKeepSelectionClear";
+import { useWordRangeDrag } from "../transcript/useWordRangeDrag";
 import { wordInteractionTip } from "../transcript/wordInteractionTip";
 import type {
   CombinedUtterance,
@@ -501,6 +504,31 @@ export function TranscriptPanel() {
       endWordIndex: Math.max(a, b),
     });
   };
+
+  const rangeDrag = useWordRangeDrag({
+    enabled: intent === "select",
+    listRef,
+    onArm: () => {
+      cancelQueuedSeek();
+      const held = selection;
+      if (held?.kind !== "transcriptRange" && held?.kind !== "transcriptWord") {
+        return null;
+      }
+      setSelection(null);
+      return () => setSelection(held);
+    },
+    onCommit: (trackId, span) => {
+      rangeAnchorRef.current = span.startWordIndex;
+      setRange(trackId, span.startWordIndex, span.endWordIndex);
+      useDawStore
+        .getState()
+        .announceStatus(selectedWordsMessage(span), { toast: false });
+    },
+  });
+  useKeepSelectionClear(listRef, selection);
+  const shownSelection: Selection = rangeDrag.draft
+    ? { kind: "transcriptRange", ...rangeDrag.draft }
+    : selection;
 
   const cutAwayCount = useMemo(
     () => selectUnmappedUtterances(allUtterances).length,
@@ -1076,17 +1104,26 @@ export function TranscriptPanel() {
             trackId && Number.isInteger(wordIndex)
               ? { trackId, wordIndex }
               : null;
+          rangeDrag.onPointerDown(event);
           // Arm only where correction is possible; elsewhere a hold is a tap.
-          if (pressedWordRef.current) {
+          // In Select mode a hold starts a range instead.
+          if (pressedWordRef.current && intent !== "select") {
             transcriptLongPress.onPointerDown(event);
           }
         }}
         onClickCapture={transcriptLongPress.onClickCapture}
-        onPointerMove={transcriptLongPress.onPointerMove}
+        onPointerMove={(event) => {
+          rangeDrag.onPointerMove(event);
+          transcriptLongPress.onPointerMove(event);
+        }}
         onPointerUpCapture={(event) => {
+          rangeDrag.onPointerUp(event);
           longPressReleasedRef.current = transcriptLongPress.onPointerUp(event);
         }}
-        onPointerCancel={transcriptLongPress.onPointerCancel}
+        onPointerCancel={(event) => {
+          rangeDrag.onPointerCancel(event);
+          transcriptLongPress.onPointerCancel(event);
+        }}
         onScroll={() => {
           scheduleViewAnchor();
           // Only wheel / touch / scrollbar / scroll-key input unlocks follow;
@@ -1154,7 +1191,7 @@ export function TranscriptPanel() {
                     !unmapped && active.words.has(activeWordId(flatIndex, wi));
                   const wordIndex = w.word_index;
                   const selected = wordInRange(
-                    selection,
+                    shownSelection,
                     u.track_id,
                     wordIndex,
                   );
@@ -1370,6 +1407,9 @@ export function TranscriptPanel() {
                           onClick: (e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            if (rangeDrag.swallowClick()) {
+                              return;
+                            }
                             const pending = pendingCorrectionRef.current;
                             pendingCorrectionRef.current = null;
                             const recentDoubleTap = withinGhostClick(

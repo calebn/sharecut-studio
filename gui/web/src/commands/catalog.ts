@@ -638,6 +638,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hasProject",
     paletteRunnable: false,
   },
+  "transcript.extendRange": {
+    id: "transcript.extendRange",
+    category: "edit",
+    label: "Extend transcript range",
+    when: "hasProject",
+    paletteRunnable: false,
+    notes:
+      "Args: { edge: 'start' | 'end', by: 1 | -1 }: moves one edge of the selected word range by one word; a selection change only (#1029)",
+  },
   "transcript.ignoreWords": {
     id: "transcript.ignoreWords",
     category: "edit",

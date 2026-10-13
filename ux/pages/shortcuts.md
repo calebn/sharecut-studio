@@ -164,6 +164,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Find and replace transcript | `transcript.findReplace` | Loaded host project |  |
 | Correct transcript | `transcript.correctIntent` | Project loaded |  |
 | Select transcript range | `transcript.selectIntent` | Project loaded |  |
+| Extend transcript range | `transcript.extendRange` | Project loaded | Args: { edge: 'start' \| 'end', by: 1 \| -1 }: moves one edge of the selected word range by one word; a selection change only (#1029) |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
 | Next low-confidence word | `transcript.nextLowConfidence` | Project loaded | Seek + scroll to the next word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |
 | Previous low-confidence word | `transcript.prevLowConfidence` | Project loaded | Seek + scroll to the previous word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |

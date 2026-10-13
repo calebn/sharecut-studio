@@ -541,6 +541,9 @@ html[data-shell] body {
   gap: var(--space-3);
   /* No double-tap zoom: a second tap on a word opens correction. */
   touch-action: manipulation;
+  /* Room under the last turn as deep as the inspector sheet covers the list,
+     so a selection can scroll clear of it (useKeepSelectionClear). */
+  padding-block-end: var(--sheet-clearance, 0);
 }
 
 .transcript-list.is-virtualized {
@@ -1559,6 +1562,42 @@ html[data-shell] body {
 
 .range-actions--sheet {
   padding: var(--space-4);
+}
+
+.range-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1 1 16rem;
+  min-inline-size: 0;
+}
+
+.range-words-summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.range-words-text {
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.range-words-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.range-words-reason {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+@media (pointer: coarse) {
+  .range-word-step {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .range-actions--sheet .ui-control {
