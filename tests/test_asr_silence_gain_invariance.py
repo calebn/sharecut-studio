@@ -120,3 +120,23 @@ def test_track_with_no_live_audio_flags_every_word(tmp_path):
 def test_track_with_no_contrast_flags_nothing_but_digital_silence(tmp_path):
     audio = _room(10.0, 5)
     assert _flags(tmp_path, audio, -24.0, [(1.0, 1.5), (6.0, 6.5)]) == [False, False]
+
+
+def test_evidence_gate_noise_floor_moves_with_the_recording_level(tmp_path):
+    from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB
+    from podcast_mcp.engines.asr_silence import SILENT_FRAME_DB, TrackEnergy
+
+    assert SILENT_FRAME_DB == DIGITAL_SILENCE_DB
+    audio, _ = _ungated(17.0, SPOKEN)
+    floors = {}
+    for gain_db in GAINS_DB:
+        path = tmp_path / f"energy_{gain_db:+.0f}.wav"
+        _write(path, audio, gain_db)
+        floors[gain_db] = TrackEnergy.decode(path).floor_db - gain_db
+    assert max(floors.values()) - min(floors.values()) < 0.5
+
+
+@pytest.mark.parametrize("gain_db", GAINS_DB)
+def test_track_too_short_to_learn_from_never_flags_its_speech(tmp_path, gain_db):
+    audio, _ = _ungated(1.5, [(0.2, 0.6)])
+    assert _flags(tmp_path, audio, gain_db, [(0.2, 0.6), (1.0, 1.4)]) == [False, True]
