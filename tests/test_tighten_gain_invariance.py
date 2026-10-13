@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.silence_islands import suggest_handoff_cut
+from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -26,12 +30,10 @@ from podcast_mcp.models import (
 
 RATE = 16_000
 SECONDS = 20
-# -34 dB puts the speech near -58 dBFS, as on a quiet recording. A gated recording is also
-# held to -40 dB (speech near -64 dBFS); with a room floor the pause-island quiet level is
-# still fixed (#1306), so that gain waits for it.
-GAINS_DB = (-34.0, -18.0, -12.0, 6.0, 12.0)
-GATED_ONLY_GAINS_DB = (-40.0,)
+# -36 dB puts the speech near -60 dBFS, as on a quiet recording.
+GAINS_DB = (-36.0, -34.0, -24.0, -18.0, -12.0, 6.0, 12.0)
 FRAME_SEC = 0.01
+HOP_SEC = 0.02
 SPEECH_DB = -24.0
 ROOM_DB = -68.0
 
@@ -233,7 +235,7 @@ def _assert_the_same_at_every_level(
     tmp_path: Path, edit_mode: str, intensity: str, *, gated: bool
 ) -> None:
     expected = sorted(_EXPECTED[(gated, edit_mode, intensity)])
-    for gain_db in (0.0, *GAINS_DB, *(GATED_ONLY_GAINS_DB if gated else ())):
+    for gain_db in (0.0, *GAINS_DB):
         got = _proposals(tmp_path / str(gain_db), gain_db, edit_mode, intensity, gated=gated)
         assert [(t, r, f) for t, r, _, _, f in got] == [(t, r, f) for t, r, _, _, f in expected], (
             gain_db
@@ -284,7 +286,7 @@ def test_a_peer_voiced_in_a_pause_blocks_the_hint_at_every_level(
     tmp_path: Path, gated: bool
 ) -> None:
     """Only the pause the guest is silent in yields an acoustic hint, at any recording level."""
-    for gain_db in (0.0, -34.0, -18.0, 6.0, 12.0):
+    for gain_db in (0.0, *GAINS_DB):
         project = _project(
             tmp_path / str(gain_db), gain_db, gated=gated, tracks=_peer_tracks(gated=gated)
         )
@@ -293,3 +295,123 @@ def test_a_peer_voiced_in_a_pause_blocks_the_hint_at_every_level(
         assert proposal.skip_counts.get("acoustic:peer_speaking") == 1, gain_db
         assert len(hints) == 1, gain_db
         assert hints[0][2] == pytest.approx(4.4, abs=0.1 + FRAME_SEC), gain_db
+
+
+HANDOFF_GAINS_DB = (12.0, 0.0, -12.0, -24.0, -36.0)
+_HANDOFF_LEFT = 2.0
+_HANDOFF_RIGHT = 12.0
+
+
+def _handoff_tracks(*, gated: bool, um_at: float):
+    """Both talk either side of a long gap; the host's um and the guest's murmur sit in it."""
+    host = _room(11, gated=gated)
+    _voice(host, 1.0, _HANDOFF_LEFT)
+    _voice(host, um_at, um_at + 0.35, SPEECH_DB - 22.0)
+    _voice(host, _HANDOFF_RIGHT, 13.0)
+    guest = _room(23, gated=gated)
+    _voice(guest, 8.0, 8.4, SPEECH_DB - 22.0)
+    _voice(guest, 15.0, 16.0)
+    return (("host", (host, [])), ("guest", (guest, [])))
+
+
+def _handoff(tmp_path: Path, gain_db: float, *, gated: bool, um_at: float) -> dict:
+    project = _project(
+        tmp_path / str(gain_db),
+        gain_db,
+        gated=gated,
+        tracks=_handoff_tracks(gated=gated, um_at=um_at),
+    )
+    return suggest_handoff_cut(project, ["host", "guest"], _HANDOFF_LEFT, _HANDOFF_RIGHT)
+
+
+def _handoff_outcome(out: dict) -> tuple:
+    return (
+        out["ok"],
+        out["cut_start"],
+        out["cut_end"],
+        sorted(out["warnings"]),
+        [edge for i in out["islands"] for edge in (i["start"], i["end"])],
+    )
+
+
+@pytest.mark.parametrize("gated", [False, True])
+def test_a_handoff_cut_is_the_same_at_every_recording_level(tmp_path: Path, gated: bool) -> None:
+    """The um mid-gap is removed with the cut and the guest's murmur splits the quiet, at any level."""
+    outcomes = {
+        gain: _handoff_outcome(_handoff(tmp_path, gain, gated=gated, um_at=6.0))
+        for gain in HANDOFF_GAINS_DB
+    }
+    ok, cut_start, cut_end, warnings, islands = outcomes[0.0]
+    assert (ok, cut_start, cut_end, warnings) == (
+        True,
+        pytest.approx(3.0, abs=0.1),
+        pytest.approx(11.0, abs=0.1),
+        [],
+    )
+    assert len(islands) == 6
+    for gain, (g_ok, g_start, g_end, g_warnings, g_islands) in outcomes.items():
+        assert (g_ok, g_warnings) == (ok, warnings), gain
+        assert [g_start, g_end] == pytest.approx([cut_start, cut_end], abs=HOP_SEC + 1e-6), gain
+        assert g_islands == pytest.approx(islands, abs=HOP_SEC + 1e-6), gain
+
+
+@pytest.mark.parametrize("gated", [False, True])
+def test_a_handoff_refuses_an_um_at_the_retain_target_at_every_recording_level(
+    tmp_path: Path, gated: bool
+) -> None:
+    for gain in HANDOFF_GAINS_DB:
+        out = _handoff(tmp_path, gain, gated=gated, um_at=2.85)
+        assert out["ok"] is False, gain
+        assert "cut_start_not_quiet" in out["warnings"], gain
+
+
+_GUARD_ON = {
+    "tighten": {"speech_energy_guard": {"enabled": True, "on_conflict": "review"}},
+    "analysis": {"heuristics": {}},
+}
+_PEER_SPAN = (6.0, 9.0)
+
+
+def _peer_project(tmp_path: Path, gain_db: float, *, peer_voice: bool, noisy_room: bool = False):
+    """The host speaks around a pause; the guest speaks in it, or only holds an open mic."""
+    host = _room(11, gated=False)
+    _voice(host, 1.0, 5.5, SPEECH_DB + 4.0)
+    _voice(host, 9.5, 14.0, SPEECH_DB + 4.0)
+    guest = np.random.default_rng(23).normal(0, 10 ** (-50.0 / 20), SECONDS * RATE)
+    if peer_voice:
+        _voice(guest, 6.5, 8.5, SPEECH_DB)
+    return _project(
+        tmp_path / str(gain_db),
+        gain_db,
+        gated=False,
+        tracks=(("host", (host, [])), ("guest", (guest, []))),
+    )
+
+
+def _speaking(project: EpisodeProject, cached: bool, *, blind: bool) -> tuple[str, ...]:
+    caches = build_track_rms_caches(project) if cached else None
+    kwargs = dict(
+        owner_track_ids=["host"], peer_track_ids=["guest"], defaults=_GUARD_ON, caches=caches
+    )
+    if not blind:
+        levels = measure_peer_speech(project, [_PEER_SPAN], **kwargs)
+    else:
+        with patch(
+            "podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", return_value=None
+        ):
+            levels = measure_peer_speech(project, [_PEER_SPAN], **kwargs)
+    assert levels is not None
+    assert levels.unread == {}
+    return levels.speaking
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("peer_voice", [False, True], ids=["open_mic", "voice"])
+def test_the_peer_fallback_is_the_same_at_every_recording_level(
+    tmp_path: Path, cached: bool, peer_voice: bool
+) -> None:
+    """Where the frames cannot be read, the span's mean decides, against the session's own voice."""
+    expected = ("guest",) if peer_voice else ()
+    for gain in HANDOFF_GAINS_DB:
+        project = _peer_project(tmp_path, gain, peer_voice=peer_voice)
+        assert _speaking(project, cached, blind=True) == expected, gain
