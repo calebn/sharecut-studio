@@ -35,11 +35,8 @@ export async function loadDocumentState(
 ): Promise<DocumentSnapshot> {
   return withAbortTimeout(
     30_000,
-    "Document recovery timed out",
-    async (timeoutSignal) => {
-      const requestSignal = signal
-        ? AbortSignal.any([signal, timeoutSignal])
-        : timeoutSignal;
+    "The server didn't answer.",
+    async (requestSignal) => {
       const query = `phase=${phase}`;
       const response = isShareProjectKey(projectPath)
         ? await fetch(
@@ -69,6 +66,7 @@ export async function loadDocumentState(
         throw new Error("Invalid document basis");
       return value as DocumentSnapshot;
     },
+    signal,
   );
 }
 

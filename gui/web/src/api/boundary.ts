@@ -242,7 +242,7 @@ export async function loadBoundaryContext(
   return withAbortTimeout(
     DOCUMENT_COMMAND_TIMEOUT_MS,
     timeoutMessage,
-    async (timeoutSignal) => {
+    async (requestSignal) => {
       const response = await (guestToken ? fetch : hostFetch)(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -251,9 +251,7 @@ export async function loadBoundaryContext(
           target,
           expected_geometry: expectedGeometry,
         }),
-        signal: signal
-          ? AbortSignal.any([signal, timeoutSignal])
-          : timeoutSignal,
+        signal: requestSignal,
       });
       if (!response.ok) {
         const message = await readApiError(response);
@@ -264,6 +262,7 @@ export async function loadBoundaryContext(
         throw new Error("Invalid boundary response: target mismatch");
       return context;
     },
+    signal,
   );
 }
 
