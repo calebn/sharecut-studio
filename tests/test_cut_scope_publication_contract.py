@@ -76,45 +76,24 @@ def test_moved_filler_edge_needs_available_assessment_before_publication(
     assert result.model_dump(mode="json") == before
 
 
-@pytest.mark.parametrize("failure", [OSError, ValueError])
-def test_clear_to_known_peer_scope_flip_needs_available_regate_assessment(
-    tmp_path, monkeypatch, failure
+def test_a_peer_speaking_over_the_moved_edge_keeps_a_session_ripple_for_review(
+    tmp_path, monkeypatch
 ):
     result, cfg = _filler(tmp_path, monkeypatch, moved=True, guest="quiet")
     peer = room(seed=1215)
     voice(peer, 0.82, 0.92, db=-12)
     write_wav(tmp_path / "raw" / "guest.wav", peer)
-    control = propose_tighten_edits(result.model_copy(deep=True), cfg, replace_existing=False)
-    assert [(d.start, d.end, d.scope) for d in control.decisions] == [
-        (pytest.approx(0.78), pytest.approx(1.5), "track")
-    ]
-    assert "other_speaking:guest" in control.decisions[0].reason
     before = result.model_dump(mode="json")
-    assessed = []
-    completed_peers = []
 
-    def fail_after_scope_flip(*args, **kwargs):
-        assessed.append((args[2], args[3]))
-        if len(assessed) == 3:
-            raise failure("peer-backed source span unavailable on re-gate")
-        guard = assess_cross_track_speech(*args, **kwargs)
-        completed_peers.append(guard.blocking_track_ids)
-        return guard
-
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", fail_after_scope_flip
-    )
     proposal = propose_tighten_edits(result, cfg, replace_existing=False)
 
-    assert assessed == [
-        pytest.approx((1, 1.5)),
-        pytest.approx((0.78, 1.5)),
-        pytest.approx((0.78, 1.5)),
-    ]
-    assert completed_peers == [(), ("guest",)]
-    assert proposal.skip_counts == {"scope_unavailable": 1}
-    assert proposal.decisions == []
-    assert result.model_dump(mode="json") == before
+    (decision,) = proposal.decisions
+    assert (decision.start, decision.end) == (pytest.approx(0.78), pytest.approx(1.5))
+    assert (decision.scope, decision.review_required) == ("session", True)
+    assert "other_speaking:guest" in decision.reason
+    assert decision.cut_speech is not None
+    assert [t.track_id for t in decision.cut_speech.tracks] == ["guest"]
+    assert result.model_dump(mode="json") != before
 
 
 @pytest.mark.parametrize("failure", [OSError, ValueError])
@@ -209,7 +188,7 @@ def test_known_peer_generated_controls_preserve_conflict_policy(tmp_path, monkey
     voice(peer, 1.1, 1.3)
     write_wav(tmp_path / "raw" / "guest.wav", peer)
     control = propose_tighten_edits(result.model_copy(deep=True), cfg, replace_existing=False)
-    assert [(d.start, d.end, d.scope) for d in control.decisions] == [(1, 1.5, "track")]
+    assert [(d.start, d.end, d.scope) for d in control.decisions] == [(1, 1.5, "session")]
     assert "other_speaking:guest" in control.decisions[0].reason
     cfg["tighten"]["speech_energy_guard"]["on_conflict"] = policy
     before = result.model_dump(mode="json")
@@ -221,10 +200,9 @@ def test_known_peer_generated_controls_preserve_conflict_policy(tmp_path, monkey
         assert proposal.decisions == []
         assert result.model_dump(mode="json") == before
     else:
-        assert [(d.start, d.end, d.scope) for d in proposal.decisions] == [(1, 1.5, "track")]
+        assert [(d.start, d.end, d.scope) for d in proposal.decisions] == [(1, 1.5, "session")]
         assert "other_speaking:guest" in proposal.decisions[0].reason
         assert proposal.decisions[0].review_required is True
-        assert proposal.decisions[0].replace_gap_sec is None
         assert [d.id for d in result.edit_decisions] == ["kept", proposal.decisions[0].id]
 
 

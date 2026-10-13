@@ -2021,8 +2021,8 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
     assert result is not None
     assert result.review_required is True
     assert "other_speaking:guest" in result.reason
-    assert result.replace_gap_sec is None
-    assert result.scope == "track"
+    assert result.scope == "session"
+    assert result.peers_speaking is True
 
 
 @pytest.mark.parametrize("action", ["skip", "review"])
@@ -2618,7 +2618,7 @@ def test_a_replacement_pad_counts_against_actual_played_loss(air_end, loss):
     from podcast_mcp.edits.fillers import _CutPlan
 
     pad = PacedPad(gap_sec=0.45, min_sec=0.45, retain=1, max_sec=0.45)
-    plan = _CutPlan.for_cut(1, air_end, mute=False, scope="session", pad=pad)
+    plan = _CutPlan.for_cut(1, air_end, mute=False, pad=pad)
     assert plan.replace_gap_sec == pytest.approx(0.45)
     assert plan.end - plan.start - (plan.replace_gap_sec or 0) == pytest.approx(loss)
 
@@ -3083,7 +3083,7 @@ def test_cut_starting_in_a_kept_words_tail_starts_after_its_voice(tmp_path, reas
         track_id="host", start=0.85, end=1.1, reason=reason, cut_kind="filler"
     )
     # Pacing or snapping left the start inside the tail of "So".
-    plan = _CutPlan.for_cut(0.62, 1.1, mute=True, scope="track", pad=None)
+    plan = _CutPlan.for_cut(0.62, 1.1, mute=True, pad=None)
 
     moved = _between_kept_voices(
         project,
@@ -3183,7 +3183,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
         )
         so = _between_kept_voices(
             project,
-            _CutPlan.for_cut(0.52, 1.2, mute=True, scope="track", pad=None),
+            _CutPlan.for_cut(0.52, 1.2, mute=True, pad=None),
             run,
             audio_cache=cache,
             defaults=load_defaults(),
@@ -3193,7 +3193,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
         )
         started = _start_at_filler_onset(
             project,
-            _CutPlan.for_cut(2.25, 2.6, mute=True, scope="track", pad=None),
+            _CutPlan.for_cut(2.25, 2.6, mute=True, pad=None),
             uh,
             audio_cache=cache,
         )
@@ -3267,7 +3267,7 @@ def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
 
     gated = _between_kept_voices(
         project,
-        _CutPlan.for_cut(0.72, 0.9, mute=True, scope="track", pad=None),
+        _CutPlan.for_cut(0.72, 0.9, mute=True, pad=None),
         candidate,
         audio_cache=build_track_audio_caches(project, {"host"})["host"],
         defaults=load_defaults(),
@@ -3612,27 +3612,23 @@ def test_cut_plan_paces_its_pad_from_its_own_span():
     from podcast_mcp.edits.fillers import _CutPlan, _Join
 
     pad = PacedPad(gap_sec=0.0, min_sec=0.35, retain=0.85, max_sec=1.0)
-    plan = _CutPlan.for_cut(1.2, 1.3, mute=False, scope="session", pad=pad)
+    plan = _CutPlan.for_cut(1.2, 1.3, mute=False, pad=pad)
 
     assert (plan.join, plan.replace_gap_sec) == (_Join.PADDED, pytest.approx(0.35))
     # An edge check that moves the left edge to the voice resizes the pad with it.
     assert replace(plan, start=0.5).replace_gap_sec == pytest.approx(0.68)
     # Air the cut took whole still sets the floor when the span shrinks inside it.
-    gap_plan = _CutPlan.for_cut(
-        1.0, 2.0, mute=False, scope="session", pad=replace(pad, gap_sec=1.1)
-    )
+    gap_plan = _CutPlan.for_cut(1.0, 2.0, mute=False, pad=replace(pad, gap_sec=1.1))
     assert replace(gap_plan, end=1.5).replace_gap_sec == pytest.approx(0.935)
-    # A track punch and a mute keep their time, so they insert no pad.
-    punch = _CutPlan.for_cut(1.2, 1.3, mute=False, scope="track", pad=pad)
-    mute = _CutPlan.for_cut(1.2, 1.3, mute=True, scope="session", pad=pad)
-    assert (punch.join, punch.replace_gap_sec) == (_Join.SPLICE, None)
+    # A mute keeps its time, so it inserts no pad.
+    mute = _CutPlan.for_cut(1.2, 1.3, mute=True, pad=pad)
     assert (mute.join, mute.replace_gap_sec) == (_Join.MUTE, None)
 
 
-def _scope_result(scope: str):
+def _scope_result(peers_speaking: bool):
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 
-    if scope == "track":
+    if peers_speaking:
         return ResolvedCutScope(
             "peer_speech",
             SpeechEnergyGuardResult(blocking_track_ids=("guest",), action="review"),
@@ -3642,11 +3638,9 @@ def _scope_result(scope: str):
     )
 
 
-def _analyze_with_scope_flip(first: str, then: str, *, join_verdict: str):
-    """Analyze the padded ``uh`` while the scope resolves to ``first`` once, then ``then``."""
+def _analyze_padded_uh(*, peers_speaking: bool, join_verdict: str):
     from types import SimpleNamespace
 
-    scopes = iter([first])
     words = [
         TranscriptWord(text="so", start=0.0, end=0.1),
         TranscriptWord(text="uh", start=1.0, end=1.2),
@@ -3659,7 +3653,7 @@ def _analyze_with_scope_flip(first: str, then: str, *, join_verdict: str):
     with (
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-            side_effect=lambda *_a, **_k: _scope_result(next(scopes, then)),
+            return_value=_scope_result(peers_speaking),
         ),
         patch(
             "podcast_mcp.edits.join_continuity.assess_proposed_cut",
@@ -3667,54 +3661,25 @@ def _analyze_with_scope_flip(first: str, then: str, *, join_verdict: str):
         ),
     ):
         return [
-            (d.scope, d.replace_gap_sec, d.reason)
+            (d.scope, d.replace_gap_sec, d.review_required, d.reason)
             for d in analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
         ]
 
 
-def test_a_scope_that_flips_to_a_track_punch_gets_the_splice_gates_and_no_pad():
-    # The punch ships a butt splice, so the join gate scores it: pass keeps the punch
-    # with no pad, fail rejects it. The padded plan's gate skip never carries over.
-    assert _analyze_with_scope_flip("session", "track", join_verdict="pass") == [
-        ("track", None, "filler:uh:other_speaking:guest")
-    ]
-    assert _analyze_with_scope_flip("session", "track", join_verdict="fail") == []
-
-
-def test_a_scope_that_flips_to_a_session_cut_keeps_its_pad_and_skips_the_splice_gates():
-    # The session cut ships two faded edges, so the failing join verdict is never
-    # asked and the pad survives.
-    assert _analyze_with_scope_flip("track", "session", join_verdict="fail") == [
-        ("session", 1.0, "filler:uh")
+@pytest.mark.parametrize("join_verdict", ["pass", "fail"])
+def test_a_filler_a_peer_speaks_over_is_a_padded_session_ripple_for_review(join_verdict):
+    # Peer speech is a review flag, never a narrower scope: the cut keeps its pad and its
+    # padded gates (a failing splice verdict is never asked), and approval ripples every
+    # dialogue track behind Cut anyway.
+    assert _analyze_padded_uh(peers_speaking=True, join_verdict=join_verdict) == [
+        ("session", 1.0, True, "filler:uh:other_speaking:guest")
     ]
 
 
-def test_a_scope_that_never_settles_is_not_proposed():
-    flip = iter(["session", "track", "session", "track"])
-    words = [
-        TranscriptWord(text="so", start=0.0, end=0.1),
-        TranscriptWord(text="uh", start=1.0, end=1.2),
-        TranscriptWord(text="okay.", start=2.0, end=2.3),
+def test_a_filler_no_peer_speaks_over_is_the_same_padded_session_ripple_without_review():
+    assert _analyze_padded_uh(peers_speaking=False, join_verdict="fail") == [
+        ("session", 1.0, False, "filler:uh")
     ]
-    project = _project_with_transcript(words)
-    skips: dict[str, int] = {}
-    with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-        side_effect=lambda *_a, **_k: _scope_result(next(flip)),
-    ):
-        assert not analyze_fillers_and_pauses(
-            project,
-            project.transcripts[0],
-            {
-                "tighten": {
-                    "filler_words": ["uh"],
-                    "max_pause_sec": 99.0,
-                    "acoustic_gap_filler": {"enabled": False},
-                }
-            },
-            skip_counts=skips,
-        )
-    assert skips == {"unstable_scope": 1}
 
 
 @pytest.mark.parametrize(

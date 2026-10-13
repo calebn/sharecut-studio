@@ -11,6 +11,7 @@ from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     SourceExtent,
+    assess_cut_speech,
     clear_ripple,
 )
 from podcast_mcp.edits.filler_pacing import filler_pad_mode, pause_trim_is_imperceptible
@@ -236,6 +237,29 @@ def require_source_remove(
     assessment = inspect_source_remove(project, edit, heard_pause_sec=heard_pause_sec)
     if isinstance(assessment, CutScopeHold):
         raise ScopeChangedAtApproval([assessment], {}, {edit.id: cut_label(project, edit)})
+
+
+def record_suggested_cut_speech(project: EpisodeProject, decision: EditDecision) -> None:
+    """Record on a suggested session ripple the other speech it would cut.
+
+    Approval then asks to confirm that speech (Cut anyway) instead of holding the cut
+    as changed.
+    """
+    span = SessionTimeline(project).exact_source_span(
+        decision.track_id, SourceSec(decision.start), SourceSec(decision.end)
+    )
+    if span is None:
+        return
+    decision.cut_speech = assess_cut_speech(
+        project,
+        plan_ripple_delete(
+            project,
+            float(span[0]),
+            float(span[1]),
+            edited_track_ids=[decision.track_id],
+            use_inaudible_opt=False,
+        ),
+    )
 
 
 def _nearest_ripple_join_time(project: EpisodeProject, near_sec: float) -> float:
