@@ -152,6 +152,19 @@ Mobile Safari shrinks only the *visual* viewport when the keyboard opens and scr
 
 iOS Safari also zooms the page when a focused field's computed `font-size` is under 16px, and `useKeyboardInset` reads that zoom as a pinch and stands down (#1354). So under `@media (pointer: coarse)` every `input`, `textarea` and `select` is at least `1rem`. `--font-size-field-min` is `0rem` by default and `1rem` on coarse pointers (`theme/tokens.css`). Field rules size text through `--font-size-field`, `--font-size-field-small` or `--font-size-field-current` (a field that keeps its surrounding size), which are `max(<size>, var(--font-size-field-min))`. A new field rule that sets `font` or `font-size` must use one of them (or `--font-size-review` / `--font-size-heading`, both at least 1rem); `tests/test_css_policy.py` fails otherwise, and `e2e-compat/touch-field-size.spec.ts` checks the computed size in WebKit. Never block zoom with `maximum-scale=1` or `user-scalable=no` in the viewport meta; that removes accessibility zoom.
 
+## Menu popover support
+
+Menu panels use the Popover API (Chrome 114, Firefox 125, Safari and WKWebView
+17: iOS 17, macOS 14). `ui/Menu.tsx` calls `showPopover()` only where it
+exists. On an older webview (iOS 16, macOS 12 and 13 stock WKWebView, the
+declared Tauri minimum) the panel stays a `position: fixed` element placed by
+the same `ui/anchoredPlacement.ts` code and stacked by `--z-menu`: the menu
+opens and works, but an ancestor that clips or contains fixed descendants (a
+sheet's `overflow` or size container) can crop it, and `--z-toast` over
+`--z-menu` keeps the toast on top. The toast lift in
+[design-tokens.md § Top layer](design-tokens.md#top-layer) is then not needed.
+No other fallback exists.
+
 ## Phone: four modes + one sheet
 
 ```

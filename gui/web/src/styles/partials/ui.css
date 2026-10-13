@@ -811,6 +811,21 @@ button.pill.pill--info {
   pointer-events: none;
 }
 
+/* ui/topLayerFloor makes the region a manual popover while a Menu panel is
+   open, lifting it into the top layer above that panel. Undo the UA popover
+   box so it stays where this rule puts it. */
+.ui-toast-region--app[popover] {
+  inset-block-start: auto;
+  inline-size: auto;
+  block-size: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+}
+
 /* Phone: the toast docks just above the highest bottom chrome that is shown
    (an open sheet, the Timeline tool rail, the mode nav) and below the
    transport, so it covers no controls or sheet fields while it waits.

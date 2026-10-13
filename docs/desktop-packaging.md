@@ -426,6 +426,14 @@ thread only blits bitmaps either way. `.timeline-area[data-waveform-backend]`
 shows which backend ran (`webgl2`, `cpu-worker`, or `none` without
 `Worker`).
 
+## Menu panels in the WebView
+
+Menu panels are Popover API elements ([gui-mobile.md § Menu popover support](gui-mobile.md#menu-popover-support)).
+Current WKWebView (macOS 14+) and WebView2 provide the API. On macOS 12 and 13
+(the bundle's `minimumSystemVersion` is 12.0) the app feature-detects it and
+falls back to a fixed-position panel: menus still open and work, and a clipping
+ancestor can crop them.
+
 ## Record microphone (WebView)
 
 Recording in the packaged WebView is the same Worklet path as the browser

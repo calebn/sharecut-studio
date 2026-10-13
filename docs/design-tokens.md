@@ -112,7 +112,8 @@ an integer.
 | `50` | `--z-shell-chrome` | Shell navigation above sheet scrims. |
 | `51` | `--z-presence-ghost` | Remote presence cursors. |
 | `55` | `--z-sheet-docked` | The compact phone inspector (#1051), docked above the nav or status row beside it; its slot clips its slide so it never draws over them. |
-| `60` | `--z-menu` | Menus and floating edit previews. |
+| `60` | `--z-menu` | Floating edit previews and, where the Popover API is missing, Menu panels. Menu panels are otherwise top-layer popovers (see Top layer below). |
+| `70` | `--z-toast` | The app toast, over shell chrome and menus, under dialogs and the command palette. |
 | `80` | `--z-command-palette` | Command palette root. |
 
 ### Motion
@@ -374,6 +375,21 @@ rename to the system. Don't do drive-by renames across the codebase.
 normal row, initials chip, and compact fader widths. M/S/range targets use
 `--touch-min`. The named `track-mix` container moves Volume below the controls
 when available width shrinks under text scaling. Rows grow rather than clip.
+
+### Top layer
+
+One model orders floating UI. Fixed layers (sheets, dialogs, the command
+palette, the toast) stack by `--z-*`. A `Menu` panel is a `popover`, which the
+browser draws in the top layer above every z-index, so `--z-menu` does not
+order it. Among top-layer elements the one shown last is on top. To keep the
+`--z-toast` promise that a visible toast sits above a menu, `ui/topLayerFloor.ts`
+makes the toast region a manual popover while any Menu panel is open and
+re-shows it after each panel opens (a toast that appears later is claimed the
+same way). Closed menus leave the toast on plain `--z-toast` stacking, so
+dialogs and the command palette still cover it. A new top-layer surface that
+can open while a toast shows must go through that module rather than raise a
+z-index. Without the Popover API (see [gui-mobile.md](gui-mobile.md#menu-popover-support))
+every layer is a fixed element, and `--z-toast` over `--z-menu` gives the same order.
 
 ### Menu placement
 
