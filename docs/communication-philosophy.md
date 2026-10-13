@@ -264,7 +264,7 @@ the empty state, not a separate discovery task.
   and says "Your last edit is still saving. Nothing was undone." ("…Nothing
   was redone."), so it never reverses the edit before the slow one. Tighten apply, skip and Apply
   eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
-  Mute, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
+  Mute, single pending-edit Approve and Reject, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
