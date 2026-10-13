@@ -1,4 +1,10 @@
-import { act, fireEvent, render, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
@@ -132,6 +138,36 @@ describe("TranscriptPanel touch range drag", () => {
     fireEvent.pointerUp(word("plan"), finger(1, 60, 10));
     expect(useDawStore.getState().selection).toEqual(range(0, 1));
     expect(word("simple").className).not.toContain("selected");
+  });
+
+  it("cleans up the drag and puts the earlier selection back when the browser cancels the touch", () => {
+    act(() => {
+      useDawStore.getState().setSelection(range(0, 1));
+    });
+    fireEvent.pointerDown(word("plan"), finger());
+    hold();
+    under(word("simple"));
+    fireEvent.pointerMove(word("plan"), finger(1, 60, 10));
+    expect(word("simple").className).toContain("selected");
+    fireEvent.pointerCancel(word("plan"), finger(1, 60, 10));
+    expect(useDawStore.getState().selection).toEqual(range(0, 1));
+    expect(word("simple").className).not.toContain("selected");
+    fireEvent.pointerMove(word("plan"), finger(1, 90, 10));
+    fireEvent.pointerUp(word("simple"), finger(1, 90, 10));
+    expect(useDawStore.getState().selection).toEqual(range(0, 1));
+  });
+
+  it("puts the earlier selection back when the panel unmounts mid-drag", () => {
+    act(() => {
+      useDawStore.getState().setSelection(range(0, 1));
+    });
+    fireEvent.pointerDown(word("plan"), finger());
+    hold();
+    under(word("simple"));
+    fireEvent.pointerMove(word("plan"), finger(1, 60, 10));
+    expect(useDawStore.getState().selection).toBeNull();
+    cleanup();
+    expect(useDawStore.getState().selection).toEqual(range(0, 1));
   });
 
   it("does not let the click after the lift reset the range to one word", () => {

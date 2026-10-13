@@ -1,10 +1,13 @@
 import { useId } from "react";
 import { runPointerCommand } from "../commands/pointer";
 import { useHoldRepeat } from "../hooks/useHoldRepeat";
+import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { Button } from "../ui";
+import { CommandButton } from "../ui/CommandButton";
 import { findTranscriptWord, transcriptSpanText } from "../utils/transcript";
+import { selectionAllIgnored } from "./ignoredWords";
 import {
   RANGE_STEP_CONTROLS,
   type RangeStep,
@@ -74,7 +77,14 @@ export function WordRangeControls({
 }) {
   const reasonId = useId();
   const project = useDaw((s) => s.project);
+  const hostEditable = useDaw((s) => !isShareProjectKey(s.projectPath));
   if (!project) return null;
+  const ignored = selectionAllIgnored(
+    project,
+    selection.trackId,
+    selection.startWordIndex,
+    selection.endWordIndex,
+  );
   const exists = (wordIndex: number) =>
     findTranscriptWord(project, selection.trackId, wordIndex) !== null;
   const rows = RANGE_STEP_CONTROLS.map(({ step, label }) => {
@@ -108,6 +118,15 @@ export function WordRangeControls({
           />
         ))}
       </div>
+      {hostEditable ? (
+        <CommandButton
+          commandId="transcript.ignoreWords"
+          className="ui-control--compact range-word-ignore"
+          disabled={project.meta.hydration?.transcript_words === false}
+        >
+          {ignored ? "Restore" : "Ignore"}
+        </CommandButton>
+      ) : null}
       {reasons.length > 0 ? (
         <small id={reasonId} className="range-words-reason">
           {reasons.join(" ")}

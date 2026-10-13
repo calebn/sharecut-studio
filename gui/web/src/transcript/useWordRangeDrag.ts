@@ -143,7 +143,7 @@ export function useWordRangeDrag({
     };
   }, [enabled, listRef]);
 
-  useEffect(() => () => clear(), []);
+  useEffect(() => () => cancel(), []);
 
   useEffect(() => {
     if (!enabled && press.current) cancel();
