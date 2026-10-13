@@ -170,10 +170,9 @@ def suggest_handoff_cut(
     if the gap is shorter), then snaps each bound onto a measured silence
     island (RMS on the stem — not transcript word gaps). A hop is quiet when every
     lane is at or under its own voice floor, so the answer does not move with the
-    recording level. Audible non-words
-    (um, chair, bleed) block a join if they sit at the retain target; if they
-    sit between the bounds they are removed with the ripple. If a bound is
-    still in energy after snap, the suggestion is not ok.
+    recording level. Audible non-words (um, chair, bleed) block a join if they sit
+    at the retain target; if they sit between the bounds they are removed with the
+    ripple. If a bound is still in energy after snap, the suggestion is not ok.
     """
     if keep_right_start <= keep_left_end:
         raise ValueError("keep_right_start must be after keep_left_end")
