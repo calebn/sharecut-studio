@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { resolvePendingWireSelection } from "../session/wire";
 import { createPresenceSlice } from "./presenceSlice";
 import { createProjectSlice } from "./projectSlice";
 import { createTransportSlice } from "./transportSlice";
@@ -31,3 +32,18 @@ export const useDawStore = create<DawStore>()(
     ...createUiSlice(...args),
   })),
 );
+
+useDawStore.subscribe((state, prev) => {
+  const { pendingWireSelection, project } = state;
+  if (!pendingWireSelection || !project || project === prev.project) {
+    return;
+  }
+  const selection = resolvePendingWireSelection(
+    pendingWireSelection,
+    project,
+    state.guestMode != null,
+  );
+  if (selection) {
+    state.setSelection(selection);
+  }
+});

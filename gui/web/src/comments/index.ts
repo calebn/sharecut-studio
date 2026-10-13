@@ -4,4 +4,4 @@ export { CommentCard } from "./CommentCard";
 export { CommentCompose } from "./CommentCompose";
 export { commentTimeLabel } from "./commentTimeLabel";
 export { useCommentActions } from "./useCommentActions";
-export { usePostComment } from "./usePostComment";
+export { commentPostedStatus, usePostComment } from "./usePostComment";

@@ -5,6 +5,7 @@ import type { TimelineComment } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { saveCommentAuthor } from "../utils/commentAuthor";
 import { resolveCommentAnchor } from "./commentAnchor";
+import { commentTimeLabel } from "./commentTimeLabel";
 
 export type CommentInput = {
   body: string;
@@ -17,6 +18,12 @@ export type CommentInput = {
 export type PostResult =
   | { ok: true; comment: TimelineComment | null }
   | { ok: false };
+
+export function commentPostedStatus(comment: TimelineComment | null): string {
+  return comment
+    ? `Comment posted at ${commentTimeLabel(comment)}`
+    : "Comment saved. It posts when you reconnect";
+}
 
 /**
  * Posts a comment at the anchor `resolveCommentAnchor` names at the moment of

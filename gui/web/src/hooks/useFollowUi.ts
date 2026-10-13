@@ -6,7 +6,7 @@ import {
   withProgrammaticUi,
 } from "../presence/followSync";
 import { sessionClientList } from "../presence/roster";
-import { selectionFromWire } from "../session/wire";
+import { wireSelectionPatch } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 
@@ -142,8 +142,18 @@ export function useFollowUi(): void {
         }
       }
       if (selChanged) {
-        const next = selectionFromWire(target.meta?.selection, s.project);
+        const wire = wireSelectionPatch(
+          target.meta?.selection,
+          s.project,
+          true,
+        );
+        const next = wire.selection;
         s.setSelection(next);
+        if (wire.pendingWireSelection) {
+          useDawStore.setState({
+            pendingWireSelection: wire.pendingWireSelection,
+          });
+        }
         if (next?.kind === "envelopePoint") {
           s.setLayerVisible("showLevels", true);
         }

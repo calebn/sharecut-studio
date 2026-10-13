@@ -309,6 +309,27 @@ describe("CommentsPanel", () => {
     );
   });
 
+  it.each(["desktop", "tablet", "phone"] as const)(
+    "after Post on %s keeps the field focused, shows the toast and selects nothing",
+    async (shellBreakpoint) => {
+      const user = userEvent.setup();
+      createComment.mockResolvedValueOnce(
+        sampleComment({ id: "c9", timeline_start: 21.4 }),
+      );
+      useDawStore.setState({ shellBreakpoint, playheadSec: 3 });
+      render(<CommentsPanel />);
+      const field = screen.getByRole("textbox", { name: "Comment" });
+      await user.type(field, "Tight");
+      await user.click(screen.getByRole("button", { name: "Post comment" }));
+      await waitFor(() => expect(field).toHaveValue(""));
+      const state = useDawStore.getState();
+      expect(state.selection).toBeNull();
+      expect(state.playheadSec).toBe(3);
+      expect(state.feedbackToast?.message).toMatch(/^Comment posted at /);
+      expect(field).toHaveFocus();
+    },
+  );
+
   it("anchors to the selected range when there is one", async () => {
     const user = userEvent.setup();
     createComment.mockResolvedValueOnce(sampleComment({ id: "c3" }));

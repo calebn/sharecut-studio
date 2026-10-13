@@ -1,3 +1,4 @@
+import type { PendingWireSelection } from "../state/types";
 import type {
   AutomationEnvelope,
   ProjectView,
@@ -169,4 +170,37 @@ function parseWireSelection(
       : null;
   }
   return null;
+}
+
+/**
+ * The store patch for a remote selection: the selection when `project` has its
+ * target, else none, with the wire selection held pending so it resolves when
+ * the project arrives or the target reaches this client (see
+ * `resolvePendingWireSelection`).
+ */
+export function wireSelectionPatch(
+  sel: SessionSelection | null | undefined,
+  project: ProjectView | null | undefined,
+  reachesGuest: boolean,
+): {
+  selection: Selection;
+  pendingWireSelection: PendingWireSelection | null;
+} {
+  const selection = selectionFromWire(sel, project);
+  return {
+    selection,
+    pendingWireSelection:
+      sel && !selection ? { selection: sel, reachesGuest } : null,
+  };
+}
+
+export function resolvePendingWireSelection(
+  pending: PendingWireSelection,
+  project: ProjectView,
+  isGuest: boolean,
+): Selection {
+  if (isGuest && !pending.reachesGuest) {
+    return null;
+  }
+  return selectionFromWire(pending.selection, project);
 }

@@ -6,7 +6,7 @@ import {
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
-import { selectionFromWire, selectionToWire } from "./wire";
+import { selectionFromWire, selectionToWire, wireSelectionPatch } from "./wire";
 
 const envelopes = [
   {
@@ -132,10 +132,24 @@ describe("selection wire", () => {
     ).toBeNull();
   });
 
-  it("drops every selection before the project has loaded", () => {
-    expect(
-      selectionFromWire({ kind: "track", track_id: "host" }, null),
-    ).toBeNull();
+  it("holds a wire selection pending before the project has loaded", () => {
+    const wire = { kind: "pending" as const, id: "cut_1", track_id: "host" };
+    expect(selectionFromWire(wire, null)).toBeNull();
+    expect(wireSelectionPatch(wire, null, false)).toEqual({
+      selection: null,
+      pendingWireSelection: { selection: wire, reachesGuest: false },
+    });
+  });
+
+  it("holds nothing pending once the selection resolves or is cleared", () => {
+    const wire = { kind: "pending" as const, id: "cut_1", track_id: "host" };
+    expect(wireSelectionPatch(wire, project, false)).toEqual({
+      selection: { kind: "pending", id: "cut_1", trackId: "host" },
+      pendingWireSelection: null,
+    });
+    expect(wireSelectionPatch(null, null, false).pendingWireSelection).toBe(
+      null,
+    );
   });
 });
 

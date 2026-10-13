@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { Button } from "../ui";
 
 type Props = {
@@ -11,6 +11,7 @@ type Props = {
   anchor?: ReactNode;
   bodyPlaceholder?: string;
   bodyRows?: number;
+  bodyRef?: Ref<HTMLTextAreaElement>;
   className?: string;
   author?: string;
   onAuthorChange?: (value: string) => void;
@@ -31,6 +32,7 @@ export function CommentCompose({
   anchor,
   bodyPlaceholder = "Feedback…",
   bodyRows = 3,
+  bodyRef,
   className = "comment-compose",
   author,
   onAuthorChange,
@@ -50,6 +52,7 @@ export function CommentCompose({
         </label>
       ) : null}
       <textarea
+        ref={bodyRef}
         value={body}
         onChange={(e) => onBodyChange(e.target.value)}
         aria-label="Comment"

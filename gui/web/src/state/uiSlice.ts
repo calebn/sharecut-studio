@@ -450,12 +450,16 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setSelection: (selection) =>
       set((s) => {
         if (selection == null || selection.kind !== "clip") {
-          return { selection, selectedClipIds: [] };
+          return { selection, selectedClipIds: [], pendingWireSelection: null };
         }
         if (s.selectedClipIds.includes(selection.id)) {
-          return { selection };
+          return { selection, pendingWireSelection: null };
         }
-        return { selection, selectedClipIds: [selection.id] };
+        return {
+          selection,
+          selectedClipIds: [selection.id],
+          pendingWireSelection: null,
+        };
       }),
     selectFromInspector: (selection) => {
       set({ inspectorSelection: selection });

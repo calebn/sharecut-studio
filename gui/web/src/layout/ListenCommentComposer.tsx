@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   CommentAnchorChip,
   CommentCompose,
-  commentTimeLabel,
+  commentPostedStatus,
   usePostComment,
 } from "../comments";
 import { commentRole } from "../shareMode";
@@ -32,11 +32,7 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
     });
     if (!result.ok) return;
     setBody("");
-    announceStatus(
-      result.comment
-        ? `Comment posted at ${commentTimeLabel(result.comment)}`
-        : "Comment saved. It posts when you reconnect",
-    );
+    announceStatus(commentPostedStatus(result.comment));
   };
 
   return (

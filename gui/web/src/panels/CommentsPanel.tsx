@@ -4,6 +4,7 @@ import {
   CommentAuthorLine,
   CommentCard,
   CommentCompose,
+  commentPostedStatus,
   commentTimeLabel,
   useCommentActions,
   usePostComment,
@@ -34,7 +35,6 @@ export function CommentsPanel({
     projectPath,
     setSelection,
     setPlayheadSec,
-    setActiveTab,
     commentMode,
     commentDraft,
     setCommentMode,
@@ -47,7 +47,6 @@ export function CommentsPanel({
     projectPath: s.projectPath,
     setSelection: s.setSelection,
     setPlayheadSec: s.setPlayheadSec,
-    setActiveTab: s.setActiveTab,
     commentMode: s.commentMode,
     commentDraft: s.commentDraft,
     setCommentMode: s.setCommentMode,
@@ -80,6 +79,7 @@ export function CommentsPanel({
 
   const toastSeq = useRef(0);
   const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [undoToast, setUndoToast] = useState<
     (ToastState & { comment: TimelineComment }) | null
   >(null);
@@ -141,11 +141,8 @@ export function CommentsPanel({
     if (!result.ok) return;
     setBody("");
     setActionLine("");
-    if (result.comment) {
-      setSelection({ kind: "comment", id: result.comment.id });
-      setPlayheadSec(result.comment.timeline_start);
-    }
-    setActiveTab("comments");
+    announceStatus(commentPostedStatus(result.comment));
+    bodyRef.current?.focus();
   };
 
   const toggleTrack = (id: string) => {
@@ -204,6 +201,7 @@ export function CommentsPanel({
       {mayComment && (
         <CommentCompose
           body={body}
+          bodyRef={bodyRef}
           onBodyChange={setBody}
           busy={busy}
           onSubmit={() => void onCreate()}
