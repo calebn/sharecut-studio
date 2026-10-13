@@ -700,6 +700,13 @@ html[data-shell="phone"] .impact-pending-select {
     -webkit-touch-callout: none;
   }
 
+  /* Select mode makes its own range: a hold that drifts onto the gaps between
+     words must not start the native selection (iPad Safari does). */
+  [data-transcript-intent="select"] .utterance-turn {
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
   .utterance-restore {
     /* Always visible on touch, so it may take its inline space. */
     position: static;
@@ -1622,7 +1629,6 @@ button.history-row {
   gap: var(--space-1) var(--space-3);
 }
 
-/* Touch: every row action, and the time that goes to the hit, is a 44px target. */
 @media (pointer: coarse) {
   .tighten-row-actions .ui-control,
   .tighten-table td .linkish {
@@ -1653,9 +1659,73 @@ button.history-row {
   color: var(--color-text-secondary);
 }
 
+/* A narrow panel (a phone) stacks each hit as a block: the time, track, class
+   and risk on one line, the snippet under it, then the decisions at full
+   width, so Apply and Skip never sit past the edge of a scrolled table. */
 @container tighten (max-width: 36rem) {
   .tighten-snippet {
-    max-width: 10rem;
+    max-width: none;
+  }
+
+  .tighten-table thead {
+    position: absolute;
+    inline-size: 0.0625rem;
+    block-size: 0.0625rem;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .tighten-table,
+  .tighten-table tbody {
+    display: block;
+  }
+
+  .tighten-table tr {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time track class risk"
+      "snippet snippet snippet snippet"
+      "actions actions actions actions";
+    align-items: center;
+    gap: var(--space-1) var(--space-4);
+    padding: var(--space-3) var(--space-3);
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .tighten-table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .tighten-table td:nth-child(1) {
+    grid-area: time;
+  }
+
+  .tighten-table td:nth-child(2) {
+    grid-area: track;
+  }
+
+  .tighten-table td:nth-child(3) {
+    grid-area: class;
+    color: var(--color-text-secondary);
+  }
+
+  .tighten-table td:nth-child(4) {
+    grid-area: snippet;
+  }
+
+  .tighten-table td:nth-child(5) {
+    grid-area: risk;
+    justify-self: end;
+  }
+
+  .tighten-table td:nth-child(6) {
+    display: none;
+  }
+
+  .tighten-table td:nth-child(7) {
+    grid-area: actions;
   }
 }
 

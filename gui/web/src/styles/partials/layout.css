@@ -1578,6 +1578,7 @@ html[data-shell] body {
   flex-direction: column;
   gap: var(--space-3);
   flex: 1 1 16rem;
+  max-inline-size: 28rem;
   min-inline-size: 0;
 }
 
