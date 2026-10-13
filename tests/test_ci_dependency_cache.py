@@ -42,7 +42,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     assert "cache" not in frontend_python["with"]
     pytest_steps = jobs["pytest"]["steps"]
     test = next(step for step in pytest_steps if step.get("name") == "Run tests with coverage gate")
-    assert test["if"] == "steps.plan.outputs.pytest != 'web'"
+    assert test["if"] == "steps.plan.outputs.pytest == 'full'"
     assert not test.get("continue-on-error")
     assert (
         test["run"]

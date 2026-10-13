@@ -4,10 +4,11 @@
 Usage:
   python3 scripts/ci_plan.py plan --event pull_request --base <sha> --head <sha>
   python3 scripts/ci_plan.py plan --event push          # main, nightly, dispatch: everything
-  python3 scripts/ci_plan.py web-tests                  # pytest files that read gui/web
+  python3 scripts/ci_plan.py subset-tests web|docs      # pytest files that read that scope
 
 `plan` prints `key=value` lines for `$GITHUB_OUTPUT`: `gui` (run Vitest and the
-browser suites), `pytest` (`full` or `web`) and `e2e-matrix` (the browser jobs).
+browser suites), `pytest` (`full`, `web` or `docs`) and `e2e-matrix` (the browser
+jobs).
 Stdlib only, so CI runs it before installing anything.
 """
 
@@ -31,11 +32,57 @@ from docs_sync import Glob
 
 ROOT = Path(__file__).resolve().parents[1]
 PULL_REQUEST = "pull_request"
-WEB = Glob.parse("gui/web/**")
 # A pytest file that names gui/web reads it (source, config, generated copies).
 WEB_READER_RE = re.compile(r"""gui/web|["']gui["']\s*(?:/|,)\s*["']web["']""")
+# A pytest file that names a docs path reads it, in "docs/x.md" or "docs" / "x.md" form.
+DOCS_READER_RE = re.compile(
+    r"""(?<![\w.-])(?:docs|ux|docs-site)/"""
+    r"""|(?<![\w/.-])(?:README|ROADMAP|AGENTS)\.md"""
+    r"""|\.agents/skills"""
+    r"""|["'](?:docs|ux|docs-site)["']\s*[/,]"""
+    r"""|/\s*["'](?:docs|ux|docs-site)["']"""
+    r"""|["']\.agents["']\s*[/,]\s*["']skills["']"""
+)
+SCRIPT_REF_RES = (
+    re.compile(r"""load_script\(\s*["'](\w+)["']"""),
+    re.compile(r"""scripts/(\w+)\.py"""),
+    re.compile(r"""["']scripts["']\s*/\s*["'](\w+)\.py["']"""),
+    re.compile(r"""^\s*(?:from|import)\s+(\w+)""", re.MULTILINE),
+)
 MAIN_SHARDS = 4
 PR_WEBKIT_SHARDS = 2
+
+
+@dataclass(frozen=True)
+class Subset:
+    """A pull request whose every path matches *owns* needs only the pytest files reading them."""
+
+    owns: tuple[Glob, ...]
+    reader: re.Pattern[str]
+
+    def covers(self, changed: Sequence[str]) -> bool:
+        return bool(changed) and all(any(g.matches(path) for g in self.owns) for path in changed)
+
+
+SubsetName = Literal["web", "docs"]
+SUBSETS: dict[SubsetName, Subset] = {
+    "web": Subset((Glob.parse("gui/web/**"),), WEB_READER_RE),
+    "docs": Subset(
+        tuple(
+            Glob.parse(pattern)
+            for pattern in (
+                "docs/**",
+                "docs-site/**",
+                "ux/**",
+                ".agents/skills/**",
+                "README.md",
+                "ROADMAP.md",
+                "AGENTS.md",
+            )
+        ),
+        DOCS_READER_RE,
+    ),
+}
 
 
 class Scope(Enum):
@@ -81,6 +128,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         # The projects the browser suites open.
         ("tests/fixtures/aligned_dialogue/**", Scope.GUI),
         ("tests/fixtures/sharecut_ux_demo/**", Scope.GUI),
+        ("tests/fixtures/document_delta/**", Scope.GUI),
         ("tests/**", Scope.OTHER),
         # This planner (and the glob it borrows), then scripts gui/web or the
         # frontend job runs.
@@ -97,6 +145,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("docs-site/**", Scope.OTHER),
         ("ux/**", Scope.OTHER),
         ("examples/**", Scope.OTHER),
+        ("config/distribution.dev.json", Scope.GUI),
         ("config/**", Scope.OTHER),
         (".github/workflows/test.yml", Scope.GUI),
         (".github/actions/**", Scope.GUI),
@@ -104,6 +153,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("pyproject.toml", Scope.GUI),
         ("uv.lock", Scope.GUI),
         (".nvmrc", Scope.GUI),
+        (".agents/defaults/**", Scope.GUI),
         (".agents/**", Scope.OTHER),
         (".claude/**", Scope.OTHER),
         (".codex/**", Scope.OTHER),
@@ -175,7 +225,7 @@ def pr_compat() -> list[E2eJob]:
 @dataclass(frozen=True)
 class CiPlan:
     gui: bool
-    pytest: Literal["full", "web"]
+    pytest: Literal["full", "web", "docs"]
     e2e: tuple[E2eJob, ...]
 
     def outputs(self) -> dict[str, str]:
@@ -192,21 +242,46 @@ def plan(event: str, changed: Sequence[str]) -> CiPlan:
     if event != PULL_REQUEST:
         return CiPlan(gui=True, pytest="full", e2e=(*main_shards(), *full_compat()))
     gui = not changed or any(scope_of(path) is Scope.GUI for path in changed)
-    web_only = bool(changed) and all(WEB.matches(path) for path in changed)
+    scope: Literal["full", "web", "docs"] = next(
+        (name for name, subset in SUBSETS.items() if subset.covers(changed)), "full"
+    )
     return CiPlan(
         gui=gui,
-        pytest="web" if web_only else "full",
+        pytest=scope,
         e2e=(*main_shards(), *pr_compat()) if gui else (),
     )
 
 
-def web_tests(root: Path = ROOT) -> list[str]:
-    """Repo-relative pytest files whose source names gui/web, sorted."""
-    return sorted(
-        path.relative_to(root).as_posix()
-        for path in (root / "tests").rglob("test_*.py")
-        if WEB_READER_RE.search(path.read_text(encoding="utf-8"))
-    )
+def _script_readers(root: Path, reader: re.Pattern[str]) -> set[str]:
+    """Names of scripts/*.py whose source matches *reader*, or that import such a script."""
+    sources = {
+        path.stem: path.read_text(encoding="utf-8") for path in (root / "scripts").glob("*.py")
+    }
+    readers = {name for name, source in sources.items() if reader.search(source)}
+    while grown := {
+        name
+        for name, source in sources.items()
+        if name not in readers and _referenced_scripts(source, sources) & readers
+    }:
+        readers |= grown
+    return readers
+
+
+def _referenced_scripts(source: str, scripts: Iterable[str]) -> set[str]:
+    named = {name for ref in SCRIPT_REF_RES for name in ref.findall(source)}
+    return named & set(scripts)
+
+
+def subset_tests(scope: SubsetName, root: Path = ROOT) -> list[str]:
+    """Repo-relative pytest files that read *scope*, directly or through a script, sorted."""
+    reader = SUBSETS[scope].reader
+    script_readers = _script_readers(root, reader)
+    selected = []
+    for path in (root / "tests").rglob("test_*.py"):
+        source = path.read_text(encoding="utf-8")
+        if reader.search(source) or _referenced_scripts(source, script_readers):
+            selected.append(path.relative_to(root).as_posix())
+    return sorted(selected)
 
 
 def changed_files(base: str, head: str, root: Path = ROOT) -> list[str]:
@@ -233,11 +308,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_cmd.add_argument("--event", required=True)
     plan_cmd.add_argument("--base")
     plan_cmd.add_argument("--head")
-    sub.add_parser("web-tests")
+    subset_cmd = sub.add_parser("subset-tests")
+    subset_cmd.add_argument("scope", choices=sorted(SUBSETS))
     args = parser.parse_args(argv)
 
-    if args.command == "web-tests":
-        _print_lines(web_tests())
+    if args.command == "subset-tests":
+        _print_lines(subset_tests(args.scope))
         return 0
     changed: list[str] = []
     if args.event == PULL_REQUEST:

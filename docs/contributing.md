@@ -216,7 +216,10 @@ and decides:
 
 - A PR that touches nothing GUI-facing skips Vitest and the browser suites.
 - A PR that touches only `gui/web/` runs just the Python tests that read
-  `gui/web`.
+  `gui/web`, or run a script that does.
+- A PR that touches only docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`,
+  `README.md`, `ROADMAP.md`, `AGENTS.md`) runs just the Python tests that read
+  those paths, plus the docs-sync gate.
 - Browser compat runs on WebKit only.
 
 `main`, the nightly schedule and `workflow_dispatch` run everything, with the
@@ -224,9 +227,13 @@ and decides:
 on every PR, and a skipped job counts as passing. See
 [testing.md § Which jobs a run needs](testing.md#which-jobs-a-run-needs).
 
-- **New directory.** Classify it in `PATH_RULES` in `scripts/ci_plan.py`.
-  `tests/test_ci_plan.py` fails until you do. Until then, the path counts as
-  GUI-facing.
+- **New directory.** A new top-level directory, or a new `src/podcast_mcp`
+  package, fails `tests/test_ci_plan.py` until you classify it in `PATH_RULES`
+  in `scripts/ci_plan.py`. A new directory under a top-level directory that
+  already has a `**` rule (`tests/`, `scripts/`, `docs/`) inherits that rule's
+  scope. The test also fails when `gui/web` names a repo path that is not
+  classified GUI-facing, so give such a path a GUI rule. An unclassified path
+  counts as GUI-facing in a real run.
 - **A non-GUI change that you expect to affect the browser.** For example, an
   `edits/` change that alters what a timeline spec sees. Run
   `gh workflow run test.yml --ref <branch>` to get the full run before merge,
