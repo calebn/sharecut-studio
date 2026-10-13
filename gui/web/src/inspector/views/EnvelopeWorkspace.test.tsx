@@ -326,6 +326,16 @@ describe("EnvelopeWorkspace timeline bound (#1336)", () => {
       screen.getByLabelText("Time (seconds on timeline)"),
     ).not.toHaveFocus();
   });
+  it("on touch opens the edit form on its heading too", async () => {
+    useDawStore.setState({ pointerKind: "coarse" });
+    hydrate([{ id: "mid", time: 5, value: 0.5 }], "mid");
+    mount("mid");
+    await edit();
+    expect(screen.getByRole("heading", { name: "Edit point" })).toHaveFocus();
+    expect(
+      screen.getByLabelText("Time (seconds on timeline)"),
+    ).not.toHaveFocus();
+  });
   it("with a mouse or keyboard still lands in the Time field", async () => {
     useDawStore.setState({ pointerKind: "fine" });
     mount();

@@ -1,8 +1,17 @@
 import { act, render, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useKeyboardInset } from "./useKeyboardInset";
 
 class FakeViewport extends EventTarget {
+  listeners = 0;
+  addEventListener(...args: Parameters<EventTarget["addEventListener"]>) {
+    this.listeners += 1;
+    super.addEventListener(...args);
+  }
+  removeEventListener(...args: Parameters<EventTarget["removeEventListener"]>) {
+    this.listeners -= 1;
+    super.removeEventListener(...args);
+  }
   height = 800;
   offsetTop = 0;
   scale = 1;
@@ -84,5 +93,53 @@ describe("useKeyboardInset", () => {
     render(<Probe on={false} />);
     act(() => viewport.move({ height: 400 }));
     expect(root.dataset.keyboard).toBeUndefined();
+  });
+
+  describe("lifecycle", () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it("removes both visualViewport listeners and cancels its pending frame on unmount", () => {
+      vi.spyOn(window, "requestAnimationFrame").mockReturnValue(7);
+      const cancel = vi
+        .spyOn(window, "cancelAnimationFrame")
+        .mockImplementation(() => undefined);
+      const view = render(<Probe on />);
+      expect(viewport.listeners).toBe(2);
+      act(() => viewport.move({ height: 480 }));
+      view.unmount();
+      expect(viewport.listeners).toBe(0);
+      expect(cancel).toHaveBeenCalledWith(7);
+    });
+
+    it("keeps at most one reveal frame pending however many viewport events arrive", () => {
+      const frame = vi
+        .spyOn(window, "requestAnimationFrame")
+        .mockReturnValue(3);
+      render(<Probe on />);
+      act(() => viewport.move({ height: 480 }));
+      act(() => viewport.move({ height: 470, offsetTop: 10 }));
+      act(() => viewport.dispatchEvent(new Event("scroll")));
+      expect(frame).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves the outer sheet's inset in place when a nested sheet unmounts", () => {
+      function Nested({ inner }: { inner: boolean }) {
+        return (
+          <>
+            <Probe on />
+            {inner ? <Probe on /> : null}
+          </>
+        );
+      }
+      const view = render(<Nested inner />);
+      act(() => viewport.move({ height: 480, offsetTop: 40 }));
+      view.rerender(<Nested inner={false} />);
+      expect(root.dataset.keyboard).toBe("open");
+      expect(root.style.getPropertyValue("--keyboard-inset")).toBe("280px");
+      expect(viewport.listeners).toBe(2);
+      view.unmount();
+      expect(root.dataset.keyboard).toBeUndefined();
+      expect(viewport.listeners).toBe(0);
+    });
   });
 });
