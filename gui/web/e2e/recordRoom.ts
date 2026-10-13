@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import { findCurrentTake } from "../src/record/types";
 import { isPathInside } from "./pathInside";
+import { participantSaveStatus } from "./saveRoster";
 import { wavPeak } from "./wavPeak";
 
 /** Record-share room as returned by `POST /api/shares/record`. */
@@ -470,9 +471,10 @@ export async function openHostRecordRoom(host: Page): Promise<Locator> {
 }
 
 /**
- * Wait for `name`'s full-quality recording to save to the project, then for
- * every take to auto-land, or click Land if it becomes enabled first
- * (tolerating auto-land disabling it between the check and the click).
+ * Wait for every segment of `name`'s full-quality recording to save to the
+ * project, then for every take to auto-land, or click Land if it becomes
+ * enabled first (tolerating auto-land disabling it between the check and the
+ * click).
  */
 export async function landParticipant(
   roomDlg: Locator,
@@ -481,9 +483,16 @@ export async function landParticipant(
   const uploadList = roomDlg.getByRole("list", {
     name: "Full-quality recording status",
   });
-  await expect(uploadList.getByText(`${name}: Saved to project`)).toBeVisible({
-    timeout: 60_000,
-  });
+  await expect
+    .poll(
+      async () =>
+        participantSaveStatus(
+          await uploadList.getByRole("listitem").allInnerTexts(),
+          name,
+        ),
+      { timeout: 60_000 },
+    )
+    .toBe("saved");
   const landed = roomDlg.getByText("Every take is on the timeline.");
   const landButton = roomDlg.getByRole("button", {
     name: "Land",
