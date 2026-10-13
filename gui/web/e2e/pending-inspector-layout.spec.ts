@@ -115,8 +115,10 @@ test.describe("Pending inspector layout", () => {
       page.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
     const dialog = page.getByRole("dialog", { name: "Inspector" });
-    await clickApproveUntilError(dialog);
-    await expectErrorPinnedAboveAudition(dialog);
+    // The sheet's pinned card repeats Approve; the inspector body owns the error.
+    const inspector = dialog.getByRole("complementary");
+    await clickApproveUntilError(inspector);
+    await expectErrorPinnedAboveAudition(inspector);
     await exposeControl(page, dialog.getByRole("button", { name: "Seek" }), []);
     await exposeControl(
       page,
