@@ -61,6 +61,9 @@ you want to rebuild that fixture.
 GUI; `profile:compare` freezes or applies worker-specific diagnostic budgets.
 See [editor responsiveness profiling](testing.md#large-project-browser-profile-opt-in)
 for independent repetitions, retained evidence, and cold-cache limits.
+`make profile-seek-trim OUT=/tmp/seek-trim` runs the two-task
+[seek and trim profile](testing.md#seek-and-trim-profile-opt-in) and prints a
+summary table.
 
 ## Maximal install (all extras)
 

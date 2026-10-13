@@ -132,7 +132,8 @@ Host MCP agents can read and replace it with revision checks. See the
 - [CI workflow](.github/workflows/test.yml) defines the frontend browser matrix
   and its job timeouts, including the Chromium and WebKit compatibility jobs.
 - Editor profiling: `npm --prefix gui/web run profile:remaining` runs disposable
-  workload profiles; `profile:compare` freezes or applies local diagnostic budgets.
+  workload profiles; `profile:compare` freezes or applies local diagnostic budgets;
+  `make profile-seek-trim OUT=/tmp/seek-trim` profiles ruler seek and clip trim.
   See [the profiling commands and limits](docs/testing.md#large-project-browser-profile-opt-in).
 - [Roadmap](ROADMAP.md)
 
