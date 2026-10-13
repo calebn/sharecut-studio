@@ -18,13 +18,9 @@ describe("App styles", () => {
     );
     expect(src).not.toMatch(/@media\s*\(/);
     expect(src).toMatch(/@container app \(inline-size < 68\.75rem\)/);
-    // The Menu panel is portaled out of @container transport: its touch rows
-    // follow the shell, in ui.css beside the menu rules.
+    // Compact menu touch rows live with the menu rules in ui.css.
     const ui = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
-    expect(ui).toMatch(
-      /html:is\(\[data-shell="phone"\], \[data-shell="tablet"\]\)\s+\.ui-menu-popup/,
-    );
-    expect(ui).not.toMatch(/@container transport/);
+    expect(ui).toMatch(/@container transport \(inline-size < 68\.75rem\)/);
     const px = [...src.matchAll(/(?<![\d.])(\d+)px\b/g)].map((m) =>
       Number(m[1]),
     );

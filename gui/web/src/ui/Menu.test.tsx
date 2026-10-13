@@ -255,7 +255,7 @@ describe("Menu", () => {
     }
   });
 
-  it("portals the panel to the body and keeps it inside the viewport", async () => {
+  it("shows the panel as a popover and keeps it inside the viewport", async () => {
     const user = userEvent.setup();
     const innerWidth = vi.spyOn(window, "innerWidth", "get");
     innerWidth.mockReturnValue(393);
@@ -275,14 +275,16 @@ describe("Menu", () => {
     const width = vi
       .spyOn(HTMLElement.prototype, "offsetWidth", "get")
       .mockReturnValue(240);
+    const show = vi.spyOn(HTMLElement.prototype, "showPopover");
     try {
-      const { container } = render(<Fixture />);
+      render(<Fixture />);
       await user.click(screen.getByRole("button", { name: "Open" }));
       const panel = screen.getByRole("menu", { name: "Test menu" });
-      expect(container.contains(panel)).toBe(false);
-      expect(panel.parentElement).toBe(document.body);
+      expect(show).toHaveBeenCalledTimes(1);
+      expect(show.mock.contexts[0]).toBe(panel);
       expect(panel.style.left).toBe(`${0.5 * 16}px`);
     } finally {
+      show.mockRestore();
       width.mockRestore();
       rect.mockRestore();
       innerHeight.mockRestore();

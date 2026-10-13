@@ -6,7 +6,6 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { createPortal } from "react-dom";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
 import { useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
@@ -15,8 +14,8 @@ import { useOutsidePointerDown } from "./useOutsidePointerDown";
  * Places the open panel against the visual viewport (and above the phone nav
  * when there is one): below the trigger, flipped above it when that side has
  * more room, clamped `--menu-edge-margin` inside every edge. The panel is a
- * body-level `position: fixed` box, so no sheet, size container or stacking
- * context between it and the trigger can clip or bury it.
+ * `popover` in the top layer, so no sheet's overflow, size container or
+ * stacking context between it and the trigger can clip or bury it.
  */
 function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   const viewport = visualViewportBox(document.querySelector(".mobile-nav"));
@@ -85,7 +84,15 @@ export function Menu({
   const autoId = useId();
   const menuId = menuIdProp ?? autoId;
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const attachPanel = useCallback((panel: HTMLDivElement) => {
+    panelRef.current = panel;
+    panel.showPopover();
+    return () => {
+      panel.hidePopover();
+      panelRef.current = null;
+    };
+  }, []);
 
   const close = useCallback(() => {
     onOpenChange(false);
@@ -141,37 +148,23 @@ export function Menu({
         onClick: () => onOpenChange(!open),
         ref: triggerRef,
       })}
-      {open
-        ? createPortal(
-            <div
-              ref={panelRef}
-              id={menuId}
-              className="ui-menu-panel ui-menu-popup"
-              role="menu"
-              aria-label={label}
-              onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) {
-                  close();
-                }
-              }}
-              onKeyDown={(event) => {
-                // The panel sits at the end of <body>, so the browser's own
-                // Tab order would skip the trigger's neighbours: hand focus
-                // back to the trigger and let Tab continue from there.
-                if (event.key !== "Tab") {
-                  return;
-                }
-                triggerRef.current?.focus();
-                if (event.shiftKey) {
-                  event.preventDefault();
-                }
-              }}
-            >
-              {children}
-            </div>,
-            document.body,
-          )
-        : null}
+      {open ? (
+        <div
+          ref={attachPanel}
+          id={menuId}
+          className="ui-menu-panel ui-menu-popup"
+          popover="manual"
+          role="menu"
+          aria-label={label}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              close();
+            }
+          }}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }

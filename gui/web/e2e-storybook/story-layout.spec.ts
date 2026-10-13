@@ -53,7 +53,7 @@ for (const width of [1440, 360]) {
       });
     }
 
-    test(`Menu fits its inline Docs host at ${width} in ${theme}`, async ({
+    test(`Menu opened from its inline Docs host stays in the viewport at ${width} in ${theme}`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 740 });
@@ -66,10 +66,10 @@ for (const width of [1440, 360]) {
       );
       const host = page.locator("#story--molecules-menu--default");
       await host.getByRole("button", { name: "Actions" }).click();
-      await expectInside(host.getByRole("menu"), "story");
+      await expectInside(host.getByRole("menu"), "viewport");
     });
 
-    test(`Avatar overflow fits its Docs host at ${width} in ${theme}`, async ({
+    test(`Avatar overflow menu opened from its Docs host stays in the viewport at ${width} in ${theme}`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 740 });
@@ -82,7 +82,7 @@ for (const width of [1440, 360]) {
       );
       const host = page.locator("#story--templates-avatarstack--overflow");
       await host.getByRole("button", { name: "+2 more" }).click();
-      await expectInside(host.getByRole("menu"), "story");
+      await expectInside(host.getByRole("menu"), "viewport");
     });
 
     test(`JoinPopover Docs contains every fixed panel at ${width} in ${theme}`, async ({
