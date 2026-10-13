@@ -237,8 +237,12 @@ command left at the head, read in the same locked step as its apply. It is null 
 history did not move and absent on an idempotent retry or a queued command, and then
 the toast offers no Undo.
 `announceStatus(message, { undo: replyHistoryHead(reply) })` binds the toast to that
-entry. The toast shows Undo only while the tab's `history.head_id` is that entry, and
-its click sends `UndoHistory` with it as `expected_head_id`. If another edit landed
+entry. The toast shows Undo only while the tab's `history.head_id` is that entry, or is
+still the head the tab showed when the toast was announced (`baseHead`): the reply can
+reach the toast a few milliseconds before the document update that shows the new head,
+and a toast must not drop its Undo in that gap. A different head hides it. A page that
+never opened History skips the delta's `history_groups` rows it cannot line up, so the
+head still lands without a refetch (`document/projectionDelta.ts`). Its click sends `UndoHistory` with it as `expected_head_id`. If another edit landed
 first, the server refuses and the toast says "Can't undo: the project changed since.
 Nothing was undone." The reply, not the tab's store after the await, names the entry,
 because a peer's edit can reach the store while the command is in flight.
