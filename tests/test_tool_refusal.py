@@ -187,6 +187,43 @@ def test_guest_message_is_the_message_when_it_names_no_path() -> None:
     assert exc.guest_message() == "unknown track_id: 'Talkin' Shop'"
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        r"missing: 'C:\\Users\\caleb\\Talkin Shop\\ep1.wav'",
+        r"missing: ['C:\\Users\\caleb\\Talkin Shop\\ep1.wav']",
+        r"missing: \\\\nas\\shows\\Talkin Shop\\ep1.wav",
+        "missing:/media/caleb/Talkin Shop/x.wav",
+        "missing-/media/caleb/Talkin Shop/x.wav",
+        "missing)/media/caleb/Talkin Shop/x.wav",
+        "missing: %2FUsers%2Fcaleb",
+        "missing: ../Talkin Shop/x.wav",
+        "missing: /TalkinShop",
+    ],
+    ids=[
+        "escaped-windows",
+        "escaped-windows-list",
+        "escaped-unc",
+        "after-colon",
+        "after-hyphen",
+        "after-parenthesis",
+        "percent-encoded",
+        "relative-parent",
+        "single-root",
+    ],
+)
+def test_guest_message_withholds_all_audited_path_forms(message: str) -> None:
+    exc = CodedError(message, code="file_not_found")
+
+    assert exc.guest_message() == "That didn't work; ask the host to check this episode."
+
+
+def test_guest_message_allows_a_bare_filename() -> None:
+    exc = CodedError("A wav not found: A.wav", code="file_not_found")
+
+    assert exc.guest_message() == "A wav not found: A.wav"
+
+
 def test_a_marked_guest_message_survives_pickle() -> None:
     exc = CodedValueError("bad /Users/host/x.wav", code="x", guest_message="Fixed.")
 
