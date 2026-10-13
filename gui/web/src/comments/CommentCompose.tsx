@@ -6,10 +6,11 @@ type Props = {
   onBodyChange: (value: string) => void;
   busy?: boolean;
   submitLabel?: string;
-  submitDisabled?: boolean;
   onSubmit: () => void;
-  hint?: ReactNode;
+  /** Where the comment lands, shown beside the submit button. */
+  anchor?: ReactNode;
   bodyPlaceholder?: string;
+  bodyRows?: number;
   className?: string;
   author?: string;
   onAuthorChange?: (value: string) => void;
@@ -17,16 +18,19 @@ type Props = {
   children?: ReactNode;
 };
 
-/** Shared comment compose shell (optional author + body + submit). */
+/**
+ * Shared comment compose shell: optional author, body, extra fields, then
+ * the anchor and submit on one row. Submit enables once the body has text.
+ */
 export function CommentCompose({
   body,
   onBodyChange,
   busy = false,
   submitLabel = "Post comment",
-  submitDisabled,
   onSubmit,
-  hint,
+  anchor,
   bodyPlaceholder = "Feedback…",
+  bodyRows = 3,
   className = "comment-compose",
   author,
   onAuthorChange,
@@ -35,7 +39,6 @@ export function CommentCompose({
 }: Props) {
   return (
     <div className={className}>
-      {hint}
       {author != null && onAuthorChange ? (
         <label>
           {authorLabel}
@@ -51,17 +54,20 @@ export function CommentCompose({
         onChange={(e) => onBodyChange(e.target.value)}
         aria-label="Comment"
         placeholder={bodyPlaceholder}
-        rows={3}
+        rows={bodyRows}
       />
       {children}
-      <Button
-        variant="primary"
-        disabled={busy || submitDisabled}
-        aria-busy={busy || undefined}
-        onClick={() => onSubmit()}
-      >
-        {busy ? "Posting…" : submitLabel}
-      </Button>
+      <div className="comment-compose-submit">
+        {anchor}
+        <Button
+          variant="primary"
+          disabled={busy || !body.trim()}
+          aria-busy={busy || undefined}
+          onClick={() => onSubmit()}
+        >
+          {busy ? "Posting…" : submitLabel}
+        </Button>
+      </div>
     </div>
   );
 }

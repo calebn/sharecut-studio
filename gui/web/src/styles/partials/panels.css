@@ -124,11 +124,6 @@ html[data-shell="phone"] .impact-pending-select {
   border-radius: var(--radius-md);
 }
 
-.comment-compose-hint {
-  margin: 0;
-  color: var(--color-text-secondary);
-}
-
 .comment-compose textarea {
   background: var(--color-field);
   border: 1px solid var(--color-border);
@@ -137,6 +132,68 @@ html[data-shell="phone"] .impact-pending-select {
   border-radius: var(--radius-sm);
   font: inherit;
   resize: vertical;
+}
+
+/* The anchor chip leads; Post comment keeps the trailing edge. */
+.comment-compose-submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.comment-compose-submit > .primary {
+  margin-inline-start: auto;
+}
+
+.comment-compose .comment-time-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-field);
+  color: var(--color-text-secondary);
+}
+
+.comment-time-chip-value,
+.comment-time-field {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.comment-time-field {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-field);
+  font-size: var(--font-size-review);
+}
+
+/* Docked on the phone Listen view: one quiet row of text, then the chip and
+   Post. Fields stay at 1rem so iOS does not zoom in on focus. */
+.comment-compose--dock {
+  padding: 0;
+  gap: var(--space-3);
+  background: transparent;
+  border: none;
+}
+
+.comment-compose--dock textarea {
+  font-size: var(--font-size-review);
+  resize: none;
+  min-block-size: var(--touch-min);
+}
+
+@media (pointer: coarse) {
+  .comment-compose .comment-time-chip,
+  .comment-compose .comment-time-field,
+  .comment-compose-submit > .primary {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .comment-track-picks {

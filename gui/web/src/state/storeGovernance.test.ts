@@ -400,6 +400,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "falls back to the current playhead when a blade atTime arg is omitted",
   },
   {
+    file: "comments/commentAnchor.ts",
+    reason:
+      "pure anchor resolution: the CommentAnchorChip leaf selects only its label string, and a post reads it once",
+  },
+  {
     file: "hooks/useAudioTransport.ts",
     reason: "drives audio transport from the live playhead",
   },

@@ -232,9 +232,10 @@ html[data-shell="tablet"] {
     "follow"
     "transport"
     "main"
+    "dock"
     "nav";
   grid-template-rows:
-    auto auto var(--transport-height) minmax(0, 1fr)
+    auto auto var(--transport-height) minmax(0, 1fr) auto
     var(--mobile-nav-height);
   height: 100vh;
   height: 100dvh;
@@ -244,7 +245,15 @@ html[data-shell="tablet"] {
 
 /* Listen owns its transport, so the transport row collapses. */
 .daw-shell--phone.daw-shell--listen {
-  grid-template-rows: auto auto 0 minmax(0, 1fr) var(--mobile-nav-height);
+  grid-template-rows: auto auto 0 minmax(0, 1fr) auto var(--mobile-nav-height);
+}
+
+/* Listen's comment field: the bottom zone, right above the mode bar. */
+.daw-shell > .mobile-dock {
+  grid-area: dock;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+  padding: var(--space-3) var(--space-4);
 }
 
 .daw-shell--phone .transport-secondary {

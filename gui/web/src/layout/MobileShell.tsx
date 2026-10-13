@@ -29,6 +29,7 @@ import { usePresenceCursorSource } from "../presence/usePresenceCursorSource";
 import { RecordTransportChip } from "../record/RecordTransportChip";
 import {
   canApplyPass12,
+  canComment,
   canIngestMedia,
   canManageProjects,
   guestShareBannerLabel,
@@ -54,6 +55,7 @@ import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { HomeScreenHint } from "./HomeScreenHint";
+import { ListenCommentComposer } from "./ListenCommentComposer";
 import { ListenHero } from "./ListenHero";
 import { ListenScrubber } from "./ListenPlayhead";
 import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
@@ -529,7 +531,15 @@ function MobileShellAdapter({
           selection.kind === "pending")));
   const screen: MobileScreen =
     mobileMode === "listen"
-      ? { kind: "listen", content: <ListenMode guestShare={guestShare} /> }
+      ? {
+          kind: "listen",
+          content: <ListenMode guestShare={guestShare} />,
+          dock:
+            project != null &&
+            canComment(projectPath, guestMode, shareCapabilities) ? (
+              <ListenCommentComposer guestShare={guestShare} />
+            ) : undefined,
+        }
       : mobileMode === "timeline"
         ? {
             kind: "timeline",
