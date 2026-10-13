@@ -29,30 +29,35 @@ from podcast_mcp.edits.audio_cache import (
     room_floor_db,
     speech_level_db,
 )
-from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.clips_ops import clips_for_track, remove_timeline_range_from_clips
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
-from podcast_mcp.edits.ranges import SPAN_EPS_S
-from podcast_mcp.edits.session_air import lane_placements
+from podcast_mcp.edits.session_air import (
+    SampleRun,
+    lane_clip_placements,
+    lane_placements,
+    read_samples,
+)
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC, PROBE_SEC, carries_speech_pitch
 from podcast_mcp.engines.audio_audit import (
     _RMS_SAMPLE_RATE,
     AnalysisPolicy,
+    TrackRmsCache,
     TrackRmsCacheSet,
     measure_timeline_rms_db,
     timeline_frame_levels_db,
     timeline_window_samples,
 )
+from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
-    clip_timeline_point_to_source,
     word_source_span,
 )
 from podcast_mcp.models import CutSpeechWord, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import bool_runs
-from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
+from podcast_mcp.util.intervals import intersect_intervals, merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -107,91 +112,103 @@ class PeerSpeechLevels:
     """Per peer, the spans where its own sound could not be read, so it shows nothing."""
 
 
-def _removal_sample_spans(
+@dataclass(frozen=True)
+class _RemovedCells:
+    """The peer's samples a removal deletes, as cells of its reader's sample grid."""
+
+    rate: int
+    offset: float
+    origin: int
+    sole: list[tuple[int, int]]
+    """Removed cells only removed audio plays in."""
+    shared: list[tuple[int, int]]
+    """Removed cells a retained recording plays in as well."""
+    runs: list[SampleRun]
+    """The removed audio itself, one run per recording piece."""
+
+    def seconds(self, cell: int) -> float:
+        return self.offset + (cell - self.origin) / self.rate
+
+    def spans(self, cells: list[tuple[int, int]]) -> list[tuple[float, float]]:
+        return [(self.seconds(a), self.seconds(b)) for a, b in cells]
+
+    def removed_audio(
+        self, peer_track_id: str, caches: TrackRmsCacheSet | None
+    ) -> TrackRmsCacheSet:
+        """``caches`` with the peer's lane replaced by only the audio the removal deletes."""
+        first = min(a for a, _ in self.shared)
+        last = max(b for _, b in self.shared)
+        only = TrackRmsCache(
+            samples=read_samples(self.runs, first, last - first, self.rate),
+            sample_rate=self.rate,
+            timeline_offset_sec=self.seconds(first),
+        )
+        return TrackRmsCacheSet(caches={**(caches.caches if caches else {}), peer_track_id: only})
+
+
+def _as_cells(spans: list[tuple[float, float]]) -> list[tuple[int, int]]:
+    return [(int(a), int(b)) for a, b in spans]
+
+
+def _removal_cells(
     project: EpisodeProject,
     peer_track_id: str,
     start: float,
     end: float,
     caches: TrackRmsCacheSet | None,
     *,
-    removal_span: tuple[float, float] | None = None,
-) -> tuple[list[tuple[float, float]], bool]:
+    removal_span: tuple[float, float] | None,
+) -> _RemovedCells:
+    """The peer's samples a removal of ``removal_span`` deletes inside ``[start, end)``.
+
+    The lane is laid out on the reader's sample grid (``engines.sample_grid``) and the
+    removal is applied to each clip as the forward consumer applies it, so a sample is
+    removed exactly when no remaining piece covers it. A cell can hold several recordings
+    (an overlay); it is shared when one of them is retained.
+    """
     track = project.track_by_id(peer_track_id)
-    if track is None:
-        return [], False
     cache = caches.get(peer_track_id) if caches else None
     rate = cache.sample_rate if cache else _RMS_SAMPLE_RATE
-    removed: list[tuple[float, float]] = []
-    retained: list[tuple[float, float]] = []
+    offset = cache.timeline_offset_sec if cache else 0.0
+    origin = round(offset * rate)
     removal_start, removal_end = removal_span if removal_span is not None else (start, end)
-    clips = iter(clips_for_track(project, peer_track_id))
-    for part in lane_placements(project, track):
-        originals = []
-        for clip in clips:
-            originals.append(clip)
-            if clip.timeline_end == part.tl_end:
-                break
-        source_first = round(part.src_start * rate)
-        part_end = part.tl_end
-        if not math.isfinite(part_end):
-            duration = track.media.duration_sec if track.media else None
-            part_end = end if duration is None else duration
-        count = (
-            round(part_end * rate) - round(part.tl_start * rate)
-            if cache
-            else round((part_end - part.tl_start) * rate)
+    pairs = lane_clip_placements(project, track) if track else []
+    limit = track.media.duration_sec if track and track.media else None
+    clips = [
+        clip
+        if math.isfinite(placement.tl_end)
+        else clip.model_copy(
+            update={
+                "source_end": clip.source_start
+                + max(0.0, (end if limit is None else limit) - clip.timeline_start)
+            }
         )
-        lo, hi = max(start, part.tl_start), min(end, part_end)
-        if hi > lo:
-            prefix = (
-                round(lo * rate) - round(part.tl_start * rate)
-                if cache
-                else round((lo - part.tl_start) * rate)
-            )
-            first = min(count, max(0, prefix))
-            last = (
-                min(count, max(first, round(part.to_source(hi) * rate) - source_first))
-                if hi < part_end and (end != removal_end or not originals)
-                else count
-            )
-            for original in originals:
-                if original.timeline_end <= removal_end + 1e-9:
-                    continue
-                if original.timeline_start >= removal_end - 1e-9:
-                    suffix_start = original.source_start
-                elif original.timeline_start < removal_start - SPAN_EPS_S:
-                    mapped = clip_timeline_overlap_to_source(original, removal_start, removal_end)
-                    if mapped is None:
-                        continue
-                    suffix_start = mapped[1]
-                else:
-                    suffix_start = clip_timeline_point_to_source(original, removal_end)
-                physical_last = min(count, max(first, round(suffix_start * rate) - source_first))
-                last = physical_last if end == removal_end else min(last, physical_last)
-                break
-        else:
-            first = last = 0
-        if cache:
-            offset = (
-                cache.timeline_offset_sec
-                + (round(part.tl_start * rate) - round(cache.timeline_offset_sec * rate)) / rate
-            )
-            left, right = offset + first / rate, offset + last / rate
-            full_left, full_right = offset, offset + count / rate
-        else:
-            left, right = (part.to_session((source_first + i) / rate) for i in (first, last))
-            full_left = part.to_session(source_first / rate)
-            full_right = part.to_session((source_first + count) / rate)
-        if right > left:
-            removed.append((left, right))
-        if left > full_left:
-            retained.append((full_left, left))
-        if full_right > right:
-            retained.append((right, full_right))
-    eligible = merge_intervals(removed)
-    # Mixed sample provenance remains unresolved (#1258).
-    supported = subtract_intervals(eligible, retained)
-    return supported, supported != eligible
+        for clip, placement in pairs
+    ]
+    cells = lay_out(
+        [Piece(c.source_start, c.source_end, c.timeline_start, c.timeline_end) for c in clips], rate
+    )
+    gone_cells: list[tuple[float, float]] = []
+    kept_cells: list[tuple[float, float]] = []
+    runs: list[SampleRun] = []
+    for clip, (_, placement), cell in zip(clips, pairs, cells, strict=True):
+        kept = [
+            (round(piece.source_start * rate), round(piece.source_end * rate))
+            for piece in remove_timeline_range_from_clips([clip], removal_start, removal_end)
+        ]
+        gone = subtract_intervals([(cell.first, cell.first + cell.count)], kept)
+        shift = cell.dest - cell.first
+        gone_cells.extend((a + shift, b + shift) for a, b in gone)
+        kept_cells.extend((a + shift, b + shift) for a, b in kept)
+        runs.extend(SampleRun(placement.media, int(a + shift), int(a), int(b - a)) for a, b in gone)
+    window = (
+        -math.inf if start == removal_start else round((start - offset) * rate) + origin,
+        math.inf if end == removal_end else round((end - offset) * rate) + origin,
+    )
+    inside = intersect_intervals(merge_intervals(gone_cells), [window])
+    shared = intersect_intervals(inside, kept_cells)
+    sole = subtract_intervals(inside, shared)
+    return _RemovedCells(rate, offset, origin, _as_cells(sole), _as_cells(shared), runs)
 
 
 # The lower quartile of the peer's own windows is its room: a quiet room dips now and then, and
@@ -373,8 +390,10 @@ def _peer_speaks_near_span(
         gap=0.0,
     )
 
-    def covered(lo: float, size: int, *, sealed: bool) -> np.ndarray:
-        cache = caches.get(peer_track_id) if caches else None
+    def covered(
+        lo: float, size: int, *, sealed: bool, source: TrackRmsCacheSet | None
+    ) -> np.ndarray:
+        cache = source.get(peer_track_id) if source else None
         if cache:
             read_start = float(np.nextafter(lo, np.inf)) if sealed else lo
             lo = (
@@ -388,7 +407,9 @@ def _peer_speaks_near_span(
             mask |= (starts >= left) & (starts + LEVEL_FRAME_SEC <= right)
         return mask
 
-    def frames(lo: float, hi: float, *, sealed: bool = False) -> _PeerSpan | None:
+    def frames(
+        lo: float, hi: float, *, sealed: bool = False, source: TrackRmsCacheSet | None = caches
+    ) -> _PeerSpan | None:
         if hi - lo < LEVEL_FRAME_SEC - 1e-9:
             return None
         evidence = _owned_peer_frames(
@@ -398,13 +419,13 @@ def _peer_speaks_near_span(
             hi,
             owner_track_ids=owner_track_ids,
             dominance_db=dominance_db,
-            caches=caches,
+            caches=source,
             half_open=sealed,
         )
         if evidence is None:
             return None
         levels, own, pitchless = evidence
-        reference = covered(lo, levels.size, sealed=sealed)
+        reference = covered(lo, levels.size, sealed=sealed, source=source)
         if lo + levels.size * LEVEL_FRAME_SEC < hi - 1e-9:
             tail = _owned_peer_frames(
                 project,
@@ -413,7 +434,7 @@ def _peer_speaks_near_span(
                 hi,
                 owner_track_ids=owner_track_ids,
                 dominance_db=dominance_db,
-                caches=caches,
+                caches=source,
                 half_open=sealed,
             )
             if tail is None:
@@ -421,18 +442,30 @@ def _peer_speaks_near_span(
             levels = np.concatenate((levels, tail.levels))
             own = np.concatenate((own, tail.own))
             reference = np.concatenate(
-                (reference, covered(hi - LEVEL_FRAME_SEC, tail.levels.size, sealed=sealed))
+                (
+                    reference,
+                    covered(hi - LEVEL_FRAME_SEC, tail.levels.size, sealed=sealed, source=source),
+                )
             )
             pitchless = _chained(pitchless, tail.pitchless)
         return _PeerSpan(levels, own, reference, pitchless)
 
     before = frames(max(0.0, start - 5.0), start)
     after = frames(end, min(end + 5.0, extent) if extent is not None else end + 5.0)
-    decision_spans, unavailable = (
-        _removal_sample_spans(project, peer_track_id, start, end, caches, removal_span=removal_span)
-        if admissible_span is not None
-        else ([(start, end)], False)
-    )
+    unavailable = False
+    decision_spans: list[tuple[float, float]] = [(start, end)]
+    source = caches
+    if admissible_span is not None:
+        removed = _removal_cells(
+            project, peer_track_id, start, end, caches, removal_span=removal_span
+        )
+        decision_spans = removed.spans(removed.sole)
+        if removed.shared:
+            try:
+                source = removed.removed_audio(peer_track_id, caches)
+                decision_spans = merge_intervals([*decision_spans, *removed.spans(removed.shared)])
+            except (OSError, ValueError):
+                unavailable = True
     blocks: list[tuple[float, float]] = []
     for left, right in decision_spans:
         block_start = left
@@ -450,6 +483,7 @@ def _peer_speaks_near_span(
             block_start,
             block_end,
             sealed=admissible_span is not None,
+            source=source,
         )
         if evidence is None:
             unavailable = True
