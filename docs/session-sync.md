@@ -107,7 +107,7 @@ full, including roster and field attribution.
 Each sparse wire `Applied` / command `Echo` has top-level `server_seq` and `prev_seq` (the
 immediately preceding sequence, `server_seq - 1`, or zero for an empty authority).
 Clients merge a new delta only when `prev_seq` matches their applied cursor;
-a discontinuity requires a full state resync. Cross-process watcher events
+a discontinuity requires a full state resync. A page that never opened History holds no `history.groups` (`meta.hydration.history_groups` is false), so it skips a delta's `history_groups` rows that do not line up with its own while still applying the `history` head and flags, and a first mutation's toast can offer Undo without a refetch. Cross-process watcher events
 collapse commits into one head event with the latest values of fields changed
 in `(after, head]`; `after=None` includes only fields attributed to the head.
 They still advertise `prev_seq=head-1`, so a client missing intervening commands
