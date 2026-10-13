@@ -581,6 +581,57 @@ describe("dawStore follow presence", () => {
       expect(agent.soloTracks).toEqual({ guest: true });
     },
   );
+
+  it.each(["view", "edit"] as const)(
+    "guest %s keeps its own selection when a session snapshot carries a host selection",
+    (guestMode) => {
+      useDawStore
+        .getState()
+        .hydrate("/tmp/ep.project.json", minimalProject(), guestMode);
+      useDawStore
+        .getState()
+        .setSelection({ kind: "envelope", trackId: "host" });
+      useDawStore.getState().applyAgentSession(
+        agentSession({
+          origin: "viewer",
+          last_role: "viewer",
+          selection: { kind: "pending", id: "cut_gone", track_id: "host" },
+        }),
+      );
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "envelope",
+        trackId: "host",
+      });
+
+      useDawStore.getState().applyAgentSession(
+        agentSession({
+          origin: "agent",
+          last_role: "agent",
+          selection: { kind: "track", track_id: "guest" },
+        }),
+      );
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "track",
+        trackId: "guest",
+      });
+    },
+  );
+
+  it("host still adopts another tab's session selection", () => {
+    useDawStore.getState().setSelection({ kind: "envelope", trackId: "host" });
+    useDawStore.getState().applyAgentSession(
+      agentSession({
+        origin: "viewer",
+        last_role: "viewer",
+        selection: { kind: "pending", id: "cut_1", track_id: "host" },
+      }),
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "pending",
+      id: "cut_1",
+      trackId: "host",
+    });
+  });
 });
 
 describe("lane height preference", () => {
