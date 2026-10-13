@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from podcast_mcp.config import bounded_float, join_micro_fade_ms
-from podcast_mcp.edits.acoustic_gap import AcousticGapConfig, find_voiced_gap_runs
+from podcast_mcp.edits.acoustic_gap import (
+    AcousticGapConfig,
+    AcousticGapRun,
+    find_voiced_gap_runs,
+)
+from podcast_mcp.edits.acoustic_phrase import phrase_hit_indexes, word_step_ceiling
 from podcast_mcp.edits.audio_cache import (
     DIGITAL_SILENCE_DB,
     TrackAudioCache,
@@ -1472,9 +1477,12 @@ def _collect_acoustic_candidates(
     """Review-only ``filler:acoustic`` candidates for voiced runs in owner gaps.
 
     A peer voiced where a run sounds makes that run most likely bleed; a peer voiced
-    elsewhere in the gap says nothing about it.
+    elsewhere in the gap says nothing about it. Three or more runs in a row, each within
+    the speaker's longest ordinary word step of the next, are a phrase the transcript
+    dropped, so none is proposed.
     """
     candidates: list[_CutCandidate] = []
+    step_ceiling = word_step_ceiling(words, cfg.min_gap_sec)
     for word, nxt in _acoustic_scan_gaps(words, cfg):
         gap_start, gap_end = word.end, nxt.start
         if _word_not_owner(word, track_id) or _word_not_owner(nxt, track_id):
@@ -1498,11 +1506,18 @@ def _collect_acoustic_candidates(
             on_breath_rejected=count_breath_rejection,
         )
         lo, hi = gap_start + _ACOUSTIC_EDGE_MARGIN_SEC, gap_end - _ACOUSTIC_EDGE_MARGIN_SEC
+        own_runs: list[AcousticGapRun] = []
         for run in runs:
             if peers is not None and _peer_voiced_at(
                 track_id, audio_cache, peers, run.start, run.end, defaults or {}
             ):
                 _count_skip(skip_counts, "acoustic:peer_speaking")
+                continue
+            own_runs.append(run)
+        phrase = phrase_hit_indexes(own_runs, step_ceiling)
+        for index, run in enumerate(own_runs):
+            if index in phrase:
+                _count_skip(skip_counts, "acoustic:phrase")
                 continue
             start, end = max(lo, run.start), min(hi, run.end)
             if end - start < _ACOUSTIC_MIN_CUT_SEC:
