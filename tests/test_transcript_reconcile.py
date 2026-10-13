@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from audibility_floors import floors_at
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import (
@@ -77,13 +78,6 @@ _ROOM_PAIR_MEASURED = patch(
     "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
     new=lambda self: [_room_path("host", "guest"), _room_path("guest", "host")],
 )
-
-
-def _floors_at(floor_db: float):
-    return patch(
-        "podcast_mcp.engines.audio_audit._voice_floors",
-        new=lambda project, track_ids, caches: dict.fromkeys(track_ids, floor_db),
-    )
 
 
 def _two_track_project(tmp_path: Path) -> EpisodeProject:
@@ -421,7 +415,7 @@ def test_compute_word_audibility_map_bleed(tmp_path: Path):
             "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
             side_effect=fake_rms,
         ),
-        _floors_at(-42.0),
+        floors_at(-42.0),
     ):
         rows = compute_word_audibility_map(project, policy=pol)
 
@@ -448,7 +442,7 @@ def test_list_flagged_words_includes_inaudible_and_bleed(tmp_path: Path):
             "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
             side_effect=fake_rms,
         ),
-        _floors_at(-35.0),
+        floors_at(-35.0),
     ):
         flagged = list_flagged_words(project, policy=pol)
 

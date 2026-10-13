@@ -279,12 +279,22 @@ class TrackRmsCache:
     def voice_floor_db(self) -> float:
         """The level under which a frame of this track holds no voice (dBFS).
 
-        The one floor every audibility test reads, tighten's included, so a word is judged
-        against the track's own speech and room, never a fixed dBFS level.
+        The one floor tighten reads, so a frame is judged against the track's own speech
+        and room, never a fixed dBFS level.
         """
         from podcast_mcp.edits.audio_cache import voice_floor_from_profile
 
         return voice_floor_from_profile(self.track_profile)
+
+    @cached_property
+    def audibility_floor_db(self) -> float:
+        """The level a word of this track must reach to be audible (dBFS): its voice floor,
+        unless the track shows no contrast between speech and room (see
+        :func:`~podcast_mcp.edits.audio_cache.audibility_floor_from_profile`).
+        """
+        from podcast_mcp.edits.audio_cache import audibility_floor_from_profile
+
+        return audibility_floor_from_profile(self.track_profile)
 
     @classmethod
     def from_timeline_stem(
@@ -734,9 +744,9 @@ def _classify_word_audibility(
 def _voice_floors(
     project: EpisodeProject, track_ids: Collection[str], caches: TrackRmsCacheSet
 ) -> dict[str, float]:
-    """Each decoded track's voice floor in the units its word levels are read in."""
+    """Each decoded track's audibility floor in the units its word levels are read in."""
     return {
-        tid: cache.voice_floor_db + _recorded_gain_db(project, tid)
+        tid: cache.audibility_floor_db + _recorded_gain_db(project, tid)
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -1006,7 +1016,9 @@ def list_low_audibility_words(
             if not tr:
                 continue
             proc_cache = caches.get(tid)
-            floor_db: float | None = proc_cache.voice_floor_db if proc_cache is not None else None
+            floor_db: float | None = (
+                proc_cache.audibility_floor_db if proc_cache is not None else None
+            )
             for i, w in enumerate(tr.words):
                 if w.suppressed:
                     continue
@@ -1022,9 +1034,9 @@ def list_low_audibility_words(
                         path = track_audio_path(project, tid)
                         rms = measure_window_rms_db(path, w.start, w.end)
                         if floor_db is None:
-                            from podcast_mcp.edits.audio_cache import track_voice_floor_db
+                            from podcast_mcp.edits.audio_cache import track_audibility_floor_db
 
-                            floor_db = track_voice_floor_db(project, tid)
+                            floor_db = track_audibility_floor_db(project, tid)
                     except Exception:
                         done += 1
                         _tick()

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from audibility_floors import floors_at
 from podcast_mcp.edits.audio_quality import suppress_low_audibility_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -88,13 +89,42 @@ def test_list_low_audibility_flags_quiet_word(sample_wav: Path, tmp_path: Path):
         )
     ]
 
-    with patch(
-        "podcast_mcp.engines.audio_audit.measure_window_rms_db",
-        return_value=-50.0,
+    with (
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-50.0),
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.audibility_floor_db", new=-40.0),
     ):
         flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1
     assert flagged[0]["text"] == "hello"
+
+
+def test_list_low_audibility_reads_the_floor_of_a_track_with_no_decoded_cache(
+    sample_wav: Path, tmp_path: Path
+):
+    project = EpisodeProject.create("ep", str(tmp_path))
+    raw = tmp_path / "raw" / "host.wav"
+    raw.parent.mkdir(exist_ok=True)
+    raw.write_bytes(sample_wav.read_bytes())
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            speaker="Host",
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hello", start=0.0, end=0.5)])
+    ]
+    with (
+        patch("podcast_mcp.engines.audio_audit.measure_window_rms_db", return_value=-50.0),
+        patch("podcast_mcp.edits.audio_cache.track_audibility_floor_db", return_value=-40.0),
+    ):
+        flagged = list_low_audibility_words(project, track_id="host", caches=TrackRmsCacheSet())
+    assert [(row["text"], row["rms_db"], row["threshold_db"]) for row in flagged] == [
+        ("hello", -50.0, -40.0)
+    ]
 
 
 def test_gate_overreach_no_gate(tmp_path: Path):
@@ -623,11 +653,8 @@ def test_analyze_cleanup_matches_separate_scans(tmp_path: Path):
             "podcast_mcp.engines.audio_audit.measure_window_rms_db",
             return_value=-50.0,
         ),
-        patch(
-            "podcast_mcp.engines.audio_audit._voice_floors",
-            return_value={"host": -35.0, "guest": -35.0},
-        ),
-        patch("podcast_mcp.edits.audio_cache.track_voice_floor_db", return_value=-35.0),
+        floors_at(-35.0),
+        patch("podcast_mcp.edits.audio_cache.track_audibility_floor_db", return_value=-35.0),
     ):
         expected_low = {
             tid: list_low_audibility_words(project, track_id=tid) for tid in ("host", "guest")
@@ -1007,9 +1034,9 @@ def test_list_low_audibility_uses_proc_cache(sample_wav: Path, tmp_path: Path):
         )
     ]
     write_stem_hash(project, "host")
-    with patch(
-        "podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db",
-        return_value=-55.0,
+    with (
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-55.0),
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.audibility_floor_db", new=-40.0),
     ):
         flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1

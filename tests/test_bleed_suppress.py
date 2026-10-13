@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from audibility_floors import floors_at
 from podcast_mcp.edits.audio_quality import bleed_words, suppress_bleed_words
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
@@ -17,6 +20,13 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+
+
+@pytest.fixture(autouse=True)
+def _every_track_floors_at_minus_42_dbfs():
+    with floors_at(-42.0):
+        yield
+
 
 # The acoustic bleed verdict needs a measured path from the louder mic (#774); these
 # tests fake a guest-dominant window on the host mic, so the guest -> host path is measured.
