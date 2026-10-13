@@ -22,9 +22,11 @@ import type { EditBoundaryView } from "../types/project";
 import { Button, Dialog, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 
+type LoadAction = "reload" | "retry" | null;
+
 type State =
   | { kind: "loading" }
-  | { kind: "load-error"; message: string; stale: boolean }
+  | { kind: "load-error"; message: string; action: LoadAction }
   | {
       kind: "editing";
       context: BoundaryContext;
@@ -99,6 +101,15 @@ const LOAD_TIMEOUT_MESSAGE = "The server didn't answer. Try again.";
 
 function isStale(error: unknown): boolean {
   return error instanceof Error && /409|stale|changed/i.test(error.message);
+}
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
+}
+
+function loadAction(error: unknown): LoadAction {
+  if (isStale(error)) return "reload";
+  return isTimeout(error) ? "retry" : null;
 }
 
 function ghostCoverage(
@@ -193,6 +204,38 @@ export function PrecisionBoundaryDialog({
     useDawStore.getState().releaseSourcePreview(ownerId);
   }, [ownerId]);
 
+  const runLoad = useCallback(
+    (controller: AbortController, loadGeneration: number) => {
+      const current = () =>
+        valid() &&
+        !controller.signal.aborted &&
+        generation.current === loadGeneration;
+      void loadContext(controller.signal)
+        .then((context) => {
+          if (!current()) return;
+          setState({
+            kind: "editing",
+            context,
+            value: 0,
+            preview: "idle",
+            pair: null,
+            saveError: null,
+            stale: false,
+          });
+          setInputValue("0");
+        })
+        .catch((error: unknown) => {
+          if (!current()) return;
+          setState({
+            kind: "load-error",
+            message: errorMessage(error),
+            action: loadAction(error),
+          });
+        });
+    },
+    [loadContext, valid],
+  );
+
   useEffect(() => {
     if (!open) return;
     mounted.current = true;
@@ -203,7 +246,7 @@ export function PrecisionBoundaryDialog({
       setState({
         kind: "load-error",
         message: "Precision boundary audition is available in the host editor.",
-        stale: false,
+        action: null,
       });
       return () => {
         mounted.current = false;
@@ -213,52 +256,13 @@ export function PrecisionBoundaryDialog({
     const controller = new AbortController();
     request.current = controller;
     setState({ kind: "loading" });
-    void loadContext(controller.signal)
-      .then((context) => {
-        if (
-          !valid() ||
-          controller.signal.aborted ||
-          generation.current !== loadGeneration
-        )
-          return;
-        setState({
-          kind: "editing",
-          context,
-          value: 0,
-          preview: "idle",
-          pair: null,
-          saveError: null,
-          stale: false,
-        });
-        setInputValue("0");
-      })
-      .catch((error: unknown) => {
-        if (
-          !valid() ||
-          controller.signal.aborted ||
-          generation.current !== loadGeneration
-        )
-          return;
-        setState({
-          kind: "load-error",
-          message: errorMessage(error),
-          stale: isStale(error),
-        });
-      });
+    runLoad(controller, loadGeneration);
     return () => {
       mounted.current = false;
       controller.abort();
       stopPreview();
     };
-  }, [
-    open,
-    projectPath,
-    projectEpoch,
-    guestMode,
-    loadContext,
-    stopPreview,
-    valid,
-  ]);
+  }, [open, projectPath, projectEpoch, guestMode, runLoad, stopPreview]);
 
   const changeValue = (next: number, preserveInput = false) => {
     const current = stateRef.current;
@@ -418,37 +422,7 @@ export function PrecisionBoundaryDialog({
     setState({ kind: "loading" });
     const controller = new AbortController();
     request.current = controller;
-    void loadContext(controller.signal)
-      .then((nextContext) => {
-        if (
-          !valid() ||
-          controller.signal.aborted ||
-          generation.current !== loadGeneration
-        )
-          return;
-        setState({
-          kind: "editing",
-          context: nextContext,
-          value: 0,
-          preview: "idle",
-          pair: null,
-          saveError: null,
-          stale: false,
-        });
-        setInputValue("0");
-      })
-      .catch((error: unknown) => {
-        if (
-          valid() &&
-          !controller.signal.aborted &&
-          generation.current === loadGeneration
-        )
-          setState({
-            kind: "load-error",
-            message: errorMessage(error),
-            stale: isStale(error),
-          });
-      });
+    runLoad(controller, loadGeneration);
   };
 
   const title = "Adjust boundary";
@@ -518,8 +492,10 @@ export function PrecisionBoundaryDialog({
       ) : state.kind === "load-error" ? (
         <div className="precision-boundary-error">
           <InlineError message={state.message} />
-          {state.stale ? (
-            <Button onClick={reload}>Reload boundary</Button>
+          {state.action ? (
+            <Button onClick={reload}>
+              {state.action === "reload" ? "Reload boundary" : "Try again"}
+            </Button>
           ) : null}
         </div>
       ) : context && value != null ? (
