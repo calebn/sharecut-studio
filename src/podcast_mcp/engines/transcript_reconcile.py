@@ -8,7 +8,7 @@ from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCacheSet,
-    build_track_rms_caches,
+    build_reconciliation_caches,
     compute_word_audibility_map,
 )
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
@@ -159,9 +159,9 @@ def word_targets(
     loudness (#774).
 
     ``audibility_map`` and ``caches`` are this project's ``compute_word_audibility_map``
-    and ``build_track_rms_caches`` when the caller already has them.
+    and ``build_reconciliation_caches`` when the caller already has them.
     """
-    caches = _reconciliation_caches(project) if caches is None else caches
+    caches = build_reconciliation_caches(project) if caches is None else caches
     rows = (
         compute_word_audibility_map(project, policy=policy, progress=None, caches=caches)
         if audibility_map is None
@@ -200,12 +200,6 @@ def word_targets(
     return by_key
 
 
-def _reconciliation_caches(project: EpisodeProject) -> TrackRmsCacheSet:
-    if any(track.transcript_gate for track in project.tracks):
-        return build_track_rms_caches(project, before_transcript_gate=True)
-    return build_track_rms_caches(project)
-
-
 def reconcile_transcript(
     project: EpisodeProject,
     *,
@@ -238,7 +232,7 @@ def reconcile_transcript(
         progress=progress,
     ) as task:
         task.set_phase("audibility", "Analyzing word audibility…")
-        caches = _reconciliation_caches(project)
+        caches = build_reconciliation_caches(project)
         audibility_map = compute_word_audibility_map(
             project, policy=pol, progress=None, caches=caches
         )

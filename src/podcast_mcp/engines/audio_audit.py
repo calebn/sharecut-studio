@@ -358,6 +358,11 @@ class TrackRmsCacheSet:
             if p.bleed_track_id == track_id
         }
 
+    def path_lag_sec(self, source_track_id: str, bleed_track_id: str) -> float:
+        """How far the source's own track trails its copy on the bleed mic; 0.0 off a measured path."""
+        path = self.bleed_paths(bleed_track_id).get(source_track_id)
+        return 0.0 if path is None else path.lag_sec
+
     def copy_path(self, source_track_id: str, bleed_track_id: str) -> CopyPath:
         """The source's copy lag and likeness on the bleed mic, measured once per pair.
 
@@ -420,6 +425,17 @@ class TrackRmsCacheSet:
             bleed.samples, source.samples, sample, lag, peer, loud_db, sample_rate=bleed.sample_rate
         )
         return CopyPath() if likeness is None else CopyPath(lag * COPY_HOP_SEC, likeness)
+
+
+def build_reconciliation_caches(project: EpisodeProject) -> TrackRmsCacheSet:
+    """The decodes reconcile and tighten read to tell whose voice a stretch of audio is.
+
+    A gated track is read before its transcript gate, so tighten measures the copy lags of
+    the stems reconcile made its audibility verdicts on.
+    """
+    if any(track.transcript_gate for track in project.tracks):
+        return build_track_rms_caches(project, before_transcript_gate=True)
+    return build_track_rms_caches(project)
 
 
 def build_track_rms_caches(
