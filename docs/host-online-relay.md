@@ -777,7 +777,7 @@ with private paths and path-free diagnostic secrets.
   project moved returns fixed text (`Error executing tool <name>`, `share not found`,
   `internal error`) and is logged on the host. A registry that is not private
   (`RegistryPrivacyError`) is one such refusal: its host message names the path and a `chmod`,
-  so the guest reads its fixed `GUEST_MESSAGE` and the `registry_not_private` code instead, on
+  so the guest reads its fixed `GUEST_MESSAGE` and the `registry_not_private` code instead (a review folder that is not private, `ReviewPrivacyError`, works the same with `review_artifacts_not_private`), on
   every guest surface, including the share-identity middleware and the remote MCP
   resolve step (JSON-RPC `-32603` with `data.error_code`). Refusal messages never embed another
   exception's text (`HistoryRerenderError`'s render error, ffprobe's error on an upload

@@ -163,13 +163,14 @@
     {
       "id": "public-share-tokens",
       "when": "Public share tokens (coolname, active + cooldown pools)",
-      "update": "`docs/share-tokens.md`, `edits/share_registry.py` (`ShareRegistryProtocol`), `edits/review_shares.py`, `services/collaboration/share.py`, `util/registry_privacy_error.py`, `podcast review backup-registry`",
+      "update": "`docs/share-tokens.md`, `edits/share_registry.py` (`ShareRegistryProtocol`), `edits/review_shares.py`, `services/collaboration/share.py`, `util/registry_privacy_error.py`, `util/review_privacy_error.py`, `podcast review backup-registry`",
       "docs": [
         "docs/share-tokens.md",
         "src/podcast_mcp/edits/share_registry.py",
         "src/podcast_mcp/edits/review_shares.py",
         "src/podcast_mcp/services/collaboration/share.py",
-        "src/podcast_mcp/util/registry_privacy_error.py"
+        "src/podcast_mcp/util/registry_privacy_error.py",
+        "src/podcast_mcp/util/review_privacy_error.py"
       ],
       "advisory": {
         "include": [
@@ -769,7 +770,7 @@
     {
       "id": "host-online-relay-tunnel-share-capabilities",
       "when": "Host-online relay / tunnel / share capabilities / remote MCP",
-      "update": "`docs/host-online-relay.md` (§ Remote MCP + Rate limiting + Security notes + cap→tool matrix), `docs/share-tokens.md`, `services/remote_mcp/`, `gui/routes/remote_mcp.py`, `gui/routes/auth.py`, `services/share_auth/`, `mcp/tools/guest/`, `util/rate_limit.py`, `util/proxy_paths.py`, `util/body_limits.py`, `util/registry_privacy_error.py`, `podcast_relay`, `PODCAST_REMOTE_MCP`, `PODCAST_RATE_LIMIT` / `PODCAST_RELAY_RATE_LIMIT`, `PODCAST_SESSION_AUTHZ`, `deploy/relay/`, `docs/timeline-comments.md` § Public review share, skill `podcast-remote-mcp` — **mounted via the FOSS collaboration extension**; deployment remains private",
+      "update": "`docs/host-online-relay.md` (§ Remote MCP + Rate limiting + Security notes + cap→tool matrix), `docs/share-tokens.md`, `services/remote_mcp/`, `gui/routes/remote_mcp.py`, `gui/routes/auth.py`, `services/share_auth/`, `mcp/tools/guest/`, `util/rate_limit.py`, `util/proxy_paths.py`, `util/body_limits.py`, `util/registry_privacy_error.py`, `util/review_privacy_error.py`, `podcast_relay`, `PODCAST_REMOTE_MCP`, `PODCAST_RATE_LIMIT` / `PODCAST_RELAY_RATE_LIMIT`, `PODCAST_SESSION_AUTHZ`, `deploy/relay/`, `docs/timeline-comments.md` § Public review share, skill `podcast-remote-mcp` — **mounted via the FOSS collaboration extension**; deployment remains private",
       "docs": [
         "docs/host-online-relay.md",
         "docs/share-tokens.md",
@@ -782,6 +783,7 @@
         "src/podcast_mcp/util/proxy_paths.py",
         "src/podcast_mcp/util/body_limits.py",
         "src/podcast_mcp/util/registry_privacy_error.py",
+        "src/podcast_mcp/util/review_privacy_error.py",
         "deploy/relay/",
         "docs/timeline-comments.md"
       ],

@@ -102,6 +102,15 @@ class CodedPermissionError(CodedError, PermissionError):
     """A refused permission where the call site raises ``PermissionError``."""
 
 
+class HostSetupError(CodedPermissionError):
+    """The host's own setup refuses to run: a private file or folder is not private.
+
+    Not a caller's missing capability: adapters answer it as a server-side failure (HTTP 500,
+    JSON-RPC ``-32603``). The host's message names the path and the fix; subclasses pass a
+    fixed, path-free ``guest_message`` for a share guest.
+    """
+
+
 def coded_cause(exc: BaseException) -> CodedError | None:
     """Walk ``exc`` and its ``__cause__`` chain for a ``CodedError``, else ``None``."""
     seen: set[int] = set()

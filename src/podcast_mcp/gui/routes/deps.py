@@ -14,10 +14,9 @@ from podcast_mcp.services.session_sync import (
     authorize_client,
     authorize_host,
 )
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, HostSetupError
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
-from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 from podcast_mcp.util.tool_refusal import tool_refusal
 
@@ -83,13 +82,15 @@ async def project_busy_exception_handler(request: Request, exc: Exception) -> Re
     return await http_exception_handler(request, project_busy_from_timeout(exc))
 
 
-async def registry_privacy_exception_handler(request: Request, exc: Exception) -> Response:
-    """App-wide fallback: a registry that is not private becomes HTTP 500 with the refusal.
+async def host_setup_exception_handler(request: Request, exc: Exception) -> Response:
+    """App-wide fallback: a host file or folder that is not private becomes HTTP 500 with the refusal.
+
+    Covers every ``HostSetupError``: the share registry and the review artifacts folder.
 
     The host reads the message with its path and fix; any other caller (a relayed share guest)
     reads the refusal's guest message, like every refusal a guest sees (``util/tool_refusal.py``).
     """
-    assert isinstance(exc, RegistryPrivacyError)
+    assert isinstance(exc, HostSetupError)
     host = authorize_host(
         peer_host=peer_host(request),
         token=request.query_params.get("token") or request.headers.get("X-Podcast-Token"),

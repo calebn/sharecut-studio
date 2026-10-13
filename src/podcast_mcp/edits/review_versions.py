@@ -41,6 +41,7 @@ from podcast_mcp.util.pinned_media import (
     open_pinned_media,
 )
 from podcast_mcp.util.project_state import project_commit_lock
+from podcast_mcp.util.review_privacy_error import ReviewPrivacyError, ReviewPrivacyReason
 from podcast_mcp.util.workspace_paths import resolve_within
 
 log = logging.getLogger(__name__)
@@ -104,6 +105,22 @@ def _trusted_dir(metadata: os.stat_result, *, private: bool = False) -> bool:
         and metadata.st_uid == os.geteuid()
         and not metadata.st_mode & forbidden
     )
+
+
+def _require_trusted_dir(metadata: os.stat_result, path: Path, *, private: bool = False) -> None:
+    """Refuse (``ReviewPrivacyError``) a review folder another user owns or can write."""
+    if _trusted_dir(metadata, private=private):
+        return
+    foreign = metadata.st_uid != os.geteuid()
+    if private:
+        reason = ReviewPrivacyReason.STAGING_OWNER if foreign else ReviewPrivacyReason.STAGING_MODE
+    else:
+        reason = (
+            ReviewPrivacyReason.ARTIFACTS_OWNER
+            if foreign
+            else ReviewPrivacyReason.ARTIFACTS_WRITABLE
+        )
+    raise ReviewPrivacyError(path, reason, mode=metadata.st_mode)
 
 
 def _release_stage_lease(identity: DirectoryIdentity) -> None:
@@ -187,8 +204,7 @@ def promote_staged_version(
     root_fd = open_nofollow_dir(staging_dir.parent)
     try:
         root_stat = os.fstat(root_fd)
-        if not _trusted_dir(root_stat):
-            raise PermissionError("review artifacts directory must be owned and private")
+        _require_trusted_dir(root_stat, staging_dir.parent)
         current = os.stat(staging_dir.name, dir_fd=root_fd, follow_symlinks=False)
         if not _is_created_dir(current, identity) or not _trusted_dir(current, private=True):
             raise RuntimeError("review staging directory changed before publication")
@@ -727,14 +743,12 @@ def stage_version(
     leased = False
     made_stage = False
     try:
-        if not _trusted_dir(os.fstat(root_fd)):
-            raise PermissionError("review artifacts directory must be owned and private")
+        _require_trusted_dir(os.fstat(root_fd), resolved_root)
         os.mkdir(version_dir.name, 0o700, dir_fd=root_fd)
         made_stage = True
         stage_fd = open_nofollow_dir(version_dir.name, dir_fd=root_fd)
         os.fchmod(stage_fd, 0o700)
-        if not _trusted_dir(os.fstat(stage_fd), private=True):
-            raise PermissionError("review staging directory must be private")
+        _require_trusted_dir(os.fstat(stage_fd), version_dir, private=True)
         try:
             initial_identity = _dir_identity(
                 os.stat(version_dir.name, dir_fd=root_fd, follow_symlinks=False)
