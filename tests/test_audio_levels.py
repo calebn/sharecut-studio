@@ -59,8 +59,10 @@ def test_a_whole_track_profile_reads_the_room_over_every_frame_digital_silence_i
         ]
     )
 
-    assert level_profile(samples, RATE) == pytest.approx((0.001, 0.1))
-    assert level_profile(samples, RATE, whole_track=True) == pytest.approx((1e-10, 0.1), abs=1e-8)
+    assert level_profile(samples, RATE) == pytest.approx((0.001, 0.1, 0.1))
+    assert level_profile(samples, RATE, whole_track=True) == pytest.approx(
+        (1e-10, 0.1, 0.1), abs=1e-8
+    )
 
 
 def _signal(seconds: float) -> np.ndarray:

@@ -49,6 +49,7 @@ from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 if TYPE_CHECKING:
+    from podcast_mcp.edits.audio_cache import LevelProfile
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
 
 _RMS_SAMPLE_RATE = 8000
@@ -274,7 +275,7 @@ class TrackRmsCache:
     timeline_offset_sec: float = 0.0
 
     @cached_property
-    def track_profile(self) -> tuple[float, float] | None:
+    def track_profile(self) -> LevelProfile | None:
         """The whole track's level profile (room, speech), measured once."""
         from podcast_mcp.edits.audio_cache import level_profile
 
@@ -301,7 +302,7 @@ class TrackRmsCache:
     @cached_property
     def audibility_floor_db(self) -> float:
         """The level a word of this track must reach to be audible (dBFS): its voice floor,
-        unless the track shows no contrast between speech and room (see
+        unless the track's loudest frames show no contrast with its room (see
         :func:`~podcast_mcp.edits.audio_cache.audibility_floor_from_profile`).
         """
         from podcast_mcp.edits.audio_cache import audibility_floor_from_profile

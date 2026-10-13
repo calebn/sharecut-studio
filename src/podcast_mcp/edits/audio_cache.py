@@ -7,6 +7,7 @@ import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import cached_property
+from typing import NamedTuple
 
 import numpy as np
 
@@ -41,6 +42,7 @@ DIGITAL_SILENCE_DB = -200.0
 _MIN_LIVE_SEC = 0.5
 _ROOM_PERCENTILE = 10.0
 _SPEECH_PERCENTILE = 90.0
+_LOUD_PERCENTILE = 99.0
 # A whole track is framed a minute at a time, never as one hour-long float64 copy.
 _PROFILE_CHUNK_SEC = 60.0
 
@@ -81,10 +83,23 @@ def speech_level_db(levels: np.ndarray, *, min_live_sec: float = _MIN_LIVE_SEC) 
     return float(np.percentile(live, _SPEECH_PERCENTILE))
 
 
+class LevelProfile(NamedTuple):
+    """A track's linear RMS levels: its room, its speech, and its loudest frames.
+
+    ``loud_rms`` (the 99th percentile of the live frames) is where a speaker who talks
+    under a tenth of the time still shows their voice, when ``speech_rms`` (the 90th)
+    is room tone.
+    """
+
+    noise_floor_rms: float
+    speech_rms: float
+    loud_rms: float
+
+
 def level_profile(
     samples: np.ndarray, sample_rate: int, *, whole_track: bool = False
-) -> tuple[float, float] | None:
-    """``(noise_floor_rms, speech_rms)`` of the live 10 ms frames, or ``None`` when too few.
+) -> LevelProfile | None:
+    """The :class:`LevelProfile` of the live 10 ms frames, or ``None`` when too few.
 
     A ``whole_track`` profile reads the room over every frame, digital silence
     included: on a track a noise gate holds at digital zero between words (Zoom), the
@@ -103,38 +118,45 @@ def level_profile(
     if speech_db is None:
         return None
     floor_db = room_floor_db(levels, among=None if whole_track else levels > DIGITAL_SILENCE_DB)
-    return db_to_amplitude(floor_db), db_to_amplitude(speech_db)
+    loud_db = float(np.percentile(levels[levels > DIGITAL_SILENCE_DB], _LOUD_PERCENTILE))
+    return LevelProfile(
+        db_to_amplitude(floor_db), db_to_amplitude(speech_db), db_to_amplitude(loud_db)
+    )
 
 
-def speech_db_from_profile(profile: tuple[float, float] | None) -> float:
+def speech_db_from_profile(profile: LevelProfile | None) -> float:
     """The speech level (dBFS) of a :func:`level_profile`; ``-inf`` without one."""
     return -math.inf if profile is None else 20.0 * math.log10(profile[1])
 
 
-def voice_floor_from_profile(profile: tuple[float, float] | None) -> float:
+def voice_floor_from_profile(profile: LevelProfile | None) -> float:
     """The voice floor (dBFS) of a :func:`level_profile`: ``max(S - 27 dB, R + 6 dB)``.
 
     ``inf`` without a profile (no live audio): every frame is quiet.
     """
     if profile is None:
         return math.inf
-    room_db, speech_db = (20.0 * math.log10(rms) for rms in profile)
+    room_db, speech_db, _ = (20.0 * math.log10(rms) for rms in profile)
     return max(speech_db - VOICE_FLOOR_UNDER_SPEECH_DB, room_db + VOICE_FLOOR_OVER_ROOM_DB)
 
 
-def audibility_floor_from_profile(profile: tuple[float, float] | None) -> float:
+def audibility_floor_from_profile(profile: LevelProfile | None) -> float:
     """The level (dBFS) a word's own recording must reach to count as audible.
 
     The :func:`voice_floor_from_profile`, except where it cannot tell voice from room: a
-    track whose room sits within 6 dB of its speech has no quiet to find, and its
+    track whose loudest frames sit within 6 dB of its room has no quiet to find, and its
     floor would sit over its own speech and call every word of it inaudible. Such a
-    track judges nothing inaudible (``-inf``). A track with no live audio at all holds
-    no word (``inf``).
+    track judges nothing inaudible (``-inf``). Contrast is read from the loudest frames,
+    not the speech level, so a speaker who talks under a tenth of the time keeps a floor.
+    A track with no live audio at all holds no word (``inf``).
     """
     if profile is None:
         return math.inf
-    floor = voice_floor_from_profile(profile)
-    return floor if floor < speech_db_from_profile(profile) else -math.inf
+    room_db = 20.0 * math.log10(profile.noise_floor_rms)
+    loud_db = 20.0 * math.log10(profile.loud_rms)
+    if loud_db <= room_db + VOICE_FLOOR_OVER_ROOM_DB:
+        return -math.inf
+    return voice_floor_from_profile(profile)
 
 
 class BandLevels:
@@ -248,7 +270,7 @@ class TrackAudioCache:
         return self._band_levels(LOW_BAND)
 
     @cached_property
-    def track_profile(self) -> tuple[float, float] | None:
+    def track_profile(self) -> LevelProfile | None:
         """The whole track's :func:`level_profile`, measured once."""
         return self.waveform.track_profile
 
@@ -274,13 +296,13 @@ class TrackAudioCache:
         return self.waveform.voice_floor_db
 
 
-_PROFILE_MEMO: dict[tuple[str, int, int], tuple[float, float] | None] = {}
+_PROFILE_MEMO: dict[tuple[str, int, int], LevelProfile | None] = {}
 _PROFILE_MEMO_LOCK = threading.Lock()
 
 
 def track_level_profile(
     project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
-) -> tuple[float, float] | None:
+) -> LevelProfile | None:
     """The track's whole-track :func:`level_profile`: ``audio_cache``'s, else measured once per file.
 
     Callers with no decode of the track (a cut re-optimized at approval, a natural-language
