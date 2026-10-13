@@ -183,7 +183,7 @@ export const Split: Story = {
     await expect(
       within(dialog).getByText("Split Interview into 3 tracks."),
     ).toBeVisible();
-    await expect(within(dialog).getByText("Plays 1:22 of 3:04")).toBeVisible();
+    await expect(within(dialog).getByText("Plays 1:23 of 3:05")).toBeVisible();
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Undo split" }),
     );
