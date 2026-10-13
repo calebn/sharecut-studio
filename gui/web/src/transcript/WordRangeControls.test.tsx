@@ -1,12 +1,18 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as api from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
+import { registerTranscriptIgnoreCommands } from "../commands/transcriptIgnore";
 import { registerTranscriptRangeCommands } from "../commands/transcriptRange";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { WordRangeControls } from "./WordRangeControls";
+
+vi.mock("../api", () => ({
+  setTranscriptWordsIgnored: vi.fn(async () => "head-after-ignore"),
+}));
 
 const WORDS = ["so", "the", "plan", "is", "simple", "really", "good", "now"];
 
@@ -53,7 +59,9 @@ describe("WordRangeControls", () => {
   beforeEach(() => {
     clearRegisteredCommands();
     registerTranscriptRangeCommands();
+    registerTranscriptIgnoreCommands();
     useDawStore.setState({
+      projectPath: "/tmp/ep",
       project: project(),
       selection: range(2, 3),
       statusAnnouncement: "",
@@ -148,5 +156,51 @@ describe("WordRangeControls", () => {
   it("has no accessibility violations", async () => {
     const { container } = render(<Harness />);
     await expectNoA11yViolations(container);
+  });
+
+  it("ignores the range from the sheet and offers Undo on the toast", async () => {
+    render(<Harness />);
+    await act(async () => {
+      fireEvent.click(button("Ignore"));
+    });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      2,
+      3,
+      true,
+      "plan is",
+    );
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Ignored selection",
+      undo: "head-after-ignore",
+    });
+  });
+
+  it("offers Restore, not Ignore, once every word in the range is ignored", async () => {
+    const ignored = project();
+    for (const word of ignored.transcript!.utterances[0]!.words!) {
+      word.ignored = word.word_index === 2 || word.word_index === 3;
+    }
+    useDawStore.setState({ project: ignored });
+    render(<Harness />);
+    expect(screen.queryByRole("button", { name: "Ignore" })).toBeNull();
+    await act(async () => {
+      fireEvent.click(button("Restore"));
+    });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      2,
+      3,
+      false,
+      "plan is",
+    );
+  });
+
+  it("leaves Ignore to the host: a share link has no Ignore", () => {
+    useDawStore.setState({ projectPath: "share:abc" });
+    render(<Harness />);
+    expect(screen.queryByRole("button", { name: "Ignore" })).toBeNull();
   });
 });

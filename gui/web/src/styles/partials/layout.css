@@ -1611,7 +1611,8 @@ html[data-shell] body {
 }
 
 @media (pointer: coarse) {
-  .range-word-step {
+  .range-word-step,
+  .range-word-ignore {
     min-block-size: var(--touch-min);
   }
 }
