@@ -7,9 +7,10 @@ the rounding. At a reader's rate ``r`` a piece plays source samples
 as the renderer's per-piece trim does, so a piece and the piece that starts where it ends
 share one real boundary and neither loses nor repeats a sample. Its first sample lands on
 timeline sample ``round(timeline_start * r)``, except that a piece whose timeline start
-meets the previous piece's end is laid straight after it when that is within one sample of
-its own rounded start: pieces the render joins back to back (a ripple closed the gap) leave
-no overlap and no hole, and no piece drifts more than a sample from the timeline.
+meets the previous piece's end is laid straight after it when that is within two samples of
+its own rounded start (rounding a piece's length can move its end by one, and its start by one
+more): pieces the render joins back to back (a ripple closed the gap) leave no overlap and no
+hole, and no piece lies more than two samples from the timeline.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 _CLOCK_EPS_SEC = 1e-6
+_SNAP_SAMPLES = 2
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,7 @@ def lay_out(pieces: Sequence[Piece], rate: int) -> list[PieceCells]:
         count = max(0, round(piece.source_end * rate) - first)
         dest = round(piece.timeline_start * rate)
         joined = _stop_meeting(stops, piece.timeline_start)
-        if joined is not None and abs(joined - dest) <= 1:
+        if joined is not None and abs(joined - dest) <= _SNAP_SAMPLES:
             dest = joined
         cells.append(PieceCells(dest, first, count))
         if math.isfinite(piece.timeline_end):
