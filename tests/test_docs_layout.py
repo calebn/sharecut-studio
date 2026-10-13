@@ -35,3 +35,10 @@ def test_tracked_issue_folder_is_reported(tmp_path: Path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "add", "docs"], check=True)
 
     assert _tracked_issue_evidence(tmp_path) == ["docs/issue-42/README.md"]
+
+
+def test_beta_plan_names_every_journey_and_agents_links_it() -> None:
+    plan = (ROOT / "docs" / "beta-plan.md").read_text()
+    missing = [f"J{n}" for n in range(1, 10) if f"| J{n} |" not in plan]
+    assert missing == []
+    assert "docs/beta-plan.md" in (ROOT / "AGENTS.md").read_text()

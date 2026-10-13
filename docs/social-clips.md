@@ -25,4 +25,4 @@ are dropped. See [docs/episode-format-v2.md](episode-format-v2.md) for the two c
 
 ## Video (planned)
 
-See [ROADMAP.md § Video podcast (minimum)](../ROADMAP.md#video-podcast-minimum) and [§ Video — social repurposing](../ROADMAP.md#video--social-repurposing). Timestamps on `SocialClipCandidate` are canonical for future video work.
+See [ROADMAP.md § Video milestone](../ROADMAP.md#video-milestone). Timestamps on `SocialClipCandidate` are canonical for future video work.

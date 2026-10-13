@@ -473,7 +473,7 @@ to check each request's origin against the engine origin:
 
 Do **not** widen `capabilities/default.json` or add `remote.urls`. Full
 deny-by-default for camera / geolocation / notifications remains
-[v1](../ROADMAP.md#packaging-trust). Handler install failures log to stderr
+[v1](../ROADMAP.md#packaging--trust). Handler install failures log to stderr
 (`Sharecut Studio: failed to install WebView microphone handler`).
 
 ## Deep links

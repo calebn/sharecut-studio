@@ -1,6 +1,6 @@
 # Sharecut Studio editability
 
-Multi-pass plan that turned the host Sharecut Studio from a **read-only inspector** into a consistent **editor** for agent-mutable timeline/project concerns. Passes 0–8 shipped. Remaining polish lives in [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
+Multi-pass plan that turned the host Sharecut Studio from a **read-only inspector** into a consistent **editor** for agent-mutable timeline/project concerns. Passes 0–8 shipped. Remaining polish lives in [ROADMAP.md § After the beta](../ROADMAP.md#after-the-beta).
 
 Agents mutate via MCP/CLI; the GUI writes the same services through typed document commands (`POST /api/document/command`) plus comments, pipeline, bounce, and ingest. The web command flow keeps raw HTTP transport in `gui/web/src/api/documentTransport.ts` and durable queue, replay, conflict, and active-project result policy in `gui/web/src/services/commandQueue.ts`; `gui/web/src/api.ts` remains the named export facade for callers, while `gui/web/src/api/` groups the request adapters by domain. Display-only document ops (`ReorderTrack`, `SetTrackMeta`) and the saved mix (`SetTrackFader`, `SetTrackMute`) apply optimistically in the DAW. Transport failures keep persisted commands queued for replay. A refused reorder or metadata change restores the previous view only while its originating project, optimistic snapshot, and document sequence remain current; mix changes revert only the failed field. See [gui-integration.md](gui-integration.md) and [session-sync.md](session-sync.md).
 

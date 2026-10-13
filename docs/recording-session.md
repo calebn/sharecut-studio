@@ -1,7 +1,7 @@
 # Recording session (design)
 
 Status: **links + lobby/consent + local keepers + mix-minus + chunk upload +
-timeline landing + live comments + host live-room reconnect + room-tone beds shipped**. Owner row: [ROADMAP.md § Recording session](../ROADMAP.md#recording-session).
+timeline landing + live comments + host live-room reconnect + room-tone beds shipped**. Owner row: [Beta plan § Journeys](../docs/beta-plan.md#journeys).
 Audio-first MVP; beta still requires a **host laptop online**. Mint `/rec/`
 URLs with `podcast review share --kind record` (or Share dialog / MCP
 `create_record_room_tool`). `build.capture`, `build.monitor`, and `build.upload`
@@ -23,9 +23,9 @@ appears in UI copy, notifications, errors, MCP tool descriptions or user docs
 ## Scope and non-goals
 
 MVP is **audio**. Later work is on the ROADMAP — do not start it without a
-leftover plan. [Follow-up](../ROADMAP.md#follow-up): producer push-to-talk
+leftover plan. [Follow-up](../ROADMAP.md#after-the-beta): producer push-to-talk
 (`talk`), producer `control`, room text chat, Tauri native mic (cpal), host
-admit, restricted record shares. [Beta recording](../ROADMAP.md#recording-session)
+admit, restricted record shares. [Beta recording](../docs/beta-plan.md#journeys)
 remaining: video phase 2,
 mic/camera grant UX, external import. Mix-minus (MM1–MM9, including the
 producer bus) shipped in `feat/recording-monitor-mixminus`. Timeline landing
@@ -1254,7 +1254,7 @@ See [persistence.md](persistence.md) and
 | Chromium desktop | PCM/WAV keeper encoder + mix-minus mesh (`build.monitor: true`). Keeper capture → upload → landing passes the compat core flow ([testing.md § Browser acceptance matrix](testing.md#browser-acceptance-matrix)). |
 | Safari | WAV via Worklet only; AEC constraint caveat. Playwright WebKit passes the same core flow (keeper OPFS writer in a worker, upload, landing); Apple Safari, Private Browsing and native mic prompts are not automated. |
 | Firefox | Same caveat as Safari. Not in the compat matrix, so untested. |
-| Tauri host | Browser Worklet in the webview (same as Chromium). macOS and Windows install a native WebView microphone handler and use operating-system permission copy: macOS also needs `NSMicrophoneUsageDescription` + hardened-runtime `audio-input`; the handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Linux uses WebKitGTK's default prompt and points blocked users to the supported browser recording path. Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
+| Tauri host | Browser Worklet in the webview (same as Chromium). macOS and Windows install a native WebView microphone handler and use operating-system permission copy: macOS also needs `NSMicrophoneUsageDescription` + hardened-runtime `audio-input`; the handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Linux uses WebKitGTK's default prompt and points blocked users to the supported browser recording path. Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging--trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#after-the-beta). |
 | Mobile browsers | Join + monitor; keeper best-effort, documented. Producer role fully supported (no keeper). |
 
 ## Security and threat notes
