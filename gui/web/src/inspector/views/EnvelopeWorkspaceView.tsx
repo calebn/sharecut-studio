@@ -108,13 +108,26 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       focusAndReveal(active);
     }
   }, [error]);
-  const cancelOnEscape = (event: KeyboardEvent<HTMLElement>) => {
+  const cancelOnEscape = (
+    event: Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation">,
+  ) => {
     if (event.key === "Escape" && form && !busy) {
       event.preventDefault();
       event.stopPropagation();
       props.onCancel();
     }
   };
+  const cancel = useRef(cancelOnEscape);
+  cancel.current = cancelOnEscape;
+  const hasForm = form != null;
+  useEffect(() => {
+    const heading = formHeading.current;
+    if (!hasForm || !heading) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) =>
+      cancel.current(event);
+    heading.addEventListener("keydown", onKeyDown);
+    return () => heading.removeEventListener("keydown", onKeyDown);
+  }, [hasForm]);
   const selected = points.find((point) => point.id === pointId);
   return (
     <ModifierInspector
@@ -204,7 +217,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               props.onSave();
             }}
           >
-            <h3 ref={formHeading} tabIndex={-1} onKeyDown={cancelOnEscape}>
+            <h3 ref={formHeading} tabIndex={-1}>
               {form.kind === "add" ? "Add point" : "Edit point"}
             </h3>
             {form.notice && <p>{form.notice}</p>}
