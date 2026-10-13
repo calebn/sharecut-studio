@@ -764,7 +764,8 @@ with private paths and path-free diagnostic secrets.
   ambiguous (`Talkin' Shop` stops at the apostrophe), and what is left over spells part of a
   folder name, so a message that names a path is replaced whole. Detection conservatively
   recognizes path prefixes, including escaped Windows separators, percent-encoded slashes,
-  relative paths, and single-folder slash roots, wherever they appear. Slash-separated modes,
+  relative paths, and single-folder slash roots, wherever they appear. A slash also triggers
+  withholding when the following folder or filename starts with a space. Slash-separated modes,
   fractions, and URLs can also trigger withholding. Bare filenames such as `A.wav` remain
   allowed. Refusals that name a path for the host therefore give the guest a fixed line:
   `review_media_not_found` reads "This

@@ -33,7 +33,7 @@ _HOST_PATH = re.compile(
     r"|\\{2}"
     r"|[\\/](?i:Users|home)"
     r"|~[\w.-]*[\\/]"
-    r"|/\S"
+    r"|/"
     r"|(?i:%2f)"
 )
 _LOOPBACK_V4 = re.compile(r"^127\.")
