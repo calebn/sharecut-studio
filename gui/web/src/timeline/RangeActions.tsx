@@ -3,6 +3,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { rangeActionDescriptors } from "../commands/rangeActions";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
 import { useDaw } from "../state/useDaw";
+import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
 
 export function RangeActions({ sheet = false }: { sheet?: boolean }) {
@@ -84,6 +85,9 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
             .map((id) => project.tracks.find((t) => t.id === id)?.label ?? id)
             .join(", ")}
         </p>
+      ) : null}
+      {selection?.kind === "transcriptRange" ? (
+        <WordRangeControls selection={selection} />
       ) : null}
       {resolution.targets.length > 1 ? (
         <div>

@@ -2676,6 +2676,34 @@
       }
     },
     {
+      "id": "daw.transcript.extendRange",
+      "label": "Extend transcript range",
+      "effect": "view",
+      "tooltip": "Extend the selected word range by a word at either edge; on touch, long-press a word in Select mode and drag",
+      "service": "Sharecut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "transcript.extendRange",
+        "gui": [
+          "rangeActions.words"
+        ],
+        "touch": [
+          "long-press-arm-drag"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Range action buttons are keyboard operable; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      }
+    },
+    {
       "id": "daw.transcript.ignore",
       "label": "Ignore / restore transcript words",
       "effect": "project",

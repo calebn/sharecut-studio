@@ -400,6 +400,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip_pressed: "Exit Select (restore seek-on-click)",
     toggle: true,
   },
+  "daw.transcript.extendRange": {
+    label: "Extend transcript range",
+    tooltip:
+      "Extend the selected word range by a word at either edge; on touch, long-press a word in Select mode and drag",
+  },
   "daw.transcript.ignore": {
     label: "Ignore / restore transcript words",
     tooltip:
@@ -545,6 +550,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.inlineEdit": "daw.transcript.correct",
   "transcript.wordbar": "daw.transcript.adjustTiming",
   "transcript.select": "daw.transcript.select",
+  "rangeActions.words": "daw.transcript.extendRange",
   "transcript.ignore": "daw.transcript.ignore",
   "transcript.restoreIgnored": "daw.transcript.ignore",
   "inspector.word.ignore": "daw.transcript.ignore",
