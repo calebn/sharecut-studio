@@ -28,7 +28,7 @@ VoicedRun = tuple[float, float]
 
 FRAME_SEC = 0.02
 HOP_SEC = 0.01
-_PROBE_SEC = 0.04
+PROBE_SEC = 0.04
 _BRIDGE_SEC = 0.03
 _F0_MIN_HZ = 70.0
 _F0_MAX_HZ = 350.0
@@ -59,19 +59,24 @@ def audible_runs(
     return [(t0 + i * hop / sr, t0 + ((j - 1) * hop + frame) / sr) for i, j in bool_runs(active)]
 
 
-def carries_speech_pitch(samples: np.ndarray, sample_rate: int) -> bool | None:
+def carries_speech_pitch(
+    samples: np.ndarray, sample_rate: int, *, interior: bool = False
+) -> bool | None:
     """Whether ``samples`` carry speech pitch: a clear peak in at least three probes.
 
     ``None`` when they are too short for three probes, so nothing can be said either way.
-    Level-free, so it reads the same at any recording gain.
+    Level-free, so it reads the same at any recording gain. ``interior`` counts only a true
+    autocorrelation peak (see :func:`~podcast_mcp.util.dsp.autocorr_peak`), so low-frequency
+    room noise is not taken for a voice.
     """
     probes = voicing_probes(
         samples,
         sample_rate,
-        probe_sec=_PROBE_SEC,
+        probe_sec=PROBE_SEC,
         hop_sec=HOP_SEC,
         fmin=_F0_MIN_HZ,
         fmax=_F0_MAX_HZ,
+        interior=interior,
     )
     if int(np.count_nonzero(probes >= VOICED_PEAK)) >= _MIN_VOICED_FRAMES:
         return True

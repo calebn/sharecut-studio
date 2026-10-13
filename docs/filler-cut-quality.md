@@ -77,16 +77,21 @@ rounding and mixed-contribution limits remain tracked in
 [#1258](https://github.com/calebn/sharecut-studio/issues/1258).
 Dense owner bleed can fill a peer's reference frames, so its room cannot be read
 from them (#1252). The peer's own frames, those the owner does not dominate,
-then show it. A run of them is room when it carries no speech pitch
-(`voiced_runs.carries_speech_pitch`, the three-probe autocorrelation peak that
-keeps breaths, clicks and room tone out of voiced runs) and no frame of it rises
-more than `VOICE_FLOOR_OVER_ROOM_DB` (6 dB) over the quietest of the peer's own
-frames. Both tests are relative to the peer's own sound, so recording gain, the
-owner's pitch and a same-gender pair change nothing. A run that carries pitch,
-rises above that quiet, is under three probes (60 ms) or cannot be read blocks as
-before. Supported boundary: a quiet unvoiced peer sound (breath, soft fricative,
-click) or a voice above 350 Hz reads as room in this case only, and a steady
-periodic hum in the peer's room reads as voice and still blocks.
+then show it. A run of them is room when it carries no speech pitch and none of
+its 40 ms windows (the pitch probe length, so a low hum does not flicker the
+level) rises more than `VOICE_FLOOR_OVER_ROOM_DB` (6 dB) over the lower quartile
+of the peer's own windows. The pitch test is
+`voiced_runs.carries_speech_pitch(..., interior=True)`: the autocorrelation peak
+tighten's voiced runs use to keep breaths, clicks and room tone out, counted
+only where it is a true peak, because low-frequency room noise has a correlation
+that only falls and would otherwise read as a high voice. Both tests are
+relative to the peer's own sound, so recording gain, the owner's pitch and a
+same-gender pair change nothing. A run that carries pitch, rises above that
+quiet, is under three probes (60 ms) or cannot be read blocks as before.
+Supported boundary: in this case only, a quiet unvoiced peer sound (breath, soft
+fricative, click) or a voice above 350 Hz reads as room, a sound that fills most
+of the peer's own frames sets its own reference, and a steady hum strong enough to
+show a pitch peak reads as voice and still blocks.
 Initial proposal queries retain the outward pad. After
 edge protection, a non-pause cut checks only its finalized mapped removal;
 approval repeats that check on the current validated removal geometry.
