@@ -6,34 +6,46 @@ import { withTwoBrowserPages } from "./twoBrowserPages";
 /**
  * Operator decision (#1394): a host's own browser tabs do not share one
  * selection. A viewer echo from another tab never moves it, while an
- * agent-authored selection reaches every tab.
+ * agent-authored selection reaches every tab once, when the agent sets it:
+ * a later unrelated agent command does not re-assert it.
  */
 
 const DESKTOP = { width: 1440, height: 900 };
 /** Long enough for a presence echo to cross the socket and be applied. */
 const SYNC_SETTLE_MS = 2_500;
 
-async function agentSelectsClip(
+let agentClientSeq = 0;
+
+async function agentCommand(
   page: Page,
   projectPath: string,
-  clip: { id: string; trackId: string },
+  type: string,
+  payload: Record<string, unknown>,
 ): Promise<void> {
+  agentClientSeq += 1;
   const response = await page.request.post(
     `/api/session/command?path=${encodeURIComponent(projectPath)}`,
     {
       data: {
-        type: "SetSelection",
-        payload: {
-          selection: { kind: "clip", id: clip.id, track_id: clip.trackId },
-        },
+        type,
+        payload,
         client_id: "e2e-selection-agent",
-        client_seq: 1,
+        client_seq: agentClientSeq,
         role: "agent",
       },
     },
   );
   expect(response.ok(), await response.text()).toBe(true);
 }
+
+const agentSelectsClip = (
+  page: Page,
+  projectPath: string,
+  clip: { id: string; trackId: string },
+) =>
+  agentCommand(page, projectPath, "SetSelection", {
+    selection: { kind: "clip", id: clip.id, track_id: clip.trackId },
+  });
 
 async function clipIdentity(
   page: Page,
@@ -82,6 +94,19 @@ test("a host tab keeps its own selection when another host tab selects, and an a
         await agentSelectsClip(tabA, projectPath, last);
         await expect(chosen(tabA, last.id)).toHaveCount(1);
         await expect(chosen(tabB, last.id)).toHaveCount(1);
+
+        await agentSelectsClip(tabA, projectPath, first);
+        await expect(chosen(tabA, first.id)).toHaveCount(1);
+        await expect(chosen(tabB, first.id)).toHaveCount(1);
+        await tabA.locator(`[data-clip-id="${last.id}"] .clip-hit`).click();
+        await expect(chosen(tabA, last.id)).toHaveCount(1);
+        await tabB.waitForTimeout(SYNC_SETTLE_MS);
+        await agentCommand(tabA, projectPath, "SetPlaying", {
+          is_playing: false,
+        });
+        await tabB.waitForTimeout(SYNC_SETTLE_MS);
+        await expect(chosen(tabB, first.id)).toHaveCount(1);
+        await expect(chosen(tabA, last.id)).toHaveCount(1);
       },
     );
   });
