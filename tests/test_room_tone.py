@@ -8,10 +8,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import insert_room_tone_pad, mute_room_tone_fill
 from podcast_mcp.models import (
     Clip,
+    EditDecision,
+    EditDecisionType,
     EpisodeProject,
     MediaAsset,
     RoomToneFill,
@@ -402,3 +406,63 @@ def test_word_onsets_and_tails_are_never_room_tone(
     tail_sec = (VOICE_DB - (FLOOR_DB - 10.0)) / DECAY_DB_PER_SEC
     heard = [(s, e + tail_sec) for s, e in WORDS_WITH_TAILS]
     assert [(s, e) for s, e in heard if start < e and s < end] == []
+
+
+def _padded_filler(replace_gap_sec: float = 0.3) -> EditDecision:
+    return EditDecision(
+        id="um",
+        track_id="host",
+        type=EditDecisionType.REMOVE,
+        start=4.0,
+        end=4.5,
+        boundary_mode="exact",
+        review_required=False,
+        replace_gap_sec=replace_gap_sec,
+        reason="filler:um",
+    )
+
+
+def _talking_all_through() -> np.ndarray:
+    track = _noise(FLOOR_DB, seed=1212)
+    _add_voice(track, 0.1, DURATION_SEC - 0.1, VOICE_DB)
+    return track
+
+
+def test_a_pad_never_leaves_a_live_track_without_room_tone(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_talking_all_through(), guest=_gated_steady_word())
+    project.edit_decisions = [_padded_filler()]
+    before = project.model_dump()
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        approve_edits(project, ["um"], confirm_cut_speech=True)
+
+    assert held.value.held[0].reason == "pad_unavailable"
+    assert held.value.held[0].peers == ("host",)
+    assert project.model_dump() == before
+    assert str(held.value).startswith(
+        "Host's cut at 0:04.0 was not applied (um): a track has no room tone to fill the beat "
+        "this cut leaves: Host (no quiet stretch sounds like room tone)."
+    )
+
+
+def test_a_gated_track_keeps_its_silent_pad_while_the_live_track_gets_room_tone(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path, host=_host_audio(), guest=_gated_steady_word())
+    project.edit_decisions = [_padded_filler()]
+
+    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+
+    record = project.editorial.edit_log[-1]
+    assert {s["track_id"] for s in record.params["pad_samples"]} == {"host"}
+    assert record.params["per_track_source"].keys() == {"host", "guest"}
+
+
+def test_every_live_track_gets_its_own_room_tone_in_the_pad(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
+    project.edit_decisions = [_padded_filler()]
+
+    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+
+    record = project.editorial.edit_log[-1]
+    assert {s["track_id"] for s in record.params["pad_samples"]} == {"host", "guest"}

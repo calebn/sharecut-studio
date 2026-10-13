@@ -346,7 +346,8 @@ def test_http_geometry_hold_retains_code_and_saved_project(tmp_path: Path, sugge
             )
     assert response.status_code == 400
     assert response.headers["X-Sharecut-Error-Code"] == "cut_scope_changed"
-    assert "not applied (pause)" in response.json()["detail"]
+    assert "pause trim at 0:" in response.json()["detail"]
+    assert "was not applied (pause)" in response.json()["detail"]
     guarantee = (
         "Suggested preview is unavailable. The saved project is unchanged."
         if suggested

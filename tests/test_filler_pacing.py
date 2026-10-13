@@ -282,7 +282,7 @@ def test_room_tone_expand_falls_back_when_gap_huge():
     assert paced.pad.seconds(paced.start, paced.end) == pytest.approx(0.28)
 
 
-def test_apply_auto_edits_with_room_tone_pads():
+def test_apply_auto_edits_with_silence_pads():
     from podcast_mcp.edits.decisions import apply_auto_edits
 
     words = [
@@ -321,6 +321,7 @@ def test_apply_auto_edits_with_room_tone_pads():
             "podcast_mcp.edits.source_removals.recommend_post_pad_fade_in_ms",
             return_value=72,
         ),
+        patch("podcast_mcp.edits.source_removals.filler_pad_mode", return_value="silence"),
     ):
         n = apply_auto_edits(project)
     assert n == 1
@@ -697,7 +698,7 @@ def test_approve_edits_applies_silence_pad_when_configured():
     ]
     before_dur = project.clips[0].timeline_end
     with patch(
-        "podcast_mcp.edits.decisions.filler_pad_mode",
+        "podcast_mcp.edits.source_removals.filler_pad_mode",
         return_value="silence",
     ):
         removed = approve_edits(project, ["cut_1"])
