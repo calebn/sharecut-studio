@@ -536,7 +536,7 @@ async function submitTranscriptCorrection(
   projectPath: string,
   type: "CorrectTranscriptWord" | "CorrectTranscriptPhrase",
   payload: Record<string, unknown>,
-): Promise<void> {
+): Promise<HistoryEntryId | null> {
   let result: Record<string, unknown>;
   try {
     result = await submitDocumentCommand(projectPath, type, payload);
@@ -549,6 +549,7 @@ async function submitTranscriptCorrection(
   if (result.queued !== true) {
     await clearSupersededCorrectionConflicts(projectPath, type, payload);
   }
+  return replyHistoryHead(result);
 }
 
 /** First word index a transcript correction payload rewrites. */
@@ -597,8 +598,8 @@ export async function correctTranscriptWord(
   wordIndex: number,
   text: string,
   expectedText?: string | null,
-): Promise<void> {
-  await submitTranscriptCorrection(projectPath, "CorrectTranscriptWord", {
+): Promise<HistoryEntryId | null> {
+  return submitTranscriptCorrection(projectPath, "CorrectTranscriptWord", {
     track_id: trackId,
     word_index: wordIndex,
     text,
@@ -613,8 +614,8 @@ export async function correctTranscriptPhrase(
   endWordIndex: number,
   text: string,
   expectedText?: string | null,
-): Promise<void> {
-  await submitTranscriptCorrection(projectPath, "CorrectTranscriptPhrase", {
+): Promise<HistoryEntryId | null> {
+  return submitTranscriptCorrection(projectPath, "CorrectTranscriptPhrase", {
     track_id: trackId,
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
@@ -629,13 +630,18 @@ export async function setTranscriptWordSuppressed(
   wordIndex: number,
   suppressed: boolean,
   expectedText?: string | null,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetTranscriptWordSuppressed", {
-    track_id: trackId,
-    word_index: wordIndex,
-    suppressed,
-    ...withExpectedText(expectedText),
-  });
+): Promise<HistoryEntryId | null> {
+  const result = await submitDocumentCommand(
+    projectPath,
+    "SetTranscriptWordSuppressed",
+    {
+      track_id: trackId,
+      word_index: wordIndex,
+      suppressed,
+      ...withExpectedText(expectedText),
+    },
+  );
+  return replyHistoryHead(result);
 }
 
 export async function setTranscriptWordAutomatic(
@@ -643,12 +649,17 @@ export async function setTranscriptWordAutomatic(
   trackId: string,
   wordIndex: number,
   expectedText?: string | null,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetTranscriptWordAutomatic", {
-    track_id: trackId,
-    word_index: wordIndex,
-    ...withExpectedText(expectedText),
-  });
+): Promise<HistoryEntryId | null> {
+  const result = await submitDocumentCommand(
+    projectPath,
+    "SetTranscriptWordAutomatic",
+    {
+      track_id: trackId,
+      word_index: wordIndex,
+      ...withExpectedText(expectedText),
+    },
+  );
+  return replyHistoryHead(result);
 }
 
 export async function setTranscriptWordsIgnored(
@@ -658,14 +669,19 @@ export async function setTranscriptWordsIgnored(
   endWordIndex: number,
   ignored: boolean,
   expectedText?: string | null,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetTranscriptWordsIgnored", {
-    track_id: trackId,
-    start_word_index: startWordIndex,
-    end_word_index: endWordIndex,
-    ignored,
-    ...withExpectedText(expectedText),
-  });
+): Promise<HistoryEntryId | null> {
+  const result = await submitDocumentCommand(
+    projectPath,
+    "SetTranscriptWordsIgnored",
+    {
+      track_id: trackId,
+      start_word_index: startWordIndex,
+      end_word_index: endWordIndex,
+      ignored,
+      ...withExpectedText(expectedText),
+    },
+  );
+  return replyHistoryHead(result);
 }
 
 export async function setEnvelope(

@@ -332,6 +332,31 @@ describe("TightenPanel", () => {
     );
   });
 
+  it("leads each row's actions with the decisions, Apply then Skip, before Preview and Go to", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+    const row = container.querySelector(".tighten-row-actions");
+    const labels = [...(row?.querySelectorAll("button") ?? [])].map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(labels).toEqual(["Apply", "Skip", "Preview", "Go to"]);
+  });
+
+  it("makes Apply eligible the one primary action in the panel", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+    const primary = document.querySelectorAll(".ui-control.primary");
+    expect([...primary].map((b) => b.textContent)).toEqual([
+      expect.stringMatching(/^Apply eligible/),
+    ]);
+  });
+
   it("shows review-required repetition and restart hits with per-hit actions", async () => {
     const project = projectWithHits();
     project.pending_edits = [

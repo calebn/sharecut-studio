@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useMountedRef } from "../hooks/useMountedRef";
 import { useProjectMutation } from "../hooks/useProjectMutation";
+import { useDawStore } from "../state/dawStore";
 import { InlineError } from "../ui/InlineError";
 import { reportDetachedWordFailure } from "./detachedWordFailure";
 import { submitWordCorrection, wordCorrectionError } from "./wordCorrection";
@@ -59,7 +60,7 @@ export function InlineWordEditor({
     let failure: unknown;
     const ok = await run(async () => {
       try {
-        await submitWordCorrection(
+        const historyHead = await submitWordCorrection(
           projectPath,
           trackId,
           wordIndex,
@@ -67,6 +68,9 @@ export function InlineWordEditor({
           text,
           expectedText,
         );
+        useDawStore
+          .getState()
+          .announceStatus("Word text fixed", { undo: historyHead });
       } catch (e) {
         failure = e;
         throw e;

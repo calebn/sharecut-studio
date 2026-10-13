@@ -295,6 +295,7 @@ export function TightenPanel() {
         </label>
         <CommandButton
           commandId="tighten.applyAllSafe"
+          variant="primary"
           args={{ avoidHarsh, ids: filtered.map((h) => h.id) }}
           disabled={applyAllDisabled}
           aria-describedby={applyAllDisabled ? applyAllHintId : undefined}
@@ -391,6 +392,26 @@ export function TightenPanel() {
                     <td>Pending</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="tighten-row-actions">
+                        {canApply ? (
+                          <>
+                            <CommandButton
+                              commandId="tighten.applyHit"
+                              args={{ id: hit.id }}
+                              className="tighten-decide"
+                              aria-label={`Apply ${rowLabel}`}
+                            >
+                              Apply
+                            </CommandButton>
+                            <CommandButton
+                              commandId="tighten.skipHit"
+                              args={{ id: hit.id }}
+                              className="tighten-decide"
+                              aria-label={`Skip ${rowLabel}`}
+                            >
+                              Skip
+                            </CommandButton>
+                          </>
+                        ) : null}
                         <CommandButton
                           commandId="tighten.previewHit"
                           args={{ id: hit.id }}
@@ -409,26 +430,6 @@ export function TightenPanel() {
                         >
                           Go to
                         </CommandButton>
-                        {canApply ? (
-                          <>
-                            <CommandButton
-                              commandId="tighten.skipHit"
-                              args={{ id: hit.id }}
-                              variant="link"
-                              aria-label={`Skip ${rowLabel}`}
-                            >
-                              Skip
-                            </CommandButton>
-                            <CommandButton
-                              commandId="tighten.applyHit"
-                              args={{ id: hit.id }}
-                              variant="link"
-                              aria-label={`Apply ${rowLabel}`}
-                            >
-                              Apply
-                            </CommandButton>
-                          </>
-                        ) : null}
                       </div>
                     </td>
                   </tr>

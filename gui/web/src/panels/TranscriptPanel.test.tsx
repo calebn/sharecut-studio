@@ -710,8 +710,8 @@ describe("TranscriptPanel", () => {
       let resolve: () => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
         () =>
-          new Promise<void>((r) => {
-            resolve = r;
+          new Promise<null>((r) => {
+            resolve = () => r(null);
           }),
       );
       const { container } = render(<TranscriptPanel />);
@@ -741,8 +741,8 @@ describe("TranscriptPanel", () => {
         let resolve: () => void = () => {};
         vi.mocked(correctTranscriptWord).mockImplementationOnce(
           () =>
-            new Promise<void>((r) => {
-              resolve = r;
+            new Promise<null>((r) => {
+              resolve = () => r(null);
             }),
         );
         const { container } = render(<TranscriptPanel />);
@@ -772,7 +772,7 @@ describe("TranscriptPanel", () => {
       let reject: (e: Error) => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
         () =>
-          new Promise<void>((_r, rej) => {
+          new Promise<null>((_r, rej) => {
             reject = rej;
           }),
       );
@@ -803,8 +803,8 @@ describe("TranscriptPanel", () => {
       let resolve: () => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
         () =>
-          new Promise<void>((r) => {
-            resolve = r;
+          new Promise<null>((r) => {
+            resolve = () => r(null);
           }),
       );
       const { container } = render(<TranscriptPanel />);
@@ -880,7 +880,7 @@ describe("TranscriptPanel", () => {
       let reject: (e: Error) => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
         () =>
-          new Promise<void>((_r, rej) => {
+          new Promise<null>((_r, rej) => {
             reject = rej;
           }),
       );
@@ -1858,8 +1858,8 @@ describe("TranscriptPanel virtualization", () => {
     let resolve: () => void = () => {};
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       () =>
-        new Promise<void>((r) => {
-          resolve = r;
+        new Promise<null>((r) => {
+          resolve = () => r(null);
         }),
     );
     const { container } = render(<TranscriptPanel />);

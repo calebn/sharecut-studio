@@ -107,6 +107,25 @@ describe("App styles", () => {
     expect(body).toMatch(/min-block-size:\s*var\(--touch-min\)/);
   });
 
+  it("gives the Tighten row actions and the Range word controls the touch target on a coarse pointer (#1029)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const tighten = readFileSync(
+      join(here, "styles/partials/panels.css"),
+      "utf8",
+    ).match(
+      /@media \(pointer: coarse\) \{\s*\.tighten-row-actions \.ui-control,[^{]*\{([^}]*)\}/,
+    );
+    expect(tighten).toBeTruthy();
+    expect(tighten![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
+    expect(tighten![1]).toMatch(/min-inline-size:\s*var\(--touch-min\)/);
+    const words = readFileSync(
+      join(here, "styles/partials/layout.css"),
+      "utf8",
+    ).match(/@media \(pointer: coarse\) \{\s*\.range-word-step \{([^}]*)\}/);
+    expect(words).toBeTruthy();
+    expect(words![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
+  });
+
   it("paints dialog focus rings inside the scrolling body", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(

@@ -1,4 +1,5 @@
 import { correctTranscriptPhrase, correctTranscriptWord } from "../api";
+import type { HistoryEntryId } from "../types/project";
 import { spanTextFromIndex, type TrackWordTexts } from "../utils/transcript";
 
 /** Why a correction cannot be sent, or null when it can. */
@@ -30,19 +31,18 @@ export async function submitWordCorrection(
   endWordIndex: number,
   text: string,
   expectedText?: string | null,
-): Promise<void> {
+): Promise<HistoryEntryId | null> {
   const next = text.trim();
   if (endWordIndex === startWordIndex) {
-    await correctTranscriptWord(
+    return correctTranscriptWord(
       projectPath,
       trackId,
       startWordIndex,
       next,
       expectedText,
     );
-    return;
   }
-  await correctTranscriptPhrase(
+  return correctTranscriptPhrase(
     projectPath,
     trackId,
     startWordIndex,

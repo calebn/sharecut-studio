@@ -56,7 +56,7 @@ export function registerTranscriptIgnoreCommands(): void {
       const result = await ignoreFlight.run(
         async (): Promise<ExecuteResult> => {
           try {
-            await setTranscriptWordsIgnored(
+            const historyHead = await setTranscriptWordsIgnored(
               s.projectPath,
               target.trackId,
               target.startWordIndex,
@@ -71,6 +71,7 @@ export function registerTranscriptIgnoreCommands(): void {
               .announceStatus(
                 (target.ignored ? "Ignored selection" : "Restored selection") +
                   suffix,
+                { undo: historyHead },
               );
             return { status: "ok" };
           } catch (e) {

@@ -258,7 +258,8 @@ the empty state, not a separate discovery task.
   tab's own edit is still saving, five seconds past the press, runs nothing
   and says "Your last edit is still saving. Nothing was undone." ("…Nothing
   was redone."), so it never reverses the edit before the slow one. Tighten apply, skip and Apply
-  eligible, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
+  eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
+  Mute, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
@@ -565,3 +566,9 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   desktop keep the field focused for the next comment.
 - 2026-10-13 — Hold message (#1212 review): a held cut is named by speaker, kind and time, never by its edit id; the room tone cause reads as a sentence, and the advice fixes that cause. The Room tone term gained its Never-say column.
 - 2026-10-13 — Added "Review files need attention" (#1322): the guest's fixed line when the host's review folder is not private, next to the sharing-setup line.
+- 2026-10-13 Transcript and Tighten (#1029). Select mode works by touch: hold a
+  word and drag, or add and drop words at either end in Range actions, and the
+  Select hint says so instead of naming Mod+X. Tighten rows lead with the
+  decisions, Apply then Skip, before Preview and Go to, and Apply eligible is
+  the panel's one primary action. Word fixes, Suppress, Ignore and Restore, and
+  a range Cut or Mute answer with a toast Undo.

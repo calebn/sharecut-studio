@@ -11,7 +11,10 @@ import {
   runRangeAction,
 } from "./rangeActions";
 
-vi.mock("../api/documentEdits", () => ({ submitDocumentCommand: vi.fn() }));
+vi.mock("../api/documentEdits", async (orig) => ({
+  ...(await orig<typeof import("../api/documentEdits")>()),
+  submitDocumentCommand: vi.fn(),
+}));
 const p = minimalProject({
   render_status: {
     needs_rerender: false,

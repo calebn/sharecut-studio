@@ -32,6 +32,7 @@ import {
   submitWordCorrection,
   wordCorrectionError,
 } from "../../transcript/wordCorrection";
+import type { HistoryEntryId } from "../../types/project";
 import {
   Button,
   DefItem,
@@ -164,7 +165,8 @@ export function TranscriptWordInspector({
    */
   const runForWord = async (
     action: DetachedWordAction,
-    fn: () => Promise<unknown>,
+    fn: () => Promise<HistoryEntryId | null>,
+    done: string,
   ): Promise<{ failed: boolean; failure: unknown }> => {
     const before = {
       text: word?.text ?? "",
@@ -176,7 +178,8 @@ export function TranscriptWordInspector({
     let failed = false;
     await run(async () => {
       try {
-        await fn();
+        const historyHead = await fn();
+        useDawStore.getState().announceStatus(done, { undo: historyHead });
       } catch (e) {
         failed = true;
         failure = e;
@@ -203,15 +206,18 @@ export function TranscriptWordInspector({
       setError(problem);
       return;
     }
-    const { failed, failure } = await runForWord("fix", () =>
-      submitWordCorrection(
-        projectPath,
-        trackId,
-        wordIndex,
-        endIndex,
-        text,
-        expectedText,
-      ),
+    const { failed, failure } = await runForWord(
+      "fix",
+      () =>
+        submitWordCorrection(
+          projectPath,
+          trackId,
+          wordIndex,
+          endIndex,
+          text,
+          expectedText,
+        ),
+      endIndex === wordIndex ? "Word text fixed" : "Phrase text fixed",
     );
     if (!failed) {
       // Re-seed the baseline from what the server actually wrote (#746). The
@@ -265,20 +271,33 @@ export function TranscriptWordInspector({
   };
 
   const toggleSuppress = async () => {
-    await runForWord("suppressed", () =>
-      setTranscriptWordSuppressed(
-        projectPath,
-        trackId,
-        wordIndex,
-        !suppressed,
-        wordSpanText,
-      ),
+    await runForWord(
+      "suppressed",
+      () =>
+        setTranscriptWordSuppressed(
+          projectPath,
+          trackId,
+          wordIndex,
+          !suppressed,
+          wordSpanText,
+        ),
+      suppressed
+        ? "Word put back in the transcript text"
+        : "Word dropped from the transcript text",
     );
   };
 
   const returnToAutomatic = async () => {
-    const { failed } = await runForWord("audibility_locked", () =>
-      setTranscriptWordAutomatic(projectPath, trackId, wordIndex, wordSpanText),
+    const { failed } = await runForWord(
+      "audibility_locked",
+      () =>
+        setTranscriptWordAutomatic(
+          projectPath,
+          trackId,
+          wordIndex,
+          wordSpanText,
+        ),
+      "Word back to automatic",
     );
     if (!failed) {
       headingRef.current?.focus();
@@ -286,15 +305,18 @@ export function TranscriptWordInspector({
   };
 
   const toggleIgnored = async () => {
-    await runForWord("ignored", () =>
-      setTranscriptWordsIgnored(
-        projectPath,
-        trackId,
-        wordIndex,
-        wordIndex,
-        !ignored,
-        wordSpanText,
-      ),
+    await runForWord(
+      "ignored",
+      () =>
+        setTranscriptWordsIgnored(
+          projectPath,
+          trackId,
+          wordIndex,
+          wordIndex,
+          !ignored,
+          wordSpanText,
+        ),
+      ignored ? "Restored word" : "Ignored word",
     );
   };
 
