@@ -462,7 +462,7 @@ describe("transcript correction clears superseded Needs attention entries (#746)
     vi.mocked(removeHostConflictsWhere).mockRejectedValueOnce(new Error("idb"));
     await expect(
       correctTranscriptWord("/tmp/ep", "host", 0, "Hi"),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
   });
 
   it("is a no-op for a non-correction command", async () => {
