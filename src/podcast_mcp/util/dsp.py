@@ -343,9 +343,9 @@ def voicing_probes(
 ) -> np.ndarray:
     """Normalized speech-pitch autocorrelation peak of each ``probe_sec`` frame every ``hop_sec``.
 
-    A frame :func:`autocorr_peak` cannot score (silent, or too short for the lag
-    range, or with ``interior`` no true peak) scores 0.0. Input shorter than one probe is scored as a single frame;
-    empty input yields an empty array.
+    A frame :func:`autocorr_peak` cannot score (silent, too short for the lag range, or
+    with ``interior`` no true peak) scores 0.0. Input shorter than one probe is scored as
+    a single frame; empty input yields an empty array.
     """
     if samples.size == 0:
         return np.empty(0, dtype=np.float64)
