@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { runPointerCommand } from "../commands/pointer";
+import { isRangeSelection } from "../edit/rangeSelection";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
@@ -174,10 +175,7 @@ function StudioShellAdapter({
 
   const useSheetInspector = shell === "tablet";
   const showInspector =
-    !useSheetInspector &&
-    selection != null &&
-    selection.kind !== "range" &&
-    selection.kind !== "transcriptRange";
+    !useSheetInspector && selection != null && !isRangeSelection(selection);
   // Peek sheet shares the bottom band with tabs; hide it when text/review
   // focus expands that band so Transcript/Comments stay fully readable.
   const sheetOpen =
@@ -185,6 +183,9 @@ function StudioShellAdapter({
     selection != null &&
     layoutMode !== "text" &&
     layoutMode !== "review";
+  // A sheet that hosts the range actions replaces the bar, so they never sit
+  // under the sheet's scrim.
+  const rangeActionsInSheet = sheetOpen && isRangeSelection(selection);
   // Only the ingest drop target keeps headers outside the timeline; any drawn
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;
@@ -266,7 +267,7 @@ function StudioShellAdapter({
         transport: (
           <>
             <TransportBar compact={shell === "tablet"} showLayout />
-            <RangeActions />
+            {rangeActionsInSheet ? null : <RangeActions />}
           </>
         ),
         footer: <StatusBar guestShare={guestShare} />,

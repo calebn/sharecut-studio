@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { runPointerCommand } from "../commands/pointer";
+import { isRangeSelection } from "../edit/rangeSelection";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
@@ -524,8 +525,7 @@ function MobileShellAdapter({
         mobileMode === "listen" ||
         (mobileMode === "text" &&
           (selection.kind === "transcriptWord" ||
-            selection.kind === "transcriptRange" ||
-            selection.kind === "range")) ||
+            isRangeSelection(selection))) ||
         (mobileMode === "more" &&
           moreDestination === "comments" &&
           selection.kind === "comment") ||
@@ -589,7 +589,9 @@ function MobileShellAdapter({
             <>
               <Inspector />
               {rangeArmed ? (
-                <RangeActions sheet />
+                isRangeSelection(selection) ? null : (
+                  <RangeActions sheet />
+                )
               ) : (
                 <RelatedCommands selection={selection} />
               )}

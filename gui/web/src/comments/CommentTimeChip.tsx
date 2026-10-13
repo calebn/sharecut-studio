@@ -1,19 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { parseTimecode } from "../utils/time";
 import { InlineEditInput } from "./InlineEditInput";
 
 type Props = {
   /** The anchor as it reads: "0:12", or "0:12–0:20" for a span. */
   label: string;
-  /** A typed time in seconds; the caller clamps it to the session. */
-  onChange: (sec: number) => void;
+  /** What the person typed: a time, or a span as "0:12–0:20". The caller parses it. */
+  onCommit: (text: string) => void;
 };
 
 /**
  * The time a new comment lands on, as a chip that turns into a field when
- * pressed. A time that does not parse leaves the anchor as it was.
+ * pressed. The field holds the whole anchor, so a span stays a span.
  */
-export function CommentTimeChip({ label, onChange }: Props) {
+export function CommentTimeChip({ label, onCommit }: Props) {
   const [editing, setEditing] = useState(false);
   const chipRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
@@ -30,12 +29,9 @@ export function CommentTimeChip({ label, onChange }: Props) {
       <InlineEditInput
         className="comment-time-field"
         aria-label="Comment time"
-        size={7}
-        initial={label.split("–")[0]!}
-        onCommit={(text) => {
-          const sec = parseTimecode(text);
-          if (sec != null) onChange(sec);
-        }}
+        size={label.length + 1}
+        initial={label}
+        onCommit={onCommit}
         onClose={(restore) => {
           restoreFocus.current = restore;
           setEditing(false);

@@ -1,7 +1,7 @@
 import { resolveSelectionRange } from "../edit/rangeSelection";
 import type { CommentDraft, DawState } from "../state/types";
 import type { ExactRangeTarget } from "../types/project";
-import { clampToSession, formatTimeShort } from "../utils/time";
+import { clampToSession, formatTimeShort, parseTimecode } from "../utils/time";
 
 /** Where a new comment's time comes from, strongest first. */
 export type CommentAnchorSource = "draft" | "selection" | "playhead";
@@ -50,4 +50,60 @@ export function commentAnchorLabel(draft: CommentDraft): string {
   return draft.endSec != null && draft.endSec > draft.startSec
     ? `${start}–${formatTimeShort(draft.endSec)}`
     : start;
+}
+
+const RANGE_SEPARATOR = /\s*[–—-]\s*/;
+
+/**
+ * The draft after the person types into the time chip, or null when the text
+ * leaves it as it was. Two times set the span. One time on a span moves the
+ * whole span and keeps its length, tracks and intervals; one time on a point
+ * moves the point.
+ */
+export function retimeCommentDraft(
+  draft: CommentDraft,
+  text: string,
+  durationSec: number,
+): CommentDraft | null {
+  const trimmed = text.trim();
+  if (trimmed === commentAnchorLabel(draft)) return null;
+  const times = trimmed.split(RANGE_SEPARATOR).map(parseTimecode);
+  if (times.length > 2 || times.some((t) => t == null)) return null;
+  const [first, second] = times as [number, number | undefined];
+  const hasSpan = draft.endSec != null && draft.endSec > draft.startSec;
+  if (second != null) {
+    const start = clampToSession(first, durationSec);
+    const end = clampToSession(second, durationSec);
+    if (end <= start) return null;
+    return {
+      ...draft,
+      startSec: start,
+      endSec: end,
+      ...(draft.intervals ? { intervals: [{ start, end }] } : {}),
+    };
+  }
+  if (!hasSpan) {
+    return { ...draft, startSec: clampToSession(first, durationSec) };
+  }
+  const length = draft.endSec! - draft.startSec;
+  const start = Math.min(
+    clampToSession(first, durationSec),
+    Number.isFinite(durationSec)
+      ? Math.max(0, durationSec - length)
+      : Number.POSITIVE_INFINITY,
+  );
+  const shift = start - draft.startSec;
+  return {
+    ...draft,
+    startSec: start,
+    endSec: start + length,
+    ...(draft.intervals
+      ? {
+          intervals: draft.intervals.map((r) => ({
+            start: r.start + shift,
+            end: r.end + shift,
+          })),
+        }
+      : {}),
+  };
 }

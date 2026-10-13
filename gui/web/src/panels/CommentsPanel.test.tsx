@@ -363,6 +363,52 @@ describe("CommentsPanel", () => {
     );
   });
 
+  it("keeps a range comment's range when the time chip is edited", async () => {
+    const user = userEvent.setup();
+    act(() => {
+      useDawStore.getState().setSelection({
+        kind: "range",
+        target: {
+          kind: "exact_range",
+          intervals: [{ start: 4, end: 9.4 }],
+          track_ids: ["host"],
+          clips: [],
+          media_seals: {},
+        },
+      });
+    });
+    render(<CommentsPanel />);
+    const chip = () =>
+      screen.getByRole("button", { name: /^Comment at .* Change time$/ });
+    const edit = async (text: string) => {
+      await user.click(chip());
+      const field = screen.getByRole("textbox", { name: "Comment time" });
+      await user.clear(field);
+      await user.type(field, `${text}{Enter}`);
+    };
+    await user.click(chip());
+    expect(screen.getByRole("textbox", { name: "Comment time" })).toHaveValue(
+      "0:04–0:09",
+    );
+    await user.keyboard("{Escape}");
+    expect(useDawStore.getState().commentDraft).toBeNull();
+
+    await edit("0:20");
+    expect(useDawStore.getState().commentDraft).toEqual({
+      startSec: 20,
+      endSec: 25.4,
+      trackIds: ["host"],
+      intervals: [{ start: 20, end: 25.4 }],
+    });
+    await edit("0:21–0:30");
+    expect(useDawStore.getState().commentDraft).toMatchObject({
+      startSec: 21,
+      endSec: 30,
+      trackIds: ["host"],
+      intervals: [{ start: 21, end: 30 }],
+    });
+  });
+
   it("a typed time on the chip sets the anchor; one that does not parse keeps it", async () => {
     const user = userEvent.setup();
     createComment.mockResolvedValueOnce(sampleComment({ id: "c4" }));

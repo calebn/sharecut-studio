@@ -587,6 +587,10 @@ transport Menu (phone: Timeline tool rail). Ordinary unarmed clip drags still
 move clips; trim, fade, join and envelope handles keep their own gestures.
 Numeric In/Out and lane checkboxes select the same target without dragging.
 Selection does not seek or change follow mode.
+Range actions have one home per shell. The desktop shell shows them in the bar
+above the timeline. The phone and tablet shells show them as the body of the
+selection sheet (`Inspector` renders them for a timeline or transcript range),
+so the bar never sits under the sheet's scrim and the sheet is never empty.
 
 Timeline and transcript ranges share **Play, Cut, Mute, Comment, Bounce**.
 Transcript passages retain pauses between selected words and map unique split
