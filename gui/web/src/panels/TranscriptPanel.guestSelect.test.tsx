@@ -110,6 +110,25 @@ describe("guest transcript Select follows share capabilities", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("a guest on a touch screen is told to hold and drag, and gets the Words controls beside Range actions", () => {
+    useDawStore.setState({ pointerKind: "coarse" });
+    const { container } = openShare(SUGGEST);
+    selectUm(container);
+    expect(container.querySelector(".transcript-mode-hint")).toHaveTextContent(
+      "hold a word and drag across more",
+    );
+    expect(
+      container.querySelector(".transcript-mode-hint"),
+    ).not.toHaveTextContent("Mod+");
+    const words = screen.getByRole("group", { name: "Words in range" });
+    expect(
+      within(words).getByRole("button", { name: "Add word after" }),
+    ).toBeEnabled();
+    expect(
+      within(words).getByRole("button", { name: "Drop first word" }),
+    ).toBeDisabled();
+  });
+
   it("a suggest guest selects words and Suggest cut sends a pending suggestion", async () => {
     vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
     const { container } = openShare(SUGGEST);

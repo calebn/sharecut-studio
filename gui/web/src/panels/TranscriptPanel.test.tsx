@@ -434,6 +434,28 @@ describe("TranscriptPanel", () => {
       ).toHaveTextContent(/text only/);
     });
 
+    it("names the hold-and-drag gesture, not Mod+X, for Select on coarse pointers", () => {
+      useDawStore.setState({ pointerKind: "coarse" });
+      const { container } = render(<TranscriptPanel />);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Select/i }),
+      );
+      const hint = container.querySelector(".transcript-mode-hint");
+      expect(hint).toHaveTextContent(/hold a word and drag/);
+      expect(hint).not.toHaveTextContent(/Mod\+/);
+    });
+
+    it("keeps the Mod+X Select hint on fine pointers", () => {
+      useDawStore.setState({ pointerKind: "fine" });
+      const { container } = render(<TranscriptPanel />);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Select/i }),
+      );
+      expect(
+        container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/Mod\+X cuts their audio/);
+    });
+
     it("hides the hint for unhydrated transcript words", () => {
       const base = project();
       useDawStore.setState({

@@ -45,10 +45,12 @@ import {
   TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_CUT_AWAY_WORD_TIP,
   TRANSCRIPT_GUEST_SELECT_HINT,
+  TRANSCRIPT_GUEST_SELECT_TOUCH_HINT,
   TRANSCRIPT_IGNORED_WORD_TIP,
   TRANSCRIPT_INLINE_SAVING_STATUS,
   TRANSCRIPT_MODE_HINT,
   TRANSCRIPT_NAVIGATE_TOUCH_HINT,
+  TRANSCRIPT_SELECT_TOUCH_HINT,
   type TranscriptIntent,
 } from "../transcript/transcriptModeCopy";
 import { useKeepSelectionClear } from "../transcript/useKeepSelectionClear";
@@ -508,7 +510,7 @@ export function TranscriptPanel() {
   const rangeDrag = useWordRangeDrag({
     enabled: intent === "select",
     listRef,
-    onArm: () => {
+    onDragStart: () => {
       cancelQueuedSeek();
       const held = selection;
       if (held?.kind !== "transcriptRange" && held?.kind !== "transcriptWord") {
@@ -843,6 +845,9 @@ export function TranscriptPanel() {
   if (intent === "navigate" && pointerKind === "coarse") {
     toolbarHint = TRANSCRIPT_NAVIGATE_TOUCH_HINT;
   }
+  if (intent === "select" && pointerKind === "coarse") {
+    toolbarHint = TRANSCRIPT_SELECT_TOUCH_HINT;
+  }
   if (transcriptInlineCommitPending) {
     toolbarHint = TRANSCRIPT_INLINE_SAVING_STATUS;
   }
@@ -1033,7 +1038,11 @@ export function TranscriptPanel() {
       </div>
       {!hostEditable && rangeMode !== "none" && intent === "select" ? (
         <p className="transcript-mode-hint">
-          {TRANSCRIPT_GUEST_SELECT_HINT[rangeMode]}
+          {
+            (pointerKind === "coarse"
+              ? TRANSCRIPT_GUEST_SELECT_TOUCH_HINT
+              : TRANSCRIPT_GUEST_SELECT_HINT)[rangeMode]
+          }
         </p>
       ) : null}
       {canCorrect ? (
@@ -1106,8 +1115,7 @@ export function TranscriptPanel() {
               : null;
           rangeDrag.onPointerDown(event);
           // Arm only where correction is possible; elsewhere a hold is a tap.
-          // In Select mode a hold starts a range instead.
-          if (pressedWordRef.current && intent !== "select") {
+          if (pressedWordRef.current) {
             transcriptLongPress.onPointerDown(event);
           }
         }}
