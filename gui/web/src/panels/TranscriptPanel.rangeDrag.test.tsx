@@ -36,6 +36,25 @@ function project() {
             confidence: 0.9,
           })),
         },
+        {
+          track_id: "guest-lane",
+          speaker: "Guest",
+          start: 6,
+          end: 9,
+          text: "guest first last",
+          mappable: true,
+          timeline_start: 6,
+          timeline_end: 9,
+          words: ["guest", "first", "last"].map((text, i) => ({
+            text,
+            start: 6 + i,
+            end: 7 + i,
+            timeline_start: 6 + i,
+            timeline_end: 7 + i,
+            word_index: 20 + i,
+            confidence: 0.9,
+          })),
+        },
       ],
     },
   });
@@ -86,6 +105,63 @@ describe("TranscriptPanel touch range drag", () => {
   afterEach(() => {
     vi.useRealTimers();
     delete (document as Partial<Document>).elementsFromPoint;
+  });
+
+  it("starts a new anchor on another track before extending within that track", () => {
+    fireEvent.click(word("the"));
+    fireEvent.click(word("first"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptRange",
+      trackId: "guest-lane",
+      startWordIndex: 21,
+      endWordIndex: 21,
+    });
+    fireEvent.click(word("last"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptRange",
+      trackId: "guest-lane",
+      startWordIndex: 21,
+      endWordIndex: 22,
+    });
+  });
+
+  it("ignores another track during a mouse drag and resumes on the original track", () => {
+    fireEvent.mouseDown(word("the"), { button: 0 });
+    fireEvent.mouseEnter(word("plan"));
+    expect(useDawStore.getState().selection).toEqual(range(1, 2));
+    fireEvent.mouseEnter(word("last"));
+    expect(useDawStore.getState().selection).toEqual(range(1, 2));
+    fireEvent.mouseEnter(word("simple"));
+    fireEvent.mouseUp(word("simple"));
+    fireEvent.click(word("simple"));
+    expect(useDawStore.getState().selection).toEqual(range(1, 4));
+  });
+
+  it("keeps the original anchor when extending backward and then forward", () => {
+    fireEvent.click(word("simple"));
+    fireEvent.click(word("the"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual(range(1, 4));
+    fireEvent.click(word("really"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual(range(4, 5));
+  });
+
+  it("keeps the committed touch range's track for subsequent shift clicks", () => {
+    fireEvent.pointerDown(word("the"), finger());
+    hold();
+    under(word("is"));
+    fireEvent.pointerMove(word("the"), finger(1, 60, 10));
+    fireEvent.pointerUp(word("is"), finger(1, 60, 10));
+    fireEvent.click(word("is"));
+    expect(useDawStore.getState().selection).toEqual(range(1, 3));
+    fireEvent.click(word("simple"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual(range(1, 4));
+    fireEvent.click(word("first"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptRange",
+      trackId: "guest-lane",
+      startWordIndex: 21,
+      endWordIndex: 21,
+    });
   });
 
   it("selects the words a long press then a drag crosses, only when the finger lifts", () => {
