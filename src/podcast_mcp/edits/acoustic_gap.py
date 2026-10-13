@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.config import bounded_float
+from podcast_mcp.edits.acoustic_laugh import has_laugh_bursts
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.breath_detect import classify_breath_samples
 from podcast_mcp.edits.room_model import BREATH_BELOW_SPEECH_DB
@@ -98,6 +99,7 @@ class AcousticGapRun:
     start: float
     end: float
     confidence: float
+    likely_laugh: bool = False
 
 
 def _voiced(frame: np.ndarray, sample_rate: int) -> bool:
@@ -145,7 +147,8 @@ def find_voiced_gap_runs(
     bleed) and rejected by the contrast check, active frames must clear a low-percentile
     noise estimate, runs covering most of the window are rejected as plateaus, and each
     run must pass a speech-pitch periodicity check (rejecting white noise and most
-    breaths). The scan never reads beyond the cache's decoded source span.
+    breaths). A run whose level bursts like a laugh is marked ``likely_laugh``
+    (``edits/acoustic_laugh.py``). The scan never reads beyond the cache's decoded source span.
     """
     gap = gap_end - gap_start
     if gap < min_gap_sec or gap <= 0:
@@ -251,6 +254,11 @@ def _scan_window(
             continue
         confidence = (float(np.mean(levels[i:j])) - floor) / 24.0
         runs.append(
-            AcousticGapRun(start=run_start, end=run_end, confidence=min(0.99, max(0.2, confidence)))
+            AcousticGapRun(
+                start=run_start,
+                end=run_end,
+                confidence=min(0.99, max(0.2, confidence)),
+                likely_laugh=has_laugh_bursts(levels[i:j]),
+            )
         )
     return runs

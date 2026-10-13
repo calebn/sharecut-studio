@@ -57,6 +57,7 @@ from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     ACOUSTIC_FILLER_REASON,
+    LIKELY_LAUGH_FLAG,
     PAUSE_REASON_PREFIX,
     is_review_only_reason,
 )
@@ -447,6 +448,8 @@ class _CutCandidate:
     min_start: float | None = None
     # Proposal-only regardless of risk (never auto-applied).
     review_only: bool = False
+    # An acoustic run whose level rises and falls like a laugh (``edits/acoustic_laugh.py``).
+    likely_laugh: bool = False
     # Pause candidates: the next word's onset. The pause is the whole word gap;
     # ``end`` is only where the retain floor trims it.
     gap_end: float | None = None
@@ -1538,6 +1541,7 @@ def _collect_acoustic_candidates(
                     min_start=max(lo, start - _ACOUSTIC_RUN_PAD_SEC),
                     max_end=min(hi, end + _ACOUSTIC_RUN_PAD_SEC),
                     review_only=True,
+                    likely_laugh=run.likely_laugh,
                 )
             )
     return candidates
@@ -2807,6 +2811,8 @@ def _prepare_candidate(
         )
 
     reason = candidate.reason
+    if candidate.likely_laugh:
+        reason = f"{reason}:{LIKELY_LAUGH_FLAG}"
     # Repetition/restart detection and acoustic-only gap fillers are
     # intentionally proposal-only.  Even an exact token repeat can be emphasis
     # ("very very"), a phrase restart can change meaning if the repair is
