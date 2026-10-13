@@ -59,22 +59,20 @@ block session ripple, even when a long cut dilutes its whole-span mean. New
 decision reads are at most 2 s; up to 5 s of nearby audio on either side supplies
 calibration only. Detection and context stop at the peer lane's end.
 Ripple confirmation already knows the exact removal and chosen speech. Its
-sound windows derive eligible samples from current placements and the native
-reads of their surviving prefix and suffix, after subtracting selected and
-batch-chosen spans. This follows rounded source starts and reader-specific
-placement counts, including fractional placements and source origins at 8 kHz.
-Each residual window keeps the containing live removal component as private
-geometry. The terminal original clip supplies the consuming suffix clock, using
-the existing overlap mapper from the actual lower split. Window endpoints come
-directly from the residual bounds, with shared interior edges. Selected and
-batch-chosen sound stays outside the window's evidence and diagnostics.
-Speech in another window cannot be attributed to an earlier window. A mixed
-cache sample can contain both a removed and a retained recording contribution.
-That edge supplies no calibrated decision, while usable interior frames still
-protect peer activity. Without another qualifying frame, the existing mean
-fallback applies and does not prove exact sample membership. General reader
-rounding and mixed-contribution limits remain tracked in
-[#1258](https://github.com/calebn/sharecut-studio/issues/1258).
+sound windows derive the removed samples by applying the removal to each peer clip
+as the consumer does and laying the lane out on the reader's sample grid
+([architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock)),
+after subtracting selected and batch-chosen spans, so the raw projection, placed
+playback and the guard agree on which native samples a removal deletes, at any
+fractional source origin or placement. A window keeps the containing live removal
+component as private geometry; where it meets the component's own edge it extends
+to the physically removed cells. Selected and batch-chosen sound stays outside the
+window's evidence and diagnostics. Speech in another window cannot be attributed
+to an earlier window. A cell that a removed and a retained recording both play in
+(an overlay) is read from the removed audio alone, so the retained recording's
+sound does not count as removed and the removed one is not hidden. If that audio
+cannot be read, those cells give no calibrated decision and the existing mean
+fallback applies.
 Dense owner bleed can fill a peer's reference frames, so its room cannot be read
 from them (#1252). The peer's own frames, those the owner does not dominate,
 then show it. A run of them is room when it carries no speech pitch and none of
@@ -94,7 +92,8 @@ read as room. Voiced speech, whispers with any voicing, laughter and inhales sti
 warn; the pitch test finds harmonic voices from 300 to 1,200 Hz, not only the
 70-350 Hz speech range. A sound that fills most of the peer's own frames sets its own
 reference, and a steady hum strong enough to show a pitch peak reads as voice and
-still blocks.
+still blocks. The room test reads the removed cells above (`sole` and `shared`), so
+its pitch probe, like its levels, sees only the audio the removal deletes.
 Initial proposal queries retain the outward pad. After
 edge protection, a non-pause cut checks only its finalized mapped removal;
 approval repeats that check on the current validated removal geometry.
