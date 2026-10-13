@@ -119,6 +119,11 @@ def test_scrub_guest_progress_text_drops_host_paths_and_caps_length():
     assert out.endswith("…")
 
 
+def test_scrub_guest_progress_text_drops_a_path_with_leading_spaces() -> None:
+    assert scrub_guest_progress_text("missing: / Private Show/ Ep1.wav") is None
+    assert scrub_guest_progress_text("A wav not found: A.wav") == "A wav not found: A.wav"
+
+
 def test_guest_progress_payload_has_no_host_paths():
     payload = guest_progress_payload(
         ProgressEvent(

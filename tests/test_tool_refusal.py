@@ -224,6 +224,12 @@ def test_guest_message_allows_a_bare_filename() -> None:
     assert exc.guest_message() == "A wav not found: A.wav"
 
 
+def test_guest_message_withholds_a_path_with_leading_spaces() -> None:
+    exc = CodedError("missing: / Private Show/ Ep1.wav", code="file_not_found")
+
+    assert exc.guest_message() == "That didn't work; ask the host to check this episode."
+
+
 def test_a_marked_guest_message_survives_pickle() -> None:
     exc = CodedValueError("bad /Users/host/x.wav", code="x", guest_message="Fixed.")
 
