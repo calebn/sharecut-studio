@@ -61,6 +61,8 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const id = useId();
   const workspace = useRef<HTMLDivElement>(null);
   const timeInput = useRef<HTMLInputElement>(null);
+  const touchRef = useRef(props.touch);
+  touchRef.current = props.touch;
   const formHeading = useRef<HTMLHeadingElement>(null);
   const select = useRef<HTMLSelectElement>(null);
   const add = useRef<HTMLButtonElement>(null);
@@ -74,7 +76,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       initialFocus.current = true;
       focusAndReveal(
         formKind
-          ? props.touch
+          ? touchRef.current
             ? formHeading.current
             : timeInput.current
           : points.length
