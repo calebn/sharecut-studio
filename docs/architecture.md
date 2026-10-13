@@ -445,8 +445,8 @@ and neither loses nor repeats a sample. Its first sample lands on timeline sampl
 is laid straight after it when that is within two samples, so a ripple that closed a gap
 leaves no overlap and no hole, and nothing lies more than two samples from the timeline.
 Where the rounding of many pieces in a row adds up past that, the next piece goes back to
-its own rounded start and leaves a hole of a sample or two (on the lab tape, five of 381
-joins).
+its own rounded start and leaves a hole of a sample or two (on the lab tape, 15 of 381 aligned
+joins and 6 of 247 Whisper joins).
 `raw_samples_on_timeline` (the raw projection and the cached guard), `session_air.lane_window`
 (placed playback) and the peer guard's removed-sample spans all use it, so after the same
 removal they keep the same samples: a sample is removed when no remaining piece covers it.
