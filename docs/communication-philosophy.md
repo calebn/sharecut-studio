@@ -559,3 +559,6 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   or ruler first: Post comment enables on text, the comment lands at the
   "at 0:12" comment time, and the "Click the ruler" hint is gone. The ruler
   tooltip and Comment mode title say "tap or drag the ruler" for touch.
+- 2026-10-13 Phone comment field (#1338 round 2). Posting from the phone Listen
+  dock closes the keyboard so the guest goes back to listening; tablet and
+  desktop keep the field focused for the next comment.

@@ -160,6 +160,34 @@ describe("phone share link, first load", () => {
     );
   });
 
+  it("closes the keyboard after Post: the field is empty and unfocused, the toast shows, no Inspector", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(sampleComment({ timeline_start: 12.5 }));
+    openShare(["view", "comment"], "comment");
+    act(() => useDawStore.getState().setPlayheadSec(12.5));
+
+    const dock = screen.getByRole("region", { name: "Add a comment" });
+    const field = within(dock).getByRole("textbox", { name: "Comment" });
+    await user.type(field, "Here");
+    expect(field).toHaveFocus();
+    await user.click(
+      within(dock).getByRole("button", { name: "Post comment" }),
+    );
+
+    expect(createComment).toHaveBeenCalledWith(
+      "share:tok",
+      expect.objectContaining({ body: "Here", timelineStart: 12.5 }),
+    );
+    expect(field).toHaveValue("");
+    expect(field).not.toHaveFocus();
+    expect(dock).not.toContainElement(document.activeElement as HTMLElement);
+    expect(document.body).toHaveFocus();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Comment posted at 0:12",
+    );
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+  });
+
   it("a listen-only link shows no comment field", () => {
     openShare(["view"], "view");
     expect(screen.queryByRole("region", { name: "Add a comment" })).toBeNull();
