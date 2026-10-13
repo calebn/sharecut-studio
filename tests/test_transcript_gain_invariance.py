@@ -15,11 +15,13 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from bleed_helpers import delay, voices
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCache,
+    TrackRmsCacheSet,
     compute_word_audibility_map,
     list_low_audibility_words,
 )
@@ -274,3 +276,22 @@ def test_stretched_token_trims_onto_its_voice_at_any_level(gain_db: float):
     caps = WordSpanCaps.from_defaults({"tighten": {"filler_words": ["uh"]}})
     trim_implausible_words(words, cache, caps)
     assert (round(words[0].start, 1), round(words[0].end, 1)) == (1.0, 1.3)
+
+
+@pytest.mark.parametrize("gain_db", (0.0, -12.0, -24.0, -36.0, 12.0))
+def test_a_same_room_bleed_path_is_found_at_any_recording_level(gain_db: float):
+    """Fixed open and source levels lose the pair a few tens of dB down."""
+    dry = voices(7)
+    room = np.random.default_rng(11).standard_normal((2, dry["caleb"].size))
+    mic = dry["caleb"] + 0.1 * delay(dry["audra"], 0.003) + 1e-3 * room[0]
+    own = dry["audra"] + 1e-4 * room[1]
+    scale = 10 ** (gain_db / 20)
+    caches = TrackRmsCacheSet(
+        caches={
+            "caleb": TrackRmsCache(samples=(mic * scale).astype(np.float32), sample_rate=8000),
+            "audra": TrackRmsCache(samples=(own * scale).astype(np.float32), sample_rate=8000),
+        }
+    )
+    assert [(p.source_track_id, p.bleed_track_id, p.lag_ms) for p in caches.echo_pairs()] == [
+        ("audra", "caleb", 3.0)
+    ]

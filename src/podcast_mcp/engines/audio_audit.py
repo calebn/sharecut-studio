@@ -52,6 +52,11 @@ if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
 
 _RMS_SAMPLE_RATE = 8000
+# The speech level (dBFS) the fixed levels of the bleed-path measurement (``bleed_echo``'s
+# source and open floors, ``envelope_lag.PEER_OPEN_DB`` and ``LEVEL_FLOOR_DB``) were set at:
+# the median track speech level of the lab recording. A session is measured at this level
+# whatever it was recorded at (``TrackRmsCacheSet.reference_samples``).
+PATH_REFERENCE_SPEECH_DB = -15.0
 # Acoustic statuses that call for transcript suppression (used both for the flagged/
 # bleed report and, via `word_targets`, for suggest-mode's suppression_recommendations).
 _FLAGGED_STATUSES = ("inaudible", "bleed")
@@ -276,6 +281,13 @@ class TrackRmsCache:
         return level_profile(self.samples, int(self.sample_rate), whole_track=True)
 
     @cached_property
+    def speech_db(self) -> float:
+        """The track's own speech level (dBFS); ``-inf`` with no live audio."""
+        from podcast_mcp.edits.audio_cache import speech_db_from_profile
+
+        return speech_db_from_profile(self.track_profile)
+
+    @cached_property
     def voice_floor_db(self) -> float:
         """The level under which a frame of this track holds no voice (dBFS).
 
@@ -356,9 +368,36 @@ class TrackRmsCacheSet:
     _copy_paths: dict[tuple[str, str], CopyPath] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
+    _reference: dict[str, np.ndarray] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
 
     def get(self, track_id: str) -> TrackRmsCache | None:
         return self.caches.get(track_id)
+
+    @cached_property
+    def reference_gain_db(self) -> float:
+        """The gain that puts the session's median track speech level at the path reference.
+
+        One gain for every track, so the tracks keep their levels relative to each other
+        (which side of a pair is louder is evidence) while the measurement no longer
+        depends on how loud the session was recorded. Only a track whose speech stands
+        out of its room counts (a finite ``audibility_floor_db``): the level of one that
+        mostly holds room tone is its room's, not its voice's. With no such track the
+        session is measured as recorded.
+        """
+        speech = [c.speech_db for c in self.caches.values() if math.isfinite(c.audibility_floor_db)]
+        return PATH_REFERENCE_SPEECH_DB - float(np.median(speech)) if speech else 0.0
+
+    def reference_samples(self, track_id: str) -> np.ndarray:
+        """The track's samples at the session's reference level."""
+        if track_id not in self._reference:
+            samples = self.caches[track_id].samples
+            gain = self.reference_gain_db
+            self._reference[track_id] = (
+                samples if gain == 0.0 else samples * np.float32(10 ** (gain / 20))
+            )
+        return self._reference[track_id]
 
     def echo_pairs(self) -> list[EchoPairProfile]:
         """Directed mic pairs with a measured bleed path, from cached timeline audio.
@@ -372,7 +411,7 @@ class TrackRmsCacheSet:
 
             rate = next((c.sample_rate for c in self.caches.values()), _RMS_SAMPLE_RATE)
             self._echo_pairs = echo_risk_pairs(
-                {tid: c.samples for tid, c in self.caches.items()}, sample_rate=rate
+                {tid: self.reference_samples(tid) for tid in self.caches}, sample_rate=rate
             )
         return self._echo_pairs
 
@@ -406,7 +445,7 @@ class TrackRmsCacheSet:
         self, source_track_id: str, bleed_track_id: str, t_start: float, t_end: float
     ) -> float:
         """Median fine-spectrum match of a bleed-mic window with the source at its lag."""
-        source, bleed = self.caches[source_track_id], self.caches[bleed_track_id]
+        bleed = self.caches[bleed_track_id]
         lag = round(self.copy_path(source_track_id, bleed_track_id).lag_sec / COPY_HOP_SEC)
         first = round((t_start - bleed.timeline_offset_sec) / COPY_HOP_SEC)
         last = round((t_end - bleed.timeline_offset_sec - COPY_FRAME_SEC) / COPY_HOP_SEC)
@@ -414,7 +453,11 @@ class TrackRmsCacheSet:
         return float(
             np.median(
                 copy_similarity(
-                    bleed.samples, source.samples, frames, lag, sample_rate=bleed.sample_rate
+                    self.reference_samples(bleed_track_id),
+                    self.reference_samples(source_track_id),
+                    frames,
+                    lag,
+                    sample_rate=bleed.sample_rate,
                 )
             )
         )
@@ -428,8 +471,10 @@ class TrackRmsCacheSet:
             or source.timeline_offset_sec != bleed.timeline_offset_sec
         ):
             return CopyPath()
-        own = copy_levels_db(bleed.samples, sample_rate=bleed.sample_rate)
-        peer = copy_levels_db(source.samples, sample_rate=source.sample_rate)
+        own_samples = self.reference_samples(bleed_track_id)
+        peer_samples = self.reference_samples(source_track_id)
+        own = copy_levels_db(own_samples, sample_rate=bleed.sample_rate)
+        peer = copy_levels_db(peer_samples, sample_rate=source.sample_rate)
         reach = round(MAX_COPY_LAG_SEC / COPY_HOP_SEC)
         count = min(own.size, peer.size)
         talking = np.zeros(own.size)
@@ -448,7 +493,7 @@ class TrackRmsCacheSet:
         loud = np.flatnonzero(frames & (direct >= loud_db))
         sample = loud[:: max(1, loud.size // LIKENESS_FRAMES)]
         likeness = confirmed_likeness(
-            bleed.samples, source.samples, sample, lag, peer, loud_db, sample_rate=bleed.sample_rate
+            own_samples, peer_samples, sample, lag, peer, loud_db, sample_rate=bleed.sample_rate
         )
         return CopyPath() if likeness is None else CopyPath(lag * COPY_HOP_SEC, likeness)
 
