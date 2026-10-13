@@ -930,7 +930,7 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         path="tighten.acoustic_gap_filler.max_frames",
         label="Acoustic max frames",
         description=(
-            "10 ms analysis frames per gap (ceiling 600, about 6 s); longer gaps are skipped."
+            "10 ms analysis frames per scan window (ceiling 600, about 6 s); a longer gap is scanned in overlapping windows."
         ),
         type="integer",
         default=600,

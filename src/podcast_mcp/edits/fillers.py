@@ -786,7 +786,7 @@ def _peer_speaking_in_gap(
 
     Transcript evidence only, which is enough for the pause floor (a turn gap
     versus a thinking pause). Whether a peer is audibly voiced in a gap is
-    :func:`_peer_voiced_in_gap`. A peer muted in the mix still counts: the mute
+    :func:`_peer_voiced_at`. A peer muted in the mix still counts: the mute
     is a listening choice, and a cut here ripples the muted track too.
     """
     indexes = peer_indexes if peer_indexes is not None else _peer_speech_indexes(project)
