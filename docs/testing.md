@@ -2628,3 +2628,4 @@ with native Tab at 16px and 32px root sizes in light and dark themes. It runs
 in Chromium and WebKit and saves geometry receipts and screenshots for each
 focused button. The phone shell clips content at its viewport edge, so every
 navigation focus indicator must fit inside its button.
+
