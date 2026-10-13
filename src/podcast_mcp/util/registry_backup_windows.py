@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import importlib
+import logging
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -12,6 +13,9 @@ from typing import Any
 
 from podcast_mcp.util.registry_backup_posix import Identity
 from podcast_mcp.util.registry_cleanup import cleanup
+from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
+
+logger = logging.getLogger(__name__)
 
 _native_ctypes: Any = ctypes
 _PRIVATE_UNTRUSTED_ACCESS_MASK = 0xFFFFFFFF
@@ -101,6 +105,12 @@ class _RenameInformation(ctypes.Structure):
         ("length", wintypes.DWORD),
         ("name", wintypes.WCHAR * 1),
     ]
+
+
+def _owner_reason(*, private: bool, directory: bool) -> RegistryPrivacyReason:
+    if not private:
+        return RegistryPrivacyReason.PARENT_OWNER
+    return RegistryPrivacyReason.DIRECTORY_OWNER if directory else RegistryPrivacyReason.FILE_OWNER
 
 
 class _WindowsAPI:
@@ -297,12 +307,19 @@ class _WindowsAPI:
         return handle
 
     def verify_handle(
-        self, handle: Any, *, private: bool, directory: bool, path: Path | None = None
+        self, handle: Any, *, private: bool, directory: bool, path: Path
     ) -> _FileInformation:
         info = _FileInformation()
         self.check(self.kernel.GetFileInformationByHandle(handle, ctypes.byref(info)))
-        if info.attributes & 0x400 or bool(info.attributes & 0x10) != directory:
-            raise PermissionError("backup paths must not contain reparse points")
+        if info.attributes & 0x400:
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.REPARSE_POINT)
+        if bool(info.attributes & 0x10) != directory:
+            raise RegistryPrivacyError(
+                path,
+                RegistryPrivacyReason.NOT_A_FOLDER
+                if directory
+                else RegistryPrivacyReason.FILE_NOT_REGULAR,
+            )
         filesystem = ctypes.create_unicode_buffer(32)
         self.check(
             self.kernel.GetVolumeInformationByHandleW(
@@ -310,9 +327,9 @@ class _WindowsAPI:
             )
         )
         if filesystem.value.upper() != "NTFS":
-            raise PermissionError("registry backup requires local NTFS storage")
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.NOT_LOCAL_NTFS)
         if not info.index_high and not info.index_low:
-            raise PermissionError("backup filesystem must provide persistent file identities")
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.NOT_LOCAL_NTFS)
         owner, acl, descriptor = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
         result = self.security.GetSecurityInfo(
             handle,
@@ -329,9 +346,11 @@ class _WindowsAPI:
         try:
             trusted = self.trusted if private else self.ancestry_trusted
             owner_sid = self.sid_string(owner)
-            if not acl or owner_sid not in trusted:
-                raise PermissionError(
-                    f"registry path {path} has an untrusted owner {owner_sid} or unrestricted DACL"
+            if not acl:
+                raise RegistryPrivacyError(path, RegistryPrivacyReason.WINDOWS_ACL)
+            if owner_sid not in trusted:
+                raise RegistryPrivacyError(
+                    path, _owner_reason(private=private, directory=directory)
                 )
             count = ctypes.cast(acl, ctypes.POINTER(_AclHeader)).contents.count
             for index in range(count):
@@ -343,7 +362,7 @@ class _WindowsAPI:
                 if ace.flags & 8 and not (private and directory and ace.flags & 3):
                     continue
                 if ace.kind != 0:
-                    raise PermissionError("backup DACL contains an unsupported access grant")
+                    raise RegistryPrivacyError(path, RegistryPrivacyReason.WINDOWS_ACL)
                 if pointer.value is None:
                     raise OSError("cannot inspect backup ACL entry")
                 sid = self.sid_string(pointer.value + _AllowAce.sid.offset)
@@ -352,11 +371,14 @@ class _WindowsAPI:
                 )
                 effective_sid = owner_sid if sid == "S-1-3-4" else sid
                 if effective_sid not in trusted and ace.mask & forbidden:
-                    raise PermissionError(
-                        f"registry path {path} grants another account unsafe access; "
-                        f"owner={owner_sid} sid={sid} flags=0x{ace.flags & 0xFF:02X} "
-                        f"mask=0x{ace.mask:08X} intersection=0x{ace.mask & forbidden:08X}"
+                    logger.debug(
+                        "registry ACL refused: owner=%s sid=%s flags=0x%02X mask=0x%08X",
+                        owner_sid,
+                        sid,
+                        ace.flags & 0xFF,
+                        ace.mask & forbidden,
                     )
+                    raise RegistryPrivacyError(path, RegistryPrivacyReason.WINDOWS_ACL)
         finally:
             cleanup([partial(self.kernel.LocalFree, descriptor)])
         return info
@@ -412,9 +434,7 @@ def _open_chain(
     api: _WindowsAPI, path: Path, *, create: bool = False
 ) -> list[tuple[Path, Any, tuple[int, int, int]]]:
     if not path.drive or path.drive.startswith("\\\\") or any(":" in p for p in path.parts[1:]):
-        raise PermissionError(
-            "registry storage requires a local NTFS path without alternate streams"
-        )
+        raise RegistryPrivacyError(path, RegistryPrivacyReason.NOT_LOCAL_NTFS)
     for name in path.parts[1:]:
         _validate_name(name)
     handles: list[tuple[Path, Any, tuple[int, int, int]]] = []
@@ -443,12 +463,12 @@ def _verify_chain(
     for part, handle, expected in handles:
         info = api.verify_handle(handle, private=part == path, directory=True, path=part)
         if (info.volume, info.index_high, info.index_low) != expected:
-            raise PermissionError("registry directory identity changed")
+            raise RegistryPrivacyError(part, RegistryPrivacyReason.PATH_CHANGED)
         reopened = api.open_directory(part)
         try:
             current = api.verify_handle(reopened, private=part == path, directory=True, path=part)
             if (current.volume, current.index_high, current.index_low) != expected:
-                raise PermissionError("registry directory path changed")
+                raise RegistryPrivacyError(part, RegistryPrivacyReason.PATH_CHANGED)
         finally:
             cleanup([partial(api.close, reopened)])
 

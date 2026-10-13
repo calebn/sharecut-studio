@@ -183,7 +183,7 @@ def test_native_extended_read_grant_refuses_before_copy(tmp_path):
     destination = output / "new.sqlite"
     try:
         _run([_system_program("icacls.exe"), str(output), "/grant", "*S-1-1-0:(OI)(CI)R"])
-        with pytest.raises(PermissionError, match="unsafe access"):
+        with pytest.raises(PermissionError, match="not limited to your account"):
             source.backup_to_new(destination)
         assert list(output.iterdir()) == []
         assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
