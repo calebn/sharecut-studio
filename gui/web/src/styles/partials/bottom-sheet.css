@@ -85,6 +85,12 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   height: min(75%, 32rem);
 }
 
+/* A selection the page cannot scroll clear of shortens the half sheet to sit
+   under it (useKeepSelectionClear); the sheet body scrolls. */
+.bottom-sheet--inspector.bottom-sheet--half {
+  max-block-size: var(--sheet-cap, 100%);
+}
+
 .bottom-sheet--full {
   height: min(100%, 56.25rem);
 }

@@ -118,11 +118,16 @@ describe("the first mutation on a fresh page", () => {
     vi.stubGlobal(
       "IntersectionObserver",
       class {
+        callback: (
+          entries: { isIntersecting: boolean; intersectionRatio: number }[],
+        ) => void;
         constructor(
-          private readonly callback: (
+          callback: (
             entries: { isIntersecting: boolean; intersectionRatio: number }[],
           ) => void,
-        ) {}
+        ) {
+          this.callback = callback;
+        }
         observe() {
           this.callback([{ isIntersecting: true, intersectionRatio: 1 }]);
         }

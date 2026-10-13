@@ -32,3 +32,21 @@ export function compactSheetTop(): number | null {
 export function inspectorSheetTop(): number | null {
   return restingTop(inspectorSheetPanel());
 }
+
+/** Where the open inspector sheet's slot ends in viewport px, or null when none is open. */
+export function inspectorSheetBottom(): number | null {
+  const root = inspectorSheetPanel()?.closest(".bottom-sheet-root");
+  return root ? root.getBoundingClientRect().bottom : null;
+}
+
+/**
+ * Shortens the open inspector sheet to `height` px (null lifts the cap), for a
+ * selection the page cannot scroll clear of it. The sheet's body keeps its own
+ * scroll, and Expand still opens it in full.
+ */
+export function capInspectorSheet(height: number | null): void {
+  const panel = inspectorSheetPanel();
+  if (!panel) return;
+  if (height === null) panel.style.removeProperty("--sheet-cap");
+  else panel.style.setProperty("--sheet-cap", `${Math.round(height)}px`);
+}
