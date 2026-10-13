@@ -9,6 +9,7 @@ import { Toast } from "../ui";
 import { registerFocusHold } from "../ui/focusHold";
 import { isValidFocusTarget } from "../ui/focusTarget";
 import { modalShortcuts } from "../ui/modalGate";
+import { claimTopLayerFloor } from "../ui/topLayerFloor";
 import { errorMessage } from "../utils/apiError";
 import {
   FEEDBACK_FOCUS_ATTRIBUTE,
@@ -55,6 +56,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     `[${FEEDBACK_FOCUS_ATTRIBUTE}]`,
   );
   usePhoneToastDock(regionRef, toast != null && host == null);
+  const floating = toast != null && host == null;
+  useLayoutEffect(() => {
+    const region = regionRef.current;
+    return floating && region ? claimTopLayerFloor(region) : undefined;
+  }, [floating]);
 
   useLayoutEffect(() => {
     const forgetFocus = () => {

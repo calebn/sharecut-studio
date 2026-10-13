@@ -54,7 +54,7 @@ Other values lint should not swallow:
 | `letter-spacing` in `em` | Relative to glyphs |
 | `opacity` | Often a one-off fade; tokenize only if a named mute recipe repeats |
 | `box-shadow` offsets | Shape, not inset; colors in the shadow still `var(--…)` |
-| `z-index` | The timeline, layout, panel, ingest, and command-palette partials require `--z-*` roles for positive layers; raw `0`/`auto` stay literal |
+| `z-index` | A `Menu` panel is a top-layer popover and ignores `z-index`; `ui/topLayerFloor.ts` keeps the toast above open menus ([docs/design-tokens.md](../../docs/design-tokens.md) § Top layer), so never raise a z-index to order against a menu. The timeline, layout, panel, ingest, and command-palette partials require `--z-*` roles for positive layers; raw `0`/`auto` stay literal |
 | Canvas `left` / `width` / `height` in TS | Time × zoom math, not chrome |
 
 ## Layout judgment (not a linter)
