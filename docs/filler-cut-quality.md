@@ -703,6 +703,9 @@ evidence:
 - Owner (2026-10-13) accepted common podcast-editing practice as the basis without citations: keep laughter, lower a laugh that covers another speaker on that speaker's own track, lower or shorten breaths rather than remove them all, cut false starts, keep some hesitations for rhythm
 - Owner (2026-10-13): a user who wants a quick result applies the suggested actions in bulk instead of reviewing each one, and can change any single decision later; bulk apply is "as low risk as labeling cause it's not permanent"
 - Owner (2026-10-13): the pipeline applies the suggested actions by default, "it's low risk and could potentially save the user a lot of time"
+enforced-by:
+- tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
+- tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
 enforcement: pending #1434
 -->
 
@@ -1041,7 +1044,26 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   running past its transcript time, not a free-standing hit, and does not join a
   string. A track with fewer than 30 such steps has no cadence and
   nothing is grouped. A single hit, a pair, and hits further apart than that step
-  are each still proposed. Laughs are not told apart here (#1365).
+  are each still proposed.
+- **A likely laugh is flagged, not dropped** (#1365, `edits/acoustic_laugh.py`). Inside one
+  voiced run the frame level rises and falls: a held "uh" is one burst, "ha ha ha" is
+  several. A burst ends when the level falls 6 dB under its peak and the next begins
+  when it climbs 6 dB over the valley between them. Three or more bursts in a row, each
+  peak within 12 dB of the one before, make the run a **likely laugh**. The proposal is
+  kept whole and its reason gains `:likely_laugh` (`filler:acoustic:likely_laugh`), the
+  Tighten row reads "Likely laugh", and `propose_edits` counts it in its summary
+  ("1 acoustic (review, 1 likely laugh)"). It is a review flag like `:risky`, so it is
+  never auto-applied and Apply eligible skips it; the suggested action is Leave, and the
+  editor decides. Both numbers are dB differences inside one run, so the rule reads the same
+  at any recording level and needs no cadence, pitch or model. It is a hint and not a
+  verdict: on the 2026-10-13 operator listening, 5 of 9 flagged clips were real laughs; the
+  other four were a false start, a breath between words, a sharp inhale before "um" and a
+  breath before a word, which the operator would cut or keep case by case. Level bursts
+  cannot separate those, so the thresholds are not tuned to them and the call stays with
+  the editor. Lab (mute, aggressive, 2026-10-13): acoustic proposals are the same as
+  before the rule, 70 with forced-aligner word times (8 flagged) and 37 with Whisper times
+  (5 flagged), and none is eligible for Apply eligible; ripple proposals (14 and 4) are
+  identical and none is flagged. This is the first slice of the non-speech sound policy tracked in #1434.
   A peer run is not peer speech when it is the cut track's own voice bleeding
   onto the peer's mic (#994). The run's RMS is compared with the cut track's RMS
   over the same frames, and a peer at least `analysis.heuristics.bleed_dominance_db`

@@ -23,6 +23,8 @@ describe("pendingReasonLabel", () => {
     ["nl:match:the end", "Agent edit (matched text)"],
     ["nl:utterance:u7", "Agent edit (utterance)"],
     ["filler:acoustic", "Filler sound"],
+    ["filler:acoustic:likely_laugh", "Likely laugh"],
+    ["filler:acoustic:likely_laugh:risky", "Likely laugh"],
     ["filler:um", 'Filler word "um"'],
     ["pause:1.2s", "Long pause (1.2s)"],
     ["pause:", "Long pause"],

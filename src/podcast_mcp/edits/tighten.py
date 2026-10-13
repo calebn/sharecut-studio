@@ -23,6 +23,7 @@ from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
     RESTART_REASON_PREFIX,
     is_acoustic_filler_reason,
+    is_likely_laugh_reason,
     is_review_only_reason,
 )
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
@@ -36,6 +37,7 @@ def format_tighten_propose_summary(
 ) -> str:
     """Human summary for pipeline/CLI/MCP propose output (includes discourse and backchannel skips)."""
     acoustic = sum(1 for d in decisions if is_acoustic_filler_reason(d.reason))
+    laughs = sum(1 for d in decisions if is_likely_laugh_reason(d.reason))
     fillers = sum(1 for d in decisions if (d.reason or "").startswith("filler:")) - acoustic
     pauses = sum(1 for d in decisions if (d.reason or "").startswith("pause:"))
     repetitions = sum(
@@ -50,7 +52,8 @@ def format_tighten_propose_summary(
     extra = f", {discourse} discourse kept" if discourse else ""
     extra += f", {backchannels} backchannel kept" if backchannels else ""
     repeat_text = f", {repetitions} repetition/restart" if repetitions else ""
-    acoustic_text = f", {acoustic} acoustic (review)" if acoustic else ""
+    laugh_text = f", {laughs} likely laugh" if laughs else ""
+    acoustic_text = f", {acoustic} acoustic (review{laugh_text})" if acoustic else ""
     acoustic_skip_text = f", {acoustic_skipped} acoustic skipped" if acoustic_skipped else ""
     return (
         f"{len(decisions)} proposed ({fillers} filler, {pauses} pause"

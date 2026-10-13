@@ -9,6 +9,9 @@ apart.  Leaf module (no project imports) so low-level edit helpers such as
 from __future__ import annotations
 
 ACOUSTIC_FILLER_REASON = "filler:acoustic"
+# Suffix on an acoustic proposal whose run looks like a laugh: held for the editor like
+# any other review flag (``:risky``, ``:other_speaking``), never dropped.
+LIKELY_LAUGH_FLAG = "likely_laugh"
 REPETITION_REASON_PREFIX = "repetition:"
 RESTART_REASON_PREFIX = "restart:"
 PAUSE_REASON_PREFIX = "pause:"
@@ -31,3 +34,8 @@ def is_review_only_reason(reason: str | None) -> bool:
 def is_acoustic_filler_reason(reason: str | None) -> bool:
     """True for ``filler:acoustic`` proposals, including guard suffixes (``:risky``)."""
     return (reason or "").startswith(ACOUSTIC_FILLER_REASON)
+
+
+def is_likely_laugh_reason(reason: str | None) -> bool:
+    """True for an acoustic proposal flagged as a likely laugh."""
+    return is_acoustic_filler_reason(reason) and f":{LIKELY_LAUGH_FLAG}" in (reason or "")

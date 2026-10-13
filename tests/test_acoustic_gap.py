@@ -16,6 +16,7 @@ from podcast_mcp.edits.acoustic_gap import (
     _voiced,
     find_voiced_gap_runs,
 )
+from podcast_mcp.edits.acoustic_laugh import has_laugh_bursts
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audition_context import _build_hypotheses
 from podcast_mcp.edits.fillers import (
@@ -32,6 +33,7 @@ from podcast_mcp.edits.tighten import (
     format_tighten_propose_summary,
     propose_tighten_edits,
 )
+from podcast_mcp.edits.tighten_hits import eligible_tighten_ids
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.models import (
@@ -1113,3 +1115,79 @@ def test_a_flanking_words_voice_running_into_the_gap_is_not_part_of_a_string() -
     found = _propose_in_gap(transcript, samples)
 
     assert len(found) == 3
+
+
+# --- laughs (#1365) -------------------------------------------------------------
+
+
+def _laugh(
+    total_sec: float, start: float, bursts: int, *, period: float = 0.2, amp: float = 0.2
+) -> np.ndarray:
+    """Voiced "ha ha ha": one tone whose level swells and dips ``bursts`` times, never silent."""
+    length = bursts * period
+    t = np.arange(int(length * RATE)) / RATE
+    swell = 0.1 + 0.9 * np.sin(np.pi * t / period) ** 2
+    samples = np.zeros(int(total_sec * RATE), dtype=np.float32)
+    at = int(start * RATE)
+    samples[at : at + t.size] = amp * swell * np.sin(2 * np.pi * 180.0 * t)
+    return samples
+
+
+@pytest.mark.parametrize("gain", [0.1, 1.0, 4.0])
+@pytest.mark.parametrize("bursts", [3, 5])
+def test_a_laugh_like_run_is_proposed_and_flagged(bursts: int, gain: float) -> None:
+    transcript = _two_words(0.4, 5.4)
+    skips: dict[str, int] = {}
+
+    (found,) = _propose_in_gap(transcript, _laugh(6.0, 1.0, bursts, amp=0.2 * gain), skips)
+
+    assert found.likely_laugh
+    assert skips == {}
+
+
+@pytest.mark.parametrize("gain", [0.1, 1.0, 4.0])
+def test_a_held_uh_as_long_as_a_laugh_is_not_flagged(gain: float) -> None:
+    transcript = _two_words(0.4, 5.4)
+
+    (found,) = _propose_in_gap(transcript, _tone(6.0, 1.0, 2.0, amp=0.2 * gain))
+
+    assert not found.likely_laugh
+
+
+@pytest.mark.parametrize("gain", [0.1, 1.0, 4.0])
+def test_two_bursts_are_a_stutter_not_a_likely_laugh(gain: float) -> None:
+    transcript = _two_words(0.4, 5.4)
+
+    (found,) = _propose_in_gap(transcript, _laugh(6.0, 1.0, 2, amp=0.2 * gain))
+
+    assert not found.likely_laugh
+
+
+def test_laugh_bursts_read_the_same_at_any_level_and_break_on_a_level_step() -> None:
+    swell = np.tile(np.array([-30.0, -20.0, -12.0, -20.0, -30.0, -42.0]), 3)
+    stepped = np.concatenate([swell[:12], swell[12:] + 20.0])
+    for offset in (-20.0, 0.0, 12.0):
+        assert has_laugh_bursts(swell + offset)
+        assert not has_laugh_bursts(stepped + offset)
+        assert not has_laugh_bursts(swell[:12] + offset)
+    assert not has_laugh_bursts(np.full(30, -20.0))
+    assert not has_laugh_bursts(np.zeros(0))
+
+
+def test_a_likely_laugh_is_held_for_review_and_named_in_the_summary(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    del sample_wav
+    samples = np.random.default_rng(941).normal(0, 0.0003, 3 * RATE).astype(np.float32)
+    for start, end in ((0.73, 0.78), (1.24, 1.29)):
+        samples[round(start * RATE) : round(end * RATE)] *= 0.1
+    samples += _tone(3.0, 0.2, 0.4) + _laugh(3.0, 0.8, 3, period=0.13) + _tone(3.0, 2.0, 2.2)
+    project = _project(tmp_path, samples, _two_words().words)
+
+    proposal = propose_tighten_edits(project, _e2e_defaults())
+
+    (decision,) = proposal.decisions
+    assert decision.reason == "filler:acoustic:likely_laugh"
+    assert decision.review_required
+    assert eligible_tighten_ids(proposal.decisions) == []
+    assert "1 acoustic (review, 1 likely laugh)" in proposal.summary()

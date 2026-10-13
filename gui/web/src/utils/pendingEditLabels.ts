@@ -23,8 +23,10 @@ const REASON_LABELS: Record<string, string> = {
 
 /** One label per tighten class; a new class in `tightenHits` fails to type-check until it has one. */
 const TIGHTEN_REASON_LABELS: Record<TightenClass, (tail: string) => string> = {
-  filler: (tail) =>
-    tail === "acoustic" ? "Filler sound" : `Filler word "${tail}"`,
+  filler: (tail) => {
+    if (tail.split(":").includes("likely_laugh")) return "Likely laugh";
+    return tail === "acoustic" ? "Filler sound" : `Filler word "${tail}"`;
+  },
   pause: (tail) => (tail ? `Long pause (${tail})` : "Long pause"),
   repetition: () => "Repeated word",
   restart: () => "False start",
