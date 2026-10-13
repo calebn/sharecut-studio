@@ -2,9 +2,9 @@ name: test
 
 on:
   push:
-    branches: [main]
+    branches: [main, tmp-base-1411]
   pull_request:
-    branches: [main]
+    branches: [main, tmp-base-1411]
   # Nightly full run: every browser suite on both engines and the coverage floor,
   # whatever the day's PRs skipped.
   schedule:
