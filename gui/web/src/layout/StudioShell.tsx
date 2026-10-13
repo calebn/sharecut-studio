@@ -41,6 +41,7 @@ import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { HomeScreenHint } from "./HomeScreenHint";
+import { type LoadFailure, LoadFailureBanner } from "./LoadFailureBanner";
 import { MobileShell } from "./MobileShell";
 import { StatusBar } from "./StatusBar";
 import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
@@ -50,9 +51,11 @@ import { compactSheetProps, useCompactInspector } from "./useCompactInspector";
 function StudioShellAdapter({
   guestShare = false,
   feedbackHostRef,
+  loadFailure,
 }: {
   guestShare?: boolean;
   feedbackHostRef?: RefCallback<HTMLDivElement>;
+  loadFailure?: LoadFailure | null;
 }) {
   const importShortcut = displayShortcutFor("media.import") ?? "Menu";
   const {
@@ -161,7 +164,11 @@ function StudioShellAdapter({
 
   if (shell === "phone") {
     return (
-      <MobileShell guestShare={guestShare} feedbackHostRef={feedbackHostRef} />
+      <MobileShell
+        guestShare={guestShare}
+        feedbackHostRef={feedbackHostRef}
+        loadFailure={loadFailure}
+      />
     );
   }
 
@@ -242,6 +249,7 @@ function StudioShellAdapter({
         notices: {
           banners: (
             <>
+              <LoadFailureBanner failure={loadFailure} />
               <Slot id={FEATURE_SHARE_UI_BANNER}>
                 {guestShare ? (
                   <div className="guest-banner" role="status">
