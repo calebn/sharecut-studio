@@ -320,7 +320,8 @@ enforced-by:
 - tests/test_room_model.py::test_a_talker_gated_over_a_third_of_its_frames_has_the_gates_silence_for_its_room
 - tests/test_room_model.py::test_the_level_of_a_mode_is_the_median_of_its_frames_not_the_middle_of_its_bin
 - tests/test_session_air.py::test_a_recording_with_no_words_takes_its_speech_level_from_its_own_levels
-- tests/test_pause_reproposal_invariants.py::test_reproposing_after_applying_never_double_cuts_or_splits_the_tracks
+- tests/test_pause_reproposal_invariants.py::test_reproposing_over_a_padded_cut_never_double_cuts_or_splits_the_tracks
+- tests/test_room_tone.py::test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull
 -->
 
 A pause trim exists to shorten air, so it removes only air, and no edge of it sits
@@ -709,18 +710,26 @@ date: 2026-10-06
 decided-by: calebn
 evidence:
 - 2026-10-06 owner: room tone is the default pause fill, so `tighten.filler_pad_mode` defaults to `room_tone`
-- #1054, #1114 the sampler picks only a steady stretch at the track's floor and leaves a gated or noisy track silent
+- #1054, #1114 the sampler picks only a steady stretch at the track's floor
+- 2026-10-13 #1212, #1369 (amended in place) a ripple pad never leaves a live room digitally silent: only a track gated to digital silence keeps a silent pad, and a live track with no sample holds the cut
 enforced-by:
 - tests/test_filler_pacing.py::test_filler_pad_mode_defaults_to_room_tone
 - tests/test_filler_pacing.py::test_shipped_defaults_fill_pads_with_room_tone
+- tests/test_room_tone.py::test_a_pad_never_leaves_a_live_track_without_room_tone
+- tests/test_room_tone.py::test_a_gated_track_keeps_its_silent_pad_while_the_live_track_gets_room_tone
+- tests/test_room_tone.py::test_a_lane_problem_that_is_not_a_missing_sample_reads_as_a_sentence
 - docs-sync: decision-filler-cuts
 -->
 
 A ripple pad and an approved mute fill with the track's room, because dead air
 on a track with a noise floor reads as a dropout (**Fill, not hole**). The
-sampler (**Where room tone comes from**) takes only true room floor, so a track
-with no such stretch, such as a Zoom-gated track, keeps a silent pad. Set
-`tighten.filler_pad_mode: silence` for a hard gap on every track. Any other value is rejected
+sampler (**Where room tone comes from**) takes only true room floor. A track
+gated to digital silence, such as a Zoom-gated track, keeps a silent pad,
+because its gaps already are silence. A ripple pad over any other track with no
+such stretch is held, and the hold names the cut, the track and why, because a
+hole of digital silence in a live room reads as a dropout. An approved mute on
+such a track stays silent. Set `tighten.filler_pad_mode: silence` for a hard gap
+on every track, which is also the way to cut a track the sampler holds. Any other value is rejected
 when the config is loaded, with an error naming `silence` and `room_tone`.
 
 ## Risk model

@@ -10,8 +10,12 @@ import pytest
 
 from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
-from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-from podcast_mcp.edits.timeline_ops import insert_room_tone_pad, mute_room_tone_fill
+from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+from podcast_mcp.edits.timeline_ops import (
+    LaneUnavailable,
+    insert_room_tone_pad,
+    mute_room_tone_fill,
+)
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -439,9 +443,31 @@ def test_a_pad_never_leaves_a_live_track_without_room_tone(tmp_path: Path) -> No
     assert held.value.held[0].reason == "pad_unavailable"
     assert held.value.held[0].peers == ("host",)
     assert project.model_dump() == before
-    assert str(held.value).startswith(
-        "Host's cut at 0:04.0 was not applied (um): a track has no room tone to fill the beat "
-        "this cut leaves: Host (no quiet stretch sounds like room tone)."
+    assert str(held.value) == (
+        "Host's cut at 0:04.0 was not applied because it needs room tone and Host has no "
+        "quiet stretch that sounds like room tone. Set filler_pad_mode to silence to cut "
+        "without room tone, or reject the held cuts."
+    )
+
+
+@pytest.mark.parametrize(
+    "cause,sentence",
+    [
+        ("missing_seam", "Host has no audio at the cut to match"),
+        ("media_extent_unavailable", "Host has a recording whose length is unknown"),
+        ("never_heard_of_it", "Host could not be checked"),
+    ],
+)
+def test_a_lane_problem_that_is_not_a_missing_sample_reads_as_a_sentence(
+    cause: str, sentence: str
+) -> None:
+    held = CutScopeHold("um", ("host",), "pad_unavailable", (LaneUnavailable("host", cause),))
+
+    message = str(ScopeChangedAtApproval([held], {"host": "Host"}, {"um": "Host's cut at 0:04.0"}))
+
+    assert message == (
+        f"Host's cut at 0:04.0 was not applied because it needs room tone and {sentence}. "
+        "Set filler_pad_mode to silence to cut without room tone, or reject the held cuts."
     )
 
 
@@ -494,3 +520,31 @@ def test_every_live_track_gets_its_own_room_tone_in_the_pad(tmp_path: Path) -> N
 
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host", "guest"}
+
+
+def test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    project.edit_decisions = [_padded_filler()]
+    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+    sample = project.editorial.edit_log[-1].params["pad_samples"][0]
+    replayed = (sample["source_start"], sample["source_end"])
+    assert replayed == (pytest.approx(5.15), pytest.approx(5.45))
+    project.edit_decisions = [
+        EditDecision(
+            id="pause",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=5.05,
+            end=6.5,
+            boundary_mode="exact",
+            review_required=False,
+            reason="pause:1.45s:solo",
+        )
+    ]
+    before = project.model_dump()
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        approve_edits(project, ["pause"], confirm_cut_speech=True)
+
+    assert held.value.held[0].reason == "source_geometry"
+    assert project.model_dump() == before
