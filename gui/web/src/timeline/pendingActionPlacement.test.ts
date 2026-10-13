@@ -108,16 +108,37 @@ describe("placePendingActionbar", () => {
     expect(position.top + position.maxHeight).toBeLessThanOrEqual(700);
   });
 
-  it("falls to the roomier side when the chrome leaves too little room above", () => {
-    const position = availablePlacement(
+  it("falls to the roomier side below when the chrome leaves little room above and neither side fits the card", () => {
+    expect(
       placePendingActionbar(
-        { left: 120, top: 150, bottom: 240, width: 14 },
+        { left: 120, top: 200, bottom: 260, width: 14 },
         { width: 240, height: 600, reach: 82 },
-        { ...viewport, top: 140 },
+        { width: 1280, height: 700, top: 100 },
         8,
       ),
-    );
-    expect(position.top).toBe(248);
+    ).toEqual({ left: 8, top: 268, maxHeight: 424 });
+  });
+
+  it("falls to the roomier side above when the bottom panel leaves little room below and neither side fits the card", () => {
+    expect(
+      placePendingActionbar(
+        { left: 120, top: 500, bottom: 560, width: 14 },
+        { width: 240, height: 600, reach: 82 },
+        { width: 1280, height: 700, top: 100 },
+        8,
+      ),
+    ).toEqual({ left: 8, top: 108, maxHeight: 384 });
+  });
+
+  it("prefers the side below when both sides are equally roomy and neither fits the card", () => {
+    expect(
+      placePendingActionbar(
+        { left: 120, top: 300, bottom: 360, width: 14 },
+        { width: 240, height: 600, reach: 82 },
+        { width: 1280, height: 560, top: 100 },
+        8,
+      ),
+    ).toEqual({ left: 8, top: 368, maxHeight: 184 });
   });
 
   it("leaves the actions inline when the card cannot fit between the ruler and the bottom panel", () => {
