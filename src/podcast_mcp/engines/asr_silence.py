@@ -62,7 +62,9 @@ MIN_SPAN_SEC = 0.05
 LEVEL_FRAME_SEC = 0.01
 LEVEL_SAMPLE_RATE = 8000
 # A frame at or below this is digital silence: it never counts toward a track's noise floor.
-SILENT_FRAME_DB = -80.0
+# Digital silence is the same level at any recording gain; a fixed dBFS cutoff above it moved
+# a quiet room into it as the recording got quieter (#1366).
+SILENT_FRAME_DB = -200.0
 
 
 def silence_filter_fingerprint(
