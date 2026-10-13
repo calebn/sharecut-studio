@@ -41,7 +41,7 @@ DOCS_READER_RE = re.compile(
     r"""|\.agents/skills"""
     r"""|["'](?:docs|ux|docs-site)["']\s*[/,]"""
     r"""|/\s*["'](?:docs|ux|docs-site)["']"""
-    r"""|["']\.agents["']\s*[/,]\s*["']skills["']"""
+    r"""|["']\.agents["']"""
 )
 SCRIPT_REF_RES = (
     re.compile(r"""load_script\(\s*["'](\w+)["']"""),
