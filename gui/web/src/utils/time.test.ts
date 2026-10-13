@@ -141,18 +141,18 @@ describe("formatRulerTime", () => {
   });
 
   it.each([
-    [59.68, 1, "0:59"],
-    [12.7, 1, "0:12"],
-    [59.68, 0.5, "0:59.6"],
-    [0.3, 0.1, "0:00.3"],
-    [3725.99, 60, "1:02:05"],
-    [59.9999995, 1, "0:59"],
-    [0.29, 0.01, "0:00.29"],
-    [4.35, 0.01, "0:04.35"],
+    [59.68, 1, "1:00"],
+    [59.5, 1, "1:00"],
+    [59.4999, 1, "0:59"],
+    [12.7, 1, "0:13"],
+    [3599.5, 1, "1:00:00"],
+    [59.68, 0.5, "0:59.7"],
+    [59.96, 0.1, "1:00.0"],
+    [59.9999995, 1, "1:00"],
   ])(
-    "floors %s s at a %s s step to %s for a position readout",
+    "rounds %s s at a %s s step to %s, the same as a tick label",
     (sec, step, label) => {
-      expect(formatRulerTime(sec, step, "floor")).toBe(label);
+      expect(formatRulerTime(sec, step)).toBe(label);
     },
   );
 });
@@ -160,7 +160,32 @@ describe("formatRulerTime", () => {
 describe("formatTimeShort", () => {
   it("formats seconds as m:ss", () => {
     expect(formatTimeShort(65)).toBe("1:05");
-    expect(formatTimeShort(65.9)).toBe("1:05");
+    expect(formatTimeShort(65.4)).toBe("1:05");
+  });
+
+  it.each([
+    [59.9995, "1:00"],
+    [59.5, "1:00"],
+    [59.4999, "0:59"],
+    [0.5, "0:01"],
+    [0.4999, "0:00"],
+    [65.9, "1:06"],
+    [3599.5, "1:00:00"],
+    [3599.4999, "59:59"],
+  ])("rounds %s s to the whole second it shows, as %s", (sec, label) => {
+    expect(formatTimeShort(sec)).toBe(label);
+  });
+
+  it.each([0, 0.4999, 0.5, 12.7, 59.5, 59.9995, 65.9, 3599.5, 7199.6])(
+    "reads %s s as the ruler's whole-second label does",
+    (sec) => {
+      expect(formatTimeShort(sec)).toBe(formatRulerTime(sec, 1));
+    },
+  );
+
+  it("shows the minute the transport shows for a time just short of it", () => {
+    expect(formatTime(59.9995)).toBe("01:00.000");
+    expect(formatTimeShort(59.9995)).toBe("1:00");
   });
 
   it("switches to h:mm:ss from one hour", () => {

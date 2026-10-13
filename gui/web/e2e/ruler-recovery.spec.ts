@@ -808,7 +808,7 @@ test("comment span accounts for held horizontal scroll and reverses without savi
       const rect = await ruler.boundingBox();
       const expectedEnd = (owner.x + 101 - rect!.x) / owner.scale.pxPerSecond;
       const wholeClock = (sec: number) =>
-        `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+        `${Math.floor(Math.round(sec) / 60)}:${String(Math.round(sec) % 60).padStart(2, "0")}`;
       await expect(hint).toContainText(`0:02–${wholeClock(expectedEnd)}`);
       await page.mouse.wheel(-200, 0);
       await expect

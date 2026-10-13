@@ -54,6 +54,9 @@ describe("dropLabels", () => {
   it("formats status durations", () => {
     expect(formatIngestDuration(0.5)).toBe("0.5s");
     expect(formatIngestDuration(60)).toBe("1:00");
+    expect(formatIngestDuration(59.96)).toBe("1:00");
+    expect(formatIngestDuration(119.7)).toBe("2:00");
+    expect(formatIngestDuration(125.4)).toBe("2:05");
   });
 
   it("explains replace vs new-track in confirm copy", () => {
