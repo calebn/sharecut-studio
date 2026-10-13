@@ -233,7 +233,6 @@ def edit_suggest_handoff_cut_cmd(
         "--keep-right-start",
         help="Timeline start of material to keep on the right (e.g. closing pivot).",
     ),
-    quiet_db: float = typer.Option(-48.0, "--quiet-db"),
     min_island_sec: float = typer.Option(0.12, "--min-island-sec"),
     hop_ms: int = typer.Option(20, "--hop-ms"),
     retain_sec: float = typer.Option(
@@ -252,7 +251,6 @@ def edit_suggest_handoff_cut_cmd(
         speaker=speaker,
         keep_left_end=keep_left_end,
         keep_right_start=keep_right_start,
-        quiet_db=quiet_db,
         min_island_sec=min_island_sec,
         hop_ms=hop_ms,
         retain_sec=retain_sec,

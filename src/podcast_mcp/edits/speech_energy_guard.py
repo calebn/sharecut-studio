@@ -28,6 +28,7 @@ from podcast_mcp.edits.audio_cache import (
     VOICE_FLOOR_OVER_ROOM_DB,
     room_floor_db,
     speech_level_db,
+    track_voice_reach_db,
 )
 from podcast_mcp.edits.clips_ops import clips_for_track, remove_timeline_range_from_clips
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
@@ -64,7 +65,6 @@ log = logging.getLogger(__name__)
 
 ConflictAction = Literal["skip", "review"]
 CONFLICT_ACTIONS: tuple[ConflictAction, ...] = ("review", "skip")
-DEFAULT_MIN_OTHER_RMS_DB = -42.0
 
 
 @dataclass(frozen=True)
@@ -540,6 +540,40 @@ def _peer_speaks_near_span(
     return None if unavailable else False
 
 
+def _voice_reach_db(
+    project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None
+) -> float:
+    """The level the mean of a stretch must reach to hold ``track_id``'s voice, in recorded dB."""
+    cache = caches.get(track_id) if caches else None
+    reach = cache.voice_reach_db if cache is not None else track_voice_reach_db(project, track_id)
+    track = project.track_by_id(track_id)
+    return reach + (track.gain_db if track else 0.0)
+
+
+def _peer_voice_in_mean(
+    project: EpisodeProject, peer_track_id: str, rms: float, caches: TrackRmsCacheSet | None
+) -> bool:
+    """Whether a peer's whole-span mean level ``rms`` (recorded dB) holds its voice.
+
+    Where no frame-by-frame calibration can be made, the span's mean is held to the level
+    the peer's voice reaches (:func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`):
+    a peer with no live audio never speaks. A peer whose loudest frames show no contrast with
+    its room has no voice level of its own to read, so it is held to the voice level of the
+    session's other tracks (the median of theirs), at any recording level. With no track in
+    the session to read it against, a live peer counts as speaking: the guard asks, never
+    cuts through a peer it cannot rule out.
+    """
+    reach = _voice_reach_db(project, peer_track_id, caches)
+    if reach == -math.inf:
+        session = [
+            r
+            for tid in dialogue_track_ids(project)
+            if math.isfinite(r := _voice_reach_db(project, tid, caches))
+        ]
+        reach = float(np.median(session)) if session else -math.inf
+    return rms >= reach
+
+
 def measure_peer_speech(
     project: EpisodeProject,
     timeline_spans: Sequence[tuple[float, float]],
@@ -572,7 +606,6 @@ def measure_peer_speech(
             code="invalid_range",
         )
     cfg = _guard_cfg(defaults)
-    min_other = float(cfg.get("min_other_rms_db", DEFAULT_MIN_OTHER_RMS_DB))
     dominance = float(cfg.get("dominance_db", 3.0))
     min_overlap = float(cfg.get("min_overlap_sec", 0.03))
     checked = [(s, e) for s, e in timeline_spans if e - s >= min_overlap]
@@ -584,7 +617,9 @@ def measure_peer_speech(
             (
                 r
                 for r in (
-                    measure_timeline_rms_db(project, tid, s, e, caches=caches)
+                    measure_timeline_rms_db(
+                        project, tid, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
+                    )
                     for tid in owner_track_ids
                 )
                 if r is not None
@@ -603,7 +638,9 @@ def measure_peer_speech(
             continue
         speaks = False
         for (tl_start, tl_end), span_owner in zip(checked, span_owner_rms, strict=True):
-            rms = measure_timeline_rms_db(project, tid, tl_start, tl_end, caches=caches)
+            rms = measure_timeline_rms_db(
+                project, tid, tl_start, tl_end, caches=caches, floor_db=DIGITAL_SILENCE_DB
+            )
             if rms is None:
                 unread.setdefault(tid, []).append((tl_start, tl_end))
                 continue
@@ -629,7 +666,7 @@ def measure_peer_speech(
                 else None,
             )
             if calibrated is None:
-                calibrated = rms >= min_other and (
+                calibrated = _peer_voice_in_mean(project, tid, rms, caches) and (
                     span_owner is None or span_owner - rms < dominance
                 )
             speaks |= calibrated

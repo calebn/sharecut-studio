@@ -159,7 +159,6 @@ def test_suggest_handoff_cut_tool(tmp_path):
         speaker="Host",
         keep_left_end=1.6,
         keep_right_start=8.0,
-        quiet_db=-48.0,
         min_island_sec=0.12,
         hop_ms=20,
         retain_sec=1.0,

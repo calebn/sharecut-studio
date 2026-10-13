@@ -76,7 +76,7 @@ def test_waveform_snap_window_island_ticks_keep_microseconds(minimal_project, sa
             "preview_inaudible_cut",
             return_value={"start": 1.2, "end": 1.25, "mode": "word"},
         ),
-        patch("podcast_mcp.services.document.edit.timeline_rms_hops", return_value=[]),
+        patch("podcast_mcp.services.document.edit.timeline_floor_hops", return_value=[]),
         patch(
             "podcast_mcp.services.document.edit.silence_islands_from_hops",
             return_value=[island],
@@ -127,7 +127,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
             "preview_inaudible_cut",
             return_value={"start": 1.01, "end": 1.2, "mode": "word"},
         ),
-        patch("podcast_mcp.services.document.edit.timeline_rms_hops", return_value=[]),
+        patch("podcast_mcp.services.document.edit.timeline_floor_hops", return_value=[]),
         patch(
             "podcast_mcp.services.document.edit.silence_islands_from_hops",
             return_value=[island],
@@ -142,7 +142,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
     assert timed["islands"] == [{"start": 1.0, "end": 1.2, "duration": 0.2, "midpoint": 1.1}]
     assert 1.1 in timed["ticks"]
     with patch(
-        "podcast_mcp.services.document.edit.timeline_rms_hops",
+        "podcast_mcp.services.document.edit.timeline_floor_hops",
         side_effect=RuntimeError("hops"),
     ):
         hop_fail = EditService(ws).waveform_snap_window(

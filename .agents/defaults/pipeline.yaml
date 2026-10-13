@@ -176,7 +176,6 @@ tighten:
     # review = hold the cut as a pending suggestion, never applied alone;
     # skip = refuse it. No one-track punch (#1370).
     on_conflict: review
-    min_other_rms_db: -42.0
     dominance_db: 3.0
     min_overlap_sec: 0.03
   inaudible_opt: true

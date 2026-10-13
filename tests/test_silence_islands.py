@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from podcast_mcp.edits.silence_islands import (
@@ -12,7 +14,9 @@ from podcast_mcp.edits.silence_islands import (
     _snap_to_quiet,
     silence_islands_from_hops,
     suggest_handoff_cut,
+    timeline_floor_hops,
 )
+from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -79,22 +83,44 @@ def _project(tmp_path: Path) -> EpisodeProject:
     return p
 
 
+class _Lane:
+    """A lane that reads ``level(None, track_id, start, end)`` dB, with a fixed voice floor."""
+
+    sample_rate = 16000
+    timeline_offset_sec = 0.0
+    samples = np.zeros(30 * 16000)
+
+    def __init__(self, track_id, level, voice_floor_db):
+        self._track_id = track_id
+        self._level = level
+        self.voice_floor_db = voice_floor_db
+
+    def rms_db(self, start, end, *, floor_db):
+        return self._level(None, self._track_id, start, end)
+
+
+def _lanes(level, *, tracks=("host",), voice_floor_db=-50.0):
+    """Patch the lanes a handoff reads: each reads ``level`` against ``voice_floor_db``."""
+    caches = TrackRmsCacheSet({tid: _Lane(tid, level, voice_floor_db) for tid in tracks})
+    return patch("podcast_mcp.edits.silence_islands.build_track_rms_caches", return_value=caches)
+
+
 def test_silence_islands_from_hops_clusters_quiet():
     # Speech, silence, speech (um), silence, speech
     hops = [
-        (0.0, -20.0),
-        (0.5, -20.0),
-        (1.0, -55.0),
-        (1.5, -55.0),
-        (2.0, -55.0),
-        (2.5, -20.0),  # um
-        (3.0, -20.0),
-        (3.5, -55.0),
-        (4.0, -55.0),
-        (4.5, -55.0),
-        (5.0, -20.0),
+        (0.0, 30.0),
+        (0.5, 30.0),
+        (1.0, -5.0),
+        (1.5, -5.0),
+        (2.0, -5.0),
+        (2.5, 30.0),  # um
+        (3.0, 30.0),
+        (3.5, -5.0),
+        (4.0, -5.0),
+        (4.5, -5.0),
+        (5.0, 30.0),
     ]
-    islands = silence_islands_from_hops(hops, quiet_db=-48.0, min_duration_sec=0.12)
+    islands = silence_islands_from_hops(hops, min_duration_sec=0.12)
     assert len(islands) == 2
     assert islands[0].start == 1.0
     assert islands[0].end == 2.0
@@ -104,7 +130,7 @@ def test_silence_islands_from_hops_clusters_quiet():
 
 
 def test_silence_islands_from_irregular_hops_preserves_last_quiet_time():
-    hops = [(2.0, -60.0), (0.0, -60.0), (0.4, -60.0), (0.4, -20.0), (1.0, -60.0)]
+    hops = [(2.0, -10.0), (0.0, -10.0), (0.4, -10.0), (0.4, 30.0), (1.0, -10.0)]
     assert silence_islands_from_hops(hops, min_duration_sec=0.3) == [
         SilenceIsland(start=0.0, end=0.4),
         SilenceIsland(start=1.0, end=2.0),
@@ -129,10 +155,7 @@ def test_suggest_handoff_retains_air_and_removes_um(tmp_path):
             return -55.0
         return -20.0
 
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        side_effect=fake_rms,
-    ):
+    with _lanes(fake_rms):
         out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50)
 
     assert out["ok"] is True
@@ -167,10 +190,7 @@ def test_suggest_handoff_ignores_puddle_glued_to_pivot(tmp_path):
             return -55.0
         return -20.0
 
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        side_effect=fake_rms,
-    ):
+    with _lanes(fake_rms):
         out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0)
 
     assert out["ok"] is True
@@ -195,10 +215,7 @@ def test_suggest_handoff_refuses_um_at_retain_target(tmp_path):
             return -55.0
         return -20.0
 
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        side_effect=fake_rms,
-    ):
+    with _lanes(fake_rms):
         out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0)
 
     assert out["ok"] is False
@@ -220,10 +237,7 @@ def test_suggest_handoff_ignores_brief_quiet_dip_in_um(tmp_path):
             return -55.0
         return -20.0
 
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        side_effect=fake_rms,
-    ):
+    with _lanes(fake_rms):
         out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=20, retain_sec=1.0)
 
     assert out["ok"] is False
@@ -232,10 +246,7 @@ def test_suggest_handoff_ignores_brief_quiet_dip_in_um(tmp_path):
 
 def test_suggest_handoff_missing_audio_is_not_room_tone(tmp_path):
     p = _project(tmp_path)
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        return_value=None,
-    ):
+    with _lanes(lambda *_: None):
         out = suggest_handoff_cut(p, ["host"], 1.0, 5.0)
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
@@ -243,10 +254,7 @@ def test_suggest_handoff_missing_audio_is_not_room_tone(tmp_path):
 
 def test_suggest_handoff_refuses_when_bounds_are_speech(tmp_path):
     p = _project(tmp_path)
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        return_value=-10.0,
-    ):
+    with _lanes(lambda *_: -10.0):
         out = suggest_handoff_cut(p, ["host"], 1.0, 3.0)
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
@@ -258,10 +266,7 @@ def test_suggest_handoff_refuses_when_bounds_are_speech(tmp_path):
 def test_suggest_handoff_single_island_retains_target_air(tmp_path):
     """Long quiet gap: keep ~1s after left / before right, not 25%/75%."""
     p = _project(tmp_path)
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        return_value=-55.0,
-    ):
+    with _lanes(lambda *_: -55.0):
         out = suggest_handoff_cut(p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=1.0)
     assert out["ok"] is True
     assert len(out["islands"]) == 1
@@ -280,10 +285,7 @@ def test_suggest_handoff_snaps_to_quieter_hop(tmp_path):
             return -70.0
         return -55.0
 
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        side_effect=fake_rms,
-    ):
+    with _lanes(fake_rms):
         out = suggest_handoff_cut(p, ["host"], 1.0, 5.0, hop_ms=20, retain_sec=1.0)
     assert out["ok"] is True
     assert out["cut_start"] is not None
@@ -293,8 +295,8 @@ def test_suggest_handoff_snaps_to_quieter_hop(tmp_path):
 def test_suggest_handoff_side_blob_bounds_not_quiet(tmp_path):
     p = _project(tmp_path)
     with patch(
-        "podcast_mcp.edits.silence_islands.timeline_rms_hops",
-        return_value=[(1.0, -55.0), (1.4, -55.0), (1.7, -55.0)],
+        "podcast_mcp.edits.silence_islands.timeline_floor_hops",
+        return_value=[(1.0, -5.0), (1.4, -5.0), (1.7, -5.0)],
     ):
         out = suggest_handoff_cut(p, ["host"], 1.0, 8.0)
     assert out["ok"] is False
@@ -306,8 +308,8 @@ def test_suggest_handoff_side_blob_bounds_not_quiet(tmp_path):
 def test_suggest_handoff_keep_gap_too_short(tmp_path):
     p = _project(tmp_path)
     with patch(
-        "podcast_mcp.edits.silence_islands.timeline_rms_hops",
-        return_value=[(1.0, -55.0)],
+        "podcast_mcp.edits.silence_islands.timeline_floor_hops",
+        return_value=[(1.0, -5.0)],
     ):
         out = suggest_handoff_cut(p, ["host"], 1.0, 1.04)
     assert out["ok"] is False
@@ -316,10 +318,7 @@ def test_suggest_handoff_keep_gap_too_short(tmp_path):
 
 def test_suggest_handoff_clamps_retain_on_short_gap(tmp_path):
     p = _project(tmp_path)
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        return_value=-55.0,
-    ):
+    with _lanes(lambda *_: -55.0):
         out = suggest_handoff_cut(p, ["host"], 1.0, 1.9, hop_ms=50, retain_sec=1.0)
     assert out["ok"] is True
     assert out["cut_start"] is not None and out["cut_end"] is not None
@@ -332,41 +331,19 @@ def test_suggest_handoff_clamps_retain_on_short_gap(tmp_path):
 
 def test_suggest_handoff_warns_when_requested_retain_is_short(tmp_path):
     p = _project(tmp_path)
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-        return_value=-55.0,
-    ):
+    with _lanes(lambda *_: -55.0):
         out = suggest_handoff_cut(p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=0.3)
     assert out["ok"] is True
     assert "retained_air_after_left_short" in out["warnings"]
     assert "retained_air_before_right_short" in out["warnings"]
 
 
-def test_timeline_rms_hops_uses_cache_builder(tmp_path):
-    from podcast_mcp.edits.silence_islands import timeline_rms_hops
-    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
-
+def test_timeline_floor_hops_reads_each_lane_against_its_own_floor(tmp_path):
     p = _project(tmp_path)
-    import numpy as np
-
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
-
-    empty = TrackRmsCacheSet(caches={"host": TrackRmsCache(np.zeros(16000))})
-    with (
-        patch(
-            "podcast_mcp.edits.silence_islands.build_track_rms_caches",
-            return_value=empty,
-        ) as build,
-        patch(
-            "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
-            return_value=-50.0,
-        ) as measure,
-    ):
-        hops = timeline_rms_hops(p, ["host"], 0.0, 0.1, hop_ms=50)
+    with _lanes(lambda *_: -42.0, voice_floor_db=-50.0) as build:
+        hops = timeline_floor_hops(p, ["host"], 0.0, 0.1, hop_ms=50)
     build.assert_called_once_with(p, track_ids=["host"])
-    assert measure.called
-    assert measure.call_args.kwargs.get("caches") is empty
-    assert len(hops) >= 1
+    assert hops == [(0.0, pytest.approx(8.0)), (0.05, pytest.approx(8.0))]
 
 
 def test_suggest_handoff_rejects_inverted_keeps(tmp_path):
@@ -380,28 +357,28 @@ def test_silence_islands_empty_hops():
 
 
 def test_snap_to_quiet_none_when_empty_or_inverted():
-    assert _snap_to_quiet([], 1.0, lo=2.0, hi=1.0, quiet_db=-48.0, islands=[]) is None
-    assert _snap_to_quiet([(0.0, -20.0)], 1.5, lo=1.0, hi=2.0, quiet_db=-48.0, islands=[]) is None
+    assert _snap_to_quiet([], 1.0, lo=2.0, hi=1.0, islands=[]) is None
+    assert _snap_to_quiet([(0.0, 30.0)], 1.5, lo=1.0, hi=2.0, islands=[]) is None
 
 
 def test_snap_to_quiet_requires_silence_island():
-    hops = [(1.5, -55.0)]
-    assert _snap_to_quiet(hops, 1.5, lo=1.0, hi=2.0, quiet_db=-48.0, islands=[]) is None
+    hops = [(1.5, -5.0)]
+    assert _snap_to_quiet(hops, 1.5, lo=1.0, hi=2.0, islands=[]) is None
     island = SilenceIsland(start=1.4, end=1.7)
-    assert _snap_to_quiet(hops, 1.5, lo=1.0, hi=2.0, quiet_db=-48.0, islands=[island]) == 1.5
+    assert _snap_to_quiet(hops, 1.5, lo=1.0, hi=2.0, islands=[island]) == 1.5
 
 
 def test_snap_to_quiet_picks_closest_to_target_not_earliest():
     island = SilenceIsland(start=1.0, end=2.0)
-    hops = [(1.08, -55.0), (1.20, -55.0), (1.32, -55.0)]
-    assert _snap_to_quiet(hops, 1.32, lo=1.0, hi=2.0, quiet_db=-48.0, islands=[island]) == 1.32
+    hops = [(1.08, -5.0), (1.20, -5.0), (1.32, -5.0)]
+    assert _snap_to_quiet(hops, 1.32, lo=1.0, hi=2.0, islands=[island]) == 1.32
 
 
 def test_suggest_handoff_warns_when_snaps_invert(tmp_path):
     p = _project(tmp_path)
     with patch(
-        "podcast_mcp.edits.silence_islands.timeline_rms_hops",
-        return_value=[(2.0, -55.0), (2.01, -55.0)],
+        "podcast_mcp.edits.silence_islands.timeline_floor_hops",
+        return_value=[(2.0, -5.0), (2.01, -5.0)],
     ):
         with patch(
             "podcast_mcp.edits.silence_islands._snap_to_quiet",
@@ -454,26 +431,17 @@ def test_session_handoff_requires_quiet_peer_audio(tmp_path, muted):
         assert single["track_id"] == "host"
 
 
-def test_missing_cache_blocks_even_positive_quiet_threshold_without_fallback(tmp_path):
-    import math
-
-    from podcast_mcp.edits.silence_islands import timeline_rms_hops
-    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
-
+def test_missing_cache_is_never_quiet(tmp_path):
     p = _project(tmp_path)
-    with (
-        patch(
-            "podcast_mcp.edits.silence_islands.build_track_rms_caches",
-            return_value=TrackRmsCacheSet(),
-        ) as build,
-        patch("podcast_mcp.edits.silence_islands.measure_timeline_rms_db") as measure,
-    ):
-        hops = timeline_rms_hops(p, ["host", "guest"], 1, 5)
-        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5, quiet_db=10)
-    assert all(math.isinf(db) for _, db in hops)
+    with patch(
+        "podcast_mcp.edits.silence_islands.build_track_rms_caches",
+        return_value=TrackRmsCacheSet(),
+    ) as build:
+        hops = timeline_floor_hops(p, ["host", "guest"], 1, 5)
+        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5)
+    assert all(db == math.inf for _, db in hops)
     assert out["ok"] is False
     assert build.call_count == 2
-    measure.assert_not_called()
 
 
 def test_handoff_requires_nonempty_selection(tmp_path):
@@ -483,26 +451,14 @@ def test_handoff_requires_nonempty_selection(tmp_path):
 
 @pytest.mark.parametrize("peer_quiet", [(1.95, 2.05), (3.5, 4.5)])
 def test_handoff_refuses_short_or_disjoint_common_quiet(tmp_path, peer_quiet):
-    import numpy as np
-
-    from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
-
     p = _project(tmp_path)
-    caches = TrackRmsCacheSet(
-        {tid: TrackRmsCache(np.zeros(16000 * 6), sample_rate=16000) for tid in ["host", "guest"]}
-    )
 
     def measured(_project, tid, start, end, **_kwargs):
         mid = (start + end) / 2
         quiet = (1.5 <= mid < 2.5) if tid == "host" else peer_quiet[0] <= mid < peer_quiet[1]
         return -60.0 if quiet else -15.0
 
-    with (
-        patch(
-            "podcast_mcp.edits.silence_islands.build_track_rms_caches", return_value=caches
-        ) as build,
-        patch("podcast_mcp.edits.silence_islands.measure_timeline_rms_db", side_effect=measured),
-    ):
+    with _lanes(measured, tracks=("host", "guest")) as build:
         out = suggest_handoff_cut(p, ["host", "guest"], 1, 5)
     build.assert_called_once_with(p, track_ids=["host", "guest"])
     assert out["ok"] is False
@@ -512,12 +468,7 @@ def test_handoff_refuses_short_or_disjoint_common_quiet(tmp_path, peer_quiet):
 
 @pytest.mark.parametrize("offset,size", [(0.0, 1600), (0.05, 16000)])
 def test_incomplete_cache_windows_are_unknown(tmp_path, offset, size):
-    import math
-
-    import numpy as np
-
-    from podcast_mcp.edits.silence_islands import timeline_rms_hops
-    from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
 
     p = _project(tmp_path)
     cache = TrackRmsCache(np.zeros(size), sample_rate=16000, timeline_offset_sec=offset)
@@ -525,14 +476,14 @@ def test_incomplete_cache_windows_are_unknown(tmp_path, offset, size):
         "podcast_mcp.edits.silence_islands.build_track_rms_caches",
         return_value=TrackRmsCacheSet({"host": cache}),
     ):
-        hops = timeline_rms_hops(p, ["host"], 0, 0.12, hop_ms=40)
-    assert math.isinf(hops[-1 if offset == 0 else 0][1])
+        hops = timeline_floor_hops(p, ["host"], 0, 0.12, hop_ms=40)
+    assert hops[-1 if offset == 0 else 0][1] == math.inf
 
 
 def test_real_wav_repeated_source_mapping_and_gain(tmp_path):
     import numpy as np
 
-    from podcast_mcp.edits.silence_islands import timeline_rms_hops
+    from podcast_mcp.edits.silence_islands import timeline_floor_hops
     from podcast_mcp.engines.audio_audit import build_track_rms_caches
     from podcast_mcp.engines.ungated_audio import load_mono_full
 
@@ -551,12 +502,12 @@ def test_real_wav_repeated_source_mapping_and_gain(tmp_path):
         ) as build,
         patch("podcast_mcp.engines.ungated_audio.load_mono_full", wraps=load_mono_full) as decode,
     ):
-        hops = timeline_rms_hops(p, ["host"], 0, 4, hop_ms=500)
+        hops = timeline_floor_hops(p, ["host"], 0, 4, hop_ms=500)
     build.assert_called_once_with(p, track_ids=["host"])
     assert decode.call_count == 1
     assert [t for t, _ in hops] == [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]
-    assert [db < -48 for _, db in hops] == [True, True, False, False, True, True, False, False]
-    assert hops[2][1] == pytest.approx(-14, abs=0.1)
+    assert [db <= 0 for _, db in hops] == [True, True, False, False, True, True, False, False]
+    assert hops[2][1] == pytest.approx(27, abs=0.1)
 
 
 def test_default_quiet_session_excludes_music_and_adapters_work(tmp_path):
@@ -608,10 +559,8 @@ def test_default_quiet_session_excludes_music_and_adapters_work(tmp_path):
 
 @pytest.mark.parametrize("measurement", [None, float("nan"), float("inf")])
 def test_unavailable_rms_does_not_approve_quiet(tmp_path, measurement):
-    with patch(
-        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db", return_value=measurement
-    ):
-        out = suggest_handoff_cut(_project(tmp_path), ["host"], 1, 5, quiet_db=float("inf"))
+    with _lanes(lambda *_: measurement, voice_floor_db=float("inf")):
+        out = suggest_handoff_cut(_project(tmp_path), ["host"], 1, 5)
     assert out["ok"] is False
     assert out["islands"] == []
 

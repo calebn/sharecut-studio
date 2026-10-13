@@ -103,7 +103,7 @@ from podcast_mcp.edits.share_registry import get_share_registry
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
     silence_islands_from_hops,
-    timeline_rms_hops,
+    timeline_floor_hops,
 )
 from podcast_mcp.edits.silence_islands import (
     suggest_handoff_cut as suggest_handoff_cut_bounds,
@@ -795,7 +795,7 @@ class EditService:
         found: list[SilenceIsland] = []
         if timeline:
             try:
-                hops = timeline_rms_hops(self.ws.project, [tid], lo, hi)
+                hops = timeline_floor_hops(self.ws.project, [tid], lo, hi)
                 found = silence_islands_from_hops(hops)
             except Exception as exc:
                 log.debug("waveform snap islands skipped: %s", exc)
@@ -824,7 +824,6 @@ class EditService:
         keep_right_start: float,
         track_id: str | None = None,
         speaker: str | None = None,
-        quiet_db: float = -48.0,
         min_island_sec: float = 0.12,
         hop_ms: int = 20,
         retain_sec: float = 1.0,
@@ -839,7 +838,6 @@ class EditService:
             tids,
             keep_left_end,
             keep_right_start,
-            quiet_db=quiet_db,
             min_island_sec=min_island_sec,
             hop_ms=hop_ms,
             retain_sec=retain_sec,
