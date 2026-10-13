@@ -81,7 +81,8 @@ flowchart TD
 **Setup:** An Editor link.
 
 This journey covers every pending proposal, exact selected-range proposals
-included. The host can undo each decision from History.
+included. A completed **Approve** or **Reject** from the inspector or timeline
+action card offers **Undo** in the feedback toast. History remains the backstop.
 
 ```mermaid
 flowchart TD

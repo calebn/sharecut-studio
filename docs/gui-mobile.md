@@ -308,6 +308,12 @@ clicked, since Safari does not focus a clicked button).
 
 ### Feedback toast
 
+Single pending-edit **Approve** and **Reject**, from either the inspector or
+the timeline action card, answer with "Approved 1 pending edit" or
+"Rejected 1 pending edit" and the command's guarded toast **Undo**. A queued
+send keeps "Still sending." without Undo. A request to confirm **Cut anyway**
+does not announce approval before the decision completes.
+
 The app toast (`feedback/FeedbackToast`) has one message, optional guarded Undo,
 and explicit Dismiss. Compact composition puts its host first inside the same
 scrolling body as the fields. The pinned header stays outside that scroller.
