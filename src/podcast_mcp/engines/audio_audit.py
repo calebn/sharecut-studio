@@ -53,11 +53,12 @@ if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
 
 _RMS_SAMPLE_RATE = 8000
-# The speech level (dBFS) the fixed levels of the bleed-path measurement (``bleed_echo``'s
+# The voice level (dBFS) the fixed levels of the bleed-path measurement (``bleed_echo``'s
 # source and open floors, ``envelope_lag.PEER_OPEN_DB`` and ``LEVEL_FLOOR_DB``) were set at:
-# the median track speech level of the lab recording. A session is measured at this level
-# whatever it was recorded at (``TrackRmsCacheSet.reference_samples``).
-PATH_REFERENCE_SPEECH_DB = -15.0
+# the median track loud level (99th percentile of the live frames, 5 to 6 dB over the
+# speech level) of the lab recording. A session is measured at this level whatever it was
+# recorded at (``TrackRmsCacheSet.reference_samples``).
+PATH_REFERENCE_LOUD_DB = -10.0
 # Acoustic statuses that call for transcript suppression (used both for the flagged/
 # bleed report and, via `word_targets`, for suggest-mode's suppression_recommendations).
 _FLAGGED_STATUSES = ("inaudible", "bleed")
@@ -289,6 +290,12 @@ class TrackRmsCache:
         return speech_db_from_profile(self.track_profile)
 
     @cached_property
+    def loud_db(self) -> float:
+        """The level of the track's loudest frames (dBFS); ``-inf`` with no live audio."""
+        profile = self.track_profile
+        return -math.inf if profile is None else 20.0 * math.log10(profile.loud_rms)
+
+    @cached_property
     def voice_floor_db(self) -> float:
         """The level under which a frame of this track holds no voice (dBFS).
 
@@ -378,17 +385,18 @@ class TrackRmsCacheSet:
 
     @cached_property
     def reference_gain_db(self) -> float:
-        """The gain that puts the session's median track speech level at the path reference.
+        """The gain that puts the session's median track loud level at the path reference.
 
         One gain for every track, so the tracks keep their levels relative to each other
         (which side of a pair is louder is evidence) while the measurement no longer
-        depends on how loud the session was recorded. Only a track whose speech stands
-        out of its room counts (a finite ``audibility_floor_db``): the level of one that
-        mostly holds room tone is its room's, not its voice's. With no such track the
-        session is measured as recorded.
+        depends on how loud the session was recorded. Each track is read at its loudest
+        frames, not its speech level: a speaker who talks under a tenth of the time has
+        room tone at the 90th percentile, and would drag the median down to their room's.
+        Only a track whose loud frames stand out of its room counts (a finite
+        ``audibility_floor_db``). With no such track the session is measured as recorded.
         """
-        speech = [c.speech_db for c in self.caches.values() if math.isfinite(c.audibility_floor_db)]
-        return PATH_REFERENCE_SPEECH_DB - float(np.median(speech)) if speech else 0.0
+        loud = [c.loud_db for c in self.caches.values() if math.isfinite(c.audibility_floor_db)]
+        return PATH_REFERENCE_LOUD_DB - float(np.median(loud)) if loud else 0.0
 
     def reference_samples(self, track_id: str) -> np.ndarray:
         """The track's samples at the session's reference level."""
