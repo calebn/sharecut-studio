@@ -72,7 +72,7 @@ def test_private_directory_creation_descriptor_protects_future_children(tmp_path
 
     api.kernel = SimpleNamespace(LocalFree=lambda descriptor: None, CreateDirectoryW=create)
     api.open_directory = lambda path: path
-    api.file_identity = lambda path: (path.stat().st_dev, path.stat().st_ino)
+    api.file_identity = lambda path, _display=None: (path.stat().st_dev, path.stat().st_ino)
     api.close = lambda handle: None
     monkeypatch.setattr(windows, "_WindowsAPI", lambda: api)
     monkeypatch.setattr(windows, "_open_chain", lambda *args, **kwargs: [])

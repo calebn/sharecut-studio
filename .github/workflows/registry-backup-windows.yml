@@ -33,6 +33,7 @@ jobs:
           tests/test_share_registry_source_privacy.py
           tests/test_registry_windows_acl_policy.py
           tests/test_registry_privacy_cleanup.py
+          tests/test_registry_windows_privacy_error.py
           tests/test_registry_windows_actor_setup.py
           tests/test_registry_backup_windows.py
           tests/test_registry_backup_windows_names.py

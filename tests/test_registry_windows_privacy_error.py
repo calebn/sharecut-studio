@@ -35,6 +35,10 @@ ACL_PROBLEM = (
     f"registry path {SHOWN} has permissions that are not limited to your account, "
     "SYSTEM and Administrators"
 )
+PARENT_ACL_MESSAGE = (
+    f"folder {SHOWN} above the registry can be changed by another account; move the registry "
+    f"under a folder you own, or {PIN}"
+)
 ACL_FIX = (
     "in its Security settings, remove other accounts and reset it to your account, "
     "SYSTEM and Administrators only"
@@ -50,6 +54,7 @@ def _api(
     acl: bool = True,
     ace_kind: int = 0,
     ace_sid: str = OWNER_SID,
+    ace_mask: int = 1,
 ) -> windows._WindowsAPI:
     api = object.__new__(windows._WindowsAPI)
     api.trusted = {OWNER_SID, "S-1-5-18", "S-1-5-32-544"}
@@ -57,7 +62,7 @@ def _api(
     header = windows._AclHeader()
     header.count = 1
     ace = windows._AllowAce()
-    ace.kind, ace.flags, ace.mask = ace_kind, 0, 1
+    ace.kind, ace.flags, ace.mask = ace_kind, 0, ace_mask
 
     def information(handle: Any, pointer: Any) -> bool:
         info = ctypes.cast(pointer, ctypes.POINTER(windows._FileInformation)).contents
@@ -173,6 +178,27 @@ def _refusal(api: windows._WindowsAPI, *, private: bool, directory: bool) -> Reg
             f"{ACL_PROBLEM}; {ACL_FIX}",
         ),
         (
+            {"acl": False},
+            False,
+            True,
+            RegistryPrivacyReason.PARENT_ACL,
+            PARENT_ACL_MESSAGE,
+        ),
+        (
+            {"ace_sid": STRANGER_SID, "ace_mask": 0x40000000},
+            False,
+            True,
+            RegistryPrivacyReason.PARENT_ACL,
+            PARENT_ACL_MESSAGE,
+        ),
+        (
+            {"ace_kind": 5},
+            False,
+            True,
+            RegistryPrivacyReason.PARENT_ACL,
+            PARENT_ACL_MESSAGE,
+        ),
+        (
             {"owner": STRANGER_SID, "attributes": 0},
             True,
             False,
@@ -218,6 +244,19 @@ def test_no_refusal_names_an_account_identifier():
     for refusal in refusals:
         assert "S-1-" not in str(refusal)
         assert "S-1-" not in refusal.guest_message()
+
+
+def test_a_file_without_a_persistent_identity_is_not_on_local_ntfs():
+    api = _api(index=0)
+    with pytest.raises(RegistryPrivacyError) as caught:
+        api.file_identity(7, PATH)
+    assert caught.value.reason is RegistryPrivacyReason.NOT_LOCAL_NTFS
+    assert str(caught.value) == f"registry path {SHOWN} is not on a local NTFS drive; {NTFS_FIX}"
+
+
+def test_an_ancestor_another_account_can_only_read_is_admitted():
+    api = _api(ace_sid=STRANGER_SID, ace_mask=1)
+    assert api.verify_handle(7, private=False, directory=True, path=PATH).index_low == 1
 
 
 def test_a_trusted_private_directory_is_admitted():

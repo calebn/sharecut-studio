@@ -41,6 +41,7 @@ class RegistryPrivacyReason(StrEnum):
     NOT_LOCAL_NTFS = "not_local_ntfs"
     NOT_A_FOLDER = "not_a_folder"
     WINDOWS_ACL = "windows_acl"
+    PARENT_ACL = "parent_acl"
     PATH_CHANGED = "path_changed"
 
 
@@ -59,6 +60,7 @@ _PROBLEM = {
     RegistryPrivacyReason.NOT_LOCAL_NTFS: "registry path {path} is not on a local NTFS drive",
     RegistryPrivacyReason.NOT_A_FOLDER: "registry folder {path} is not a folder",
     RegistryPrivacyReason.WINDOWS_ACL: "registry path {path} has permissions that are not limited to your account, SYSTEM and Administrators",
+    RegistryPrivacyReason.PARENT_ACL: "folder {path} above the registry can be changed by another account",
     RegistryPrivacyReason.PATH_CHANGED: "registry path {path} was replaced while it was being checked",
 }
 
@@ -79,6 +81,7 @@ _FIX = {
     + _PIN,
     RegistryPrivacyReason.NOT_A_FOLDER: "move it aside, or " + _PIN,
     RegistryPrivacyReason.WINDOWS_ACL: "in its Security settings, remove other accounts and reset it to your account, SYSTEM and Administrators only",
+    RegistryPrivacyReason.PARENT_ACL: "move the registry under a folder you own, or " + _PIN,
     RegistryPrivacyReason.PATH_CHANGED: "try again, and if it keeps happening, find what is replacing it, or "
     + _PIN,
 }

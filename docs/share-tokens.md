@@ -164,9 +164,10 @@ prints (`chmod 0600` for a main, WAL, SHM, or journal file, `chmod 0700` for the
 symlink it says what is wrong and offers no command, so fix it yourself or point
 `PODCAST_SHARE_REGISTRY` at a registry you own. On Windows the line shows the path in double
 quotes and never prints a command, because a command could widen access: it tells you to open
-the path's Security settings and leave only your account, SYSTEM and Administrators (an
-unsafe or unreadable permission entry, or no permission list), to restore your ownership
-(a foreign owner), to replace a junction or other reparse point with the real folder, to move
+the registry path's Security settings and leave only your account, SYSTEM and Administrators
+(an unsafe or unreadable permission entry, or no permission list), to move the registry under a
+folder you own (a folder above it that another account can change, or that another account owns),
+to restore your ownership (a foreign owner), to replace a junction or other reparse point with the real folder, to move
 the registry to a local NTFS drive (a network share, alternate stream, other filesystem or one
 without stable file identities), or to try again (the folder was replaced while it was being
 checked). Pointing `PODCAST_SHARE_REGISTRY` at a registry you own is the other way out.

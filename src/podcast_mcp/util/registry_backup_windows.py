@@ -345,9 +345,12 @@ class _WindowsAPI:
             raise OSError(result, "cannot inspect backup security descriptor")
         try:
             trusted = self.trusted if private else self.ancestry_trusted
+            acl_reason = (
+                RegistryPrivacyReason.WINDOWS_ACL if private else RegistryPrivacyReason.PARENT_ACL
+            )
             owner_sid = self.sid_string(owner)
             if not acl:
-                raise RegistryPrivacyError(path, RegistryPrivacyReason.WINDOWS_ACL)
+                raise RegistryPrivacyError(path, acl_reason)
             if owner_sid not in trusted:
                 raise RegistryPrivacyError(
                     path, _owner_reason(private=private, directory=directory)
@@ -362,7 +365,7 @@ class _WindowsAPI:
                 if ace.flags & 8 and not (private and directory and ace.flags & 3):
                     continue
                 if ace.kind != 0:
-                    raise RegistryPrivacyError(path, RegistryPrivacyReason.WINDOWS_ACL)
+                    raise RegistryPrivacyError(path, acl_reason)
                 if pointer.value is None:
                     raise OSError("cannot inspect backup ACL entry")
                 sid = self.sid_string(pointer.value + _AllowAce.sid.offset)
@@ -378,7 +381,7 @@ class _WindowsAPI:
                         ace.flags & 0xFF,
                         ace.mask & forbidden,
                     )
-                    raise RegistryPrivacyError(path, RegistryPrivacyReason.WINDOWS_ACL)
+                    raise RegistryPrivacyError(path, acl_reason)
         finally:
             cleanup([partial(self.kernel.LocalFree, descriptor)])
         return info
@@ -413,11 +416,11 @@ class _WindowsAPI:
         finally:
             cleanup([partial(self.kernel.LocalFree, descriptor)])
 
-    def file_identity(self, handle: Any) -> Identity:
+    def file_identity(self, handle: Any, path: Path) -> Identity:
         info = _FileInformation()
         self.check(self.kernel.GetFileInformationByHandle(handle, ctypes.byref(info)))
         if not info.index_high and not info.index_low:
-            raise PermissionError("backup filesystem must provide persistent file identities")
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.NOT_LOCAL_NTFS)
         return info.volume, (info.index_high << 32) | info.index_low
 
     def open_file(self, path: Path) -> Any:
@@ -496,7 +499,7 @@ class _OwnedFile:
         return self._fd
 
     def capture_identity(self) -> None:
-        self._identity = self.api.file_identity(self.handle)
+        self._identity = self.api.file_identity(self.handle, self.path)
 
     def to_descriptor(self, flags: int) -> None:
         self._fd = self.api.crt.open_osfhandle(self.handle, flags | 0x8000)
@@ -538,7 +541,7 @@ def _remove_file(api: _WindowsAPI, path: Path, expected: Identity) -> None:
     except FileNotFoundError:
         return
     try:
-        if api.file_identity(handle) != expected:
+        if api.file_identity(handle, path) != expected:
             raise PermissionError("refusing to remove a substituted backup file")
         path.unlink()
     finally:
@@ -627,7 +630,7 @@ class BackupDirectory:
             self._api.create_directory(path, acquired)
             handle = self._api.open_directory(path)
             try:
-                expected = self._api.file_identity(handle)
+                expected = self._api.file_identity(handle, path)
             finally:
                 cleanup([partial(self._api.close, handle)])
             private = BackupDirectory(path)
@@ -659,7 +662,10 @@ class BackupDirectory:
                 raise _native_ctypes.WinError(error)
             self._api.verify_handle(owned.handle, private=True, directory=False, path=owned.path)
             owned.to_descriptor(os.O_RDONLY)
-            if self._api.file_identity(self._api.crt.get_osfhandle(owned.fd)) != expected:
+            if (
+                self._api.file_identity(self._api.crt.get_osfhandle(owned.fd), owned.path)
+                != expected
+            ):
                 raise PermissionError("backup snapshot identity changed")
             yield owned.fd
 
@@ -668,7 +674,7 @@ class BackupDirectory:
         self.verify()
         handle = self._api.open_file(self.path / name)
         try:
-            if self._api.file_identity(handle) != expected:
+            if self._api.file_identity(handle, self.path / name) != expected:
                 raise PermissionError("backup file identity changed")
             self._api.verify_handle(handle, private=True, directory=False, path=self.path / name)
         finally:
@@ -700,7 +706,7 @@ class BackupDirectory:
         path = self.path / name
         handle = self._api.open_directory(path)
         try:
-            if self._api.file_identity(handle) != expected:
+            if self._api.file_identity(handle, path) != expected:
                 raise PermissionError("refusing to remove a substituted backup workspace")
         except BaseException:
             cleanup([partial(self._api.close, handle)])
