@@ -40,7 +40,6 @@ const result: SplitSpeakersResult = {
   ],
   crosstalk_sec: 3,
   low_confidence_sec: 13,
-  same_voice: [],
   history_head_id: "h2" as HistoryEntryId,
 };
 
@@ -189,26 +188,6 @@ export const Split: Story = {
       within(dialog).getByRole("button", { name: "Undo split" }),
     );
     await expect(args.onUndo).toHaveBeenCalledOnce();
-  },
-};
-
-export const SplitSoundsLikeOnePerson: Story = {
-  args: {
-    stage: {
-      kind: "done",
-      result: { ...result, same_voice: [{ speakers: ["Audra", "Lana"] }] },
-      durationSec: 184.7,
-      canUndo: true,
-      undoing: false,
-      undoError: null,
-    },
-  },
-  play: async ({ canvasElement, viewMode }) => {
-    if (viewMode === "docs") return;
-    const dialog = await openDialog(canvasElement);
-    await expect(
-      within(dialog).getByText(/Audra and Lana sound like one person/),
-    ).toBeVisible();
   },
 };
 

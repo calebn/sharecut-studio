@@ -15,11 +15,9 @@ from podcast_mcp.engines.session_timeline import same_source_timeline_overlaps
 from podcast_mcp.engines.speaker_split import (
     FRAME_SEC,
     RATE,
-    SAME_VOICE_MIXING,
     WINDOW_SEC,
     SpeakerAttribution,
     SpeakerTurn,
-    _same_voice,
     attribute_speakers,
     voiced_frames,
 )
@@ -74,36 +72,8 @@ class SpectralBackend:
         return np.sqrt(np.array(bands)).astype(np.float32)
 
 
-class NoisyBackend(SpectralBackend):
-    """``SpectralBackend`` with per-window scatter, as a learned embedding has.
-
-    A learned embedding of one voice is a noisy cloud, not a thin curve; a split of
-    that cloud is what a speaker count above the voices produces.
-    """
-
-    SCATTER = 0.5
-
-    def __init__(self) -> None:
-        self.rng = np.random.default_rng(0)
-
-    def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:
-        unit = super().embed(samples, sample_rate)
-        unit = unit / np.linalg.norm(unit)
-        noise = self.rng.standard_normal(unit.size) / np.sqrt(unit.size)
-        return (unit + self.SCATTER * noise).astype(np.float32)
-
-
-# Four distinct voices in two close-sounding pairs (two low, two high).
-CLOSE_VOICES = (
-    (110.0, (600.0, 1100.0)),
-    (130.0, (700.0, 1250.0)),
-    (290.0, (450.0, 2700.0)),
-    (310.0, (520.0, 3100.0)),
-)
-
-
-def _voice(speaker: int, seconds: float, rng: np.random.Generator, voices=VOICES) -> np.ndarray:
-    f0, formants = voices[speaker]
+def _voice(speaker: int, seconds: float, rng: np.random.Generator) -> np.ndarray:
+    f0, formants = VOICES[speaker]
     t = np.arange(round(seconds * RATE)) / RATE
     pitch = f0 * (1 + 0.04 * np.sin(2 * np.pi * rng.uniform(3, 6) * t))
     phase = 2 * np.pi * np.cumsum(pitch) / RATE
@@ -115,27 +85,12 @@ def _voice(speaker: int, seconds: float, rng: np.random.Generator, voices=VOICES
     return out * syllables / np.sqrt(np.mean(out**2)) * 0.08
 
 
-def _one_voice(seconds: float, seed: int) -> np.ndarray:
-    """Turn-taking pauses and phrases of a single speaker."""
-    rng = np.random.default_rng(seed)
-    audio = 1e-3 * rng.standard_normal(round(seconds * RATE))
-    t = 0.5
-    while t < seconds - 4.0:
-        length = float(rng.uniform(2.5, 4.5))
-        first = round(t * RATE)
-        voice = _voice(0, length, rng)[: audio.size - first]
-        audio[first : first + voice.size] += voice
-        t += length + float(rng.uniform(0.25, 0.6))
-    return audio.astype(np.float32)
-
-
 def _mix(
     speakers: int,
     seconds: float,
     *,
     seed: int,
     crosstalk: tuple[tuple[float, float], ...] = (),
-    voices=VOICES,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Turn-taking speech with pauses, and per-frame truth (speakers x frames)."""
     rng = np.random.default_rng(seed)
@@ -144,7 +99,7 @@ def _mix(
 
     def place(speaker: int, start: float, length: float) -> None:
         first = round(start * RATE)
-        voice = _voice(speaker, length, rng, voices)[: audio.size - first]
+        voice = _voice(speaker, length, rng)[: audio.size - first]
         audio[first : first + voice.size] += voice
         truth[speaker, round(start / FRAME_SEC) : round((start + length) / FRAME_SEC)] = True
 
@@ -188,7 +143,6 @@ def test_turn_taking_mix_is_attributed_frame_by_frame(speakers: int) -> None:
     labels, _ = _frame_labels(attribution, truth.shape[1])
     assert attribution.method == "cluster"
     assert _single_speaker_accuracy(_by_first_appearance(truth), labels) >= 0.95
-    assert attribution.same_voice == ()
 
 
 class _Updates:
@@ -222,51 +176,6 @@ def test_attribution_progress_counts_windows_not_three_stages() -> None:
     assert total is not None and total > 3
     assert last == total
     assert [c for c, _ in reporter.updates] == sorted(c for c, _ in reporter.updates)
-
-
-@pytest.mark.parametrize(("voices", "count"), [(2, 3), (3, 4)])
-def test_a_count_above_the_voices_present_names_the_likely_merge(voices: int, count: int) -> None:
-    audio, _ = _mix(voices, 90.0, seed=2)
-    attribution = attribute_speakers(audio, speaker_count=count, backend=NoisyBackend())
-    [pair] = attribution.same_voice
-    assert pair.mixing >= SAME_VOICE_MIXING
-    split_seconds = {
-        s: sum(t.end - t.start for t in attribution.turns if t.speakers[0] == s)
-        for s in pair.speakers
-    }
-    assert all(seconds > 5.0 for seconds in split_seconds.values())
-
-
-@pytest.mark.parametrize("count", [2, 3])
-def test_one_voice_split_in_two_is_named_at_any_count(count: int) -> None:
-    attribution = attribute_speakers(
-        _one_voice(90.0, seed=1), speaker_count=count, backend=NoisyBackend()
-    )
-    assert attribution.same_voice
-    if count == 2:
-        assert [pair.speakers for pair in attribution.same_voice] == [(0, 1)]
-
-
-@pytest.mark.parametrize(
-    ("voices", "count", "mix_voices"),
-    [(2, 2, VOICES), (3, 3, VOICES), (4, 4, VOICES), (2, 2, CLOSE_VOICES), (4, 4, CLOSE_VOICES)],
-)
-def test_different_people_are_not_named_one_voice_even_when_close(
-    voices: int, count: int, mix_voices
-) -> None:
-    audio, _ = _mix(voices, 90.0, seed=1, voices=mix_voices)
-    attribution = attribute_speakers(audio, speaker_count=count, backend=NoisyBackend())
-    assert attribution.same_voice == ()
-
-
-def test_a_pair_with_too_few_windows_is_not_named() -> None:
-    rng = np.random.default_rng(0)
-    embeddings = rng.standard_normal((8, 16))
-    embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True)
-    centroids = np.stack([embeddings[:4].mean(axis=0), embeddings[4:].mean(axis=0)])
-    centroids /= np.linalg.norm(centroids, axis=1, keepdims=True)
-    times = np.arange(8) * 0.25
-    assert _same_voice(embeddings, times, centroids, WINDOW_SEC) == ()
 
 
 def test_clustered_speakers_are_numbered_by_who_talks_first() -> None:
@@ -890,7 +799,6 @@ def test_enrollment_names_come_from_the_spans(mixed_ws: ProjectWorkspace) -> Non
     )
     assert result["speakers"] == ["Ben", "Ana"]
     assert result["method"] == "enroll"
-    assert result["warnings"] == []
 
 
 def test_speakers_left_out_of_enrollment_are_clustered(mixed_ws: ProjectWorkspace) -> None:
@@ -926,73 +834,6 @@ def test_split_names_must_fit_the_count_and_enrollment(
         SpeakerService(mixed_ws).split_speakers(
             "room", speaker_count=2, names=names, enrollment=enrollment, dry_run=True
         )
-
-
-NAMES = ["Ana", "Ben", "Cy", "Di"]
-
-
-def _one_voice_split(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    enrollment: dict[str, list[tuple[float, float]]],
-    *,
-    dry_run: bool = True,
-) -> dict:
-    """Split one speaker's recording in two, as a count of two on a solo recording does."""
-    monkeypatch.setattr(
-        "podcast_mcp.services.media.speaker.resolve_speaker_backend",
-        lambda name=None: NoisyBackend(),
-    )
-    ws = _room_workspace(tmp_path, _one_voice(90.0, seed=1), [])
-    return SpeakerService(ws).split_speakers(
-        "room",
-        speaker_count=2,
-        names=NAMES[:2],
-        enrollment=enrollment,
-        dry_run=dry_run,
-    )
-
-
-def test_too_high_a_speaker_count_warns_which_two_are_one_person(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    result = _one_voice_split(tmp_path, monkeypatch, {}, dry_run=False)
-    [warning] = result["warnings"]
-    assert "sound like one person" in warning
-    assert all(name in warning for name in NAMES[:2])
-    assert len(result["lanes"]) == 2
-    [pair] = result["same_voice"]
-    assert pair["speakers"] == NAMES[:2]
-    assert pair["unenrolled"] == pair["speakers"]
-    assert pair["mixing"] >= SAME_VOICE_MIXING
-
-
-def test_a_pair_both_enrolled_is_not_warned_about(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    enrollment = {"Ana": [(1.0, 3.0)], "Ben": [(30.0, 32.0)]}
-    assert _one_voice_split(tmp_path, monkeypatch, enrollment)["warnings"] == []
-
-
-def test_a_pair_with_one_speaker_enrolled_still_warns_about_the_other(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    [warning] = _one_voice_split(tmp_path, monkeypatch, {"Ana": [(1.0, 3.0)]})["warnings"]
-    assert warning.endswith("enroll Ben.")
-
-
-def test_close_voices_that_are_different_people_are_not_warned_about(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "podcast_mcp.services.media.speaker.resolve_speaker_backend",
-        lambda name=None: NoisyBackend(),
-    )
-    audio, _ = _mix(4, 90.0, seed=1, voices=CLOSE_VOICES)
-    result = SpeakerService(_room_workspace(tmp_path, audio, [])).split_speakers(
-        "room", speaker_count=4, names=NAMES, dry_run=True
-    )
-    assert result["warnings"] == []
 
 
 def test_split_refuses_the_ci_mock_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -89,7 +89,6 @@ def test_the_job_splits_the_track_and_hands_back_the_service_result(room: Path) 
     assert [lane["track_id"] for lane in result["lanes"]] == ["room", "room_ben"]
     assert result["crosstalk_sec"] == 2.0
     assert result["low_confidence_sec"] == 2.0
-    assert result["warnings"] == []
     ws = ProjectWorkspace.open(room)
     assert result["history_head_id"] == ws.project.history.head_id()
     assert [t.label for t in ws.project.tracks] == ["Ana", "Ben"]

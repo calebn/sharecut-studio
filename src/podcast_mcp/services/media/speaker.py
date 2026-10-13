@@ -320,9 +320,8 @@ class SpeakerService:
         (``set_expected_speaker_count``); it is never guessed. ``enrollment`` maps a
         speaker's name to source spans of only that speaker, for some or all of them;
         the rest are clustered. ``names`` sets the order (it must hold every enrolled
-        name); without it, enrolled speakers come first. ``warnings`` names any two
-        speakers who sound like one person, unless both are enrolled. Attribution runs before the project lock is
-        taken; the split is one undoable mutation.
+        name); without it, enrolled speakers come first. Attribution runs before the
+        project lock is taken; the split is one undoable mutation.
         """
         project = self.ws.project
         speakers, backend = self.check_split(
@@ -344,10 +343,8 @@ class SpeakerService:
             progress=resolve_progress(progress),
             cancel_check=cancel_check,
         )
-        same_voice = _same_voice_pairs(attribution, speakers, set(enrollment or {}))
-        warnings = [_same_voice_warning(pair) for pair in same_voice]
         if dry_run:
-            return {**_attribution_summary(attribution, speakers), "warnings": warnings}
+            return _attribution_summary(attribution, speakers)
         raise_if_cancel_requested(cancel_check)
         result = self.ws.mutate(
             "before split speakers",
@@ -377,8 +374,6 @@ class SpeakerService:
         after_agent_mutation(self.ws)
         return {
             **result,
-            "warnings": warnings,
-            "same_voice": same_voice,
             "history_head_id": self.ws.project.history.head_id(),
         }
 
@@ -396,39 +391,6 @@ def _speaker_names(count: int, names: Sequence[str] | None, enrolled: list[str])
     if len(enrolled) > count:
         raise ValueError(f"{len(enrolled)} speakers enrolled but the speaker count is {count}")
     return enrolled + [f"Speaker {i + 1}" for i in range(len(enrolled), count)]
-
-
-def _same_voice_pairs(
-    attribution: SpeakerAttribution, speakers: list[str], enrolled: set[str]
-) -> list[dict[str, Any]]:
-    """Each close pair that has a speaker the user has not enrolled.
-
-    Enrolling both speakers is the user's own statement that they are two people, so
-    that pair is not reported. ``unenrolled`` names who to enroll to settle it.
-    """
-    pairs = []
-    for pair in attribution.same_voice:
-        names = [speakers[i] for i in pair.speakers]
-        unenrolled = [name for name in names if name not in enrolled]
-        if unenrolled:
-            pairs.append(
-                {
-                    "speakers": names,
-                    "unenrolled": unenrolled,
-                    "distance": round(pair.distance, 3),
-                    "mixing": round(pair.mixing, 3),
-                }
-            )
-    return pairs
-
-
-def _same_voice_warning(pair: dict[str, Any]) -> str:
-    first, second = pair["speakers"]
-    return (
-        f"{first} and {second} sound like one person: their stretches of speech run into "
-        f"each other the way one voice's would. Check the speaker count, or enroll "
-        f"{' and '.join(pair['unenrolled'])}."
-    )
 
 
 def _attribution_summary(attribution: SpeakerAttribution, speakers: list[str]) -> dict[str, Any]:
