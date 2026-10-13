@@ -319,6 +319,11 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ### Responsive shells
 
+Every button inside `.modifier-footer-actions`, including nested menu triggers
+and preview modes, has a minimum height of `--touch-min` on coarse pointers and
+in the phone shell. This keeps the 44 CSS px floor even when the phone uses a
+fine pointer.
+
 Compact inspectors keep Undo, Redo, resize and Close outside their content
 scroller. The feedback host is first inside that same scroller as the fields.
 `DawApp` passes the host to the single `FeedbackToast`; its stable portal
