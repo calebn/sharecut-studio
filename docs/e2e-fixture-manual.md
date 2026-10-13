@@ -138,3 +138,5 @@ make e2e-real     # AMI bleed + benchmark regression
 ./scripts/run_e2e_battery.sh
 ./scripts/run_bleed_debug_battery.sh   # bleed listen-through prep + CLI reports
 ```
+
+This line exists only on a #1408 CI proof branch.
