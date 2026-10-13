@@ -1209,8 +1209,9 @@ Reading it:
   window, which opens before the action and closes two frames after it. They sit
   on the 16.7 ms vsync floor of a 60 Hz headless Chromium, so a p50 or p95 of
   16.7 ms means no frame was late, not that the interaction is 16.7 ms fast. A
-  late frame shows as 33.3 ms (both seek runs of the second invocation have one). The seek window holds only 5 or 6 frames, so its p95 equals its
-  max and is one frame of evidence.
+  late frame shows as 33.3 ms (both seek runs of the second invocation have one). The
+  seek window holds only 5 or 6 frames, so its p95 equals its max and is one
+  frame of evidence.
 - **Long tasks** are main-thread tasks over 50 ms. All zero here: the largest
   main-thread cost, 47.6 ms of CDP `TaskDuration` for the seek window and
   83.6 ms for the trim save, is split across many small tasks.
