@@ -44,7 +44,8 @@ export default defineConfig({
   // One web server and one live project fixture are shared by every test.
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  // Same as the main suite: one retry so a flake does not rerun the job.
+  retries: process.env.CI ? 1 : 0,
   // Keep the main suite's traces and workspace stamp when both runs share a job.
   outputDir: "./test-results/compat",
   projects,
