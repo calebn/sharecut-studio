@@ -233,7 +233,8 @@ describe("TransportBar desktop edit controls", () => {
     ).toBeVisible();
     act(() => useDawStore.setState({ audioError: null }));
     expect(menu).toHaveAttribute("title", "Layers, zoom, theme, and more");
-    expect(menu).not.toHaveAttribute("aria-description");
+    expect(menu).toHaveAccessibleDescription("Layers, zoom, theme, and more");
+    expect(menu).not.toHaveAttribute("aria-describedby");
   });
 
   it.each(["view", "comment", "suggest", "edit"] as const)(
