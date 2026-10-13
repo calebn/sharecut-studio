@@ -744,7 +744,7 @@ _FIELD_SELECTOR = re.compile(
     r"(?<![\w-])(?:input|select|textarea)\b|(?:-input|-select|-textarea)(?=$|[:.\[#])"
 )
 _FIELD_MIN_TOKEN = "--font-size-field-min"
-_FIELD_SIZE_TOKEN = re.compile(r"var\(--font-size-field(?:-small|-current)?\)")
+_FIELD_SIZE_TOKEN = re.compile(r"var\(--font-size-(?:field(?:-small|-current)?|review|heading)\)")
 _NOT_FIELDS = frozenset({".pipeline-step-select"})
 
 

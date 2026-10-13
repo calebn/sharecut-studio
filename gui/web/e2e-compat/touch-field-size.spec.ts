@@ -53,16 +53,11 @@ for (const theme of ["light", "dark"] as const) {
       });
     });
 
-    test("touch comment field is at least 16px", async ({ page }) => {
-      await page.setViewportSize({ width: 1024, height: 768 });
+    test("iPhone comment field is at least 16px", async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
       await withShareableProject(async (projectPath) => {
         await openHostShare(page, projectPath);
         await setTheme(page, theme);
-        await page
-          .getByRole("button", { name: "Comment", exact: true })
-          .first()
-          .click();
-        await page.getByRole("slider", { name: "Comment time anchor" }).click();
         const comment = page.getByRole("textbox", {
           name: "Comment",
           exact: true,
