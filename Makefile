@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync docs-sync-table docs-sync-replay decisions-index decisions-index-check golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync docs-sync-table docs-sync-replay decisions-index decisions-index-check golden-ear
 
 setup:
 	./install.sh
@@ -48,6 +48,15 @@ test-web:
 # + Chromium/WebKit compat matrix (requires `[gui]` extra). Mirrors CI `frontend-e2e` job.
 test-web-e2e:
 	cd gui/web && npm ci && VITE_SHARECUT_E2E=1 npm run build && npm run test:e2e:install && npm run test:e2e && npm run test:e2e:compat
+
+# Profile ruler seek and clip-trim (Cancel, save, Undo) on a disposable fixture:
+# `make profile-seek-trim OUT=/tmp/seek-trim [REPEAT=2] [PRESET=small]`.
+# Prints a summary table and keeps every report.json under OUT. Not part of CI.
+PRESET ?= small
+REPEAT ?= 2
+profile-seek-trim:
+	@test -n "$(OUT)" || { echo "usage: make profile-seek-trim OUT=/tmp/seek-trim [REPEAT=2] [PRESET=small]"; exit 2; }
+	cd gui/web && npm run build && { npm run profile:remaining -- --preset $(PRESET) --repeat $(REPEAT) --scene seek,trim --out $(abspath $(OUT)); status=$$?; npm run profile:summary -- $(abspath $(OUT)) || status=1; exit $$status; }
 
 # Tauri host: scaffold verify + sidecar launcher (rustfmt/clippy/rustc --test) +
 # rustfmt + clippy --lib --no-default-features +

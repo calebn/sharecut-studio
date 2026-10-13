@@ -26,7 +26,8 @@
     "test:e2e:install": "playwright install chromium webkit",
     "test:e2e:storybook": "playwright test --config=playwright.storybook.config.ts",
     "profile:remaining": "vite-node scripts/profile-remaining.ts",
-    "profile:compare": "vite-node scripts/profile-compare.ts"
+    "profile:compare": "vite-node scripts/profile-compare.ts",
+    "profile:summary": "vite-node scripts/profile-summary.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
