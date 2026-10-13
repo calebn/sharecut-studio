@@ -6,6 +6,12 @@ export function clampEnvelopeValue(value: number): number {
   return Math.max(0, Math.min(ENVELOPE_VALUE_MAX, value));
 }
 
+/** Same sentence the server refuses with, so the editor and every other caller read alike. */
+export function envelopeTimeRangeMessage(timelineEnd: number): string {
+  const end = Math.floor(Math.max(timelineEnd, 0) * 1000) / 1000;
+  return `Time must be from 0 to ${end} seconds, the end of the timeline.`;
+}
+
 export function findVolumeEnvelope(
   envelopes: readonly AutomationEnvelope[] | undefined,
   trackId: string,

@@ -216,7 +216,7 @@ it settles, and History Undo restores the saved edit.
 
 Select a track and choose **Add volume envelope** or **Edit volume envelope**
 to open its point list without creating automation. **Add point** and
-**Edit point** open numeric drafts; Cancel or form Escape discards them.
+**Edit point** open numeric drafts (focus lands on the form heading, so a phone's keyboard stays down until you tap a field; a time past the end of the timeline is refused with a message under the field); Cancel or form Escape discards them.
 Save and Delete are undoable; removing the last point restores unity automation.
 Points keep their IDs when time sorting changes. If the envelope changes while
 a draft is open, saving is refused and **Discard draft and reload points**

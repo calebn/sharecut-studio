@@ -269,6 +269,61 @@ describe("EnvelopeWorkspace", () => {
   });
 });
 
+describe("EnvelopeWorkspace timeline bound (#1336)", () => {
+  beforeEach(() => {
+    setEnvelope.mockReset();
+    setEnvelope.mockResolvedValue(undefined);
+    hydrate();
+  });
+  it.each(["10.001", "40", "1e9"])(
+    "refuses a time of %s past the 10 s timeline end with an inline error",
+    async (value) => {
+      mount();
+      await edit();
+      await time(value);
+      await save();
+      const input = screen.getByLabelText("Time (seconds on timeline)");
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Time must be from 0 to 10 seconds, the end of the timeline.",
+      );
+      expect(input).toHaveValue(value);
+      expect(setEnvelope).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["0", "10"])("saves a time of exactly %s", async (value) => {
+    hydrate([{ id: "mid", time: 5, value: 0.5 }], "mid");
+    mount("mid");
+    await edit();
+    await time(value);
+    await save();
+    expect(setEnvelope.mock.calls[0]![2]).toEqual([
+      { id: "mid", time: Number(value), value: 0.5 },
+    ]);
+  });
+  it("lets a point already past a shortened timeline change level but not move further out", async () => {
+    hydrate([{ id: "stale", time: 18, value: 0.5 }], "stale");
+    mount("stale");
+    await edit();
+    await level("0.25");
+    await save();
+    expect(setEnvelope.mock.calls[0]![2]).toEqual([
+      { id: "stale", time: 18, value: 0.25 },
+    ]);
+    setEnvelope.mockClear();
+    await edit();
+    await time("19");
+    await save();
+    expect(screen.getByRole("alert")).toHaveTextContent("end of the timeline");
+    expect(setEnvelope).not.toHaveBeenCalled();
+  });
+  it("opens the add form on its heading, not a numeric field, so no software keyboard opens", async () => {
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "Add point" }));
+    expect(screen.getByRole("heading", { name: "Add point" })).toHaveFocus();
+  });
+});
+
 it.each([
   ["Time (seconds on timeline)", "-1", "Time must"],
   ["Level (×)", "9", "Level must"],
