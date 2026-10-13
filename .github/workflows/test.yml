@@ -112,7 +112,7 @@ jobs:
           } > test-results/context.txt
 
       - name: Run tests with coverage gate
-        if: steps.plan.outputs.pytest != 'web'
+        if: steps.plan.outputs.pytest == 'full'
         # Exclude HF-backed / nightly tiers (e2e_slow, e2e_real); keep fast e2e for coverage.
         # Per-test --timeout=60 comes from pyproject addopts (pytest-timeout).
         # xdist can leave pytest exit 0 even when --cov-fail-under fails; enforce via coverage.
@@ -126,8 +126,16 @@ jobs:
         if: steps.plan.outputs.pytest == 'web'
         run: |
           set -o pipefail
-          web_tests="$(python3 scripts/ci_plan.py web-tests)"
+          web_tests="$(python3 scripts/ci_plan.py subset-tests web)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $web_tests | tee test-results/pytest.log
+
+      - name: Run the tests that read docs
+        # A docs-only PR touches no Python; main and nightly keep the full suite.
+        if: steps.plan.outputs.pytest == 'docs'
+        run: |
+          set -o pipefail
+          docs_tests="$(python3 scripts/ci_plan.py subset-tests docs)"
+          pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $docs_tests | tee test-results/pytest.log
 
       - name: Docs-sync gate (PR diff)
         # Stdlib-only script; runs without the pip install above. Only pull_request has a
@@ -138,7 +146,7 @@ jobs:
           "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
 
       - name: Upload coverage.xml
-        if: always() && steps.plan.outputs.pytest != 'web'
+        if: always() && steps.plan.outputs.pytest == 'full'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
