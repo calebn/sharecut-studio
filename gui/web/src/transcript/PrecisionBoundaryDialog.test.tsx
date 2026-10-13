@@ -107,6 +107,12 @@ beforeEach(() => {
   auditionBoundary.mockResolvedValue(audition);
 });
 
+function hungLoad(): Error {
+  return Object.assign(new Error("The server didn't answer. Try again."), {
+    name: "TimeoutError",
+  });
+}
+
 describe("PrecisionBoundaryDialog", () => {
   it("uses signed trim offsets with 1 ms and 10 ms adjustments", async () => {
     render(<PrecisionBoundaryDialog {...boundaryProps()} />);
@@ -386,6 +392,54 @@ describe("PrecisionBoundaryDialog", () => {
     expect(loadBoundaryContext.mock.calls[0]?.[4]).toBe(
       "The server didn't answer. Try again.",
     );
+  });
+
+  it("offers Try again after a hung load, shows progress, and recovers when the server answers", async () => {
+    const timeout = hungLoad();
+    let answer: ((value: BoundaryContext) => void) | undefined;
+    loadBoundaryContext.mockRejectedValueOnce(timeout).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    render(<PrecisionBoundaryDialog {...boundaryProps()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The server didn't answer. Try again.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Reload boundary" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Preparing boundary controls…",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(loadBoundaryContext).toHaveBeenCalledTimes(2);
+    await act(async () => answer?.(context));
+    expect(await screen.findByRole("spinbutton")).toBeInTheDocument();
+  });
+
+  it("offers Try again again when the retried load also hangs", async () => {
+    loadBoundaryContext
+      .mockRejectedValueOnce(hungLoad())
+      .mockRejectedValueOnce(hungLoad());
+    render(<PrecisionBoundaryDialog {...boundaryProps()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("button", { name: "Try again" }),
+    ).toBeInTheDocument();
+    expect(loadBoundaryContext).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers no retry for an error a second attempt cannot fix", async () => {
+    loadBoundaryContext.mockRejectedValueOnce(new Error("400 bad target"));
+    render(<PrecisionBoundaryDialog {...boundaryProps()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("bad target");
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Reload boundary" }),
+    ).toBeNull();
   });
 
   it("keeps the current draft when the parent recreates equal geometry", async () => {

@@ -272,10 +272,12 @@ the empty state, not a separate discovery task.
 - A server that never answers says what happened to the work. A save
   waiting on it says "The server didn't answer. Nothing was saved." The
   Adjust boundary dialog saves nothing while it loads, so a hung load says
-  "The server didn't answer. Try again." Close the dialog and open it again to
-  retry. The banner over a project whose transcript and history never loaded
-  says "Could not load transcript and history. The server didn't answer." with
-  a **Retry** button.
+  "The server didn't answer. Try again." and offers **Try again**, which loads
+  the controls in place with the same "Preparing boundary controls…" progress.
+  A stale load keeps **Reload boundary**; an error a second attempt cannot fix
+  offers neither. The banner over a project whose transcript and history never
+  loaded says "Could not load transcript and history. The server didn't
+  answer." with a **Retry** button.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.
@@ -559,6 +561,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   Clipped feedback pauses its remaining visible lifetime.
 - 2026-10-12 Hung boundary load (#1211). The Adjust boundary dialog says "The
   server didn't answer. Try again." because nothing was being saved.
+- 2026-10-13 Hung boundary load (#1314). The dialog now offers **Try again**
+  beside that message instead of only Close.
 - 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sit in
   the phone and tablet tool rail; Impact's Approve all and Reject all ask first
   with counts and answer with one toast Undo; the tablet lane header's M and S
