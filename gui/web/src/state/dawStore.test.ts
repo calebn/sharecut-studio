@@ -587,7 +587,7 @@ describe("dawStore follow presence", () => {
     (guestMode) => {
       useDawStore
         .getState()
-        .hydrate("/tmp/ep.project.json", minimalProject(), guestMode);
+        .hydrate("/tmp/ep.project.json", twoTrackProject(), guestMode);
       useDawStore
         .getState()
         .setSelection({ kind: "envelope", trackId: "host" });
@@ -595,7 +595,7 @@ describe("dawStore follow presence", () => {
         agentSession({
           origin: "viewer",
           last_role: "viewer",
-          selection: { kind: "pending", id: "cut_gone", track_id: "host" },
+          selection: { kind: "pending", id: "cut_1", track_id: "host" },
         }),
       );
       expect(useDawStore.getState().selection).toEqual({
@@ -618,6 +618,7 @@ describe("dawStore follow presence", () => {
   );
 
   it("host still adopts another tab's session selection", () => {
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
     useDawStore.getState().setSelection({ kind: "envelope", trackId: "host" });
     useDawStore.getState().applyAgentSession(
       agentSession({
