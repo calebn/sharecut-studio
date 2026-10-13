@@ -450,8 +450,8 @@ restores use the same scope rule; they remove no speech, so the guard does not
 apply.
 
 Tighten filler and NL proposals use `resolve_cut_scope` to assess their source span.
-Completed peer-speech evidence can select a track punch, require review, or refuse
-the cut according to the conflict policy. A pause remains a session cut. When peer
+Completed peer-speech evidence requires review or refuses the cut according to the
+conflict policy (`on_conflict: review`, the default, or `skip`). A pause remains a session cut. When peer
 assessment raises `OSError` or `ValueError`, it selects no scope. Manual proposals
 raise `cut_scope_changed` before publication; generated candidates publish nothing
 and count one `scope_unavailable`, including acoustic candidates. Generated cuts

@@ -173,9 +173,9 @@ tighten:
   # cross-track ripple (avoids mid-word chops when ASR missed a word).
   speech_energy_guard:
     enabled: true
-    # track_local = punch silence on the cut track only; skip = refuse;
-    # review = track_local + mark review_required.
-    on_conflict: track_local
+    # review = hold the cut as a pending suggestion, never applied alone;
+    # skip = refuse it. No one-track punch (#1370).
+    on_conflict: review
     min_other_rms_db: -42.0
     dominance_db: 3.0
     min_overlap_sec: 0.03

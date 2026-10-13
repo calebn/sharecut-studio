@@ -453,7 +453,7 @@ def test_solo_pause_retains_higher_floor_than_turn_pause(tmp_path: Path):
         )
     assert len(turn.edit_decisions) == 1
     d2 = turn.edit_decisions[0]
-    assert d2.reason == "pause:2.50s:interior_speech:track_local:guest"
+    assert d2.reason == "pause:2.50s:interior_speech:other_speaking:guest"
     assert ":solo" not in d2.reason
     assert d2.review_required is True
     assert d2.scope == "session"
@@ -2025,7 +2025,7 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
     assert result.scope == "track"
 
 
-@pytest.mark.parametrize("action", ["track_local", "review"])
+@pytest.mark.parametrize("action", ["skip", "review"])
 def test_analyze_keeps_peer_conflicted_pause_for_session_review(action, tmp_path: Path):
     from types import SimpleNamespace
 
@@ -3635,7 +3635,7 @@ def _scope_result(scope: str):
     if scope == "track":
         return ResolvedCutScope(
             "peer_speech",
-            SpeechEnergyGuardResult(blocking_track_ids=("guest",), action="track_local"),
+            SpeechEnergyGuardResult(blocking_track_ids=("guest",), action="review"),
         )
     return ResolvedCutScope(
         "session_clear", SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
@@ -3676,7 +3676,7 @@ def test_a_scope_that_flips_to_a_track_punch_gets_the_splice_gates_and_no_pad():
     # The punch ships a butt splice, so the join gate scores it: pass keeps the punch
     # with no pad, fail rejects it. The padded plan's gate skip never carries over.
     assert _analyze_with_scope_flip("session", "track", join_verdict="pass") == [
-        ("track", None, "filler:uh:track_local:guest")
+        ("track", None, "filler:uh:other_speaking:guest")
     ]
     assert _analyze_with_scope_flip("session", "track", join_verdict="fail") == []
 

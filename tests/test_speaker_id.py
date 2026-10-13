@@ -255,7 +255,7 @@ def test_should_run_speaker_auto_thresholds(tmp_path, sample_wav) -> None:
     assert run2
 
 
-def test_resolve_cut_scope_bleed_forces_track_local(tmp_path, sample_wav) -> None:
+def test_resolve_cut_scope_bleed_forces_track_scope(tmp_path, sample_wav) -> None:
     proj = _two_track_project(tmp_path, sample_wav)
     with (
         patch(

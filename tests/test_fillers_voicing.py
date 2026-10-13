@@ -549,7 +549,7 @@ def test_peer_voice_inside_a_session_pause_is_reviewed(tmp_path: Path) -> None:
 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
 
-    assert decision.reason == "pause:2.60s:solo:interior_speech:track_local:guest"
+    assert decision.reason == "pause:2.60s:solo:interior_speech:other_speaking:guest"
     assert decision.review_required is True
     assert decision.scope == "session"
     assert apply_tighten_decisions(project) == 0

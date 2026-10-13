@@ -2822,11 +2822,8 @@ def _prepare_candidate(
         reason = f"{reason}:{flag}"
     if guard is not None and guard.blocked:
         peers = ",".join(guard.blocking_track_ids)
-        if guard.action == "review":
-            review_required = True
-            reason = f"{reason}:other_speaking:{peers}"
-        else:
-            reason = f"{reason}:track_local:{peers}"
+        review_required = True
+        reason = f"{reason}:other_speaking:{peers}"
 
     if risk.too_risky:
         if leave_in:

@@ -62,7 +62,7 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 log = logging.getLogger(__name__)
 
-ConflictAction = Literal["track_local", "skip", "review"]
+ConflictAction = Literal["skip", "review"]
 DEFAULT_MIN_OTHER_RMS_DB = -42.0
 
 
@@ -92,13 +92,8 @@ def speech_energy_guard_enabled(defaults: dict[str, Any] | None = None) -> bool:
 
 
 def speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -> ConflictAction:
-    raw = str(_guard_cfg(defaults).get("on_conflict", "track_local")).strip().lower()
-    choices: dict[str, ConflictAction] = {
-        "skip": "skip",
-        "review": "review",
-        "track_local": "track_local",
-    }
-    return choices.get(raw, "track_local")
+    raw = str(_guard_cfg(defaults).get("on_conflict", "review")).strip().lower()
+    return "skip" if raw == "skip" else "review"
 
 
 @dataclass(frozen=True)
@@ -789,7 +784,7 @@ class PeerSpeechBlocked(ValueError):
     def __init__(self, peers: tuple[str, ...]) -> None:
         super().__init__(
             f"cut blocked: other track(s) speaking in window ({', '.join(peers)}); "
-            "leave in or use a track-local punch"
+            "leave in or review it"
         )
         self.peers = peers
 
@@ -868,5 +863,5 @@ def resolve_cut_scope(
         return CutScopeUnavailable()
     if not guard.blocked:
         return ResolvedCutScope("session_clear", guard)
-    # track_local and review: never session-ripple over live peer speech.
+    # skip and review: never session-ripple over live peer speech.
     return ResolvedCutScope("peer_speech", guard)

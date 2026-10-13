@@ -165,6 +165,36 @@ the span the cut finally removes (**Filler pacing floor**, #1074; owner listenin
 check pending). Open listening note: the review-only `like` cut at 16.45 s
 sounds rough (#1079).
 
+### Decision: A guard-blocked filler waits for review
+
+<!-- decision
+id: D-guard-blocked-filler-waits-for-review
+status: accepted
+date: 2026-10-13
+decided-by: calebn
+evidence:
+- #1370 lab (Whisper word times, ripple, light then aggressive apply): one of 20 applied records was a one-track punch, `filler:like:track_local:caleb`, Audra's track only, 1400.01 to 1400.73 (0.72 s), with Caleb speaking over it; aligned word times, ripple: 0 of 43
+- Owner trim-mode decision (2026-10-06, #1137): a ripple edit ripples every dialogue track, and cutting another speaker's speech is a warning the user confirms, not a silent local edit
+- Operator decision (2026-10-13) on #1370: when the speech guard blocks cutting a filler across all dialogue tracks, it must not auto-apply as a one-track punch; the default `on_conflict` becomes `review`, and `track_local` is deleted because no current product workflow asks for a local punch
+enforced-by:
+- tests/test_cut_scope_publication_contract.py::test_the_shipped_and_the_fallback_conflict_policy_is_review
+- tests/test_cut_scope_publication_contract.py::test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied
+- tests/test_cut_scope_publication_contract.py::test_mute_mode_ignores_peer_speech_and_needs_no_review
+- tests/test_cut_scope_publication_contract.py::test_known_peer_generated_controls_preserve_conflict_policy
+- tests/test_speech_energy_guard.py::test_add_remove_decision_over_peer_speech_waits_for_review
+- tests/test_filler_pacing.py::test_analyze_candidate_blocked_peer_waits_for_review_on_its_own_track
+- docs-sync: decision-filler-cuts
+-->
+
+In ripple mode, a filler (or a manual NL cut) that a peer is speaking over is a
+pending suggestion marked `review_required` with the reason `:other_speaking:<peers>`.
+`apply_edits` and the `tighten_from_transcript` step never apply it, so no filler
+leaves a hole on one track while the others keep their time.
+`tighten.speech_energy_guard.on_conflict` takes `review` (the default, also the
+value for any unrecognized setting) or `skip`, which refuses the cut. The
+`track_local` value is gone. A mute is a track-scope edit by design, so mute mode
+never consults peer speech and is unchanged.
+
 ### Superseded decision: Pause trims cut only air
 
 <!-- decision
@@ -631,7 +661,7 @@ Listened: the owner listened to every #1055 round 4 to 7 clip set and approved t
 
 ## Mute vs cut
 
-`tighten.edit_mode` (default **`ripple`**) still proposes `EditDecisionType.REMOVE` and applies via session ripple or track-local punch. Set **`edit_mode: mute`** (config, or `propose_edits(..., edit_mode="mute")` / `--edit-mode mute`) to propose **`MUTE`** decisions instead: the same filler candidate pipeline and `filler:` reasons, same `review_required` gating, but apply/approve writes **`Clip.mute_regions`** (`{start_s, end_s, fade_out_ms, fade_in_ms, fill?}` source-media seconds) and does **not** move clips or change `timeline.duration_sec`. Render fades the clip out over each region's first `fade_out_ms` and back in over its last `fade_in_ms` (5 ms each unless set) and lays the region's fill under it, so the hole does not click.
+`tighten.edit_mode` (default **`ripple`**) still proposes `EditDecisionType.REMOVE` and applies via session ripple; a cut a peer is speaking over waits for review (**Decision: A guard-blocked filler waits for review**). Set **`edit_mode: mute`** (config, or `propose_edits(..., edit_mode="mute")` / `--edit-mode mute`) to propose **`MUTE`** decisions instead: the same filler candidate pipeline and `filler:` reasons, same `review_required` gating, but apply/approve writes **`Clip.mute_regions`** (`{start_s, end_s, fade_out_ms, fade_in_ms, fill?}` source-media seconds) and does **not** move clips or change `timeline.duration_sec`. Render fades the clip out over each region's first `fade_out_ms` and back in over its last `fade_in_ms` (5 ms each unless set) and lays the region's fill under it, so the hole does not click.
 
 ### Decision: Ripple by default; mute in place for timing-locked work
 
@@ -795,7 +825,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | Dirty air / mouth noise left at filler joins | `filler_room_tone_replace` + `filler_pad_mode` | Replace on; `room_tone` (default) fills with the track's room, or set `silence` for a hard gap |
 | Prefer keeping original pause audio over pad | `filler_room_tone_replace` | **`false`** (shrink cut to leave original air) |
 | Sampled room tone mismatches the join | `filler_pad_mode` | Set **`silence`**, or record a `track.room_tone` bed. The sampler only takes a steady stretch at the track's floor, so a mismatch means the room itself changes across the episode |
-| Mid-word chop when ASR missed a word on another mic | `speech_energy_guard` | Keep **`enabled`**; default `on_conflict: track_local` |
+| Mid-word chop when ASR missed a word on another mic | `speech_energy_guard` | Keep **`enabled`**; default `on_conflict: review` holds the cut for review |
 | A proposal carries `:interior_speech` | the transcript, not a knob | A track the ripple removes has voice there Whisper dropped; re-transcribe or add the words, then re-propose |
 | A `pause:` proposal carries `:interior_audio` | the track's voice floor (`TrackAudioCache.voice_floor_db`) | Audible but unvoiced material (a fricative, a laugh) on a rippled track; listen before approving |
 | A `pause:` proposal carries `:air_edges` | none | The trim moved off the span pacing proposed (the air rule, or a kept-voice walk before it), onto the air inside the pause, off a word tail, a breath or a peer's onset at an edge; a label only: it raises no review |
@@ -858,7 +888,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | `tighten.filler_pad_mode` | `room_tone` | Fill for ripple pads and approved mutes: `room_tone` (recorded bed, else a steady stretch at the track's floor; none on a gated track; **Where room tone comes from**), or hard `silence` |
 | `tighten.filler_room_tone_max_expand_sec` | `2.0` | Max expansion toward flanking words; larger gaps keep the local cut + pad |
 | `tighten.speech_energy_guard.enabled` | `true` | Block session ripple when peers speak in the cut window |
-| `tighten.speech_energy_guard.on_conflict` | `track_local` | `track_local` / `skip` / `review` |
+| `tighten.speech_energy_guard.on_conflict` | `review` | `review` (hold the cut as a pending suggestion) / `skip` (refuse it). There is no one-track punch (#1370) |
 | `tighten.leave_in_if_risky` | `true` | Skip high-risk cuts vs flag for review |
 | `tighten.max_cut_risk_score` | `0.65` | Risk threshold (0–1 normalized) |
 | `tighten.min_filler_confidence` | `0.15` | Min ASR confidence to trust filler token |

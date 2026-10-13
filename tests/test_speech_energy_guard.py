@@ -139,7 +139,7 @@ def test_assess_blocks_when_other_track_hot():
                 "tighten": {
                     "speech_energy_guard": {
                         "enabled": True,
-                        "on_conflict": "track_local",
+                        "on_conflict": "review",
                         "min_other_rms_db": -42.0,
                         "dominance_db": 3.0,
                     }
@@ -149,7 +149,7 @@ def test_assess_blocks_when_other_track_hot():
         )
     assert g.blocked
     assert g.blocking_track_ids == ("guest",)
-    assert g.action == "track_local"
+    assert g.action == "review"
 
 
 def test_assess_allows_when_cut_track_dominates():
@@ -212,7 +212,7 @@ def test_resolve_skip_retains_peer_evidence():
     assert result.guard.action == "skip"
 
 
-def test_add_remove_decision_becomes_track_local(monkeypatch):
+def test_add_remove_decision_over_peer_speech_waits_for_review(monkeypatch):
     p = _two_track(
         host_words=[
             TranscriptWord(text="hi", start=0.5, end=0.8),
@@ -226,7 +226,7 @@ def test_add_remove_decision_becomes_track_local(monkeypatch):
             "filler_room_tone_replace": False,
             "speech_energy_guard": {
                 "enabled": True,
-                "on_conflict": "track_local",
+                "on_conflict": "review",
                 "min_other_rms_db": -42.0,
                 "dominance_db": 3.0,
             },
@@ -264,10 +264,11 @@ def test_add_remove_decision_becomes_track_local(monkeypatch):
         d = add_remove_decision(p, "host", 2.0, 2.4, reason="nl:range", defaults=defaults)
     assert d.scope == "track"
     assert d.replace_gap_sec is None
-    assert "track_local" in (d.reason or "")
+    assert d.review_required is True
+    assert "other_speaking:guest" in (d.reason or "")
 
 
-def test_approve_track_local_keeps_peer_clips():
+def test_approve_track_scope_keeps_peer_clips():
     p = _two_track()
     p.edit_decisions = [
         EditDecision(
@@ -279,7 +280,7 @@ def test_approve_track_local_keeps_peer_clips():
             review_required=True,
             applied=False,
             scope="track",
-            reason="nl:range:track_local:guest",
+            reason="nl:range:other_speaking:guest",
         )
     ]
     with patch("podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range") as opt:
@@ -598,7 +599,7 @@ def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
                 "tighten": {
                     "speech_energy_guard": {
                         "enabled": True,
-                        "on_conflict": "track_local",
+                        "on_conflict": "review",
                         "min_other_rms_db": -42.0,
                         "dominance_db": 3.0,
                     }
@@ -608,14 +609,14 @@ def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
         )
     assert g.blocked
     assert g.blocking_track_ids == ("guest",)
-    assert g.action == "track_local"
+    assert g.action == "review"
 
 
 _GUARD_ON = {
     "tighten": {
         "speech_energy_guard": {
             "enabled": True,
-            "on_conflict": "track_local",
+            "on_conflict": "review",
             "min_other_rms_db": -42.0,
             "dominance_db": 3.0,
         }
@@ -669,7 +670,7 @@ def test_assess_blocks_brief_untranscribed_peer_in_long_pause(
     assert guard.other_rms_db["guest"] < -42.0
     assert guard.blocked
     assert guard.blocking_track_ids == ("guest",)
-    assert guard.action == "track_local"
+    assert guard.action == "review"
 
 
 @pytest.mark.parametrize("amplitude", [0.045, 0.0045], ids=["normal", "quiet"])
@@ -696,7 +697,7 @@ def test_assess_blocks_peer_attack_at_end_of_long_pause(tmp_path: Path, amplitud
     assert guard.other_rms_db["guest"] < -42.0
     assert guard.blocked
     assert guard.blocking_track_ids == ("guest",)
-    assert guard.action == "track_local"
+    assert guard.action == "review"
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
@@ -777,7 +778,7 @@ def test_dense_owner_bleed_cannot_hide_brief_independent_peer(
     assert levels.unread == {}
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == expected
-    assert guard.action == ("track_local" if expected else None)
+    assert guard.action == ("review" if expected else None)
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
@@ -894,7 +895,7 @@ def test_dense_owner_bleed_room_is_told_from_independent_peer_by_the_peers_own_s
     assert levels.unread == {}
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == expected
-    assert guard.action == ("track_local" if expected else None)
+    assert guard.action == ("review" if expected else None)
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
@@ -968,7 +969,7 @@ def test_noise_without_contrast_uses_mean_while_digital_zero_stays_clear(
         assert levels.peer_rms_db["guest"] > -42.0
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == expected
-    assert guard.action == ("track_local" if expected else None)
+    assert guard.action == ("review" if expected else None)
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
@@ -1462,7 +1463,7 @@ def test_resolve_cut_scope_punches_over_peer_word_without_stems() -> None:
     assert scope == "track"
     assert guard is not None
     assert guard.blocking_track_ids == ("guest",)
-    assert guard.action == "track_local"
+    assert guard.action == "review"
 
 
 def test_resolve_cut_scope_ripples_over_suppressed_peer_word_without_stems() -> None:
