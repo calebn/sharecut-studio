@@ -1,6 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openSuggestedPendingEdit } from "./pendingEdit";
+
+async function pendingIds(page: Page): Promise<string[]> {
+  const response = await page.request.get(
+    `/api/project?path=${encodeURIComponent(e2eProjectPath)}&phase=full`,
+  );
+  const project = (await response.json()) as {
+    pending_edits: { id: string }[];
+  };
+  return project.pending_edits.map((edit) => edit.id);
+}
 
 const ASKED = {
   ok: true,
@@ -30,6 +41,8 @@ test("approving a pending cut a peer speaks over asks Cut anyway, then sends it 
   page,
 }) => {
   const approvals: Record<string, unknown>[] = [];
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  const before = new Set(await pendingIds(page));
   await openSuggestedPendingEdit(page, e2eProjectPath);
   await page.route("**/api/document/command**", async (route) => {
     const body = route.request().postDataJSON() as {
@@ -68,4 +81,10 @@ test("approving a pending cut a peer speaks over asks Cut anyway, then sends it 
   await expect(dialog).toBeHidden();
   expect(approvals).toHaveLength(2);
   expect(approvals[1]).toMatchObject({ confirm_cut_speech: true });
+
+  await page.unroute("**/api/document/command**");
+  const created = (await pendingIds(page)).filter((id) => !before.has(id));
+  await postDocumentCommand(page, "e2e-approve-guard-blocked", "RejectEdits", {
+    ids: created,
+  });
 });
