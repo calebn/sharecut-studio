@@ -229,7 +229,7 @@ def test_a_burst_straddling_a_seam_is_reported_whole_not_cut_at_the_seam() -> No
     (run,) = find_voiced_gap_runs(cache, 0.4, 19.6)
 
     assert abs((run.end - run.start) - 0.5) <= 0.04
-    assert 6.15 <= run.start and run.end <= 6.75
+    assert 6.15 <= run.start < run.end <= 6.75
 
 
 def test_a_long_gap_is_judged_window_by_window_so_hum_in_one_does_not_hide_a_burst_in_another() -> (
@@ -994,3 +994,112 @@ def test_pending_acoustic_edit_is_review_hypothesis_with_its_own_span() -> None:
         "timeline_end": 1.2,
     }
     assert acoustic["meaning"].startswith("A local DSP candidate")
+
+
+# --- untranscribed phrase (#1359) ----------------------------------------------
+
+
+def _cadence_words(
+    *, count: int = 40, duration: float = 0.14, silence: float = 0.08
+) -> list[TranscriptWord]:
+    words: list[TranscriptWord] = []
+    at = 0.0
+    for index in range(count):
+        words.append(TranscriptWord(text=f"w{index}", start=at, end=at + duration))
+        at += duration + silence
+    return words
+
+
+def _phrase_transcript(gap_sec: float = 5.6, **cadence: float) -> tuple[Transcript, float]:
+    words = _cadence_words(**cadence)
+    gap_start = words[-1].end + 0.1
+    gap_end = gap_start + gap_sec
+    words.append(TranscriptWord(text="after", start=gap_end, end=gap_end + 0.2))
+    return Transcript(track_id="host", words=words), gap_start
+
+
+def _hits(
+    total_sec: float,
+    start: float,
+    count: int,
+    *,
+    length: float = 0.2,
+    silence: float = 0.12,
+    amp: float = 0.2,
+) -> np.ndarray:
+    samples = np.zeros(int(total_sec * RATE), dtype=np.float32)
+    for index in range(count):
+        at = start + index * (length + silence)
+        samples += _tone(total_sec, at, at + length, amp=amp)
+    return samples
+
+
+def _propose_in_gap(
+    transcript: Transcript, samples: np.ndarray, skips: dict[str, int] | None = None
+) -> list[_CutCandidate]:
+    return _acoustic(
+        _add_acoustic_candidates(
+            [], transcript, {"tighten": {}}, audio_cache=_cache(samples), skip_counts=skips
+        )
+    )
+
+
+@pytest.mark.parametrize("gain", [0.1, 1.0, 4.0])
+@pytest.mark.parametrize("count", [3, 4])
+def test_a_string_of_voiced_bursts_at_syllable_spacing_is_not_proposed(
+    count: int, gain: float
+) -> None:
+    transcript, gap_start = _phrase_transcript()
+    samples = _hits(transcript.words[-1].end + 1.0, gap_start + 1.0, count, amp=0.2 * gain)
+    skips: dict[str, int] = {}
+
+    assert _propose_in_gap(transcript, samples, skips) == []
+    assert skips == {"acoustic:phrase": count}
+
+
+@pytest.mark.parametrize("gain", [0.1, 1.0, 4.0])
+def test_a_single_hit_in_the_same_gap_is_still_proposed(gain: float) -> None:
+    transcript, gap_start = _phrase_transcript()
+    samples = _hits(transcript.words[-1].end + 1.0, gap_start + 1.0, 1, amp=0.2 * gain)
+
+    (found,) = _propose_in_gap(transcript, samples)
+
+    assert gap_start + 0.9 <= found.start < found.end <= gap_start + 1.3
+
+
+@pytest.mark.parametrize("gain", [0.1, 1.0, 4.0])
+def test_two_hits_far_apart_are_each_proposed(gain: float) -> None:
+    transcript, gap_start = _phrase_transcript()
+    total = transcript.words[-1].end + 1.0
+    samples = _hits(total, gap_start + 0.8, 1, amp=0.2 * gain)
+    samples += _hits(total, gap_start + 4.0, 1, amp=0.2 * gain)
+
+    found = _propose_in_gap(transcript, samples)
+
+    assert len(found) == 2
+    assert found[1].start - found[0].end > 2.0
+
+
+@pytest.mark.parametrize("gain", [0.1, 4.0])
+def test_a_pair_of_close_hits_is_two_fillers_not_a_phrase(gain: float) -> None:
+    transcript, gap_start = _phrase_transcript()
+    samples = _hits(transcript.words[-1].end + 1.0, gap_start + 1.0, 2, amp=0.2 * gain)
+
+    assert len(_propose_in_gap(transcript, samples)) == 2
+
+
+def test_hits_are_close_by_the_speakers_own_cadence_not_by_a_fixed_time() -> None:
+    fast, fast_gap = _phrase_transcript()
+    slow, slow_gap = _phrase_transcript(duration=0.5, silence=0.2)
+
+    def string(transcript: Transcript, gap_start: float) -> np.ndarray:
+        return _hits(transcript.words[-1].end + 1.0, gap_start + 1.0, 3, silence=0.5)
+
+    assert len(_propose_in_gap(fast, string(fast, fast_gap))) == 3
+    assert _propose_in_gap(slow, string(slow, slow_gap)) == []
+
+
+def test_without_a_measurable_cadence_a_string_is_left_for_review() -> None:
+    transcript = _two_words(0.4, 5.4)
+
+    assert len(_propose_in_gap(transcript, _hits(6.0, 1.0, 4))) == 4

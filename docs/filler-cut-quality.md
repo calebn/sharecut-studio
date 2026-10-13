@@ -883,6 +883,16 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   355 acoustic skips. A peer word over silent audio does not block a gap; an
   untranscribed peer voice does. A peer whose track did not decode supplies no
   evidence.
+- **A string of hits is an untranscribed phrase, not several fillers** (#1359,
+  `edits/acoustic_phrase.py`). Three or more runs in one gap that survive the peer
+  test, each starting within the speaker's longest ordinary word step of the previous
+  run's end, are proposed as none (`acoustic:phrase`): a hummed, sung or playful
+  phrase the transcript dropped ("boop boop boop boop"), which muting hit by hit
+  would mute. The step is the 95th percentile of onset-to-onset steps between this
+  track's live words that are less than `min_gap_sec` apart, so it follows the
+  speaker's own cadence. A track with fewer than 30 such steps has no cadence and
+  nothing is grouped. A single hit, a pair, and hits further apart than that step
+  are each still proposed. Laughs are not told apart here (#1365).
   A peer run is not peer speech when it is the cut track's own voice bleeding
   onto the peer's mic (#994). The run's RMS is compared with the cut track's RMS
   over the same frames, and a peer at least `analysis.heuristics.bleed_dominance_db`
@@ -952,7 +962,7 @@ Interaction with other proposals:
   skipped too (`already_muted`).
 - Propose summaries report acoustic hits separately (`N acoustic (review)`) and
   count skipped scans and candidates (`acoustic:*` skip reasons such as
-  `no_audio`, `peer_speaking` (a peer voiced where a run sounds), `breath`,
+  `no_audio`, `peer_speaking` (a peer voiced where a run sounds), `phrase` (a hit in a string of three or more), `breath`,
   `replaced_pause`, and every analysis rejection under its reason, such as
   `acoustic:kept_voice`, `acoustic:next_onset` or `acoustic:too_short`).
 - The audition context adds an `acoustic_gap_filler` hypothesis per pending hit,

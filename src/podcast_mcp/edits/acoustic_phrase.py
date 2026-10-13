@@ -1,0 +1,54 @@
+"""Short voiced hits strung together in one word gap are an untranscribed phrase.
+
+A hit alone in a gap can be a filler. Several hits one after another, each separated
+from the next by no more than this speaker's longest ordinary step from one word onset to
+the next, have the cadence of speech the transcript dropped, such as a hummed or sung
+phrase. Muting them one by one would mute that phrase, so none is proposed.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from itertools import pairwise
+
+import numpy as np
+
+from podcast_mcp.edits.acoustic_gap import AcousticGapRun
+from podcast_mcp.models import TranscriptWord
+
+MIN_STRING_HITS = 3
+MIN_WORD_STEPS = 30
+_STEP_PERCENTILE = 95.0
+
+
+def word_step_ceiling(words: Sequence[TranscriptWord], pause_sec: float) -> float | None:
+    """This speaker's longest ordinary onset-to-onset step between words of one phrase.
+
+    Steps across a pause (silence of ``pause_sec`` or more) are not part of a phrase.
+    ``None`` when the track has too few steps to read a cadence from.
+    """
+    live = [w for w in words if not w.suppressed and w.end > w.start]
+    steps = [
+        nxt.start - word.start
+        for word, nxt in pairwise(live)
+        if 0.0 <= nxt.start - word.end < pause_sec
+    ]
+    if len(steps) < MIN_WORD_STEPS:
+        return None
+    return float(np.percentile(steps, _STEP_PERCENTILE))
+
+
+def phrase_hit_indexes(runs: Sequence[AcousticGapRun], ceiling: float | None) -> set[int]:
+    """Indexes of runs (in time order) that sit in a string of at least ``MIN_STRING_HITS``."""
+    if ceiling is None:
+        return set()
+    members: set[int] = set()
+    chain = [0] if runs else []
+    for index in range(1, len(runs) + 1):
+        if index < len(runs) and runs[index].start - runs[index - 1].end <= ceiling:
+            chain.append(index)
+            continue
+        if len(chain) >= MIN_STRING_HITS:
+            members.update(chain)
+        chain = [index]
+    return members
