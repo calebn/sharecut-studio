@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { exposeControl } from "./inspectorResponsiveEvidence";
 import { openSuggestedPendingEdit } from "./pendingEdit";
@@ -92,6 +93,9 @@ test.describe("Pending inspector layout", () => {
       for (const action of ["Approve", "Reject"] as const) {
         await page.setViewportSize({ width: 1280, height: 720 });
         await openSuggestedPendingEdit(page, e2eProjectPath);
+        if (action === "Approve") {
+          await waiveRefineGate(page, "Single pending-review feedback fixture");
+        }
         const editId = await page
           .locator(".pending-overlay.selected")
           .getAttribute("data-pending-id");
