@@ -442,3 +442,62 @@ def test_owned_posix_cleanup_removes_file_and_is_idempotent(private_directory):
             "inspect the retained file and stop replacements before retrying",
         )
         assert target.read_bytes() == b"substituted"
+
+
+@pytest.mark.parametrize(
+    ("reason", "code"),
+    [
+        ("invalid_backup_name", "registry_backup_invalid_path"),
+        ("snapshot_changed", "registry_backup_integrity_changed"),
+    ],
+)
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_new_guard_codes_keep_guest_projections_and_server_failure(
+    tmp_path, monkeypatch, reason, code, wrapped
+):
+    import logging
+
+    from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
+    from podcast_mcp.services.remote_mcp import protocol
+    from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
+    from podcast_mcp.util.tool_refusal import guest_failure_detail, tool_refusal
+
+    error = RegistryPrivacyError(
+        tmp_path / "SENTINEL-'q' \"d\" $HOME" / "secret.sqlite", RegistryPrivacyReason(reason)
+    )
+    if wrapped:
+        wrapped_error = PermissionError("SENTINEL wrapper")
+        wrapped_error.__cause__ = error
+        error = wrapped_error
+    message = "The host's sharing setup needs attention; ask the host to check it."
+    guest = tool_refusal(error, for_guest=True)
+    assert guest.message == message
+    assert guest.code == code
+    assert guest_failure_detail(error) == message
+    http = guest_http_error(error, logger=logging.getLogger(__name__), operation="guard")
+    assert http.status_code == 500
+    assert http.detail == message
+    assert http.headers == {"X-Sharecut-Error-Code": code}
+    ws = guest_ws_error(error, logger=logging.getLogger(__name__), operation="guard")
+    assert (ws.detail, ws.code, ws.close_code) == (message, code, 4403)
+    assert protocol._tool_failure(1, "guest_get_project", error) == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [{"type": "text", "text": message}],
+            "structuredContent": {"ok": False, "error": message, "error_code": code},
+            "isError": True,
+        },
+    }
+
+    def refuse(_token):
+        raise error
+
+    monkeypatch.setattr(protocol, "resolve_remote_mcp_context", refuse)
+    assert protocol.handle_mcp_jsonrpc(
+        "unused", {"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+    ) == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {"code": -32603, "message": message, "data": {"error_code": code}},
+    }
