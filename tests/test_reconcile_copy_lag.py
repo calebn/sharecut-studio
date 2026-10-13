@@ -200,6 +200,35 @@ def test_mics_on_different_sample_clocks_fall_back_to_zero_lag() -> None:
         assert caches.copy_path("audra", "caleb").lag_sec == 0.0
 
 
+def _recorded_quieter(caches: TrackRmsCacheSet, gain_db: float) -> TrackRmsCacheSet:
+    scale = 10 ** (gain_db / 20)
+    return TrackRmsCacheSet(
+        caches={
+            tid: TrackRmsCache(samples=(cache.samples * scale).astype(np.float32))
+            for tid, cache in caches.caches.items()
+        }
+    )
+
+
+@pytest.mark.parametrize("gain_db", (-12.0, -24.0, -36.0, 12.0))
+def test_the_copy_path_and_every_verdict_do_not_move_with_recording_level(
+    gain_db: float, verdicts
+) -> None:
+    """The bleed-path levels are read at the session's speech level, not as recorded (#1324)."""
+    quieter = _recorded_quieter(_caches(), gain_db)
+    with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
+        path = quieter.copy_path("audra", "caleb")
+        reference = _caches().copy_path("audra", "caleb")
+    assert path.lag_sec == pytest.approx(LATENCY_SEC)
+    assert path.likeness == pytest.approx(reference.likeness, abs=0.02)
+    assert _verdicts(quieter) == verdicts
+
+
+def test_a_session_with_no_speech_above_its_room_is_measured_as_recorded() -> None:
+    assert _caches(background=False).reference_gain_db == 0.0
+    assert _caches().reference_gain_db != 0.0
+
+
 def test_a_lag_without_a_measured_likeness_takes_no_word() -> None:
     from podcast_mcp.engines.audio_audit import CopyPath
 
