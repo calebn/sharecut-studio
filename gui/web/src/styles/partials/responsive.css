@@ -149,9 +149,12 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
   text-decoration: none;
 }
 
+/* The status bar is one fixed-height line (--status-height) that overlays
+   anchor to, so its chips size to it instead of the 44px touch floor; the
+   same actions stay one tap away in the tab strip. */
 @media (pointer: coarse) {
   .status-bar .status-chip {
-    min-block-size: var(--status-chip-min-block);
+    min-block-size: 0;
   }
 }
 

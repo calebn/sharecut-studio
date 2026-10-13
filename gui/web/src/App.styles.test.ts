@@ -143,7 +143,7 @@ describe("App styles", () => {
     ).toBeGreaterThan(src.indexOf(".ui-control--compact {"));
   });
 
-  it("lets segmented tracks, the status bar and the Listen status row hold touch-sized children on a coarse pointer (#1388)", () => {
+  it("sizes the segmented track, status bar chips and Listen status row to their containers on a coarse pointer (#1388)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const read = (f: string) => readFileSync(join(here, f), "utf8");
     const ui = read("styles/partials/ui.css");
@@ -153,16 +153,9 @@ describe("App styles", () => {
     expect(track).toBeTruthy();
     expect(track![1]).toMatch(/block-size:\s*auto/);
     expect(track![1]).toMatch(/min-block-size:\s*var\(--control-height\)/);
-    const tokens = read("styles/theme/tokens.css");
-    expect(tokens).toMatch(
-      /@media \(pointer: coarse\) \{\s*:root \{[^}]*--status-height:\s*calc\(var\(--touch-min\)[^}]*--status-chip-min-block:\s*var\(--touch-min\)/,
-    );
-    expect(tokens).toMatch(
-      /\(orientation: landscape\) and \(max-width: 59\.9375rem\) \{\s*:root \{[^}]*--status-height:\s*1\.75rem;[^}]*--status-chip-min-block:\s*0rem/,
-    );
     const responsive = read("styles/partials/responsive.css");
     expect(responsive).toMatch(
-      /@media \(pointer: coarse\) \{\s*\.status-bar \.status-chip \{\s*min-block-size:\s*var\(--status-chip-min-block\)/,
+      /@media \(pointer: coarse\) \{\s*\.status-bar \.status-chip \{\s*min-block-size: 0;/,
     );
     const chips = responsive.match(/\.mobile-status-chips \{([^}]*)\}/);
     expect(chips![1]).toMatch(/align-items:\s*center/);
