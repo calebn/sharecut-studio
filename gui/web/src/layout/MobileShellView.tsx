@@ -3,6 +3,7 @@ import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab } from "../presence/followSync";
 import type { MobileMode, MoreDestination } from "../state/types";
 import { BottomSheet } from "../ui/BottomSheet";
+import { INSPECTOR_SHEET_CLASS } from "../ui/compactSheet";
 import { Icon, type IconName } from "../ui/Icon";
 import { StatusLiveRegion } from "../ui/StatusLiveRegion";
 import { ToggleButton } from "../ui/ToggleButton";
@@ -145,6 +146,9 @@ export function MobileShellView({
         onClose={sheet.kind === "closed" ? () => {} : sheet.onClose}
         title={sheet.kind === "mix" ? "Mix" : "Inspector"}
         size={sheet.kind === "mix" ? "full" : "half"}
+        className={
+          sheet.kind === "inspector" ? INSPECTOR_SHEET_CLASS : undefined
+        }
         expanded={sheet.kind === "inspector" ? sheet.expanded : undefined}
         onExpandedChange={
           sheet.kind === "inspector" ? sheet.onExpandedChange : undefined

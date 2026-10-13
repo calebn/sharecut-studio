@@ -73,7 +73,14 @@ test("live waiver draft survives compact to regular tablet transition", async ({
   await reason.fill("Reviewed every flagged transcript word");
   await reason.focus();
   await page.setViewportSize({ width: 844, height: 900 });
-  await expect(page.locator(".pending-actionbar--docked")).toHaveCount(0);
+  await expect(
+    page.locator(".bottom-sheet--compact .pending-actionbar--docked"),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(
+      ".bottom-sheet--inspector:not(.bottom-sheet--compact) .pending-actionbar--docked",
+    ),
+  ).toBeVisible();
   await page.waitForTimeout(700);
   const moved = page
     .locator(".pending-actionbar")

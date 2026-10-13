@@ -4,6 +4,7 @@ import { isHostOnlyTab, studioTabIds } from "../presence/followSync";
 import type { LayoutMode } from "../state/types";
 import type { PresenceTab } from "../types/session";
 import { BottomSheet } from "../ui/BottomSheet";
+import { INSPECTOR_SHEET_CLASS } from "../ui/compactSheet";
 import { ToggleButton } from "../ui/ToggleButton";
 import type {
   SheetPresentation,
@@ -178,6 +179,7 @@ export function StudioShellView({
           open={inspector.sheet.open}
           onClose={inspector.sheet.onClose}
           title="Inspector"
+          className={INSPECTOR_SHEET_CLASS}
           expanded={inspector.sheet.expanded}
           onExpandedChange={inspector.sheet.onExpandedChange}
           {...inspector.sheet.compact}

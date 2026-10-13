@@ -27,6 +27,7 @@ import {
   COMPACT_SHEET_CLASS,
   compactSheetPanel,
   compactSheetTop,
+  INSPECTOR_SHEET_CLASS,
 } from "../ui/compactSheet";
 import { DRAWER_MOTION_ATTR } from "../ui/useDrawerSwipe";
 import { useResizeObserver } from "../ui/useResizeObserver";
@@ -190,6 +191,6 @@ export function compactSheetProps(
       label: "Inspector height",
     },
     stowed: compact.stowed,
-    className: COMPACT_SHEET_CLASS,
+    className: `${INSPECTOR_SHEET_CLASS} ${COMPACT_SHEET_CLASS}`,
   };
 }

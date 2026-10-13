@@ -287,7 +287,8 @@ describe("PendingEditOverlay handles", () => {
     const sheetRoot = document.createElement("div");
     sheetRoot.className = "bottom-sheet-root";
     const strip = document.createElement("div");
-    strip.className = "bottom-sheet bottom-sheet--compact";
+    strip.className =
+      "bottom-sheet bottom-sheet--inspector bottom-sheet--compact";
     sheetRoot.append(strip);
     // jsdom lays nothing out: the strip rests 100 px tall on an 800 px slot.
     sheetRoot.getBoundingClientRect = () => ({ bottom: 800 }) as DOMRect;
@@ -729,7 +730,8 @@ describe("PendingEditOverlayView", () => {
     const root = document.createElement("div");
     root.className = "bottom-sheet-root";
     const panel = document.createElement("div");
-    panel.className = "bottom-sheet bottom-sheet--compact bottom-sheet--peek";
+    panel.className =
+      "bottom-sheet bottom-sheet--inspector bottom-sheet--compact bottom-sheet--peek";
     const chrome = document.createElement("div");
     chrome.className = "bottom-sheet-chrome";
     panel.append(chrome);
@@ -764,7 +766,7 @@ describe("PendingEditOverlayView", () => {
     const approve = screen.getByRole("button", { name: "Approve" });
     expect(chrome.contains(approve)).toBe(true);
     approve.focus();
-    panel.classList.remove("bottom-sheet--compact");
+    panel.classList.remove("bottom-sheet--inspector", "bottom-sheet--compact");
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() =>
       expect(chrome.querySelector(".pending-actionbar")).toBeNull(),
@@ -784,6 +786,53 @@ describe("PendingEditOverlayView", () => {
     unmount();
     root.remove();
   });
+
+  it.each([
+    ["the tablet's regular inspector sheet", "bottom-sheet--inspector", true],
+    [
+      "a confirmation sheet that is not the inspector",
+      "bottom-sheet--fit",
+      false,
+    ],
+  ])(
+    "docks the review actionbar in %s: %s",
+    async (_name, sheetClass, docks) => {
+      const root = document.createElement("div");
+      root.className = "bottom-sheet-root";
+      const panel = document.createElement("div");
+      panel.className = `bottom-sheet bottom-sheet--half ${sheetClass}`;
+      const chrome = document.createElement("div");
+      chrome.className = "bottom-sheet-chrome";
+      panel.append(chrome);
+      root.append(panel);
+      document.body.append(root);
+      selectPending();
+      const { unmount } = render(
+        <PendingEditOverlayView
+          edits={[edit]}
+          trackId="host"
+          zoomPxPerSec={10}
+          timelineWidthPx={1000}
+          selectedId="cut_1"
+          projectPath="/tmp/p.json"
+          clipsByTrack={{}}
+          canAdjust
+          canApply
+          onSelect={vi.fn()}
+          onCommitSpan={vi.fn()}
+          onReviewAction={vi.fn(async () => ({ queued: false }))}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy(),
+      );
+      expect(chrome.querySelector(".pending-actionbar--docked") !== null).toBe(
+        docks,
+      );
+      unmount();
+      root.remove();
+    },
+  );
 
   it("commits an end-handle drag as mapped source seconds", async () => {
     const onSelect = vi.fn();
@@ -1208,7 +1257,8 @@ function mount() {
   const root = document.createElement("div");
   root.className = "bottom-sheet-root";
   const panel = document.createElement("div");
-  panel.className = "bottom-sheet bottom-sheet--compact bottom-sheet--peek";
+  panel.className =
+    "bottom-sheet bottom-sheet--inspector bottom-sheet--compact bottom-sheet--peek";
   const chrome = document.createElement("div");
   chrome.className = "bottom-sheet-chrome";
   panel.append(chrome);
@@ -1243,7 +1293,7 @@ function mount() {
   return { root, panel, chrome, view, onReviewAction };
 }
 async function undock(panel: HTMLElement) {
-  panel.classList.remove("bottom-sheet--compact");
+  panel.classList.remove("bottom-sheet--inspector", "bottom-sheet--compact");
   await act(() => window.dispatchEvent(new Event("resize")));
   await waitFor(() =>
     expect(document.querySelector(".pending-actionbar--docked")).toBeNull(),
@@ -1267,7 +1317,7 @@ it("retains a waiver draft and textarea focus when the portal destination change
     expect(moved).toHaveValue("Reviewed every flagged transcript word");
     expect(moved).toHaveFocus();
     expect(moved).toBe(reason);
-    panel.classList.add("bottom-sheet--compact");
+    panel.classList.add("bottom-sheet--inspector", "bottom-sheet--compact");
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(chrome.contains(reason)).toBe(true));
     expect(reason).toHaveValue("Reviewed every flagged transcript word");
