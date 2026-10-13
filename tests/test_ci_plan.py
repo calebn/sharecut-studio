@@ -196,6 +196,7 @@ def test_docs_subset_selects_files_that_name_docs_paths(tmp_path: Path) -> None:
     }.items():
         (tests / f"{name}.py").write_text(line + "\n")
     assert cp.subset_tests("docs", tmp_path) == [
+        "tests/test_defaults.py",
         "tests/test_parts.py",
         "tests/test_readme.py",
         "tests/test_site.py",
@@ -226,6 +227,7 @@ def test_docs_subset_includes_the_repo_docs_readers() -> None:
         "tests/test_decision_records.py",
         "tests/test_docs_layout.py",
         "tests/test_docs_sync.py",
+        "tests/test_effects_presets.py",
         "tests/test_mcp_setup_docs.py",
         "tests/test_ux_site_routes.py",
     } <= selected
