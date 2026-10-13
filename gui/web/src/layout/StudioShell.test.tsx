@@ -137,6 +137,48 @@ describe("StudioShell tablet peek", () => {
     expect(within(regions[0]!).getByRole("button", { name: "Clear range" }));
   });
 
+  it("hosts the In and Out fields in the sheet when Select range is armed over another selection", async () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().setSelection({ kind: "track", trackId: "guest" });
+      useDawStore.getState().setRangeArmed(true);
+    });
+    const sheet = await screen.findByRole("dialog");
+    const regions = screen.getAllByRole("region", { name: "Range actions" });
+    expect(regions).toHaveLength(1);
+    expect(sheet.contains(regions[0]!)).toBe(true);
+    expect(within(regions[0]!).getByLabelText("In")).toBeInTheDocument();
+    expect(within(regions[0]!).getByLabelText("Out")).toBeInTheDocument();
+    await userEvent.setup().click(
+      within(regions[0]!).getByRole("button", {
+        name: "Cancel range selection",
+      }),
+    );
+    expect(screen.queryByRole("region", { name: "Range actions" })).toBeNull();
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "track",
+      trackId: "guest",
+    });
+  });
+
+  it("keeps the range bar when Select range is armed with nothing selected", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    act(() => useDawStore.getState().setRangeArmed(true));
+    const region = screen.getByRole("region", { name: "Range actions" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      container.querySelector(".daw-shell-transport")?.contains(region),
+    ).toBe(true);
+  });
+
   it("keeps the transport in every layout with a Restore chip and no Focus buttons", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>

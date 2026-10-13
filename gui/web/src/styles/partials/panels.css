@@ -159,6 +159,18 @@ html[data-shell="phone"] .impact-pending-select {
   color: var(--color-text-secondary);
 }
 
+.comment-time {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.comment-time-hint {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
 .comment-time-chip-value,
 .comment-time-field {
   font-family: var(--font-family-mono);

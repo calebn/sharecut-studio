@@ -85,22 +85,42 @@ describe("Inspector clip lookup", () => {
     expect(screen.getByText(/0\.200–0\.800 s/)).toBeInTheDocument();
   });
 
-  it("gives a selected range its actions as the body", () => {
-    useDawStore.getState().setSelection({
-      kind: "range",
-      target: {
-        kind: "exact_range",
-        intervals: [{ start: 1, end: 3 }],
-        track_ids: ["host"],
-        clips: [],
-        media_seals: {},
+  it.each([
+    [
+      "range",
+      {
+        kind: "range" as const,
+        target: {
+          kind: "exact_range" as const,
+          intervals: [{ start: 1, end: 3 }],
+          track_ids: ["host"],
+          clips: [],
+          media_seals: {},
+        },
       },
-    });
-    render(<Inspector />);
-    expect(
-      screen.getByRole("region", { name: "Range actions" }),
-    ).toHaveTextContent("1.00–3.00 s");
-  });
+      "1.00–3.00 s",
+    ],
+    [
+      "transcriptRange",
+      {
+        kind: "transcriptRange" as const,
+        trackId: "host",
+        startWordIndex: 0,
+        endWordIndex: 1,
+      },
+      "No audible words in this selection",
+    ],
+  ])(
+    "gives a selected %s its actions as the body",
+    (_kind, selection, text) => {
+      useDawStore.getState().setSelection(selection);
+      render(<Inspector />);
+      expect(
+        screen.getByRole("region", { name: "Range actions" }),
+      ).toHaveTextContent(text);
+      expect(screen.queryByText("Clip not found")).toBeNull();
+    },
+  );
 
   it("anchors the empty inspector", () => {
     useDawStore.getState().setSelection(null);

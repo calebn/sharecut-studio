@@ -106,6 +106,7 @@ export function useCompactInspector(
     mobileMode,
     setView,
     inspectorSelection,
+    rangeArmed,
   } = useDaw((s) => ({
     project: s.project,
     selection: s.selection,
@@ -115,9 +116,14 @@ export function useCompactInspector(
     mobileMode: s.mobileMode,
     setView: s.setCompactInspectorView,
     inspectorSelection: s.inspectorSelection,
+    rangeArmed: s.rangeArmed,
   }));
+  // Armed, the sheet carries the In and Out fields at full size, not a strip.
   const applies =
-    shell === "phone" ? mobileMode === "timeline" : shell === "tablet" && short;
+    !rangeArmed &&
+    (shell === "phone"
+      ? mobileMode === "timeline"
+      : shell === "tablet" && short);
   const candidate =
     applies && project ? peekTarget(project, selection, hit) : null;
   const [seen, setSeen] = useState<{
