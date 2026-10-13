@@ -42,7 +42,7 @@ test.describe("Sharecut Studio smoke", () => {
     await expect(
       page.getByText("AddComment did not return a comment"),
     ).toHaveCount(0);
-    await expect(page.getByPlaceholder("Feedback…")).toHaveValue("");
+    await expect(page.getByPlaceholder("Add a comment…")).toHaveValue("");
 
     setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event("online")));

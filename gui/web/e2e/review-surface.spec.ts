@@ -75,7 +75,7 @@ for (const theme of ["light", "dark"] as const) {
     });
   });
 
-  test(`a Commenter link opens the phone Studio with comments in reach at 320 in ${theme}`, async ({
+  test(`a Commenter posts from the phone Listen view on first load at 320x568 in ${theme}`, async ({
     browser,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -84,9 +84,10 @@ for (const theme of ["light", "dark"] as const) {
         [
           {},
           {
-            viewport: { width: 320, height: 900 },
+            viewport: { width: 320, height: 568 },
             colorScheme: theme,
             reducedMotion: "reduce",
+            hasTouch: true,
           },
         ],
         async ([host, guest]) => {
@@ -96,6 +97,40 @@ for (const theme of ["light", "dark"] as const) {
           await expect(
             guest.getByText(COMMENTER_BANNER, { exact: true }),
           ).toBeVisible();
+          await expect(
+            guest.getByRole("dialog", { name: "Inspector" }),
+          ).toHaveCount(0);
+
+          const dock = guest.getByRole("region", { name: "Add a comment" });
+          const field = dock.getByRole("textbox", {
+            name: "Comment",
+            exact: true,
+          });
+          const post = dock.getByRole("button", { name: "Post comment" });
+          await expect(field).toBeInViewport();
+          await expect(post).toBeInViewport();
+          await expect(post).toBeDisabled();
+          await expect(
+            dock.getByRole("button", { name: "Comment at 0:00. Change time" }),
+          ).toBeVisible();
+
+          const body = `Phone guest feedback in ${theme}`;
+          await field.tap();
+          await field.fill(body);
+          await post.tap();
+          await expect(field).toHaveValue("");
+          await expect(
+            guest.locator(".mobile-comment-row").filter({ hasText: body }),
+          ).toContainText("00:00");
+          await expect(
+            guest.getByRole("dialog", { name: "Inspector" }),
+          ).toHaveCount(0);
+          await expectNoHorizontalScroll(guest, 320);
+          await expectPageAxeClean(guest);
+          await guest.screenshot({
+            path: test.info().outputPath("commenter-phone-posted.png"),
+          });
+
           await guest
             .getByRole("navigation", { name: "Primary" })
             .getByRole("button", { name: "More", exact: true })
@@ -106,15 +141,36 @@ for (const theme of ["light", "dark"] as const) {
             .click();
           await expect(guest.getByText("Commenting as")).toContainText("Guest");
           await expect(
-            guest.getByRole("button", { name: "Comment mode", exact: true }),
+            guest.locator(".comments-list > li").filter({ hasText: body }),
           ).toBeVisible();
           await expectNoHorizontalScroll(guest, 320);
-          await expectPageAxeClean(guest);
-          await guest.screenshot({
-            path: test.info().outputPath("commenter-phone.png"),
-          });
         },
       );
     });
   });
 }
+
+test("a Viewer link shows no comment field on the phone", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [{}, { viewport: { width: 375, height: 667 }, reducedMotion: "reduce" }],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "viewer");
+        await openGuestShare(guest, token);
+        await expect(
+          guest.getByRole("navigation", { name: "Primary" }),
+        ).toBeVisible();
+        await expect(
+          guest.getByRole("region", { name: "Add a comment" }),
+        ).toHaveCount(0);
+        await expect(
+          guest.getByRole("textbox", { name: "Comment", exact: true }),
+        ).toHaveCount(0);
+      },
+    );
+  });
+});
