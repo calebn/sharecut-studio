@@ -277,7 +277,7 @@ html[data-shell="phone"]
 
 .nudge-fields input[type="number"] {
   width: 5.5rem;
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-field-small);
 }
 
 .nudge-fields input:not([type="number"], [type="checkbox"]),
