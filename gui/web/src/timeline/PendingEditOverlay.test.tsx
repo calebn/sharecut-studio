@@ -9,7 +9,22 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
+import { clearRegisteredCommands } from "../commands/execute";
+import {
+  _resetHistoryMovesForTests,
+  registerHistoryCommands,
+} from "../commands/history";
+import {
+  activateDocumentScope,
+  resetDocumentAuthority,
+} from "../document/authorityState";
+import { FeedbackToast } from "../feedback/FeedbackToast";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
+import { PendingEditInspector } from "../inspector/views/PendingEditInspector";
+import {
+  submitLiveHistoryCommand,
+  submitQueuedDocumentCommand,
+} from "../services/commandQueue";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -35,6 +50,12 @@ vi.mock("../hooks/useWaveformSnapTicks", () => ({
     ticks: [],
     resolveTicks: vi.fn(async () => []),
   })),
+}));
+
+vi.mock("../services/commandQueue", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/commandQueue")>()),
+  submitQueuedDocumentCommand: vi.fn(),
+  submitLiveHistoryCommand: vi.fn(),
 }));
 
 function snapResource(ticks: number[]) {
@@ -1432,4 +1453,156 @@ it("keeps a waiver save busy across relocation and shows its failure on the same
     view.unmount();
     root.remove();
   }
+});
+
+describe("single pending review feedback", () => {
+  const path = "/tmp/p.json";
+  const head = "1b0040fb2927";
+  const pending = () => minimalProject({ pending_edits: [edit] });
+
+  beforeEach(() => {
+    clearRegisteredCommands();
+    registerHistoryCommands();
+    _resetHistoryMovesForTests();
+    resetDocumentAuthority();
+    useDawStore.getState().hydrate(path, pending());
+    activateDocumentScope(path);
+    useDawStore.setState({
+      selection: { kind: "pending", id: edit.id, trackId: "host" },
+      feedbackToast: null,
+      statusAnnouncement: "",
+      cutSpeechPrompt: null,
+    });
+    vi.mocked(submitQueuedDocumentCommand).mockReset();
+    vi.mocked(submitLiveHistoryCommand)
+      .mockReset()
+      .mockImplementation(async () => {
+        useDawStore.setState({ project: pending() });
+        return { history_head_id: "root" };
+      });
+  });
+
+  function mountReview(entrypoint: "inspector" | "overlay") {
+    render(
+      <>
+        {entrypoint === "inspector" ? (
+          <PendingEditInspector edit={edit} />
+        ) : (
+          <PendingEditOverlay
+            edits={[edit]}
+            trackId="host"
+            zoomPxPerSec={10}
+            timelineWidthPx={1000}
+            selectedId={edit.id}
+            onSelect={vi.fn()}
+          />
+        )}
+        <FeedbackToast />
+      </>,
+    );
+  }
+
+  describe.each(["inspector", "overlay"] as const)("%s", (entrypoint) => {
+    it.each([
+      ["Approve", "ApproveEdits", "Approved 1 pending edit"],
+      ["Reject", "RejectEdits", "Rejected 1 pending edit"],
+    ])(
+      "%s reports the reply's history head and Undo restores the edit",
+      async (label, command, message) => {
+        const user = userEvent.setup();
+        vi.mocked(submitQueuedDocumentCommand).mockImplementation(async () => {
+          const project = minimalProject({ pending_edits: [] });
+          useDawStore.setState({ project });
+          return { history_head_id: head };
+        });
+        mountReview(entrypoint);
+        await waitFor(() =>
+          expect(screen.getByRole("button", { name: label })).toBeEnabled(),
+        );
+        await user.click(screen.getByRole("button", { name: label }));
+        expect(await screen.findByText(message)).toBeVisible();
+        expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
+        expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+          path,
+          command,
+          command === "ApproveEdits"
+            ? { ids: [edit.id], allow_review: true }
+            : { ids: [edit.id] },
+          undefined,
+        );
+        expect(useDawStore.getState().project?.pending_edits).toEqual([]);
+        expect(useDawStore.getState().selection).toBeNull();
+        await user.click(screen.getByRole("button", { name: "Undo" }));
+        await waitFor(() =>
+          expect(useDawStore.getState().project?.pending_edits).toEqual([edit]),
+        );
+        expect(submitLiveHistoryCommand).toHaveBeenCalledWith(
+          "UndoHistory",
+          path,
+          { rerender: false, expected_head_id: head },
+          activateDocumentScope(path),
+        );
+      },
+    );
+
+    it.each(["Approve", "Reject"])(
+      "%s stays queued without completion or Undo",
+      async (label) => {
+        const user = userEvent.setup();
+        vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
+          queued: true,
+          history_head_id: head,
+        });
+        mountReview(entrypoint);
+        await waitFor(() =>
+          expect(screen.getByRole("button", { name: label })).toBeEnabled(),
+        );
+        await user.click(screen.getByRole("button", { name: label }));
+        expect(await screen.findByRole("status")).toHaveTextContent(
+          "Still sending.",
+        );
+        expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+        expect(
+          useDawStore.getState().feedbackToast?.message ?? null,
+        ).toBeNull();
+        expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
+      },
+    );
+
+    it("keeps approval awaiting the Cut anyway decision without completion or Undo", async () => {
+      const user = userEvent.setup();
+      vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
+        history_head_id: head,
+        needs_confirmation: {
+          speech: {
+            spans: [{ start: 0, end: 2 }],
+            tracks: [
+              {
+                track_id: "guest",
+                speaker: "Guest",
+                words: [],
+                sound_spans: [{ start: 0, end: 2 }],
+              },
+            ],
+          },
+        },
+      });
+      mountReview(entrypoint);
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
+      );
+      await user.click(screen.getByRole("button", { name: "Approve" }));
+      expect(
+        useDawStore.getState().cutSpeechPrompt?.speech.tracks[0]?.speaker,
+      ).toBe("Guest");
+      expect(useDawStore.getState().feedbackToast?.message ?? null).toBeNull();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "pending",
+        id: edit.id,
+        trackId: "host",
+      });
+    });
+  });
 });
