@@ -110,8 +110,13 @@ describe("editor profile summary", () => {
     expect(text).toContain("fixture small sha256 abababababab");
     expect(text).toContain("2 report(s), 0 incomplete");
     expect(text).toMatch(/seek\s+1\s+ruler-seek\s+completed\s+250\s+3\s+16\.7/);
-    expect(text).toMatch(/layout ms/);
-    expect(text).toMatch(/\bn\/a\b/);
+    const lines = text.split("\n");
+    expect(lines).toContain(
+      "scene  run      sample     status  driver ms  frames  frame p50  frame p95  frame max  long tasks  long ms  task ms  script ms  layout ms  style ms",
+    );
+    expect(lines).toContain(
+      " seek    1  ruler-seek  completed        250       3       16.7       33.4       33.4           1     60.0     12.3        5.0        n/a       1.3",
+    );
     expect(text).toContain("seek/ruler-seek: 250, 311 (min 250, max 311)");
     expect(text).toContain("not input-to-visual latency");
   });

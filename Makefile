@@ -56,6 +56,7 @@ PRESET ?= small
 REPEAT ?= 2
 profile-seek-trim:
 	@test -n "$(OUT)" || { echo "usage: make profile-seek-trim OUT=/tmp/seek-trim [REPEAT=2] [PRESET=small]"; exit 2; }
+	@if [ -e "$(OUT)" ]; then echo "refusing: $(OUT) already exists; choose a new OUT (nothing was built or run, and summary.txt was not written)" >&2; exit 1; fi
 	cd gui/web && npm run build && { npm run profile:remaining -- --preset $(PRESET) --repeat $(REPEAT) --scene seek,trim --out $(abspath $(OUT)); status=$$?; npm run profile:summary -- $(abspath $(OUT)) || status=1; exit $$status; }
 
 # Tauri host: scaffold verify + sidecar launcher (rustfmt/clippy/rustc --test) +
