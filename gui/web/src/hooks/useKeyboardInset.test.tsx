@@ -118,7 +118,9 @@ describe("useKeyboardInset", () => {
       render(<Probe on />);
       act(() => viewport.move({ height: 480 }));
       act(() => viewport.move({ height: 470, offsetTop: 10 }));
-      act(() => viewport.dispatchEvent(new Event("scroll")));
+      act(() => {
+        viewport.dispatchEvent(new Event("scroll"));
+      });
       expect(frame).toHaveBeenCalledTimes(1);
     });
 
