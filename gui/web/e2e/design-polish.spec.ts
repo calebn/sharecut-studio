@@ -335,19 +335,19 @@ test("transport zones never overlap across desktop widths", async ({
   }
 });
 
-test("timecode total is visually hidden below 85rem but stays announced", async ({
+test("timecode total is visually hidden below 97.75rem but stays announced", async ({
   page,
 }) => {
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
   const timecode = page.locator("header.transport .timecode");
   const total = timecode.locator(".timecode-total");
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setViewportSize({ width: 1563, height: 900 });
   await expect(total).toContainText("/");
   await expect(total).toHaveCSS("position", "absolute");
   expect((await total.boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);
   await expect(timecode).toHaveAttribute("title", /\//);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1564, height: 900 });
   await expect(total).toHaveCSS("position", "static");
   expect((await total.boundingBox())?.width ?? 0).toBeGreaterThan(1);
 });
