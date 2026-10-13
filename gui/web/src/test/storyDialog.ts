@@ -1,11 +1,13 @@
 import { type Dispatch, type SetStateAction, useState } from "react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 /**
  * Story play helper: return the open dialog named `dialogName`, first
  * clicking the `launcherName` button when that dialog is not already open.
  * An unrelated open dialog does not suppress the click. Autodocs previews
- * start closed; standalone Canvas stories start open.
+ * start closed; standalone Canvas stories start open. Returns once focus is
+ * inside the dialog: it takes its initial focus on the next animation frame,
+ * and a play function that focuses a field sooner would lose it to that move.
  */
 export async function openDialogByLauncher(
   canvasElement: HTMLElement,
@@ -16,7 +18,13 @@ export async function openDialogByLauncher(
       within(canvasElement).getByRole("button", { name: launcherName }),
     );
   }
-  return within(document.body).findByRole("dialog", { name: dialogName });
+  const dialog = await within(document.body).findByRole("dialog", {
+    name: dialogName,
+  });
+  await waitFor(() =>
+    expect(dialog).toContainElement(document.activeElement as HTMLElement),
+  );
+  return dialog;
 }
 
 /**

@@ -2,6 +2,7 @@ import { act, render, renderHook, screen } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { userEvent } from "storybook/test";
 import { describe, expect, it, vi } from "vitest";
+import { Dialog } from "../ui";
 import { DialogLauncher } from "./DialogLauncher";
 import { openDialogByLauncher, useArgState } from "./storyDialog";
 
@@ -12,7 +13,7 @@ describe("openDialogByLauncher", () => {
         {(open, close) =>
           open ? (
             <div role="dialog" aria-label="Sample">
-              <button type="button" onClick={close}>
+              <button type="button" onClick={close} autoFocus>
                 Close
               </button>
             </div>
@@ -40,7 +41,11 @@ describe("openDialogByLauncher", () => {
         <button type="button" onClick={spy}>
           Open sample
         </button>
-        <div role="dialog" aria-label="Sample" />
+        <div role="dialog" aria-label="Sample">
+          <button type="button" autoFocus>
+            Inside
+          </button>
+        </div>
       </>,
     );
 
@@ -57,7 +62,15 @@ describe("openDialogByLauncher", () => {
       <>
         <div role="dialog" aria-label="Other" />
         <DialogLauncher label="Open sample" initiallyOpen={false}>
-          {(open) => (open ? <div role="dialog" aria-label="Sample" /> : null)}
+          {(open) =>
+            open ? (
+              <div role="dialog" aria-label="Sample">
+                <button type="button" autoFocus>
+                  Inside
+                </button>
+              </div>
+            ) : null
+          }
         </DialogLauncher>
       </>,
     );
@@ -67,6 +80,24 @@ describe("openDialogByLauncher", () => {
       dialogName: "Sample",
     });
     expect(dialog).toHaveAttribute("aria-label", "Sample");
+  });
+
+  it("returns only after the dialog has taken its initial focus", async () => {
+    const { container } = render(
+      <DialogLauncher label="Open sample" initiallyOpen={false}>
+        {(open, close) => (
+          <Dialog open={open} onClose={close} title="Sample">
+            <input aria-label="Name" />
+          </Dialog>
+        )}
+      </DialogLauncher>,
+    );
+
+    const dialog = await openDialogByLauncher(container, {
+      launcherName: "Open sample",
+      dialogName: "Sample",
+    });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 });
 
