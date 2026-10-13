@@ -89,8 +89,8 @@ def test_gated_track_flags_digital_silence_words_at_every_level(tmp_path, gain_d
 
 @pytest.mark.parametrize("gain_db", GAINS_DB)
 def test_sparse_ungated_speaker_flags_the_same_words_at_every_level(tmp_path, gain_db):
-    sparse_speech: Spans = [(start, start + 1.0) for start in range(5, 60, 6)]
-    invented: Spans = [(8.5, 9.2), (26.5, 27.2), (44.5, 45.2)]
+    sparse_speech: Spans = [(10.0, 10.8), (31.0, 31.6), (52.0, 52.9)]
+    invented: Spans = [(20.0, 20.7), (41.0, 41.8)]
     audio, _ = _ungated(60.0, sparse_speech)
     spans = sorted(sparse_speech + invented)
     assert _flags(tmp_path, audio, gain_db, spans) == [s in invented for s in spans]

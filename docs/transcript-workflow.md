@@ -314,8 +314,8 @@ over digital silence, gets `suspect_hallucination: true` (#1366). The floor is
 (27 dB under the track's speech level, never closer than 6 dB over its room; see
 [transcript reconcile](transcript-reconcile.md)), and the frames are measured the way the
 floor was (mono, 8 kHz), so the same recording at any level flags the same words. A track
-whose room sits within 6 dB of its speech has no floor to judge by, so only its digital
-silence flags; a track with no live audio flags every word. ASR
+whose loudest frames sit within 6 dB of its room has no floor to judge by, so only its
+digital silence flags; a track with no live audio flags every word. ASR
 cache files store unflagged words; the flags are recomputed from the current
 `transcribe.silence_filter` settings after every ASR run or cache read, so the filter is not
 a cache input. `transcribe_tracks` re-flags a reused transcript when its audio identity, silence filter settings, word spans or flag state differ from its stored `silence_filter_fingerprint` (only the track's levels are decoded; Whisper does not re-run). This also rechecks a same-span phrase correction that clears a flag. The fingerprint is stored after reflagging, so unchanged runs reuse the stored flags without decoding the audio. Legacy transcripts without a fingerprint are checked once. Turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its silence flags stay cleared (aligner-evidence flags, below, still apply and are then the only flags on that track), a warning is logged, the step summary adds "silence filter skipped on N track(s)", and no fingerprint is stored, so the next run retries the decode (for example once ffmpeg is fixed).
