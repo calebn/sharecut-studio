@@ -203,6 +203,15 @@ their current state. A `github-actions` **major** version bump (for example
 `actions/checkout@v6` → `@v7`) also needs every pinned-ref contract test updated
 to match; find them with `git grep -n 'actions/checkout@v' tests/`.
 
+CI installs from `uv.lock`, so a new upstream release reaches the required checks only
+when the lock changes: through the weekly `uv` Dependabot group, or
+`uv lock --upgrade-package <name>` in a reviewed PR. Before this, an unpinned
+`pip install -e` took Starlette 1.8.0 the day it shipped and turned `pytest` and
+`pinned-media-windows` red on every PR (#1384). The `extras-import` workflow is the one
+deliberately unlocked job: it exists to catch that kind of release before users do
+(see [GitHub CI gate](#github-ci-gate)). `tests/test_ci_dependency_cache.py` fails
+if a workflow goes back to an unlocked `pip install -e`.
+
 ### GitHub CI gate
 
 GitHub Actions runs the required full suite on public pushes and pull requests. Run focused tests locally while changing code, for example `uv run pytest -q --no-cov tests/test_effects_presets.py`; a single file cannot satisfy the repo-wide 95% coverage threshold. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make test` or `make ci` first, then use the GitHub results to make targeted fixes. Run local `make test` or `make ci` when changes are extensive or a failure needs full-suite diagnosis. Wait for the required GitHub checks on the latest PR head before merging.
@@ -240,8 +249,10 @@ identical transferred Linux payload. Local native checks supplement those jobs. 
 oldest supported OS. Source compilation is dependency production only.
 
 Python jobs cache pip downloads with `actions/setup-python`. Both `pyproject.toml`
-and `uv.lock` invalidate that cache. The editable pip install commands still run
-and keep their existing resolver behavior. Pip does not use `uv.lock` as a lockfile.
+and `uv.lock` invalidate that cache. Every job that runs the suite installs through
+`.github/actions/install-locked-python`, which exports the requested extras from
+`uv.lock` (`uv export --locked`), pip-installs those exact versions, then installs the
+project with `--no-deps`. Local `uv run` and CI therefore test the same versions.
 Browser engines, browser system dependencies, virtual environments, and installed
 Node packages are not cached. Each browser matrix job installs only its declared
 engine and its system dependencies with Playwright `--with-deps`.

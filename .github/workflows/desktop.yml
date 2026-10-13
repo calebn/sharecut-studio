@@ -124,9 +124,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - &install-python-dev-deps
         name: Install Python deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[gui,dev]"
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: gui dev
       - &provision-windows-storage
         name: Provision owned NTFS proof storage
         shell: pwsh
@@ -148,9 +148,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install focused test dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[gui,dev]"
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: gui dev
       - *provision-windows-storage
       - name: Resolver and acceptance boundary tests
         run: >-
