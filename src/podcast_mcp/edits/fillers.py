@@ -781,6 +781,8 @@ class _AnalyzedCut:
     decision_type: str = "remove"
     # A pause trim: how long nobody speaks around it, the pause a listener hears shorten.
     pause_sec: float | None = None
+    # Another track speaks over the cut, so approving the ripple asks to confirm it.
+    peers_speaking: bool = False
 
 
 def _peer_speaking_in_gap(
@@ -1814,8 +1816,8 @@ class _EdgeChecks:
     # A ripple also removes time, so it is worth proposing over inaudible audio; a
     # mute keeps the time, so it must silence something a listener can hear.
     audible_only: bool
-    # A ripple moves every track in session scope, so peer speech decides the scope
-    # and is checked at the edges. A mute changes only its own track.
+    # A ripple moves every track, so peer speech is checked at the edges and flagged for
+    # review. A mute changes only its own track.
     peer_scoped: bool
 
 
@@ -1854,7 +1856,7 @@ _EDGE_CHECKS = {
 class _CutPlan:
     """The span a cut removes, the join approving ships, and the pad a ripple inserts.
 
-    Built by :meth:`for_cut` from the edit mode and the cut's final scope; the join
+    Built by :meth:`for_cut` from the edit mode and the paced pad; the join
     decides which edge checks the span gets.
     """
 
@@ -1869,13 +1871,11 @@ class _CutPlan:
     effects: tuple[PauseEdgeFade, ...] = ()
 
     @classmethod
-    def for_cut(
-        cls, start: float, end: float, *, mute: bool, scope: str, pad: PacedPad | None
-    ) -> _CutPlan:
-        """The plan for a ripple (``pad`` from pacing; a track punch keeps none) or a mute."""
+    def for_cut(cls, start: float, end: float, *, mute: bool, pad: PacedPad | None) -> _CutPlan:
+        """The plan for a ripple (``pad`` from pacing) or a mute."""
         if mute:
             return cls(start, end, _Join.MUTE)
-        if scope == "track" or pad is None or pad.seconds(start, end) <= 0:
+        if pad is None or pad.seconds(start, end) <= 0:
             return cls(start, end, _Join.SPLICE)
         return cls(start, end, _Join.PADDED, pad)
 
@@ -2177,10 +2177,9 @@ _AIR_EDGES_FLAG = "air_edges"
 
 @dataclass(frozen=True)
 class _GatedCut:
-    """A cut that passed its edge checks: the plan with its final span, and its scope."""
+    """A cut that passed its edge checks: the plan with its final span."""
 
     plan: _CutPlan
-    scope: str
     guard: SpeechEnergyGuardResult | None
     # Review flags the edge checks raised, in the order they go on the reason.
     flags: tuple[str, ...]
@@ -2206,11 +2205,11 @@ def _peer_cache_map(
 def _peer_audio_caches(
     project: EpisodeProject,
     track_id: str,
-    scope: str,
+    peer_scoped: bool,
     audio_caches: Mapping[str, TrackAudioCache] | None,
 ) -> list[TrackAudioCache]:
-    """The other dialogue tracks' decodes, when a session ripple removes their audio too."""
-    if scope != "session":
+    """The other dialogue tracks' decodes, when a ripple removes their audio too."""
+    if not peer_scoped:
         return []
     return list(_peer_cache_map(project, track_id, audio_caches).values())
 
@@ -2241,7 +2240,6 @@ def _gate_cut_edges(
     project: EpisodeProject,
     candidate: _CutCandidate,
     plan: _CutPlan,
-    scope: str,
     *,
     defaults: dict[str, Any],
     audio_cache: TrackAudioCache | None,
@@ -2249,11 +2247,7 @@ def _gate_cut_edges(
     word_index: CutWordIndex | None,
     session_air: SessionAir | None,
 ) -> _GatedCut | _CutRejected:
-    """Run the edge checks ``plan.checks`` selects, then resolve the span's final scope.
-
-    The returned scope may differ from ``scope`` when the checks moved the span;
-    the caller then re-gates under the plan the new scope implies.
-    """
+    """Run the edge checks ``plan.checks`` selects, then read who speaks over the final span."""
     track_id = candidate.track_id
     checks = plan.checks
     paced = plan.start, plan.end
@@ -2293,7 +2287,7 @@ def _gate_cut_edges(
                 project.transcript_for_source(track_id, None), track_id
             ),
             defaults=defaults,
-            peer_caches=_peer_audio_caches(project, track_id, scope, audio_caches),
+            peer_caches=_peer_audio_caches(project, track_id, checks.peer_scoped, audio_caches),
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
@@ -2346,7 +2340,7 @@ def _gate_cut_edges(
                     project.transcript_for_source(track_id, None), track_id
                 ),
                 defaults=defaults,
-                peer_caches=_peer_audio_caches(project, track_id, scope, audio_caches),
+                peer_caches=_peer_audio_caches(project, track_id, checks.peer_scoped, audio_caches),
             )
             if (settled.start, settled.end) != (cut_start, cut_end):
                 if bool(
@@ -2408,19 +2402,10 @@ def _gate_cut_edges(
         return _CutRejected("scope")
     if isinstance(resolved, _CutRejected):
         return resolved
-    final_scope, guard = resolved.scope, resolved.guard
-    if candidate.cut_kind == "pause":
-        final_scope = "session"
-    elif guard is not None and guard.action == "skip":
+    guard = resolved.guard
+    if candidate.cut_kind != "pause" and guard is not None and guard.action == "skip":
         return _CutRejected("scope")
     plan = replace(plan, start=cut_start, end=cut_end)
-
-    def gated(final: str) -> _GatedCut:
-        raised = (voiced_flag, _AIR_EDGES_FLAG if off_proposal else None)
-        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag), heard_pause)
-
-    if final_scope != scope:
-        return gated(final_scope)
     if audio_cache is not None and protected != before_protection and candidate.cut_kind != "pause":
         settled = _check_voiced_speech(
             candidate,
@@ -2432,14 +2417,15 @@ def _gate_cut_edges(
                 project.transcript_for_source(track_id, None), track_id
             ),
             defaults=defaults,
-            peer_caches=_peer_audio_caches(project, track_id, scope, audio_caches),
+            peer_caches=_peer_audio_caches(project, track_id, checks.peer_scoped, audio_caches),
         )
         if (settled.start, settled.end) != protected:
             return _CutRejected("unsettled_edges")
         voiced_flag = settled.flag
     if checks.refuse_attached_runs and acoustic and voiced_flag == "voiced_edge":
         return _CutRejected("voiced_edge")
-    return gated(scope)
+    raised = (voiced_flag, _AIR_EDGES_FLAG if off_proposal else None)
+    return _GatedCut(plan, guard, tuple(flag for flag in raised if flag), heard_pause)
 
 
 @dataclass(frozen=True)
@@ -2453,6 +2439,7 @@ class _PreparedCut:
     review_required: bool
     heard_pause: float | None = None
     peer_observation_span: tuple[float, float] | None = None
+    peers_speaking: bool = False
 
 
 def _prepare_candidate(
@@ -2566,34 +2553,24 @@ def _prepare_candidate(
         return _CutRejected("scope")
     if isinstance(resolved, _CutRejected):
         return resolved
-    scope: str = "session" if candidate.cut_kind == "pause" and not mute_mode else resolved.scope
+    # A ripple is a session cut whoever speaks over it: peer speech is a review flag the
+    # person confirms at approval, never a narrower scope. Only a mute stays on its track.
+    scope = "track" if mute_mode else "session"
     if candidate.cut_kind != "pause" and resolved.guard and resolved.guard.action == "skip":
         return _CutRejected("scope")
-    # The edit mode and scope decide the join and the join decides the edge checks,
-    # but the checks move the span and a moved span can change the scope. Gate under
-    # the scope the span settles on: a flip re-gates once under the other plan, a
-    # second flip is an unstable cut. Everything below reads this plan, never the
-    # first scope.
-    for _attempt in range(2):
-        plan = _CutPlan.for_cut(cut_start, cut_end, mute=mute_mode, scope=scope, pad=paced.pad)
-        gated = _gate_cut_edges(
-            project,
-            candidate,
-            plan,
-            scope,
-            defaults=defaults,
-            audio_cache=audio_cache,
-            audio_caches=audio_caches,
-            word_index=word_index,
-            session_air=session_air,
-        )
-        if not isinstance(gated, _GatedCut):
-            return gated
-        if gated.scope == scope:
-            break
-        scope = gated.scope
-    else:
-        return _CutRejected("unstable_scope")
+    plan = _CutPlan.for_cut(cut_start, cut_end, mute=mute_mode, pad=paced.pad)
+    gated = _gate_cut_edges(
+        project,
+        candidate,
+        plan,
+        defaults=defaults,
+        audio_cache=audio_cache,
+        audio_caches=audio_caches,
+        word_index=word_index,
+        session_air=session_air,
+    )
+    if not isinstance(gated, _GatedCut):
+        return gated
     plan, guard, flags = gated.plan, gated.guard, gated.flags
     peer_observation_span = None
     if _clamp_to_candidate(candidate, plan.start, plan.end) != (plan.start, plan.end):
@@ -2819,9 +2796,7 @@ def _prepare_candidate(
     # mistaken for the reparandum, and voiced energy in an ASR gap may be a
     # breath, laugh, or missed word rather than a filler.
     review_required = candidate.review_only or is_review_only_reason(candidate.reason)
-    if candidate.cut_kind == "pause" and (
-        (gated.guard and gated.guard.blocked) or resolved.scope == "track"
-    ):
+    if (gated.guard and gated.guard.blocked) or (not mute_mode and resolved.scope == "track"):
         review_required = True
     for flag in flags:
         review_required = review_required or flag != _AIR_EDGES_FLAG
@@ -2847,6 +2822,7 @@ def _prepare_candidate(
         review_required=review_required,
         heard_pause=gated.heard_pause,
         peer_observation_span=peer_observation_span,
+        peers_speaking=bool(guard is not None and guard.blocked),
     )
 
 
@@ -2978,6 +2954,7 @@ def _finish_candidate(
         scope=prepared.scope,
         decision_type="mute" if mute else "remove",
         pause_sec=prepared.heard_pause,
+        peers_speaking=prepared.peers_speaking,
     )
 
 
@@ -3069,28 +3046,17 @@ def _decision_for_analyzed(result: _AnalyzedCut) -> EditDecision:
 
 
 def _apply_analyzed_cut(project: EpisodeProject, result: _AnalyzedCut) -> EditDecision:
-    from podcast_mcp.edits.source_removals import require_source_remove
+    from podcast_mcp.edits.source_removals import (
+        record_suggested_cut_speech,
+        require_source_remove,
+    )
 
     decision = _decision_for_analyzed(result)
     require_source_remove(project, decision, heard_pause_sec=result.pause_sec)
-    if (decision.reason or "").startswith("pause:") and decision.review_required:
-        from podcast_mcp.edits.cut_speech import assess_cut_speech
-        from podcast_mcp.edits.timeline_ops import plan_ripple_delete
-
-        span = SessionTimeline(project).exact_source_span(
-            decision.track_id, SourceSec(decision.start), SourceSec(decision.end)
-        )
-        if span is not None:
-            decision.cut_speech = assess_cut_speech(
-                project,
-                plan_ripple_delete(
-                    project,
-                    float(span[0]),
-                    float(span[1]),
-                    edited_track_ids=[decision.track_id],
-                    use_inaudible_opt=False,
-                ),
-            )
+    if decision.review_required and (
+        (decision.reason or "").startswith("pause:") or result.peers_speaking
+    ):
+        record_suggested_cut_speech(project, decision)
     project.edit_decisions.append(decision)
     return decision
 

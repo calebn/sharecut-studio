@@ -1088,7 +1088,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
     assert "other_speaking" in analyzed.reason
 
 
-def test_analyze_candidate_blocked_peer_waits_for_review_on_its_own_track() -> None:
+def test_analyze_candidate_blocked_peer_waits_for_review_as_a_padded_session_ripple() -> None:
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
@@ -1131,7 +1131,7 @@ def test_analyze_candidate_blocked_peer_waits_for_review_on_its_own_track() -> N
     ):
         analyzed = _analyze_candidate(project, candidate, defaults)
     assert analyzed is not None
-    assert analyzed.scope == "track"
-    assert analyzed.replace_gap_sec is None
+    assert analyzed.scope == "session"
+    assert analyzed.replace_gap_sec == pytest.approx(0.35)
     assert analyzed.review_required is True
     assert "other_speaking:guest" in analyzed.reason

@@ -435,13 +435,17 @@ it. Approving a pending remove runs the same guard at approval time, against the
 current transcript, so a Commenter's suggestion over words added since asks too, and
 one unconfirmed remove in a batch applies none of it. The same approval reads the audio
 the lanes play now, not a rendered stem from before an earlier approval, and a session
-cut that a peer is speaking over is not turned into a track-local punch: it applies
-nothing and says why (`cut_scope_changed`). Speech that another remove in
+cut that a peer is speaking over is not turned into a track-local punch: with no
+recorded speech it applies nothing and says why (`cut_scope_changed`). Speech that another remove in
 the same batch cuts counts as chosen (`also_chosen`), so approving both speakers'
 overlapping fillers together does not ask. A Commenter's ripple delete
 suggestion also records the speech on the pending decision (`cut_speech`) when it is
 suggested; a confirmed approval of it ripples as suggested instead of falling back to
-a punch.
+a punch. A generated filler or an NL cut that a peer is speaking over waits the same way
+(`review_required`, reason `:other_speaking:<peers>`, scope `session`, `cut_speech`
+recorded): approving it asks **Cut anyway** through this same confirmation, and a
+confirmed approval ripples every dialogue track, so track lengths stay equal and the
+applied record names the speech it cut (`D-guard-blocked-filler-waits-for-review`).
 
 A range cut names the tracks whose material it means (`track_ids`). Speech on any
 other track asks first, so a range cut that names no tracks asks before cutting
@@ -453,18 +457,19 @@ apply.
 
 Tighten filler and NL proposals use `resolve_cut_scope` to assess their source span.
 Completed peer-speech evidence requires review or refuses the cut according to the
-conflict policy (`on_conflict: review`, the default, or `skip`). A pause remains a session cut. When peer
+conflict policy (`on_conflict: review`, the default, or `skip`). Review never narrows the scope: the
+cut stays a session ripple and the peer speech becomes the Cut anyway question at approval. A pause remains a session cut. When peer
 assessment raises `OSError` or `ValueError`, it selects no scope. Manual proposals
 raise `cut_scope_changed` before publication; generated candidates publish nothing
 and count one `scope_unavailable`, including acoustic candidates. Generated cuts
-check availability before initial planning and again after edge movement or re-gating.
+check availability before initial planning and again after edge movement.
 
 Unreadable peer media has a separate completed-assessment fallback. Where a peer's
 own sound cannot be read, its unsuppressed voiced words decide instead
 (`speech_energy_guard.speech_words_in`). A readable peer is decided by sound.
 This fallback can supply peer-speech evidence; it is not unavailable assessment.
 
-At approval, saved track scope executes the selected track operation. A saved session
+At approval, a saved track scope (an explicit gap edit such as Delete in gap mode) executes the selected track operation. A saved session
 cut reassesses its actual source span. Unavailable assessment or a fresh scope
 conflict holds it instead of silently selecting a punch. A remove that still ripples
 passes through `clear_ripple`; approval asks about unchosen speech, and the pipeline's

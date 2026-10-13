@@ -270,13 +270,12 @@ def test_add_remove_decision_over_peer_speech_waits_for_review(monkeypatch):
         ),
     ):
         d = add_remove_decision(p, "host", 2.0, 2.4, reason="nl:range", defaults=defaults)
-    assert d.scope == "track"
-    assert d.replace_gap_sec is None
+    assert d.scope == "session"
     assert d.review_required is True
     assert "other_speaking:guest" in (d.reason or "")
 
 
-def test_approve_track_scope_keeps_peer_clips():
+def test_approve_an_explicit_gap_keeps_peer_clips():
     p = _two_track()
     p.edit_decisions = [
         EditDecision(
@@ -288,7 +287,7 @@ def test_approve_track_scope_keeps_peer_clips():
             review_required=True,
             applied=False,
             scope="track",
-            reason="nl:range:other_speaking:guest",
+            reason="gap:delete",
         )
     ]
     with patch("podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range") as opt:

@@ -272,6 +272,7 @@ def add_remove_decision(
         CutScopeHold,
         ScopeChangedAtApproval,
         inspect_source_remove_placement,
+        record_suggested_cut_speech,
         require_source_remove,
     )
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
@@ -328,7 +329,6 @@ def add_remove_decision(
         cut_start, cut_end = paced.start, paced.end
 
     replace_gap = None if paced.pad is None else paced.pad.seconds(cut_start, cut_end)
-    scope = "session"
     review = review_required
     cut_reason = reason
     decision_id = f"cut_{uuid.uuid4().hex[:8]}"
@@ -341,7 +341,7 @@ def add_remove_decision(
     )
     if isinstance(resolved, CutScopeUnavailable):
         raise ScopeChangedAtApproval([CutScopeHold(decision_id, (), "scope_unavailable")], {})
-    scope, guard = resolved.scope, resolved.guard
+    guard = resolved.guard
     if guard is not None and guard.action == "skip":
         from podcast_mcp.edits.speech_energy_guard import PeerSpeechBlocked
 
@@ -350,8 +350,8 @@ def add_remove_decision(
         peers = ",".join(guard.blocking_track_ids)
         review = True
         cut_reason = f"{reason}:other_speaking:{peers}"
-        replace_gap = None
-        scope = "track"
+    elif resolved.scope == "track":
+        review = True
 
     decision = EditDecision(
         id=decision_id,
@@ -366,9 +366,10 @@ def add_remove_decision(
         cut_confidence=opt.confidence,
         boundary_mode=opt.mode,
         replace_gap_sec=replace_gap,
-        scope=scope,
     )
     require_source_remove(project, decision)
+    if guard is not None and guard.blocked:
+        record_suggested_cut_speech(project, decision)
     staged = project.model_copy(deep=True)
     staged.edit_decisions.append(decision)
     joining_ids = _joining_remove_ids(staged.edit_decisions, decision.id, merge_gap_sec=0.05)

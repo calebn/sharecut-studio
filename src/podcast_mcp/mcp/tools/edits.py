@@ -353,8 +353,10 @@ def approve_edits_tool(
 
     A ripple that cuts another speaker's speech returns ``needs_confirmation`` and
     applies nothing; ask the person, then call again with ``confirm_cut_speech=true``.
-    A session cut that a peer is now speaking over is not applied (``cut_scope_changed``):
-    it would silence one track and shorten nothing, so it stays pending.
+    A suggestion a peer speaks over (``:other_speaking:<peers>``) is the same question:
+    approve it, then confirm to ripple every dialogue track. A session cut that a peer is
+    now speaking over with no such review is not applied (``cut_scope_changed``): it would
+    silence one track and shorten nothing, so it stays pending.
     """
     ws = ProjectWorkspace.open(project_path)
     service = EditService(ws)
