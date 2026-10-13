@@ -687,6 +687,31 @@ def test_timeline_partials_use_z_roles_for_positive_layers() -> None:
             assert match.group(1) in z_roles, f"{name}:{declaration.line}: missing {match.group(1)}"
 
 
+def test_bottom_sheet_header_stays_pinned_while_the_keyboard_is_up() -> None:
+    """#1362: the non-compact half sheet scrolls as a whole, so its header
+    would scroll away with the body and take Close with it. With the software
+    keyboard up (html[data-keyboard=open]) the chrome sticks to the sheet's top
+    on the overlay surface, and a focused field keeps a token margin above the
+    keyboard."""
+    declared = {
+        (d.preludes[-1], d.prop, d.value)
+        for d in _file_declarations(_PARTIALS_DIR / "bottom-sheet.css")
+    }
+    chrome = 'html[data-keyboard="open"] .bottom-sheet .bottom-sheet-chrome'
+    for prop, value in (
+        ("position", "sticky"),
+        ("top", "0"),
+        ("z-index", "var(--z-local-chrome)"),
+        ("background", "var(--color-bg-overlay)"),
+    ):
+        assert (chrome, prop, value) in declared, (prop, value)
+    assert (
+        'html[data-keyboard="open"] .bottom-sheet :is(input, select, textarea)',
+        "scroll-margin-block-end",
+        "var(--space-3)",
+    ) in declared
+
+
 def test_track_mute_states_keep_their_paint_on_hover() -> None:
     """The M chip's saved, listen and implied states paint their own colours;
     the generic hover wash would grey them out, so it must skip each one."""

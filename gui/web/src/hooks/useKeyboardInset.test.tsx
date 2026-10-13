@@ -62,6 +62,61 @@ describe("useKeyboardInset", () => {
     view.unmount();
   });
 
+  describe("real device geometry (#1362)", () => {
+    const layout = (innerHeight: number, clientHeight: number) => {
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: innerHeight,
+      });
+      Object.defineProperty(root, "clientHeight", {
+        configurable: true,
+        value: clientHeight,
+      });
+    };
+    afterEach(() => Reflect.deleteProperty(root, "clientHeight"));
+
+    it("opens on iOS 17, where innerHeight shrinks with the keyboard and Safari pans by offsetTop", () => {
+      layout(441, 659);
+      render(<Probe on />);
+      act(() => viewport.move({ height: 436, offsetTop: 218 }));
+      expect(root.dataset.keyboard).toBe("open");
+      expect(root.style.getPropertyValue("--keyboard-inset")).toBe("5px");
+      expect(root.style.getPropertyValue("--visual-viewport-top")).toBe(
+        "218px",
+      );
+    });
+
+    it("insets by what the keyboard covers below the visible area when Safari has not panned", () => {
+      layout(659, 659);
+      render(<Probe on />);
+      act(() => viewport.move({ height: 441, offsetTop: 0 }));
+      expect(root.dataset.keyboard).toBe("open");
+      expect(root.style.getPropertyValue("--keyboard-inset")).toBe("218px");
+    });
+
+    it("opens on Android, where innerHeight stays constant", () => {
+      layout(800, 800);
+      render(<Probe on />);
+      act(() => viewport.move({ height: 480, offsetTop: 0 }));
+      expect(root.dataset.keyboard).toBe("open");
+      expect(root.style.getPropertyValue("--keyboard-inset")).toBe("320px");
+    });
+
+    it("stays closed when a pinch zoom shrinks the iOS visual viewport", () => {
+      layout(441, 659);
+      render(<Probe on />);
+      act(() => viewport.move({ height: 330, offsetTop: 100, scale: 2 }));
+      expect(root.dataset.keyboard).toBeUndefined();
+    });
+
+    it("stays closed for the browser chrome collapsing a few pixels", () => {
+      layout(800, 800);
+      render(<Probe on />);
+      act(() => viewport.move({ height: 740, offsetTop: 0 }));
+      expect(root.dataset.keyboard).toBeUndefined();
+    });
+  });
+
   it("does not mistake a pinch zoom for a keyboard", () => {
     render(<Probe on />);
     act(() => viewport.move({ height: 400, scale: 2 }));

@@ -81,6 +81,24 @@ describe("focusAndReveal", () => {
     expect(sheet.scrollTop).toBe(210);
   });
 
+  it("reveals a field below the viewport's true bottom edge when pinned chrome covers its top", () => {
+    const { sheet, input } = fixture();
+    const chrome = document.createElement("div");
+    chrome.style.position = "sticky";
+    sheet.prepend(chrome);
+    chrome.getBoundingClientRect = () => bounds(100, 50);
+    focusAndReveal(input);
+    // The sheet ends at 300; the label (120 tall, top 360) must end there.
+    expect(sheet.scrollTop).toBe(180);
+  });
+
+  it("leaves the field's scroll margin between it and the bottom edge", () => {
+    const { sheet, input } = fixture();
+    input.style.scrollMarginBottom = "8px";
+    focusAndReveal(input);
+    expect(sheet.scrollTop).toBe(188);
+  });
+
   it("includes the focus ring without scrolling unrelated ancestors", () => {
     const { sheet, input } = fixture();
     input.style.outlineWidth = "2px";
