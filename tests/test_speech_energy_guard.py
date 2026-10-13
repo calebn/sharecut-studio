@@ -781,24 +781,15 @@ def test_dense_owner_bleed_cannot_hide_brief_independent_peer(
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
-@pytest.mark.parametrize("dense_bleed", [False, True], ids=["sparse_owner", "dense_bleed"])
-def test_quiet_room_after_owner_warns_only_when_bleed_raises_raw_reference(
-    tmp_path: Path, cached: bool, dense_bleed: bool
+def test_stationary_quiet_room_with_sparse_owner_activity_stays_clear(
+    tmp_path: Path, cached: bool
 ) -> None:
     clock = np.arange(8 * _SR) / _SR
     carrier = np.sin(2 * np.pi * 220 * clock)
-    noise = np.random.default_rng(14).normal(0.0, 0.0004, clock.size)
     owner = np.zeros_like(clock)
-    peer = noise.copy()
-    if dense_bleed:
-        owner = 0.6 * carrier
-        peer = 0.3 * carrier
-        room = (clock >= 3.0) & (clock < 3.1)
-        owner[room] = 0.0
-        peer[room] = noise[room]
-    else:
-        burst = (clock >= 2.0) & (clock < 2.1)
-        owner[burst] = 0.6 * carrier[burst]
+    burst = (clock >= 2.0) & (clock < 2.1)
+    owner[burst] = 0.6 * carrier[burst]
+    peer = np.random.default_rng(14).normal(0.0, 0.0004, clock.size)
     p = _project_with_peer_audio(tmp_path, peer)
     _write_wav(tmp_path / "host.wav", owner)
     caches = build_track_rms_caches(p) if cached else None
@@ -812,11 +803,108 @@ def test_quiet_room_after_owner_warns_only_when_bleed_raises_raw_reference(
         caches=caches,
     )
     assert levels is not None
-    assert levels.speaking == (("guest",) if dense_bleed else ())
+    assert levels.speaking == ()
+    assert levels.unread == {}
+
+
+def _voice(clock: np.ndarray, f0: float, amplitude: float) -> np.ndarray:
+    harmonics = sum(np.sin(2 * np.pi * f0 * k * clock) / k for k in range(1, 7))
+    return amplitude * harmonics / 2.0
+
+
+def _dense_bleed_with_independent_gap(
+    clock: np.ndarray, gap: tuple[float, float], content: str, *, owner_f0: float = 220.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """Owner speaks throughout and bleeds into the peer, except in ``gap``."""
+    rng = np.random.default_rng(14)
+    noise = rng.normal(0.0, 0.0004, clock.size)
+    owner = 0.6 * np.sin(2 * np.pi * owner_f0 * clock)
+    peer = 0.3 * np.sin(2 * np.pi * owner_f0 * clock)
+    inside = (clock >= gap[0]) & (clock < gap[1])
+    remark = (clock >= (gap[0] + gap[1]) / 2 - 0.05) & (clock < (gap[0] + gap[1]) / 2 + 0.05)
+    owner[inside] = 0.0
+    peer[inside] = noise[inside]
+    if content == "tone_same_pitch":
+        peer[inside] = 0.0045 * np.sin(2 * np.pi * owner_f0 * clock[inside])
+    elif content == "tone_other_pitch":
+        peer[inside] = 0.0045 * np.sin(2 * np.pi * 140.0 * clock[inside])
+    elif content == "voice_over_room":
+        peer[remark] += _voice(clock[remark], 150.0, 0.004)
+    elif content == "unvoiced_burst_over_room":
+        peer[remark] += rng.normal(0.0, 0.02, int(remark.sum()))
+    return owner, peer
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("gain", [-20.0, 0.0, 30.0])
+@pytest.mark.parametrize(
+    ("content", "gap", "expected"),
+    [
+        ("room_noise", (3.0, 3.1), ()),
+        ("room_noise", (3.0, 3.3), ()),
+        ("tone_same_pitch", (3.0, 3.1), ("guest",)),
+        ("tone_other_pitch", (3.0, 3.1), ("guest",)),
+        ("voice_over_room", (3.0, 3.3), ("guest",)),
+        ("unvoiced_burst_over_room", (3.0, 3.3), ("guest",)),
+        ("room_noise", (3.0, 3.03), ("guest",)),
+    ],
+    ids=[
+        "room_100ms",
+        "room_300ms",
+        "voice_at_owner_pitch",
+        "voice_at_other_pitch",
+        "voice_over_room",
+        "unvoiced_burst_over_room",
+        "room_too_short_to_judge",
+    ],
+)
+def test_dense_owner_bleed_room_is_told_from_independent_peer_by_the_peers_own_sound(
+    tmp_path: Path, cached: bool, gain: float, content: str, gap: tuple[float, float], expected
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    owner, peer = _dense_bleed_with_independent_gap(clock, gap, content)
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    for track in p.tracks:
+        track.gain_db = gain
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 6.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == expected
     assert levels.unread == {}
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
-    assert guard.blocked is dense_bleed
-    assert guard.action == ("track_local" if dense_bleed else None)
+    assert guard.blocking_track_ids == expected
+    assert guard.action == ("track_local" if expected else None)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+def test_dense_owner_bleed_room_warns_when_the_peers_samples_cannot_be_read(
+    tmp_path: Path, cached: bool
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    owner, peer = _dense_bleed_with_independent_gap(clock, (3.0, 3.1), "room_noise")
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    caches = build_track_rms_caches(p) if cached else None
+    with patch("podcast_mcp.edits.speech_energy_guard.timeline_window_samples", return_value=None):
+        levels = measure_peer_speech(
+            p,
+            [(1.0, 6.0)],
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+            caches=caches,
+        )
+    assert levels is not None
+    assert levels.speaking == ("guest",)
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
