@@ -92,12 +92,14 @@ export function focusAndReveal(target: HTMLElement | null): void {
       /(auto|scroll)/.test(overflow.overflowY) &&
       parent.scrollHeight > parent.clientHeight
     ) {
-      const bottom = top + parent.clientHeight;
+      const bottom = viewport.top + parent.clientTop + parent.clientHeight;
+      const margin =
+        Number.parseFloat(style.getPropertyValue("scroll-margin-bottom")) || 0;
       parent.scrollTop +=
         rect.top - ring < top
           ? rect.top - ring - top
-          : rect.bottom + ring > bottom
-            ? rect.bottom + ring - bottom
+          : rect.bottom + ring + margin > bottom
+            ? rect.bottom + ring + margin - bottom
             : 0;
     }
     if (
