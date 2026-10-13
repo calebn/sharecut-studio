@@ -656,7 +656,7 @@ def test_apply_prefix_edits_pads_at_the_optimized_join():
     optimized = type("R", (), {"start": 1.7, "end": 2.5, "mode": "vocal_transcript_guided"})()
     with (
         patch("podcast_mcp.edits.decisions.load_defaults") as defaults,
-        patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="silence"),
+        patch("podcast_mcp.edits.source_removals.filler_pad_mode", return_value="silence"),
         patch("podcast_mcp.edits.source_removals.recommend_post_pad_fade_in_ms", return_value=0),
         patch(
             "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
