@@ -154,9 +154,11 @@ iOS Safari also zooms the page when a focused field's computed `font-size` is un
 
 ## Menu popover support
 
-Menu panels use the Popover API (Chrome 114, Firefox 125, Safari and WKWebView
-17: iOS 17, macOS 14). `ui/Menu.tsx` calls `showPopover()` only where it
-exists. On an older webview (iOS 16, macOS 12 and 13 stock WKWebView, the
+Menu panels use the Popover API (Chrome 114, Firefox 125, Safari 17.0 on iOS 17
+and macOS). Safari 17 also ships for macOS 12 and 13 and updates the system
+WebKit there, so a WKWebView on those releases has the API once Safari 17 is
+installed. `ui/Menu.tsx` calls `showPopover()` only where it exists. On an
+older webview (iOS 16, or macOS 12 and 13 without the Safari 17 update, the
 declared Tauri minimum) the panel stays a `position: fixed` element placed by
 the same `ui/anchoredPlacement.ts` code and stacked by `--z-menu`: the menu
 opens and works, but an ancestor that clips or contains fixed descendants (a

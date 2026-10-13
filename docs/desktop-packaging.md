@@ -429,7 +429,8 @@ shows which backend ran (`webgl2`, `cpu-worker`, or `none` without
 ## Menu panels in the WebView
 
 Menu panels are Popover API elements ([gui-mobile.md § Menu popover support](gui-mobile.md#menu-popover-support)).
-Current WKWebView (macOS 14+) and WebView2 provide the API. On macOS 12 and 13
+WKWebView on macOS 14+, or on macOS 12 and 13 with Safari 17 installed, and
+WebView2 provide the API. On macOS 12 and 13 without the Safari 17 update
 (the bundle's `minimumSystemVersion` is 12.0) the app feature-detects it and
 falls back to a fixed-position panel: menus still open and work, and a clipping
 ancestor can crop them.
