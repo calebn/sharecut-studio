@@ -16,7 +16,9 @@ eligibility, and the plan page decides what the labels mean.
 3. Skip an issue with no beta label. Add the label that fits from the plan, or
    ask the owner, before you start it.
 4. Check the result against the bar of the issue's `journey:J#` label.
-5. Then run the taken check below.
+5. Skip an issue that carries `needs-user-input` unless its **Owner question:**
+   comment has an answer.
+6. Then run the taken check below.
 
 ## Check whether an issue is taken
 
@@ -89,3 +91,19 @@ Read the filing rules in [docs/beta-plan.md](../../../../docs/beta-plan.md#filin
    report it, and let the structural fix come first.
 5. Fix test-quality and doc notes in the same PR, or drop them. Never file them.
 6. A regression your PR caused blocks the PR. Never file it as a follow-up.
+
+## Ask the owner
+
+Never wait on the owner and never message them. When work needs a product
+call, listening, device feel, or a decision that proved harmful:
+
+1. Add `needs-user-input` to the issue or PR.
+2. Post one comment that starts with `**Owner question:**`. Include the
+   question, the options, your recommendation, the default if nobody answers,
+   and the evidence.
+3. Keep the PR unmerged if the answer could change it. Otherwise proceed on the
+   default and say so in the comment.
+4. Move to other beta work.
+
+The next coordinator or agent pass removes the label once the owner answers,
+applies the answer, and records it.
