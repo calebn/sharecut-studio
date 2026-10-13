@@ -26,8 +26,11 @@ function track(viewport: VisualViewport): () => void {
     root.style.removeProperty("--visual-viewport-top");
   };
   const update = () => {
-    const inset = window.innerHeight - viewport.height - viewport.offsetTop;
-    const open = viewport.scale <= 1 + ZOOM_EPSILON && inset >= KEYBOARD_MIN_PX;
+    const layoutHeight = Math.max(window.innerHeight, root.clientHeight);
+    const covered = layoutHeight - viewport.height;
+    const inset = Math.max(0, covered - viewport.offsetTop);
+    const open =
+      viewport.scale <= 1 + ZOOM_EPSILON && covered >= KEYBOARD_MIN_PX;
     if (!open) {
       const wasOpen = root.dataset.keyboard === "open";
       clear();
@@ -69,6 +72,10 @@ function acquire(viewport: VisualViewport): () => void {
  * (`--visual-viewport-top`), with `data-keyboard="open"` on `<html>`.
  * Mobile Safari shrinks only the visual viewport, so a fixed sheet sized from the
  * layout viewport slides its header under the browser chrome (#1335).
+ * iOS 17 also shrinks `innerHeight` with the keyboard and pans the visual
+ * viewport by `offsetTop`, so the layout height is the larger of `innerHeight`
+ * and the root's `clientHeight`, and the keyboard is what the visual viewport
+ * does not cover, whatever its `offsetTop` (#1362).
  * A pinch zoom also shrinks the visual viewport and is not a keyboard.
  * The values live on `<html>`, so nested sheets share one tracker: it starts
  * with the first active caller and stops with the last.
