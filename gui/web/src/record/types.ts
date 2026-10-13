@@ -121,6 +121,12 @@ export function hostReconnectPauseCopyFromSnapshot(
   return hostReconnectPauseCopy(snapshot.host_offline_gap_ms);
 }
 
+export function isRecordTransportVisible(
+  snapshot: RecordSnapshot | null,
+): snapshot is RecordSnapshot {
+  return snapshot !== null && snapshot.state !== "lobby";
+}
+
 export function hostKeeperResetKey(snapshot: RecordSnapshot | null): number {
   if (snapshot?.pause_reason !== "host_reconnect") {
     return 0;

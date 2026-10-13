@@ -1,10 +1,11 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useRecordHostStore } from "../record/hostStore";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, recordSnapshot } from "../test/fixtures";
 import { clampZoomPxPerSec, MIN_ZOOM_PX_PER_SEC } from "../utils/zoom";
 import { TransportBar } from "./TransportBar";
 
@@ -25,6 +26,7 @@ describe("TransportBar desktop edit controls", () => {
       }),
     );
     useDawStore.setState({ zoomPxPerSec: 20 });
+    useRecordHostStore.getState().setSnapshot(null);
     execute.mockReset();
     execute.mockResolvedValue({ status: "ok" });
   });
@@ -65,6 +67,57 @@ describe("TransportBar desktop edit controls", () => {
           button.getAttribute("aria-label"),
         ),
       ).toEqual(["Undo", "Redo", "Zoom out", "Zoom in"]);
+    } finally {
+      width.mockRestore();
+    }
+  });
+
+  it("keeps editing controls and recording reachable as status changes at a fixed width", () => {
+    const width = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(1920);
+    try {
+      render(<TransportBar />);
+      const expectEditingControls = () => {
+        for (const label of ["Undo", "Redo", "Zoom out", "Zoom in"]) {
+          expect(screen.getByRole("button", { name: label })).toBeVisible();
+        }
+        expect(screen.getByRole("button", { name: "Menu" })).toBeVisible();
+      };
+      expect(screen.getByRole("button", { name: "View" })).toBeVisible();
+      for (const status of [
+        { audioError: "Failed to load audio (mix)", sessionRegion: null },
+        {
+          audioError: null,
+          sessionRegion: { start_sec: 120, end_sec: 150, track_ids: ["host"] },
+        },
+      ]) {
+        act(() => useDawStore.setState(status));
+        expectEditingControls();
+        expect(
+          screen.queryByRole("button", { name: "View" }),
+        ).not.toBeInTheDocument();
+        act(() =>
+          useDawStore.setState({ audioError: null, sessionRegion: null }),
+        );
+        expect(screen.getByRole("button", { name: "View" })).toBeVisible();
+      }
+      act(() =>
+        useRecordHostStore
+          .getState()
+          .setSnapshot(
+            recordSnapshot({ state: "recording", recording_ms: 12000 }),
+          ),
+      );
+      expectEditingControls();
+      expect(
+        screen.getByRole("button", { name: "Recording. Open record panel" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "View" }),
+      ).not.toBeInTheDocument();
+      act(() => useRecordHostStore.getState().setSnapshot(null));
+      expect(screen.getByRole("button", { name: "View" })).toBeVisible();
     } finally {
       width.mockRestore();
     }

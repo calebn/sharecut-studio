@@ -17,7 +17,9 @@ import {
   titleWithShortcut,
 } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
+import { useRecordHostStore } from "../record/hostStore";
 import { RecordTransportChip } from "../record/RecordTransportChip";
+import { isRecordTransportVisible } from "../record/types";
 import {
   canIngestMedia,
   canManageProjects,
@@ -67,7 +69,7 @@ import { WaveformViewSections } from "./WaveformViewSections";
 import { ZoomControls } from "./ZoomControls";
 
 /** Transport collapses labeled chrome when shell is tablet/phone or bar width ≤ this. */
-export const TRANSPORT_COLLAPSE_PX = 720;
+export const TRANSPORT_COLLAPSE_PX = 1240;
 
 const isNarrowTransport = (widthPx: number) => widthPx <= TRANSPORT_COLLAPSE_PX;
 
@@ -151,7 +153,6 @@ export function TransportBar({
     }
   });
 
-  const collapsed = compact || narrow;
   const loading = project == null;
   const emptyProject = (project?.tracks.length ?? 0) === 0;
   const projectBreakdown = useStaleRenderBreakdown(project);
@@ -169,6 +170,17 @@ export function TransportBar({
   const noPreview = audioError === NO_PREVIEW_ERROR;
   const noPreviewHint = noPreviewReason(mayRefresh);
   const transportError = noPreview ? null : audioError;
+  const recordChipVisible = useRecordHostStore((s) =>
+    isRecordTransportVisible(s.snapshot),
+  );
+  const collapsed =
+    compact ||
+    narrow ||
+    Boolean(
+      transportError ||
+        sessionRegion ||
+        (showRecordingChip && recordChipVisible),
+    );
 
   const premixCue = highlightStaleRender && Boolean(breakdown?.premixBehind);
   const guestMixOnly = guestHearsMixOnly(guestMode);
