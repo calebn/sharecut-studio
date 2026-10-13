@@ -74,7 +74,10 @@ _SELECT_OR_REJECT = "Select the part to cut on the timeline, or reject the held 
 
 
 def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
-    return f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(lane.cause, _UNCHECKED_LANE)}"
+    cause = lane.cause if isinstance(lane.cause, str) else lane.cause.cause
+    return (
+        f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(cause, _UNCHECKED_LANE)}"
+    )
 
 
 def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
