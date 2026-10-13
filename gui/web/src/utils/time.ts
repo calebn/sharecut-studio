@@ -65,12 +65,16 @@ export function transportTimecode(
   };
 }
 
-/** Format seconds as m:ss, or h:mm:ss from one hour (elapsed timers, comment anchors). Negative input clamps to 0:00. */
+/**
+ * `m:ss`, or `h:mm:ss` from one hour (elapsed timers, comment anchors), rounded
+ * to the whole second it shows like every other time label, so 59.9995 s reads
+ * `1:00` where the transport reads `01:00.000`. Negative input clamps to 0:00.
+ */
 export function formatTimeShort(sec: number): string {
-  const clamped = Math.max(0, sec);
-  const h = Math.floor(clamped / 3600);
-  const m = Math.floor((clamped % 3600) / 60);
-  const s = Math.floor(clamped % 60);
+  const total = Math.round(Math.max(0, sec));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
   if (h > 0) {
     return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
@@ -110,35 +114,19 @@ export function niceTimeStep(zoomPxPerSec: number, minPx = 70): number {
 }
 
 /**
- * Relative slack for `formatRulerTime(..., "floor")`: a few ULPs of the scaled
- * value, so `0.29 * 100 = 28.999999999999996` still floors to 29, while
- * 59.9999995 s at a 1 s step floors to 59, not 60.
- */
-const FLOOR_UNIT_EPSILON = 4 * Number.EPSILON;
-
-/**
  * Ruler label for a tick (or the ruler's slider value): `m:ss` for whole-second
  * steps, else `m:ss.fff` (`h:mm:ss…` past an hour) with `ceil(−log10 step)`
  * decimals, at most 4, so a 0.5 ms step reads `0:01.2345`, a 0.5 s step
- * `0:02.5` and a 2 s step `0:02`. Tick labels round (ticks sit on float
- * multiples of the step); `"floor"` truncates for a position readout, like a
- * transport clock, so 59.68 s at a 1 s step reads `0:59`, not `1:00`.
+ * `0:02.5` and a 2 s step `0:02`. Rounds to the places it shows, as every time
+ * label does (see `formatTime`), so 59.68 s at a 1 s step reads `1:00`.
  */
-export function formatRulerTime(
-  sec: number,
-  step: number,
-  mode: "round" | "floor" = "round",
-): string {
+export function formatRulerTime(sec: number, step: number): string {
   const decimals = Math.min(
     4,
     Math.max(0, Math.ceil(-Math.log10(step) - 1e-9)),
   );
   const scale = 10 ** decimals;
-  const scaled = Math.max(0, sec) * scale;
-  const units =
-    mode === "floor"
-      ? Math.floor(scaled + FLOOR_UNIT_EPSILON * Math.max(1, scaled))
-      : Math.round(scaled);
+  const units = Math.round(Math.max(0, sec) * scale);
   const whole = Math.floor(units / scale);
   const frac =
     decimals > 0 ? `.${String(units % scale).padStart(decimals, "0")}` : "";

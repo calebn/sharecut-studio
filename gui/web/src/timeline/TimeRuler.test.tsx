@@ -125,7 +125,7 @@ describe("TimeRuler", () => {
     act(() => useDawStore.setState({ isPlaying: false, playheadSec: 0 }));
   });
 
-  it("announces the slider value truncated, not rounded", () => {
+  it("announces the slider value rounded to what the step shows", () => {
     useDawStore.setState({ playheadSec: 59.6, isPlaying: false });
     render(
       <TimeRuler
@@ -138,7 +138,7 @@ describe("TimeRuler", () => {
     // 20 px/s picks a whole-second step (5 s), so no decimals.
     expect(screen.getByRole("slider")).toHaveAttribute(
       "aria-valuetext",
-      "0:59",
+      "1:00",
     );
     act(() => useDawStore.setState({ playheadSec: 0 }));
   });

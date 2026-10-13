@@ -110,6 +110,21 @@ describe("StatusBarView", () => {
     expect(screen.queryByText(/^Cut /)).toBeNull();
   });
 
+  it("rounds the cut readout to the second it shows, as the transport does", () => {
+    render(
+      <StatusBarView
+        summary={{
+          ...summaryOf(minimalProject()),
+          cut: { cutSec: 59.9995, sourceSec: 119.7, timelineSec: 59.7 },
+        }}
+        narrow={false}
+        statusAnnouncement=""
+        onOpenTab={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Cut 1:00 of 2:00")).toBeTruthy();
+  });
+
   it("shows a stale render, needs-sync copy and the highlight class", () => {
     const project = minimalProject({
       tracks: [sampleTrack()],

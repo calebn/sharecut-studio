@@ -85,13 +85,11 @@ export function replaceAudioQuestion(
 /** Compact duration for status announcements (e.g. "1:00", "0.5s"). */
 export function formatIngestDuration(sec: number): string {
   const s = Math.max(0, sec);
-  if (s < 60) {
-    const rounded = Math.round(s * 10) / 10;
-    return Number.isInteger(rounded) ? `${rounded}s` : `${rounded}s`;
+  if (s < 59.95) {
+    return `${Math.round(s * 10) / 10}s`;
   }
-  const m = Math.floor(s / 60);
-  const rem = Math.round(s % 60);
-  return `${m}:${String(rem).padStart(2, "0")}`;
+  const total = Math.round(s);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 export const INGEST_COACH_STORAGE_KEY = "sharecut.ingestCoachDismissed";
