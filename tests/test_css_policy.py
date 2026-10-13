@@ -738,3 +738,76 @@ def test_prominent_overline_leaves_word_state_decorations() -> None:
     for selector, _body in rules:
         for state in (".suppressed", ".ignored", ".suspect-hallucination"):
             assert re.search(r":not\([^)]*" + re.escape(state), selector), (selector, state)
+
+
+_FIELD_SELECTOR = re.compile(
+    r"(?<![\w-])(?:input|select|textarea)\b|(?:-input|-select|-textarea)(?=$|[:.\[#])"
+)
+_FIELD_MIN_TOKEN = "--font-size-field-min"
+_FIELD_SIZE_TOKEN = re.compile(r"var\(--font-size-field(?:-small|-current)?\)")
+_NOT_FIELDS = frozenset({".pipeline-step-select"})
+
+
+def _selector_targets_field(selector: str) -> bool:
+    for part in selector.split(","):
+        compound = re.split(r"[\s>+~]+", part.strip())[-1]
+        if compound not in _NOT_FIELDS and _FIELD_SELECTOR.search(compound):
+            return True
+    return False
+
+
+def _rem(value: str) -> float:
+    match = re.fullmatch(r"(\d*\.?\d+)rem", value.strip())
+    assert match, f"not a rem length: {value!r}"
+    return float(match.group(1))
+
+
+def test_coarse_pointer_field_floor_is_at_least_one_rem() -> None:
+    """iOS Safari zooms the page when a focused field is under 16px (#1354)."""
+    floor = [d for d in _file_declarations(_TOKENS_CSS) if d.prop == _FIELD_MIN_TOKEN]
+    assert [d.preludes for d in floor] == [(":root",), ("@media (pointer: coarse)", ":root")]
+    assert _rem(floor[0].value) == 0
+    assert _rem(floor[1].value) >= 1
+    sizes = {
+        d.prop: d.value
+        for d in _file_declarations(_TOKENS_CSS)
+        if d.prop.startswith("--font-size-field")
+    }
+    for name in ("--font-size-field", "--font-size-field-small", "--font-size-field-current"):
+        assert re.fullmatch(rf"max\(\s*[^,]+,\s*var\({_FIELD_MIN_TOKEN}\)\s*\)", sizes[name]), name
+
+
+def test_partial_field_font_sizes_honor_the_coarse_pointer_floor() -> None:
+    offenders: list[str] = []
+    for path in _partial_files():
+        declarations = _file_declarations(path)
+        for d in declarations:
+            if d.prop not in {"font", "font-size"} or not d.preludes:
+                continue
+            if not _selector_targets_field(d.preludes[-1]):
+                continue
+            if d.prop == "font-size" and _FIELD_SIZE_TOKEN.fullmatch(d.value):
+                continue
+            if d.prop == "font" and d.value == "inherit":
+                floored = any(
+                    o.preludes == d.preludes
+                    and o.prop == "font-size"
+                    and _FIELD_SIZE_TOKEN.fullmatch(o.value)
+                    for o in declarations
+                )
+                if floored:
+                    continue
+            offenders.append(
+                f"{path.relative_to(ROOT)}:{d.line} {d.preludes[-1]} {d.prop}: {d.value}"
+            )
+    assert not offenders, "field font-size must be a --font-size-field token:\n" + "\n".join(
+        offenders
+    )
+
+
+def test_field_selector_matcher() -> None:
+    assert _selector_targets_field(".comment-compose textarea")
+    assert _selector_targets_field(".a, .share-dialog-select")
+    assert _selector_targets_field(".home-screen input:not([type='radio'])")
+    assert not _selector_targets_field(".pipeline-step-select")
+    assert not _selector_targets_field(".track-input-note-wrapper")
