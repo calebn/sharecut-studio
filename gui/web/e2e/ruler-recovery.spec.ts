@@ -113,7 +113,7 @@ for (const terminal of ["cancel", "loss"] as const) {
       await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
       await page.getByRole("button", { name: "Comment", exact: true }).click();
       const ruler = page.getByRole("slider", { name: "Comment time anchor" });
-      const hint = page.locator(".comment-compose-hint");
+      const hint = page.locator(".comment-time-chip");
       const scale = await rulerScale(ruler);
       const point = async (seconds: number) => {
         const rect = await ruler.boundingBox();
@@ -134,7 +134,7 @@ for (const terminal of ["cancel", "loss"] as const) {
       };
       const initial = await point(2.2);
       await page.mouse.click(initial.x, initial.y);
-      await expect(hint).toContainText("Anchor: 0:02 (instant)");
+      await expect(hint).toHaveText("at 0:02");
       const originalHint = await hint.textContent();
       const before = snapshot(projectPath);
       const observer = rulerCommands(page, projectPath, receipts),
@@ -173,7 +173,7 @@ for (const terminal of ["cancel", "loss"] as const) {
         await page.mouse.move(start.x, start.y);
         await page.mouse.down();
         await page.mouse.move(end.x, end.y, { steps: 4 });
-        await expect(hint).toContainText("Anchor: 0:04–0:10");
+        await expect(hint).toContainText("0:04–0:10");
         const observedEvents = await events.evaluate(
           (recorder) => recorder.events,
         );
@@ -242,7 +242,7 @@ for (const terminal of ["cancel", "loss"] as const) {
         expect(commands).toEqual([]);
         const next = await point(6.2);
         await page.mouse.click(next.x, next.y);
-        await expect(hint).toContainText("Anchor: 0:06 (instant)");
+        await expect(hint).toHaveText("at 0:06");
         expect(snapshot(projectPath)).toEqual(before);
         expect(commands).toEqual([]);
         receipts.push({
@@ -435,7 +435,7 @@ function rulerCommands(
         Promise.resolve().then(() => snapshot(projectPath)),
         Promise.resolve().then(() => rangeDomain(projectPath)),
         page.evaluate(() => ({
-          hint: document.querySelector(".comment-compose-hint")?.textContent,
+          hint: document.querySelector(".comment-time-chip")?.textContent,
           range: document.querySelector(".range-summary")?.textContent,
           ruler: document
             .querySelector(".time-ruler")
@@ -542,19 +542,19 @@ for (const kind of ["instant", "span"] as const) {
       await openModes(page, projectPath);
       await page.getByRole("button", { name: "Comment", exact: true }).click();
       const ruler = page.getByRole("slider", { name: "Comment time anchor" });
-      const hint = page.locator(".comment-compose-hint");
+      const hint = page.locator(".comment-time-chip");
       const before = snapshot(projectPath),
         observer = rulerCommands(page, projectPath, receipts);
       try {
         const owner = await anchorDown(page, ruler, 4.2, receipts);
         await page.mouse.move(owner.x + 3, owner.y);
-        await expect(hint).toContainText("(instant)");
+        await expect(hint).not.toContainText("–");
         if (kind === "span") {
           await page.mouse.move(owner.x + 5, owner.y);
-          await expect(hint).not.toContainText("(instant)");
+          await expect(hint).toContainText("–");
           const reversed = await timePoint(ruler, 2.2);
           await page.mouse.move(reversed.x, reversed.y, { steps: 4 });
-          await expect(hint).toContainText("Anchor: 0:02–0:04");
+          await expect(hint).toContainText("0:02–0:04");
         }
         await page.mouse.up();
         expect(snapshot(projectPath)).toEqual(before);
@@ -657,7 +657,7 @@ for (const departure of ["tool", "page"] as const) {
         const owner = await anchorDown(page, ruler, 4.2, receipts),
           end = await timePoint(ruler, 10.2);
         await page.mouse.move(end.x, end.y, { steps: 4 });
-        await expect(page.locator(".comment-compose-hint")).toContainText(
+        await expect(page.locator(".comment-time-chip")).toContainText(
           "0:04–0:10",
         );
         if (departure === "tool") {
@@ -673,7 +673,9 @@ for (const departure of ["tool", "page"] as const) {
                 owner.id,
               ),
           ).toBe(false);
-          await expect(page.locator(".comment-compose")).toHaveCount(0);
+          await expect(
+            page.locator(".comment-time-chip", { hasText: "–" }),
+          ).toHaveCount(0);
         } else {
           await page.goto("about:blank");
           await expect(page.locator(".time-ruler")).toHaveCount(0);
@@ -683,7 +685,9 @@ for (const departure of ["tool", "page"] as const) {
         expect(snapshot(projectPath)).toEqual(before);
         expect(observer.commands).toEqual([]);
         if (departure === "page") await openModes(page, projectPath);
-        await expect(page.locator(".comment-compose")).toHaveCount(0);
+        await expect(
+          page.locator(".comment-time-chip", { hasText: "–" }),
+        ).toHaveCount(0);
         const nextRuler = page.getByRole("slider", {
           name: "Timeline position",
         });
@@ -789,13 +793,13 @@ test("comment span accounts for held horizontal scroll and reverses without savi
     const scroll = await zoomForScroll(page, ordinary);
     await page.getByRole("button", { name: "Comment", exact: true }).click();
     const ruler = page.getByRole("slider", { name: "Comment time anchor" }),
-      hint = page.locator(".comment-compose-hint");
+      hint = page.locator(".comment-time-chip");
     const before = snapshot(projectPath),
       observer = rulerCommands(page, projectPath, receipts);
     try {
       const owner = await anchorDown(page, ruler, 2.2, receipts);
       await page.mouse.move(owner.x + 100, owner.y, { steps: 4 });
-      await expect(hint).not.toContainText("(instant)");
+      await expect(hint).toContainText("–");
       const initialScroll = await scroll.evaluate(
         (element) => element.scrollLeft,
       );
