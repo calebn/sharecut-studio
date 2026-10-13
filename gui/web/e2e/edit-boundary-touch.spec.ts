@@ -57,6 +57,13 @@ test.describe("Transcript edit-boundary touch drag", () => {
       const mark = page.locator(".edit-boundary-mark").first();
       await expect(mark).toBeVisible();
       await mark.scrollIntoViewIfNeeded();
+      await waiveRefineGate(page, "e2e edit boundary touch");
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Emulation.setTouchEmulationEnabled", {
+        enabled: true,
+        maxTouchPoints: 2,
+      });
+      await mark.scrollIntoViewIfNeeded();
       const box = await mark.boundingBox();
       expect(box).toBeTruthy();
       const x = box!.x + box!.width / 2;
@@ -66,12 +73,6 @@ test.describe("Transcript edit-boundary touch drag", () => {
       const firstMoved = { x: x + 40, y, id: 1 };
       const second = { x: x + 4, y, id: 2 };
 
-      await waiveRefineGate(page, "e2e edit boundary touch");
-      const cdp = await context.newCDPSession(page);
-      await cdp.send("Emulation.setTouchEmulationEnabled", {
-        enabled: true,
-        maxTouchPoints: 2,
-      });
       const rolled = page.waitForResponse((res) => {
         if (!res.url().includes("/api/document/command")) return false;
         const body = res.request().postDataJSON() as { type?: string } | null;
