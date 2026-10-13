@@ -442,8 +442,11 @@ samples asks one function. At a reader's rate `r` a clip piece plays source samp
 the renderer's per-piece trim does, so the two pieces a split makes share one real boundary
 and neither loses nor repeats a sample. Its first sample lands on timeline sample
 `round(timeline_start * r)`; a piece whose timeline start meets the previous piece's end
-is laid straight after it when that is within one sample, so a ripple that closed a gap
-leaves no overlap and no hole, and nothing drifts more than a sample from the timeline.
+is laid straight after it when that is within two samples, so a ripple that closed a gap
+leaves no overlap and no hole, and nothing lies more than two samples from the timeline.
+Where the rounding of many pieces in a row adds up past that, the next piece goes back to
+its own rounded start and leaves a hole of a sample or two (on the lab tape, five of 381
+joins).
 `raw_samples_on_timeline` (the raw projection and the cached guard), `session_air.lane_window`
 (placed playback) and the peer guard's removed-sample spans all use it, so after the same
 removal they keep the same samples: a sample is removed when no remaining piece covers it.

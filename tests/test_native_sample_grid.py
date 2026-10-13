@@ -16,6 +16,7 @@ import pytest
 from podcast_mcp.edits.ripple import ripple_remove_clips
 from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
 from podcast_mcp.engines.audio_audit import _played_window, build_track_rms_caches
+from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.ungated_audio import raw_timeline_samples
 from podcast_mcp.models import Clip, EpisodeProject, SourceRecording
@@ -211,3 +212,50 @@ def test_a_clip_shorter_than_one_sample_plays_nothing(tmp_path: Path) -> None:
     project.clips[1].source_end = project.clips[1].source_start + 0.00003
     assert np.count_nonzero(raw_timeline_samples(project, "guest", sample_rate=RATE)) == 0
     assert np.count_nonzero(_played_window(project, "guest", 0.0, 1.0)) == 0
+
+
+def test_a_split_that_removed_nothing_lays_out_like_the_unsplit_clip() -> None:
+    whole = lay_out([Piece(0.00004, 8.0, 0.50008, 8.50004)], RATE)
+    parts = lay_out(
+        [
+            Piece(0.00004, 1.003, 0.50008, 1.50304),
+            Piece(1.003, 8.0, 1.50304, 8.50004),
+        ],
+        RATE,
+    )
+    assert parts[0].first + parts[0].count == parts[1].first
+    assert parts[1].dest == parts[0].stop
+    assert (parts[0].dest, parts[0].first, parts[1].stop - parts[0].dest) == (
+        whole[0].dest,
+        whole[0].first,
+        whole[0].count,
+    )
+
+
+def test_a_ripple_join_is_back_to_back_and_a_far_join_keeps_its_own_start() -> None:
+    joined = lay_out(
+        [Piece(0.00004, 1.003, 0.50008, 1.50304), Piece(3.003, 8.0, 1.50304, 6.50004)], RATE
+    )
+    assert joined[1].dest == joined[0].stop
+    far = lay_out([Piece(0.0, 1.0, 0.0, 1.0), Piece(1.0, 2.0, 1.00045, 2.00045)], RATE)
+    assert far[1].dest == round(1.00045 * RATE)
+    no_join = lay_out([Piece(0.0, 1.0, 0.0, 1.0), Piece(1.0, 2.0, 1.5, 2.5)], RATE)
+    assert no_join[1].dest == round(1.5 * RATE)
+
+
+def test_a_chain_of_fractional_joins_never_strays_from_the_timeline() -> None:
+    rng = np.random.default_rng(1258)
+    cursor, source, pieces = 0.5, 0.0, []
+    for _ in range(300):
+        length = float(rng.uniform(0.2, 2.0))
+        pieces.append(Piece(source, source + length, cursor, cursor + length))
+        cursor += length
+        source += length + float(rng.uniform(0.1, 1.0))
+    for piece, cell in zip(pieces, lay_out(pieces, RATE), strict=True):
+        assert abs(cell.dest - piece.timeline_start * RATE) <= 2.5
+        assert cell.count == round(piece.source_end * RATE) - round(piece.source_start * RATE)
+
+
+def test_a_piece_ends_on_the_nearest_even_sample_like_the_clips_it_came_from() -> None:
+    (cell,) = lay_out([Piece(0.0, 3.0070625, 0.0, 3.0070625)], RATE)
+    assert cell.count == 24056
