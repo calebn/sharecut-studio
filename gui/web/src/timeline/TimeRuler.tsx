@@ -18,13 +18,14 @@ type TimeRulerProps = Omit<
 
 /**
  * The slider's value: the playhead, in quarter seconds while playing so the
- * ruler re-renders four times a second rather than every frame.
+ * ruler re-renders four times a second rather than every frame. Rounds to the
+ * nearest quarter so the announced time is never more than an eighth off.
  */
 function selectRulerValueSec(s: {
   isPlaying: boolean;
   playheadSec: number;
 }): number {
-  return s.isPlaying ? Math.floor(s.playheadSec * 4) / 4 : s.playheadSec;
+  return s.isPlaying ? Math.round(s.playheadSec * 4) / 4 : s.playheadSec;
 }
 
 /** Live DAW wiring; the Playhead keeps its per-frame DOM transform updates. */

@@ -121,7 +121,23 @@ describe("TimeRuler", () => {
     act(() => useDawStore.setState({ isPlaying: true, playheadSec: 3.6 }));
     expect(slider).toHaveAttribute("aria-valuenow", "3.5");
     act(() => useDawStore.setState({ playheadSec: 3.7 }));
-    expect(slider).toHaveAttribute("aria-valuenow", "3.5");
+    expect(slider).toHaveAttribute("aria-valuenow", "3.75");
+    act(() => useDawStore.setState({ isPlaying: false, playheadSec: 0 }));
+  });
+
+  it("announces the nearest quarter second during playback, not the one below", () => {
+    useDawStore.setState({ playheadSec: 0.7, isPlaying: true });
+    render(
+      <TimeRuler
+        durationSec={9}
+        sessionDurationSec={9}
+        zoomPxPerSec={400}
+        onSeek={vi.fn()}
+      />,
+    );
+    const slider = screen.getByRole("slider");
+    expect(slider).toHaveAttribute("aria-valuenow", "0.75");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:00.8");
     act(() => useDawStore.setState({ isPlaying: false, playheadSec: 0 }));
   });
 
