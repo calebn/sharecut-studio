@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import math
 import threading
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -56,6 +56,7 @@ from podcast_mcp.edits.room_model import (
 from podcast_mcp.edits.word_onset import voice_end, voice_onset
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.models import Clip, EpisodeProject, Track
 from podcast_mcp.util.dsp import LOW_BAND, SPEECH_BAND, BandShape, frame_band_filtered_db
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
@@ -195,8 +196,8 @@ class Placement:
         )
 
 
-def lane_placements(project: EpisodeProject, track: Track) -> list[Placement]:
-    """The recordings a lane plays and where, in timeline order; abutting clips are one.
+def lane_clip_placements(project: EpisodeProject, track: Track) -> list[tuple[Clip, Placement]]:
+    """Each clip a lane plays with its placement, in timeline order.
 
     A lane with no clips plays its media from the start of the session, as ingest places
     an un-clipped track. The media a clip plays is resolved as the render resolves it.
@@ -218,9 +219,13 @@ def lane_placements(project: EpisodeProject, track: Track) -> list[Placement]:
                 timeline_start=0.0,
             )
         ]
+    return [(clip, _clip_placement(project, track, clip, ignored, sample_rates)) for clip in clips]
+
+
+def lane_placements(project: EpisodeProject, track: Track) -> list[Placement]:
+    """The recordings a lane plays and where, in timeline order; abutting clips are one."""
     placements: list[Placement] = []
-    for clip in clips:
-        placement = _clip_placement(project, track, clip, ignored, sample_rates)
+    for _, placement in lane_clip_placements(project, track):
         if placements and placements[-1].abuts(placement):
             last = placements[-1]
             placements[-1] = Placement(
@@ -302,31 +307,67 @@ def _clip_placement(
     )
 
 
+class SampleRun(NamedTuple):
+    """``length`` samples of ``media`` from source sample ``first``, played from timeline
+    sample ``dest``. ``media`` is ``None`` when the file cannot be named."""
+
+    media: Path | None
+    dest: int
+    first: int
+    length: int
+
+
+def read_samples(runs: Sequence[SampleRun], first: int, size: int, sample_rate: int) -> np.ndarray:
+    """The ``size`` mono samples from timeline sample ``first`` that ``runs`` play, summed.
+
+    Where nothing plays the window is silence. Raises when a run under the window cannot
+    be named or read.
+    """
+    out = np.zeros(max(0, size), dtype=np.float32)
+    for run in runs:
+        k0, k1 = max(run.dest, first), min(run.dest + run.length, first + out.size)
+        if k1 <= k0:
+            continue
+        if run.media is None:
+            raise FileNotFoundError("a lane plays a recording that cannot be named")
+        chunk = load_mono_window(
+            run.media,
+            start_sec=(run.first + k0 - run.dest) / sample_rate,
+            duration_sec=(k1 - k0) / sample_rate,
+            sample_rate=sample_rate,
+        )
+        at = k0 - first
+        out[at : at + chunk.size] += chunk[: out.size - at]
+    return out
+
+
 def lane_window(
     project: EpisodeProject, track: Track, lo: float, hi: float, sample_rate: int
 ) -> np.ndarray:
     """What ``track``'s lane plays over session ``[lo, hi)``, as mono samples at ``sample_rate``.
 
-    Each placement's recording is read at the seconds that back it and laid where it plays;
-    where the lane plays nothing the window is silence. Raises when a recording under the
-    window cannot be named or read.
+    Each clip's recording is read at the samples that back it (``engines.sample_grid``) and
+    laid where they play; where the lane plays nothing the window is silence. Raises when a
+    recording under the window cannot be named or read.
     """
-    out = np.zeros(max(0, round((hi - lo) * sample_rate)), dtype=np.float32)
-    for placement in lane_placements(project, track):
-        start, end = max(lo, placement.tl_start), min(hi, placement.tl_end)
-        if end <= start:
-            continue
-        if placement.media is None:
-            raise FileNotFoundError(f"track {track.id!r} plays a recording that cannot be named")
-        chunk = load_mono_window(
-            placement.media,
-            start_sec=placement.src_start + (start - placement.tl_start),
-            duration_sec=end - start,
-            sample_rate=sample_rate,
-        )
-        at = round((start - lo) * sample_rate)
-        out[at : at + chunk.size] += chunk[: out.size - at]
-    return out
+    pairs = lane_clip_placements(project, track)
+    cells = lay_out(
+        [
+            Piece(
+                p.src_start,
+                p.src_end if math.isfinite(p.tl_end) else p.src_start + max(0.0, hi - p.tl_start),
+                p.tl_start,
+                p.tl_end,
+            )
+            for _, p in pairs
+        ],
+        sample_rate,
+    )
+    runs = [
+        SampleRun(p.media, cell.dest, cell.first, cell.count)
+        for (_, p), cell in zip(pairs, cells, strict=True)
+    ]
+    return read_samples(runs, round(lo * sample_rate), round((hi - lo) * sample_rate), sample_rate)
 
 
 def _frames_in(spans: list[tuple[float, float]], frames: int) -> np.ndarray:

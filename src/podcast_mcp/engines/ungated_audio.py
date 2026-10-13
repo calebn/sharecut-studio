@@ -6,6 +6,7 @@ import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     TimelineClipSpan,
@@ -84,18 +85,28 @@ def raw_samples_on_timeline(
             and round(float(span.source_end) * sample_rate) == source.shape[0]
         ):
             return source
-    timeline_end = max(span.timeline_end for span in spans)
+    order = sorted(range(len(spans)), key=lambda i: float(spans[i].timeline_start))
+    spans = [spans[i] for i in order]
+    paths = [paths[i] for i in order]
+    cells = lay_out(
+        [
+            Piece(
+                float(span.source_start),
+                float(span.source_end),
+                float(span.timeline_start),
+                float(span.timeline_end),
+            )
+            for span, path in zip(spans, paths, strict=True)
+        ],
+        sample_rate,
+    )
     layout = max(sources[path].shape[1:] for path in paths)
-    placed = np.zeros((max(0, round(float(timeline_end) * sample_rate)), *layout), dtype=np.float32)
-    for span, path in zip(spans, paths, strict=True):
+    placed = np.zeros((max(0, *(cell.stop for cell in cells)), *layout), dtype=np.float32)
+    for span, path, cell in zip(spans, paths, cells, strict=True):
         source = sources[path]
-        target_start = round(float(span.timeline_start) * sample_rate)
-        target_end = round(float(span.timeline_end) * sample_rate)
-        source_start = round(float(span.source_start) * sample_rate)
-        count = target_end - target_start
-        if target_start < 0 or source_start < 0 or source_start + count > source.shape[0]:
+        if cell.dest < 0 or cell.first < 0 or cell.first + cell.count > source.shape[0]:
             raise ValueError(f"clip {span.clip.id} source samples are unavailable")
-        placed[target_start:target_end] += source[source_start : source_start + count]
+        placed[cell.dest : cell.stop] += source[cell.first : cell.first + cell.count]
     return placed
 
 

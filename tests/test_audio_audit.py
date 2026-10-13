@@ -1179,7 +1179,7 @@ def test_rms_for_track_at_timeline_paths(sample_wav: Path, tmp_path: Path):
     assert raw_rms is not None
 
     with patch(
-        "podcast_mcp.edits.session_air.lane_placements",
+        "podcast_mcp.edits.session_air.lane_clip_placements",
         side_effect=RuntimeError("bad map"),
     ):
         assert aa._rms_for_track_at_timeline(project, "host", 0.0, 0.5) is None
