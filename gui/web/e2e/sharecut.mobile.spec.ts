@@ -517,7 +517,7 @@ test.describe("Inspector footer with a desktop coarse pointer", () => {
     expect(
       await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
     ).toBe(true);
-    await page.locator(".track-header-open").first().click();
+    await page.locator(".track-header-open").first().press("Enter");
     await expectInspectorFooterTouchTargets(page);
   });
 });
