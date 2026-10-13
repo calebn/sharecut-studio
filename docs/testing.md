@@ -1434,6 +1434,8 @@ test; other rows are whole tests.
 | a held nudge repeats, saves once, and one Undo restores it | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | a held nudge stops at a soft boundary with a cue; a fresh press goes past | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | pending and envelope strips: nudge rows, targets and axe (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
+| iPhone envelope Time field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| iPhone comment field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending and envelope strips: nudge rows, targets and axe (landscape-844) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: slid on, settled, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | chip: lifted at the origin, chip pressed again, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
