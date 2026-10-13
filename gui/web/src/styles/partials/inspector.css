@@ -105,6 +105,10 @@
   .modifier-footer-actions .ui-control {
     min-block-size: var(--touch-min);
   }
+
+  .modifier-footer-actions .ui-segmented {
+    block-size: auto;
+  }
 }
 
 html[data-shell="phone"] .pending-source-time-field,
@@ -113,6 +117,10 @@ html[data-shell="phone"] .pending-cut-suggestion .ui-control,
 html[data-shell="phone"] .clip-destructive-controls .ui-control,
 html[data-shell="phone"] .modifier-footer-actions .ui-control {
   min-block-size: var(--touch-min);
+}
+
+html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
+  block-size: auto;
 }
 
 .modifier-error {

@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
 import { exposeControl } from "./inspectorResponsiveEvidence";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 
@@ -202,6 +203,9 @@ test.describe("Pending inspector layout", () => {
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: fine)").matches),
+    ).toBe(true);
     await page.getByRole("button", { name: "Timeline" }).click();
     // The phone timeline opens the compact drawer; at full height it holds
     // the whole pending inspector.
@@ -225,6 +229,7 @@ test.describe("Pending inspector layout", () => {
       inspector.getByRole("group", { name: "Preview mode" }),
       [],
     );
+    await expectPreviewFooterTouchBounds(inspector);
   });
 
   test("inline review stays hit-testable and tall recovery scrolls outside the lane", async ({
