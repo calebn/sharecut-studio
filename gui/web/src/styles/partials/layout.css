@@ -27,11 +27,8 @@ html[data-shell] body {
  * layout or a banner never shifts another child. Layouts change only
  * --shell-main-row / --shell-tabs-row (responsive.css). */
 .daw-shell {
-  /* The main row keeps room for the ruler, a marker row and the inspector's
-   * own scroll; a short window or a banner takes the bottom panel's height
-   * first, so the panel never draws over the inspector's Approve and Reject. */
-  --shell-main-row: minmax(7.5rem, 1fr);
-  --shell-tabs-row: minmax(0, var(--tabs-height));
+  --shell-main-row: minmax(0, 1fr);
+  --shell-tabs-row: var(--tabs-height);
 
   display: grid;
   grid-template-areas:
@@ -57,6 +54,16 @@ html[data-shell] body {
   /* Size container for shell-local queries; do not put size containment on body
    * (that blocks resize/overflow and fights Home Cover scroll). */
   container: app / size;
+}
+
+/* Desktop: the main row keeps room for the ruler, a marker row and the
+ * inspector's own scroll; a short window or a banner takes the bottom panel's
+ * height first, so the panel never draws over the inspector's Approve and
+ * Reject. `:where` keeps the layouts' own rows (responsive.css) in charge. The
+ * touch shells size their sheets from `--tabs-height`, so they keep it whole. */
+:where(html[data-shell="desktop"]) .daw-shell {
+  --shell-main-row: minmax(7.5rem, 1fr);
+  --shell-tabs-row: minmax(0, var(--tabs-height));
 }
 
 .daw-shell > .daw-shell-banners {
