@@ -293,6 +293,42 @@ test("transport zones never overlap across desktop widths", async ({
           transport.getByRole("button", { name: "Menu", exact: true }),
         ).toBeInViewport();
       }
+      await page.setViewportSize({ width: 1564, height: 900 });
+      await transport
+        .getByRole("button", { name: "Maximize timeline", exact: true })
+        .click();
+      const restore = transport.getByRole("button", {
+        name: "Restore",
+        exact: true,
+      });
+      await expect(restore).toBeInViewport();
+      expect((await title.boundingBox())!.width).toBeGreaterThanOrEqual(32);
+      const intervals = await transport.evaluate((header) =>
+        [...header.querySelectorAll(".transport-zone")].map((zone) => {
+          const children = [...zone.children]
+            .map((child) => child.getBoundingClientRect())
+            .filter((rect) => rect.width > 0 && rect.height > 1);
+          return {
+            left: Math.min(...children.map((rect) => rect.left)),
+            right: Math.max(...children.map((rect) => rect.right)),
+          };
+        }),
+      );
+      for (let index = 1; index < intervals.length; index += 1) {
+        expect(intervals[index - 1].right).toBeLessThanOrEqual(
+          intervals[index].left,
+        );
+      }
+      await restore.click();
+      await expect(
+        transport.getByRole("button", {
+          name: "Maximize timeline",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        transport.getByRole("button", { name: "View", exact: true }),
+      ).toBeVisible();
     } finally {
       await context.close();
     }

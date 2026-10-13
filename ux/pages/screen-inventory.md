@@ -80,7 +80,7 @@ flowchart TB
 
 The overflow Menu panel opens below its trigger, flips above it when that side has more room, stays inside the visible screen on every shell, caps to the space on that side (`min(90dvh, var(--menu-available-height))`) and scrolls so **Commands and shortcuts** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
 
-**Collapsed when:** phone, tablet compact, measured bar width ≤1240px, or extra audio-error, audition-region, or recording status needs space. When Cut at playhead is available, the bar reserves another 44px before expanding. Desktop keeps its four editing controls; secondary status and audition details move into Menu.
+**Collapsed when:** phone, tablet compact, measured bar width ≤1240px, or extra importing, layout Restore, audio-error, audition-region, or recording status needs space. When Cut at playhead is available, the bar reserves another 44px before expanding. Desktop keeps its four editing controls; secondary status and audition details move into Menu.
 
 ```
 ┌─ ▶  12:34 / 58:39  [Cmt*] [Fit*] [⋯*] ─┐
