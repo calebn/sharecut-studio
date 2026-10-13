@@ -310,7 +310,7 @@ A busy `project_commit_lock` or `render_lock` raised by a tool is caught once, s
 
 ### GUI (Sharecut Studio)
 
-History tab **Undo** / **Redo**, Mod+Z / Mod+Shift+Z and the app toast's **Undo** submit document commands `UndoHistory` / `RedoHistory` via `POST /api/document/command` → `HistoryService` (same path as MCP/CLI), each with the expected head described in [§ Guarded undo and redo](#guarded-undo-and-redo-expected-head). Applied snapshots include lean `history.groups` (not cursor flags only), and the client marks history hydrated when those groups arrive, so the step list updates after comments, track rename/reorder, and other targeted patches without leaving the tab. See [session-sync.md](session-sync.md) and [daw-editing.md](daw-editing.md).
+Desktop transport and History tab **Undo** / **Redo**, Mod+Z / Mod+Shift+Z and the app toast's **Undo** submit document commands `UndoHistory` / `RedoHistory` via `POST /api/document/command` → `HistoryService` (same path as MCP/CLI), each with the expected head described in [§ Guarded undo and redo](#guarded-undo-and-redo-expected-head). Applied snapshots include lean `history.groups` (not cursor flags only), and the client marks history hydrated when those groups arrive, so the step list updates after comments, track rename/reorder, and other targeted patches without leaving the tab. See [session-sync.md](session-sync.md) and [daw-editing.md](daw-editing.md).
 
 See [gui-integration.md](gui-integration.md) for GUI-oriented undo and rerender guidance.
 

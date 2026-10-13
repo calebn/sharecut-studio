@@ -74,6 +74,11 @@
     gap: var(--space-5);
   }
 
+  .transport:not(.transport--collapsed) .transport-zone,
+  .transport:not(.transport--collapsed) .transport-primary-actions {
+    gap: var(--space-2);
+  }
+
   .transport:not(.transport--collapsed) .transport-zone--start {
     flex: 0 1 auto;
   }
@@ -133,6 +138,43 @@
   align-items: center;
   gap: var(--space-3);
   flex: 0 0 auto;
+}
+
+.transport-edit-controls {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--space-3);
+}
+
+.transport-edit-controls .compact-history-controls {
+  flex-wrap: nowrap;
+}
+
+.transport-edit-controls .editing-tool-rail-icon {
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  flex: none;
+  color: var(--color-transport-muted);
+  border-color: var(--color-transport-control-border);
+  background: var(--color-transport-control);
+}
+
+@media (pointer: fine) {
+  .transport-edit-controls .editing-tool-rail-icon {
+    inline-size: var(--control-height);
+    block-size: var(--control-height);
+    min-inline-size: var(--control-height);
+    min-block-size: var(--control-height);
+  }
+}
+
+.transport-edit-controls .compact-history-caption {
+  color: var(--color-transport-text);
+}
+
+.transport-edit-controls .editing-tool-rail-icon:focus-visible {
+  outline-color: var(--color-transport-text);
 }
 
 .transport--collapsed .transport-primary-actions {
@@ -557,6 +599,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .transport-edit-controls
+    .editing-tool-rail-icon:hover:not([aria-disabled="true"]),
   .transport-primary-actions
     > .ui-control:hover:not(:disabled, [aria-disabled="true"]),
   :is(.transport, .listen-hero) .transport-more-btn:hover:not(:disabled) {

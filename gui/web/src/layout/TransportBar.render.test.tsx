@@ -58,6 +58,15 @@ describe("TransportBar renders", () => {
     expect(container.querySelector(".solo-chip")).toBeNull();
   });
 
+  it("changes timeline zoom through the visible desktop controls", async () => {
+    useDawStore.setState({ zoomPxPerSec: 20 });
+    render(<TransportBar />);
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(useDawStore.getState().zoomPxPerSec).toBe(25);
+    await userEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(useDawStore.getState().zoomPxPerSec).toBe(20);
+  });
+
   it("does not re-render on playhead ticks; the timecode leaf still updates", () => {
     const onRender = vi.fn();
     render(
