@@ -121,7 +121,9 @@ describe("App styles", () => {
     const words = readFileSync(
       join(here, "styles/partials/layout.css"),
       "utf8",
-    ).match(/@media \(pointer: coarse\) \{\s*\.range-word-step \{([^}]*)\}/);
+    ).match(
+      /@media \(pointer: coarse\) \{\s*\.range-word-step,\s*\.range-word-ignore \{([^}]*)\}/,
+    );
     expect(words).toBeTruthy();
     expect(words![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
   });
@@ -158,5 +160,19 @@ describe("App styles", () => {
     const body = rule![1] ?? "";
     expect(body).toMatch(/box-shadow:\s*inset/);
     expect(body).not.toMatch(/outline-offset/);
+  });
+
+  it("keeps iOS Safari's native selection off transcript words and Select-mode turns with the prefixed property", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
+    for (const selector of [
+      ".utterance-word,\n  .comment-card-main",
+      '[data-transcript-intent="select"] .utterance-turn',
+    ]) {
+      const at = css.indexOf(`${selector} {`);
+      expect(at).toBeGreaterThan(-1);
+      const body = css.slice(at, css.indexOf("}", at));
+      expect(body).toMatch(/-webkit-user-select:\s*none/);
+    }
   });
 });
