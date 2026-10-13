@@ -152,7 +152,7 @@ fail closed without repair or source replacement. Only an owned parent directory
 POSIX mode may tighten to `0700` after ACL inspection. A main, WAL, SHM, or journal
 file with group or other access fails closed and is never repaired.
 
-On POSIX and Windows hosts a refusal is the coded error `registry_not_private`: the CLI, owner MCP tools and host GUI
+On POSIX and Windows hosts a privacy refusal is the coded error `registry_not_private`: the CLI, owner MCP tools and host GUI
 routes report one line that names the offending path and why. A share guest never sees that line:
 the error holds a second, fixed message with no path and no command ("The host's sharing
 setup needs attention; ask the host to check it.", `util/registry_privacy_error.py`), and
@@ -200,6 +200,15 @@ changing trusted storage, or revoke previously obtained handles. Treat this data
 as **capability-adjacent**, because tokens are capabilities.
 
 ### Backup / restore
+
+Registry backup path refusals use `registry_backup_invalid_path` for ambiguous
+Windows anchors or filenames. Backup identity guards and POSIX registry identity
+checks use `registry_backup_integrity_changed`. Existing Windows ancestry replacement
+refusals keep `registry_not_private`. The host sees the guarded path,
+what changed and the next action. Cleanup retains substituted entries for inspection.
+If a coded failure occurs after publication, the host message says where the backup
+was published; inspect that path before retrying. Guests receive the same fixed
+sharing-setup message as other registry refusals, without host paths or fixes.
 
 ```bash
 podcast review backup-registry

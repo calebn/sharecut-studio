@@ -1,4 +1,4 @@
-"""The refusal for a share registry path that is not private to the host user.
+"""The refusal for a share registry path whose privacy or identity cannot be trusted.
 
 ``util/registry_backup_posix.py`` and ``util/registry_backup_windows.py`` raise it at the
 boundary, where the offending path is known. It never carries an account identifier (a SID).
@@ -43,6 +43,14 @@ class RegistryPrivacyReason(StrEnum):
     WINDOWS_ACL = "windows_acl"
     PARENT_ACL = "parent_acl"
     PATH_CHANGED = "path_changed"
+    AMBIGUOUS_ANCHOR = "ambiguous_anchor"
+    INVALID_BACKUP_NAME = "invalid_backup_name"
+    DIRECTORY_CHANGED = "directory_changed"
+    REGISTRY_FILE_CHANGED = "registry_file_changed"
+    BACKUP_FILE_CHANGED = "backup_file_changed"
+    SNAPSHOT_CHANGED = "snapshot_changed"
+    CLEANUP_FILE_SUBSTITUTED = "cleanup_file_substituted"
+    CLEANUP_WORKSPACE_SUBSTITUTED = "cleanup_workspace_substituted"
 
 
 _PROBLEM = {
@@ -62,6 +70,14 @@ _PROBLEM = {
     RegistryPrivacyReason.WINDOWS_ACL: "registry path {path} has permissions that are not limited to your account, SYSTEM and Administrators",
     RegistryPrivacyReason.PARENT_ACL: "folder {path} above the registry can be changed by another account",
     RegistryPrivacyReason.PATH_CHANGED: "registry path {path} was replaced while it was being checked",
+    RegistryPrivacyReason.AMBIGUOUS_ANCHOR: "registry path {path} has an ambiguous Windows anchor",
+    RegistryPrivacyReason.INVALID_BACKUP_NAME: "backup path {path} does not denote an unambiguous Windows regular file",
+    RegistryPrivacyReason.DIRECTORY_CHANGED: "registry directory {path} changed during access",
+    RegistryPrivacyReason.REGISTRY_FILE_CHANGED: "registry file {path} changed during access",
+    RegistryPrivacyReason.BACKUP_FILE_CHANGED: "backup file {path} changed identity or regular-file type",
+    RegistryPrivacyReason.SNAPSHOT_CHANGED: "backup snapshot {path} changed before streaming",
+    RegistryPrivacyReason.CLEANUP_FILE_SUBSTITUTED: "cleanup refused substituted backup file {path}",
+    RegistryPrivacyReason.CLEANUP_WORKSPACE_SUBSTITUTED: "cleanup refused substituted backup workspace {path}",
 }
 
 _FIX = {
@@ -84,16 +100,39 @@ _FIX = {
     RegistryPrivacyReason.PARENT_ACL: "move the registry under a folder you own, or " + _PIN,
     RegistryPrivacyReason.PATH_CHANGED: "try again, and if it keeps happening, find what is replacing it, or "
     + _PIN,
+    RegistryPrivacyReason.AMBIGUOUS_ANCHOR: "choose a fully anchored local Windows path or an ordinary relative path",
+    RegistryPrivacyReason.INVALID_BACKUP_NAME: "choose a plain filename without reserved devices, streams, forbidden characters, trailing dot or space",
+    RegistryPrivacyReason.DIRECTORY_CHANGED: "stop processes replacing this directory, then retry",
+    RegistryPrivacyReason.REGISTRY_FILE_CHANGED: "stop processes replacing this registry file, then retry",
+    RegistryPrivacyReason.BACKUP_FILE_CHANGED: "stop processes replacing this backup file, then retry",
+    RegistryPrivacyReason.SNAPSHOT_CHANGED: "stop processes replacing this snapshot, then retry the backup",
+    RegistryPrivacyReason.CLEANUP_FILE_SUBSTITUTED: "inspect the retained file and stop replacements before retrying",
+    RegistryPrivacyReason.CLEANUP_WORKSPACE_SUBSTITUTED: "inspect the retained workspace and stop replacements before retrying",
+}
+
+_CODE = {
+    RegistryPrivacyReason.AMBIGUOUS_ANCHOR: "registry_backup_invalid_path",
+    RegistryPrivacyReason.INVALID_BACKUP_NAME: "registry_backup_invalid_path",
+    RegistryPrivacyReason.DIRECTORY_CHANGED: "registry_backup_integrity_changed",
+    RegistryPrivacyReason.REGISTRY_FILE_CHANGED: "registry_backup_integrity_changed",
+    RegistryPrivacyReason.BACKUP_FILE_CHANGED: "registry_backup_integrity_changed",
+    RegistryPrivacyReason.SNAPSHOT_CHANGED: "registry_backup_integrity_changed",
+    RegistryPrivacyReason.CLEANUP_FILE_SUBSTITUTED: "registry_backup_integrity_changed",
+    RegistryPrivacyReason.CLEANUP_WORKSPACE_SUBSTITUTED: "registry_backup_integrity_changed",
 }
 
 
 class RegistryPrivacyError(HostSetupError):
-    """A registry file, folder or ancestor is not private to the host user."""
+    """A registry path is not private or its trusted identity changed."""
 
     code = REGISTRY_NOT_PRIVATE_CODE
 
     def __init__(
-        self, path: Path, reason: RegistryPrivacyReason, *, mode: int | None = None
+        self,
+        path: Path | PureWindowsPath,
+        reason: RegistryPrivacyReason,
+        *,
+        mode: int | None = None,
     ) -> None:
         shown = f'"{path}"' if isinstance(path, PureWindowsPath) else shlex.quote(str(path))
         fields = {
@@ -104,5 +143,7 @@ class RegistryPrivacyError(HostSetupError):
         self.reason = reason
         self.fix = _FIX[reason].format(**fields)
         super().__init__(
-            f"{_PROBLEM[reason].format(**fields)}; {self.fix}", guest_message=GUEST_MESSAGE
+            f"{_PROBLEM[reason].format(**fields)}; {self.fix}",
+            code=_CODE.get(reason, REGISTRY_NOT_PRIVATE_CODE),
+            guest_message=GUEST_MESSAGE,
         )

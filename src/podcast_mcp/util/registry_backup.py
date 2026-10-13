@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import os
+import shlex
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
 
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.registry_backup_posix import BackupDirectory as PosixDirectory
 from podcast_mcp.util.registry_backup_windows import BackupDirectory as WindowsDirectory
 from podcast_mcp.util.registry_backup_windows import _validate_name as _validate_windows_name
 from podcast_mcp.util.registry_cleanup import cleanup as _cleanup
+from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
 from podcast_mcp.util.sqlite_tx import SQLITE_SIDECARS
 
 _COPY_BUFFER_BYTES = 1024 * 1024
@@ -21,9 +24,9 @@ def _anchor_path(path: str | os.PathLike[str]) -> Path:
     if os.name == "nt":
         windows_path = PureWindowsPath(raw)
         if bool(windows_path.drive) != bool(windows_path.root):
-            raise PermissionError("registry paths must use an unambiguous Windows anchor")
+            raise RegistryPrivacyError(windows_path, RegistryPrivacyReason.AMBIGUOUS_ANCHOR)
         for component in windows_path.parts[1:] if windows_path.anchor else windows_path.parts:
-            _validate_windows_name(component)
+            _validate_windows_name(component, path=windows_path)
     requested = Path(raw)
     return requested if requested.is_absolute() else Path.cwd() / requested
 
@@ -69,33 +72,49 @@ def publish_registry_backup(
     destination = _anchor_path(destination)
     if any(destination == Path(str(source) + suffix) for suffix in ("", *_SQLITE_SIDECARS)):
         raise FileExistsError("backup destination must be outside the live registry namespace")
-    with _closing_directory(destination.parent) as output:
-        _require_unused(output, destination.name)
-        with _closing_directory(source.parent) as host:
-            workspace_name = f".registry-snapshot-{uuid.uuid4().hex}"
-            with host.workspace(workspace_name) as private:
-                snapshot_name = "registry.sqlite"
-                with private.created_file(snapshot_name) as disk_snapshot:
-                    disk_snapshot.close_descriptor()
-                    snapshot(disk_snapshot.path)
-                    private.verify_file(snapshot_name, disk_snapshot.identity)
-                    if any(private.exists(snapshot_name + suffix) for suffix in _SQLITE_SIDECARS):
-                        raise OSError("registry snapshot still depends on SQLite sidecars")
-                    output.verify()
-                    _require_unused(output, destination.name)
-                    with private.snapshot_reader(snapshot_name, disk_snapshot.identity) as read_fd:
-                        stage_name = f".{destination.name}.{uuid.uuid4().hex}.partial"
-                        with output.created_file(stage_name) as stage:
-                            _copy_snapshot(read_fd, stage.fd)
-                            os.fsync(stage.fd)
-                            output.verify_file(stage_name, stage.identity)
-                            _require_unused(output, destination.name)
-                            output.publish(stage_name, destination.name, stage.identity, stage.fd)
-                            try:
-                                output.verify_file(destination.name, stage.identity)
-                                output.check_published_directory()
-                            except OSError as exc:
-                                raise OSError(
-                                    "registry backup was published, but directory durability could not be confirmed"
-                                ) from exc
+    published = False
+    try:
+        with _closing_directory(destination.parent) as output:
+            _require_unused(output, destination.name)
+            with _closing_directory(source.parent) as host:
+                workspace_name = f".registry-snapshot-{uuid.uuid4().hex}"
+                with host.workspace(workspace_name) as private:
+                    snapshot_name = "registry.sqlite"
+                    with private.created_file(snapshot_name) as disk_snapshot:
+                        disk_snapshot.close_descriptor()
+                        snapshot(disk_snapshot.path)
+                        private.verify_file(snapshot_name, disk_snapshot.identity)
+                        if any(
+                            private.exists(snapshot_name + suffix) for suffix in _SQLITE_SIDECARS
+                        ):
+                            raise OSError("registry snapshot still depends on SQLite sidecars")
+                        output.verify()
+                        _require_unused(output, destination.name)
+                        with private.snapshot_reader(
+                            snapshot_name, disk_snapshot.identity
+                        ) as read_fd:
+                            stage_name = f".{destination.name}.{uuid.uuid4().hex}.partial"
+                            with output.created_file(stage_name) as stage:
+                                _copy_snapshot(read_fd, stage.fd)
+                                os.fsync(stage.fd)
+                                output.verify_file(stage_name, stage.identity)
+                                _require_unused(output, destination.name)
+                                output.publish(
+                                    stage_name, destination.name, stage.identity, stage.fd
+                                )
+                                published = True
+                                try:
+                                    output.verify_file(destination.name, stage.identity)
+                                    output.check_published_directory()
+                                except CodedError:
+                                    raise
+                                except OSError as exc:
+                                    raise OSError(
+                                        "registry backup was published, but directory durability could not be confirmed"
+                                    ) from exc
+    except CodedError as exc:
+        if published:
+            shown = f'"{destination}"' if os.name == "nt" else shlex.quote(str(destination))
+            exc.args = (f"registry backup was published at {shown}; {exc}",)
+        raise
     return destination

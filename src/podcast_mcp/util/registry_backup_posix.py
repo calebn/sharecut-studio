@@ -137,7 +137,9 @@ def _verify_chain(chain: list[tuple[int, str | None]], path: Path) -> None:
         if name is not None:
             current = os.stat(name, dir_fd=chain[index - 1][0], follow_symlinks=False)
             if identity(current) != identity(os.fstat(fd)):
-                raise PermissionError("registry directory changed during access")
+                raise RegistryPrivacyError(
+                    Path(*path.parts[: index + 1]), RegistryPrivacyReason.DIRECTORY_CHANGED
+                )
 
 
 def _check_file_state(info: os.stat_result, path: Path, acl_target: int | str) -> None:
@@ -165,16 +167,16 @@ def _check_unopened_file(path: Path, parent: int, name: str) -> None:
     before = os.stat(name, dir_fd=parent, follow_symlinks=False)
     _check_file_state(before, path / name, str(path / name))
     if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != identity(before):
-        raise PermissionError("registry file changed during access")
+        raise RegistryPrivacyError(path / name, RegistryPrivacyReason.REGISTRY_FILE_CHANGED)
 
 
-def _remove_file(parent: int, name: str, expected: Identity) -> None:
+def _remove_file(parent: int, name: str, expected: Identity, *, path: Path) -> None:
     try:
         current = os.stat(name, dir_fd=parent, follow_symlinks=False)
     except FileNotFoundError:
         return
     if identity(current) != expected:
-        raise PermissionError("refusing to remove a substituted backup file")
+        raise RegistryPrivacyError(path / name, RegistryPrivacyReason.CLEANUP_FILE_SUBSTITUTED)
     os.unlink(name, dir_fd=parent)
 
 
@@ -264,7 +266,9 @@ def registry_scope(
     try:
         verify()
         if create:
-            with _new_file(path, parent, names[0], partial(_remove_file, parent)) as created:
+            with _new_file(
+                path, parent, names[0], partial(_remove_file, parent, path=path)
+            ) as created:
                 if created.acquire(allow_existing=True):
                     _check_file(created.fd, path=created.path)
                     allow_missing_main = False
@@ -336,7 +340,9 @@ class BackupDirectory:
         try:
             info = os.fstat(fd)
             if identity(info) != expected or not stat.S_ISREG(info.st_mode):
-                raise PermissionError("backup file identity changed")
+                raise RegistryPrivacyError(
+                    self.path / name, RegistryPrivacyReason.BACKUP_FILE_CHANGED
+                )
             _check_file(fd, path=self.path / name)
         finally:
             cleanup([partial(os.close, fd)])
@@ -347,7 +353,7 @@ class BackupDirectory:
         fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=self.fd)
         try:
             if identity(os.fstat(fd)) != expected:
-                raise PermissionError("backup snapshot changed before streaming")
+                raise RegistryPrivacyError(self.path / name, RegistryPrivacyReason.SNAPSHOT_CHANGED)
             yield fd
         finally:
             cleanup([partial(os.close, fd)])
@@ -360,12 +366,14 @@ class BackupDirectory:
         os.fsync(self.fd)
 
     def remove_file(self, name: str, expected: Identity) -> None:
-        _remove_file(self.fd, name, expected)
+        _remove_file(self.fd, name, expected, path=self.path)
 
     def remove_workspace(self, name: str, expected: Identity) -> None:
         current = os.stat(name, dir_fd=self.fd, follow_symlinks=False)
         if identity(current) != expected or not stat.S_ISDIR(current.st_mode):
-            raise PermissionError("refusing to remove a substituted backup workspace")
+            raise RegistryPrivacyError(
+                self.path / name, RegistryPrivacyReason.CLEANUP_WORKSPACE_SUBSTITUTED
+            )
         os.rmdir(name, dir_fd=self.fd)
 
     def close(self) -> None:
