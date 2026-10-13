@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
@@ -110,6 +110,31 @@ describe("StudioShell tablet peek", () => {
       trackId: "guest",
     });
     expect(useDawStore.getState().activeTab).toBe("transcript");
+  });
+
+  it("hosts the range actions in the sheet body, not in a bar behind its scrim", async () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().setSelection({
+        kind: "range",
+        target: {
+          kind: "exact_range",
+          intervals: [{ start: 4, end: 9 }],
+          track_ids: ["guest"],
+          clips: [],
+          media_seals: {},
+        },
+      });
+    });
+    const sheet = await screen.findByRole("dialog");
+    const regions = screen.getAllByRole("region", { name: "Range actions" });
+    expect(regions).toHaveLength(1);
+    expect(sheet.contains(regions[0]!)).toBe(true);
+    expect(within(regions[0]!).getByRole("button", { name: "Clear range" }));
   });
 
   it("keeps the transport in every layout with a Restore chip and no Focus buttons", () => {

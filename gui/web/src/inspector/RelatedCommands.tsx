@@ -2,7 +2,6 @@ import { commandById } from "../commands/catalog";
 import { buildCommandContext } from "../commands/context";
 import { canApplyPass12, canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { RangeActions } from "../timeline/RangeActions";
 import type { Selection } from "../types/project";
 import { CommandButton } from "../ui";
 import {
@@ -43,8 +42,6 @@ export function RelatedCommands({ selection }: Props) {
     canIngestMedia: canReorder,
   });
 
-  if (selection?.kind === "range" || selection?.kind === "transcriptRange")
-    return <RangeActions sheet />;
   if (selection == null || (related.length === 0 && more.length === 0)) {
     return null;
   }

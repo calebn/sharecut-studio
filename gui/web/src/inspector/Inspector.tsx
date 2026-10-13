@@ -1,5 +1,7 @@
+import { isRangeSelection } from "../edit/rangeSelection";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { useDaw } from "../state/useDaw";
+import { RangeActions } from "../timeline/RangeActions";
 import { selectUnmappedPending } from "../utils/edits";
 import { AppliedEditInspector } from "./views/AppliedEditInspector";
 import { ChapterInspector } from "./views/ChapterInspector";
@@ -50,9 +52,9 @@ export function Inspector() {
     );
   }
 
+  if (isRangeSelection(selection)) return <RangeActions sheet />;
+
   switch (selection.kind) {
-    case "range":
-      return null;
     case "clip": {
       const clip = Object.values(project.clips.tracks)
         .flat()
