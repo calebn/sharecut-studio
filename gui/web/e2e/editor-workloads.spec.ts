@@ -4,6 +4,7 @@ import { expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { rulerWidthPx } from "./deepZoom";
 import {
+  historyHead,
   postDocumentCommand,
   postHistoryMove,
   waiveRefineGate,
@@ -18,6 +19,7 @@ import {
 import { replayPipelineProgress } from "./editorProgress";
 import { workloadResources } from "./editorWorkloadResources";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
+import { begin, draw } from "./lifecycleAudit";
 import {
   NATIVE_PROGRESS_LIMITS,
   NATIVE_PROGRESS_PROTOCOL,
@@ -415,6 +417,179 @@ async function playback(page: Page, recorder: Recorder) {
   await recorder.memory("after-playback");
 }
 
+const SEEK_TARGET_FRACTION = 0.25;
+const TRIM_DRAG_PX = 20;
+
+async function seek(page: Page, recorder: Recorder) {
+  const raw = JSON.parse(fs.readFileSync(e2eProjectPath, "utf8"));
+  const durationSec: number = raw.timeline.duration_sec;
+  const targetSec = durationSec * SEEK_TARGET_FRACTION;
+  const slider = page.getByRole("slider", { name: "Timeline position" });
+  await slider.press("Home");
+  await expect(slider).toHaveAttribute("aria-valuenow", "0");
+  const widthPx = (await slider.boundingBox())!.width;
+  const tolerancePx = 1;
+  const toleranceSec = (tolerancePx * durationSec) / widthPx;
+  const clock = page.locator("header.transport .timecode-current");
+  await recorder.memory("before-seek");
+  await recorder.measure(
+    {
+      id: "ruler-seek",
+      phase: "warm",
+      input: `ruler click at ${SEEK_TARGET_FRACTION} of the ${durationSec}s session (${targetSec}s), from 0s; driver time includes the post-click settle`,
+    },
+    async () => {
+      const beforeSeconds = Number(await slider.getAttribute("aria-valuenow"));
+      await slider.click({
+        position: { x: (widthPx * targetSec) / durationSec, y: 10 },
+      });
+      await expect
+        .poll(async () => Number(await slider.getAttribute("aria-valuenow")))
+        .toBeGreaterThan(beforeSeconds);
+      const afterSeconds = Number(await slider.getAttribute("aria-valuenow"));
+      expect(Math.abs(afterSeconds - targetSec)).toBeLessThanOrEqual(
+        toleranceSec,
+      );
+      const clockSec = parseTimecodeSec(await clock.innerText());
+      expect(Math.abs(clockSec - afterSeconds)).toBeLessThanOrEqual(0.5);
+      return {
+        kind: "seek",
+        beforeSeconds,
+        afterSeconds,
+        targetSeconds: targetSec,
+        toleranceSeconds: toleranceSec,
+      };
+    },
+  );
+  await recorder.memory("after-seek");
+}
+
+async function trim(page: Page, recorder: Recorder) {
+  await waiveRefineGate(page, "disposable profiling fixture");
+  const preparation = await zoomFirstClip(page);
+  recorder.report.protocol.preparation = {
+    kind: "native-timeline-zoom",
+    minimumClipWidthPx: preparation.minimumClipWidthPx,
+    zoomKeys: preparation.zoomKeys,
+    beforeScalePxPerSec: preparation.beforeScalePxPerSec,
+    afterScalePxPerSec: preparation.afterScalePxPerSec,
+  };
+  const block = page.locator(".lane-row .clip-block").first();
+  const id = (await block.getAttribute("data-clip-id"))!;
+  await block.locator(".clip-hit").click();
+  await expect(block.locator(".clip-hit")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const handle = block.locator(".trim-handle.in");
+  const before = await fullProject(page);
+  const headBefore = await historyHead(page);
+  const commands: CapturedCommand[] = [];
+  page.on("request", (request) => {
+    if (
+      request.url().includes("/api/document/command") &&
+      request.method() === "POST" &&
+      request.postDataJSON()?.type === "TrimClipEdge"
+    )
+      commands.push(request.postDataJSON());
+  });
+  await recorder.memory("before-trim");
+  await recorder.measure(
+    {
+      id: "trim-cancel",
+      phase: "warm",
+      input: `trusted pointer on the selected clip's in handle; 4 moves over ${TRIM_DRAG_PX}px; Escape then release; nothing may be saved`,
+    },
+    async () => {
+      const origin = await draw(block);
+      const point = await begin(page, handle, TRIM_DRAG_PX);
+      await expect
+        .poll(async () => (await draw(block)).width)
+        .not.toBe(origin.width);
+      await page.keyboard.press("Escape");
+      await page.mouse.move(point.x + 32, point.y);
+      await page.mouse.up();
+      await expect(block.locator(".clip-trim-ghost")).toHaveCount(0);
+      expect(commands).toHaveLength(0);
+      expect((await fullProject(page)).clips).toEqual(before.clips);
+      expect(await historyHead(page)).toBe(headBefore);
+      return {
+        kind: "trim-cancel",
+        id,
+        commandCount: 0,
+        savedClipsUnchanged: true,
+        historyHeadUnchanged: true,
+      };
+    },
+  );
+  const save = await recorder.measure(
+    {
+      id: "trim-save",
+      phase: "warm",
+      input: `trusted pointer on the selected clip's in handle; 4 moves over ${TRIM_DRAG_PX}px; release; durable TrimClipEdge (confirming Cut anyway when the host asks); exact Undo restore outside the window`,
+    },
+    async () => {
+      await begin(page, handle, TRIM_DRAG_PX);
+      const trimResponse = () =>
+        page.waitForResponse(
+          (r) =>
+            r.url().includes("/api/document/command") &&
+            r.request().postDataJSON()?.type === "TrimClipEdge",
+        );
+      const first = trimResponse();
+      await page.mouse.up();
+      expect((await first).ok()).toBe(true);
+      const cutAnyway = page.getByRole("button", { name: "Cut anyway" });
+      const askedToCutSpeech = await cutAnyway.waitFor({ timeout: 2000 }).then(
+        () => true,
+        () => false,
+      );
+      if (askedToCutSpeech) {
+        const second = trimResponse();
+        await cutAnyway.click();
+        expect((await second).ok()).toBe(true);
+      }
+      expect(commands).toHaveLength(askedToCutSpeech ? 2 : 1);
+      const sourceSec = (
+        commands.at(-1)!.payload as unknown as { source_sec: number }
+      ).source_sec;
+      const [clipBefore] = geometry(before, [id]);
+      await expect
+        .poll(
+          async () => geometry(await fullProject(page), [id])[0]!.sourceStart,
+        )
+        .toBeCloseTo(sourceSec, 6);
+      const [clipAfter] = geometry(await fullProject(page), [id]);
+      expect(clipAfter!.sourceStart).toBeGreaterThan(clipBefore!.sourceStart);
+      expect(clipAfter!.sourceEnd).toBe(clipBefore!.sourceEnd);
+      return {
+        kind: "drag-save",
+        target: "trim-edge",
+        commandType: "TrimClipEdge",
+        commandCount: commands.length,
+        confirmedCutSpeech: askedToCutSpeech,
+        before: [clipBefore!],
+        after: [clipAfter!],
+        restoration: "pending",
+      };
+    },
+  );
+  await postHistoryMove(page, CLIENT, "UndoHistory");
+  const restored = (await fullProject(page)).clips;
+  expect(restored).toEqual(before.clips);
+  expect(await historyHead(page)).toBe(headBefore);
+  if (
+    save.result.status === "completed" &&
+    save.result.observation.kind === "drag-save"
+  )
+    save.result.observation.restoration = "verified";
+  await recorder.attachJson("trim-exact-undo.json", {
+    before: before.clips,
+    restored,
+  });
+  await recorder.memory("after-trim-restore");
+}
+
 async function prepareRealProgress(page: Page) {
   await page.getByRole("button", { name: "Pipeline", exact: true }).click();
   await page
@@ -715,18 +890,27 @@ test.describe("remaining editor workloads (opt-in)", () => {
       process.env.DAW_PROFILE_NATIVE_OBSERVER,
       process.env.DAW_PROFILE_NATIVE_MOTION,
     );
-    if (scene === "progress-reduced" || nativeSettings?.motion === "reduce")
+    if (
+      scene === "progress-reduced" ||
+      scene === "seek" ||
+      scene === "trim" ||
+      nativeSettings?.motion === "reduce"
+    )
       await page.emulateMedia({ reducedMotion: "reduce" });
     const required =
       scene === "clip"
         ? ["clip-drag-preview", "clip-drag-save"]
         : scene === "boundary"
           ? ["boundary-drag-preview", "boundary-drag-save"]
-          : scene === "progress-real"
-            ? ["real-progress"]
-            : scene?.startsWith("progress-")
-              ? ["synthetic-progress"]
-              : [scene!];
+          : scene === "seek"
+            ? ["ruler-seek"]
+            : scene === "trim"
+              ? ["trim-cancel", "trim-save"]
+              : scene === "progress-real"
+                ? ["real-progress"]
+                : scene?.startsWith("progress-")
+                  ? ["synthetic-progress"]
+                  : [scene!];
     const resources = await workloadResources(
       e2eProjectPath,
       scene === "cold-waveform",
@@ -829,6 +1013,8 @@ test.describe("remaining editor workloads (opt-in)", () => {
         if (scene === "clip") await clipDrag(page, recorder);
         else if (scene === "boundary") await boundaryDrag(page, recorder);
         else if (scene === "playback") await playback(page, recorder);
+        else if (scene === "seek") await seek(page, recorder);
+        else if (scene === "trim") await trim(page, recorder);
         else if (scene === "progress-real")
           await nativeProgressDiagnostic(page, recorder, nativeSettings!);
         else if (scene?.startsWith("progress-")) {

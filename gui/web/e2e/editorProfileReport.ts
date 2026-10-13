@@ -37,7 +37,13 @@ export type WorkloadObservation =
       beforeVisibleClipIds: string[];
       afterVisibleClipIds: string[];
     }
-  | { kind: "seek"; beforeSeconds: number; afterSeconds: number }
+  | {
+      kind: "seek";
+      beforeSeconds: number;
+      afterSeconds: number;
+      targetSeconds?: number;
+      toleranceSeconds?: number;
+    }
   | { kind: "zoom"; beforeScale: number; afterScale: number }
   | {
       kind: "drag-preview";
@@ -48,6 +54,13 @@ export type WorkloadObservation =
       commandCount: 0;
     }
   | {
+      kind: "trim-cancel";
+      id: string;
+      commandCount: 0;
+      savedClipsUnchanged: true;
+      historyHeadUnchanged: true;
+    }
+  | {
       kind: "boundary-preview";
       id: string;
       deltasSec: number[];
@@ -56,9 +69,10 @@ export type WorkloadObservation =
     }
   | {
       kind: "drag-save";
-      target: "clip" | "boundary";
+      target: "clip" | "boundary" | "trim-edge";
       commandType: string;
-      commandCount: 1;
+      commandCount: number;
+      confirmedCutSpeech?: boolean;
       before: ClipGeometry[];
       after: ClipGeometry[];
       restoration: "pending" | "verified";
