@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -36,6 +37,7 @@ GUI_PATTERNS = [
     "deploy/brand/**",
     "tests/fixtures/aligned_dialogue/**",
     "tests/fixtures/sharecut_ux_demo/**",
+    "tests/fixtures/document_delta/**",
     "scripts/ci_plan.py",
     "scripts/docs_sync.py",
     "scripts/export_timeline_zoom.py",
@@ -43,11 +45,13 @@ GUI_PATTERNS = [
     "scripts/ux_demo_prepare_shares.py",
     "docs/daw-shortcuts.md",
     "ux/pages/shortcuts.md",
+    "config/distribution.dev.json",
     ".github/workflows/test.yml",
     ".github/actions/**",
     "pyproject.toml",
     "uv.lock",
     ".nvmrc",
+    ".agents/defaults/**",
 ]
 
 
@@ -61,10 +65,7 @@ def test_gui_path_set_is_pinned() -> None:
 
 
 def test_every_tracked_path_is_classified_by_a_rule() -> None:
-    tracked = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files"], capture_output=True, text=True, check=True
-    ).stdout.splitlines()
-    unclassified = [path for path in tracked if cp.rule_for(path) is None]
+    unclassified = [path for path in _tracked() if cp.rule_for(path) is None]
     assert unclassified == [], "classify these in scripts/ci_plan.py PATH_RULES"
 
 
@@ -99,15 +100,22 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
 @pytest.mark.parametrize(
     ("changed", "gui", "pytest_scope", "e2e"),
     [
-        (["docs/setup.md", "README.md"], False, "full", []),
+        (["docs/setup.md", "README.md"], False, "docs", []),
+        (["ux/pages/brand.md", "AGENTS.md", "ROADMAP.md"], False, "docs", []),
+        (["docs-site/index.html", ".agents/skills/podcast-setup/SKILL.md"], False, "docs", []),
+        (["docs/setup.md", "src/podcast_mcp/edits/cuts.py"], False, "full", []),
+        ([".agents/defaults/pipeline.yaml"], True, "full", PR_E2E),
+        ([".agents/rules/gui-styling.md"], False, "full", []),
+        (["config/distribution.dev.json"], True, "full", PR_E2E),
+        (["tests/fixtures/document_delta/insert.json"], True, "full", PR_E2E),
         (["src/podcast_mcp/engines/bleed_gate.py", "tests/test_bleed_gate.py"], False, "full", []),
         (["src/podcast_mcp/edits/cuts.py"], False, "full", []),
         (["gui/web/src/App.tsx", "gui/web/e2e/recordRoom.ts"], True, "web", PR_E2E),
         (["gui/web/src/App.tsx", "docs/gui-integration.md"], True, "full", PR_E2E),
+        (["docs/daw-shortcuts.md"], True, "docs", PR_E2E),
         (["src/podcast_mcp/services/play.py"], True, "full", PR_E2E),
         (["src/podcast_mcp/project_io.py"], True, "full", PR_E2E),
         (["contracts/timeline-zoom.json"], True, "full", PR_E2E),
-        (["docs/daw-shortcuts.md"], True, "full", PR_E2E),
         (["tests/fixtures/aligned_dialogue/episode.project.json"], True, "full", PR_E2E),
         ([".github/workflows/test.yml"], True, "full", PR_E2E),
         ([".github/workflows/desktop.yml"], False, "full", []),
@@ -139,31 +147,135 @@ def test_matrix_output_is_the_workflow_include_list() -> None:
     }
 
 
-def test_web_tests_select_files_that_name_gui_web(tmp_path: Path) -> None:
+def test_web_subset_selects_files_that_name_gui_web(tmp_path: Path) -> None:
     tests = tmp_path / "tests"
     (tests / "nested").mkdir(parents=True)
+    (tmp_path / "scripts").mkdir()
     (tests / "test_slash.py").write_text('CSS = ROOT / "gui/web/src/App.css"\n')
     (tests / "test_parts.py").write_text("WEB = ROOT / 'gui' / 'web'\n")
     (tests / "nested" / "test_args.py").write_text('WEB = Path("gui", "web")\n')
     (tests / "test_other.py").write_text('DOCS = ROOT / "docs"\n')
     (tests / "helper_gui_web.py").write_text('X = "gui/web"\n')
-    assert cp.web_tests(tmp_path) == [
+    assert cp.subset_tests("web", tmp_path) == [
         "tests/nested/test_args.py",
         "tests/test_parts.py",
         "tests/test_slash.py",
     ]
 
 
-def test_web_tests_include_the_repo_gui_web_readers() -> None:
-    selected = set(cp.web_tests())
+def test_subset_selects_tests_that_run_a_script_reading_the_scope(tmp_path: Path) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "reads_web.py").write_text('SRC = ROOT / "gui/web/src"\n')
+    (tmp_path / "scripts" / "wraps_web.py").write_text("from reads_web import SRC\n")
+    (tmp_path / "scripts" / "reads_nothing.py").write_text("X = 1\n")
+    (tmp_path / "tests" / "test_load.py").write_text('m = load_script("reads_web")\n')
+    (tmp_path / "tests" / "test_path.py").write_text('S = ROOT / "scripts/wraps_web.py"\n')
+    (tmp_path / "tests" / "test_parts.py").write_text('S = ROOT / "scripts" / "reads_web.py"\n')
+    (tmp_path / "tests" / "test_idle.py").write_text('m = load_script("reads_nothing")\n')
+    assert cp.subset_tests("web", tmp_path) == [
+        "tests/test_load.py",
+        "tests/test_parts.py",
+        "tests/test_path.py",
+    ]
+
+
+def test_docs_subset_selects_files_that_name_docs_paths(tmp_path: Path) -> None:
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tmp_path / "scripts").mkdir()
+    for name, line in {
+        "test_slash": 'P = ROOT / "docs/setup.md"',
+        "test_parts": 'P = ROOT / "ux" / "pages"',
+        "test_readme": 'P = ROOT / "README.md"',
+        "test_skills": 'P = ROOT / ".agents" / "skills"',
+        "test_site": 'P = "docs-site/index.html"',
+        "test_defaults": 'P = ROOT / ".agents" / "defaults" / "pipeline.yaml"',
+        "test_download": 'DOC = "https://docs.sharecut.studio/x"',
+        "test_none": "X = 1",
+    }.items():
+        (tests / f"{name}.py").write_text(line + "\n")
+    assert cp.subset_tests("docs", tmp_path) == [
+        "tests/test_parts.py",
+        "tests/test_readme.py",
+        "tests/test_site.py",
+        "tests/test_skills.py",
+        "tests/test_slash.py",
+    ]
+
+
+def test_web_subset_includes_the_repo_gui_web_readers() -> None:
+    selected = set(cp.subset_tests("web"))
     assert {
         "tests/test_browser_acceptance_matrix.py",
+        "tests/test_capabilities_manifest.py",
         "tests/test_css_policy.py",
         "tests/test_gui_api.py",
         "tests/test_gui_static_root.py",
         "tests/test_ci_plan.py",
     } <= selected
     assert "tests/test_bleed_gate_channels.py" not in selected
+
+
+def test_docs_subset_includes_the_repo_docs_readers() -> None:
+    selected = set(cp.subset_tests("docs"))
+    assert {
+        "tests/test_beta_story_matrix.py",
+        "tests/test_browser_acceptance_matrix.py",
+        "tests/test_capabilities_manifest.py",
+        "tests/test_decision_records.py",
+        "tests/test_docs_layout.py",
+        "tests/test_docs_sync.py",
+        "tests/test_mcp_setup_docs.py",
+        "tests/test_ux_site_routes.py",
+    } <= selected
+    assert "tests/test_bleed_gate_channels.py" not in selected
+
+
+GUI_WEB_REPO_PATH_RE = re.compile(
+    r"(?:tests/fixtures|scripts|contracts|schemas|\.agents|config)/[\w./-]*\w"
+)
+
+
+def _tracked() -> list[str]:
+    return subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files"], capture_output=True, text=True, check=True
+    ).stdout.splitlines()
+
+
+def _gui_web_repo_paths() -> dict[str, list[str]]:
+    """Tracked repo paths that gui/web code names, with the files that name them."""
+    tracked = _tracked()
+    named: dict[str, set[str]] = {}
+    for rel in tracked:
+        if not rel.startswith("gui/web/") or rel.endswith((".md", "package-lock.json")):
+            continue
+        try:
+            text = (ROOT / rel).read_text(encoding="utf-8")
+        except (UnicodeDecodeError, FileNotFoundError):
+            continue
+        for match in GUI_WEB_REPO_PATH_RE.finditer(text):
+            reference = match.group(0)
+            prefix = reference.rstrip("/") + "/"
+            for path in tracked:
+                if path == reference or path.startswith(prefix):
+                    named.setdefault(path, set()).add(rel)
+    return {path: sorted(files) for path, files in named.items()}
+
+
+def test_gui_web_finds_the_repo_paths_it_reads() -> None:
+    named = _gui_web_repo_paths()
+    assert any(path.startswith("tests/fixtures/document_delta/") for path in named)
+    assert "contracts/timeline-zoom.json" in named
+
+
+def test_every_repo_path_gui_web_reads_is_classified_gui() -> None:
+    misses = {
+        path: files
+        for path, files in _gui_web_repo_paths().items()
+        if cp.scope_of(path) is not cp.Scope.GUI
+    }
+    assert misses == {}, "gui/web reads these; classify them GUI in scripts/ci_plan.py PATH_RULES"
 
 
 def test_changed_files_diffs_from_the_merge_base(tmp_path: Path) -> None:
@@ -196,11 +308,15 @@ def test_pytest_job_plans_in_job_and_gates_coverage_on_full_runs() -> None:
     plan = by_name["Plan the pytest scope"]
     assert plan["id"] == "plan"
     assert plan["run"].startswith("python3 scripts/ci_plan.py plan --event")
-    assert by_name["Run tests with coverage gate"]["if"] == "steps.plan.outputs.pytest != 'web'"
+    assert by_name["Run tests with coverage gate"]["if"] == "steps.plan.outputs.pytest == 'full'"
     web = by_name["Run the tests that read gui/web"]
     assert web["if"] == "steps.plan.outputs.pytest == 'web'"
-    assert '"$(python3 scripts/ci_plan.py web-tests)"' in web["run"]
+    assert '"$(python3 scripts/ci_plan.py subset-tests web)"' in web["run"]
     assert "--no-cov" in web["run"]
+    docs = by_name["Run the tests that read docs"]
+    assert docs["if"] == "steps.plan.outputs.pytest == 'docs'"
+    assert '"$(python3 scripts/ci_plan.py subset-tests docs)"' in docs["run"]
+    assert "--no-cov" in docs["run"]
     docs_sync = by_name["Docs-sync gate (PR diff)"]
     assert "pytest" not in docs_sync["if"]
 
