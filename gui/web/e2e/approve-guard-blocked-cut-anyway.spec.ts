@@ -49,7 +49,10 @@ test("approving a pending cut a peer speaks over asks Cut anyway, then sends it 
     });
   });
 
-  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Pending edit actions" })
+    .getByRole("button", { name: "Approve", exact: true })
+    .click();
 
   const dialog = page.getByRole("dialog", { name: "Cut Caleb's speech too?" });
   await expect(dialog).toBeVisible();
