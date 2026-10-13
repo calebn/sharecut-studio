@@ -20,6 +20,7 @@ from podcast_mcp.edits.cut_quality import (
     word_margin_violation_sec,
 )
 from podcast_mcp.edits.fillers import _CutRejected, analyze_fillers_and_pauses
+from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.models import (
     Clip,
@@ -3502,7 +3503,11 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
     recommended = recommend_post_pad_fade_in_ms(project, "host", decision.end, defaults=defaults)
     assert recommended > 40
     project.edit_decisions = [decision]
-    assert approve_edits(project, [decision.id]) == 1
+    with patch(
+        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        return_value=OwnQuietSample(Sample(0.0, 0.2, -70.0, None)),
+    ):
+        assert approve_edits(project, [decision.id]) == 1
     resumed = next(c for c in project.clips if c.source_start >= decision.end - 1e-6)
     assert resumed.fade_in_ms == recommended
 
