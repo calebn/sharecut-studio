@@ -23,6 +23,18 @@ test("Shift-click on another speaker starts a range on that track", async ({
   await target.click({ modifiers: ["Shift"] });
   await expect(list.locator(".utterance-word.selected")).toHaveCount(1);
   await expect(target).toHaveClass(/selected/);
+  const dragEnd = list
+    .locator(`[data-transcript-word][data-track-id="${tracks[0]}"]`)
+    .nth(5);
+  await start.hover();
+  await page.mouse.down();
+  await dragEnd.hover();
+  await expect(list.locator(".utterance-word.selected")).toHaveCount(2);
+  await page.locator(".transcript-mode-hint").hover();
+  await page.mouse.up();
+  await target.click({ modifiers: ["Shift"] });
+  await expect(list.locator(".utterance-word.selected")).toHaveCount(1);
+  await expect(target).toHaveClass(/selected/);
   await page.screenshot({
     path: testInfo.outputPath("cross-speaker-range.png"),
   });
