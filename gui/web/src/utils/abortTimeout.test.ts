@@ -65,4 +65,46 @@ describe("withAbortTimeout", () => {
     ).rejects.toThrow("boom");
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  describe("with a caller signal", () => {
+    const settleOnAbort = (signal: AbortSignal) =>
+      new Promise<never>((_, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason));
+      });
+
+    it("hands fn one signal that fires on the timeout", async () => {
+      const caller = new AbortController();
+      const anySpy = vi.spyOn(AbortSignal, "any");
+      const p = withAbortTimeout(100, "slow", settleOnAbort, caller.signal);
+      const caught = p.catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(((await caught) as DOMException).name).toBe("TimeoutError");
+      expect(anySpy).not.toHaveBeenCalled();
+      anySpy.mockRestore();
+    });
+
+    it("aborts fn's signal with the caller's reason when the caller cancels", async () => {
+      const caller = new AbortController();
+      const p = withAbortTimeout(100, "slow", settleOnAbort, caller.signal);
+      const caught = p.catch((e: unknown) => e);
+      caller.abort();
+      expect(((await caught) as DOMException).name).toBe("AbortError");
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("aborts at once when the caller already cancelled", async () => {
+      const caller = new AbortController();
+      caller.abort();
+      await expect(
+        withAbortTimeout(100, "slow", settleOnAbort, caller.signal),
+      ).rejects.toMatchObject({ name: "AbortError" });
+    });
+
+    it("stops listening to the caller once fn settles", async () => {
+      const caller = new AbortController();
+      const remove = vi.spyOn(caller.signal, "removeEventListener");
+      await withAbortTimeout(100, "x", async () => 1, caller.signal);
+      expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
+    });
+  });
 });
