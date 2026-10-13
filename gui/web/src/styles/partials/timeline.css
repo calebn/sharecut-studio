@@ -545,7 +545,7 @@ button.join-seam:focus-visible {
 }
 
 /* Join popover (#691): portaled to <body> and fixed at its badge
-   (timeline/joinPopoverPlacement.ts), above the shell like a menu. */
+   (ui/anchoredPlacement.ts), above the shell like a menu. */
 .join-popover {
   position: fixed;
   z-index: var(--z-menu);

@@ -374,3 +374,12 @@ rename to the system. Don't do drive-by renames across the codebase.
 normal row, initials chip, and compact fader widths. M/S/range targets use
 `--touch-min`. The named `track-mix` container moves Volume below the controls
 when available width shrinks under text scaling. Rows grow rather than clip.
+
+### Menu placement
+
+`--menu-edge-margin` is the clear space a Menu panel keeps from every edge of
+the visual viewport and `--menu-anchor-gap` is the space between it and its
+trigger. `ui/anchoredPlacement.ts` reads both as px (`tokenPx`) to place the
+portaled panel, then sets `--menu-available-height` and
+`--menu-available-width` on it; the panel never leaves the screen at any root
+font size.

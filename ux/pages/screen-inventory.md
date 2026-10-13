@@ -78,7 +78,7 @@ flowchart TB
 | **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure. The empty stage names the import shortcut in platform form (⌘I on Apple platforms, Ctrl+I elsewhere) and uses themed ink on the light stage; Play stays disabled until the project has media. |
 | **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
 
-The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Commands and shortcuts** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
+The overflow Menu panel opens below its trigger, flips above it when that side has more room, stays inside the visible screen on every shell, caps to the space on that side (`min(90dvh, var(--menu-available-height))`) and scrolls so **Commands and shortcuts** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
 
 **Collapsed when:** phone, tablet compact, or bar width ≤720px.
 
