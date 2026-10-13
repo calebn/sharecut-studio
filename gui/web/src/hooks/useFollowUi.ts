@@ -142,11 +142,7 @@ export function useFollowUi(): void {
         }
       }
       if (selChanged) {
-        const wire = wireSelectionPatch(
-          target.meta?.selection,
-          s.project,
-          true,
-        );
+        const wire = wireSelectionPatch(target.meta?.selection, s.project);
         const next = wire.selection;
         s.adoptRemoteSelection(next, wire.pendingWireSelection);
         if (next?.kind === "envelopePoint") {

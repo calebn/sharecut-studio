@@ -242,7 +242,7 @@ export interface DawState {
   lastAppliedCommandId: string | null;
   suppressPublish: boolean;
   /** A remote selection whose target this client does not have yet; resolved when the project arrives or changes. */
-  pendingWireSelection: PendingWireSelection | null;
+  pendingWireSelection: SessionSelection | null;
   /** Bumped by every selection that arrived from the wire, so a listener can tell it from the person's own navigation. */
   remoteSelectionRevision: number;
   shellBreakpoint: ShellBreakpoint;
@@ -418,7 +418,7 @@ export interface DawState {
   /** Adopt a selection another client or the agent made; not the person's own navigation. */
   adoptRemoteSelection: (
     selection: Selection,
-    pendingWireSelection?: PendingWireSelection | null,
+    pendingWireSelection?: SessionSelection | null,
   ) => void;
   clearSessionRegion: () => void;
   setPlayUntilSec: (sec: number | null) => void;
@@ -504,12 +504,6 @@ export interface DawState {
   settleJobResult: (jobId: string) => void;
   /** In one store write, drop these jobs' pending results and remember them as spoken (see `spokenJobResultIds`). */
   markJobResultsSpoken: (jobIds: readonly string[]) => void;
-}
-
-export interface PendingWireSelection {
-  selection: SessionSelection;
-  /** Agent and Follow selections reach a guest; a plain peer's does not. */
-  reachesGuest: boolean;
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */

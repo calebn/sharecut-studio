@@ -135,21 +135,19 @@ describe("selection wire", () => {
   it("holds a wire selection pending before the project has loaded", () => {
     const wire = { kind: "pending" as const, id: "cut_1", track_id: "host" };
     expect(selectionFromWire(wire, null)).toBeNull();
-    expect(wireSelectionPatch(wire, null, false)).toEqual({
+    expect(wireSelectionPatch(wire, null)).toEqual({
       selection: null,
-      pendingWireSelection: { selection: wire, reachesGuest: false },
+      pendingWireSelection: wire,
     });
   });
 
   it("holds nothing pending once the selection resolves or is cleared", () => {
     const wire = { kind: "pending" as const, id: "cut_1", track_id: "host" };
-    expect(wireSelectionPatch(wire, project, false)).toEqual({
+    expect(wireSelectionPatch(wire, project)).toEqual({
       selection: { kind: "pending", id: "cut_1", trackId: "host" },
       pendingWireSelection: null,
     });
-    expect(wireSelectionPatch(null, null, false).pendingWireSelection).toBe(
-      null,
-    );
+    expect(wireSelectionPatch(null, null).pendingWireSelection).toBe(null);
   });
 });
 

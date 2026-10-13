@@ -201,7 +201,7 @@ describe("FeedbackToast", () => {
     expect(close).toHaveFocus();
   });
 
-  it("hands a focused Undo to Close when a peer's selection and edit land together", () => {
+  it("hands a focused Undo to Close when an agent's selection and a peer's edit land together", () => {
     const { host, close } = compactHost();
     render(<FeedbackToast host={host} />);
     act(() =>
@@ -211,11 +211,13 @@ describe("FeedbackToast", () => {
     );
     act(() => screen.getByRole("button", { name: "Undo" }).focus());
     act(() =>
-      useDawStore
-        .getState()
-        .applyAgentSession(
-          peerSession({ selection: { kind: "chapter", id: "Intro", time: 3 } }),
-        ),
+      useDawStore.getState().applyAgentSession(
+        peerSession({
+          origin: "agent",
+          last_role: "agent",
+          selection: { kind: "chapter", id: "Intro", time: 3 },
+        }),
+      ),
     );
     expect(useDawStore.getState().selection).toMatchObject({
       kind: "chapter",

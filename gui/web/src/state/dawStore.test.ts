@@ -617,9 +617,10 @@ describe("dawStore follow presence", () => {
     },
   );
 
-  it("host still adopts another tab's session selection", () => {
+  it("a host tab keeps its own selection when another host tab selects", () => {
     useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
     useDawStore.getState().setSelection({ kind: "envelope", trackId: "host" });
+    const revision = useDawStore.getState().remoteSelectionRevision;
     useDawStore.getState().applyAgentSession(
       agentSession({
         origin: "viewer",
@@ -628,10 +629,24 @@ describe("dawStore follow presence", () => {
       }),
     );
     expect(useDawStore.getState().selection).toEqual({
-      kind: "pending",
-      id: "cut_1",
+      kind: "envelope",
       trackId: "host",
     });
+    expect(useDawStore.getState().remoteSelectionRevision).toBe(revision);
+  });
+
+  it("a host tab with nothing selected stays empty when another host tab selects", () => {
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+    useDawStore.getState().setSelection(null);
+    useDawStore.getState().applyAgentSession(
+      agentSession({
+        origin: "viewer",
+        last_role: "viewer",
+        selection: { kind: "track", track_id: "guest" },
+      }),
+    );
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().pendingWireSelection).toBeNull();
   });
 });
 
@@ -769,7 +784,7 @@ const twoTrackProject = () =>
     pending_edits: [pendingEditView({ id: "cut_1", track_id: "host" })],
   });
 
-it("keeps the local envelope workspace when viewer presence echoes its track projection", () => {
+it("keeps the local envelope workspace when a viewer echoes its track projection, and an agent selection still moves it", () => {
   useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
   const store = useDawStore.getState();
   store.setSelection({ kind: "envelope", trackId: "host" });
@@ -800,16 +815,14 @@ it("keeps the local envelope workspace when viewer presence echoes its track pro
 it("clears a stored selection whose edit is gone instead of adopting it", () => {
   useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
   useDawStore.getState().setSelection({ kind: "track", trackId: "host" });
-  for (const role of ["viewer", "agent"] as const) {
-    useDawStore.getState().applyAgentSession(
-      agentSession({
-        origin: role,
-        last_role: role,
-        selection: { kind: "pending", id: "cut_gone", track_id: "host" },
-      }),
-    );
-    expect(useDawStore.getState().selection).toBeNull();
-  }
+  useDawStore.getState().applyAgentSession(
+    agentSession({
+      origin: "agent",
+      last_role: "agent",
+      selection: { kind: "pending", id: "cut_gone", track_id: "host" },
+    }),
+  );
+  expect(useDawStore.getState().selection).toBeNull();
 });
 
 it("a share guest keeps its own selection when another viewer selects", () => {
@@ -831,8 +844,8 @@ describe("remote selection revision", () => {
   const peerSelects = () =>
     useDawStore.getState().applyAgentSession(
       agentSession({
-        origin: "viewer",
-        last_role: "viewer",
+        origin: "agent",
+        last_role: "agent",
         selection: { kind: "track", track_id: "host" },
       }),
     );
@@ -863,10 +876,7 @@ describe("remote selection revision", () => {
     expect(revision()).toBe(before + 1);
     useDawStore.setState({
       selection: null,
-      pendingWireSelection: {
-        selection: { kind: "track", track_id: "host" },
-        reachesGuest: true,
-      },
+      pendingWireSelection: { kind: "track", track_id: "host" },
     });
     useDawStore.setState({ project: twoTrackProject() });
     expect(useDawStore.getState().selection).toMatchObject({ kind: "track" });
@@ -906,10 +916,10 @@ describe("remote selection before its target is here", () => {
     expect(useDawStore.getState().pendingWireSelection).toBeNull();
   });
 
-  it("restores a viewer selection that arrived before the project loaded", () => {
+  it("never restores a viewer tab's selection that arrived before the project loaded", () => {
     reload({ origin: "viewer", last_role: "viewer", selection: wire });
     useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
-    expect(useDawStore.getState().selection?.kind).toBe("pending");
+    expect(useDawStore.getState().selection).toBeNull();
   });
 
   it("drops a stale selection silently once the project is present", () => {
