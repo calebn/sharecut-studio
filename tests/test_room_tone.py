@@ -458,6 +458,34 @@ def test_a_gated_track_keeps_its_silent_pad_while_the_live_track_gets_room_tone(
     assert record.params["per_track_source"].keys() == {"host", "guest"}
 
 
+def _chopped_by_speech() -> np.ndarray:
+    track = _noise(FLOOR_DB, seed=1213)
+    for start in np.arange(0.0, DURATION_SEC, 0.5):
+        _add_voice(track, start + 0.05, start + 0.42, VOICE_DB)
+    return track
+
+
+def test_a_track_whose_quiet_stretches_are_all_too_short_holds_the_pad(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_chopped_by_speech(), guest=_gated_steady_word())
+    project.edit_decisions = [_padded_filler()]
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        approve_edits(project, ["um"], confirm_cut_speech=True)
+
+    assert held.value.held[0].reason == "pad_unavailable"
+
+
+@pytest.mark.usefixtures("no_voice_detector")
+def test_without_the_voice_detector_a_live_room_still_gets_its_pad(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio(), guest=_gated_steady_word())
+    project.edit_decisions = [_padded_filler()]
+
+    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+
+    record = project.editorial.edit_log[-1]
+    assert {s["track_id"] for s in record.params["pad_samples"]} == {"host"}
+
+
 def test_every_live_track_gets_its_own_room_tone_in_the_pad(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
     project.edit_decisions = [_padded_filler()]
