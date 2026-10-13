@@ -603,9 +603,16 @@ for (const kind of ["instant", "span"] as const) {
             label: "before add comment",
             operation: null,
           });
-        const undo = await acceptedCommand(page, "UndoHistory", () =>
-          page.keyboard.press("ControlOrMeta+Z"),
-        );
+        const commentField = page.getByRole("textbox", {
+          name: "Comment",
+          exact: true,
+        });
+        await expect(commentField).toBeFocused();
+        await expect(commentField).toHaveValue("");
+        const undo = await acceptedCommand(page, "UndoHistory", async () => {
+          await commentField.blur();
+          await page.keyboard.press("ControlOrMeta+Z");
+        });
         await expect
           .poll(() => snapshot(projectPath).comments)
           .toEqual(before.comments);
