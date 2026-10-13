@@ -982,7 +982,7 @@ now mute.
 
 ### Known limitations of the bleed gate
 
-The gate decides that a stretch is another speaker's copy by matching the lane against the peer's track at a fixed lag, then checking the copy's timbre against the peer's speech ([how the copy is found](../.agents/skills/podcast-mute-bleed/SKILL.md#design)). Two kinds of own sound look like a copy to that check. The owner accepted both on 2026-10-12 and closed their issues as not planned. The gate still leaves own sound alone in the cases the decision above pins with tests. Before you trust a gated stem, run `apply_transcript_gate_tool` with `dry_run=true` and listen to the passages below.
+The gate decides that a stretch is another speaker's copy by matching the lane against the peer's track at a fixed lag, then checking the copy's timbre against the peer's speech ([how the copy is found](../.agents/skills/podcast-mute-bleed/SKILL.md#design)). Two kinds of own sound look like a copy to that check. The owner accepted these limitations on 2026-10-12. The gate still leaves own sound alone in the cases the decision above pins with tests. Before you trust a gated stem, run `apply_transcript_gate_tool` with `dry_run=true` and listen to the passages below.
 
 #### Decision: Accept that a music bed shared by two mics can turn down own voice
 
@@ -997,7 +997,7 @@ evidence:
 - #1187 blocked-owner experiments on main 6033d77a: eight of eight synthetic voiced-sound trials with a shared random-note program falsely confirm a copy at lag zero; both gated lanes render zero RMS in the 10 to 11 s cue while the ungated inputs are nonzero
 - #1187 rejected: fixed or global transfer fits, scalar subtraction or projection, and broad cepstral statistics either lose the shared program's source or lose true copies; shared program alone gives strong common-path evidence, and some residual statistics rank quiet independent speech below genuine noisy copies
 - #1187 untested: richer adaptive or time-varying transfer, independent source-support combinations, harmonic or speech extractors, separators, speaker-conditioned models, and held-out evaluation on intelligible recorded speech
-manual-review: none; no test pins the limitation because no fix is known. The owner reopens #1187 on a user report of own voice turned down under shared music, or when a candidate such as source separation exists and can show, on a lab episode, that it keeps quiet and later own sound after a genuine copy while keeping colored, lagged, noisy, dense, sparse and mixed-program copies
+manual-review: owner, on a user report: no test pins this limitation because no fix is known. The owner reopens #1187 on a user report of own voice turned down under shared music, or when a candidate such as source separation exists and can show, on a lab episode, that it keeps quiet and later own sound after a genuine copy while keeping colored, lagged, noisy, dense, sparse and mixed-program copies
 -->
 
 When it happens: two mics both record the same program audio, such as a music bed from a speaker, a stinger, or a soundboard cue, and a person talks over it on one mic.
@@ -1025,13 +1025,13 @@ evidence:
 - #1190 the same blind spot loses true copies of a near-monotone peer (25 to 34 of 100 pass, main passes all from 30 s), of a peer with 0.5 semitone variance, and of a sung melody; the bleed is kept, which errs toward leaving audio alone
 - #1190 comment from the #1166 verification: against a sparse guest, a repeated host phrase with one syllable within about 0.6 semitone of the guest's pitch by chance passes as a copy in 1 to 3 of 100 trials
 - #1190 blocked-owner experiments: loose nulls falsely confirm independent followers; strict pitch-conditioned phase keeps the lab pair and repeated-pitch controls but refuses genuine changing-pitch copies when comparable peer events are missing; magnitude transfer has false positives and misses
-- #1070 round 2: unison singing and speech along at the peer's pitch within 0.3 semitone pass 96 to 100 of 100 from 20 s
-manual-review: none; no test pins the limitation because no fix is known. The owner reopens #1190 on a user report of own sound turned down while following the peer's pitch, or of a copy kept at full level against a near-monotone peer, or when a source-identity cue that passes both false-copy and lost-copy trials exists, such as source separation
+- PR #1166 round 2: unison singing and speech along at the peer's pitch within 0.3 semitone pass 96 to 100 of 100 from 20 s
+manual-review: owner, on a user report: no test pins this limitation because no fix is known. The owner reopens #1190 on a user report of own sound turned down while following the peer's pitch, or of a copy kept at full level against a near-monotone peer, or when a source-identity cue that passes both false-copy and lost-copy trials exists, such as source separation
 -->
 
 When it happens: a person sings the peer's melody, chants a line together with the peer, or speaks along at the peer's pitch, such as an echo exercise, and that sound is not in the transcript. It also happens rarely and by chance when a sparse guest's pitch lines up with a syllable of the host.
 
-What you hear: the along-sound is turned down or muted on its own mic, mostly in excerpts of 20 to 30 s of the peer's speech. Because the gate now trusts a strong match from 20 s (#1166), this shows up in shorter excerpts than before.
+What you hear: the along-sound is turned down or muted on its own mic. Own sound that follows the other speaker's pitch is turned down in excerpts of 20 s and longer. Since #1166 this starts at 20 s; before, it started at 30 s.
 
 The reverse also happens: a copy of a near-monotone peer, a sung melody, or a repeated phrase matches the peer's other speech as well as the lag, fails the check, and stays at full level. You hear that as the usual bleed echo.
 
