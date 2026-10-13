@@ -1,6 +1,6 @@
 # Podcast MCP
 
-FOSS podcast production toolkit: multitrack projects, per-track transcription, transcript-driven tightening, FFmpeg processing, a read-only DAW viewer, and agent skills under `.agents/`.
+FOSS podcast production toolkit: multitrack projects, per-track transcription, transcript-driven tightening, FFmpeg processing, Sharecut Studio (a full DAW-style editor in the browser and the desktop app), and agent skills under `.agents/`. The scope of the current beta is in [docs/beta-plan.md](docs/beta-plan.md).
 
 **Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv) recommended (`install.sh` falls back to `.venv` + `pip`), and a matching FFmpeg/FFprobe 9.0.2 or later 9.x pair for source use. Desktop packaging selects a pinned prebuilt 9.0.2 pair. The release catalog pins the same platform archives for CI and desktop packaging.
 
@@ -73,7 +73,7 @@ podcast track add --project /path/to/my_episode/episode.project.json --id host -
 podcast pipeline run --project /path/to/my_episode/episode.project.json
 ```
 
-**Read-only timeline viewer:**
+**Sharecut Studio (editor):**
 
 ```bash
 uv sync --extra gui

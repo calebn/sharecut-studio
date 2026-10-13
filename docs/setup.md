@@ -611,7 +611,7 @@ validated.
 
 ## Read-only GUI viewer
 
-Install the optional `gui` extra (included in `./install.sh`), build the web UI once, then launch:
+Sharecut Studio is the full editor, not only a viewer. Install the optional `gui` extra (included in `./install.sh`), build the web UI once, then launch:
 
 ```bash
 cd gui/web && npm ci && npm run build && cd ../..

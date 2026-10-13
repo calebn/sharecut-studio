@@ -14,6 +14,15 @@ All changes to this repo must follow **SOLID** and **DRY**, include **tests as y
 
 The product is in beta and has no users. Breaking changes are allowed; backward compatibility is not a requirement. Migrate all current callers, tests, and docs to the new contract, then delete obsolete implementations. Do not retain compatibility-only overloads, aliases, fallbacks, or migration code for old APIs or project formats. Preserve distinct paths only when they serve a current product workflow.
 
+## Beta plan (current scope)
+
+Read [docs/beta-plan.md](docs/beta-plan.md) before you choose work. It defines the nine journeys (J1 to J9), their bars, and what is not in the beta.
+
+- Pick only `beta:blocker` issues, then `beta:quality` issues. Skip `post-beta` unless the owner names the issue or it is D5 CI-cost work.
+- Label every new issue when you file it: a beta bucket, a `journey:J#`, and a `cause:` label when one fits.
+- Follow the six filing rules in the plan and in [issue claims](.agents/skills/sharecut-poteto/references/issue-claims.md).
+- Check your work against the bar of the journey the issue carries.
+
 ## Git workflow
 
 For contributor work, use [sharecut-poteto](.agents/skills/sharecut-poteto/SKILL.md).
@@ -93,6 +102,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Progress framework (long-running UX) | `docs/progress.md`, `contracts/progress-exemptions.json`, `contracts/progress-richness.json`, `src/podcast_mcp/util/progress.py`; CLI adapter `docs/cli-progress.md`; `make progress-check` / pre-commit `progress-compliance` (warn → later error) |
 | E2E fixture / play CLI | `docs/e2e-fixture-manual.md`, `tests/fixtures/aligned_dialogue/README.md` |
 | Roadmap / future work | `ROADMAP.md`; native apps + BYOK agent detail: `docs/cross-platform-byok.md` |
+| Beta scope, journeys, bug bar, filing rules, or architecture order | `docs/beta-plan.md`, `ROADMAP.md`, `.agents/skills/sharecut-poteto/references/issue-claims.md` |
 | UX onboarding pack (shareable site) | `ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema) |
 | Play modes (raw / processed / premix) | `docs/setup.md` — `processed:<id>` for FX+edits, `track:<id>` for raw |
 | Decision blocks (a heading plus a decision comment) in a doc | `docs/decisions/README.md`: regenerate it with `make decisions-index` |

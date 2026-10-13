@@ -152,6 +152,8 @@ advisory, non-blocking step; ignoring a real finding it surfaces still needs
 
 ## Git workflow
 
+Choose work from the [beta plan](beta-plan.md). Pick `beta:blocker` issues, then `beta:quality` issues, and file follow-ups under its filing rules.
+
 Follow the [Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md)
 for fresh worktrees, branch names, focused commits, draft PRs, issue links,
 required checks, and rebase merges. Read the

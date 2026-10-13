@@ -4,6 +4,20 @@ Coordinate through the GitHub issue log. Recheck labels, comments, claim livenes
 and linked PRs immediately before claiming. The `pipeline-claim` marker and
 `pipeline:*` labels are shared coordination conventions, not a workflow executor.
 
+## Choose what to pick up
+
+Scope is [docs/beta-plan.md](../../../../docs/beta-plan.md). Labels decide
+eligibility, and the plan page decides what the labels mean.
+
+1. Pick `beta:blocker` issues first, then `beta:quality` issues ordered by
+   milestone. Both belong to the Beta milestone.
+2. Skip `post-beta` issues. Two exceptions apply. The owner names the issue, or
+   it is D5 CI-cost work (`cause:test-time-waits`).
+3. Skip an issue with no beta label. Add the label that fits from the plan, or
+   ask the owner, before you start it.
+4. Check the result against the bar of the issue's `journey:J#` label.
+5. Then run the taken check below.
+
 ## Check whether an issue is taken
 
 An issue is taken when it has an open linked PR or a live claim.
@@ -58,3 +72,20 @@ Native Poteto owns any later pickup procedure. An open linked PR remains taken.
 Anyone may release a stale claim whose heartbeat is at least six hours old and
 which has no open linked PR. Recheck those facts first. Leave a short release
 comment and preserve any other live owner's labels.
+
+## File follow-ups
+
+Read the filing rules in [docs/beta-plan.md](../../../../docs/beta-plan.md#filing-rules).
+
+1. File only reachable harm. It reproduces on a real recording or a real UI on
+   a supported shell or device with an effect a user notices, or it loses data
+   or exposes security.
+2. Label the issue at filing. Use `beta:blocker`, `beta:quality` or
+   `post-beta`, plus `journey:J#`, plus a `cause:` label when one fits.
+3. If an `epic` issue with a `cause:` label covers the class, add a checklist
+   line to its Ledger section and file no issue. Synthetic-only and precision
+   findings go on #1449 or the epic's Ledger.
+4. When a second issue shares a root cause, stop point fixes in that class,
+   report it, and let the structural fix come first.
+5. Fix test-quality and doc notes in the same PR, or drop them. Never file them.
+6. A regression your PR caused blocks the PR. Never file it as a follow-up.

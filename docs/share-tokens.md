@@ -318,7 +318,7 @@ the same revoke path still clears it. Prefix↔kind is enforced by
 and registers one clip per segment (`POST /api/record/land`,
 `podcast record land`). Record rooms are **link-access only**
 (`require_sign_in` is rejected); restricted (sign-in) record shares are
-[Follow-up](../ROADMAP.md#follow-up). Decisions and capture follow-up:
+[Follow-up](../ROADMAP.md#after-the-beta). Decisions and capture follow-up:
 [recording-session.md § Session kind and URLs](recording-session.md#session-kind-and-urls).
 
 ## Multi-host future (relay)

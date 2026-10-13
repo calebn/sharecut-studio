@@ -1039,6 +1039,17 @@
       "advisory": null
     },
     {
+      "id": "beta-plan",
+      "when": "Beta scope, journeys, bug bar, filing rules, or architecture order",
+      "update": "`docs/beta-plan.md`, `ROADMAP.md`, `.agents/skills/sharecut-poteto/references/issue-claims.md`",
+      "docs": [
+        "docs/beta-plan.md",
+        "ROADMAP.md",
+        ".agents/skills/sharecut-poteto/references/issue-claims.md"
+      ],
+      "advisory": null
+    },
+    {
       "id": "ux-pack",
       "when": "UX onboarding pack (shareable site)",
       "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema)",

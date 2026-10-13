@@ -810,7 +810,7 @@ dependency on any commercial service.
 
 Product follow-up: [ROADMAP.md](../ROADMAP.md). Provider product details are maintained separately.
 
-- **Recording session (beta)** — recording links + full-session audio (Riverside/Zencastr-style); design: [recording-session.md](recording-session.md). See [ROADMAP.md § Recording session](../ROADMAP.md#recording-session).
+- **Recording session (beta)** — recording links + full-session audio (Riverside/Zencastr-style); design: [recording-session.md](recording-session.md). See [Beta plan § Journeys](../docs/beta-plan.md#journeys).
 - Destructive-tool policy hardening beyond the current guest allowlists
 
 ### Guest WebSocket (shipped)

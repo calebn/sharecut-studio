@@ -106,7 +106,7 @@ Host MCP installs a choke-point wrap on `add_tool` / `call_tool` so every tool o
 
 ## Read-only DAW viewer
 
-Local web UI for inspecting an episode without mutating state.
+Local web UI for inspecting and editing an episode. Editing is described in [daw-editing.md](daw-editing.md).
 
 ### Frontend foundation
 
