@@ -82,17 +82,19 @@ function visibleBottom(sheetTop: number): number {
  * The last word wins over the first when the range is taller than the space
  * left. It scrolls the list, then each scrolling ancestor, and when nothing
  * can lift the range clear it shortens the sheet to sit under it. The sheet
- * is measured against the visual viewport, which the keypad can shorten.
+ * is measured against the visual viewport, which the keypad can shorten. Each
+ * pass lifts that cap first and measures the uncapped sheet, so the cap goes
+ * once the space is back.
  */
 export function keepSelectionClear(
   list: HTMLElement,
   selection: Selection,
 ): void {
+  capInspectorSheet(null);
   const sheetTop = inspectorSheetTop();
   const span = selectedSpan(selection);
   if (sheetTop === null || !span) {
     list.style.removeProperty("--sheet-clearance");
-    capInspectorSheet(null);
     return;
   }
   const visible = visibleBottom(sheetTop);

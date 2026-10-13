@@ -1,6 +1,10 @@
+import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KEEP_CLEAR_PX } from "../layout/useCompactInspector";
-import { keepSelectionClear } from "./useKeepSelectionClear";
+import {
+  keepSelectionClear,
+  useKeepSelectionClear,
+} from "./useKeepSelectionClear";
 
 const sheet = vi.hoisted(() => ({
   top: null as number | null,
@@ -144,5 +148,40 @@ describe("keepSelectionClear", () => {
     const list = listWith([{ index: 2, top: 420, bottom: 440 }]);
     keepSelectionClear(list, range(2, 2));
     expect(sheet.cap).toBeNull();
+  });
+
+  it("lifts the cap once the viewport grows and the range clears", () => {
+    sheet.top = 362;
+    const list = listWith([{ index: 2, top: 400, bottom: 420 }]);
+    list.getBoundingClientRect = () => rect(385, 700);
+    keepSelectionClear(list, range(2, 2));
+    expect(sheet.cap).not.toBeNull();
+    sheet.top = 100;
+    list.getBoundingClientRect = () => rect(0, 700);
+    keepSelectionClear(list, range(2, 2));
+    expect(sheet.cap).toBeNull();
+  });
+
+  it("lifts the cap when the keypad that shortened the viewport closes", () => {
+    const viewport = new EventTarget() as EventTarget & {
+      offsetTop: number;
+      height: number;
+    };
+    viewport.offsetTop = 0;
+    viewport.height = 300;
+    vi.stubGlobal("visualViewport", viewport);
+    sheet.top = 362;
+    const list = listWith([{ index: 2, top: 400, bottom: 420 }]);
+    list.getBoundingClientRect = () => rect(385, 700);
+    const { unmount } = renderHook(() =>
+      useKeepSelectionClear({ current: list }, range(2, 2)),
+    );
+    expect(sheet.cap).not.toBeNull();
+    viewport.height = 844;
+    sheet.top = 100;
+    list.getBoundingClientRect = () => rect(0, 700);
+    viewport.dispatchEvent(new Event("resize"));
+    expect(sheet.cap).toBeNull();
+    unmount();
   });
 });
