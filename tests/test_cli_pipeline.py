@@ -260,14 +260,14 @@ def test_pipeline_analyze_run_line_keeps_overrides_and_quotes_project(tmp_path):
                 "--project",
                 str(project),
                 "--set",
-                "transcribe.silence_filter.peak_dbfs=-50",
+                "transcribe.silence_filter.enabled=false",
                 "--set",
                 "focus.enabled=true",
             ],
         )
     assert result.exit_code == 0, result.stdout
     line = next(line for line in result.stdout.splitlines() if line.startswith("Proposed:"))
-    assert "--set transcribe.silence_filter.peak_dbfs=-50" in line
+    assert "--set transcribe.silence_filter.enabled=false" in line
     assert "--set focus.enabled=true" in line
     assert "--set transcribe.vad.enabled=true" in line
     assert shlex.quote(str(project)) in line

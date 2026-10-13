@@ -308,11 +308,17 @@ and decodes with `hallucination_silence_threshold`. VAD keeps quiet speech down 
 40 dB below the talker (measured on `tests/fixtures/asr_gold` with `base.en`). Fainter bleed
 is dropped, so bleed-phrase alignment on very quiet bleed falls back to gap alignment; for
 such episodes lower `transcribe.vad.threshold` or turn `transcribe.vad.enabled` off. After
-ASR, each word whose own-track peak (native sample rate, all channels) is below
-`transcribe.silence_filter.peak_dbfs` (-60 dBFS) gets `suspect_hallucination: true`. ASR
+ASR, each word whose loudest 10 ms frame is under its own track's audibility floor, or sits
+over digital silence, gets `suspect_hallucination: true` (#1366). The floor is
+`TrackRmsCache.audibility_floor_db`, the one per-track floor reconcile and tighten read
+(27 dB under the track's speech level, never closer than 6 dB over its room; see
+[transcript reconcile](transcript-reconcile.md)), and the frames are measured the way the
+floor was (mono, 8 kHz), so the same recording at any level flags the same words. A track
+whose room sits within 6 dB of its speech has no floor to judge by, so only its digital
+silence flags; a track with no live audio flags every word. ASR
 cache files store unflagged words; the flags are recomputed from the current
 `transcribe.silence_filter` settings after every ASR run or cache read, so the filter is not
-a cache input. `transcribe_tracks` re-flags a reused transcript when its audio identity, silence filter settings, word spans or flag state differ from its stored `silence_filter_fingerprint` (only a peak envelope is decoded; Whisper does not re-run). This also rechecks a same-span phrase correction that clears a flag. The fingerprint is stored after reflagging, so unchanged runs reuse the stored flags without decoding the audio. Legacy transcripts without a fingerprint are checked once. A new `peak_dbfs` or turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its silence flags stay cleared (aligner-evidence flags, below, still apply and are then the only flags on that track), a warning is logged, the step summary adds "silence filter skipped on N track(s)", and no fingerprint is stored, so the next run retries the decode (for example once ffmpeg is fixed).
+a cache input. `transcribe_tracks` re-flags a reused transcript when its audio identity, silence filter settings, word spans or flag state differ from its stored `silence_filter_fingerprint` (only the track's levels are decoded; Whisper does not re-run). This also rechecks a same-span phrase correction that clears a flag. The fingerprint is stored after reflagging, so unchanged runs reuse the stored flags without decoding the audio. Legacy transcripts without a fingerprint are checked once. Turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its silence flags stay cleared (aligner-evidence flags, below, still apply and are then the only flags on that track), a warning is logged, the step summary adds "silence filter skipped on N track(s)", and no fingerprint is stored, so the next run retries the decode (for example once ffmpeg is fixed).
 
 **Aligner evidence (#195).** With `transcribe.forced_alignment.enabled`, each word the aligner
 places gets `alignment_score`, the mean posterior of the frames it used. A score below

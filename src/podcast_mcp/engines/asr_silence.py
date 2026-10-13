@@ -1,12 +1,14 @@
-"""Flag ASR words that sit over digital silence (issue #521).
+"""Flag ASR words that sit over silence (issue #521, #1366).
 
-Whisper sometimes invents text over silent stretches. A word whose own-track
-peak is below a very low floor cannot have been spoken on that track, so it is
-marked ``suspect_hallucination``. Words are never deleted or retimed.
+Whisper sometimes invents text over silent stretches. A word whose loudest 10 ms frame
+sits under its own track's audibility floor (``TrackRmsCache.audibility_floor_db``, the one
+floor reconcile and tighten read) holds no voice on that track, so it is marked
+``suspect_hallucination``. So is a word over digital silence on any track. The floor
+follows the track's own speech and room levels, so the same recording at any level flags
+the same words. Words are never deleted or retimed.
 
-The track is streamed at its native rate and layout, so there is no resampling and
-energy above 4 kHz still counts. It is reduced to a per-block peak envelope, so
-memory stays small on long tracks.
+The track is decoded once as the mono audio the floor was measured from and framed the way
+the floor was (``edits.audio_cache.frame_levels_db``), so a word and the floor share units.
 
 Analyze (``suggest_pipeline_tuning``) reuses the same envelope to flag a dialogue
 source that is mostly digital silence, a sign of a gated stem worth VAD. The
@@ -52,6 +54,9 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 PEAK_BLOCK_SEC = 0.01
+# Analyze's gated-stem scan counts a 10 ms block under this peak as digital silence. It only
+# separates a gate's zeros from any recorded sound; the silence filter reads the track's floor.
+DIGITAL_SILENCE_PEAK_DBFS = -60.0
 MIN_SPAN_SEC = 0.05
 # The evidence gate's level resolution: 10 ms frames at 8 kHz, about 80x smaller than samples.
 LEVEL_FRAME_SEC = 0.01
@@ -74,9 +79,7 @@ def silence_filter_fingerprint(
     once a word carries a score.
     """
     digest = sha256()
-    digest.update(f"v2:{audio_sha256}:{options.silence_filter_enabled}:".encode())
-    if options.silence_filter_enabled:
-        digest.update(f"{float(options.silence_peak_dbfs).hex()}:".encode())
+    digest.update(f"v3:{audio_sha256}:{options.silence_filter_enabled}:".encode())
     for word in words:
         digest.update(
             f"{word.start.hex()}:{word.end.hex()}:{int(word.suspect_hallucination)};".encode()
@@ -262,30 +265,28 @@ def evidence_terms(
     return (settled,) if bleed_check else (own, settled)
 
 
-def flag_words_over_silence(
-    words: Sequence[TranscriptWord],
-    peaks: np.ndarray,
-    rate: float,
-    *,
-    peak_dbfs: float,
+def flag_words_below_floor(
+    words: Sequence[TranscriptWord], levels_db: np.ndarray, *, floor_db: float
 ) -> int:
     """Set ``suspect_hallucination`` on every word; return how many are True.
 
-    ``peaks`` holds absolute sample peaks at ``rate`` values per second (raw samples,
-    or a block envelope from :func:`peak_envelope`).
+    ``levels_db`` holds the track's 10 ms frame levels (``frame_levels_db``). A word is
+    silent when its loudest frame is under ``floor_db`` or is digital silence.
     """
-    floor = db_to_amplitude(peak_dbfs)
-    total = int(peaks.size)
+    from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB
+
+    total = int(levels_db.size)
     flagged = 0
     for w in words:
         w.suspect_hallucination = False
         centre = (w.start + w.end) / 2.0
         half = max(w.end - w.start, MIN_SPAN_SEC) / 2.0
-        lo = max(0, int((centre - half) * rate))
-        hi = min(total, int(np.ceil((centre + half) * rate)))
+        lo = max(0, int((centre - half) / LEVEL_FRAME_SEC))
+        hi = min(total, int(np.ceil((centre + half) / LEVEL_FRAME_SEC)))
         if lo >= hi:
             continue  # span outside the decoded audio: no evidence either way
-        if float(np.max(peaks[lo:hi])) < floor:
+        loudest = float(np.max(levels_db[lo:hi]))
+        if loudest < floor_db or loudest <= DIGITAL_SILENCE_DB:
             w.suspect_hallucination = True
             flagged += 1
     return flagged
@@ -631,32 +632,30 @@ def peak_envelope(path: Path, *, block_sec: float = PEAK_BLOCK_SEC) -> tuple[np.
     return np.concatenate(parts), sample_rate / block
 
 
-def silent_fraction(peaks: np.ndarray, *, peak_dbfs: float) -> float:
-    """Share of ``peaks`` blocks below ``peak_dbfs`` (0.0 for an empty envelope)."""
+def silent_fraction(peaks: np.ndarray) -> float:
+    """Share of ``peaks`` blocks under ``DIGITAL_SILENCE_PEAK_DBFS`` (0.0 for an empty envelope)."""
     if peaks.size == 0:
         return 0.0
-    return float(np.count_nonzero(peaks < db_to_amplitude(peak_dbfs)) / peaks.size)
+    return float(np.count_nonzero(peaks < db_to_amplitude(DIGITAL_SILENCE_PEAK_DBFS)) / peaks.size)
 
 
 @lru_cache(maxsize=64)
-def _cached_silent_fraction(
-    path: str, revision: FileRevision, head_tail: str, peak_dbfs: float
-) -> float:
-    """Decode ``path`` once per (``file_revision``, head/tail digest, peak_dbfs).
+def _cached_silent_fraction(path: str, revision: FileRevision, head_tail: str) -> float:
+    """Decode ``path`` once per (``file_revision``, head/tail digest).
 
     ``revision`` and ``head_tail`` are only cache keys.
     """
     del revision, head_tail  # cache key only
     peaks, _rate = peak_envelope(Path(path))
-    return silent_fraction(peaks, peak_dbfs=peak_dbfs)
+    return silent_fraction(peaks)
 
 
-def digital_silence_fraction(path: Path, *, peak_dbfs: float) -> float | None:
+def digital_silence_fraction(path: Path) -> float | None:
     """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence.
 
     Cached in-process per resolved path, ``file_revision`` (device, inode, size, mtime),
     a SHA-256 of the first and last 64 KiB (``util.hashing.sha256_head_tail``) and
-    ``peak_dbfs``, so a re-run Analyze (GUI button, MCP) does not decode an unchanged
+    so a re-run Analyze (GUI button, MCP) does not decode an unchanged
     file again. An atomic replace or in-place rewrite re-measures when it changes the
     inode, size, mtime or either 64 KiB end; only a same-size edit confined to the middle
     of the file that also keeps inode and mtime stays cached until the process restarts.
@@ -665,26 +664,26 @@ def digital_silence_fraction(path: Path, *, peak_dbfs: float) -> float | None:
     """
     try:
         return _cached_silent_fraction(
-            str(path.resolve()), file_revision(path), sha256_head_tail(path), float(peak_dbfs)
+            str(path.resolve()), file_revision(path), sha256_head_tail(path)
         )
     except Exception as exc:
         log.warning("digital silence measure skipped for %s: %s", path, exc)
         return None
 
 
-def flag_silent_words_in_file(
-    words: Sequence[TranscriptWord],
-    path: Path,
-    *,
-    peak_dbfs: float,
-) -> int | None:
+def flag_silent_words_in_file(words: Sequence[TranscriptWord], path: Path) -> int | None:
     """Flag silent words in ``path``; ``None`` (logged as a warning) when it cannot be decoded."""
+    from podcast_mcp.edits.audio_cache import frame_levels_db
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+
     try:
-        peaks, rate = peak_envelope(path)
+        track = TrackRmsCache.from_timeline_stem(path)
+        levels = frame_levels_db(track.samples, int(track.sample_rate))
+        floor_db = track.audibility_floor_db
     except Exception as exc:
         log.warning("silence filter skipped for %s: %s", path, exc)
         return None
-    return flag_words_over_silence(words, peaks, rate, peak_dbfs=peak_dbfs)
+    return flag_words_below_floor(words, levels, floor_db=floor_db)
 
 
 def refresh_silence_flags(
@@ -708,7 +707,7 @@ def refresh_silence_flags(
         w.suspect_hallucination = False
     silent: int | None = 0
     if options.silence_filter_enabled:
-        silent = flag_silent_words_in_file(words, path, peak_dbfs=options.silence_peak_dbfs)
+        silent = flag_silent_words_in_file(words, path)
     flag_words_without_acoustic_evidence(
         words,
         min_score=options.forced_alignment_min_word_score,

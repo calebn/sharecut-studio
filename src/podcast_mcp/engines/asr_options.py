@@ -130,7 +130,6 @@ class AsrOptions:
     condition_on_previous_text: bool = True
     hallucination_silence_threshold: float | None = 2.0
     silence_filter_enabled: bool = True
-    silence_peak_dbfs: float = -60.0
     # Not part of decode_key(): alignment has its own cache beside the ASR cache,
     # so toggling it never re-runs Whisper. The default follows the installed model.
     forced_alignment: ForcedAlignment = field(default_factory=lambda: ForcedAlignment.resolve(None))
@@ -191,9 +190,6 @@ class AsrOptions:
                 None if hst is None else bounded_float(hst, 2.0, 0.0, 60.0) or None
             ),
             silence_filter_enabled=bool(sil.get("enabled", base.silence_filter_enabled)),
-            silence_peak_dbfs=bounded_float(
-                sil.get("peak_dbfs"), base.silence_peak_dbfs, -120.0, 0.0
-            ),
             forced_alignment=ForcedAlignment.resolve(fa.get("enabled")),
             forced_alignment_min_word_score=bounded_float(
                 fa.get("min_word_score"), base.forced_alignment_min_word_score, 0.0, 1.0

@@ -5,12 +5,13 @@ import wave
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.audio_cache import frame_levels_db
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     below_evidence_floor,
     digital_silence_fraction,
     flag_silent_words_in_file,
-    flag_words_over_silence,
+    flag_words_below_floor,
     flag_words_without_acoustic_evidence,
     peak_envelope,
     refresh_silence_flags,
@@ -49,15 +50,25 @@ def _audio() -> np.ndarray:
     return np.concatenate([np.zeros(SR, dtype=np.float32), tone])
 
 
+def _audio_file(tmp_path):
+    path = tmp_path / "a.wav"
+    write_wav(path, _audio(), SR)
+    return path
+
+
+def _levels() -> np.ndarray:
+    return frame_levels_db(_audio(), SR)
+
+
 def test_flags_zero_span_not_tone():
     words = [_w(0.2, 0.5), _w(1.2, 1.5)]
-    assert flag_words_over_silence(words, _audio(), SR, peak_dbfs=-60.0) == 1
+    assert flag_words_below_floor(words, _levels(), floor_db=-60.0) == 1
     assert [w.suspect_hallucination for w in words] == [True, False]
 
 
 def test_min_span_widens_zero_length_word():
     words = [_w(1.0, 1.0)]  # widened to 50 ms, so it reaches into the tone
-    assert flag_words_over_silence(words, _audio(), SR, peak_dbfs=-60.0) == 0
+    assert flag_words_below_floor(words, _levels(), floor_db=-60.0) == 0
     assert not words[0].suspect_hallucination
 
 
@@ -65,29 +76,28 @@ def test_stale_flag_reset_and_past_end_stays_false():
     words = [_w(1.2, 1.5), _w(5.0, 5.5)]
     words[0].suspect_hallucination = True
     words[1].suspect_hallucination = True
-    assert flag_words_over_silence(words, _audio(), SR, peak_dbfs=-60.0) == 0
+    assert flag_words_below_floor(words, _levels(), floor_db=-60.0) == 0
     assert not any(w.suspect_hallucination for w in words)
 
 
-def test_threshold_respected():
-    quiet = np.full(SR, 0.001, dtype=np.float32)  # -60 dBFS peak
-    assert flag_words_over_silence([_w(0.1, 0.4)], quiet, SR, peak_dbfs=-50.0) == 1
-    assert flag_words_over_silence([_w(0.1, 0.4)], quiet, SR, peak_dbfs=-70.0) == 0
+def test_floor_respected():
+    quiet = frame_levels_db(np.full(SR, 0.001, dtype=np.float32), SR)  # -60 dBFS
+    assert flag_words_below_floor([_w(0.1, 0.4)], quiet, floor_db=-50.0) == 1
+    assert flag_words_below_floor([_w(0.1, 0.4)], quiet, floor_db=-70.0) == 0
 
 
-def test_file_wrapper_success_and_failure(monkeypatch, tmp_path, caplog):
-    from podcast_mcp.engines import asr_silence
+def test_digital_silence_flags_even_when_the_floor_is_unbounded():
+    assert flag_words_below_floor([_w(0.2, 0.5)], _levels(), floor_db=-np.inf) == 1
+    assert flag_words_below_floor([_w(1.2, 1.5)], _levels(), floor_db=-np.inf) == 0
 
-    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
-    words = [_w(0.2, 0.5)]
-    assert flag_silent_words_in_file(words, tmp_path / "a.wav", peak_dbfs=-60.0) == 1
 
-    def boom(*a, **k):
-        raise RuntimeError("no decode")
+def test_file_wrapper_success_and_failure(tmp_path, caplog):
+    words = [_w(0.2, 0.5), _w(1.2, 1.5)]
+    assert flag_silent_words_in_file(words, _audio_file(tmp_path)) == 1
+    assert [w.suspect_hallucination for w in words] == [True, False]
 
-    monkeypatch.setattr(asr_silence, "peak_envelope", boom)
     with caplog.at_level("WARNING"):
-        assert flag_silent_words_in_file(words, tmp_path / "a.wav", peak_dbfs=-60.0) is None
+        assert flag_silent_words_in_file(words, tmp_path / "missing.wav") is None
     assert "silence filter skipped" in caplog.text
 
 
@@ -109,21 +119,19 @@ def test_peak_envelope_native_rate_stereo_high_frequency(tmp_path):
     assert peaks.size == 200
     assert float(peaks[:100].max()) == 0.0
     assert float(peaks[100:].max()) > 10 ** (-60 / 20)
-    words = [_w(0.2, 0.5), _w(1.2, 1.5)]
-    assert flag_silent_words_in_file(words, path, peak_dbfs=-60.0) == 1
-    assert [w.suspect_hallucination for w in words] == [True, False]
+    assert silent_fraction(peaks) == pytest.approx(0.5)
 
 
 def test_real_decode_of_tone(sample_wav):
     words = [_w(0.5, 1.0)]
-    assert flag_silent_words_in_file(words, sample_wav, peak_dbfs=-60.0) == 0
+    assert flag_silent_words_in_file(words, sample_wav) == 0
     assert not words[0].suspect_hallucination
 
 
 def test_silent_fraction_counts_blocks_below_floor():
     peaks = np.array([0.0, 1e-5, 0.5, 0.2], dtype=np.float32)
-    assert silent_fraction(peaks, peak_dbfs=-60.0) == 0.5
-    assert silent_fraction(np.array([], dtype=np.float32), peak_dbfs=-60.0) == 0.0
+    assert silent_fraction(peaks) == 0.5
+    assert silent_fraction(np.array([], dtype=np.float32)) == 0.0
 
 
 def test_digital_silence_fraction_real_decode(tmp_path):
@@ -140,7 +148,7 @@ def test_digital_silence_fraction_real_decode(tmp_path):
         wf.setframerate(sr)
         wf.writeframes(ints.tobytes())
 
-    frac = digital_silence_fraction(path, peak_dbfs=-60.0)
+    frac = digital_silence_fraction(path)
     assert frac is not None
     assert 0.70 <= frac <= 0.80
 
@@ -156,7 +164,7 @@ def test_digital_silence_fraction_undecodable(monkeypatch, tmp_path, caplog):
     p = tmp_path / "a.wav"
     p.write_bytes(b"x")
     with caplog.at_level("WARNING"):
-        result = asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+        result = asr_silence.digital_silence_fraction(p)
     assert result is None
     assert "digital silence measure skipped" in caplog.text
 
@@ -176,15 +184,13 @@ def test_digital_silence_fraction_cached_per_file_version(monkeypatch, tmp_path)
     monkeypatch.setattr(asr_silence, "peak_envelope", fake_envelope)
     p = tmp_path / "a.wav"
     p.write_bytes(b"x")
-    assert asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0) == 0.75
-    assert asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0) == 0.75
+    assert asr_silence.digital_silence_fraction(p) == 0.75
+    assert asr_silence.digital_silence_fraction(p) == 0.75
     assert len(calls) == 1
     st = p.stat()
     os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
-    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    asr_silence.digital_silence_fraction(p)
     assert len(calls) == 2
-    asr_silence.digital_silence_fraction(p, peak_dbfs=-50.0)
-    assert len(calls) == 3
     asr_silence._cached_silent_fraction.cache_clear()
 
 
@@ -203,14 +209,14 @@ def test_digital_silence_fraction_cache_misses_on_atomic_replace(monkeypatch, tm
     monkeypatch.setattr(asr_silence, "peak_envelope", fake_envelope)
     p = tmp_path / "a.wav"
     p.write_bytes(b"x")
-    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    asr_silence.digital_silence_fraction(p)
     st = p.stat()
     replacement = tmp_path / "a.wav.tmp"
     replacement.write_bytes(b"y")  # same size
     os.utime(replacement, ns=(st.st_atime_ns, st.st_mtime_ns))  # same mtime
     os.replace(replacement, p)
     assert p.stat().st_size == st.st_size and p.stat().st_mtime_ns == st.st_mtime_ns
-    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    asr_silence.digital_silence_fraction(p)
     assert len(calls) == 2  # new inode -> cache miss
     asr_silence._cached_silent_fraction.cache_clear()
 
@@ -230,7 +236,7 @@ def test_digital_silence_fraction_cache_misses_on_in_place_rewrite(monkeypatch, 
     monkeypatch.setattr(asr_silence, "peak_envelope", fake_envelope)
     p = tmp_path / "a.wav"
     p.write_bytes(b"x")
-    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    asr_silence.digital_silence_fraction(p)
     st = p.stat()
     with p.open("r+b") as fh:  # same inode, same size
         fh.write(b"y")
@@ -241,34 +247,28 @@ def test_digital_silence_fraction_cache_misses_on_in_place_rewrite(monkeypatch, 
         st.st_size,
         st.st_mtime_ns,
     )
-    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    asr_silence.digital_silence_fraction(p)
     assert len(calls) == 2  # content digest changed -> cache miss
     asr_silence._cached_silent_fraction.cache_clear()
 
 
 def test_digital_silence_fraction_missing_file(tmp_path, caplog):
     with caplog.at_level("WARNING"):
-        assert digital_silence_fraction(tmp_path / "nope.wav", peak_dbfs=-60.0) is None
+        assert digital_silence_fraction(tmp_path / "nope.wav") is None
     assert "digital silence measure skipped" in caplog.text
 
 
-def test_refresh_silence_flags_off_clears_and_on_reflags(monkeypatch, tmp_path):
-    from podcast_mcp.engines import asr_silence
-
-    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
+def test_refresh_silence_flags_off_clears_and_on_reflags(tmp_path):
     words = [_w(0.2, 0.5)]
     words[0].suspect_hallucination = True
-    path = tmp_path / "a.wav"
+    path = _audio_file(tmp_path)
     assert refresh_silence_flags(words, path, AsrOptions(silence_filter_enabled=False)) == 0
     assert words[0].suspect_hallucination is False
     assert refresh_silence_flags(words, path, AsrOptions()) == 1
     assert words[0].suspect_hallucination is True
 
 
-def test_evidence_flag_ors_with_silence_flag(monkeypatch, tmp_path):
-    from podcast_mcp.engines import asr_silence
-
-    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
+def test_evidence_flag_ors_with_silence_flag(tmp_path):
     tone = _w(1.2, 1.5)
     tone.alignment_score = 0.001
     clear = _w(1.6, 1.9)
@@ -276,7 +276,7 @@ def test_evidence_flag_ors_with_silence_flag(monkeypatch, tmp_path):
     silent = _w(0.2, 0.5)
     silent.alignment_score = None
     words = [tone, clear, silent]
-    path = tmp_path / "a.wav"
+    path = _audio_file(tmp_path)
 
     n = refresh_silence_flags(words, path, AsrOptions(), evidence=NO_SPEECH, track_id="host")
 
@@ -290,14 +290,11 @@ def test_evidence_flag_ors_with_silence_flag(monkeypatch, tmp_path):
     assert words2[0].suspect_hallucination is True
 
 
-def test_low_score_alone_never_flags_a_word_with_own_speech(monkeypatch, tmp_path):
+def test_low_score_alone_never_flags_a_word_with_own_speech(tmp_path):
     """#780: a 1-4 frame "um" scores below the floor; the audio, not the score, decides."""
-    from podcast_mcp.engines import asr_silence
-
-    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
     um = _w(1.2, 1.24)
     um.alignment_score = 0.0
-    path = tmp_path / "a.wav"
+    path = _audio_file(tmp_path)
     spoken = _Evidence(True)
 
     assert refresh_silence_flags([um], path, AsrOptions(), evidence=spoken, track_id="host") == 0
