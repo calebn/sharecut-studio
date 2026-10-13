@@ -149,6 +149,12 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
   text-decoration: none;
 }
 
+@media (pointer: coarse) {
+  .status-bar .status-chip {
+    min-block-size: var(--status-chip-min-block);
+  }
+}
+
 .status-bar-end {
   margin-inline-start: auto;
 }

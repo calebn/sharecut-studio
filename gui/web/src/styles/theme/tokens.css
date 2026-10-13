@@ -222,8 +222,24 @@
 @media (pointer: coarse) {
   :root {
     --font-size-field-min: 1rem;
-    /* The status bar's chips are buttons: the bar holds the touch floor plus
-       its 1px top border. */
+  }
+}
+
+/* The status bar's chips are buttons: the bar holds the touch floor plus its
+   1px top border. A landscape phone keeps the 28px bar and sizes the chips to
+   it, so the timeline keeps its height. */
+@media (pointer: coarse) {
+  :root {
     --status-height: calc(var(--touch-min) + 0.0625rem);
+    --status-chip-min-block: var(--touch-min);
+  }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (
+    max-width: 59.9375rem
+  ) {
+  :root {
+    --status-height: 1.75rem;
+    --status-chip-min-block: 0rem;
   }
 }
