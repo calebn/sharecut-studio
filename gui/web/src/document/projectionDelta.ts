@@ -512,6 +512,12 @@ function applyRows(
   return output;
 }
 
+/**
+ * The host diffs its whole history, but a page that never opened History holds
+ * none of the groups those rows splice into. While groups are unhydrated, rows
+ * that do not line up with the page's own are skipped, not failed, so the head
+ * and flags in the `history` replace land and the delta needs no refetch.
+ */
 export function applyProjectionDelta(
   before: ProjectView,
   delta: ProjectionDelta,
@@ -519,7 +525,15 @@ export function applyProjectionDelta(
   const budget: ApplyBudget = { items: 1_000_000, text: 8_000_000 };
   const sections = split(before);
   const touched = new Set<string>();
+  const groupsUnloaded = before.meta.hydration?.history_groups === false;
   for (const op of delta.operations) {
+    if (
+      groupsUnloaded &&
+      op.type === "rows" &&
+      op.section === "history_groups" &&
+      op.before_count !== (before.history?.groups?.length ?? 0)
+    )
+      continue;
     const key = sectionKey(op.section, op.parent);
     touched.add(children[op.section]?.[0] ?? op.section);
     if (op.type === "remove") sections.delete(key);
