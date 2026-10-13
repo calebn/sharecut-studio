@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { placeAnchored } from "./anchoredPlacement";
 
 const viewport = { left: 0, top: 0, width: 400, height: 800 };
-const options = { margin: 8, gap: 4 };
+const EDGE = 8;
+const GAP = 4;
+const options = { margin: EDGE, gap: GAP };
 const panel = { width: 240, height: 120 };
 
 function anchorAt(left: number, top: number, width = 40, height = 32) {
