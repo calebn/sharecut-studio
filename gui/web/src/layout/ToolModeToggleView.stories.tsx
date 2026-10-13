@@ -71,7 +71,8 @@ const meta: Meta<typeof ToolModePreview> = {
     structuralToolsAllowed: true,
     selectTitle: "Select tool (V)",
     bladeTitle: "Blade tool (C)",
-    commentTitle: "Comment mode: click/drag ruler to anchor feedback (⌘⇧C)",
+    commentTitle:
+      "Comment mode: tap or drag the ruler to set the comment time (⌘⇧C)",
     onSelect: fn(),
     onBlade: fn(),
     onToggleComment: fn(),

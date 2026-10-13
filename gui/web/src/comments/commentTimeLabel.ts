@@ -1,10 +1,9 @@
 import type { TimelineComment } from "../types/project";
-import { formatTimeShort } from "../utils/time";
+import { commentAnchorLabel } from "./commentAnchor";
 
 export function commentTimeLabel(c: TimelineComment): string {
-  const start = formatTimeShort(c.timeline_start);
-  if (c.timeline_end != null && c.timeline_end > c.timeline_start) {
-    return `${start}–${formatTimeShort(c.timeline_end)}`;
-  }
-  return start;
+  return commentAnchorLabel({
+    startSec: c.timeline_start,
+    endSec: c.timeline_end,
+  });
 }

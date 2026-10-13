@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { createComment } from "../api";
 import {
+  CommentAnchorChip,
   CommentAuthorLine,
   CommentCard,
   CommentCompose,
   commentTimeLabel,
   useCommentActions,
+  usePostComment,
 } from "../comments";
 import { useMountedRef } from "../hooks/useMountedRef";
 import { canComment, canReply, canSetAction, commentRole } from "../shareMode";
@@ -19,9 +20,7 @@ import {
   type ToastState,
   ToggleButton,
 } from "../ui";
-import { errorMessage } from "../utils/apiError";
 import { saveCommentAuthor, sessionDisplayName } from "../utils/commentAuthor";
-import { formatTimeShort } from "../utils/time";
 
 type Filter = "open" | "resolved" | "actions" | "all";
 
@@ -38,7 +37,6 @@ export function CommentsPanel({
     setActiveTab,
     commentMode,
     commentDraft,
-    setCommentDraft,
     setCommentMode,
     selection,
     shareCapabilities,
@@ -52,7 +50,6 @@ export function CommentsPanel({
     setActiveTab: s.setActiveTab,
     commentMode: s.commentMode,
     commentDraft: s.commentDraft,
-    setCommentDraft: s.setCommentDraft,
     setCommentMode: s.setCommentMode,
     selection: s.selection,
     shareCapabilities: s.shareCapabilities,
@@ -67,8 +64,7 @@ export function CommentsPanel({
   const [actionLine, setActionLine] = useState("");
   const [trackIds, setTrackIds] = useState<string[]>([]);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
-  const [createBusy, setCreateBusy] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const { busy: createBusy, error: createError, post } = usePostComment();
 
   const {
     busy: actionBusy,
@@ -132,48 +128,24 @@ export function CommentsPanel({
   }, [comments, filter]);
 
   const onCreate = async () => {
-    setCreateError(null);
     setActionError(null);
-    const who = author.trim();
-    if (!who) {
-      setCreateError("Author is required");
-      return;
-    }
-    if (!body.trim()) {
-      setCreateError("Comment body is required");
-      return;
-    }
-    const start = commentDraft?.startSec ?? 0;
-    const end = commentDraft?.endSec ?? null;
-    setCreateBusy(true);
-    try {
-      saveCommentAuthor(who);
-      const actions = actionLine
+    const result = await post({
+      body,
+      author,
+      trackIds,
+      actionTexts: actionLine
         .split("\n")
         .map((l) => l.trim())
-        .filter(Boolean);
-      const comment = await createComment(projectPath, {
-        body: body.trim(),
-        author: who,
-        timelineStart: start,
-        timelineEnd: end,
-        trackIds: commentDraft?.trackIds ?? trackIds,
-        timelineSpans: commentDraft?.intervals,
-        actionTexts: actions,
-      });
-      setBody("");
-      setActionLine("");
-      setCommentDraft(null);
-      if (comment) {
-        setSelection({ kind: "comment", id: comment.id });
-        setPlayheadSec(comment.timeline_start);
-      }
-      setActiveTab("comments");
-    } catch (e) {
-      setCreateError(errorMessage(e));
-    } finally {
-      setCreateBusy(false);
+        .filter(Boolean),
+    });
+    if (!result.ok) return;
+    setBody("");
+    setActionLine("");
+    if (result.comment) {
+      setSelection({ kind: "comment", id: result.comment.id });
+      setPlayheadSec(result.comment.timeline_start);
     }
+    setActiveTab("comments");
   };
 
   const toggleTrack = (id: string) => {
@@ -219,36 +191,27 @@ export function CommentsPanel({
             </ToggleButton>
           ))}
         </SegmentedControl>
-        <ToggleButton
-          pressed={commentMode}
-          onClick={() => setCommentMode(!commentMode)}
-        >
-          {commentMode ? "Comment mode on" : "Comment mode"}
-        </ToggleButton>
+        {mayComment ? (
+          <ToggleButton
+            pressed={commentMode}
+            onClick={() => setCommentMode(!commentMode)}
+          >
+            {commentMode ? "Comment mode on" : "Comment mode"}
+          </ToggleButton>
+        ) : null}
       </div>
 
-      {mayComment && (commentMode || commentDraft) && (
+      {mayComment && (
         <CommentCompose
           body={body}
           onBodyChange={setBody}
           busy={busy}
-          submitDisabled={!commentDraft}
           onSubmit={() => void onCreate()}
-          hint={
-            <p className="comment-compose-hint">
-              {commentDraft
-                ? `Anchor: ${commentDraft.intervals ? commentDraft.intervals.map((r) => `${r.start.toFixed(2)}–${r.end.toFixed(2)} s`).join(" · ") : formatTimeShort(commentDraft.startSec)}${
-                    !commentDraft.intervals &&
-                    commentDraft.endSec != null &&
-                    commentDraft.endSec > commentDraft.startSec
-                      ? `–${formatTimeShort(commentDraft.endSec)}`
-                      : " (instant)"
-                  }. Click/drag the ruler in comment mode to change.`
-                : "Click the ruler for an instant, or drag for a span."}
-            </p>
-          }
+          anchor={<CommentAnchorChip />}
+          bodyPlaceholder="Add a comment…"
+          bodyRows={2}
         >
-          {!guestShare && (
+          {!guestShare && body.trim() !== "" && (
             <>
               <textarea
                 aria-label="Action items (one per line, optional)"

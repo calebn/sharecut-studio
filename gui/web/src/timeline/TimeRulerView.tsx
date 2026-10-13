@@ -258,7 +258,7 @@ export function TimeRulerView({
       }}
       title={
         commentMode
-          ? "Click for instant comment, drag for a span"
+          ? "Tap to set the comment time, or drag for a span"
           : onFit
             ? "Double-click to fit session"
             : undefined

@@ -37,6 +37,12 @@ describe("CommentsPanel", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ comments: [sampleComment()] }));
+    useDawStore.setState({
+      playheadSec: 0,
+      selection: null,
+      commentDraft: null,
+      commentMode: false,
+    });
     useDawStore.getState().announceStatus("");
   });
 
@@ -279,6 +285,129 @@ describe("CommentsPanel", () => {
       "Comment reopened",
     );
   });
+  it("posts at the playhead once the body has text, with no ruler press", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValueOnce(sampleComment({ id: "c2" }));
+    act(() => useDawStore.getState().setPlayheadSec(21.4));
+    render(<CommentsPanel />);
+    const post = screen.getByRole("button", { name: "Post comment" });
+    expect(post).toBeDisabled();
+    expect(useDawStore.getState().commentMode).toBe(false);
+    expect(
+      screen.getByRole("button", { name: "Comment at 0:21. Change time" }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Tight");
+    await user.click(post);
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({
+        body: "Tight",
+        timelineStart: 21.4,
+        timelineEnd: null,
+        trackIds: [],
+      }),
+    );
+  });
+
+  it("anchors to the selected range when there is one", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValueOnce(sampleComment({ id: "c3" }));
+    act(() => {
+      useDawStore.getState().setPlayheadSec(2);
+      useDawStore.getState().setSelection({
+        kind: "range",
+        target: {
+          kind: "exact_range",
+          intervals: [{ start: 4, end: 9.5 }],
+          track_ids: ["host"],
+          clips: [],
+          media_seals: {},
+        },
+      });
+    });
+    render(<CommentsPanel />);
+    expect(
+      screen.getByRole("button", { name: "Comment at 0:04–0:09. Change time" }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Cut");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({
+        timelineStart: 4,
+        timelineEnd: 9.5,
+        trackIds: ["host"],
+        timelineSpans: [{ start: 4, end: 9.5 }],
+      }),
+    );
+  });
+
+  it("a typed time on the chip sets the anchor; one that does not parse keeps it", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValueOnce(sampleComment({ id: "c4" }));
+    const { container } = render(<CommentsPanel />);
+    await user.click(
+      screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
+    );
+    const field = screen.getByRole("textbox", { name: "Comment time" });
+    expect(field).toHaveFocus();
+    await expectNoA11yViolations(container);
+    await user.clear(field);
+    await user.type(field, "soon{Enter}");
+    expect(
+      screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
+    ).toHaveFocus();
+    await user.click(
+      screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
+    );
+    await user.clear(screen.getByRole("textbox", { name: "Comment time" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment time" }),
+      "0:42{Enter}",
+    );
+    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Here");
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({ timelineStart: 42, timelineEnd: null }),
+    );
+    expect(useDawStore.getState().commentDraft).toBeNull();
+  });
+
+  it("Escape on the chip field keeps the time it had", async () => {
+    const user = userEvent.setup();
+    render(<CommentsPanel />);
+    await user.click(
+      screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment time" }),
+      "{Control>}a{/Control}0:30{Escape}",
+    );
+    expect(
+      screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
+    ).toHaveFocus();
+    expect(useDawStore.getState().commentDraft).toBeNull();
+  });
+
+  it("shows a Viewer link no comment field and no Comment mode", () => {
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject(), "view", ["view"]);
+    render(<CommentsPanel guestShare />);
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Comment mode/ })).toBeNull();
+  });
+
+  it("opens a Commenter link on the Comments tab with its field", () => {
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject(), "comment", ["view", "comment"]);
+    expect(useDawStore.getState().activeTab).toBe("comments");
+    render(<CommentsPanel guestShare />);
+    expect(screen.getByRole("textbox", { name: "Comment" })).toBeVisible();
+  });
+
   it("names action items while composing and includes them in the post", async () => {
     const user = userEvent.setup();
     act(() => {
@@ -287,13 +416,18 @@ describe("CommentsPanel", () => {
     });
     createComment.mockResolvedValueOnce(sampleComment());
     const { container } = render(<CommentsPanel />);
-    const actions = screen.getByRole("textbox", {
-      name: "Action items (one per line, optional)",
-    });
+    expect(
+      screen.queryByRole("textbox", {
+        name: "Action items (one per line, optional)",
+      }),
+    ).toBeNull();
     await user.type(
       screen.getByRole("textbox", { name: "Comment" }),
       "Review the opening",
     );
+    const actions = screen.getByRole("textbox", {
+      name: "Action items (one per line, optional)",
+    });
     await user.type(actions, "Trim pause{Enter}Check spelling");
     await expectNoA11yViolations(container);
     await user.click(screen.getByRole("button", { name: "Post comment" }));

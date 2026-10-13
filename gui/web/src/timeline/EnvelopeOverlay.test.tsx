@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import { TimelineGestureProvider } from "./timelineMetrics";
 
@@ -457,6 +457,7 @@ it.each(["null-roundtrip", "equivalent-echo"])(
     useDawStore.getState().hydrate(
       "/tmp/p.json",
       minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
         envelopes: [
           {
             track_id: "host",

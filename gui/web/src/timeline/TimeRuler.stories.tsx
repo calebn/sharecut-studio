@@ -82,7 +82,7 @@ export const CommentAnchor: Story = {
     });
     await expect(slider).toHaveAttribute(
       "title",
-      "Click for instant comment, drag for a span",
+      "Tap to set the comment time, or drag for a span",
     );
     await expect(slider).toHaveAttribute("aria-valuenow", "5");
     const needle = slider.querySelector<HTMLElement>(".playhead");

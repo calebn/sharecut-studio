@@ -1,5 +1,6 @@
 import { submitDocumentCommand } from "../api/documentEdits";
 import { hostFetch } from "../api/documentTransport";
+import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
 import { rangeIsCurrent, resolveSelectionRange } from "../edit/rangeSelection";
 import { extractClipsInRange } from "../edit/selectionClipboard";
@@ -132,12 +133,7 @@ export async function runRangeAction(
         descriptor.reason ?? resolved.reason ?? "Choose the audible occurrence",
     };
   if (action === "comment") {
-    openCommentDraft({
-      startSec: target.intervals[0]!.start,
-      endSec: target.intervals.at(-1)!.end,
-      trackIds: [...target.track_ids],
-      intervals: target.intervals,
-    });
+    openCommentDraft(commentDraftFromRange(target));
     return { status: "ok" };
   }
   if (action === "bounce") {

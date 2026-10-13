@@ -68,7 +68,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "tracks/TrackHeader.tsx",
   // Keep clip clearing on the focused button from toggling global playback.
   "tracks/TrackPlaybackMeter.tsx",
-  "comments/CommentAuthorLine.tsx",
+  // Enter saves and Escape cancels the comment name and comment time fields.
+  "comments/InlineEditInput.tsx",
   // Palette search: Enter runs the top match and arrows step through results.
   "layout/CommandPaletteView.tsx",
   "commands/governance.test.ts",

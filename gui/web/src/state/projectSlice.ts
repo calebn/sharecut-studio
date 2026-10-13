@@ -8,6 +8,7 @@ import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { trimDraft } from "../edit/ripplePreview";
 import { resetServerClock } from "../presence/clock";
 import { EMPTY_ROSTER } from "../presence/roster";
+import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ProjectView } from "../types/project";
 import { waveformViewState } from "../utils/waveformViewPref";
@@ -324,6 +325,12 @@ export const createProjectSlice: StateCreator<
             // A toast's Undo targets this project's history; never carry it over.
             feedbackToast: null,
             ...waveformViewState(projectPath),
+            // Commenting is the job of a Commenter or Editor link, so its
+            // guest opens on the Comments tab and its comment field.
+            ...(isShareProjectKey(projectPath) &&
+            hasShareCapability(shareCapabilities, "comment")
+              ? { activeTab: "comments" as const }
+              : {}),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),
     });

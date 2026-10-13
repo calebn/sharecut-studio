@@ -18,7 +18,8 @@ const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
 ];
 
 export type MobileScreen =
-  | { kind: "listen"; content: ReactNode }
+  /** `dock` sits between the scrolling view and the mode bar. */
+  | { kind: "listen"; content: ReactNode; dock?: ReactNode }
   | { kind: "timeline"; canvas: ReactNode; tools: ReactNode }
   | { kind: "text"; content: ReactNode }
   | {
@@ -126,6 +127,9 @@ export function MobileShellView({
           </div>
         )}
       </main>
+      {screen.kind === "listen" && screen.dock ? (
+        <div className="mobile-dock">{screen.dock}</div>
+      ) : null}
       <nav className="mobile-nav" aria-label="Primary">
         {MODES.map(({ id, label, icon }) => (
           <ToggleButton

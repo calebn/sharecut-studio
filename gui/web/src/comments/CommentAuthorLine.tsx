@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../ui/Button";
+import { InlineEditInput } from "./InlineEditInput";
 
 type Props = {
   name: string;
@@ -8,45 +9,17 @@ type Props = {
 
 /**
  * "Commenting as <name> · Change": the name is read-only until Change opens an
- * inline field. Focus goes back to Change only after Enter / Escape (a blur
- * keeps focus where it landed), the same rule as
- * `transcript/InlineWordEditor.tsx`'s `onClose(restoreFocus)`. A third
- * inline-edit field should reuse one of these rather than add another variant.
+ * inline field (`InlineEditInput`). Focus goes back to Change only after
+ * Enter / Escape; a blur keeps focus where it landed.
  */
 export function CommentAuthorLine({ name, onChange }: Props) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(name);
-  const inputRef = useRef<HTMLInputElement>(null);
   const changeRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
-  const cancelled = useRef(false);
-
-  function start() {
-    setDraft(name);
-    setEditing(true);
-  }
-
-  function finish(save: boolean) {
-    if (cancelled.current && save) {
-      return;
-    }
-    if (save) {
-      const trimmed = draft.trim();
-      if (trimmed) {
-        onChange(trimmed);
-      }
-    }
-    setEditing(false);
-  }
+  const fieldId = useId();
 
   useEffect(() => {
-    if (editing) {
-      cancelled.current = false;
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    } else if (restoreFocus.current) {
-      // Only Enter / Escape inside the field hand focus back to Change;
-      // a blur already moved focus where the user wanted it.
+    if (!editing && restoreFocus.current) {
       restoreFocus.current = false;
       changeRef.current?.focus();
     }
@@ -54,25 +27,18 @@ export function CommentAuthorLine({ name, onChange }: Props) {
 
   if (editing) {
     return (
-      <label className="comment-author-edit">
+      <label className="comment-author-edit" htmlFor={fieldId}>
         Your name
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => finish(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              restoreFocus.current = true;
-              finish(true);
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              e.stopPropagation();
-              restoreFocus.current = true;
-              cancelled.current = true;
-              finish(false);
-            }
+        <InlineEditInput
+          id={fieldId}
+          initial={name}
+          onCommit={(text) => {
+            const trimmed = text.trim();
+            if (trimmed) onChange(trimmed);
+          }}
+          onClose={(restore) => {
+            restoreFocus.current = restore;
+            setEditing(false);
           }}
         />
       </label>
@@ -86,7 +52,7 @@ export function CommentAuthorLine({ name, onChange }: Props) {
         ref={changeRef}
         variant="link"
         aria-label="Change your comment name"
-        onClick={start}
+        onClick={() => setEditing(true)}
       >
         Change
       </Button>

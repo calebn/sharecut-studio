@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { CommentCompose } from "./CommentCompose";
+import { CommentTimeChip } from "./CommentTimeChip";
 
 type Args = Parameters<typeof CommentCompose>[0];
 
@@ -59,11 +60,14 @@ export default meta;
 type Story = StoryObj<typeof CommentCompose>;
 
 export const Empty: Story = {
-  args: { submitDisabled: true },
+  args: {
+    anchor: <CommentTimeChip label="0:00" onChange={fn()} />,
+  },
   parameters: {
     docs: {
       description: {
-        story: "An empty draft with posting explicitly disabled by its caller.",
+        story:
+          "An empty draft: Post comment waits for text, and the time chip shows where the comment lands.",
       },
     },
   },
@@ -90,7 +94,7 @@ export const DraftAndPost: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const submit = canvas.getByRole("button", { name: "Post comment" });
-    await expect(submit).toBeEnabled();
+    await expect(submit).toBeDisabled();
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Comment" }),
       "Keep this pause.",
