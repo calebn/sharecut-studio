@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
@@ -123,6 +123,180 @@ describe("TransportBar desktop edit controls", () => {
     }
   });
 
+  it.each([1150, 1920])(
+    "keeps pointer tools reachable through none/error/recording/region at %spx",
+    async (transportWidth) => {
+      const width = vi
+        .spyOn(HTMLElement.prototype, "clientWidth", "get")
+        .mockReturnValue(transportWidth);
+      try {
+        useDawStore.setState({
+          toolMode: "blade",
+          commentMode: false,
+          timelineFocused: false,
+        });
+        render(<TransportBar />);
+        for (const pressure of ["none", "error", "recording", "region"]) {
+          act(() => {
+            useDawStore.setState({
+              audioError:
+                pressure === "error" ? "Failed to load audio (mix)" : null,
+              sessionRegion:
+                pressure === "region"
+                  ? { start_sec: 120, end_sec: 150, track_ids: ["host"] }
+                  : null,
+            });
+            useRecordHostStore
+              .getState()
+              .setSnapshot(
+                pressure === "recording"
+                  ? recordSnapshot({ state: "recording", recording_ms: 12000 })
+                  : null,
+              );
+          });
+          for (const [direct, menuLabel, command] of [
+            ["Select", "Select tool", "tool.select"],
+            ["Blade", "Blade tool", "tool.blade"],
+            ["Cut at playhead", "Cut at playhead", "edit.bladeCut"],
+          ]) {
+            let control = screen.queryByRole("button", {
+              name: direct,
+              exact: true,
+            });
+            if (!control) {
+              fireEvent.click(
+                screen.getByRole("button", { name: "Menu", exact: true }),
+              );
+              control = screen.getByRole("menuitem", {
+                name: menuLabel,
+                exact: true,
+              });
+            }
+            fireEvent.click(control);
+            expect(execute).toHaveBeenLastCalledWith(
+              command,
+              {},
+              { skipWhen: true },
+            );
+          }
+          if (pressure === "error") {
+            const menu = screen.getByRole("button", {
+              name: "Menu",
+              exact: true,
+            });
+            expect(menu).toHaveAttribute(
+              "title",
+              "Audio failed to load. Open Menu for details.",
+            );
+            expect(menu).toHaveAccessibleDescription(
+              "Failed to load audio (mix)",
+            );
+            expect(menu.querySelector("svg title")).toHaveTextContent(
+              "Audio failed to load",
+            );
+            fireEvent.click(menu);
+            expect(
+              screen.getByText(
+                "Audio failed to load: Failed to load audio (mix)",
+              ),
+            ).toBeVisible();
+            fireEvent.keyDown(window, { key: "Escape" });
+          }
+          if (pressure === "recording") {
+            expect(
+              screen.getByRole("button", {
+                name: "Recording. Open record panel",
+              }),
+            ).toBeVisible();
+          }
+          if (pressure === "region") {
+            fireEvent.click(
+              screen.getByRole("button", { name: "Menu", exact: true }),
+            );
+            expect(screen.getByText("Region 120.0–150.0s")).toBeVisible();
+            fireEvent.keyDown(window, { key: "Escape" });
+          }
+        }
+      } finally {
+        width.mockRestore();
+      }
+    },
+  );
+
+  it("marks a collapsed desktop audio error and opens its complete details", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({ audioError: "Failed to load audio (mix)" });
+    render(<TransportBar />);
+    const menu = screen.getByRole("button", { name: "Menu", exact: true });
+    expect(menu).toHaveAttribute(
+      "title",
+      "Audio failed to load. Open Menu for details.",
+    );
+    expect(menu).toHaveAccessibleDescription("Failed to load audio (mix)");
+    expect(menu.querySelector("svg title")).toHaveTextContent(
+      "Audio failed to load",
+    );
+    await user.click(menu);
+    expect(
+      screen.getByText("Audio failed to load: Failed to load audio (mix)"),
+    ).toBeVisible();
+    act(() => useDawStore.setState({ audioError: null }));
+    expect(menu).toHaveAttribute("title", "Layers, zoom, theme, and more");
+    expect(menu).not.toHaveAttribute("aria-description");
+  });
+
+  it.each(["view", "comment", "suggest", "edit"] as const)(
+    "preserves collapsed tool permissions for a %s guest",
+    async (guestMode) => {
+      const user = userEvent.setup();
+      useDawStore
+        .getState()
+        .hydrate(shareProjectKey("guest"), minimalProject(), guestMode, [
+          guestMode,
+        ]);
+      useDawStore.setState({ toolMode: "blade", commentMode: false });
+      render(<TransportBar />);
+      await user.click(
+        screen.getByRole("button", { name: "Menu", exact: true }),
+      );
+      expect(
+        screen.getByRole("menuitem", { name: "Select tool" }),
+      ).toBeEnabled();
+      const blade = screen.getByRole("menuitem", { name: "Blade tool" });
+      if (guestMode === "view" || guestMode === "comment") {
+        expect(blade).toBeDisabled();
+        await user.click(blade);
+        expect(execute).not.toHaveBeenCalled();
+      } else {
+        expect(blade).toBeEnabled();
+        await user.click(blade);
+        expect(execute).toHaveBeenLastCalledWith(
+          "tool.blade",
+          {},
+          { skipWhen: true },
+        );
+      }
+    },
+  );
+
+  it("keeps Cut at playhead conditional on Blade outside Comment mode", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({ toolMode: "select", commentMode: false });
+    render(<TransportBar />);
+    await user.click(screen.getByRole("button", { name: "Menu", exact: true }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Cut at playhead" }),
+    ).toBeNull();
+    act(() => useDawStore.setState({ toolMode: "blade", commentMode: false }));
+    expect(
+      screen.getByRole("menuitem", { name: "Cut at playhead" }),
+    ).toBeEnabled();
+    act(() => useDawStore.setState({ commentMode: true }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Cut at playhead" }),
+    ).toBeNull();
+  });
+
   it.each(["Undo", "Redo", "Zoom out", "Zoom in"])(
     "activates %s with Enter and Space",
     async (label) => {
@@ -202,15 +376,44 @@ describe("TransportBar desktop edit controls", () => {
 
   it.each([{ compact: true }, { menuOnly: true }])(
     "leaves compact and menu-only controls unchanged for %j",
-    (props) => {
+    async (props) => {
+      const user = userEvent.setup();
+      useDawStore.setState({ audioError: "Failed to load audio (mix)" });
       render(<TransportBar {...props} />);
       expect(screen.queryByRole("group", { name: "Undo and redo" })).toBeNull();
       expect(screen.queryByRole("group", { name: "Zoom" })).toBeNull();
+      const menu = screen.getByRole("button", { name: "Menu", exact: true });
+      expect(menu).toHaveAttribute("title", "Layers, zoom, theme, and more");
+      await user.click(menu);
+      expect(
+        screen.queryByRole("group", { name: "Timeline tools" }),
+      ).toBeNull();
+      expect(
+        screen.getByText("Audio failed to load: Failed to load audio (mix)"),
+      ).toBeVisible();
     },
   );
 
+  it("disables collapsed tools while the project loads", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({ project: null });
+    render(<TransportBar />);
+    await user.click(screen.getByRole("button", { name: "Menu", exact: true }));
+    expect(
+      screen.getByRole("menuitem", { name: "Select tool" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "Blade tool" })).toBeDisabled();
+  });
+
   it("has no accessibility violations with the desktop controls", async () => {
     const { container } = render(<TransportBar />);
+    await expectNoA11yViolations(container);
+    act(() =>
+      useDawStore.setState({ audioError: "Failed to load audio (mix)" }),
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Menu", exact: true }));
     await expectNoA11yViolations(container);
   });
 });

@@ -727,7 +727,13 @@ describe("TransportBar wide layout", () => {
     act(() => {
       useDawStore.getState().setAudioError("Failed to load audio (mix)");
     });
-    expect(screen.queryByText("Audio failed to load")).toBeNull();
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute(
+      "title",
+      "Audio failed to load. Open Menu for details.",
+    );
+    expect(
+      screen.getByRole("img", { name: "Audio failed to load" }),
+    ).toBeVisible();
     rerender(tree(true));
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(
