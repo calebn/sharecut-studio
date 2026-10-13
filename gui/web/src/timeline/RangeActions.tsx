@@ -86,9 +86,6 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
             .join(", ")}
         </p>
       ) : null}
-      {selection?.kind === "transcriptRange" ? (
-        <WordRangeControls selection={selection} />
-      ) : null}
       {resolution.targets.length > 1 ? (
         <div>
           <p>Choose the audible occurrence.</p>
@@ -152,6 +149,9 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
             Clear range
           </Button>
         </div>
+      ) : null}
+      {selection?.kind === "transcriptRange" ? (
+        <WordRangeControls selection={selection} />
       ) : null}
       {rangeArmed ? (
         <p>
