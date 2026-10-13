@@ -10,6 +10,7 @@ from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     below_evidence_floor,
     digital_silence_fraction,
+    digital_silence_peak,
     flag_silent_words_in_file,
     flag_words_below_floor,
     flag_words_without_acoustic_evidence,
@@ -119,7 +120,7 @@ def test_peak_envelope_native_rate_stereo_high_frequency(tmp_path):
     assert peaks.size == 200
     assert float(peaks[:100].max()) == 0.0
     assert float(peaks[100:].max()) > 10 ** (-60 / 20)
-    assert silent_fraction(peaks) == pytest.approx(0.5)
+    assert silent_fraction(peaks, max_peak=digital_silence_peak(path)) == pytest.approx(0.5)
 
 
 def test_real_decode_of_tone(sample_wav):
@@ -128,10 +129,10 @@ def test_real_decode_of_tone(sample_wav):
     assert not words[0].suspect_hallucination
 
 
-def test_silent_fraction_counts_blocks_below_floor():
+def test_silent_fraction_counts_blocks_at_or_under_the_peak():
     peaks = np.array([0.0, 1e-5, 0.5, 0.2], dtype=np.float32)
-    assert silent_fraction(peaks) == 0.5
-    assert silent_fraction(np.array([], dtype=np.float32)) == 0.0
+    assert silent_fraction(peaks, max_peak=1e-5) == 0.5
+    assert silent_fraction(np.array([], dtype=np.float32), max_peak=1e-5) == 0.0
 
 
 def test_digital_silence_fraction_real_decode(tmp_path):

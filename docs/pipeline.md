@@ -221,7 +221,7 @@ Sharecut Studio Pipeline pane and MCP tools share a **working set** of enabled s
 | `bleed` | bleed ratio | `AnalysisPolicy.bleed_ratio_warn_threshold` | none (advisory) |
 | `clipping` | peak level / flat factor | `CLIPPING_PEAK_LEVEL_DB` = -0.3 | `compression.makeup_db = 0.0` |
 | `pre_aligned` | equal-duration dialogue stems | `DURATION_EPS_SEC` | none; `suggested_skip_steps: ["align_tracks"]` |
-| `digital_silence` | share of source-audio blocks under `DIGITAL_SILENCE_PEAK_DBFS` (`engines.asr_silence.peak_envelope`) | `DIGITAL_SILENCE_VAD_FRACTION` = 0.8 | `transcribe.vad.enabled = true` (only when VAD was off) |
+| `digital_silence` | share of source-audio blocks within `DIGITAL_SILENCE_LSB` (2) steps of zero at the file's own bit depth (`engines.asr_silence.peak_envelope`), the same at any recording level | `DIGITAL_SILENCE_VAD_FRACTION` = 0.5 | `transcribe.vad.enabled = true` (only when VAD was off) |
 
 ## Resume from a step
 

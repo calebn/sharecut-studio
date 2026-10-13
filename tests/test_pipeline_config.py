@@ -875,8 +875,8 @@ def test_suggest_flags_digital_silence_and_vad(monkeypatch, tmp_path) -> None:
     reason = silence_reasons[0]
     assert reason["track_id"] == "host"
     assert reason["evidence"]["silent_fraction"] == 0.85
-    assert reason["evidence"]["threshold_fraction"] == 0.8
-    assert reason["evidence"]["peak_dbfs"] == -60.0
+    assert reason["evidence"]["threshold_fraction"] == 0.5
+    assert reason["evidence"]["max_peak_lsb"] == 2
     assert reason["evidence"]["vad_enabled"] is True
     assert "transcribe" not in result["patches"]
     tracks_by_id = {t["track_id"]: t for t in result["report_summary"]["tracks"]}
