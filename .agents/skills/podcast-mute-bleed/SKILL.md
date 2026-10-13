@@ -65,6 +65,8 @@ Reconcile can measure bleed from mapped raw media when stems are absent. Automat
 
 See [docs/transcript-reconcile.md](../../../docs/transcript-reconcile.md#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed).
 
+Known limitations: a music bed shared by two mics and own sound that follows the peer's pitch (singing or speaking along) can read as a copy and be turned down; dry-run and listen to those passages, and window the apply around them ([bleed gate limitations](../../../docs/audio-engineering.md#known-limitations-of-the-bleed-gate), #1187, #1190).
+
 ## Reviewed fallback
 
 Dry-run `review_candidates` are transcript-derived listening hypotheses, including on stereo or missing-stem refusals. Each names the receiving lane and foreign peer, exact source/timeline bounds and a serialized `target`. They do not prove owner absence. Listen to receiving raw audio, the named peer and the mix; never infer breath or thump absence from transcript words. Retained, all locked, ignored and uncertain word footprints, contradictory peers, unknown coverage and overlapping placements are excluded. Gaps and repeated occurrences remain separate.

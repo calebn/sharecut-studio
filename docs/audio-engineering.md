@@ -980,6 +980,69 @@ The first default turned every copy down about 20 dB. On the gated Zoom lanes
 the owner still heard the copy as an echo ahead of the speaker, so those lanes
 now mute.
 
+### Known limitations of the bleed gate
+
+The gate decides that a stretch is another speaker's copy by matching the lane against the peer's track at a fixed lag, then checking the copy's timbre against the peer's speech ([how the copy is found](../.agents/skills/podcast-mute-bleed/SKILL.md#design)). Two kinds of own sound look like a copy to that check. The owner accepted both on 2026-10-12 and closed their issues as not planned. The gate still leaves own sound alone in the cases the decision above pins with tests. Before you trust a gated stem, run `apply_transcript_gate_tool` with `dry_run=true` and listen to the passages below.
+
+#### Decision: Accept that a music bed shared by two mics can turn down own voice
+
+<!-- decision
+id: D-bleed-shared-program-limit
+status: accepted
+date: 2026-10-12
+decided-by: calebn
+evidence:
+- #1187: the same music, stinger or soundboard audio on two lanes reads as a copy path at a consistent lag, so the lane's own speech under it can count as the peer's copy
+- #1187 after #1166's co-timed own-sound fix: the check's pass rate on this case fell from about 45 to 10 per 100 trials at 25 s and from 40 to 9 at 60 s, but several seconds of own voice per few excerpts still end up turned down
+- #1187 blocked-owner experiments on main 6033d77a: eight of eight synthetic voiced-sound trials with a shared random-note program falsely confirm a copy at lag zero; both gated lanes render zero RMS in the 10 to 11 s cue while the ungated inputs are nonzero
+- #1187 rejected: fixed or global transfer fits, scalar subtraction or projection, and broad cepstral statistics either lose the shared program's source or lose true copies; shared program alone gives strong common-path evidence, and some residual statistics rank quiet independent speech below genuine noisy copies
+- #1187 untested: richer adaptive or time-varying transfer, independent source-support combinations, harmonic or speech extractors, separators, speaker-conditioned models, and held-out evaluation on intelligible recorded speech
+manual-review: none; no test pins the limitation because no fix is known. The owner reopens #1187 on a user report of own voice turned down under shared music, or when a candidate such as source separation exists and can show, on a lab episode, that it keeps quiet and later own sound after a genuine copy while keeping colored, lagged, noisy, dense, sparse and mixed-program copies
+-->
+
+When it happens: two mics both record the same program audio, such as a music bed from a speaker, a stinger, or a soundboard cue, and a person talks over it on one mic.
+
+What you hear: that person's voice is turned down 20 dB, or muted on a call-app lane that is gated between words, for as long as the shared audio plays under them. A few seconds per excerpt is typical.
+
+What to do:
+
+- Dry-run the gate and listen to every passage with shared music or cues, in the stem and in the mix. Compare `attenuation_count` and `gate_reasons` per track with what you hear.
+- If own voice is turned down, apply the gate with `start_sec` and `end_sec` windows that leave the passage out, or undo the apply step and keep the gate off for that lane.
+- Prefer to record shared music on its own lane, not through the mics.
+
+Reopen #1187 on a user report, or when a new method such as source separation can pass the bar listed in the block.
+
+#### Decision: Accept that own sound following the peer's pitch can read as a copy
+
+<!-- decision
+id: D-bleed-pitch-following-limit
+status: accepted
+date: 2026-10-12
+decided-by: calebn
+evidence:
+- #1190: the timbre check compares the lane with the peer's fine spectrum at the copy lag against the peer's speech 1 to 2 s away. Own sound at its own pitch fails that check, as intended. Own sound whose pitch follows the peer's matches at the lag and nowhere else, exactly as a copy does
+- #1190 synthetic trials through the gate's real copy check, 100 per cell, untranscribed own sound co-timed with the peer: singing the peer's melody in unison passes 96 to 100 of 100 from 20 s (main: from 30 s); the same an octave up 68 to 82; own words at the peer's pitch within 0.3 semitone 96 to 100; with a sparse peer 92 to 100; own sound at its own pitch, 17 kinds, 0
+- #1190 the same blind spot loses true copies of a near-monotone peer (25 to 34 of 100 pass, main passes all from 30 s), of a peer with 0.5 semitone variance, and of a sung melody; the bleed is kept, which errs toward leaving audio alone
+- #1190 comment from the #1166 verification: against a sparse guest, a repeated host phrase with one syllable within about 0.6 semitone of the guest's pitch by chance passes as a copy in 1 to 3 of 100 trials
+- #1190 blocked-owner experiments: loose nulls falsely confirm independent followers; strict pitch-conditioned phase keeps the lab pair and repeated-pitch controls but refuses genuine changing-pitch copies when comparable peer events are missing; magnitude transfer has false positives and misses
+- #1070 round 2: unison singing and speech along at the peer's pitch within 0.3 semitone pass 96 to 100 of 100 from 20 s
+manual-review: none; no test pins the limitation because no fix is known. The owner reopens #1190 on a user report of own sound turned down while following the peer's pitch, or of a copy kept at full level against a near-monotone peer, or when a source-identity cue that passes both false-copy and lost-copy trials exists, such as source separation
+-->
+
+When it happens: a person sings the peer's melody, chants a line together with the peer, or speaks along at the peer's pitch, such as an echo exercise, and that sound is not in the transcript. It also happens rarely and by chance when a sparse guest's pitch lines up with a syllable of the host.
+
+What you hear: the along-sound is turned down or muted on its own mic, mostly in excerpts of 20 to 30 s of the peer's speech. Because the gate now trusts a strong match from 20 s (#1166), this shows up in shorter excerpts than before.
+
+The reverse also happens: a copy of a near-monotone peer, a sung melody, or a repeated phrase matches the peer's other speech as well as the lag, fails the check, and stays at full level. You hear that as the usual bleed echo.
+
+What to do:
+
+- Dry-run the gate and listen to every passage where two people sing, chant or speak in unison.
+- Window the apply around those passages with `start_sec` and `end_sec`, or undo the apply step for the lane.
+- For a copy that stays, use [aligning retained bleed](#aligning-retained-bleed) or a reviewed mute range.
+
+Reopen #1190 on a user report, or when a method such as source separation can tell own sound from the peer's copy without losing true copies.
+
 ### Aligning retained bleed
 
 Preview with `align_retained_bleed_tool(apply=False)` or `podcast edit align-retained-bleed --dry-run`. Supply a timeline window and select the lane carrying the bleed. Proposals require quiet boundary space, independent delay evidence, consistent held-out probes, and agreement from other known retained copies. The evidence reports sampled residuals; it does not certify every sample or exclude competing room reflections. Unsupported or inconsistent regions remain unchanged and appear in `skipped`. An applied gate flag or successful command does not mean those regions are aligned.
