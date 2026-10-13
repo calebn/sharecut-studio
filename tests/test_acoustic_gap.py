@@ -322,13 +322,13 @@ def test_quiet_periodic_word_stays_reviewable_with_speech_context(gain: float) -
     assert skips.get("acoustic:breath", 0) == 0
 
 
-def test_audibility_override_reaches_public_proposal(tmp_path: Path) -> None:
+def test_public_proposal_scans_the_track_for_acoustic_fillers(tmp_path: Path) -> None:
     samples = _tone(3.0, 0.2, 0.4)
     samples += _tone(3.0, 2.0, 2.2)
     samples += _tone(3.0, 0.65, 0.9, amp=0.036)
     samples += _tone(3.0, 1.3, 1.65)
     project = _project(tmp_path, samples, _two_words().words)
-    defaults = {"analysis": {"heuristics": {"audibility_rms_db": -10.0}}, "tighten": {}}
+    defaults = {"tighten": {}}
 
     with (
         patch(

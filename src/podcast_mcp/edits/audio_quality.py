@@ -33,11 +33,10 @@ _UNSAFE_TRACK_ID = re.compile(r"[/\\]|\.\.")
 def low_audibility_words(
     project: EpisodeProject,
     *,
-    policy: AnalysisPolicy | None = None,
     track_id: str | None = None,
     progress: ProgressReporter | None = None,
 ) -> list[dict[str, Any]]:
-    return list_low_audibility_words(project, policy=policy, track_id=track_id, progress=progress)
+    return list_low_audibility_words(project, track_id=track_id, progress=progress)
 
 
 class DiagnosticsWindowError(ValueError):
@@ -231,7 +230,6 @@ def apply_fade_recommendations(
 def suppress_low_audibility_words(
     project: EpisodeProject,
     *,
-    policy: AnalysisPolicy | None = None,
     track_id: str | None = None,
     word_keys: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -245,12 +243,11 @@ def suppress_low_audibility_words(
     person or agent already locked unsuppressed.
     Rebuilds combined transcript so exports/search omit suppressed words.
     """
-    pol = policy or AnalysisPolicy.from_defaults()
     explicit = word_keys is not None
     if word_keys is not None:
         targets = {(str(item["track_id"]), int(item["word_index"])) for item in word_keys}
     else:
-        flagged = list_low_audibility_words(project, policy=pol, track_id=track_id)
+        flagged = list_low_audibility_words(project, track_id=track_id)
         targets = {(f["track_id"], f["word_index"]) for f in flagged}
 
     count = 0

@@ -235,9 +235,7 @@ class TrackAudioCache:
     @cached_property
     def track_profile(self) -> tuple[float, float] | None:
         """The whole track's :func:`level_profile`, measured once."""
-        return level_profile(
-            self.waveform.samples, int(self.waveform.sample_rate), whole_track=True
-        )
+        return self.waveform.track_profile
 
     @cached_property
     def speech_db(self) -> float:
@@ -258,7 +256,7 @@ class TrackAudioCache:
         with no live audio at all: every frame is digital silence, so every frame is
         quiet.
         """
-        return voice_floor_from_profile(self.track_profile)
+        return self.waveform.voice_floor_db
 
 
 _PROFILE_MEMO: dict[tuple[str, int, int], tuple[float, float] | None] = {}
