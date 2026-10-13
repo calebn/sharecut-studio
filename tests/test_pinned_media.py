@@ -5,8 +5,11 @@ from __future__ import annotations
 import errno
 import inspect
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
+import anyio
 import pytest
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
@@ -47,9 +50,43 @@ def test_pinned_media_rejects_replaced_parent(tmp_path: Path) -> None:
         open_pinned_media(media)
 
 
+@pytest.fixture(params=["2.3", "2.4"])
+def asgi_spec_version(request: pytest.FixtureRequest) -> str:
+    """Starlette 1.8 streams a file without listening for disconnects only from 2.4 on."""
+    return request.param
+
+
+def _http_scope(
+    method: str, headers: list[tuple[bytes, bytes]], spec_version: str
+) -> dict[str, Any]:
+    return {
+        "type": "http",
+        "method": method,
+        "headers": headers,
+        "asgi": {"version": "3.0", "spec_version": spec_version},
+    }
+
+
+def _server_receive() -> Callable[[], Awaitable[dict[str, Any]]]:
+    """Deliver the request once, then stay open until the response cancels the wait."""
+    delivered = False
+
+    async def receive() -> dict[str, Any]:
+        nonlocal delivered
+        if not delivered:
+            delivered = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    return receive
+
+
 @posix_only
 @pytest.mark.anyio
-async def test_pinned_response_ranges_head_and_cleanup(tmp_path: Path) -> None:
+async def test_pinned_response_ranges_head_and_cleanup(
+    tmp_path: Path, asgi_spec_version: str
+) -> None:
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"0123456789")
     outside = tmp_path / "outside"
@@ -66,11 +103,7 @@ async def test_pinned_response_ranges_head_and_cleanup(tmp_path: Path) -> None:
         async def send(event):
             sent.append(event)
 
-        await response(
-            {"type": "http", "method": method, "headers": headers},
-            lambda: None,
-            send,
-        )
+        await response(_http_scope(method, headers, asgi_spec_version), _server_receive(), send)
         assert response._source.closed
         return sent
 
@@ -169,6 +202,7 @@ def test_fallback_rejects_a_path_swapped_after_open(
 async def test_pinned_response_reads_only_the_descriptor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    asgi_spec_version: str,
     without_pread: bool,
     method: str,
     range_header: bytes | None,
@@ -176,8 +210,6 @@ async def test_pinned_response_reads_only_the_descriptor(
     expected: list[bytes],
 ) -> None:
     """Every response shape reads the pinned descriptor and never opens the path."""
-    import anyio
-
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"0123456789")
     if without_pread:
@@ -196,7 +228,7 @@ async def test_pinned_response_reads_only_the_descriptor(
         sent.append(event)
 
     headers = [] if range_header is None else [(b"range", range_header)]
-    await response({"type": "http", "method": method, "headers": headers}, lambda: None, send)
+    await response(_http_scope(method, headers, asgi_spec_version), _server_receive(), send)
     assert sent[0]["status"] == status
     body = b"".join(event.get("body", b"") for event in sent[1:])
     if method == "HEAD":
@@ -391,9 +423,9 @@ def test_pinned_response_overrides_match_starlette_signatures(hook: str) -> None
     assert list(ours) == list(upstream)
 
 
-def test_pinned_audio_response_releases_callback_once_after_stream(tmp_path: Path) -> None:
-    import anyio
-
+def test_pinned_audio_response_releases_callback_once_after_stream(
+    tmp_path: Path, asgi_spec_version: str
+) -> None:
     from podcast_mcp.gui.audio import pinned_audio_response
 
     media = tmp_path / "mix.wav"
@@ -405,11 +437,6 @@ def test_pinned_audio_response_releases_callback_once_after_stream(tmp_path: Pat
     async def send(event):
         sent.append(event)
 
-    anyio.run(
-        response,
-        {"type": "http", "method": "GET", "headers": []},
-        lambda: None,
-        send,
-    )
+    anyio.run(response, _http_scope("GET", [], asgi_spec_version), _server_receive(), send)
     assert b"".join(event.get("body", b"") for event in sent) == b"audio"
     assert ran == ["slot"]
