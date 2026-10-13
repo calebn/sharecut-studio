@@ -472,7 +472,8 @@ passkeys, and agent credentials when accounts are enabled. See
 - Links do not expire unless the host chose a date
   ([decision](#decision-share-links-never-expire-unless-the-host-chooses-an-expiry));
   end one with `podcast review revoke-share --token …`.
-- Guest failure messages use explicit coded refusals and redact host paths.
+- Guest failure messages use explicit coded refusals. A refusal that names a host path gives
+  a guest a fixed, path-free message (`CodedError.guest_message()`), never a partly redacted one.
   Unmarked service exceptions return fixed `internal error` while host logs keep
   the traceback. See [host-online-relay.md](host-online-relay.md#security-notes).
 - Guest JSON never includes host absolute paths; episode JSON stores

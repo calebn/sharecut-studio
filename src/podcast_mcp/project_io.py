@@ -6,6 +6,7 @@ from pathlib import Path
 
 from podcast_mcp.models.episode import (
     EPISODE_PROJECT_FILENAME,
+    PROJECT_UNAVAILABLE_GUEST_MESSAGE,
     EpisodeProject,
     project_not_found,
 )
@@ -36,7 +37,9 @@ def require_episode_project_file(path: Path | str) -> Path:
     if not resolved.is_file():
         if original.is_dir():
             raise CodedFileNotFoundError(
-                f"no {EPISODE_PROJECT_FILENAME} in {original.resolve()}", code="project_not_found"
+                f"no {EPISODE_PROJECT_FILENAME} in {original.resolve()}",
+                code="project_not_found",
+                guest_message=PROJECT_UNAVAILABLE_GUEST_MESSAGE,
             )
         raise project_not_found(resolved)
     return resolved

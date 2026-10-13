@@ -33,6 +33,7 @@ from podcast_mcp.services.remote_mcp.allowlist import (
     tools_for_capabilities,
 )
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -707,7 +708,7 @@ def test_guest_tool_refusal_returns_message_and_code(
     }
 
 
-def test_guest_tool_refusal_redacts_host_paths(
+def test_guest_tool_refusal_withholds_a_message_that_names_a_host_path(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     from podcast_mcp.util.coded_error import CodedFileNotFoundError
@@ -721,7 +722,7 @@ def test_guest_tool_refusal_redacts_host_paths(
 
     out = _call(share["token"], "guest_get_project", {})
     text, structured = _tool_error(out)
-    assert text == "raw media not found: [path]"
+    assert text == GENERIC_GUEST_MESSAGE
     assert structured is not None
     assert structured["error_code"] == "file_not_found"
     assert "/Users/host" not in json.dumps(out)

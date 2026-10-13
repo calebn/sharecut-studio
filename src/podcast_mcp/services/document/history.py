@@ -80,7 +80,7 @@ class HistoryRerenderError(CodedError, RuntimeError):
 # A history move with ``rerender=True`` raises these after the move is saved; their
 # message says to re-render the preview, not to repeat the move. Adapters map them to
 # a user-facing error (CLI exit 1, document-plane 409).
-HISTORY_RERENDER_ERRORS: tuple[type[RuntimeError], ...] = (
+HISTORY_RERENDER_ERRORS: tuple[type[CodedError], ...] = (
     ProjectMergeConflict,
     HistoryRerenderError,
 )

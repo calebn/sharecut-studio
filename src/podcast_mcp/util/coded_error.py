@@ -26,21 +26,31 @@ from __future__ import annotations
 
 from typing import Any
 
-from podcast_mcp.util.redact import redact_host_paths
+from podcast_mcp.util.redact import mentions_host_path
+
+GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
+"""What a share guest reads from a refusal whose host message names a host path."""
 
 
 class CodedError(Exception):
     """A refusal whose message reaches the caller; ``code`` names it (for example ``no_mix``).
 
-    Pass ``code`` per raise, or set it once as a class attribute on a named subclass.
+    Pass ``code`` per raise, or set it once as a class attribute on a named subclass. A
+    refusal whose host message names a path passes ``guest_message``, the fixed, path-free
+    text a share guest reads instead.
     """
 
     code: str
+    _guest_message: str | None = None
 
-    def __init__(self, message: str, *, code: str | None = None) -> None:
+    def __init__(
+        self, message: str, *, code: str | None = None, guest_message: str | None = None
+    ) -> None:
         super().__init__(message)
         if code is not None:
             self.code = code
+        if guest_message is not None:
+            self._guest_message = guest_message
         if not getattr(self, "code", ""):
             raise TypeError(f"{type(self).__name__} needs a code")
 
@@ -49,12 +59,16 @@ class CodedError(Exception):
         return str(self.args[0]) if self.args else ""
 
     def guest_message(self) -> str:
-        """The message for a share guest: host paths replaced by ``[path]``.
+        """The message for a share guest; never a host path or a piece of one.
 
-        A refusal whose host message carries a path and a command overrides this with a
-        fixed, path-free text instead of relying on the redaction.
+        The fixed text the raise site gave, else the host message when it names no path,
+        else ``GENERIC_GUEST_MESSAGE``. A path in prose is never partly redacted: where it
+        ends is ambiguous, and what is left over spells part of a folder name.
         """
-        return redact_host_paths(str(self))
+        if self._guest_message is not None:
+            return self._guest_message
+        text = str(self)
+        return GENERIC_GUEST_MESSAGE if mentions_host_path(text) else text
 
     def __reduce__(self) -> tuple[Any, ...]:
         # Exception pickling re-calls ``cls(*args)``, which loses a per-raise ``code`` (it is

@@ -20,7 +20,7 @@ from podcast_mcp.util.progress import (
     ProgressReporter,
     short_fail_headline,
 )
-from podcast_mcp.util.redact import HOST_PATH_PLACEHOLDER, redact_host_paths
+from podcast_mcp.util.redact import mentions_host_path
 
 GUEST_PROGRESS_COALESCE_SEC = PROGRESS_UPDATE_MIN_INTERVAL_SEC
 """Guest WS sink cadence: same cap as the source-side per-task coalesce (docs/progress.md)."""
@@ -33,18 +33,17 @@ _TEXT_FIELDS = frozenset({"task_id", "label", "message", "phase"})
 
 
 def scrub_guest_progress_text(text: str | None) -> str | None:
-    """Redact path-like substrings; cap length. Tool ids like ``guest_get_project`` stay."""
+    """Withhold text that names a host path; cap length. Tool ids like ``guest_get_project`` stay."""
     if text is None:
         return None
     stripped = text.strip()
     if not stripped:
         return None
-    redacted = redact_host_paths(stripped)
-    if redacted == HOST_PATH_PLACEHOLDER:
+    if mentions_host_path(stripped):
         return None
-    if len(redacted) > GUEST_PROGRESS_MESSAGE_MAX:
-        return redacted[: GUEST_PROGRESS_MESSAGE_MAX - 1] + "…"
-    return redacted
+    if len(stripped) > GUEST_PROGRESS_MESSAGE_MAX:
+        return stripped[: GUEST_PROGRESS_MESSAGE_MAX - 1] + "…"
+    return stripped
 
 
 def guest_progress_payload(event: ProgressEvent) -> dict[str, Any]:

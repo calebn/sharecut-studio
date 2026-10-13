@@ -32,6 +32,7 @@ from podcast_mcp.services.remote_mcp.progress import (
 )
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.util import progress as progress_mod
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 from podcast_mcp.util.progress import (
     PROGRESS_UPDATE_MIN_INTERVAL_SEC,
     ProgressEvent,
@@ -109,10 +110,8 @@ def test_scrub_guest_progress_text_drops_host_paths_and_caps_length():
     assert scrub_guest_progress_text(r"C:\Users\host\mix.wav") is None
     assert scrub_guest_progress_text(r"\\server\share\mix.wav") is None
     assert scrub_guest_progress_text("~/episode.wav") is None
-    assert (
-        scrub_guest_progress_text("Render failed: /Users/host/secret.wav")
-        == "Render failed: [path]"
-    )
+    assert scrub_guest_progress_text("Render failed: /Users/host/secret.wav") is None
+    assert scrub_guest_progress_text("Rendering Talkin' Shop") == "Rendering Talkin' Shop"
     long = "x" * 250
     out = scrub_guest_progress_text(long)
     assert out is not None
@@ -783,7 +782,7 @@ def test_guest_mcp_progress_for_a_crash_names_the_task_not_the_exception(
         assert leaked not in blob
 
 
-def test_guest_mcp_progress_for_a_refusal_carries_its_message_with_paths_redacted(
+def test_guest_mcp_progress_for_a_refusal_carries_its_guest_message(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     from podcast_mcp.util.coded_error import CodedValueError
@@ -808,8 +807,8 @@ def test_guest_mcp_progress_for_a_refusal_carries_its_message_with_paths_redacte
     assert out["result"]["structuredContent"]["error_code"] == "invalid_range"
     messages = [n["params"]["message"] for n in captured[0].notifications]
     assert messages[-2:] == [
-        "Rendering preview failed: empty window in [path]",
-        "guest_get_project failed: empty window in [path]",
+        f"Rendering preview failed: {GENERIC_GUEST_MESSAGE}",
+        f"guest_get_project failed: {GENERIC_GUEST_MESSAGE}",
     ]
 
 
