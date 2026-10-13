@@ -1012,7 +1012,7 @@ def _cadence_words(
 
 def _phrase_transcript(gap_sec: float = 5.6, **cadence: float) -> tuple[Transcript, float]:
     words = _cadence_words(**cadence)
-    gap_start = words[-1].end + 0.1
+    gap_start = words[-1].end
     gap_end = gap_start + gap_sec
     words.append(TranscriptWord(text="after", start=gap_end, end=gap_end + 0.2))
     return Transcript(track_id="host", words=words), gap_start
@@ -1103,3 +1103,13 @@ def test_without_a_measurable_cadence_a_string_is_left_for_review() -> None:
     transcript = _two_words(0.4, 5.4)
 
     assert len(_propose_in_gap(transcript, _hits(6.0, 1.0, 4))) == 4
+
+
+def test_a_flanking_words_voice_running_into_the_gap_is_not_part_of_a_string() -> None:
+    transcript, gap_start = _phrase_transcript()
+    total = transcript.words[-1].end + 1.0
+    samples = _hits(total, gap_start, 3)
+
+    found = _propose_in_gap(transcript, samples)
+
+    assert len(found) == 3

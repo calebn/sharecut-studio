@@ -890,7 +890,9 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   phrase the transcript dropped ("boop boop boop boop"), which muting hit by hit
   would mute. The step is the 95th percentile of onset-to-onset steps between this
   track's live words that are less than `min_gap_sec` apart, so it follows the
-  speaker's own cadence. A track with fewer than 30 such steps has no cadence and
+  speaker's own cadence. A run that touches either end of the gap is a flanking word's voice
+  running past its transcript time, not a free-standing hit, and does not join a
+  string. A track with fewer than 30 such steps has no cadence and
   nothing is grouped. A single hit, a pair, and hits further apart than that step
   are each still proposed. Laughs are not told apart here (#1365).
   A peer run is not peer speech when it is the cut track's own voice bleeding
