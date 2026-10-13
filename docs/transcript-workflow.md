@@ -348,8 +348,8 @@ stored flags without decoding selected media. The score alone never flags: it
 is a mean over emitting frames and is low by construction on one-to-four-frame words such as
 "um", "uh" and "to" (on the lab tape the ungated flag marked 97 of the speaker's own words per
 episode; the gate keeps the 64 bleed and 3 silent flags and none of those). It is flag-only,
-reviewed the same way, and catches hallucinations over room noise or bleed that the -60 dBFS
-peak test cannot; words the aligner could not place have no score and are judged by the
+reviewed the same way, and catches hallucinations over room noise or bleed that the track's own
+floor test cannot; words the aligner could not place have no score and are judged by the
 silence filter alone. `transcript_timing.json` →
 `forced_alignment.jobs[].no_evidence_words` counts them, and the step summary adds "N aligned
 word(s) with no acoustic evidence". A person's or agent's text correction drops the word's stale
