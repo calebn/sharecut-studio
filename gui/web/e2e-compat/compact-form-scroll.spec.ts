@@ -11,184 +11,177 @@ import { test } from "../e2e/interactionEvidence";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
-import { setTheme } from "../e2e/theme";
+import { setTheme, withAppearance } from "../e2e/theme";
 
-for (const viewport of [
+for (const { cell: viewport, theme } of withAppearance([
   { width: 667, height: 360 },
   { width: 844, height: 390 },
-]) {
-  for (const theme of ["light", "dark"] as const) {
-    test.describe(`compact form ${viewport.width}x${viewport.height} root32 ${theme}`, () => {
-      test.use({ viewport, reducedMotion: "reduce" });
-      test("scrolled fades and pinned actions retain pointer and keyboard ownership", async ({
-        page,
-        receipts,
-        browserName,
-      }, info) => {
-        await withShareableProject(
-          async (projectPath) => {
-            await rememberInspectorDetent(page, "full");
-            await openHostShare(page, projectPath);
-            if (viewport.width < 768) {
-              await pointerControl(
-                page,
-                page
-                  .getByRole("navigation", { name: "Primary" })
-                  .getByRole("button", { name: "Timeline", exact: true }),
-                receipts,
-              );
-            }
-            await expect(
-              page.locator(
-                '.timeline-scroll .track-headers:not([aria-busy="true"])',
-              ),
-            ).toBeVisible();
-            await setTheme(page, theme);
-            await page
-              .locator(".lane-row .clip-hit")
-              .first()
-              .click({ position: { x: 20, y: 20 } });
-            await expect(page.locator(".modifier-badge")).toHaveText("Clip");
-            await page.locator("html").evaluate((html) => {
-              html.style.fontSize = "32px";
-            });
-            const chrome = page.locator(".bottom-sheet-chrome");
-            const checkHeader = async (checkpoint: string) => {
-              for (const name of [
-                "Undo",
-                "Redo",
-                "Collapse to strip",
-                "Close",
-              ]) {
-                const action = page
-                  .locator(".bottom-sheet-header")
-                  .getByRole("button", { name, exact: true });
-                const geometry = await controlGeometry(action);
-                receipts.push({ checkpoint, observation: { name, geometry } });
-                expect(geometry.fullyVisible).toBe(true);
-                expect(geometry.hitsControl).toBe(true);
-                expect(geometry.rect.width).toBeGreaterThanOrEqual(44);
-                expect(geometry.rect.height).toBeGreaterThanOrEqual(44);
-              }
-            };
-            await checkHeader("initial-header-before-recovery");
-            for (const name of ["Fade in ms", "Fade out ms"]) {
-              const field = page.getByLabel(name, { exact: true });
-              await exposeControl(page, field, receipts);
-              await nativeTabTo(
-                page,
-                field,
-                receipts,
-                browserName === "webkit" ? "Alt+Tab" : "Tab",
-              );
-              await checkHeader(`${name}-focused-header`);
-              const geometry = await controlGeometry(field);
-              const chromeBottom = await chrome.evaluate(
-                (element) => element.getBoundingClientRect().bottom,
-              );
-              receipts.push({
-                checkpoint: `${name}-below-chrome`,
-                observation: { geometry, chromeBottom },
-              });
-              expect(geometry.hitsControl).toBe(true);
-              for (const item of geometry.measured) {
-                expect(item.rect.top).toBeGreaterThanOrEqual(chromeBottom);
-                expect(item.full).toBe(true);
-              }
-            }
-            const fade = page.getByLabel("Fade out ms", { exact: true });
-            await fade.focus();
-            await fade.press("ArrowRight");
-            await page.route("**/api/document/command*", async (route) => {
-              const body = route.request().postDataJSON() as { type: string };
-              if (body.type === "UndoHistory") {
-                await route.fulfill({
-                  status: 409,
-                  contentType: "application/json",
-                  headers: { "x-sharecut-error-code": "history_stale" },
-                  body: JSON.stringify({ detail: "Project changed" }),
-                });
-              } else {
-                await route.continue();
-              }
-            });
-            await page
-              .locator(".bottom-sheet-header")
-              .getByRole("button", { name: "Undo", exact: true })
-              .click();
-            const feedback = page.locator(
-              ".ui-toast-region--inspector-flow .ui-toast",
-            );
-            info.annotations.push({
-              type: "fault-injection",
-              description:
-                "Controlled HTTP 409 history_stale refusal after an actual fade edit. Fade success is silent.",
-            });
-            await expect(feedback).toBeVisible();
-            await checkHeader("refusal-header-before-recovery");
-            await captureInspector(
+])) {
+  test.describe(`compact form ${viewport.width}x${viewport.height} root32 ${theme}`, () => {
+    test.use({ viewport, reducedMotion: "reduce" });
+    test("scrolled fades and pinned actions retain pointer and keyboard ownership", async ({
+      page,
+      receipts,
+      browserName,
+    }, info) => {
+      await withShareableProject(
+        async (projectPath) => {
+          await rememberInspectorDetent(page, "full");
+          await openHostShare(page, projectPath);
+          if (viewport.width < 768) {
+            await pointerControl(
               page,
-              info,
+              page
+                .getByRole("navigation", { name: "Primary" })
+                .getByRole("button", { name: "Timeline", exact: true }),
               receipts,
-              "initial-refusal-feedback",
             );
-            await nativeTabTo(
-              page,
-              fade,
-              receipts,
-              browserName === "webkit" ? "Alt+Tab" : "Tab",
-            );
-            await expect(fade).toBeFocused();
-            const fadeGeometry = await controlGeometry(fade);
-            expect(fadeGeometry.fullyVisible).toBe(true);
-            expect(fadeGeometry.hitsControl).toBe(true);
-            await checkHeader("refusal-focused-header");
-            const cardGeometry = await controlGeometry(feedback);
-            receipts.push({
-              checkpoint: "refusal-card-while-field-focused",
-              observation: cardGeometry,
-            });
-            expect(
-              cardGeometry.measured[0].ancestors.some(
-                (ancestor) => ancestor.class === "bottom-sheet-body",
-              ),
-            ).toBe(true);
-            for (const action of await feedback.getByRole("button").all()) {
-              await exposeControl(page, action, receipts);
-              const geometry = await controlGeometry(action);
-              expect(geometry.hitsControl).toBe(true);
-              expect(geometry.rect.width).toBeGreaterThanOrEqual(88);
-              expect(geometry.rect.height).toBeGreaterThanOrEqual(88);
-              await checkHeader("feedback-action-discovered-header");
-            }
+          }
+          await expect(
+            page.locator(
+              '.timeline-scroll .track-headers:not([aria-busy="true"])',
+            ),
+          ).toBeVisible();
+          await setTheme(page, theme);
+          await page
+            .locator(".lane-row .clip-hit")
+            .first()
+            .click({ position: { x: 20, y: 20 } });
+          await expect(page.locator(".modifier-badge")).toHaveText("Clip");
+          await page.locator("html").evaluate((html) => {
+            html.style.fontSize = "32px";
+          });
+          const chrome = page.locator(".bottom-sheet-chrome");
+          const checkHeader = async (checkpoint: string) => {
             for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {
               const action = page
                 .locator(".bottom-sheet-header")
                 .getByRole("button", { name, exact: true });
-              await nativeTabTo(
-                page,
-                action,
-                receipts,
-                browserName === "webkit" ? "Alt+Tab" : "Tab",
-              );
               const geometry = await controlGeometry(action);
+              receipts.push({ checkpoint, observation: { name, geometry } });
+              expect(geometry.fullyVisible).toBe(true);
               expect(geometry.hitsControl).toBe(true);
-              expect(geometry.rect.width).toBeGreaterThanOrEqual(88);
-              expect(geometry.rect.height).toBeGreaterThanOrEqual(88);
+              expect(geometry.rect.width).toBeGreaterThanOrEqual(44);
+              expect(geometry.rect.height).toBeGreaterThanOrEqual(44);
             }
-            await captureInspector(
+          };
+          await checkHeader("initial-header-before-recovery");
+          for (const name of ["Fade in ms", "Fade out ms"]) {
+            const field = page.getByLabel(name, { exact: true });
+            await exposeControl(page, field, receipts);
+            await nativeTabTo(
               page,
-              info,
+              field,
               receipts,
-              "scrolled-clip-keyboard-and-header",
+              browserName === "webkit" ? "Alt+Tab" : "Tab",
             );
-          },
-          undefined,
-          emptyEnvelopeProject,
-        );
-      });
+            await checkHeader(`${name}-focused-header`);
+            const geometry = await controlGeometry(field);
+            const chromeBottom = await chrome.evaluate(
+              (element) => element.getBoundingClientRect().bottom,
+            );
+            receipts.push({
+              checkpoint: `${name}-below-chrome`,
+              observation: { geometry, chromeBottom },
+            });
+            expect(geometry.hitsControl).toBe(true);
+            for (const item of geometry.measured) {
+              expect(item.rect.top).toBeGreaterThanOrEqual(chromeBottom);
+              expect(item.full).toBe(true);
+            }
+          }
+          const fade = page.getByLabel("Fade out ms", { exact: true });
+          await fade.focus();
+          await fade.press("ArrowRight");
+          await page.route("**/api/document/command*", async (route) => {
+            const body = route.request().postDataJSON() as { type: string };
+            if (body.type === "UndoHistory") {
+              await route.fulfill({
+                status: 409,
+                contentType: "application/json",
+                headers: { "x-sharecut-error-code": "history_stale" },
+                body: JSON.stringify({ detail: "Project changed" }),
+              });
+            } else {
+              await route.continue();
+            }
+          });
+          await page
+            .locator(".bottom-sheet-header")
+            .getByRole("button", { name: "Undo", exact: true })
+            .click();
+          const feedback = page.locator(
+            ".ui-toast-region--inspector-flow .ui-toast",
+          );
+          info.annotations.push({
+            type: "fault-injection",
+            description:
+              "Controlled HTTP 409 history_stale refusal after an actual fade edit. Fade success is silent.",
+          });
+          await expect(feedback).toBeVisible();
+          await checkHeader("refusal-header-before-recovery");
+          await captureInspector(
+            page,
+            info,
+            receipts,
+            "initial-refusal-feedback",
+          );
+          await nativeTabTo(
+            page,
+            fade,
+            receipts,
+            browserName === "webkit" ? "Alt+Tab" : "Tab",
+          );
+          await expect(fade).toBeFocused();
+          const fadeGeometry = await controlGeometry(fade);
+          expect(fadeGeometry.fullyVisible).toBe(true);
+          expect(fadeGeometry.hitsControl).toBe(true);
+          await checkHeader("refusal-focused-header");
+          const cardGeometry = await controlGeometry(feedback);
+          receipts.push({
+            checkpoint: "refusal-card-while-field-focused",
+            observation: cardGeometry,
+          });
+          expect(
+            cardGeometry.measured[0].ancestors.some(
+              (ancestor) => ancestor.class === "bottom-sheet-body",
+            ),
+          ).toBe(true);
+          for (const action of await feedback.getByRole("button").all()) {
+            await exposeControl(page, action, receipts);
+            const geometry = await controlGeometry(action);
+            expect(geometry.hitsControl).toBe(true);
+            expect(geometry.rect.width).toBeGreaterThanOrEqual(88);
+            expect(geometry.rect.height).toBeGreaterThanOrEqual(88);
+            await checkHeader("feedback-action-discovered-header");
+          }
+          for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {
+            const action = page
+              .locator(".bottom-sheet-header")
+              .getByRole("button", { name, exact: true });
+            await nativeTabTo(
+              page,
+              action,
+              receipts,
+              browserName === "webkit" ? "Alt+Tab" : "Tab",
+            );
+            const geometry = await controlGeometry(action);
+            expect(geometry.hitsControl).toBe(true);
+            expect(geometry.rect.width).toBeGreaterThanOrEqual(88);
+            expect(geometry.rect.height).toBeGreaterThanOrEqual(88);
+          }
+          await captureInspector(
+            page,
+            info,
+            receipts,
+            "scrolled-clip-keyboard-and-header",
+          );
+        },
+        undefined,
+        emptyEnvelopeProject,
+      );
     });
-  }
+  });
 }
 
 for (const viewport of [

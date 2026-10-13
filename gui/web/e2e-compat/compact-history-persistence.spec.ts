@@ -17,6 +17,7 @@ import {
   exposeControl,
 } from "../e2e/inspectorResponsiveEvidence";
 import type { InteractionReceipt } from "../e2e/interactionEvidence";
+import { withAppearance } from "../e2e/theme";
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true });
@@ -510,25 +511,28 @@ async function undoStaysReachable(
   });
 }
 
-for (const name of ["portrait", "landscape"] as const) {
-  for (const rootPx of [16, 32]) {
-    for (const theme of ["dark", "light"] as const) {
-      test.describe(`compact history ${name} root${rootPx} ${theme}`, () => {
-        test("Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open", ({
-          page,
-          context,
-          browserName,
-        }, info) =>
-          undoStaysReachable(
-            name,
-            rootPx,
-            theme,
-            { page, context, browserName },
-            info,
-          ));
-      });
-    }
-  }
+for (const {
+  cell: { name, rootPx },
+  theme,
+} of withAppearance(
+  (["portrait", "landscape"] as const).flatMap((name) =>
+    [16, 32].map((rootPx) => ({ name, rootPx })),
+  ),
+)) {
+  test.describe(`compact history ${name} root${rootPx} ${theme}`, () => {
+    test("Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open", ({
+      page,
+      context,
+      browserName,
+    }, info) =>
+      undoStaysReachable(
+        name,
+        rootPx,
+        theme,
+        { page, context, browserName },
+        info,
+      ));
+  });
 }
 
 for (const name of ["portrait", "landscape"] as const) {

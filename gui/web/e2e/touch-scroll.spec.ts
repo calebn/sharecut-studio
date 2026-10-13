@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import {
@@ -15,7 +14,6 @@ import {
   openTimeline,
   type Point,
   pickState,
-  save,
   setZoom,
   touchDrag,
   VIEWPORTS,
@@ -187,41 +185,6 @@ test("a tap still selects or opens what it lands on", async ({
   }
   json(info, `tap-${RUN}`, rows);
   expect(rows.filter((r) => !r.activated)).toEqual([]);
-});
-
-test("video: drag to scroll from a clip and a crowded point", async ({
-  browser,
-}, info) => {
-  const context = await browser.newContext({
-    hasTouch: true,
-    isMobile: true,
-    viewport: VIEWPORTS.phone,
-    recordVideo: { dir: info.outputPath("video"), size: VIEWPORTS.phone },
-  });
-  const { page, cdp } = await newTouchPage(context);
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await buildFixture(page, projectPath, CLIENT_ID);
-  await openTimeline(page, projectPath, "phone", "dark");
-  await setZoom(page, 3);
-  for (const start of ["clip body", "crowded envelope point"]) {
-    const at = await STARTS[start](page);
-    if (!at) continue;
-    await page.waitForTimeout(700);
-    await touchDrag(cdp, page, at, await dragDelta(page), {
-      steps: 20,
-      stepMs: 30,
-    });
-    await page.waitForTimeout(1200);
-  }
-  const video = page.video();
-  await context.close();
-  if (video) {
-    save(
-      info,
-      `drag-to-scroll-${RUN}.webm`,
-      fs.readFileSync(await video.path()),
-    );
-  }
 });
 
 /** Counts text selection and context-menu events on the page. */

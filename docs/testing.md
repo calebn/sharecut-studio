@@ -575,6 +575,35 @@ when they share setup, but do not make one test depend on another test's state.
 Use observable readiness rather than fixed sleeps, except when elapsed time is
 the behavior under test, such as a disconnect grace period or long press.
 
+### Appearance grids
+
+A grid crosses layout cells (viewport, orientation, root text size) with an
+appearance (theme, reduced motion). Each added axis multiplies the browser time
+of every run, so a grid keeps only the boundary cells:
+
+- **Theme.** The theme files in `gui/web/src/styles/theme/` define only
+  `--color-*` and shadow tokens, and no partial selects on `data-theme`, so a
+  theme cannot change a hit test, a rectangle, a focus paint area or an
+  overflow. A geometry check runs once per layout cell and takes its theme from
+  `withAppearance` in `gui/web/e2e/theme.ts`, which gives two cells both themes
+  and both motion settings and four cells every pairing. A check that reads
+  color (axe contrast, a computed color) loops over the themes inside one cell
+  and keeps the loop on one screen.
+- **Root text size.** 16 px and 32 px, the smallest and largest. A size between
+  them earns a cell only when a `rem` query separates it from both.
+- **Viewport.** The smallest and largest cell of each band that the media and
+  container queries in `src/styles` draw. A cell inside a band whose smaller and
+  larger neighbours are kept runs the same CSS branch and is dropped.
+- **Reduced motion.** A layout check needs one cell per setting at most. A check
+  of the motion itself (transition duration, animation count) owns its pair.
+
+To add a cell, name the CSS branch or query band it reaches that no kept cell
+does. A new `for` loop over a theme, motion or text-size list fails
+`gui/web/e2e/gridBoundary.test.ts` unless the loop is the subject of the check
+and the file is listed there with the reason. Theme and axe checks for the
+shared `ui/` primitives belong in Vitest (`expectNoA11yViolations`), not in a
+browser grid.
+
 Both browser suites currently run serially against shared live project state.
 Do not raise `workers` or enable `fullyParallel` until each worker owns its GUI
 server, project, share registry and output directory. Retries are failure
@@ -762,8 +791,9 @@ sync timing.
 ### GUI surface regressions
 
 `gui/web/e2e/gui-surfaces.spec.ts` checks five editor panels and chapter inspectors
-at desktop, tablet and phone widths in both themes with WCAG A/AA contrast
-checks. It also covers long comments and vocabulary announcements, phone
+at desktop, tablet and phone widths with WCAG A/AA contrast checks (the three
+widths take their themes from `withAppearance`, so both themes are checked on
+each screen across the three). It also covers long comments and vocabulary announcements, phone
 Pipeline parameters/model-download focus handoff, and repeated menu-trigger
 clicks. `gui/web/e2e/review-surface.spec.ts` checks that a Commenter link opens
 Sharecut Studio in both themes: at 1440px the guest posts a
@@ -773,14 +803,14 @@ without `view` shows an error instead of a listen page.
 `gui/web/e2e/comment-undo.spec.ts` checks host Resolve and Undo persistence,
 sticky toast bounds and hit testing after two interior panel scrolls, and Dismiss
 focus without changing panel, ancestor, or window scroll offsets. It runs at
-desktop and phone widths in both themes, with axe while the toast is visible.
+desktop and phone widths, one theme each, with axe while the toast is visible.
 `gui/web/e2e-compat/comment-undo.spec.ts` runs one phone recovery flow in Chromium
 and WebKit, including a real pending reopen request and disabled Undo focus.
 These tests use disposable projects. Physical iPhone and iPad Safari checks remain
 pending. Run the focused cases with `npm run test:e2e -- e2e/comment-undo.spec.ts`
 and `npm run test:e2e:compat -- e2e-compat/comment-undo.spec.ts` after the E2E build.
 `gui/web/e2e/envelope-recovery.spec.ts` covers envelope recovery at desktop,
-tablet, and phone widths in both themes with reduced motion. The first gesture
+tablet, and phone widths, one theme each, with reduced motion. The first gesture
 starts with the inspector closed and a different control focused. Native mouse
 input acquires circle focus and capture. The flow checks local preview highlight,
 Escape retaining point focus without opening the inspector, focus-departure
@@ -800,8 +830,8 @@ foreign terminal events, non-left mouse admission, capture cleanup, setup failur
 pending saves, rejected saves preserving previous selection, read-only selection,
 and unmount. Run browser wrappers sequentially with fixture/environment unit tests.
 `gui/web/e2e/inspector-responsive.spec.ts` covers the #961 inspector regression
-at 360×740, 360×800, 667×360, 820×1180 and 1440×900, in light/dark themes,
-with reduced motion and 16px/32px CSS root text. It uses native mouse input at
+at 360×740, 360×800, 667×360, 820×1180 and 1440×900, with 16px/32px CSS root
+text, one theme and motion setting per cell from `withAppearance`. It uses native mouse input at
 the visible track identity, measured ordinary body-wheel scrolling, and full
 control rectangles rather than center-only visibility. Envelope saves retain
 matching Applied identity, saved stable-ID points and History receipts; Cancel,
@@ -823,7 +853,8 @@ owns scrolling; desktop modifier inspectors use their outer aside. This updates
 layout expectations while retaining command, focus, permission, and persistence
 assertions. The responsive suite does not replace the owner recovery/CAS tests.
 `gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
-at narrow and wide sizes. These browser checks do not validate packaged WebViews
+at 360px and 820px, one theme each, so axe checks both themes across the pair.
+These browser checks do not validate packaged WebViews
 or physical microphone behavior.
 
 Run browser wrappers sequentially with fixture/environment unit tests. Their
@@ -1604,29 +1635,14 @@ test; other rows are whole tests.
 | no shell row draws over the strip, nor the strip over it: landscape-844 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | live waiver draft survives compact to regular tablet transition | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
-| pending actions at phone: docks in the inspector sheet, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at phone: docks in the inspector sheet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet-short: docks in the inspector sheet, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet-short: docks in the inspector sheet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet: docks in the regular inspector sheet, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet: docks in the regular inspector sheet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet-768: docks in the regular inspector sheet, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at tablet-768: docks in the regular inspector sheet, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop: floats between the ruler and the bottom panel, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop: floats between the ruler and the bottom panel, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-540: floats between the ruler and the bottom panel, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-540: floats between the ruler and the bottom panel, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-500: floats between the ruler and the bottom panel, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-500: floats between the ruler and the bottom panel, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-short: leaves Approve and Reject to the inspector, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-short: leaves Approve and Reject to the inspector, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-1180: floats between the ruler and the bottom panel, light | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending actions at desktop-1180: floats between the ruler and the bottom panel, dark | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| docks in the inspector sheet | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| docks in the regular inspector sheet | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| floats between the ruler and the bottom panel | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| leaves Approve and Reject to the inspector | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending card: a marker lane that grows while it floats moves the card clear of the lane | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending card: a bottom panel that grows while it floats moves the card clear of the panel | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 360 | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Expand keeps the header, Collapse and Close usable at 844x390 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| Expand keeps the header, Collapse and Close usable at 844x390 with a 24 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Expand keeps the header, Collapse and Close usable at 844x390 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | the half drawer keeps a readable title at 390x844 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the half drawer keeps a readable title at 390x844 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -2612,7 +2628,7 @@ does not reproduce because it publishes no selection.
 
 The feedback detent matrix compares half and full height before and during a
 real history refusal for Envelope and Pending selections. It covers phone and
-short-tablet viewports, both text sizes and themes. Ruler ownership must remain
+short-tablet viewports and both text sizes, one theme per cell. Ruler ownership must remain
 when the baseline detent permits it. Short-slot minimum chrome can make ruler
 room impossible at enlarged text. The painted-focus matrix visits every native
 compact Tab target, measures outline width and offset against canonical clip
@@ -2624,7 +2640,7 @@ that same guarded card remains clipped. Browser RED receipts precede repairs.
 Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper admits the actual compact Expand control before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. Native horizontal wheel readiness waits for the intended local `x300,y12` coordinate to enter the canonical visible bounds before evaluating ruler permission. The original Pending ruler click assertions remain unchanged.
 
 The phone navigation focus matrix traverses every Primary navigation button
-with native Tab at 16px and 32px root sizes in light and dark themes. It runs
+with native Tab at 16px and 32px root sizes, one theme per size. It runs
 in Chromium and WebKit and saves geometry receipts and screenshots for each
 focused button. The phone shell clips content at its viewport edge, so every
 navigation focus indicator must fit inside its button.

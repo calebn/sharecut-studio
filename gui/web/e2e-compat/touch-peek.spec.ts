@@ -17,7 +17,7 @@ import {
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { setTheme, type Theme } from "../e2e/theme";
+import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 import {
   buildFixture,
   type CaseFixtures,
@@ -817,7 +817,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
   const commands = watchCommands(page);
   const finger = await newFinger(context, page, browserName);
   const rows: Record<string, unknown>[] = [];
-  for (const rootFont of [16, 20, 22, 24, 32]) {
+  for (const rootFont of [16, 32]) {
     for (const size of ["portrait-390", "landscape-844"] as const) {
       await open(page, size);
       const at = await clearOfScrollbars(
@@ -937,48 +937,47 @@ test("axe, both themes and reduced motion with the strip open", async ({
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
   const rows: Record<string, unknown>[] = [];
-  for (const motion of ["no-preference", "reduce"] as const) {
+  for (const { theme, reducedMotion } of withAppearance([0, 1])) {
+    const motion = reducedMotion ? "reduce" : "no-preference";
     await page.emulateMedia({ reducedMotion: motion });
-    for (const theme of ["dark", "light"] as const) {
-      await open(page, "portrait-360", { theme });
-      await holdOpen(page, finger);
-      await finger.slide(await centerOfBox(trimChip(page)), 8, 16);
-      await page.waitForTimeout(SETTLE_MS);
-      await finger.up();
-      await page.waitForTimeout(700);
-      const axeStrip = await new AxeBuilder({ page })
-        .disableRules([...STUDIO_AXE_DISABLED_RULES])
-        .include(".bottom-sheet")
-        .analyze();
-      await frame(page, info, `strip-${theme}-${motion}-${browserName}`);
-      const transition = await sheet(page).evaluate(
-        (el) => getComputedStyle(el).transitionDuration,
-      );
-      const nudges = await page.locator(".nudge-button").evaluateAll((els) =>
-        els.map((e) => {
-          const r = e.getBoundingClientRect();
-          return {
-            label: e.getAttribute("aria-label"),
-            w: Math.round(r.width),
-            h: Math.round(r.height),
-          };
-        }),
-      );
-      await page.getByRole("button", { name: "Expand to half height" }).click();
-      await page.waitForTimeout(600);
-      const axeExpanded = await new AxeBuilder({ page })
-        .disableRules([...STUDIO_AXE_DISABLED_RULES])
-        .include(".bottom-sheet")
-        .analyze();
-      rows.push({
-        motion,
-        theme,
-        transition,
-        nudges,
-        axeStrip: axeStrip.violations.map((v) => v.id),
-        axeExpanded: axeExpanded.violations.map((v) => v.id),
-      });
-    }
+    await open(page, "portrait-360", { theme });
+    await holdOpen(page, finger);
+    await finger.slide(await centerOfBox(trimChip(page)), 8, 16);
+    await page.waitForTimeout(SETTLE_MS);
+    await finger.up();
+    await page.waitForTimeout(700);
+    const axeStrip = await new AxeBuilder({ page })
+      .disableRules([...STUDIO_AXE_DISABLED_RULES])
+      .include(".bottom-sheet")
+      .analyze();
+    await frame(page, info, `strip-${theme}-${motion}-${browserName}`);
+    const transition = await sheet(page).evaluate(
+      (el) => getComputedStyle(el).transitionDuration,
+    );
+    const nudges = await page.locator(".nudge-button").evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return {
+          label: e.getAttribute("aria-label"),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        };
+      }),
+    );
+    await page.getByRole("button", { name: "Expand to half height" }).click();
+    await page.waitForTimeout(600);
+    const axeExpanded = await new AxeBuilder({ page })
+      .disableRules([...STUDIO_AXE_DISABLED_RULES])
+      .include(".bottom-sheet")
+      .analyze();
+    rows.push({
+      motion,
+      theme,
+      transition,
+      nudges,
+      axeStrip: axeStrip.violations.map((v) => v.id),
+      axeExpanded: axeExpanded.violations.map((v) => v.id),
+    });
   }
   json(info, `axe-theme-motion-${browserName}`, rows);
   for (const row of rows as {
@@ -1114,12 +1113,6 @@ test("Expand keeps the header, Collapse and Close usable at 844x390 with a 16 px
   context,
   browserName,
 }, info) => expandAtRootFont(16, { page, context, browserName }, info));
-
-test("Expand keeps the header, Collapse and Close usable at 844x390 with a 24 px root font", ({
-  page,
-  context,
-  browserName,
-}, info) => expandAtRootFont(24, { page, context, browserName }, info));
 
 test("Expand keeps the header, Collapse and Close usable at 844x390 with a 32 px root font", ({
   page,

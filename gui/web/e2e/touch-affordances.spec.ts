@@ -1,4 +1,5 @@
 import { test } from "@playwright/test";
+import { withAppearance } from "./theme";
 import { exerciseTouchSheetAffordances } from "./touchAffordances";
 
 const cases = [
@@ -8,21 +9,12 @@ const cases = [
   { width: 1440, height: 900, sheetExpected: false },
 ] as const;
 
-for (const viewport of cases) {
-  for (const theme of ["light", "dark"] as const) {
-    for (const reducedMotion of [false, true]) {
-      test(`sheet affordances ${viewport.width}x${viewport.height}, ${theme}, reduced motion ${reducedMotion}`, async ({
-        page,
-      }) => {
-        await exerciseTouchSheetAffordances(
-          page,
-          viewport,
-          theme,
-          reducedMotion,
-        );
-      });
-    }
-  }
+for (const { cell: viewport, theme, reducedMotion } of withAppearance(cases)) {
+  test(`sheet affordances ${viewport.width}x${viewport.height}, ${theme}, reduced motion ${reducedMotion}`, async ({
+    page,
+  }) => {
+    await exerciseTouchSheetAffordances(page, viewport, theme, reducedMotion);
+  });
 }
 
 test("sheet affordances remain available at 200% text scale", async ({

@@ -68,27 +68,6 @@ const profiles = [
     theme: "light",
     motion: "reduce",
   },
-  {
-    id: "desktop-dark",
-    width: 1440,
-    height: 900,
-    theme: "dark",
-    motion: "reduce",
-  },
-  {
-    id: "tablet-light",
-    width: 820,
-    height: 1024,
-    theme: "light",
-    motion: "no-preference",
-  },
-  {
-    id: "phone-dark",
-    width: 390,
-    height: 844,
-    theme: "dark",
-    motion: "no-preference",
-  },
 ] as const;
 function read(projectPath: string): Project {
   return JSON.parse(fs.readFileSync(projectPath, "utf8")) as Project;

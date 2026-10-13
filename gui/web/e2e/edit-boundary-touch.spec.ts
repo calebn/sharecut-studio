@@ -5,7 +5,7 @@ import {
   waiveRefineGate,
 } from "./documentCommand";
 import { e2eProjectPath } from "./env";
-import { setTheme } from "./theme";
+import { setTheme, withAppearance } from "./theme";
 
 const CLIENT_ID = "e2e-edit-boundary-touch";
 
@@ -133,126 +133,117 @@ test.describe("Transcript edit-boundary touch drag", () => {
   });
 });
 
-for (const width of [1440, 360]) {
-  for (const theme of ["light", "dark"] as const) {
-    test(`boundary grab point stays aligned through preview changes at ${width}px in ${theme}`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-      await expect(page.getByRole("heading", { level: 1 })).toContainText(
-        /aligned dialogue/i,
-      );
-      await setTheme(page, theme);
-      const boundaryCommands: string[] = [];
-      page.on("request", (request) => {
-        if (
-          !request.url().includes("/api/document/command") ||
-          request.method() !== "POST"
-        )
-          return;
-        const command: { type?: string } | null = request.postDataJSON();
-        if (
-          command?.type === "RollClipJoin" ||
-          command?.type === "TrimClipEdge"
-        )
-          boundaryCommands.push(command.type);
+for (const { cell: width, theme } of withAppearance([1440, 360])) {
+  test(`boundary grab point stays aligned through preview changes at ${width}px in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /aligned dialogue/i,
+    );
+    await setTheme(page, theme);
+    const boundaryCommands: string[] = [];
+    page.on("request", (request) => {
+      if (
+        !request.url().includes("/api/document/command") ||
+        request.method() !== "POST"
+      )
+        return;
+      const command: { type?: string } | null = request.postDataJSON();
+      if (command?.type === "RollClipJoin" || command?.type === "TrimClipEdge")
+        boundaryCommands.push(command.type);
+    });
+    let applied = false;
+    try {
+      await waiveRefineGate(page, "e2e boundary geometry");
+      await postDocumentCommand(page, CLIENT_ID, "CutRange", {
+        mode: "ripple",
+        confirm_cut_speech: true,
+        start: 5,
+        end: 15,
       });
-      let applied = false;
-      try {
-        await waiveRefineGate(page, "e2e boundary geometry");
-        await postDocumentCommand(page, CLIENT_ID, "CutRange", {
-          mode: "ripple",
-          confirm_cut_speech: true,
-          start: 5,
-          end: 15,
-        });
-        applied = true;
-        await page
-          .getByRole("button", {
-            name: width < 720 ? "Text" : "Transcript",
-            exact: true,
-          })
-          .click();
-        const annotate = page.locator(".transcript-annotate-btn");
-        if ((await annotate.getAttribute("aria-pressed")) !== "true")
-          await annotate.click();
-        const mark = page.locator(".edit-boundary-mark").first();
-        await expect(mark).toBeVisible();
-        await mark.scrollIntoViewIfNeeded();
-        const initial = await mark.boundingBox();
-        if (!initial) throw new Error("Boundary has no visible grab target");
-        const x = initial.x + initial.width / 2;
-        const y = initial.y + initial.height / 2;
-        const paragraph = mark.locator(
-          "xpath=ancestor::*[contains(@class, 'utterance-turn')][1]",
-        );
-        const originalParagraph = await paragraph.boundingBox();
-        if (!originalParagraph)
-          throw new Error("Boundary needs a visible transcript turn");
-        await page.mouse.move(x, y);
-        await page.mouse.down();
-        for (const distance of [0, 4]) {
-          await page.mouse.move(x + distance, y);
-          const box = await mark.boundingBox();
-          expect(box).toBeTruthy();
-          expect(box!.x + box!.width / 2).toBeCloseTo(x, 0);
-          await expect(page.locator(".edit-boundary-preview")).toHaveCount(0);
-          await expect(mark).toHaveAttribute("aria-grabbed", "false");
-        }
-        for (const distance of [
-          8, 16, 32, 64, 80, 32, 0, -4, -16, -32, -64, 0,
-        ]) {
-          await page.mouse.move(x + distance, y);
-          await expect(async () => {
-            const box = await mark.boundingBox();
-            if (!box) throw new Error("Boundary disappeared during drag");
-            expect(
-              Math.abs(box.x + initial.width / 2 - (x + distance)),
-            ).toBeLessThan(0.5);
-            expect(Math.abs(box.y - initial.y)).toBeLessThan(0.5);
-            expect(box.width).toBeCloseTo(initial.width, 1);
-            expect(await paragraph.boundingBox()).toEqual(originalParagraph);
-            const preview = await page
-              .locator(".edit-boundary-preview")
-              .boundingBox();
-            if (!preview) throw new Error("Drag feedback disappeared");
-            expect(preview.x).toBeGreaterThanOrEqual(0);
-            expect(preview.x + preview.width).toBeLessThanOrEqual(width);
-            expect(preview.y).toBeGreaterThanOrEqual(0);
-            expect(preview.y + preview.height).toBeLessThanOrEqual(900);
-            expect(
-              preview.y >= initial.y + initial.height ||
-                preview.y + preview.height <= initial.y,
-            ).toBe(true);
-          }).toPass({ timeout: 2000 });
-        }
-        await page.mouse.move(x + 10000, y);
-        await expect(page.locator(".edit-boundary-preview")).toContainText(
-          "Limit reached",
-        );
-        const preview = page.locator(".edit-boundary-preview");
-        const limitedMessage = await preview.innerText();
-        await page.mouse.move(x + 12000, y);
+      applied = true;
+      await page
+        .getByRole("button", {
+          name: width < 720 ? "Text" : "Transcript",
+          exact: true,
+        })
+        .click();
+      const annotate = page.locator(".transcript-annotate-btn");
+      if ((await annotate.getAttribute("aria-pressed")) !== "true")
+        await annotate.click();
+      const mark = page.locator(".edit-boundary-mark").first();
+      await expect(mark).toBeVisible();
+      await mark.scrollIntoViewIfNeeded();
+      const initial = await mark.boundingBox();
+      if (!initial) throw new Error("Boundary has no visible grab target");
+      const x = initial.x + initial.width / 2;
+      const y = initial.y + initial.height / 2;
+      const paragraph = mark.locator(
+        "xpath=ancestor::*[contains(@class, 'utterance-turn')][1]",
+      );
+      const originalParagraph = await paragraph.boundingBox();
+      if (!originalParagraph)
+        throw new Error("Boundary needs a visible transcript turn");
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (const distance of [0, 4]) {
+        await page.mouse.move(x + distance, y);
+        const box = await mark.boundingBox();
+        expect(box).toBeTruthy();
+        expect(box!.x + box!.width / 2).toBeCloseTo(x, 0);
+        await expect(page.locator(".edit-boundary-preview")).toHaveCount(0);
+        await expect(mark).toHaveAttribute("aria-grabbed", "false");
+      }
+      for (const distance of [8, 16, 32, 64, 80, 32, 0, -4, -16, -32, -64, 0]) {
+        await page.mouse.move(x + distance, y);
         await expect(async () => {
           const box = await mark.boundingBox();
-          if (!box) throw new Error("Boundary disappeared at the limit");
-          expect(Math.abs(box.x + box.width / 2 - (x + 12000))).toBeLessThan(
-            0.5,
-          );
-          expect(await preview.innerText()).toBe(limitedMessage);
+          if (!box) throw new Error("Boundary disappeared during drag");
+          expect(
+            Math.abs(box.x + initial.width / 2 - (x + distance)),
+          ).toBeLessThan(0.5);
+          expect(Math.abs(box.y - initial.y)).toBeLessThan(0.5);
+          expect(box.width).toBeCloseTo(initial.width, 1);
+          expect(await paragraph.boundingBox()).toEqual(originalParagraph);
+          const preview = await page
+            .locator(".edit-boundary-preview")
+            .boundingBox();
+          if (!preview) throw new Error("Drag feedback disappeared");
+          expect(preview.x).toBeGreaterThanOrEqual(0);
+          expect(preview.x + preview.width).toBeLessThanOrEqual(width);
+          expect(preview.y).toBeGreaterThanOrEqual(0);
+          expect(preview.y + preview.height).toBeLessThanOrEqual(900);
+          expect(
+            preview.y >= initial.y + initial.height ||
+              preview.y + preview.height <= initial.y,
+          ).toBe(true);
         }).toPass({ timeout: 2000 });
-        await page.keyboard.press("Escape");
-        await page.mouse.up();
-        await expect(page.locator("body")).not.toHaveClass(
-          /is-boundary-dragging/,
-        );
-        await expect(mark).toHaveAttribute("aria-grabbed", "false");
-        expect(boundaryCommands).toEqual([]);
-      } finally {
-        await page.mouse.up();
-        if (applied) await postHistoryMove(page, CLIENT_ID, "UndoHistory");
       }
-    });
-  }
+      await page.mouse.move(x + 10000, y);
+      await expect(page.locator(".edit-boundary-preview")).toContainText(
+        "Limit reached",
+      );
+      const preview = page.locator(".edit-boundary-preview");
+      const limitedMessage = await preview.innerText();
+      await page.mouse.move(x + 12000, y);
+      await expect(async () => {
+        const box = await mark.boundingBox();
+        if (!box) throw new Error("Boundary disappeared at the limit");
+        expect(Math.abs(box.x + box.width / 2 - (x + 12000))).toBeLessThan(0.5);
+        expect(await preview.innerText()).toBe(limitedMessage);
+      }).toPass({ timeout: 2000 });
+      await page.keyboard.press("Escape");
+      await page.mouse.up();
+      await expect(page.locator("body")).not.toHaveClass(
+        /is-boundary-dragging/,
+      );
+      await expect(mark).toHaveAttribute("aria-grabbed", "false");
+      expect(boundaryCommands).toEqual([]);
+    } finally {
+      await page.mouse.up();
+      if (applied) await postHistoryMove(page, CLIENT_ID, "UndoHistory");
+    }
+  });
 }

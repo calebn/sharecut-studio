@@ -8,49 +8,48 @@ import {
 } from "./phoneMix";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
+import { withAppearance } from "./theme";
 
-for (const theme of ["light", "dark"]) {
-  for (const viewport of [
-    { width: 320, height: 640 },
-    { width: 360, height: 740 },
-    { width: 360, height: 900 },
-  ]) {
-    test(`phone Mix fits ${viewport.width}x${viewport.height} in ${theme}`, async ({
-      page,
-    }, info) => {
-      await page.setViewportSize(viewport);
-      await withShareableProject(async (projectPath) => {
-        await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-        await expect(page.locator(".daw-shell--phone")).toBeVisible();
-        for (let i = 0; i < 8; i++)
-          await postDocumentCommand(
-            page,
-            "mix-geometry",
-            "AddTrack",
-            { label: `Extra voice ${i + 1} with a long recording name` },
-            projectPath,
-          );
-        await page.evaluate((theme) => {
-          localStorage.setItem("daw_theme", theme);
-          document.documentElement.setAttribute("data-theme", theme);
-        }, theme);
-        await openPhoneMix(page);
-        await checkMixGeometry(page, info);
-        await page
-          .getByRole("dialog", { name: "Mix", exact: true })
-          .getByRole("button", { name: "Close" })
-          .click();
-        await expect(
-          page.getByRole("button", { name: "Mix", exact: true }),
-        ).toBeFocused();
-        await openPhoneMix(page);
-        await page.keyboard.press("Escape");
-        await expect(
-          page.getByRole("button", { name: "Mix", exact: true }),
-        ).toBeFocused();
-      });
+for (const { cell: viewport, theme } of withAppearance([
+  { width: 320, height: 640 },
+  { width: 360, height: 740 },
+  { width: 360, height: 900 },
+])) {
+  test(`phone Mix fits ${viewport.width}x${viewport.height} in ${theme}`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize(viewport);
+    await withShareableProject(async (projectPath) => {
+      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await expect(page.locator(".daw-shell--phone")).toBeVisible();
+      for (let i = 0; i < 8; i++)
+        await postDocumentCommand(
+          page,
+          "mix-geometry",
+          "AddTrack",
+          { label: `Extra voice ${i + 1} with a long recording name` },
+          projectPath,
+        );
+      await page.evaluate((theme) => {
+        localStorage.setItem("daw_theme", theme);
+        document.documentElement.setAttribute("data-theme", theme);
+      }, theme);
+      await openPhoneMix(page);
+      await checkMixGeometry(page, info);
+      await page
+        .getByRole("dialog", { name: "Mix", exact: true })
+        .getByRole("button", { name: "Close" })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "Mix", exact: true }),
+      ).toBeFocused();
+      await openPhoneMix(page);
+      await page.keyboard.press("Escape");
+      await expect(
+        page.getByRole("button", { name: "Mix", exact: true }),
+      ).toBeFocused();
     });
-  }
+  });
 }
 test("phone Mix persists native edits, keeps S private and undoes saved changes", async ({
   page,
