@@ -291,6 +291,13 @@ button.pill.pill--info {
     min-block-size: var(--touch-min);
     min-inline-size: var(--touch-min);
   }
+
+  /* The track grows with its touch-sized segments instead of clipping them
+     (a fixed --control-height left the pressed chip hanging below it). */
+  .ui-segmented {
+    block-size: auto;
+    min-block-size: var(--control-height);
+  }
 }
 
 .ui-control[aria-pressed="true"],

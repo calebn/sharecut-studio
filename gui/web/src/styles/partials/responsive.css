@@ -353,6 +353,7 @@ html[data-shell="tablet"] {
 
 .mobile-status-chips {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--space-3);
   min-width: 0;

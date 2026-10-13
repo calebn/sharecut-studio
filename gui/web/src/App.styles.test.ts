@@ -143,6 +143,26 @@ describe("App styles", () => {
     ).toBeGreaterThan(src.indexOf(".ui-control--compact {"));
   });
 
+  it("lets segmented tracks, the status bar and the Listen status row hold touch-sized children on a coarse pointer (#1388)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const read = (f: string) => readFileSync(join(here, f), "utf8");
+    const ui = read("styles/partials/ui.css");
+    const track = ui.match(
+      /@media \(pointer: coarse\) \{[^@]*?\.ui-segmented \{([^}]*)\}/,
+    );
+    expect(track).toBeTruthy();
+    expect(track![1]).toMatch(/block-size:\s*auto/);
+    expect(track![1]).toMatch(/min-block-size:\s*var\(--control-height\)/);
+    const tokens = read("styles/theme/tokens.css");
+    expect(tokens).toMatch(
+      /@media \(pointer: coarse\) \{[^@]*?--status-height:\s*calc\(var\(--touch-min\)/,
+    );
+    const chips = read("styles/partials/responsive.css").match(
+      /\.mobile-status-chips \{([^}]*)\}/,
+    );
+    expect(chips![1]).toMatch(/align-items:\s*center/);
+  });
+
   it("gives the collapsed transport icon buttons the touch target on a coarse pointer (#1388)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(
