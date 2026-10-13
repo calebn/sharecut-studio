@@ -10,9 +10,9 @@ the same words. Words are never deleted or retimed.
 The track is decoded once as the mono audio the floor was measured from and framed the way
 the floor was (``edits.audio_cache.frame_levels_db``), so a word and the floor share units.
 
-Analyze (``suggest_pipeline_tuning``) reuses the same envelope to flag a dialogue
-source that is mostly digital silence, a sign of a gated stem worth VAD. The
-resulting fraction is cached in-process per file version.
+Analyze (``suggest_pipeline_tuning``) reduces a track to a per-block peak envelope
+(``peak_envelope``) to flag a dialogue source that is mostly digital silence, a sign of a
+gated stem worth VAD. The resulting fraction is cached in-process per file version.
 
 ``refresh_silence_flags`` also ORs in the forced aligner's evidence signal (#195):
 an aligned word whose ``alignment_score`` is below `transcribe.forced_alignment.
@@ -656,8 +656,7 @@ def digital_silence_fraction(path: Path) -> float | None:
     """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence.
 
     Cached in-process per resolved path, ``file_revision`` (device, inode, size, mtime),
-    a SHA-256 of the first and last 64 KiB (``util.hashing.sha256_head_tail``) and
-    so a re-run Analyze (GUI button, MCP) does not decode an unchanged
+    and a SHA-256 of the first and last 64 KiB (``util.hashing.sha256_head_tail``), so a re-run Analyze (GUI button, MCP) does not decode an unchanged
     file again. An atomic replace or in-place rewrite re-measures when it changes the
     inode, size, mtime or either 64 KiB end; only a same-size edit confined to the middle
     of the file that also keeps inode and mtime stays cached until the process restarts.
