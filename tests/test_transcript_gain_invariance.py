@@ -218,6 +218,19 @@ def test_track_with_a_single_word_judges_it_audible(tmp_path: Path, gain_db: flo
 
 
 @pytest.mark.parametrize("gain_db", GAINS_DB)
+def test_track_without_contrast_between_speech_and_room_judges_nothing_inaudible(
+    tmp_path: Path, gain_db: float
+):
+    """A steady tone has no room to tell its voice from: its floor would sit over all of it."""
+    audio = _tone(2 * RATE, SPEECH_DB)
+    project = _project(
+        tmp_path, gain_db, (("tone", audio, [TranscriptWord(text="hi", start=0.5, end=1.5)]),)
+    )
+    rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+    assert [r["audibility_status"] for r in rows] == ["audible"]
+
+
+@pytest.mark.parametrize("gain_db", GAINS_DB)
 def test_track_with_no_live_audio_judges_its_words_inaudible(tmp_path: Path, gain_db: float):
     project = _project(
         tmp_path,

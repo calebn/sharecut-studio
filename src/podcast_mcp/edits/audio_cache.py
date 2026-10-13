@@ -122,6 +122,21 @@ def voice_floor_from_profile(profile: tuple[float, float] | None) -> float:
     return max(speech_db - VOICE_FLOOR_UNDER_SPEECH_DB, room_db + VOICE_FLOOR_OVER_ROOM_DB)
 
 
+def audibility_floor_from_profile(profile: tuple[float, float] | None) -> float:
+    """The level (dBFS) a word's own recording must reach to count as audible.
+
+    The :func:`voice_floor_from_profile`, except where it cannot tell voice from room: a
+    track whose room sits within 6 dB of its speech has no quiet to find, and its
+    floor would sit over its own speech and call every word of it inaudible. Such a
+    track judges nothing inaudible (``-inf``). A track with no live audio at all holds
+    no word (``inf``).
+    """
+    if profile is None:
+        return math.inf
+    floor = voice_floor_from_profile(profile)
+    return floor if floor < speech_db_from_profile(profile) else -math.inf
+
+
 class BandLevels:
     """A recording's 10 ms levels through one :class:`~podcast_mcp.util.dsp.BandShape`, filtered once.
 
@@ -290,6 +305,12 @@ def track_voice_floor_db(
     project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
 ) -> float:
     return voice_floor_from_profile(track_level_profile(project, track_id, audio_cache))
+
+
+def track_audibility_floor_db(
+    project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
+) -> float:
+    return audibility_floor_from_profile(track_level_profile(project, track_id, audio_cache))
 
 
 def build_track_audio_caches(
