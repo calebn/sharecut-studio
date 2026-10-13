@@ -339,7 +339,7 @@ describe("CommentsPanel", () => {
         kind: "range",
         target: {
           kind: "exact_range",
-          intervals: [{ start: 4, end: 9.5 }],
+          intervals: [{ start: 4, end: 9.4 }],
           track_ids: ["host"],
           clips: [],
           media_seals: {},
@@ -356,9 +356,9 @@ describe("CommentsPanel", () => {
       "/tmp/p.json",
       expect.objectContaining({
         timelineStart: 4,
-        timelineEnd: 9.5,
+        timelineEnd: 9.4,
         trackIds: ["host"],
-        timelineSpans: [{ start: 4, end: 9.5 }],
+        timelineSpans: [{ start: 4, end: 9.4 }],
       }),
     );
   });
