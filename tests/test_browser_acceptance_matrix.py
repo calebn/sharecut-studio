@@ -1,14 +1,18 @@
 """Guard the browser acceptance matrix in docs/testing.md against drift.
 
-A "Pass" cell claims the required `frontend-e2e-suites` matrix runs that check
-on that engine with no retry and no skip; the aggregate `frontend-e2e` gate
-makes a green `main` require every main shard and the compat suite to pass. "Not run" means no compat
+A "Pass" cell claims the `frontend-e2e-suites` matrix runs that check on that
+engine on every push to `main` and every nightly run, with at most one retry and
+no skip; the aggregate `frontend-e2e` gate makes a green `main` require every
+main shard and both complete compat engines to pass. "Not run" means no compat
 project runs it. Rows and cells are derived from the specs in
-gui/web/e2e-compat/, playwright.compat.config.ts and the CI workflow.
+gui/web/e2e-compat/, playwright.compat.config.ts, scripts/ci_plan.py and the CI
+workflow.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -17,6 +21,7 @@ import pytest
 
 from github_yaml import load_github_yaml
 from markdown_table import MarkdownTable, code_spans, section_table
+from script_loader import load_script
 
 REPO_ROOT = Path(__file__).parents[1]
 TESTING_DOC = REPO_ROOT / "docs" / "testing.md"
@@ -26,6 +31,8 @@ COMPAT_CONFIG = REPO_ROOT / "gui" / "web" / "playwright.compat.config.ts"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "test.yml"
 CI_SUITES_JOB = "frontend-e2e-suites"
 CI_GATE_JOB = "frontend-e2e"
+CI_PLAN_GATE = "needs.changes.outputs.gui == 'true'"
+CI_MATRIX = "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
 MAIN_COMMAND = "npm run test:e2e"
 MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- --shard=(\d+)/(\d+)$")
 COMPAT_COMMAND = "npm run test:e2e:compat"
@@ -57,6 +64,7 @@ _TEST_RE = re.compile(r'(?<![.\w])test\(\s*"((?:[^"\\]|\\.)*)"')
 _NON_LITERAL_TITLE_RE = re.compile(r"(?<![.\w])test(?:\.step)?\(\s*[`']")
 _SKIP_RE = re.compile(r"\btest(?:\.describe)?\.(?:skip|fixme|fail|only)\b")
 _RETRIES_RE = re.compile(r"\bretries:\s*([^,\n]+)")
+CI_RETRIES = "process.env.CI ? 1 : 0"
 _UNSUPPORTED_FILTER_RE = re.compile(r"\b(?:testMatch|grep|grepInvert)\s*:")
 _PROJECT_NAME_RE = re.compile(r'\bname:\s*"([\w-]+)"')
 # The body of a double-quoted string literal with no escapes; every regex below
@@ -69,6 +77,7 @@ _STRING_LIST_RE = re.compile(rf'\s*(?:"{_STRING_BODY}"\s*,?\s*)*')
 # The one testIgnore glob shape the guard reads: a spec file name at any depth.
 _IGNORE_GLOB_RE = re.compile(r"\*\*/[\w.-]+\.spec\.ts")
 _INSTALL_RE = re.compile(r"\bplaywright install\b([^\n]*)")
+ci_plan = load_script("ci_plan", register=True)
 
 
 def spec_checks(source: str) -> list[str]:
@@ -170,8 +179,14 @@ def _spec_path(cell: str) -> str:
 def _frontend_e2e_steps() -> list[dict]:
     job = load_github_yaml(WORKFLOW)["jobs"][CI_SUITES_JOB]
     assert not job.get("continue-on-error"), f"{CI_SUITES_JOB} must fail the build"
-    assert "if" not in job, f"{CI_SUITES_JOB} must not be conditional"
+    assert job["if"] == CI_PLAN_GATE, f"{CI_SUITES_JOB} may only skip by the plan"
     return job["steps"]
+
+
+def planned_include(event: str, changed: tuple[str, ...] = ()) -> list[dict]:
+    """The matrix `include` list scripts/ci_plan.py hands the workflow."""
+    matrix = ci_plan.plan(event, list(changed)).outputs()["e2e-matrix"]
+    return json.loads(matrix)["include"]
 
 
 def compat_ci_engines(include: list[dict]) -> list[str]:
@@ -236,23 +251,27 @@ def test_compat_run_has_no_skips_retries_or_filters() -> None:
         assert _SKIP_RE.search(source) is None, f"{spec}: has a skip/fixme/fail/only"
 
     config = COMPAT_CONFIG.read_text(encoding="utf-8")
-    assert _RETRIES_RE.findall(config) == ["0"], "playwright.compat.config.ts must set retries: 0"
+    assert _RETRIES_RE.findall(config) == [CI_RETRIES], (
+        f"playwright.compat.config.ts must set retries: {CI_RETRIES}, like the main suite"
+    )
     assert _UNSUPPORTED_FILTER_RE.search(config) is None, (
         "playwright.compat.config.ts filters tests with testMatch/grep/grepInvert"
     )
 
 
-def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -> None:
+def test_ci_runs_both_browser_suites_on_main_and_nightly_on_every_passing_engine() -> None:
     workflow = load_github_yaml(WORKFLOW)
     triggers = workflow["on"]
     for event in ("push", "pull_request"):
         assert "paths" not in triggers[event], f"{event} must not path-filter browser CI"
         assert "paths-ignore" not in triggers[event], f"{event} must not path-filter browser CI"
+    assert {"schedule", "workflow_dispatch"} <= set(triggers)
 
     job = workflow["jobs"][CI_SUITES_JOB]
-    assert job["strategy"]["fail-fast"] is False
-    include = job["strategy"]["matrix"]["include"]
-    assert job["strategy"]["matrix"].keys() == {"include"}
+    assert job["strategy"]["fail-fast"] is True
+    assert job["strategy"]["matrix"] == CI_MATRIX
+    include = planned_include("push")
+    assert planned_include("schedule") == include
     engines = compat_ci_engines(include)
     shards = [
         MAIN_SHARD_RE.match(entry["command"])
@@ -338,9 +357,28 @@ def test_ci_uploads_only_native_playwright_failure_diagnostics() -> None:
     assert artifact["if-no-files-found"] == "ignore"
 
 
+def test_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None:
+    include = planned_include("pull_request", ("gui/web/src/App.tsx",))
+    compat = [entry for entry in include if entry["name"].startswith("compat")]
+    assert [entry["name"] for entry in include if entry not in compat] == [
+        entry["name"] for entry in planned_include("push") if not entry["name"].startswith("compat")
+    ]
+    shard_re = re.compile(rf"^{COMPAT_COMMAND} -- --project=webkit --shard=(\d+)/(\d+)$")
+    shards = [shard_re.match(entry["command"]) for entry in compat]
+    assert all(shards), f"PR compat must shard the complete WebKit project: {compat}"
+    count = int(shards[0][2]) if shards[0] else 0
+    assert count > 1
+    assert [(int(m[1]), int(m[2])) for m in shards if m] == [
+        (i, count) for i in range(1, count + 1)
+    ]
+    assert [entry["name"] for entry in compat] == [
+        f"compat-webkit-{i}of{count}" for i in range(1, count + 1)
+    ]
+    assert {entry["browser"] for entry in compat} == {"webkit"}
+
+
 def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
-    include = load_github_yaml(WORKFLOW)["jobs"][CI_SUITES_JOB]["strategy"]["matrix"]["include"]
-    engines = compat_ci_engines(include)
+    engines = compat_ci_engines(planned_include("push"))
     projects = compat_projects(COMPAT_CONFIG.read_text(encoding="utf-8"))
     checks = [
         (spec, check) for spec, source in compat_specs().items() for check in spec_checks(source)
@@ -386,31 +424,41 @@ def test_ci_compat_selection_rejects_missing_duplicate_or_filtered_engines(
 
 
 @pytest.mark.parametrize(
-    ("suite_result", "expected_returncode"),
-    [("success", 0), ("failure", 1), ("cancelled", 1), ("skipped", 1)],
+    ("plan_result", "gui", "suite_result", "expected_returncode"),
+    [
+        ("success", "true", "success", 0),
+        ("success", "true", "failure", 1),
+        ("success", "true", "cancelled", 1),
+        ("success", "true", "skipped", 1),
+        ("success", "false", "skipped", 0),
+        ("success", "false", "success", 1),
+        ("failure", "", "skipped", 1),
+        ("cancelled", "", "skipped", 1),
+        ("skipped", "", "skipped", 1),
+    ],
 )
-def test_ci_gate_requires_every_browser_suite_to_succeed(
-    suite_result: str, expected_returncode: int
+def test_ci_gate_requires_the_plan_and_every_planned_browser_suite(
+    plan_result: str, gui: str, suite_result: str, expected_returncode: int
 ) -> None:
     gate = load_github_yaml(WORKFLOW)["jobs"][CI_GATE_JOB]
-    assert gate["needs"] == CI_SUITES_JOB
+    assert gate["needs"] == ["changes", CI_SUITES_JOB]
     assert gate["if"] == "always()"
     assert not gate.get("continue-on-error"), f"{CI_GATE_JOB} must fail the build"
-    steps = gate["steps"]
-    assert len(steps) == 1
-    step = steps[0]
+    (step,) = gate["steps"]
     assert "if" not in step
     assert not step.get("continue-on-error")
-
-    expression = "${{ needs.frontend-e2e-suites.result }}"
-    command = str(step["run"])
-    assert command.count(expression) == 1
-    assert command.strip() == f'test "{expression}" = "success"'
+    assert step["shell"] == "bash"
+    assert step["env"] == {
+        "PLAN": "${{ needs.changes.result }}",
+        "GUI": "${{ needs.changes.outputs.gui }}",
+        "SUITES": "${{ needs.frontend-e2e-suites.result }}",
+    }
     result = subprocess.run(
-        ["bash", "-c", command.replace(expression, suite_result)],
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", str(step["run"])],
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, "PLAN": plan_result, "GUI": gui, "SUITES": suite_result},
     )
     assert result.returncode == expected_returncode, result.stderr
 
