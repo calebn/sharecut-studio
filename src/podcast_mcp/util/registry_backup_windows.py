@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from ctypes import wintypes
 from functools import partial
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from podcast_mcp.util.registry_backup_posix import Identity
@@ -41,7 +41,7 @@ _ANCESTOR_UNTRUSTED_ACCESS_MASK = (
 )
 
 
-def _validate_name(name: str) -> None:
+def _validate_name(name: str, *, path: Path | PureWindowsPath) -> None:
     device = name.split(".", 1)[0].rstrip(" ").upper()
     reserved = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
     reserved.update(prefix + number for prefix in ("COM", "LPT") for number in "123456789¹²³")
@@ -52,7 +52,7 @@ def _validate_name(name: str) -> None:
         or any(ord(character) < 32 or character in '<>:"/\\|?*' for character in name)
         or device in reserved
     ):
-        raise PermissionError("backup names must denote an unambiguous Windows regular file")
+        raise RegistryPrivacyError(path, RegistryPrivacyReason.INVALID_BACKUP_NAME)
 
 
 class _SecurityAttributes(ctypes.Structure):
@@ -439,7 +439,7 @@ def _open_chain(
     if not path.drive or path.drive.startswith("\\\\") or any(":" in p for p in path.parts[1:]):
         raise RegistryPrivacyError(path, RegistryPrivacyReason.NOT_LOCAL_NTFS)
     for name in path.parts[1:]:
-        _validate_name(name)
+        _validate_name(name, path=path)
     handles: list[tuple[Path, Any, tuple[int, int, int]]] = []
     try:
         for part in [*reversed(path.parents), path]:
@@ -542,7 +542,7 @@ def _remove_file(api: _WindowsAPI, path: Path, expected: Identity) -> None:
         return
     try:
         if api.file_identity(handle, path) != expected:
-            raise PermissionError("refusing to remove a substituted backup file")
+            raise RegistryPrivacyError(path, RegistryPrivacyReason.CLEANUP_FILE_SUBSTITUTED)
         path.unlink()
     finally:
         cleanup([partial(api.close, handle)])
@@ -553,7 +553,7 @@ def registry_scope(
     path: Path, names: tuple[str, ...], *, create: bool
 ) -> Iterator[Callable[[], None]]:
     for name in names:
-        _validate_name(name)
+        _validate_name(name, path=path / name)
     api = _WindowsAPI()
     handles = _open_chain(api, path, create=create)
     allow_missing_main = create
@@ -602,12 +602,12 @@ class BackupDirectory:
         _verify_chain(self._api, self.path, self._handles)
 
     def exists(self, name: str) -> bool:
-        _validate_name(name)
+        _validate_name(name, path=self.path / name)
         return os.path.lexists(self.path / name)
 
     @contextmanager
     def workspace(self, name: str) -> Iterator[BackupDirectory]:
-        _validate_name(name)
+        _validate_name(name, path=self.path / name)
         self.verify()
         path = self.path / name
         created = False
@@ -640,7 +640,7 @@ class BackupDirectory:
 
     @contextmanager
     def created_file(self, name: str) -> Iterator[_OwnedFile]:
-        _validate_name(name)
+        _validate_name(name, path=self.path / name)
         self.verify()
         with _owned_file(self._api, self.path / name, partial(self.remove_file, name)) as owned:
             self._api.create_file(owned)
@@ -666,22 +666,24 @@ class BackupDirectory:
                 self._api.file_identity(self._api.crt.get_osfhandle(owned.fd), owned.path)
                 != expected
             ):
-                raise PermissionError("backup snapshot identity changed")
+                raise RegistryPrivacyError(owned.path, RegistryPrivacyReason.SNAPSHOT_CHANGED)
             yield owned.fd
 
     def verify_file(self, name: str, expected: Identity) -> None:
-        _validate_name(name)
+        _validate_name(name, path=self.path / name)
         self.verify()
         handle = self._api.open_file(self.path / name)
         try:
             if self._api.file_identity(handle, self.path / name) != expected:
-                raise PermissionError("backup file identity changed")
+                raise RegistryPrivacyError(
+                    self.path / name, RegistryPrivacyReason.BACKUP_FILE_CHANGED
+                )
             self._api.verify_handle(handle, private=True, directory=False, path=self.path / name)
         finally:
             cleanup([partial(self._api.close, handle)])
 
     def publish(self, staged: str, final: str, expected: Identity, fd: int) -> None:
-        _validate_name(final)
+        _validate_name(final, path=self.path / final)
         self.verify_file(staged, expected)
         name = str(self.path / final).encode("utf-16-le")
         buffer = ctypes.create_string_buffer(_RenameInformation.name.offset + len(name) + 2)
@@ -698,16 +700,18 @@ class BackupDirectory:
         self.verify()
 
     def remove_file(self, name: str, expected: Identity) -> None:
-        _validate_name(name)
+        _validate_name(name, path=self.path / name)
         _remove_file(self._api, self.path / name, expected)
 
     def remove_workspace(self, name: str, expected: Identity) -> None:
-        _validate_name(name)
+        _validate_name(name, path=self.path / name)
         path = self.path / name
         handle = self._api.open_directory(path)
         try:
             if self._api.file_identity(handle, path) != expected:
-                raise PermissionError("refusing to remove a substituted backup workspace")
+                raise RegistryPrivacyError(
+                    path, RegistryPrivacyReason.CLEANUP_WORKSPACE_SUBSTITUTED
+                )
         except BaseException:
             cleanup([partial(self._api.close, handle)])
             raise

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pickle
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 
@@ -19,7 +20,8 @@ def assert_refusal(error, path, problem, fix, code="registry_backup_integrity_ch
     shown = f'"{path}"' if isinstance(path, PureWindowsPath) else str(path)
     assert str(error) == f"{problem.format(path=shown)}; {fix}"
     assert (
-        error.guest_message == "The host's sharing setup needs attention; ask the host to check it."
+        error.guest_message()
+        == "The host's sharing setup needs attention; ask the host to check it."
     )
 
 
@@ -63,6 +65,7 @@ def private_directory(tmp_path):
         directory.close()
 
 
+@pytest.mark.skipif(os.name != "posix", reason="isolated POSIX descriptors")
 def test_posix_directory_replacement_is_coded(private_directory):
     directory = private_directory
     child = directory.path / "child"
@@ -84,6 +87,7 @@ def test_posix_directory_replacement_is_coded(private_directory):
         os.close(fd)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="isolated POSIX descriptors")
 def test_posix_unopened_registry_replacement_is_coded(private_directory, monkeypatch):
     directory = private_directory
     target = directory.path / "registry.sqlite"
@@ -115,6 +119,7 @@ def test_posix_unopened_registry_replacement_is_coded(private_directory, monkeyp
 
 
 @pytest.mark.parametrize("site", ["remove-file", "verify-file", "reader", "remove-workspace"])
+@pytest.mark.skipif(os.name != "posix", reason="isolated POSIX descriptors")
 def test_posix_backup_identity_refusals(private_directory, monkeypatch, site):
     directory = private_directory
     target = directory.path / "backup.sqlite"
@@ -182,6 +187,7 @@ def test_posix_backup_identity_refusals(private_directory, monkeypatch, site):
 
 
 @pytest.mark.parametrize("site", ["remove-file", "verify-file", "reader", "remove-workspace"])
+@pytest.mark.skipif(os.name != "posix", reason="isolated POSIX descriptors")
 def test_windows_backup_identity_refusals(tmp_path, monkeypatch, site):
     target = tmp_path / "backup.sqlite"
     if site == "remove-workspace":
@@ -249,3 +255,190 @@ def test_windows_backup_identity_refusals(tmp_path, monkeypatch, site):
     for fd in opened:
         with pytest.raises(OSError):
             os.fstat(fd)
+
+
+@pytest.mark.parametrize(
+    "site",
+    [
+        "anchor",
+        "chain",
+        "scope",
+        "exists",
+        "workspace",
+        "created_file",
+        "verify_file",
+        "publish",
+        "remove_file",
+        "remove_workspace",
+    ],
+)
+def test_every_windows_name_caller_supplies_full_path(monkeypatch, site):
+    path = PureWindowsPath("C:/private/NUL")
+    directory = windows.BackupDirectory.__new__(windows.BackupDirectory)
+    directory.path = path.parent
+    with pytest.raises(PermissionError) as caught:
+        if site == "anchor":
+            monkeypatch.setattr(publisher, "os", SimpleNamespace(fspath=os.fspath, name="nt"))
+            publisher._anchor_path(str(path))
+        elif site == "chain":
+            windows._open_chain(None, path)
+        elif site == "scope":
+            with windows.registry_scope(path.parent, ("NUL",), create=False):
+                pytest.fail("invalid name must refuse before acquiring resources")
+        elif site in ("workspace", "created_file"):
+            with getattr(directory, site)("NUL"):
+                pytest.fail("invalid name must refuse before acquiring resources")
+        elif site == "exists":
+            directory.exists("NUL")
+        elif site == "publish":
+            directory.publish("stage", "NUL", (1, 2), 0)
+        else:
+            getattr(directory, site)("NUL", (1, 2))
+    assert_refusal(
+        caught.value,
+        path,
+        "backup path {path} does not denote an unambiguous Windows regular file",
+        "choose a plain filename without reserved devices, streams, forbidden characters, trailing dot or space",
+        "registry_backup_invalid_path",
+    )
+
+
+@pytest.mark.parametrize("site", ["verification", "cleanup", "replacement"])
+@pytest.mark.skipif(os.name != "posix", reason="isolated POSIX descriptors")
+def test_postpublication_coded_failure_preserves_outcome_bytes_and_cli(tmp_path, monkeypatch, site):
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+    from podcast_mcp.edits import share_registry
+    from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
+
+    source_dir, output_dir = tmp_path / "source", tmp_path / "output"
+    source_dir.mkdir(mode=0o700)
+    output_dir.mkdir(mode=0o700)
+    source, destination = source_dir / "live.sqlite", output_dir / "backup.sqlite"
+    error_path = destination if site != "cleanup" else output_dir / "stage.sqlite"
+    failure = RegistryPrivacyError(error_path, RegistryPrivacyReason.BACKUP_FILE_CHANGED)
+
+    class BoundDirectory(posix.BackupDirectory):
+        def __init__(self, path):
+            self.path = path
+            self._chain = [(os.open(path, os.O_RDONLY | os.O_DIRECTORY), None)]
+            self.verify()
+
+        def verify_file(self, name, expected):
+            nonlocal failure
+            if self.path / name == destination and site == "replacement":
+                destination.unlink()
+                destination.write_bytes(b"substituted final bytes")
+                destination.chmod(0o600)
+            try:
+                super().verify_file(name, expected)
+            except RegistryPrivacyError as exc:
+                failure = exc
+                raise
+            if self.path / name == destination and site == "verification":
+                raise failure
+
+        def remove_file(self, name, expected):
+            super().remove_file(name, expected)
+            if self.path == output_dir and site == "cleanup":
+                raise failure
+
+    monkeypatch.setattr(posix, "BackupDirectory", BoundDirectory)
+    monkeypatch.setattr(publisher, "_directory", BoundDirectory)
+
+    def backup(_destination):
+        return publisher.publish_registry_backup(
+            source, destination, lambda path: path.write_bytes(b"published snapshot")
+        )
+
+    monkeypatch.setattr(share_registry, "backup_share_registry", backup)
+    monkeypatch.setattr(share_registry, "default_share_registry_db_path", lambda: source)
+    result = CliRunner().invoke(app, ["review", "backup-registry", "--dest", str(destination)])
+    assert result.exit_code == 1
+    assert result.output == (
+        f"Error: registry backup was published at {destination}; backup file {error_path} "
+        "changed identity or regular-file type; stop processes replacing this backup file, "
+        "then retry (code registry_backup_integrity_changed) (set PODCAST_DEBUG=1 for the traceback)\n"
+    )
+    assert destination.read_bytes() == (
+        b"substituted final bytes" if site == "replacement" else b"published snapshot"
+    )
+    assert isinstance(failure, HostSetupError)
+    assert failure.path == error_path
+    restored = pickle.loads(pickle.dumps(failure))
+    assert isinstance(restored, RegistryPrivacyError)
+    assert str(restored) == (
+        f"registry backup was published at {destination}; backup file {error_path} "
+        "changed identity or regular-file type; stop processes replacing this backup file, then retry"
+    )
+    assert restored.code == "registry_backup_integrity_changed"
+    assert restored.path == error_path
+    assert restored.reason == RegistryPrivacyReason.BACKUP_FILE_CHANGED
+    assert restored.fix == "stop processes replacing this backup file, then retry"
+    assert (
+        restored.guest_message()
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
+    assert (
+        failure.guest_message()
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
+    assert list(output_dir.iterdir()) == [destination]
+    assert list(source_dir.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="isolated POSIX descriptors")
+def test_registry_scope_cleanup_callback_keeps_parent_path(private_directory, monkeypatch):
+    from contextlib import contextmanager
+
+    directory = private_directory
+    real_new_file = posix._new_file
+    monkeypatch.setattr(
+        posix, "_open_chain", lambda *_args, **_kwargs: [(os.dup(directory.fd), None)]
+    )
+
+    @contextmanager
+    def substituted_file(path, parent, name, remove):
+        with real_new_file(path, parent, name, remove) as created:
+            created.acquire()
+            created.path.rename(path / "original.sqlite")
+            created.path.write_bytes(b"substituted")
+            created.path.chmod(0o600)
+            remove(name, created.identity)
+            yield created
+
+    monkeypatch.setattr(posix, "_new_file", substituted_file)
+    with pytest.raises(PermissionError) as caught:
+        with posix.registry_scope(directory.path, ("registry.sqlite",), create=True):
+            pytest.fail("substituted cleanup must refuse")
+    assert_refusal(
+        caught.value,
+        directory.path / "registry.sqlite",
+        "cleanup refused substituted backup file {path}",
+        "inspect the retained file and stop replacements before retrying",
+    )
+    assert (directory.path / "registry.sqlite").read_bytes() == b"substituted"
+    assert (directory.path / "original.sqlite").read_bytes() == b""
+
+
+@pytest.mark.skipif(os.name != "posix", reason="isolated POSIX descriptors")
+def test_owned_posix_cleanup_removes_file_and_is_idempotent(private_directory):
+    directory = private_directory
+    target = directory.path / "backup.sqlite"
+    target.write_bytes(b"owned")
+    expected = posix.identity(target.stat())
+    with target.open("rb"):
+        directory.remove_file(target.name, expected)
+        directory.remove_file(target.name, expected)
+        assert list(directory.path.iterdir()) == []
+        target.write_bytes(b"substituted")
+        with pytest.raises(PermissionError) as caught:
+            directory.remove_file(target.name, expected)
+        assert_refusal(
+            caught.value,
+            target,
+            "cleanup refused substituted backup file {path}",
+            "inspect the retained file and stop replacements before retrying",
+        )
+        assert target.read_bytes() == b"substituted"
