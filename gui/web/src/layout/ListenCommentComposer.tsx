@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   CommentAnchorChip,
   CommentCompose,
@@ -12,7 +12,9 @@ import { sessionDisplayName } from "../utils/commentAuthor";
 
 /**
  * The phone Listen view's comment field, docked above the mode bar: type,
- * then Post comment, at the playhead or the time on the chip.
+ * then Post comment, at the playhead or the time on the chip. Posting closes
+ * the keyboard on purpose: the guest goes back to listening, and the keyboard
+ * would cover half the view.
  */
 export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   const { projectPath, guestMode, announceStatus } = useDaw((s) => ({
@@ -22,8 +24,13 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   }));
   const [body, setBody] = useState("");
   const { busy, error, post } = usePostComment();
+  const dockRef = useRef<HTMLElement>(null);
 
   const onPost = async () => {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && dockRef.current?.contains(focused)) {
+      focused.blur();
+    }
     const result = await post({
       body,
       author: sessionDisplayName(
@@ -36,7 +43,11 @@ export function ListenCommentComposer({ guestShare }: { guestShare: boolean }) {
   };
 
   return (
-    <section className="listen-comment-dock" aria-label="Add a comment">
+    <section
+      ref={dockRef}
+      className="listen-comment-dock"
+      aria-label="Add a comment"
+    >
       <InlineError message={error} />
       <CommentCompose
         className="comment-compose comment-compose--dock"
