@@ -175,5 +175,5 @@ returns the same card to its floating host.
 Focused Undo and Dismiss stay focused when rotating between phone and tablet
 layouts. Closing a focused feedback action returns focus to the current usable
 inspector Close. Navigating to another selection or project ends that focus
-intent; a selection another client makes does not. If a peer's edit removes the
+intent; a selection the agent makes or one you follow does not (no other client's selection reaches your phone). If a peer's edit removes the
 focused Undo, focus goes to the sheet Close. An open modal keeps its own focus.
