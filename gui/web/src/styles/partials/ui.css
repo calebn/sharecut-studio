@@ -547,7 +547,7 @@ button.pill.pill--info {
 .ui-menu-popup {
   position: fixed;
   z-index: var(--z-menu);
-  inline-size: max-content;
+  inline-size: min-content;
   min-inline-size: min(15rem, var(--menu-available-width));
   max-inline-size: var(--menu-available-width);
   padding: var(--space-1);
