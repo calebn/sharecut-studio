@@ -657,7 +657,7 @@ is the default fill** below).
 - **Breaths stay whole.** Best practice keeps breaths, so a mute edge never chops one and a mute never removes one. `protect_cut_breaths(strict=False)` moves an edge that sits inside a complete breath out of it, and drops a span that a breath covers at least half of as `breath`: either the breath run inside the span, or a complete breath traced back to room tone (any span covering half the cut contains its midpoint, so the edge evidence there decides). Unlike a splice (`strict=True`), an edge may sit in other connected activity, such as a filler running into a word; the splice rule dropped all six word fillers.
 - **An acoustic run that runs into a kept word is that word's sound.** An acoustic gap run has no word label, so when its voiced audio runs on into a kept word at either edge (the voiced-edge check cannot nudge a bounded candidate clear), a mute drops it as `voiced_edge`. A splice's strict breath protection already refuses such an edge. Before either, every join holds an acoustic run clear of the flanking words' voices read by level, not pitch (**Kept words keep their voice**), so a breathy word tail with no clear pitch is caught as `kept_voice` too (lab `So` at 230.78). A word filler keeps its `:voiced_edge` review flag instead: ASR says the voiced audio is the filler.
 - **A mute must silence something audible.** It keeps the time, so muting audio below the track's voice floor (**Voice floor** above; span RMS) changes nothing a listener hears; it is dropped as `inaudible`. A ripple still removes time there.
-- **Peers do not matter.** A mute's scope is `track`. Peer speech never scopes it, never flags it (`track_local`, `other_speaking`, `interior_speech`) and never nudges its edges; the bleed-owner check and the acoustic scan's peer-voice test, which decide whose voice the audio is, still run. The owner check of a word filler is the word's `audibility_status`, set by reconcile with the peer's track read at the pair's measured copy lag ([Words are judged at the copy lag](transcript-reconcile.md#words-are-judged-at-the-copy-lag-1052)), never from two levels at one instant: a remote guest's filler that reaches the host's mic before the guest's own track carries it is `bleed` and is not proposed (#1072; `tests/test_tighten_lagged_bleed.py`). A pair with no measurable lag keeps the same-instant reading. The acoustic scan's peer-voice test does read both tracks at one instant (#1073).
+- **Peers do not matter.** A mute's scope is `track`. Peer speech never scopes it, never flags it (`track_local`, `other_speaking`, `interior_speech`) and never nudges its edges; the bleed-owner check and the acoustic scan's peer-voice test, which decide whose voice the audio is, still run. The owner check of a word filler is the word's `audibility_status`, set by reconcile with the peer's track read at the pair's measured copy lag ([Words are judged at the copy lag](transcript-reconcile.md#words-are-judged-at-the-copy-lag-1052)), never from two levels at one instant: a remote guest's filler that reaches the host's mic before the guest's own track carries it is `bleed` and is not proposed (#1072; `tests/test_tighten_lagged_bleed.py`). A pair with no measurable lag keeps the same-instant reading. The acoustic scan's peer-voice test reads the pair at the same measured lag ([Acoustic gap candidates](#acoustic-gap-candidates), #1073).
 
 Lab (`aligned-ready`, refine waived; ripple proposal byte-identical throughout). Before #1024 mute mode proposed 11 hits and no word filler. Dropping the splice checks alone proposed 222: the six Caleb fillers (`uh` 604.62, `um` 616.30, `uh` 646.84, `uh` 706.00, `um` 712.99, `you know` 1440.88), 13 repetitions/restarts and 203 acoustic runs. Heard alone and measured, those 203 were 112 runs into a kept word, 26 breaths or breath-like unvoiced noise, 22 quiet sounds 15 dB or more under the speaker, 6 bleed, 9 missed words or laughs and 28 vocal hesitations. With these checks mute mode proposes 53: the six fillers, the 13 repetitions/restarts, and 34 acoustic runs (21 vocal hesitations within 9 dB of speech, 5 missed words or a laugh, 7 quiet sounds, 1 unvoiced). Skips: `acoustic:voiced_edge` 134, `acoustic:inaudible` 26, `acoustic:breath` 29 (12 at the scan, 17 at the edges). Acoustic hits stay review-only.
 
@@ -858,7 +858,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | `tighten.acoustic_gap_filler.enabled` | `true` | Propose review-only `filler:acoustic` cuts for voiced audio inside ASR gaps (see below) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest inter-word gap scanned; values below `0.35` clamp up (max `10`) |
 | `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed; values above `1.5` clamp down (min `0.1`) |
-| `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms analysis frames per gap (~6 s); gaps longer than the budget are skipped; values above `600` clamp down (min `20`) |
+| `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms analysis frames per scan window (~6 s); a longer gap is scanned in overlapping windows of this size; values above `600` clamp down (min `20`) |
 | `tighten.acoustic_gap_filler.vad_backend` | `heuristic` | Reject breath-shaped candidate runs with the shared RMS heuristic; `silero` is opt-in and falls back when unavailable or not at 16 kHz |
 
 #### Acoustic gap candidates
@@ -872,8 +872,9 @@ laughter, music, or a missed word for a filler. **Listen before approving.**
 Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
 
 - Gaps are skipped when either flanking word is suppressed, bleed, or
-  speaker-matched to another track, or when another dialogue track has **voiced
-  audio** inside the gap (peer bleed, counted as `acoustic:peer_speaking`).
+  speaker-matched to another track. A **run** is skipped when another dialogue
+  track has **voiced audio** where the run sounds (peer bleed, counted as
+  `acoustic:peer_speaking`); a peer voiced elsewhere in the gap says nothing about it.
   Peer occupancy is measured from the peer's own decoded track with the same
   voiced runs the cut-edge gate reads (`edits/voiced_runs.py`, at the track's voice
   floor), never from its ASR word spans (#982):
@@ -893,7 +894,20 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   candidates it frees are review-only. A quiet or gated cut track never explains a peer run: a
   speaker whose own track is shut while their voice survives only on another
   track still blocks (#945), and so do independent voices at similar levels.
-  `_peer_voiced_in_gap` is the single decision for peer occupancy.
+  Both reads take the pair's copy lag (#1073). A remote guest's own track trails
+  their voice on the host's mic, so a run on the host is checked against the guest
+  that much later (`CopyPath.lag_sec` of the guest to the host), and a guest run that
+  is the cut track's voice on the guest's mic is compared with the cut track that much
+  later (the lag of the cut track to the guest). The lag is the one reconcile reads for
+  word audibility ([Words are judged at the copy lag](transcript-reconcile.md#words-are-judged-at-the-copy-lag-1052)),
+  measured once per run through `edits/peer_copy_lag.py`; a pair with no measured path reads
+  at 0 lag. `_peer_voiced_at` is the single decision for peer occupancy.
+- A gap longer than one scan window (`max_frames`, ~6 s) is scanned in overlapping windows
+  that overlap by more than the longest run, so every run is seen whole in one window and
+  a run that touches the seam between two windows is left to the one that holds it whole.
+  Each window is judged on its own level (the contrast, noise estimate and plateau checks
+  below read the window), so a cost bound holds however long a speaker is silent and a
+  filler missing from a minute of word gap is found (#1073).
 - Frame levels (25 ms / 10 ms hop) must show real contrast: the loudest frame
   must sit at least 12 dB above the gap's 20th-percentile noise estimate, so
   flat hum, HVAC, or steady rumble never yields a candidate. Active frames must
@@ -938,7 +952,7 @@ Interaction with other proposals:
   skipped too (`already_muted`).
 - Propose summaries report acoustic hits separately (`N acoustic (review)`) and
   count skipped scans and candidates (`acoustic:*` skip reasons such as
-  `no_audio`, `peer_speaking` (a peer voiced in the gap), `breath`,
+  `no_audio`, `peer_speaking` (a peer voiced where a run sounds), `breath`,
   `replaced_pause`, and every analysis rejection under its reason, such as
   `acoustic:kept_voice`, `acoustic:next_onset` or `acoustic:too_short`).
 - The audition context adds an `acoustic_gap_filler` hypothesis per pending hit,
