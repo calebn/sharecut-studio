@@ -6,26 +6,46 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
+import { createPortal } from "react-dom";
+import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
 import { useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
 
+/**
+ * Places the open panel against the visual viewport (and above the phone nav
+ * when there is one): below the trigger, flipped above it when that side has
+ * more room, clamped `--menu-edge-margin` inside every edge. The panel is a
+ * body-level `position: fixed` box, so no sheet, size container or stacking
+ * context between it and the trigger can clip or bury it.
+ */
 function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
-  const triggerBottom = trigger.getBoundingClientRect().bottom;
-  const nav = document.querySelector(".mobile-nav");
-  const bottomLimit =
-    nav instanceof HTMLElement
-      ? nav.getBoundingClientRect().top
-      : window.innerHeight;
-  const rootPx = Number.parseFloat(
-    getComputedStyle(document.documentElement).fontSize,
+  const viewport = visualViewportBox(document.querySelector(".mobile-nav"));
+  const natural = {
+    width: panel.offsetWidth,
+    height: panel.scrollHeight + panel.offsetHeight - panel.clientHeight,
+  };
+  const placed = placeAnchored(
+    trigger.getBoundingClientRect(),
+    natural,
+    viewport,
+    {
+      margin: tokenPx(panel, "--menu-edge-margin"),
+      gap: tokenPx(panel, "--menu-anchor-gap"),
+      align: "end",
+    },
   );
-  const gapPx = 0.25 * (rootPx || 16);
-  const availablePx = Math.max(0, bottomLimit - triggerBottom - gapPx);
-  const rem = rootPx > 0 ? availablePx / rootPx : availablePx;
-  const value = `${rem}rem`;
-  if (panel.style.getPropertyValue("--menu-available-height") !== value) {
-    panel.style.setProperty("--menu-available-height", value);
-  }
+  const rootPx =
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+    16;
+  const set = (name: string, value: string) => {
+    if (panel.style.getPropertyValue(name) !== value) {
+      panel.style.setProperty(name, value);
+    }
+  };
+  set("left", `${placed.left}px`);
+  set("top", `${placed.top}px`);
+  set("--menu-available-height", `${placed.maxHeight / rootPx}rem`);
+  set("--menu-available-width", `${placed.maxWidth / rootPx}rem`);
 }
 
 /** Props a Menu hands its trigger; spread them onto the trigger button. */
@@ -121,22 +141,37 @@ export function Menu({
         onClick: () => onOpenChange(!open),
         ref: triggerRef,
       })}
-      {open ? (
-        <div
-          ref={panelRef}
-          id={menuId}
-          className="ui-menu-panel transport-overflow-menu"
-          role="menu"
-          aria-label={label}
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              close();
-            }
-          }}
-        >
-          {children}
-        </div>
-      ) : null}
+      {open
+        ? createPortal(
+            <div
+              ref={panelRef}
+              id={menuId}
+              className="ui-menu-panel ui-menu-popup"
+              role="menu"
+              aria-label={label}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  close();
+                }
+              }}
+              onKeyDown={(event) => {
+                // The panel sits at the end of <body>, so the browser's own
+                // Tab order would skip the trigger's neighbours: hand focus
+                // back to the trigger and let Tab continue from there.
+                if (event.key !== "Tab") {
+                  return;
+                }
+                triggerRef.current?.focus();
+                if (event.shiftKey) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              {children}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
