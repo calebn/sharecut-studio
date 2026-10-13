@@ -762,8 +762,12 @@ with private paths and path-free diagnostic secrets.
   no host path (`util.redact.mentions_host_path`), else the generic
   `GENERIC_GUEST_MESSAGE`. A path in prose is never partly redacted: where it ends is
   ambiguous (`Talkin' Shop` stops at the apostrophe), and what is left over spells part of a
-  folder name, so a message that names a path is replaced whole. Refusals that name a path
-  for the host therefore give the guest a fixed line: `review_media_not_found` reads "This
+  folder name, so a message that names a path is replaced whole. Detection conservatively
+  recognizes path prefixes, including escaped Windows separators, percent-encoded slashes,
+  relative paths, and single-folder slash roots, wherever they appear. Slash-separated modes,
+  fractions, and URLs can also trigger withholding. Bare filenames such as `A.wav` remain
+  allowed. Refusals that name a path for the host therefore give the guest a fixed line:
+  `review_media_not_found` reads "This
   review's audio isn't available right now; ask the host to republish.", `project_not_found`
   reads "This link isn't available right now; ask the host to check it." Guest-reachable
   refusals otherwise name the artifact by its track or file name (`raw media for track host

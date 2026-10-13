@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.redact import mentions_host_path, sanitize
 
 
@@ -219,19 +220,38 @@ HOST_PATH_TEXTS = [
     "cannot read /tmp/Talkin' Shop/ep1/raw.wav",
     'bad /Users/host/"Best" Cut/raw.wav',
     "no /Users/host/What? Show/raw.wav",
+    r"missing:\Users\host\Secret\raw.wav",
+    r"missing:\Users",
+    r"missing:\home",
+    r"missing-\home\host\Secret\raw.wav",
+    r"missing)\users\host\Secret\raw.wav",
+    "missing: %2fUsers%2fhost",
+    "missing: %2FUsers%2fhost",
+    r"missing: ~host\Secret\raw.wav",
 ]
-PATH_FREE_TEXTS = [
+CONSERVATIVE_PATH_TEXTS = [
     "mode must be current/suggested/ab",
     "1/2 of 3/4",
     "see https://example.com/a/b ok",
+]
+PATH_FREE_TEXTS = [
     "comment c9 not found",
     "Rendering Talkin' Shop",
+    "A wav not found: A.wav",
 ]
 
 
 @pytest.mark.parametrize("text", HOST_PATH_TEXTS)
 def test_mentions_host_path_finds_a_path_whatever_its_folders_hold(text: str) -> None:
     assert mentions_host_path(text)
+
+
+@pytest.mark.parametrize("text", CONSERVATIVE_PATH_TEXTS)
+def test_guest_message_conservatively_withholds_slash_bearing_prose(text: str) -> None:
+    assert (
+        CodedError(text, code="invalid_state").guest_message()
+        == "That didn't work; ask the host to check this episode."
+    )
 
 
 @pytest.mark.parametrize("text", PATH_FREE_TEXTS)

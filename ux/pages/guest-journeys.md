@@ -166,8 +166,10 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 
 Guest request failures keep host diagnostics private. Deliberate refusals show
 safe detail, including the fixed host-setup line for a registry that is not private,
-and a fixed line instead of any message that names a host path;
-an unexpected failure shows `internal error`. A recording socket
+and a fixed line instead of a message that might name a host path.
+This includes escaped Windows paths, encoded slashes, and relative or single-folder
+paths. A bare filename such as `A.wav` can still appear in safe detail.
+An unexpected failure shows `internal error`. A recording socket
 can reconnect after a transient internal failure. A file acknowledged before
 landing fails stays saved for a later landing attempt.
 
