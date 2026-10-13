@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useRecordHostStore } from "../record/hostStore";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -39,11 +40,13 @@ function neverRenderedProject(renderExtras: Record<string, unknown> = {}) {
 describe("TransportBar stale refresh", () => {
   beforeEach(() => {
     vi.mocked(execute).mockClear();
+    useRecordHostStore.getState().setSnapshot(null);
+    useDawStore.setState({ audioError: null, sessionRegion: null });
     useDawStore.getState().hydrate("/tmp/p.json", staleProject());
     // jsdom clientWidth is 0; treat the bar as wide so collapsed is only via `compact`.
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
       configurable: true,
-      get: () => 1000,
+      get: () => 1400,
     });
   });
 

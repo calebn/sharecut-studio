@@ -433,7 +433,7 @@ describe("TransportBar guest Mix lock", () => {
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
       configurable: true,
       get() {
-        return 1200;
+        return 1400;
       },
     });
     try {
@@ -457,6 +457,8 @@ describe("TransportBar guest Mix lock", () => {
 describe("TransportBar wide layout", () => {
   beforeEach(() => {
     localStorage.clear();
+    useRecordHostStore.getState().setSnapshot(null);
+    useDawStore.setState({ audioError: null, sessionRegion: null });
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ tracks: TRACKS }));
@@ -714,7 +716,7 @@ describe("TransportBar wide layout", () => {
     },
   );
 
-  it("shows an audio error on the wide bar and in the collapsed Menu", async () => {
+  it("moves an audio error into the Menu when status pressure collapses the bar", async () => {
     const project = minimalProject({ tracks: TRACKS });
     const tree = (compact: boolean) => (
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
@@ -725,9 +727,8 @@ describe("TransportBar wide layout", () => {
     act(() => {
       useDawStore.getState().setAudioError("Failed to load audio (mix)");
     });
-    expect(screen.getByText("Audio failed to load")).toBeTruthy();
-    rerender(tree(true));
     expect(screen.queryByText("Audio failed to load")).toBeNull();
+    rerender(tree(true));
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(
       screen.getByText("Audio failed to load: Failed to load audio (mix)"),

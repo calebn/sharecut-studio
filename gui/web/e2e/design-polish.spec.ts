@@ -168,51 +168,108 @@ for (const viewport of [
 }
 
 test("transport zones never overlap across desktop widths", async ({
-  page,
+  browser,
+  baseURL,
 }) => {
-  // The fixture is stale with no preview, so the end zone carries two
-  // warning pills: wider than half the centered grid's spare room at 1440.
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
-  const title = page.locator("header.transport h1");
-  const fixtureTitle = (await title.textContent()) ?? "";
-  // A long project name must truncate before the end zone gives way (#726
-  // review): the fixture's short name alone never exercised the shrink.
   const longTitle =
     "Episode 142: A long conversation about documentary podcasts";
-  for (const name of [fixtureTitle, longTitle]) {
-    await title.evaluate((node, text) => {
-      node.textContent = text;
-    }, name);
-    for (const width of [1280, 1360, 1440, 1520, 1680, 1920]) {
-      await page.setViewportSize({ width, height: 900 });
-      const zones = await page.evaluate(() =>
-        [...document.querySelectorAll("header.transport .transport-zone")].map(
-          (zone) => {
-            const boxes = [...zone.children]
-              .map((child) => child.getBoundingClientRect())
-              .filter((box) => box.width > 0);
-            return {
-              left: Math.min(...boxes.map((box) => box.left)),
-              right: Math.max(...boxes.map((box) => box.right)),
+  for (const hasTouch of [false, true]) {
+    const context = await browser.newContext({ baseURL, hasTouch });
+    try {
+      const page = await context.newPage();
+      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await expect(
+        page.locator(".timeline-scroll .track-headers"),
+      ).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      expect(
+        await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+      ).toBe(hasTouch);
+      await setTheme(page, "light");
+      const title = page.locator("header.transport h1");
+      const fixtureTitle = (await title.textContent()) ?? "";
+      for (const name of [fixtureTitle, longTitle]) {
+        for (const width of [
+          1100, 1101, 1150, 1200, 1240, 1241, 1272, 1273, 1280, 1360, 1440,
+          1519, 1520, 1521, 1680, 1920,
+        ]) {
+          await page.setViewportSize({ width, height: 900 });
+          await title.evaluate((node, text) => {
+            node.textContent = text;
+          }, name);
+          const transport = page.locator("header.transport");
+          const controls = transport.locator(".transport-edit-controls button");
+          await expect(controls).toHaveCount(width === 1100 ? 0 : 4);
+          const geometry = await transport.evaluate((header) => {
+            const box = (node: Element) => {
+              const rect = node.getBoundingClientRect();
+              return {
+                left: rect.left,
+                right: rect.right,
+                width: rect.width,
+                height: rect.height,
+              };
             };
-          },
-        ),
-      );
-      expect(zones, `${width}px "${name}"`).toHaveLength(3);
-      const [start, center, end] = zones;
-      expect(
-        start.right,
-        `${width}px "${name}" start vs center`,
-      ).toBeLessThanOrEqual(center.left);
-      expect(
-        center.right,
-        `${width}px "${name}" center vs end`,
-      ).toBeLessThanOrEqual(end.left);
-      expect(
-        end.right,
-        `${width}px "${name}" end vs viewport`,
-      ).toBeLessThanOrEqual(width);
+            const zones = [...header.querySelectorAll(".transport-zone")].map(
+              (zone) => {
+                const children = [...zone.children]
+                  .map(box)
+                  .filter((rect) => rect.width > 0);
+                return {
+                  left: Math.min(...children.map((rect) => rect.left)),
+                  right: Math.max(...children.map((rect) => rect.right)),
+                };
+              },
+            );
+            return {
+              zones,
+              title: box(header.querySelector("h1")!),
+              controls: [
+                ...header.querySelectorAll(".transport-edit-controls button"),
+              ].map(box),
+              scrollWidth: header.scrollWidth,
+              pageWidth: document.documentElement.scrollWidth,
+            };
+          });
+          const label = `${width}px ${hasTouch ? "coarse" : "fine"} "${name}"`;
+          expect(geometry.zones, label).toHaveLength(3);
+          const [start, center, end] = geometry.zones;
+          expect(start.right, `${label} start vs center`).toBeLessThanOrEqual(
+            center.left,
+          );
+          expect(center.right, `${label} center vs end`).toBeLessThanOrEqual(
+            end.left,
+          );
+          expect(end.right, `${label} end vs viewport`).toBeLessThanOrEqual(
+            width,
+          );
+          expect(
+            geometry.scrollWidth,
+            `${label} header overflow`,
+          ).toBeLessThanOrEqual(width);
+          expect(
+            geometry.pageWidth,
+            `${label} page overflow`,
+          ).toBeLessThanOrEqual(width);
+          expect(
+            geometry.title.width,
+            `${label} readable project title`,
+          ).toBeGreaterThanOrEqual(32);
+          for (const control of geometry.controls) {
+            expect(control.width, `${label} control width`).toBe(
+              hasTouch ? 44 : 32,
+            );
+            expect(control.height, `${label} control height`).toBe(
+              hasTouch ? 44 : 32,
+            );
+          }
+          await expect(
+            transport.getByRole("button", { name: "Menu", exact: true }),
+          ).toBeInViewport();
+        }
+      }
+    } finally {
+      await context.close();
     }
   }
 });
@@ -225,7 +282,6 @@ test("timecode total is visually hidden below 85rem but stays announced", async 
   const timecode = page.locator("header.transport .timecode");
   const total = timecode.locator(".timecode-total");
   await page.setViewportSize({ width: 1280, height: 900 });
-  // Still in the text (and so the accessibility tree), just clipped.
   await expect(total).toContainText("/");
   await expect(total).toHaveCSS("position", "absolute");
   expect((await total.boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);

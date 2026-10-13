@@ -156,6 +156,25 @@ is the fix, enforced in copy review.
   it, the UI doesn't offer it — it explains what to do first.
   (Surface 1: Land gating.)
 
+### Decision: Keep desktop history and zoom controls in the transport
+
+<!-- decision
+id: D-desktop-transport-history-zoom
+status: accepted
+date: 2026-10-13
+decided-by: calebn
+evidence:
+- #1326 owner decision https://github.com/calebn/sharecut-studio/issues/1326#issuecomment-6151053529, add visible Undo, Redo, Zoom out, and Zoom in to the desktop transport
+enforced-by:
+- gui/web/src/layout/TransportBar.editControls.test.tsx::keeps history and zoom visible when desktop chrome collapses
+- gui/web/src/layout/TransportBar.editControls.test.tsx::places history then zoom before tools on a wide desktop for an editor
+-->
+
+Desktop keeps **Undo**, **Redo**, **Zoom out**, and **Zoom in** visible in the
+transport, including when its labeled chrome collapses. History actions follow
+edit permissions and availability. This placement follows the owner's desktop
+choice; phone and tablet keep their existing editing rail and compact inspector.
+
 ## Progressive disclosure rules
 
 - **Surface the right controls at the right time.** Record-room

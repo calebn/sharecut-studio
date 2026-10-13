@@ -2,7 +2,11 @@ import { useId } from "react";
 import { CommandButton } from "../ui";
 import { useRecordHostStore } from "./hostStore";
 import { RecIndicator } from "./RecIndicator";
-import { REC_CHIP_CAPTURE_LABEL, REC_CHIP_OFFLINE_LABEL } from "./types";
+import {
+  isRecordTransportVisible,
+  REC_CHIP_CAPTURE_LABEL,
+  REC_CHIP_OFFLINE_LABEL,
+} from "./types";
 
 export function RecordTransportChip() {
   const clockId = useId();
@@ -10,7 +14,7 @@ export function RecordTransportChip() {
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const dropped = useRecordHostStore((s) => s.dropped);
   const takeClipping = useRecordHostStore((s) => s.takeClipping);
-  if (!snapshot || snapshot.state === "lobby") {
+  if (!isRecordTransportVisible(snapshot)) {
     return null;
   }
 
