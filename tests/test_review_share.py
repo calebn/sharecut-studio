@@ -900,7 +900,8 @@ def test_guest_render_preview_disabled_by_default(
     )["token"]
     denied = client.post(f"/api/review/{edit_tok}/daw/render-preview")
     assert denied.status_code == 403
-    assert "PODCAST_GUEST_RENDER" in denied.json()["detail"]
+    assert denied.json() == {"detail": "That didn't work; ask the host to check this episode."}
+    assert denied.headers["x-sharecut-error-code"] == "share_capability_required"
 
 
 def test_guest_render_preview_returns_before_render_finishes(
