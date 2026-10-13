@@ -209,6 +209,31 @@ Existing required checks and test inventories remain in force. Moving or
 removing them requires an explicit policy decision and an equivalent-assurance
 rationale. A useful one-off proof does not itself justify recurring CI.
 
+### CI on a pull request
+
+A PR runs only what its diff can reach. `scripts/ci_plan.py` reads the diff
+and decides:
+
+- A PR that touches nothing GUI-facing skips Vitest and the browser suites.
+- A PR that touches only `gui/web/` runs just the Python tests that read
+  `gui/web`.
+- Browser compat runs on WebKit only.
+
+`main`, the nightly schedule and `workflow_dispatch` run everything, with the
+95% coverage floor and both compat engines. The required checks still report
+on every PR, and a skipped job counts as passing. See
+[testing.md § Which jobs a run needs](testing.md#which-jobs-a-run-needs).
+
+- **New directory.** Classify it in `PATH_RULES` in `scripts/ci_plan.py`.
+  `tests/test_ci_plan.py` fails until you do. Until then, the path counts as
+  GUI-facing.
+- **A non-GUI change that you expect to affect the browser.** For example, an
+  `edits/` change that alters what a timeline spec sees. Run
+  `gh workflow run test.yml --ref <branch>` to get the full run before merge,
+  or run the affected spec locally.
+- **A red nightly or `main` run** is a regression that a PR skipped. Fix it
+  before landing more work in that area.
+
 ### Review evidence
 
 Screenshots, receipts and before/after records for one issue belong in the PR description or a PR comment. Do not commit `docs/issue-<n>/` folders: rebase-merge keeps every commit, so evidence added and later removed still stays in `main`'s history. Durable findings go into the doc that owns the behavior. `tests/test_docs_layout.py` fails when a tracked `docs/issue-<n>/` path exists.
