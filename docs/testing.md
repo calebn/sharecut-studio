@@ -1006,8 +1006,9 @@ npm --prefix gui/web run profile:compare -- --budget /tmp/editor-small-budget.js
 Use an independently generated holdout for each preset. Run on a quiet worker
 with no other browser, fixture decode, build, or full suite. The runner reuses the
 existing Playwright process/port cleanup and starts a fresh server/context for
-each scene. `--scene clip|boundary|playback|cold-waveform|progress-replay|progress-real|progress-reduced`
-selects one scene for validity debugging; a selected scene does not establish
+each scene. `--scene clip|boundary|playback|cold-waveform|progress-replay|progress-real|progress-reduced|seek|trim`
+(comma-separated for several; `seek` and `trim` run only when named, see [Seek and trim profile](#seek-and-trim-profile-opt-in))
+selects scenes for validity debugging; a selected scene does not establish
 whole-issue coverage. `--trace --scene progress-replay` or
 `--trace --scene cold-waveform` retains a separate Chrome diagnostic trace.
 Both use diagnostic sample phases excluded from primary timing budgets.
@@ -1157,6 +1158,86 @@ establish audio quality, cold decoding, physical-device behavior, or Safari pari
 `make test` builds a two-minute fixture; the full two-hour shape is checked by
 `test_large_project_fixture_default_two_hour_shape` under the `e2e_real`
 marker (`make e2e-real`).
+
+### Seek and trim profile (opt-in)
+
+A small, repeatable profile of two editing tasks with the tools above (the
+`editor-workloads` Playwright spec, `editorProfile.ts` frame/long-task/CDP
+sampling, `profile:remaining`). It adds no runner and no budget.
+
+```sh
+make profile-seek-trim OUT=/tmp/seek-trim            # REPEAT=2 PRESET=small by default
+```
+
+The target builds the GUI, runs the `seek` and `trim` scenes `REPEAT` times
+(default 2) against a fresh disposable copy of the generated fixture in
+desktop Chromium (1280 x 720, host role, light theme, reduced motion), then
+prints `profile:summary` and writes it to `OUT/summary.txt`. `OUT` must be new.
+It never opens the user's recordings or working project. Run it twice with the
+same inputs to compare invocations; each `OUT` keeps its own raw
+`run-N/<scene>/<scene>/report.json` (every frame interval, long task and raw CDP
+counter before and after the window), `invocation.json`, the Playwright
+output and any `failure.png`. Rebuild a table later with
+`npm --prefix gui/web run profile:summary -- OUT`.
+
+| Task | Sample | What it does | What must hold or the run is incomplete |
+| --- | --- | --- | --- |
+| Seek | `ruler-seek` | From 0 s, click the ruler at 25% of the session | slider and transport clock land within 1 px of the target (`targetSeconds`, `toleranceSeconds` in the report) |
+| Trim | `trim-cancel` | Drag the selected first clip's in handle 20 px, press Escape, release | no `TrimClipEdge` sent, saved clips and history head unchanged, no ghost left |
+| Trim | `trim-save` | Same drag, release, confirm "Cut anyway" when the host asks | saved `source_start` equals the sent `source_sec` and moved, `source_end` unchanged; then Undo (outside the window) restores the saved clips exactly and the original history head |
+
+A failed assertion records a `failed` sample, an `incomplete` report and a
+non-zero exit. The summary prints `INCOMPLETE` with the reason, and a failed
+task is never a performance result.
+
+Sample output (`main` plus this tooling at `c1fc4e141a34`, Apple M2 Pro, Chromium
+156, two runs per task, small fixture of 120 s, 24 clips; first invocation):
+
+```text
+scene  run       sample     status  driver ms  frames  frame p50  frame p95  frame max  long tasks  long ms  task ms  script ms  layout ms  style ms
+ seek    1   ruler-seek  completed        113       6       16.7       16.7       16.7           0      0.0     47.6       11.6        1.4       0.7
+ seek    2   ruler-seek  completed         83       5       16.7       16.7       16.7           0      0.0     43.3       10.9        1.0       0.6
+ trim    1  trim-cancel  completed        222      13       16.7       16.7       16.7           0      0.0     32.6       14.0        0.6       1.1
+ trim    2  trim-cancel  completed        213      12       16.7       16.8       16.8           0      0.0     28.1       12.1        0.6       1.1
+ trim    1    trim-save  completed        630      37       16.7       16.7       16.8           0      0.0     83.6       30.4        2.6       9.6
+ trim    2    trim-save  completed        647      38       16.7       16.8       16.8           0      0.0     83.3       30.3        2.3       9.7
+```
+
+Reading it:
+
+- **Frames** are page `requestAnimationFrame` intervals inside the sample
+  window, which opens before the action and closes two frames after it. They sit
+  on the 16.7 ms vsync floor of a 60 Hz headless Chromium, so a p50 or p95 of
+  16.7 ms means no frame was late, not that the interaction is 16.7 ms fast. A
+  late frame shows as 33.3 ms (both seek runs of the second invocation have one). The seek window holds only 5 or 6 frames, so its p95 equals its
+  max and is one frame of evidence.
+- **Long tasks** are main-thread tasks over 50 ms. All zero here: the largest
+  main-thread cost, 47.6 ms of CDP `TaskDuration` for the seek window and
+  83.6 ms for the trim save, is split across many small tasks.
+  `TaskDuration`, `ScriptDuration`, `LayoutDuration` and `RecalcStyleDuration`
+  overlap and are deltas of CDP `Performance.getMetrics` counters.
+- **Driver ms** is Playwright's wall time for the whole task including its
+  assertions, server round trips and the two settle frames. It is not
+  input-to-visual latency. Main-thread work is under 15% of `trim-save` driver
+  time. The rest is waiting: in a separate one-off timing of the same run the
+  host answered the first `TrimClipEdge` in 68 ms and the confirmed one in
+  278 ms, plus boundary-context and document-state reads, so backend commands
+  alone account for about half of the 630 ms. Treat driver ms as an end-to-end
+  task cost with a backend share, not as the editor's responsiveness.
+- **Variation** across the four runs of one task with identical inputs was 83 to
+  113 ms (seek), 202 to 222 ms (cancel) and 630 to 696 ms (save). Two or four
+  runs cannot support a statistical claim or a threshold. Use more `REPEAT`,
+  an idle machine, and compare like with like (same host, browser, revision).
+
+Limits. One fixture size on one desktop browser: no touch, no phones, no dark
+theme, no WebKit, no real audio, and nothing here says the 60 Hz floor holds on
+slower hardware (named-device runs stay in #960). The seek click is a ruler
+click, not held-pointer scrubbing. The first trim ripples later clips and the
+fixture has speech there, so the host asks and the sample includes the
+confirmation (`confirmedCutSpeech` in the report). Two `waveform-snap` reads
+finished around the seek window; the profile does not attribute them to the
+seek. Other tasks (range cut, fades, envelopes, track reorder, Mix, comments)
+and input-response budgets remain with #1035's deferred scope, #960 and #879.
 
 ### Retained responsiveness findings (#879)
 
