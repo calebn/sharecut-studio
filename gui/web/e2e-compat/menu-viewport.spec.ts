@@ -1,5 +1,8 @@
 import { devices, expect, type Page, test } from "@playwright/test";
-import { openPhoneTimeline } from "../e2e/phoneTimeline";
+import {
+  openPhoneTimeline,
+  rememberInspectorDetent,
+} from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 
 /*
@@ -124,7 +127,12 @@ async function expectToastUndoTopmost(page: Page, where: string) {
   expect(hit, where).toEqual({ inToast: true, label: "Undo" });
 }
 
-async function reorderFirstTrack(page: Page, projectPath: string) {
+async function reorderFirstTrack(
+  page: Page,
+  projectPath: string,
+  detent: "peek" | "half" = "peek",
+) {
+  await rememberInspectorDetent(page, detent);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await openPhoneTimeline(page);
   await page.locator(".track-header-open").first().tap();
@@ -140,33 +148,38 @@ const transportMenu = (page: Page) =>
 test("an app toast stays topmost and tappable over a transport menu opened after it", async ({
   page,
 }) => {
-  await withShareableProject(async (projectPath) => {
-    await reorderFirstTrack(page, projectPath);
-    await expect(toastCard(page)).toContainText("Reordered track");
+  for (const detent of ["peek", "half"] as const) {
+    await withShareableProject(async (projectPath) => {
+      await reorderFirstTrack(page, projectPath, detent);
+      await expect(toastCard(page)).toContainText("Reordered track");
 
-    await page.getByRole("button", { name: "Menu", exact: true }).tap();
-    await expect(transportMenu(page)).toBeVisible();
-    await expectToastUndoTopmost(page, "toast first");
-  });
+      await page.getByRole("button", { name: "Menu", exact: true }).tap();
+      await expect(transportMenu(page)).toBeVisible();
+      await expectToastUndoTopmost(page, `toast first, ${detent} detent`);
+    });
+  }
 });
 
 test("an app toast stays topmost and tappable over a transport menu that was open before it", async ({
   page,
 }) => {
-  await withShareableProject(async (projectPath) => {
-    await page.route("**/api/document/command*", async (route) => {
-      if ((route.request().postData() ?? "").includes("ReorderTrack")) {
-        await new Promise((done) => setTimeout(done, 1500));
-      }
-      await route.continue();
-    });
-    await reorderFirstTrack(page, projectPath);
-    await page.getByRole("button", { name: "Menu", exact: true }).tap();
-    await expect(transportMenu(page)).toBeVisible();
-    await expect(toastCard(page)).toHaveCount(0);
+  for (const detent of ["peek", "half"] as const) {
+    await withShareableProject(async (projectPath) => {
+      await page.route("**/api/document/command*", async (route) => {
+        if ((route.request().postData() ?? "").includes("ReorderTrack")) {
+          await new Promise((done) => setTimeout(done, 1500));
+        }
+        await route.continue();
+      });
+      await reorderFirstTrack(page, projectPath, detent);
+      await page.getByRole("button", { name: "Menu", exact: true }).tap();
+      await expect(transportMenu(page)).toBeVisible();
+      await expect(toastCard(page)).toHaveCount(0);
 
-    await expect(toastCard(page)).toContainText("Reordered track");
-    await expect(transportMenu(page)).toBeVisible();
-    await expectToastUndoTopmost(page, "menu first");
-  });
+      await expect(toastCard(page)).toContainText("Reordered track");
+      await expect(transportMenu(page)).toBeVisible();
+      await expectToastUndoTopmost(page, `menu first, ${detent} detent`);
+      await page.unroute("**/api/document/command*");
+    });
+  }
 });

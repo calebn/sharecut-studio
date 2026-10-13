@@ -19,7 +19,6 @@ function supportsPopover(el: HTMLElement): boolean {
 function hideFloor(): void {
   if (floor && floorShown) {
     floor.hidePopover();
-    floor.removeAttribute("popover");
   }
   floorShown = false;
 }
@@ -30,9 +29,13 @@ function settleFloor(): void {
   }
   hideFloor();
   if (panelsOpen > 0) {
-    floor.setAttribute("popover", "manual");
+    if (!floor.hasAttribute("popover")) {
+      floor.setAttribute("popover", "manual");
+    }
     floor.showPopover();
     floorShown = true;
+  } else {
+    floor.removeAttribute("popover");
   }
 }
 
@@ -43,6 +46,7 @@ export function claimTopLayerFloor(region: HTMLElement): () => void {
   return () => {
     if (floor === region) {
       hideFloor();
+      region.removeAttribute("popover");
       floor = null;
     }
   };
