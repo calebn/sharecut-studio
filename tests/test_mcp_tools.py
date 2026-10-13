@@ -170,6 +170,7 @@ def test_set_envelope(tmp_path):
     path = mcp_server.episode_create(str(ws))
     project = load_project(Path(path))
     project.timeline.tracks.append(Track(id="music", label="Music"))
+    project.timeline.duration_sec = 30.0
     save_project(project)
     points = [{"time": 0, "value": 0}, {"time": 1, "value": 1}]
     result = mcp_server.set_envelope(path, "music", points)

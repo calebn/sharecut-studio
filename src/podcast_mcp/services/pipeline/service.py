@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from podcast_mcp.edits.envelopes import validate_envelope_point_times
+from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.models import AutomationEnvelope, AutomationPoint, PipelineRun, PipelineStepLog
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
@@ -189,6 +191,7 @@ class PipelineService:
         def mutate(p) -> int:
             if p.track_by_id(track_id) is None:
                 raise ValueError(f"Volume envelope track {track_id!r} no longer exists")
+            validate_envelope_point_times(p, track_id, points, timeline_duration_sec(p))
             pts = [
                 AutomationPoint(
                     id=str(point["id"]) if "id" in point else str(uuid4()),

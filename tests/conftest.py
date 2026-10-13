@@ -347,6 +347,7 @@ def slow_export(
 def envelope_project(minimal_project: Path) -> Path:
     project = load_project(minimal_project)
     project.timeline.tracks = [Track(id=track_id, label=track_id) for track_id in ("host", "guest")]
+    project.timeline.duration_sec = 60.0
     save_project(project)
     return minimal_project
 
