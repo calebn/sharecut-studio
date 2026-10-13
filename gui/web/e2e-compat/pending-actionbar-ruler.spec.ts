@@ -1,30 +1,29 @@
-import {
-  expect,
-  type Locator,
-  type Page,
-  type TestInfo,
-  test,
-} from "@playwright/test";
+import { expect, type Page, type TestInfo, test } from "@playwright/test";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { e2eProjectPath } from "../e2e/env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
+import {
+  chromeBoxes,
+  expectHitTestable,
+  settle,
+  suggestOnFirstDialogueTrack,
+} from "../e2e/pendingActionbar";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
 import { setTheme, type Theme } from "../e2e/theme";
 import { save } from "../e2e/touchTimeline";
 
 const CLIENT_ID = "e2e-actionbar-ruler";
-type Outcome = "docked" | "floating" | "covered" | "inline";
+type Outcome = "docked" | "docked-regular" | "floating" | "inline";
 
 /**
- * Where the review actions end up: docked in the compact sheet; floating
- * between the sticky ruler and the bottom panel; floating there on a tall
- * tablet, where the inspector sheet's own Approve and Reject stay reachable;
- * or, when the card cannot fit between ruler and panel, left to the
- * inspector's inline controls.
+ * Where the review actions end up: docked in the compact sheet; docked in the
+ * tablet's regular inspector sheet, where a floating card would sit under it;
+ * floating between the sticky ruler and the bottom panel; or, when the card
+ * cannot fit between ruler and panel, left to the inspector's inline controls.
  */
 const VIEWPORTS: Record<
   string,
@@ -32,7 +31,9 @@ const VIEWPORTS: Record<
 > = {
   phone: { width: 360, height: 800, outcome: "docked" },
   "tablet-short": { width: 768, height: 500, outcome: "docked" },
-  tablet: { width: 820, height: 1180, outcome: "covered" },
+  tablet: { width: 820, height: 1180, outcome: "docked-regular" },
+  "tablet-768": { width: 768, height: 1024, outcome: "docked-regular" },
+  "desktop-1180": { width: 1180, height: 820, outcome: "floating" },
   desktop: { width: 1280, height: 720, outcome: "floating" },
   "desktop-540": { width: 1280, height: 540, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
@@ -53,17 +54,7 @@ test.afterEach(async () => {
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
 
-async function suggestOnFirstDialogueTrack(page: Page): Promise<void> {
-  const trackId = await page.evaluate(async (path) => {
-    const res = await fetch(
-      `/api/project?path=${encodeURIComponent(path)}&phase=shell`,
-    );
-    const project = (await res.json()) as {
-      tracks: { id: string; role?: string }[];
-    };
-    return project.tracks.find((t) => t.role === "dialogue")?.id;
-  }, projectPath);
-  expect(trackId).toBeTruthy();
+async function seedMarkersAndSuggestion(page: Page): Promise<void> {
   await postDocumentCommand(
     page,
     CLIENT_ID,
@@ -83,58 +74,7 @@ async function suggestOnFirstDialogueTrack(page: Page): Promise<void> {
     },
     projectPath,
   );
-  await postDocumentCommand(
-    page,
-    CLIENT_ID,
-    "SuggestPendingEdit",
-    { track_id: trackId, start: 4, end: 6, reason: "guest:suggest" },
-    projectPath,
-  );
-}
-
-interface Box {
-  top: number;
-  bottom: number;
-}
-
-async function settle(page: Page): Promise<void> {
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      ),
-  );
-}
-
-/** The rects the card must stay between; throws when the chrome is missing. */
-async function chromeBoxes(page: Page): Promise<{
-  ruler: Box;
-  marker: Box;
-  panel: Box;
-}> {
-  return page.evaluate(() => {
-    const box = (selector: string) => {
-      const el = document.querySelector(selector);
-      if (!el) throw new Error(`${selector} is missing`);
-      const { top, bottom } = el.getBoundingClientRect();
-      return { top, bottom };
-    };
-    return {
-      ruler: box(".time-ruler"),
-      marker: box(".marker-lane"),
-      panel: box(".bottom-tabs"),
-    };
-  });
-}
-
-async function expectHitTestable(button: Locator): Promise<void> {
-  await expect(button).toBeVisible();
-  const reachable = await button.evaluate((el) => {
-    const { left, top, width, height } = el.getBoundingClientRect();
-    const hit = document.elementFromPoint(left + width / 2, top + height / 2);
-    return hit !== null && el.contains(hit);
-  });
-  expect(reachable).toBe(true);
+  await suggestOnFirstDialogueTrack(page, projectPath, CLIENT_ID);
 }
 
 async function expectCardOutcome(
@@ -148,7 +88,7 @@ async function expectCardOutcome(
   await page.setViewportSize(size);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
-  await suggestOnFirstDialogueTrack(page);
+  await seedMarkersAndSuggestion(page);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (name === "phone") await openPhoneTimeline(page);
@@ -167,11 +107,17 @@ async function expectCardOutcome(
   await settle(page);
   save(info, `${browserName}-${name}-${theme}.png`, await page.screenshot());
 
-  if (outcome === "docked") {
+  if (outcome === "docked" || outcome === "docked-regular") {
     await expect(bar).toHaveClass(/pending-actionbar--docked/);
     expect(
-      await bar.evaluate((el) => el.closest(".bottom-sheet--compact") !== null),
-    ).toBe(true);
+      await bar.evaluate((el) => ({
+        inspectorSheet: el.closest(".bottom-sheet--inspector") !== null,
+        compactSheet: el.closest(".bottom-sheet--compact") !== null,
+      })),
+    ).toEqual({
+      inspectorSheet: true,
+      compactSheet: outcome === "docked",
+    });
     await expectHitTestable(bar.getByRole("button", { name: "Approve" }));
     await expectHitTestable(bar.getByRole("button", { name: "Reject" }));
     return;
@@ -193,10 +139,8 @@ async function expectCardOutcome(
     Math.max(ruler.bottom, marker.bottom) - 0.5,
   );
   expect(bottom).toBeLessThanOrEqual(panel.top + 0.5);
-  const actions =
-    outcome === "covered" ? page.locator(".bottom-sheet-root") : bar;
-  await expectHitTestable(actions.getByRole("button", { name: "Approve" }));
-  await expectHitTestable(actions.getByRole("button", { name: "Reject" }));
+  await expectHitTestable(bar.getByRole("button", { name: "Approve" }));
+  await expectHitTestable(bar.getByRole("button", { name: "Reject" }));
 }
 
 test("pending actions at phone: docks in the inspector sheet, light", ({
@@ -217,14 +161,24 @@ test("pending actions at tablet-short: docks in the inspector sheet, dark", ({
   browserName,
 }, info) =>
   expectCardOutcome({ page, browserName }, info, "tablet-short", "dark"));
-test("pending actions at tablet: floats between the ruler and the bottom panel; the inspector sheet's Approve and Reject stay reachable, light", ({
+test("pending actions at tablet: docks in the regular inspector sheet, light", ({
   page,
   browserName,
 }, info) => expectCardOutcome({ page, browserName }, info, "tablet", "light"));
-test("pending actions at tablet: floats between the ruler and the bottom panel; the inspector sheet's Approve and Reject stay reachable, dark", ({
+test("pending actions at tablet: docks in the regular inspector sheet, dark", ({
   page,
   browserName,
 }, info) => expectCardOutcome({ page, browserName }, info, "tablet", "dark"));
+test("pending actions at tablet-768: docks in the regular inspector sheet, light", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardOutcome({ page, browserName }, info, "tablet-768", "light"));
+test("pending actions at tablet-768: docks in the regular inspector sheet, dark", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardOutcome({ page, browserName }, info, "tablet-768", "dark"));
 test("pending actions at desktop: floats between the ruler and the bottom panel, light", ({
   page,
   browserName,
@@ -263,3 +217,13 @@ test("pending actions at desktop-short: leaves Approve and Reject to the inspect
   browserName,
 }, info) =>
   expectCardOutcome({ page, browserName }, info, "desktop-short", "dark"));
+test("pending actions at desktop-1180: floats between the ruler and the bottom panel, light", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardOutcome({ page, browserName }, info, "desktop-1180", "light"));
+test("pending actions at desktop-1180: floats between the ruler and the bottom panel, dark", ({
+  page,
+  browserName,
+}, info) =>
+  expectCardOutcome({ page, browserName }, info, "desktop-1180", "dark"));

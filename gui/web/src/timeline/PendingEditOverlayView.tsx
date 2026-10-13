@@ -19,7 +19,7 @@ import { canRetimePendingEdit, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { Button } from "../ui/Button";
-import { compactSheetPanel, compactSheetTop } from "../ui/compactSheet";
+import { inspectorSheetPanel, inspectorSheetTop } from "../ui/compactSheet";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   ApiError,
@@ -151,6 +151,16 @@ function actionsReach(card: HTMLElement, naturalHeight: number): number {
   }
   return naturalHeight - below;
 }
+
+/**
+ * The chrome that bounds where the card may float. Its size changes without a
+ * scroll or resize (a comment grows the marker lane; the splitter moves the
+ * bottom panel), so the overlay observes each one.
+ */
+const FLOAT_BOUNDS_SELECTORS = [".marker-lane", ".bottom-tabs"];
+const floatBounds = FLOAT_BOUNDS_SELECTORS.map(
+  (selector) => () => document.querySelector(selector),
+);
 
 function touchTargetPx(): number {
   const targetRem = Number.parseFloat(
@@ -523,7 +533,7 @@ function PendingEditRegion({
     (labelActive || (selected && !isOriginLane)) &&
     !(selected && isOriginLane && spanIndex === 0);
   useResizeObserver(
-    [regionRef, actionbarRef, compactSheetPanel],
+    [regionRef, actionbarRef, inspectorSheetPanel, ...floatBounds],
     () => scheduleResizeUpdateRef.current?.(),
     selected || labelInPortal,
   );
@@ -544,7 +554,7 @@ function PendingEditRegion({
             Number.parseFloat(panelStyle.borderTopWidth) +
             Number.parseFloat(panelStyle.borderBottomWidth);
           const rem = rootRem();
-          const sheetTop = compactSheetTop();
+          const sheetTop = inspectorSheetTop();
           setDocked(sheetTop !== null);
           const placement = placePendingActionbar(
             {
@@ -604,7 +614,7 @@ function PendingEditRegion({
       return;
     }
     const destination = docked
-      ? (compactSheetPanel()?.querySelector<HTMLElement>(
+      ? (inspectorSheetPanel()?.querySelector<HTMLElement>(
           ".bottom-sheet-chrome",
         ) ?? document.body)
       : document.body;

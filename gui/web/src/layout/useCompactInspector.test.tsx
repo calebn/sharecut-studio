@@ -60,7 +60,7 @@ describe("useCompactInspector", () => {
         label: "Inspector height",
       },
       stowed: false,
-      className: "bottom-sheet--compact",
+      className: "bottom-sheet--inspector bottom-sheet--compact",
     });
     const sheet = render(<CompactSheet />);
     expect(screen.getByRole("group", { name: "Undo and redo" })).toBeVisible();

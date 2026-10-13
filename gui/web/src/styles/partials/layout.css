@@ -27,8 +27,11 @@ html[data-shell] body {
  * layout or a banner never shifts another child. Layouts change only
  * --shell-main-row / --shell-tabs-row (responsive.css). */
 .daw-shell {
-  --shell-main-row: minmax(0, 1fr);
-  --shell-tabs-row: var(--tabs-height);
+  /* The main row keeps room for the ruler, a marker row and the inspector's
+   * own scroll; a short window or a banner takes the bottom panel's height
+   * first, so the panel never draws over the inspector's Approve and Reject. */
+  --shell-main-row: minmax(7.5rem, 1fr);
+  --shell-tabs-row: minmax(0, var(--tabs-height));
 
   display: grid;
   grid-template-areas:
