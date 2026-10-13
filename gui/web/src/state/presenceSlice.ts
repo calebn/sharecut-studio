@@ -5,7 +5,7 @@ import {
   rosterEntry,
   rosterFromList,
 } from "../presence/roster";
-import { selectionFromWire, selectionToWire } from "../session/wire";
+import { selectionToWire, wireSelectionPatch } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { playStartPatch } from "./transportSlice";
@@ -33,6 +33,7 @@ type PresenceSlice = Pick<
   | "lastAppliedRevision"
   | "lastAppliedCommandId"
   | "suppressPublish"
+  | "pendingWireSelection"
   | "_suppressTimer"
   | "applyAgentSession"
   | "buildViewerSnapshot"
@@ -107,6 +108,7 @@ export const createPresenceSlice: StateCreator<
   lastAppliedRevision: 0,
   lastAppliedCommandId: null as string | null,
   suppressPublish: false,
+  pendingWireSelection: null,
   _suppressTimer: null,
   applyAgentSession: (state: SessionState) => {
     const prev = get()._suppressTimer;
@@ -129,7 +131,6 @@ export const createPresenceSlice: StateCreator<
     // selection-ish fields without stomping local play/pause or auto-stop.
     // Guests hear Full mix only — never copy host audition / mute / solo maps.
     if (fromAgent) {
-      const nextSel = selectionFromWire(state.selection, get().project);
       set({
         suppressPublish: true,
         _suppressTimer: timer,
@@ -146,7 +147,9 @@ export const createPresenceSlice: StateCreator<
         sourcePreview: null,
         sourcePreviewGeneration: get().sourcePreviewGeneration + 1,
         ...hear,
-        ...(state.selection !== undefined ? { selection: nextSel } : {}),
+        ...(state.selection !== undefined
+          ? wireSelectionPatch(state.selection, get().project, true)
+          : {}),
         ...(state.clients
           ? {
               sessionClients: rosterFromList(
@@ -160,12 +163,12 @@ export const createPresenceSlice: StateCreator<
       });
       return;
     }
-    const nextSel = selectionFromWire(state.selection, get().project);
+    const wirePatch = wireSelectionPatch(state.selection, get().project, false);
     const localSelection = get().selection;
     const workspaceEcho =
       localSelection?.kind === "envelope" &&
-      nextSel?.kind === "track" &&
-      localSelection.trackId === nextSel.trackId;
+      wirePatch.selection?.kind === "track" &&
+      localSelection.trackId === wirePatch.selection.trackId;
     // A guest keeps its own selection; Follow is how it mirrors someone else's.
     const adoptSelection =
       state.selection !== undefined &&
@@ -177,7 +180,7 @@ export const createPresenceSlice: StateCreator<
       lastAppliedRevision: state.server_seq,
       lastAppliedCommandId: state.last_command_id,
       ...hear,
-      ...(adoptSelection ? { selection: nextSel } : {}),
+      ...(adoptSelection ? wirePatch : {}),
       ...(state.clients
         ? {
             sessionClients: rosterFromList(state.clients, get().sessionClients),

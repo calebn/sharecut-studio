@@ -773,3 +773,89 @@ it("a share guest keeps its own selection when another viewer selects", () => {
   );
   expect(useDawStore.getState().selection).toBeNull();
 });
+
+describe("remote selection before its target is here", () => {
+  const wire = { kind: "pending" as const, id: "cut_1", track_id: "host" };
+  const reload = (partial: Partial<SessionState> = {}) =>
+    useDawStore
+      .getState()
+      .applyAgentSession(
+        agentSession({ origin: "agent", last_role: "agent", ...partial }),
+      );
+
+  beforeEach(() => {
+    useDawStore.setState({
+      project: null,
+      projectPath: "",
+      selection: null,
+      pendingWireSelection: null,
+      guestMode: null,
+      shareCapabilities: null,
+    });
+  });
+
+  it("restores a valid agent selection that arrived before the project loaded", () => {
+    reload({ selection: wire });
+    expect(useDawStore.getState().selection).toBeNull();
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "pending",
+      id: "cut_1",
+      trackId: "host",
+    });
+    expect(useDawStore.getState().pendingWireSelection).toBeNull();
+  });
+
+  it("restores a viewer selection that arrived before the project loaded", () => {
+    reload({ origin: "viewer", last_role: "viewer", selection: wire });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+    expect(useDawStore.getState().selection?.kind).toBe("pending");
+  });
+
+  it("drops a stale selection silently once the project is present", () => {
+    reload({
+      selection: { kind: "pending", id: "cut_gone", track_id: "host" },
+    });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("resolves a selection once its target reaches this client", () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/ep.project.json",
+        minimalProject({ tracks: [sampleTrack({ id: "host" })] }),
+      );
+    reload({ selection: wire });
+    expect(useDawStore.getState().selection).toBeNull();
+    useDawStore.getState().setProject(twoTrackProject());
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "pending",
+      id: "cut_1",
+      trackId: "host",
+    });
+  });
+
+  it("does not revive a remote selection after the person chose their own", () => {
+    const early = minimalProject({
+      tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+    });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", early);
+    reload({ selection: wire });
+    useDawStore.getState().setSelection({ kind: "track", trackId: "guest" });
+    useDawStore.getState().setProject(twoTrackProject());
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "track",
+      trackId: "guest",
+    });
+  });
+
+  it("never gives a share guest another viewer's selection that arrived early", () => {
+    reload({ origin: "viewer", last_role: "viewer", selection: wire });
+    useDawStore
+      .getState()
+      .hydrate("share:tok", twoTrackProject(), "comment", ["view", "comment"]);
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+});

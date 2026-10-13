@@ -13,6 +13,7 @@ import type {
   PresenceTab,
   SessionClient,
   SessionRegion,
+  SessionSelection,
   SessionState,
   ViewerSessionSnapshot,
 } from "../types/session";
@@ -234,6 +235,8 @@ export interface DawState {
   lastAppliedRevision: number;
   lastAppliedCommandId: string | null;
   suppressPublish: boolean;
+  /** A remote selection whose target this client does not have yet; resolved when the project arrives or changes. */
+  pendingWireSelection: PendingWireSelection | null;
   shellBreakpoint: ShellBreakpoint;
   pointerKind: PointerKind;
   mobileMode: MobileMode;
@@ -488,6 +491,12 @@ export interface DawState {
   settleJobResult: (jobId: string) => void;
   /** In one store write, drop these jobs' pending results and remember them as spoken (see `spokenJobResultIds`). */
   markJobResultsSpoken: (jobIds: readonly string[]) => void;
+}
+
+export interface PendingWireSelection {
+  selection: SessionSelection;
+  /** Agent and Follow selections reach a guest; a plain peer's does not. */
+  reachesGuest: boolean;
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */
