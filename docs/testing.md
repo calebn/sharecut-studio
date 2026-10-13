@@ -1172,13 +1172,18 @@ make profile-seek-trim OUT=/tmp/seek-trim            # REPEAT=2 PRESET=small by 
 The target builds the GUI, runs the `seek` and `trim` scenes `REPEAT` times
 (default 2) against a fresh disposable copy of the generated fixture in
 desktop Chromium (1280 x 720, host role, light theme, reduced motion), then
-prints `profile:summary` and writes it to `OUT/summary.txt`. `OUT` must be new.
+prints `profile:summary` and writes it to `OUT/summary.txt`. `OUT` must not
+exist: the target refuses an existing path before it builds or runs anything,
+exits non-zero and leaves the directory untouched, so a retained run's
+`summary.txt` is never overwritten.
 It never opens the user's recordings or working project. Run it twice with the
 same inputs to compare invocations; each `OUT` keeps its own raw
 `run-N/<scene>/<scene>/report.json` (every frame interval, long task and raw CDP
 counter before and after the window), `invocation.json`, the Playwright
-output and any `failure.png`. Rebuild a table later with
-`npm --prefix gui/web run profile:summary -- OUT`.
+output and any `failure.png`. A passing run deletes its fixture; a failed run
+keeps it (about 47 MB at the small preset) under `run-N/<scene>/fixture` for
+diagnosis, so delete `OUT` when you are done with a failed invocation. Rebuild
+a table later with `npm --prefix gui/web run profile:summary -- OUT`.
 
 | Task | Sample | What it does | What must hold or the run is incomplete |
 | --- | --- | --- | --- |
@@ -1190,8 +1195,12 @@ A failed assertion records a `failed` sample, an `incomplete` report and a
 non-zero exit. The summary prints `INCOMPLETE` with the reason, and a failed
 task is never a performance result.
 
-Sample output (`main` plus this tooling at `c1fc4e141a34`, Apple M2 Pro, Chromium
-156, two runs per task, small fixture of 120 s, 24 clips; first invocation):
+Sample output. Machine: Apple M2 Pro (12 logical CPUs), darwin 25.6.0 arm64.
+Tooling: `main` plus this tooling at revision `c1fc4e141a34`. Browser: Chromium
+156.0.8078.4, headless. Two runs per task, small fixture of 120 s, 24 clips;
+first invocation. Numbers vary by host and by run. A verifier saw `trim-save` at
+928 to 1112 ms on another run of the same Mac, so compare only within one
+invocation or on one host, and do not read these values as a target:
 
 ```text
 scene  run       sample     status  driver ms  frames  frame p50  frame p95  frame max  long tasks  long ms  task ms  script ms  layout ms  style ms
@@ -1209,9 +1218,10 @@ Reading it:
   window, which opens before the action and closes two frames after it. They sit
   on the 16.7 ms vsync floor of a 60 Hz headless Chromium, so a p50 or p95 of
   16.7 ms means no frame was late, not that the interaction is 16.7 ms fast. A
-  late frame shows as 33.3 ms (both seek runs of the second invocation have one). The
-  seek window holds only 5 or 6 frames, so its p95 equals its max and is one
-  frame of evidence.
+  late frame shows as 33.3 ms. On the machine above, both seek runs of the
+  second invocation had one; whether a host shows late frames at all is
+  machine-dependent and this table does not establish it. The seek window holds
+  only 5 or 6 frames, so its p95 equals its max and is one frame of evidence.
 - **Long tasks** are main-thread tasks over 50 ms. All zero here: the largest
   main-thread cost, 47.6 ms of CDP `TaskDuration` for the seek window and
   83.6 ms for the trim save, is split across many small tasks.
