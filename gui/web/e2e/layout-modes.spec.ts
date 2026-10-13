@@ -57,7 +57,9 @@ async function expectLayoutMatrix(page: Page): Promise<void> {
   ] as const;
   for (const { n, name } of cases) {
     await setLayout(page, n);
-    const chip = page.getByRole("button", { name: /· Restore$/ });
+    const chip = page
+      .locator(".daw-shell-transport")
+      .getByRole("button", { name: "Restore", exact: true });
     if (name === "default") {
       await expect(chip).toHaveCount(0);
     } else {
