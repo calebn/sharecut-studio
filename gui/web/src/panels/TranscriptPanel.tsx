@@ -228,7 +228,7 @@ export function TranscriptPanel() {
   const [requestTurnIndex, setRequestTurnIndex] = useState(-1);
   const viewAnchorRafRef = useRef<number | null>(null);
   const clickTimerRef = useRef<number | null>(null);
-  const rangeAnchorRef = useRef<number | null>(null);
+  const rangeAnchorRef = useRef<WordRef | null>(null);
   const draggingRef = useRef(false);
   /** True when mouseenter extended the range during a drag (survives mouseup→click). */
   const dragExtendedRef = useRef(false);
@@ -520,7 +520,7 @@ export function TranscriptPanel() {
       return () => setSelection(held);
     },
     onCommit: (trackId, span) => {
-      rangeAnchorRef.current = span.startWordIndex;
+      rangeAnchorRef.current = { trackId, wordIndex: span.startWordIndex };
       setRange(trackId, span.startWordIndex, span.endWordIndex);
       useDawStore
         .getState()
@@ -1361,7 +1361,10 @@ export function TranscriptPanel() {
                             e.preventDefault();
                             draggingRef.current = true;
                             dragExtendedRef.current = false;
-                            rangeAnchorRef.current = wordIndex;
+                            rangeAnchorRef.current = {
+                              trackId: u.track_id,
+                              wordIndex,
+                            };
                             setRange(u.track_id, wordIndex, wordIndex);
                           },
                           onPointerUp: (e) => {
@@ -1399,16 +1402,19 @@ export function TranscriptPanel() {
                               !draggingRef.current ||
                               intent !== "select" ||
                               wordIndex == null ||
-                              rangeAnchorRef.current == null
+                              rangeAnchorRef.current == null ||
+                              rangeAnchorRef.current.trackId !== u.track_id
                             ) {
                               return;
                             }
-                            if (wordIndex !== rangeAnchorRef.current) {
+                            if (
+                              wordIndex !== rangeAnchorRef.current.wordIndex
+                            ) {
                               dragExtendedRef.current = true;
                             }
                             setRange(
                               u.track_id,
-                              rangeAnchorRef.current,
+                              rangeAnchorRef.current.wordIndex,
                               wordIndex,
                             );
                           },
@@ -1446,11 +1452,11 @@ export function TranscriptPanel() {
                             if (intent === "select" && wordIndex != null) {
                               if (
                                 e.shiftKey &&
-                                rangeAnchorRef.current != null
+                                rangeAnchorRef.current?.trackId === u.track_id
                               ) {
                                 setRange(
                                   u.track_id,
-                                  rangeAnchorRef.current,
+                                  rangeAnchorRef.current.wordIndex,
                                   wordIndex,
                                 );
                                 return;
@@ -1460,7 +1466,10 @@ export function TranscriptPanel() {
                                 dragExtendedRef.current = false;
                                 return;
                               }
-                              rangeAnchorRef.current = wordIndex;
+                              rangeAnchorRef.current = {
+                                trackId: u.track_id,
+                                wordIndex,
+                              };
                               setRange(u.track_id, wordIndex, wordIndex);
                               return;
                             }
