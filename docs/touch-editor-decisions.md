@@ -124,17 +124,40 @@ The checks (#1096) live with the code:
   command's column from the grammar (the create menu, the kinds' commands
   and the Gestures sheet).
 
-### Transcript word ranges follow the grammar (#1029)
+### Decision: Transcript word ranges follow the touch grammar
+
+<!-- decision
+id: D-transcript-longpress-range
+status: accepted
+date: 2026-10-13
+decided-by: calebn
+evidence:
+- #1029 and #1363 shipped the rule for the transcript's Select mode
+- Operator approval, 2026-10-13: keep #1363's rule and record it as a decision extending the owner-approved touch grammar
+enforced-by:
+- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::selects the words a long press then a drag crosses, only when the finger lifts
+- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::scrolls, and selects nothing, when the finger moves before the hold
+- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::puts the earlier selection back when a second finger lands
+- gui/web/src/panels/TranscriptPanel.rangeDrag.test.tsx::leaves a hold that never moves to word correction
+- gui/web/src/transcript/WordRangeControls.test.tsx::adds and drops a word at either end from the keyboard
+- gui/web/src/transcript/WordRangeControls.test.tsx::steps once for a press, then repeats while it is held and stops on lift
+- gui/web/e2e-compat/transcript-touch-range.spec.ts::a long press then a drag selects a word range, and the sheet clears it
+- gui/web/e2e-compat/transcript-touch-range.spec.ts::a finger that moves before the hold scrolls and selects nothing
+- docs-sync: decision-touch-input
+-->
 
 Select mode in the transcript applies the same grammar to word ranges, with no
-new gesture. One finger moving scrolls and never selects. A long press on a
-word arms a range there, and only then does moving on extend it over the words
-under the finger; a hold that lifts without moving is still the word-correction
-long press. A second finger cancels the drag and puts the earlier selection
-back. The visible equivalent is Range actions' **Add word before**, **Add word
+new gesture:
+
+- A long press on a word that moves selects a range. Hold, then drag over the
+  words; the range extends under the finger and commits when it lifts.
+- A long press that does not move opens word correction (host).
+- A move before the hold scrolls and selects nothing.
+- A second finger cancels the drag and restores the earlier selection.
+
+The visible equivalent is Range actions' **Add word before**, **Add word
 after**, **Drop first word** and **Drop last word**, which repeat while held, as
-a strip nudge does (`transcript.extendRange`). Tests:
-`TranscriptPanel.rangeDrag.test.tsx`, `WordRangeControls.test.tsx`.
+a strip nudge does (`transcript.extendRange`).
 
 ### Decision: A plain grab at a join rolls it
 
