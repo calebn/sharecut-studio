@@ -182,7 +182,7 @@ def test_mcp_pipeline_analyze_tool_reports_phases(tmp_path, sample_wav, monkeypa
     )
     monkeypatch.setattr(
         "podcast_mcp.engines.asr_silence.digital_silence_fraction",
-        lambda track_path, *, peak_dbfs: 0.1,
+        lambda track_path: 0.1,
     )
 
     rec = RecordingProgress()

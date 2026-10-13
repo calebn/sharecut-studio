@@ -15,7 +15,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.effects.presets import resolve_presets
 from podcast_mcp.engines.asr_options import AsrOptions
-from podcast_mcp.engines.asr_silence import PEAK_BLOCK_SEC
+from podcast_mcp.engines.asr_silence import DIGITAL_SILENCE_PEAK_DBFS, PEAK_BLOCK_SEC
 from podcast_mcp.engines.audio_audit import CLIPPING_PEAK_LEVEL_DB, clipping_indicated
 from podcast_mcp.pipeline.meta import (
     ALLOWED_CONFIG_TOP_KEYS,
@@ -533,9 +533,7 @@ def _track_evidence(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _track_silence_fraction(
-    project: Any, track_id: str, *, peak_dbfs: float
-) -> tuple[Path, float] | str:
+def _track_silence_fraction(project: Any, track_id: str) -> tuple[Path, float] | str:
     """Digital-silence fraction for one dialogue track's source audio.
 
     Returns ``(path, fraction)``, or a skip reason (``missing_audio`` /
@@ -550,14 +548,14 @@ def _track_silence_fraction(
         return "missing_audio"
     if not path.is_file():
         return "missing_audio"
-    frac = digital_silence_fraction(path, peak_dbfs=peak_dbfs)
+    frac = digital_silence_fraction(path)
     if frac is None:
         return "decode_failed"
     return path, frac
 
 
 def _dialogue_silence_fractions(
-    project: Any, *, peak_dbfs: float, cancel_check: Callable[[], bool] | None = None
+    project: Any, *, cancel_check: Callable[[], bool] | None = None
 ) -> tuple[dict[str, tuple[Path, float]], dict[str, str]]:
     """Digital-silence fraction of each dialogue track's source audio.
 
@@ -575,7 +573,7 @@ def _dialogue_silence_fractions(
     ) as task:
         for done, tid in enumerate(ids, start=1):
             raise_if_cancel_requested(cancel_check, ANALYZE_CANCELLED)
-            outcome = _track_silence_fraction(project, tid, peak_dbfs=peak_dbfs)
+            outcome = _track_silence_fraction(project, tid)
             if isinstance(outcome, str):
                 skipped[tid] = outcome
             else:
@@ -588,7 +586,6 @@ def _measure_analyze_inputs(
     project: Any,
     *,
     policy: Any,
-    peak_dbfs: float,
     cancel_check: Callable[[], bool] | None = None,
 ) -> tuple[dict[str, Any], dict[str, tuple[Path, float]], dict[str, str]]:
     """Run health analysis then digital-silence scanning as named Analyze phases."""
@@ -599,9 +596,7 @@ def _measure_analyze_inputs(
         with task.child("analyze_health", "Measuring track health"):
             report = analyze_cleanup(project, policy=policy, cancel_check=cancel_check)
         task.set_phase("digital_silence", "Scanning dialogue for digital silence…")
-        silence, skipped = _dialogue_silence_fractions(
-            project, peak_dbfs=peak_dbfs, cancel_check=cancel_check
-        )
+        silence, skipped = _dialogue_silence_fractions(project, cancel_check=cancel_check)
     return report, silence, skipped
 
 
@@ -626,7 +621,7 @@ def suggest_pipeline_tuning(
     # the proposed value.
     asr = AsrOptions.from_defaults(base)
     report, silence, silence_skipped = _measure_analyze_inputs(
-        project, policy=policy, peak_dbfs=asr.silence_peak_dbfs, cancel_check=cancel_check
+        project, policy=policy, cancel_check=cancel_check
     )
     proposed = copy.deepcopy(base)
     reasons: list[dict[str, Any]] = []
@@ -762,7 +757,7 @@ def suggest_pipeline_tuning(
                 _reason(
                     "digital_silence",
                     f"{tid}: {frac:.0%} of the source audio is digital silence (peak below "
-                    f"{asr.silence_peak_dbfs:g} dBFS; a gated stem) - "
+                    f"{DIGITAL_SILENCE_PEAK_DBFS:g} dBFS; a gated stem) - "
                     + (
                         "VAD at transcribe is on - keep it"
                         if asr.vad_enabled
@@ -771,7 +766,7 @@ def suggest_pipeline_tuning(
                     {
                         "silent_fraction": round(frac, 3),
                         "threshold_fraction": DIGITAL_SILENCE_VAD_FRACTION,
-                        "peak_dbfs": asr.silence_peak_dbfs,
+                        "peak_dbfs": DIGITAL_SILENCE_PEAK_DBFS,
                         "block_sec": PEAK_BLOCK_SEC,
                         "audio": path.name,
                         "vad_enabled": asr.vad_enabled,

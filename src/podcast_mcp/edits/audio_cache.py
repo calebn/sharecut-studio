@@ -83,6 +83,22 @@ def speech_level_db(levels: np.ndarray, *, min_live_sec: float = _MIN_LIVE_SEC) 
     return float(np.percentile(live, _SPEECH_PERCENTILE))
 
 
+def frame_levels_db(samples: np.ndarray, sample_rate: int) -> np.ndarray:
+    """The 10 ms frame levels (dBFS) of ``samples``, digital silence held at ``DIGITAL_SILENCE_DB``.
+
+    The levels every :func:`level_profile` is read from, so a caller asking where a frame
+    sits against a track's floor measures it as the floor was measured.
+    """
+    frame = max(1, round(sample_rate * LEVEL_FRAME_SEC))
+    chunk = frame * round(_PROFILE_CHUNK_SEC / LEVEL_FRAME_SEC)
+    return frame_rms_db_stream(
+        (samples[i : i + chunk] for i in range(0, samples.size, chunk)),
+        frame,
+        frame,
+        floor_db=DIGITAL_SILENCE_DB,
+    )
+
+
 class LevelProfile(NamedTuple):
     """A track's linear RMS levels: its room, its speech, and its loudest frames.
 
@@ -106,14 +122,7 @@ def level_profile(
     quietest live frames are the words' own soft edges, not a room. Any live audio is
     enough for it: its percentiles cover the whole recording, not a few seconds.
     """
-    frame = max(1, round(sample_rate * LEVEL_FRAME_SEC))
-    chunk = frame * round(_PROFILE_CHUNK_SEC / LEVEL_FRAME_SEC)
-    levels = frame_rms_db_stream(
-        (samples[i : i + chunk] for i in range(0, samples.size, chunk)),
-        frame,
-        frame,
-        floor_db=DIGITAL_SILENCE_DB,
-    )
+    levels = frame_levels_db(samples, sample_rate)
     speech_db = speech_level_db(levels, min_live_sec=0.0 if whole_track else _MIN_LIVE_SEC)
     if speech_db is None:
         return None

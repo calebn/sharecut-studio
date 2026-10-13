@@ -221,7 +221,7 @@ Sharecut Studio Pipeline pane and MCP tools share a **working set** of enabled s
 | `bleed` | bleed ratio | `AnalysisPolicy.bleed_ratio_warn_threshold` | none (advisory) |
 | `clipping` | peak level / flat factor | `CLIPPING_PEAK_LEVEL_DB` = -0.3 | `compression.makeup_db = 0.0` |
 | `pre_aligned` | equal-duration dialogue stems | `DURATION_EPS_SEC` | none; `suggested_skip_steps: ["align_tracks"]` |
-| `digital_silence` | share of source-audio blocks below `transcribe.silence_filter.peak_dbfs` (`engines.asr_silence.peak_envelope`) | `DIGITAL_SILENCE_VAD_FRACTION` = 0.8 | `transcribe.vad.enabled = true` (only when VAD was off) |
+| `digital_silence` | share of source-audio blocks under `DIGITAL_SILENCE_PEAK_DBFS` (`engines.asr_silence.peak_envelope`) | `DIGITAL_SILENCE_VAD_FRACTION` = 0.8 | `transcribe.vad.enabled = true` (only when VAD was off) |
 
 ## Resume from a step
 
@@ -358,7 +358,7 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 
 Analyze's digital-silence fraction (`engines/asr_silence.digital_silence_fraction`) is
 cached in-process per (resolved path, `file_revision` — device, inode, size, mtime — a
-SHA-256 of the file's first and last 64 KiB, and `peak_dbfs`), so re-running Analyze
+SHA-256 of the file's first and last 64 KiB), so re-running Analyze
 from the GUI or MCP server does not re-decode unchanged dialogue stems; each CLI
 `podcast pipeline analyze` is a fresh process and decodes once. An atomic replace or an
 in-place rewrite re-measures when it changes the inode, size, mtime or either 64 KiB end

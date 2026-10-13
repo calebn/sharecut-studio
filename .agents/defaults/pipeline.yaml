@@ -294,10 +294,10 @@ transcribe:
     condition_on_previous_text: true
     # Skip silent gaps longer than this (s) when a hallucination is suspected; 0 = off.
     hallucination_silence_threshold: 2.0
-  # Flag (never delete) words whose own-track peak is below peak_dbfs (suspect_hallucination).
+  # Flag (never delete) words that sit under their own track's voice floor, or over digital
+  # silence (suspect_hallucination). The floor follows the track's own levels (#1366).
   silence_filter:
     enabled: true
-    peak_dbfs: -60.0
   # Forced alignment (#714, #780): re-time Whisper's words with a local wav2vec2
   # CTC aligner (English). Whisper's own word times are not reliable enough for
   # cut decisions, so `enabled` is a tri-state that follows the installed model:

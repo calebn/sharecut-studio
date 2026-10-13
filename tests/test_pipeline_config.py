@@ -864,7 +864,7 @@ def test_suggest_flags_digital_silence_and_vad(monkeypatch, tmp_path) -> None:
 
     fractions = {"host": 0.85, "guest": 0.2}
 
-    def fake_fraction(path, *, peak_dbfs):
+    def fake_fraction(path):
         return fractions[path.stem]
 
     monkeypatch.setattr("podcast_mcp.engines.asr_silence.digital_silence_fraction", fake_fraction)
@@ -918,7 +918,7 @@ def test_suggest_reports_undecodable_dialogue_track(monkeypatch, tmp_path) -> No
 
     monkeypatch.setattr(
         "podcast_mcp.engines.asr_silence.digital_silence_fraction",
-        lambda path, *, peak_dbfs: None,
+        lambda path: None,
     )
 
     result = suggest_pipeline_tuning(p)
@@ -952,7 +952,7 @@ def test_suggest_reports_health_then_silence_progress(monkeypatch, tmp_path) -> 
     monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
     monkeypatch.setattr(
         "podcast_mcp.engines.asr_silence.digital_silence_fraction",
-        lambda path, *, peak_dbfs: 0.2,
+        lambda path: 0.2,
     )
 
     host_wav = tmp_path / "host.wav"
@@ -1346,7 +1346,7 @@ def test_dialogue_silence_scan_cancels_between_tracks(monkeypatch, tmp_path) -> 
 
     calls: list[str] = []
 
-    def fake_digital_silence_fraction(path, *, peak_dbfs):
+    def fake_digital_silence_fraction(path):
         calls.append(path)
         return 0.1
 
@@ -1356,9 +1356,7 @@ def test_dialogue_silence_scan_cancels_between_tracks(monkeypatch, tmp_path) -> 
     )
 
     with pytest.raises(CancelledProgress, match="Analyze cancelled"):
-        pc._dialogue_silence_fractions(
-            project, peak_dbfs=-60.0, cancel_check=lambda: len(calls) >= 1
-        )
+        pc._dialogue_silence_fractions(project, cancel_check=lambda: len(calls) >= 1)
     assert len(calls) == 1
 
 
@@ -1426,7 +1424,7 @@ def test_suggest_pipeline_tuning_forwards_cancel_check(monkeypatch, tmp_path) ->
     monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
     monkeypatch.setattr(
         "podcast_mcp.engines.asr_silence.digital_silence_fraction",
-        lambda path, *, peak_dbfs: 0.1,
+        lambda path: 0.1,
     )
     project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
     suggest_pipeline_tuning(project, cancel_check=sentinel)

@@ -536,9 +536,7 @@ def test_settled_reflag_skips_unscored_and_hashless_transcripts(tmp_workspace):
     assert refresh_settled_silence_flags(project, options) == ([], 0)
 
 
-def test_corrected_silence_flag_is_rechecked_via_fingerprint(job, monkeypatch):
-    from podcast_mcp.engines import asr_silence
-
+def test_corrected_silence_flag_is_rechecked_via_fingerprint(job):
     options = AsrOptions()
     transcript = _tr()  # one word 'hi' at 0-0.5 s, no alignment_score
     transcript.words[0].suspect_hallucination = True  # set by the silence filter alone
@@ -555,9 +553,9 @@ def test_corrected_silence_flag_is_rechecked_via_fingerprint(job, monkeypatch):
     )
 
     # Digital silence under the word: the refresh re-flags it.
-    monkeypatch.setattr(
-        asr_silence, "peak_envelope", lambda path: (np.zeros(8000, dtype=np.float32), 8000.0)
-    )
+    from two_mic_project import SR, write_wav
+
+    write_wav(job.audio, np.zeros(SR, dtype=np.float32))
     assert refresh_reused_silence_flags(p, plan, options) == []
     assert word.suspect_hallucination is True
     assert transcript.silence_filter_fingerprint == silence_filter_fingerprint(

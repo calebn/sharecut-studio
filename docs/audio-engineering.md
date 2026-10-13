@@ -637,10 +637,11 @@ Transcript-gate findings instead recommend reviewing the acoustic plan and speec
 boundaries. They do not introduce or adjust a noise-gate threshold. A report with
 both kinds still adjusts the noise gate once for its own findings.
 
-Analyze's `digital_silence` check reuses `engines.asr_silence.peak_envelope` — the
-same per-10 ms peak envelope the ASR silence filter streams — and flags a dialogue
-track whose source audio is mostly below `transcribe.silence_filter.peak_dbfs`
-(-60 dBFS by default) as a likely gated stem worth transcribing with VAD on.
+Analyze's `digital_silence` check streams `engines.asr_silence.peak_envelope`, a per-10 ms
+peak envelope, and flags a dialogue track whose source audio is mostly under
+`DIGITAL_SILENCE_PEAK_DBFS` (-60 dBFS) as a likely gated stem worth transcribing with VAD
+on. That level only separates a gate's zeros from any recorded sound; it is still a fixed
+level, so a quiet ungated recording reads more silent (follow-up filed from #1366).
 
 ## RNNoise noise reduction (`noise_reduction_rnnoise`)
 

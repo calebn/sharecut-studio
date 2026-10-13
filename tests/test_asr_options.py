@@ -124,7 +124,7 @@ def test_from_defaults_overrides_and_bounds():
                     "condition_on_previous_text": False,
                     "hallucination_silence_threshold": 0,
                 },
-                "silence_filter": {"enabled": False, "peak_dbfs": -50},
+                "silence_filter": {"enabled": False},
             }
         }
     )
@@ -135,7 +135,6 @@ def test_from_defaults_overrides_and_bounds():
     assert not opts.condition_on_previous_text
     assert opts.hallucination_silence_threshold is None
     assert not opts.silence_filter_enabled
-    assert opts.silence_peak_dbfs == -50
 
 
 def test_from_defaults_tolerates_junk():
