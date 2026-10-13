@@ -3,6 +3,8 @@ import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { timelineTestIds } from "../src/timeline/selectors";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
+import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { parseTimecodeSec } from "./timecode";
 
@@ -24,7 +26,8 @@ async function expectInspectorFooterTouchTargets(page: Page) {
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
     expect(
       fonts.some(
-        (font) => font.isCustomFont && font.familyName === "IBM Plex Sans",
+        (font) =>
+          font.isCustomFont && /^IBM Plex Sans(?: |$)/.test(font.familyName),
       ),
     ).toBe(true);
   } finally {
@@ -519,5 +522,10 @@ test.describe("Inspector footer with a desktop coarse pointer", () => {
     ).toBe(true);
     await page.locator(".track-header-open").first().press("Enter");
     await expectInspectorFooterTouchTargets(page);
+    await openSuggestedPendingEdit(page, e2eProjectPath);
+    const inspector = page
+      .locator(".modifier-inspector")
+      .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
+    await expectPreviewFooterTouchBounds(inspector);
   });
 });
