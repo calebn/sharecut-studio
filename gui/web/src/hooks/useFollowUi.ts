@@ -148,12 +148,7 @@ export function useFollowUi(): void {
           true,
         );
         const next = wire.selection;
-        s.setSelection(next);
-        if (wire.pendingWireSelection) {
-          useDawStore.setState({
-            pendingWireSelection: wire.pendingWireSelection,
-          });
-        }
+        s.adoptRemoteSelection(next, wire.pendingWireSelection);
         if (next?.kind === "envelopePoint") {
           s.setLayerVisible("showLevels", true);
         }

@@ -44,6 +44,6 @@ useDawStore.subscribe((state, prev) => {
     state.guestMode != null,
   );
   if (selection) {
-    state.setSelection(selection);
+    state.adoptRemoteSelection(selection);
   }
 });

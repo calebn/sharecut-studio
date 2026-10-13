@@ -325,8 +325,9 @@ closes or stows. A saved edit preserves the focused or just-pressed control.
 Focused feedback Undo and Dismiss survive phone/tablet host remounts. Sheet entry
 focus and the volume-envelope view's first-entry focus yield to the current
 intentional action; real navigation cancels it. A focused Undo that this tab's
-own undo removes or disables falls back to a usable current Close; Undo removed
-by another client's edit leaves focus on the page body (#1291). A sheet opened
+own undo removes or disables, or that another client's edit removes, falls
+back to a usable current Close. A selection adopted from another client or the
+agent (`remoteSelectionRevision`) is not navigation. A sheet opened
 or remounted behind an open modal stays below it in `ui/modalGate`: the modal
 keeps Escape and entry focus, and when it closes without a usable return
 target the sheet's Close takes focus. A host move that detaches a focused

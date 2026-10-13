@@ -237,6 +237,8 @@ export interface DawState {
   suppressPublish: boolean;
   /** A remote selection whose target this client does not have yet; resolved when the project arrives or changes. */
   pendingWireSelection: PendingWireSelection | null;
+  /** Bumped by every selection that arrived from the wire, so a listener can tell it from the person's own navigation. */
+  remoteSelectionRevision: number;
   shellBreakpoint: ShellBreakpoint;
   pointerKind: PointerKind;
   mobileMode: MobileMode;
@@ -407,6 +409,11 @@ export interface DawState {
   setTimelineFocused: (focused: boolean) => void;
   setAudioError: (msg: string | null) => void;
   applyAgentSession: (state: SessionState) => void;
+  /** Adopt a selection another client or the agent made; not the person's own navigation. */
+  adoptRemoteSelection: (
+    selection: Selection,
+    pendingWireSelection?: PendingWireSelection | null,
+  ) => void;
   clearSessionRegion: () => void;
   setPlayUntilSec: (sec: number | null) => void;
   beginAudition: (opts: { playheadSec: number; untilSec: number }) => void;

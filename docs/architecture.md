@@ -260,9 +260,10 @@ or guarded Undo. Its native action carries the single feedback focus intent.
 Sheet entry focus (`useDialogModal`) and the volume-envelope view's first-entry
 focus yield to that valid intent through the generic `ui/focusHold` seam, which
 the feedback module registers; no other inspector view defers entry focus.
-Actual navigation clears the intent. The current compact Close supplies the existing Toast
+The person's own navigation clears the intent; a selection adopted from the wire
+(`adoptRemoteSelection`, `remoteSelectionRevision`) does not. The current compact Close supplies the existing Toast
 return-focus ref, validated when this tab's own undo removes or disables the
-focused action (a peer edit that removes it is #1291). `ui/modalGate` keeps a
+focused action, including when a peer edit removes it. `ui/modalGate` keeps a
 modal above every non-modal layer opened while it is open, so a sheet opened or
 remounted behind a modal takes neither Escape nor entry focus; it takes entry
 focus when the modal closes without a usable return target. `Toast` re-reads
