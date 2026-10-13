@@ -24,6 +24,7 @@ import {
   canIngestMedia,
   canManageProjects,
   canRefreshMix,
+  canSuggestStructuralOnProject,
   guestHearsMixOnly,
 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -33,6 +34,7 @@ import {
   CommandMenuItem,
   Icon,
   Menu,
+  MenuItem,
   MenuSection,
   MenuSeparator,
   type MenuTriggerProps,
@@ -71,7 +73,8 @@ import { ZoomControls } from "./ZoomControls";
 /** Transport collapses labeled chrome when shell is tablet/phone or bar width ≤ this. */
 export const TRANSPORT_COLLAPSE_PX = 1240;
 
-const isNarrowTransport = (widthPx: number) => widthPx <= TRANSPORT_COLLAPSE_PX;
+const isNarrowTransport = (widthPx: number, hasBladeCut: boolean) =>
+  widthPx <= TRANSPORT_COLLAPSE_PX + (hasBladeCut ? 44 : 0);
 
 type Props = {
   /** Tablet/phone: start collapsed (also forced by ResizeObserver). */
@@ -136,20 +139,23 @@ export function TransportBar({
   const { preference, setPreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [viewOpenState, setViewOpenState] = useState(false);
-  const [narrow, setNarrow] = useState(false);
+  const [transportWidth, setTransportWidth] = useState<number | null>(null);
+  const narrow =
+    transportWidth != null &&
+    isNarrowTransport(transportWidth, toolMode === "blade" && !commentMode);
   const headerRef = useRef<HTMLElement>(null);
 
   // Measured on mount and on a new project, then on every bar resize.
   useEffect(() => {
     const el = headerRef.current;
     if (el) {
-      setNarrow(isNarrowTransport(el.clientWidth));
+      setTransportWidth(el.clientWidth);
     }
   }, [project]);
   useResizeObserver(headerRef, (entries) => {
     const entry = entries[0];
     if (entry) {
-      setNarrow(isNarrowTransport(entry.contentRect.width));
+      setTransportWidth(entry.contentRect.width);
     }
   });
 
@@ -181,6 +187,15 @@ export function TransportBar({
         sessionRegion ||
         (showRecordingChip && recordChipVisible),
     );
+
+  const desktopError =
+    !compact && !menuOnly && collapsed ? transportError : null;
+  const structuralToolsAllowed = canSuggestStructuralOnProject(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    !loading,
+  );
 
   const premixCue = highlightStaleRender && Boolean(breakdown?.premixBehind);
   const guestMixOnly = guestHearsMixOnly(guestMode);
@@ -272,6 +287,9 @@ export function TransportBar({
         {...t}
         aria-label={label}
         title={title}
+        aria-description={
+          label === "Menu" ? (desktopError ?? undefined) : undefined
+        }
       >
         {content}
       </button>
@@ -377,13 +395,64 @@ export function TransportBar({
       className="transport-overflow ui-menu-root"
       trigger={menuTrigger(
         "Menu",
-        collapsed
-          ? "Layers, zoom, theme, and more"
-          : transportMenuTitle({ mayManage, mayIngest }),
-        <Icon name="menu" />,
+        desktopError
+          ? `${audioErrorLabel(desktopError)}. Open Menu for details.`
+          : collapsed
+            ? "Layers, zoom, theme, and more"
+            : transportMenuTitle({ mayManage, mayIngest }),
+        desktopError ? (
+          <Icon
+            name="warning"
+            title={audioErrorLabel(desktopError)}
+            style={{ color: "var(--color-transport-warning)" }}
+          />
+        ) : (
+          <Icon name="menu" />
+        ),
       )}
     >
       {collapsed ? <AvatarStack variant="menu" /> : null}
+      {collapsed && !compact && !menuOnly ? (
+        <MenuSection label="Timeline tools">
+          <MenuItem
+            disabled={loading}
+            title={
+              loading
+                ? "Open a project to select audio"
+                : titleWithShortcut("Select tool", "tool.select")
+            }
+            shortcut={displayShortcutFor("tool.select")}
+            keyShortcuts={ariaKeyShortcutsFor("tool.select")}
+            onSelect={() => {
+              closeMenu();
+              runPointerCommand("tool.select");
+            }}
+          >
+            Select tool
+          </MenuItem>
+          <MenuItem
+            disabled={!structuralToolsAllowed}
+            title={
+              structuralToolsAllowed
+                ? titleWithShortcut("Blade tool", "tool.blade")
+                : "Blade requires permission to suggest edits"
+            }
+            shortcut={displayShortcutFor("tool.blade")}
+            keyShortcuts={ariaKeyShortcutsFor("tool.blade")}
+            onSelect={() => {
+              closeMenu();
+              runPointerCommand("tool.blade");
+            }}
+          >
+            Blade tool
+          </MenuItem>
+          {toolMode === "blade" && !commentMode ? (
+            <CommandMenuItem commandId="edit.bladeCut" onSelect={closeMenu}>
+              Cut at playhead
+            </CommandMenuItem>
+          ) : null}
+        </MenuSection>
+      ) : null}
       {mayManage ? (
         <MenuSection label="Project">
           <CommandMenuItem commandId="project.new" onSelect={closeMenu}>

@@ -547,7 +547,7 @@ The shell grid uses named areas (`banners / follow / transport / main / tabs / s
 
 ## Transport chrome (narrow)
 
-The transport is **collapsed** on tablet/phone, when its measured width is at most 1240px, or when extra audio-error, audition-region, or recording status needs space. Desktop keeps its visible Undo, Redo, Zoom out, and Zoom in; secondary status and audition details move into Menu. `ui/useResizeObserver` measures the bar.
+The transport is **collapsed** on tablet/phone, when its measured width is at most 1240px, or when extra audio-error, audition-region, or recording status needs space. Desktop keeps its visible Undo, Redo, Zoom out, and Zoom in. When Cut at playhead is available, the bar reserves another 44px before expanding. Its collapsed Menu → **Timeline tools** retains Select, Blade, and Cut at playhead. A desktop audio error changes Menu to a warning icon whose tooltip points to the full Mix status details. Session-region details move into Menu; recording keeps its visible chip. `ui/useResizeObserver` measures the bar.
 
 The host recording chip remains a full touch target in the collapsed tablet transport. On phone it occupies a persistent status row above every mode body, leaving the header controls reachable. The same row shows **Solo on · Clear solo** (44 px) while any track is soloed, in Listen too, where the transport is hidden. The row sits under sheets, like the transport, so the Mix sheet's own chip stays visible. During a healthy take it shows a red dot, REC, and the running take clock; PAUSED and local capture failure use distinct text. Its accessible description includes the current take time. Reduced-motion settings keep the dot static.
 
