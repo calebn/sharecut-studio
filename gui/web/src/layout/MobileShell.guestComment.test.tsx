@@ -137,9 +137,9 @@ describe("phone share link, first load", () => {
 
   it("follows the playhead: a comment posted after listening lands where the guest is", async () => {
     const user = userEvent.setup();
-    createComment.mockResolvedValue(sampleComment({ timeline_start: 12.5 }));
+    createComment.mockResolvedValue(sampleComment({ timeline_start: 12.4 }));
     openShare(["view", "comment"], "comment");
-    act(() => useDawStore.getState().setPlayheadSec(12.5));
+    act(() => useDawStore.getState().setPlayheadSec(12.4));
 
     const dock = screen.getByRole("region", { name: "Add a comment" });
     expect(
@@ -156,15 +156,15 @@ describe("phone share link, first load", () => {
     );
     expect(createComment).toHaveBeenCalledWith(
       "share:tok",
-      expect.objectContaining({ timelineStart: 12.5, timelineEnd: null }),
+      expect.objectContaining({ timelineStart: 12.4, timelineEnd: null }),
     );
   });
 
   it("closes the keyboard after Post: the field is empty and unfocused, the toast shows, no Inspector", async () => {
     const user = userEvent.setup();
-    createComment.mockResolvedValue(sampleComment({ timeline_start: 12.5 }));
+    createComment.mockResolvedValue(sampleComment({ timeline_start: 12.4 }));
     openShare(["view", "comment"], "comment");
-    act(() => useDawStore.getState().setPlayheadSec(12.5));
+    act(() => useDawStore.getState().setPlayheadSec(12.4));
 
     const dock = screen.getByRole("region", { name: "Add a comment" });
     const field = within(dock).getByRole("textbox", { name: "Comment" });
@@ -176,7 +176,7 @@ describe("phone share link, first load", () => {
 
     expect(createComment).toHaveBeenCalledWith(
       "share:tok",
-      expect.objectContaining({ body: "Here", timelineStart: 12.5 }),
+      expect.objectContaining({ body: "Here", timelineStart: 12.4 }),
     );
     expect(field).toHaveValue("");
     expect(field).not.toHaveFocus();
