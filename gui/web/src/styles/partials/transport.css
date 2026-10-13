@@ -74,11 +74,6 @@
     gap: var(--space-5);
   }
 
-  .transport:not(.transport--collapsed) .transport-zone,
-  .transport:not(.transport--collapsed) .transport-primary-actions {
-    gap: var(--space-2);
-  }
-
   .transport:not(.transport--collapsed) .transport-zone--start {
     flex: 0 1 auto;
   }
@@ -118,6 +113,13 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+}
+
+@container app (inline-size < 95rem) {
+  .transport:not(.transport--collapsed) .transport-zone,
+  .transport:not(.transport--collapsed) .transport-primary-actions {
+    gap: var(--space-2);
   }
 }
 
