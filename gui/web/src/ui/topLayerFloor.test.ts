@@ -57,11 +57,20 @@ describe("top layer floor", () => {
   });
 
   it("leaves the region alone without the Popover API", () => {
-    const region = document.createElement("div");
-    const release = claimTopLayerFloor(region);
-    const leave = enterTopLayerPanel();
-    expect(region.hasAttribute("popover")).toBe(false);
-    leave();
-    release();
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    try {
+      const region = document.createElement("div");
+      const release = claimTopLayerFloor(region);
+      const leave = enterTopLayerPanel();
+      expect(region.hasAttribute("popover")).toBe(false);
+      leave();
+      release();
+    } finally {
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
   });
 });
