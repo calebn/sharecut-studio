@@ -56,7 +56,15 @@ async function proveHungLoad(
     await expect(mark).toBeVisible();
     await mark.scrollIntoViewIfNeeded();
 
-    await page.route("**/api/boundary/context*", () => {});
+    let loads = 0;
+    let answerRetry = () => {};
+    const retryMayAnswer = new Promise<void>((resolve) => {
+      answerRetry = resolve;
+    });
+    await page.route("**/api/boundary/context*", (route) => {
+      loads += 1;
+      if (loads > 1) void retryMayAnswer.then(() => route.continue());
+    });
     await page.clock.install();
     await mark.click();
     const dialog = page.getByRole("dialog", { name: "Adjust boundary" });
@@ -70,11 +78,29 @@ async function proveHungLoad(
     await expect(
       dialog.getByRole("button", { name: "Reload boundary" }),
     ).toBeHidden();
+    const tryAgain = dialog.getByRole("button", { name: "Try again" });
+    await expect(tryAgain).toBeVisible();
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme);
       await expectPageAxeClean(page);
       await page.screenshot({
         path: `${shots}/${browserName}-${name}-${theme}.png`,
+      });
+    }
+
+    await tryAgain.click();
+    await expect(dialog.getByRole("alert")).toBeHidden();
+    await expect(dialog.getByRole("status")).toHaveText(
+      "Preparing boundary controls…",
+    );
+    answerRetry();
+    await expect(dialog.getByRole("spinbutton")).toBeVisible();
+    expect(loads).toBe(2);
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme);
+      await expectPageAxeClean(page);
+      await page.screenshot({
+        path: `${shots}/${browserName}-${name}-${theme}-recovered.png`,
       });
     }
   } finally {
@@ -84,14 +110,14 @@ async function proveHungLoad(
   }
 }
 
-test("phone: a boundary load the server never answers says to try again", async ({
+test("phone: a boundary load the server never answers says to try again and recovers on Try again", async ({
   page,
   browserName,
 }, testInfo) => {
   await proveHungLoad(page, browserName, testInfo, "phone");
 });
 
-test("desktop: a boundary load the server never answers says to try again", async ({
+test("desktop: a boundary load the server never answers says to try again and recovers on Try again", async ({
   page,
   browserName,
 }, testInfo) => {
