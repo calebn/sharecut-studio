@@ -142,7 +142,7 @@ def speaker_split_tool(
     all speakers; the rest are clustered. Every lane plays the same media, muted where the
     others talk. Flagged crosstalk plays on the likeliest speaker's lane (``owner``), on
     every talking speaker's lane (``both``, twice in the mix) or on a shared lane
-    (``lane``). ``warnings`` names two speakers who sound like one person. One undo step.
+    (``lane``). One undo step.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(

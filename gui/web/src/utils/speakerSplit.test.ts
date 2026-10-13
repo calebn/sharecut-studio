@@ -17,7 +17,6 @@ const result = {
   ],
   crosstalk_sec: 12.4,
   low_confidence_sec: 75,
-  same_voice: [{ speakers: ["Ben", "Cy"] }],
   history_head_id: "h2" as HistoryEntryId,
 };
 
@@ -58,7 +57,6 @@ describe("parseSplitSpeakersResult", () => {
     expect(parsed).toMatchObject({
       crosstalk_sec: 0,
       low_confidence_sec: 0,
-      same_voice: [],
       history_head_id: null,
     });
   });
@@ -104,7 +102,6 @@ describe("split copy", () => {
 
   it("says what to listen for, and nothing when there is nothing", () => {
     expect(splitSpeakersListenNotes(result)).toEqual([
-      "Ben and Cy sound like one person. If fewer people are talking, undo and split again with a lower count.",
       "1:15 where the speaker is unclear. Listen there before relying on the tracks.",
       "12 s where people talk over each other. It plays once, on the track of the speaker heard most.",
     ]);
@@ -113,7 +110,6 @@ describe("split copy", () => {
         ...result,
         crosstalk_sec: 0.4,
         low_confidence_sec: 0,
-        same_voice: [],
       }),
     ).toEqual([]);
   });

@@ -95,7 +95,7 @@ to UX partners; for UI copy, this table wins.
 | No mix yet | The status when no mix is rendered (never rendered, or a failed render left none) and Full mix is silent. It replaces "Mix out of date" in the one status pill, chip and Menu item, with "· Refresh" only where the person can refresh. A guest reads it without an action | "No preview", "No premix", a second pill beside "Mix out of date" |
 | Split speakers | Turn one recording of several people into one track per speaker. Every track plays the same audio and goes quiet where someone else talks, so together they sound like the original. The host gives the speaker count; the dialog opens from the track inspector or the command palette. Undo puts the single track back | "diarize", "separate speakers", "demix", "unmix" |
 | Overlapping speech | Two or more people talking at once in a split. It plays once, on the track of the speaker heard most, and the dialog says how long it lasts | "crosstalk" and "bleed" in UI copy (bleed is microphone leakage, a different thing) |
-| Listen for | The result of a split names what to listen to before relying on the tracks: overlapping speech, unsure stretches, and speakers that sound like one person | "warnings" |
+| Listen for | The result of a split names what to listen to before relying on the tracks: overlapping speech and unsure stretches | "warnings" |
 | Unsure stretch | Time in a split where the speaker is unclear. The dialog says how long and asks the host to listen there before relying on the tracks | "low confidence" in UI copy (that term is for transcript words) |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |

@@ -439,14 +439,12 @@ counts embedded windows, so the bar moves for the whole attribution; Cancel stop
 between windows and, once attribution is done, before the project is touched. The
 result is the service's: `lanes[{track_id, name, muted_sec}]`, `crosstalk_sec`,
 `crosstalk_regions`, `low_confidence_sec` and `low_confidence_regions` (turns under
-`LOW_CONFIDENCE` = 0.5), `warnings` (CLI/MCP sentences), `same_voice` (the pairs
-behind them, as names) and `history_head_id` (the `after split speakers` entry).
+`LOW_CONFIDENCE` = 0.5) and `history_head_id` (the `after split speakers` entry).
 Studio refreshes the project, announces "Split Room into 3 tracks: Ana, Ben and Cy."
 with an Undo bound to that history entry, and keeps the dialog open on the result:
 the new tracks with how much of the recording each plays, then what to listen for
-(overlapping speech that plays once, stretches the attribution is unsure of, and
-a pair of speakers that sound like one person, with advice to undo and split again
-with a lower count) and **Undo split**. Redo is the ordinary Redo. The split is one
+(overlapping speech that plays once, and stretches the attribution is unsure of) and
+**Undo split**. Redo is the ordinary Redo. The split is one
 undo step, `before split speakers` / `after split speakers`.
 
 **Attribution.** Silero frames (20 ms) → 1 s windows every 0.25 s that are at least 30%
@@ -510,39 +508,9 @@ its own voice, and the reply played on the neighbour's lane. After the Viterbi p
   no voice joins its neighbours at its quietest cut.
 
 **Too high a count.** With more speakers than voices, k-means splits one voice into
-two clusters, and the split would silently put one person on two lanes. After
-clustering, each pair of speakers is checked on the recording's own windows: for every
-window of the two clusters, take its ten nearest windows (skipping any within two
-window lengths in time, which overlap it) and count how often they sit in the other
-cluster, as a share of how often chance would put them there. Two people are separate
-clouds, so their windows keep to their own cluster; a voice cut in two is one cloud, so
-the neighbours mix. A pair at 0.25 of chance or more (`SAME_VOICE_MIXING`) is reported
-as likely one person. The check compares a pair with its own windows, not with the other
-pairs, so it holds at the default count of two, and a pair with fewer than five windows
-in a cluster is not judged. The dry run and the split both return `warnings`, for
-example "Speaker 2 and Speaker 3 sound like one person: their stretches of speech run
-into each other the way one voice's would. Check the speaker count, or enroll Speaker 2
-and Speaker 3." The advice names the speakers in the pair who are not enrolled. A pair
-whose speakers are both enrolled is not reported: enrolling is the user's own statement
-that they are two people. `same_voice` carries each pair's `mixing` and the centroid
-`distance`.
-
-Measured with the ECAPA backend (before: the old median-of-other-pairs rule reported
-nothing at a count of two or on any one-voice file):
-
-| Recording | Count | Mixing of the split pairs | Reported |
-| --- | --- | --- | --- |
-| `aligned_dialogue` reference (one voice) | 2 | 0.53 | yes |
-| same | 3 | 0.40, 0.46, 0.54 | yes (all three pairs) |
-| lab solo tracks, 150 s (one voice each) | 2 | 0.56 to 0.64 | yes |
-| lab mixdown (three people) | 3 | 0.01 to 0.08 | no |
-| lab mixdown halves, 90 s each (excerpts) | 2 | 0.05, 0.07 | no |
-| lab mixdown (three people) | 4 | 0.52 for one pair, 0.14 and under for the rest | the one pair |
-
-The two groups are 0.14 and 0.40 apart, so the threshold is not tuned to either
-recording; the count-of-four row is the check working as intended (a fourth lane for a
-voice already heard). The measurement was made with ECAPA only; the Resemblyzer backend
-shares the code path but is not measured.
+two clusters and the split puts one person on two lanes. Nothing checks for this: the
+count is the user's. Undo and split again with a lower count (a check is tracked in
+#1340).
 
 ### Known limitations
 
@@ -638,8 +606,7 @@ seeded ECAPA, default `--crosstalk owner`:
 | Audra | 5.4 dB | -4.1 dB | -0.1 dB | -15.0 dB |
 | Lana | 3.6 dB | -7.8 dB | -1.0 dB | -20.3 dB |
 
-The lanes sum back to the mixdown within -76.7 dB over the whole tape, and the split
-gave no same-voice warning. Before the hand-over pass, with `--crosstalk both` (one run
+The lanes sum back to the mixdown within -76.7 dB over the whole tape. Before the hand-over pass, with `--crosstalk both` (one run
 each) the SNR was 7.8 / 5.2 / 3.2 dB and the 28 s then flagged played twice, so the
 whole-tape residual rose to -22.6 dB; with the pass, `both` would play the 79 s now
 flagged twice. SNR stays low
@@ -665,14 +632,7 @@ Caleb's mic, which follows her into her lane.
   works where an embedding adds voices (the synthetic test backend). Overlap needs a
   dedicated detector or source separation (follow-up).
 - *Blind clustering can split one voice.* Seen with Resemblyzer, and whenever the count
-  is too high; the same-voice warning names the pair. Enroll a few seconds per speaker
-  to avoid it.
-- *Same-voice warning on a same-gender pair.* The warning compares pairs with each
-  other, so two similar voices next to a very different one read closer than the rest.
-  On the lab with Resemblyzer, Audra and Lana sit at 0.49 of the other pairs' distance,
-  just above the 0.4 line; with ECAPA at 0.90. One voice split in two measured 0.21-0.37
-  on the lab (count 4 and 5, both backends) and 0.05-0.10 on the synthetic voices. The
-  warning does not block the split, and enrolling both speakers of a pair clears it.
+  is too high. Nothing flags it (#1340). Enroll a few seconds per speaker to avoid it.
 - *Truth limits.* The bleed gate keeps some of Audra's copy on Caleb's mic as his own
   ([audio-engineering.md](audio-engineering.md)), so part of the Caleb errors and of the
   Caleb+Audra crosstalk is a truth artefact: 60% of Caleb's errors fall in his quietest

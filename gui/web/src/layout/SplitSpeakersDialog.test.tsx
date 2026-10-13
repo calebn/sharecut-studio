@@ -53,8 +53,6 @@ const splitResult = {
   ],
   crosstalk_sec: 6,
   low_confidence_sec: 0,
-  same_voice: [],
-  warnings: [],
   history_head_id: HEAD,
 };
 
@@ -291,22 +289,6 @@ describe("SplitSpeakersDialog", () => {
       await screen.findByText(/Something else changed since the split/),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Undo split" })).toBeNull();
-  });
-
-  it("says when the speakers sound like one person", async () => {
-    const user = userEvent.setup();
-    const settle = heldFollow();
-    render(<SplitSpeakersDialog />);
-    await splitTwo(user);
-    await act(async () =>
-      settle().ok({
-        ...finished,
-        result: { ...splitResult, same_voice: [{ speakers: ["Ana", "Ben"] }] },
-      }),
-    );
-    expect(
-      await screen.findByText(/Ana and Ben sound like one person/),
-    ).toBeTruthy();
   });
 
   it("cancels the running job and says nothing changed", async () => {

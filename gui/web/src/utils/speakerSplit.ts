@@ -33,16 +33,11 @@ export type SplitSpeakersLane = {
   muted_sec: number;
 };
 
-export type SplitSpeakersSamePair = {
-  speakers: string[];
-};
-
 /** `SpeakerService.split_speakers`'s result, as the `split_speakers` job carries it. */
 export type SplitSpeakersResult = {
   lanes: SplitSpeakersLane[];
   crosstalk_sec: number;
   low_confidence_sec: number;
-  same_voice: SplitSpeakersSamePair[];
   history_head_id: HistoryEntryId | null;
 };
 
@@ -67,7 +62,6 @@ export function parseSplitSpeakersResult(
   if (lanes.length < 2) {
     return null;
   }
-  const sameVoice = Array.isArray(raw.same_voice) ? raw.same_voice : [];
   const head = raw.history_head_id;
   return {
     lanes,
@@ -75,13 +69,6 @@ export function parseSplitSpeakersResult(
       typeof raw.crosstalk_sec === "number" ? raw.crosstalk_sec : 0,
     low_confidence_sec:
       typeof raw.low_confidence_sec === "number" ? raw.low_confidence_sec : 0,
-    same_voice: sameVoice.filter(
-      (pair): pair is SplitSpeakersSamePair =>
-        isRecord(pair) &&
-        Array.isArray(pair.speakers) &&
-        pair.speakers.length === 2 &&
-        pair.speakers.every((name) => typeof name === "string"),
-    ),
     history_head_id: typeof head === "string" ? (head as HistoryEntryId) : null,
   };
 }
@@ -132,10 +119,7 @@ export function splitSpeakersDoneCopy(
 export function splitSpeakersListenNotes(
   result: SplitSpeakersResult,
 ): string[] {
-  const notes = result.same_voice.map(
-    ({ speakers }) =>
-      `${joinNames(speakers)} sound like one person. If fewer people are talking, undo and split again with a lower count.`,
-  );
+  const notes: string[] = [];
   if (result.low_confidence_sec >= 1) {
     notes.push(
       `${seconds(result.low_confidence_sec)} where the speaker is unclear. Listen there before relying on the tracks.`,
