@@ -70,6 +70,17 @@ describe("WordRangeControls", () => {
     expect(screen.getByText(/“plan is”/)).toBeInTheDocument();
   });
 
+  it("keeps every Words button out of native selection through the shared hold class", () => {
+    render(<Harness />);
+    for (const name of [
+      "Add word before",
+      "Add word after",
+      "Drop first word",
+      "Drop last word",
+    ])
+      expect(button(name)).toHaveClass("hold-repeat");
+  });
+
   it("adds and drops a word at either end from the keyboard", () => {
     render(<Harness />);
     fireEvent.click(button("Add word after"));

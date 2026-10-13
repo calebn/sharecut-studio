@@ -1,6 +1,9 @@
 import { type MouseEvent, type PointerEvent, useEffect, useRef } from "react";
 import { nudgeRepeatDelayMs } from "./gestureConstants";
 
+/** Marks a hold-to-repeat control; `layout.css` keeps native text selection off it. */
+export const HOLD_REPEAT_CLASS = "hold-repeat";
+
 /**
  * Hold-to-repeat for a step button, with the nudge timing (`nudgeRepeatDelayMs`).
  * A press steps once; a press held past the long-press hold repeats, faster
@@ -32,6 +35,7 @@ export function useHoldRepeat(step: () => boolean) {
   useEffect(() => stop, []);
 
   return {
+    className: HOLD_REPEAT_CLASS,
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0 || event.currentTarget.disabled) return;
       stop();
