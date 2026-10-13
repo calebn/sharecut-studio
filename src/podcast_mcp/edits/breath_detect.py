@@ -13,6 +13,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import (
     DIGITAL_SILENCE_DB,
     LEVEL_FRAME_SEC,
+    LevelProfile,
     TrackAudioCache,
     level_profile,
 )
@@ -620,11 +621,11 @@ def detect_adjacent_breath(
         samples: np.ndarray,
         window_start: float,
         cut_edge: str,
-        profile: tuple[float, float],
+        profile: LevelProfile,
         keep_out: Sequence[tuple[float, float]],
         search_sec: tuple[float, float],
     ) -> BreathSpan | None:
-        noise_floor_rms, speech_rms = profile
+        noise_floor_rms, speech_rms = profile.noise_floor_rms, profile.speech_rms
         return classify_breath_samples(
             samples,
             window_start,
@@ -738,11 +739,11 @@ def _edge_evidence(
     edge: float,
     *,
     sample_rate: int,
-    profile: tuple[float, float],
+    profile: LevelProfile,
     cfg: dict,
     keep_out: Sequence[tuple[float, float]],
 ) -> _ClearEdge | _CompleteEdgeBreath | _UncertainEdge:
-    band = breath_level_band(*profile)
+    band = breath_level_band(profile.noise_floor_rms, profile.speech_rms)
     if band is None or not samples.size or not np.all(np.isfinite(samples)):
         return _UncertainEdge("missing_evidence")
     frame_size = max(1, round(sample_rate * LEVEL_FRAME_SEC))
@@ -1030,7 +1031,7 @@ def _mostly_breath(
     *,
     read: Callable[[float, float], np.ndarray],
     words: CutWordIndex,
-    profile: tuple[float, float],
+    profile: LevelProfile,
     cfg: dict,
     sample_rate: int,
 ) -> bool:

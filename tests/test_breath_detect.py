@@ -682,7 +682,7 @@ def test_level_profile_reads_floor_and_speech_from_live_frames():
         ]
     )
 
-    assert level_profile(frames, 16000) == pytest.approx((0.001, 0.1))
+    assert level_profile(frames, 16000) == pytest.approx((0.001, 0.1, 0.1))
 
 
 def test_level_profile_of_a_whole_track_reads_it_a_minute_at_a_time():
@@ -693,9 +693,11 @@ def test_level_profile_of_a_whole_track_reads_it_a_minute_at_a_time():
     samples = rng.standard_normal(150 * 16000) * np.repeat(rng.uniform(0.001, 0.2, 1500), 1600)
     levels = frame_rms_db(samples.astype(np.float32), 160, 160)
 
-    floor, speech = level_profile(samples.astype(np.float32), 16000)
+    floor, speech, loud = level_profile(samples.astype(np.float32), 16000)
 
-    assert 20 * np.log10([floor, speech]) == pytest.approx(np.percentile(levels, (10, 90)))
+    assert 20 * np.log10([floor, speech, loud]) == pytest.approx(
+        np.percentile(levels, (10, 90, 99))
+    )
 
 
 def test_level_profile_needs_half_a_second_of_live_audio():
