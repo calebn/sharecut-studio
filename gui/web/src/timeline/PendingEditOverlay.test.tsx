@@ -1461,6 +1461,28 @@ describe("single pending review feedback", () => {
   const pending = () => minimalProject({ pending_edits: [edit] });
 
   beforeEach(() => {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        callback: IntersectionObserverCallback;
+        constructor(callback: IntersectionObserverCallback) {
+          this.callback = callback;
+        }
+        observe(target: Element) {
+          this.callback(
+            [
+              {
+                isIntersecting: true,
+                intersectionRatio: 1,
+                target,
+              } as IntersectionObserverEntry,
+            ],
+            this as unknown as IntersectionObserver,
+          );
+        }
+        disconnect() {}
+      },
+    );
     clearRegisteredCommands();
     registerHistoryCommands();
     _resetHistoryMovesForTests();
@@ -1537,8 +1559,8 @@ describe("single pending review feedback", () => {
           expect(useDawStore.getState().project?.pending_edits).toEqual([edit]),
         );
         expect(submitLiveHistoryCommand).toHaveBeenCalledWith(
-          "UndoHistory",
           path,
+          "UndoHistory",
           { rerender: false, expected_head_id: head },
           activateDocumentScope(path),
         );

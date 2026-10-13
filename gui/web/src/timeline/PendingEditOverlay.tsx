@@ -8,6 +8,7 @@ import {
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { EMPTY_OBJ } from "../utils/empty";
+import { bulkReviewDoneMessage } from "../utils/pendingReviewPass";
 import {
   PendingEditOverlayView,
   type PendingEditOverlayViewProps,
@@ -109,9 +110,14 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
       after.selection?.kind === "pending" &&
       after.selection.id === editId &&
       !outcome.queued &&
-      !after.project?.pending_edits.some((edit) => edit.id === editId)
+      !("asked" in outcome && outcome.asked)
     ) {
-      after.setSelection(null);
+      after.announceStatus(bulkReviewDoneMessage(action, 1), {
+        undo: outcome.historyHead,
+      });
+      if (!after.project?.pending_edits.some((edit) => edit.id === editId)) {
+        after.setSelection(null);
+      }
     }
     return outcome;
   }, []);

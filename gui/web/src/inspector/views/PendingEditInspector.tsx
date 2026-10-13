@@ -33,6 +33,7 @@ import {
   pendingTypeLabel,
 } from "../../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
+import { bulkReviewDoneMessage } from "../../utils/pendingReviewPass";
 import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
@@ -265,7 +266,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     const selection = live.selection;
     setQueued(false);
     await run(async () => {
-      const { queued } =
+      const outcome =
         action === "approve"
           ? await approveEdits(projectPath, [edit.id])
           : await rejectEdits(projectPath, [edit.id]);
@@ -277,11 +278,15 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
         current.selection !== selection
       )
         return;
-      if (queued) {
+      if (outcome.queued) {
         // Saved but not sent yet: keep the edit selected and say so.
         setQueued(true);
         return;
       }
+      if ("asked" in outcome && outcome.asked) return;
+      current.announceStatus(bulkReviewDoneMessage(action, 1), {
+        undo: outcome.historyHead,
+      });
       const next = useDawStore.getState().project;
       const stillThere = next?.pending_edits.some((e) => e.id === edit.id);
       if (!stillThere) {

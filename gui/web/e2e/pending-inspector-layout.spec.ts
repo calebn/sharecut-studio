@@ -82,6 +82,63 @@ async function expectErrorPinnedAboveAudition(root: Locator): Promise<void> {
 }
 
 test.describe("Pending inspector layout", () => {
+  for (const entrypoint of [
+    "desktop action card",
+    "phone inspector",
+  ] as const) {
+    test(`${entrypoint} reports a single review and Undo restores its pending edit`, async ({
+      page,
+    }) => {
+      for (const action of ["Approve", "Reject"] as const) {
+        await page.setViewportSize({ width: 1280, height: 720 });
+        await openSuggestedPendingEdit(page, e2eProjectPath);
+        const editId = await page
+          .locator(".pending-overlay.selected")
+          .getAttribute("data-pending-id");
+        expect(editId).not.toBeNull();
+        let root = page.getByRole("region", { name: "Pending edit actions" });
+        if (entrypoint === "phone inspector") {
+          await page.setViewportSize({ width: 390, height: 844 });
+          await page
+            .getByRole("button", { name: "Timeline", exact: true })
+            .click();
+          const sheet = page.locator(".bottom-sheet--compact");
+          await sheet
+            .getByRole("button", { name: "Expand to half height" })
+            .click();
+          await sheet
+            .getByRole("button", { name: "Expand to full height" })
+            .click();
+          root = sheet.getByRole("complementary");
+        }
+        await root.getByRole("button", { name: action, exact: true }).click();
+        const feedback = page.getByRole("region", { name: "Status messages" });
+        await expect(feedback).toContainText(
+          action === "Approve"
+            ? "Approved 1 pending edit"
+            : "Rejected 1 pending edit",
+        );
+        const undo = feedback.getByRole("button", {
+          name: "Undo",
+          exact: true,
+        });
+        await expect(undo).toBeVisible();
+        await undo.click();
+        await expect
+          .poll(async () => {
+            const response = await page.request.get(
+              `/api/project?path=${encodeURIComponent(e2eProjectPath)}&phase=shell`,
+            );
+            const project = (await response.json()) as {
+              pending_edits: { id: string }[];
+            };
+            return project.pending_edits.some((edit) => edit.id === editId);
+          })
+          .toBe(true);
+      }
+    });
+  }
+
   test("error, Ask, and A/B do not overlap at 1280px", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
