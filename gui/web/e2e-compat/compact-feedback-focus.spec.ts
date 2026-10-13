@@ -2,12 +2,17 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import {
   openAt,
   original,
+  projectPath,
   receipt,
   SIZES,
   savedEnvelope,
   test,
 } from "../e2e/compactChromeFixture";
-import { rememberInspectorDetent } from "../e2e/phoneTimeline";
+
+import {
+  openPhoneTimeline,
+  rememberInspectorDetent,
+} from "../e2e/phoneTimeline";
 import { lane } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
@@ -23,11 +28,33 @@ test("focused feedback Dismiss survives phone to tablet host remount", async ({
   await checkRemount(page, info, "Dismiss");
 });
 
-async function checkRemount(
-  page: Page,
-  info: TestInfo,
-  name: "Undo" | "Dismiss",
-) {
+test("a peer's selection and edit that remove the focused Undo hand focus to the sheet Close", async ({
+  page,
+  context,
+}) => {
+  const { action } = await focusCompactToastAction(page, "Undo");
+  const peer = await context.newPage();
+  await peer.setViewportSize(SIZES.portrait);
+  await peer.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await openPhoneTimeline(peer);
+  await peer
+    .getByRole("button", { name: "Open track details, reference", exact: true })
+    .click();
+  const sheet = page.locator(".bottom-sheet").filter({ hasText: "Track" });
+  await expect(sheet.getByRole("group", { name: "Track mixer" })).toBeVisible();
+  await expect(action).toBeFocused();
+
+  await peer
+    .getByRole("group", { name: "Track mixer" })
+    .getByRole("button", { name: /^Mute/ })
+    .click();
+  await expect(action).toHaveCount(0);
+  await expect(
+    sheet.getByRole("button", { name: "Close", exact: true }),
+  ).toBeFocused();
+});
+
+async function focusCompactToastAction(page: Page, name: "Undo" | "Dismiss") {
   await rememberInspectorDetent(page, "peek");
   await openAt(page, SIZES.portrait);
   await page
@@ -66,6 +93,15 @@ async function checkRemount(
   );
   await action.focus();
   await expect(action).toBeFocused();
+  return { panel, action };
+}
+
+async function checkRemount(
+  page: Page,
+  info: TestInfo,
+  name: "Undo" | "Dismiss",
+) {
+  const { panel, action } = await focusCompactToastAction(page, name);
   await page.setViewportSize(SIZES.landscape);
   await expect(page.locator('.daw-shell[data-shell="tablet"]')).toBeVisible();
   await expect(panel).toBeVisible();
