@@ -20,15 +20,17 @@ flowchart TD
   open[Open review link] --> daw[Sharecut Studio guest + banner]
   daw --> play[Play the review mix]
   play --> scrub[Scrub to a moment]
-  scrub --> note[Comment at the anchor]
+  scrub --> note[Type in the comment field, Post comment]
   note --> done[Host sees comment in Sharecut Studio]
 ```
 
 1. Guest lands in Sharecut Studio under the banner "Shared comment view · You can comment and suggest edits".
-2. Guest plays the mix and scrubs. On a phone, **Comments** sit one action away under **More**; the panel says "Commenting as Guest".
-3. Guest picks **Comment**, sets the time anchor, types a note and chooses **Post comment**. Replies and action-item check-offs work on the same thread.
+2. The comment field is already on screen: docked above the mode bar in **Listen** on a phone, and at the top of the **Comments** tab, which the link opens on, on a tablet or laptop. Nothing else is open; the Inspector stays closed until the guest selects something.
+3. Guest plays and scrubs, types a note and chooses **Post comment**: tap the field, type, tap **Post comment**, with no mode, menu or ruler first. The **at 0:12** chip beside Post shows where it lands, the playhead (0:00 before playing) or a selected range, and pressing it changes the time. Replies and action-item check-offs work on the same thread; the Comments panel says "Commenting as Guest".
 4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the review link.
 5. If the host laptop sleeps / tunnel drops, the guest sees an offline page (not a broken blank app).
+
+A Viewer (listen-only) link shows no comment field.
 
 An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link does not open the project. Ask the person who shared it for a new link."
 

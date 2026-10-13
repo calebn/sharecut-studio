@@ -87,6 +87,8 @@ to UX partners; for UI copy, this table wins.
 | Armed | A timeline target a long press picked up on touch: only it drags, along its own axes, until the finger lifts | "grabbed", "drag mode" |
 | Create menu | The touch menu a long press on empty timeline space opens: Add envelope point on the held lane, then Blade cut (with a line naming the tracks it cuts: the selected tracks, else every dialogue track), Add chapter and Add comment, at the held time | "context menu", "add menu" |
 | Add comment | The one name, in the create menu and the command catalog (`comment.draftAt`), for starting a comment draft at a held time, as "Add chapter" and "Add envelope point" name their siblings | "Comment here" |
+| Comment field | The always-visible field and **Post comment** button for anyone who can comment: docked above the phone mode bar in Listen, at the top of the Comments tab elsewhere. It needs no mode first, and Post enables once it has text | "Comment mode" for the field; "composer" in UI copy |
+| Comment time | Where a new comment lands, shown as the "at 0:12" chip beside **Post comment**: the time picked on the ruler or chip, else the selected range, else the playhead. Pressing the chip changes it | "anchor" in UI copy; "Click the ruler" instructions |
 | Ripple | The edit mode that closes or opens time on every dialogue track, so speakers stay in sync. Its icon mark is a wave, drawn beside the word on a trim drag's readout and the touch peek strip | "ripple trim mode", "shift", "shuffle", "magnetic" |
 | Leave a gap | The edit mode that leaves silence (or pastes over) and moves nothing else. Its icon mark is a broken flatline | "Leave gap", "gap mode", "lift", "non-ripple" |
 | Cut anyway | The confirm action when a ripple would also cut another speaker's speech. The dialog, titled "Cut Avery's speech too?", lists each speaker, the time and the words, then offers Leave a gap (safe, left) or Cut anyway (danger, right); approving a suggestion has no gap form, so it offers Cancel instead. Agents and the CLI get the same facts in one line: "This also cuts Avery's speech at 0:12.4 ("so the plan is"). Cut anyway, or leave a gap to keep it." | "Proceed", "Force", "Ignore warning" |
@@ -553,3 +555,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   with counts and answer with one toast Undo; the tablet lane header's M and S
   reach the 44 px target on touch. Track lock stays out of scope: it was a
   product gap, not an established violation.
+- 2026-10-12 Comment field and comment time (#1338). Commenting needs no mode
+  or ruler first: Post comment enables on text, the comment lands at the
+  "at 0:12" comment time, and the "Click the ruler" hint is gone. The ruler
+  tooltip and Comment mode title say "tap or drag the ruler" for touch.

@@ -160,12 +160,16 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 
 | Mode | Content | Primary jobs |
 |------|---------|--------------|
-| **Listen** | Mix-oriented scrubber, comment list, status chips | Guest review, audition |
+| **Listen** | Mix-oriented scrubber, comment list, status chips; a comment field docked above the mode bar for anyone who can comment | Guest review and comments, audition |
 | **Timeline** | Fixed-center playhead scrub, Ferrite lane gutter (sticky identity), layer chips | Spatial edit / seek |
 | **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
 | **More** | Hub → **Search commands** (opens Commands and shortcuts), Mix sheet, Comments, History, Impact, Tighten, Pipeline, settings | Track mixing, long-lived panels, command discovery |
 
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
+
+**Listen comment field (#1338).** Commenting is the job of a Commenter or Editor review link, so Listen docks a comment field in its own grid row (`dock`) between the scrolling view and the mode bar: the bottom zone for doing. From opening the link, a guest taps the field, types, and taps **Post comment**, with no mode, menu or ruler first. **Post comment** enables once the field has text, and the **at 0:12** chip beside it shows where the comment lands (the selected range, else the playhead; see [timeline-comments.md](timeline-comments.md#daw-viewer)). With the software keyboard up, iOS Safari lifts the dock and mode bar above the keyboard, so the field, the chip and **Post comment** stay visible on an iPhone SE. Posting announces "Comment posted at 0:12" and the comment joins the Listen list; it does not open the Inspector. The field is 1rem so iOS does not zoom in on focus. A Viewer link and a project still loading show no dock. Two other placements were tried on an iPhone SE and rejected: a field inline under the Listen card moves down with every status chip and banner and scrolls away with the comment list, and a fifth **Comments** tab takes a third tap and hides the player while composing.
+
+A share link never opens the Inspector by itself: a stored or remote selection whose target is gone clears silently, and a guest does not take on another viewer's selection (see [session-sync.md](session-sync.md)) (#1339).
 
 Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap. **Expand** and **Collapse** change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor. Only the compact inspector below swipes.
 
@@ -365,7 +369,7 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
 | Transcript tab | Text mode |
-| Comments | Listen list + More → Comments |
+| Comments | Listen list, the Listen comment field, and More → Comments |
 | History / Impact / Tighten / Pipeline | More hub |
 | Command palette (`?`) | More hub → **Search commands**, a field-styled row at the top of the hub that opens **Commands and shortcuts** as a bottom sheet with Search focused |
 | Status bar | Actionable chips (tap → panel) except **Activity** (`kind=agent`), which is status-only until the activity-history drawer; Listen **Pending** selects first review-required pending and opens Timeline; **Mix out of date** (**No mix yet** when nothing is rendered) uses the shared render-status breakdown, so a new empty project stays fresh; **Pipeline** chip shows truncated headline, elapsed, and pulse (not `●`) and opens Pipeline; **Activity** chip uses the same chrome plus a count badge when more than one job is live |
