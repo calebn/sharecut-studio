@@ -826,6 +826,54 @@ it("a share guest keeps its own selection when another viewer selects", () => {
   expect(useDawStore.getState().selection).toBeNull();
 });
 
+describe("remote selection revision", () => {
+  const revision = () => useDawStore.getState().remoteSelectionRevision;
+  const peerSelects = () =>
+    useDawStore.getState().applyAgentSession(
+      agentSession({
+        origin: "viewer",
+        last_role: "viewer",
+        selection: { kind: "track", track_id: "host" },
+      }),
+    );
+
+  beforeEach(() => {
+    useDawStore.setState({ guestMode: null, shareCapabilities: null });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", twoTrackProject());
+  });
+
+  it("moves with a selection a peer or the agent sends, never with the person's own", () => {
+    const before = revision();
+    useDawStore.getState().setSelection({ kind: "track", trackId: "host" });
+    expect(revision()).toBe(before);
+    useDawStore.getState().setSelection(null);
+    peerSelects();
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "track",
+      trackId: "host",
+    });
+    expect(revision()).toBe(before + 1);
+  });
+
+  it("moves with a selection adopted while following and one that resolves late", () => {
+    const before = revision();
+    useDawStore
+      .getState()
+      .adoptRemoteSelection({ kind: "track", trackId: "host" });
+    expect(revision()).toBe(before + 1);
+    useDawStore.setState({
+      selection: null,
+      pendingWireSelection: {
+        selection: { kind: "track", track_id: "host" },
+        reachesGuest: true,
+      },
+    });
+    useDawStore.setState({ project: twoTrackProject() });
+    expect(useDawStore.getState().selection).toMatchObject({ kind: "track" });
+    expect(revision()).toBe(before + 2);
+  });
+});
+
 describe("remote selection before its target is here", () => {
   const wire = { kind: "pending" as const, id: "cut_1", track_id: "host" };
   const reload = (partial: Partial<SessionState> = {}) =>

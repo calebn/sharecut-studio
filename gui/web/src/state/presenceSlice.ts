@@ -10,6 +10,7 @@ import { guestHearsMixOnly } from "../shareMode";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { playStartPatch } from "./transportSlice";
 import type { DawState, DawStore } from "./types";
+import { selectionPatch } from "./uiSlice";
 
 type PresenceSlice = Pick<
   DawStore,
@@ -34,10 +35,19 @@ type PresenceSlice = Pick<
   | "lastAppliedCommandId"
   | "suppressPublish"
   | "pendingWireSelection"
+  | "remoteSelectionRevision"
+  | "adoptRemoteSelection"
   | "_suppressTimer"
   | "applyAgentSession"
   | "buildViewerSnapshot"
 >;
+
+function remoteSelectionPatch(
+  wire: ReturnType<typeof wireSelectionPatch>,
+  revision: number,
+) {
+  return { ...wire, remoteSelectionRevision: revision + 1 };
+}
 
 export const createPresenceSlice: StateCreator<
   DawStore,
@@ -109,6 +119,13 @@ export const createPresenceSlice: StateCreator<
   lastAppliedCommandId: null as string | null,
   suppressPublish: false,
   pendingWireSelection: null,
+  remoteSelectionRevision: 0,
+  adoptRemoteSelection: (selection, pendingWireSelection = null) =>
+    set((s) => ({
+      ...selectionPatch(s, selection),
+      pendingWireSelection,
+      remoteSelectionRevision: s.remoteSelectionRevision + 1,
+    })),
   _suppressTimer: null,
   applyAgentSession: (state: SessionState) => {
     const prev = get()._suppressTimer;
@@ -148,7 +165,10 @@ export const createPresenceSlice: StateCreator<
         sourcePreviewGeneration: get().sourcePreviewGeneration + 1,
         ...hear,
         ...(state.selection !== undefined
-          ? wireSelectionPatch(state.selection, get().project, true)
+          ? remoteSelectionPatch(
+              wireSelectionPatch(state.selection, get().project, true),
+              get().remoteSelectionRevision,
+            )
           : {}),
         ...(state.clients
           ? {
@@ -180,7 +200,9 @@ export const createPresenceSlice: StateCreator<
       lastAppliedRevision: state.server_seq,
       lastAppliedCommandId: state.last_command_id,
       ...hear,
-      ...(adoptSelection ? wirePatch : {}),
+      ...(adoptSelection
+        ? remoteSelectionPatch(wirePatch, get().remoteSelectionRevision)
+        : {}),
       ...(state.clients
         ? {
             sessionClients: rosterFromList(state.clients, get().sessionClients),

@@ -103,6 +103,25 @@ function revealTab(
   };
 }
 
+/** The state a new primary selection implies, shared by local and remote selection writes. */
+export function selectionPatch(
+  s: Pick<DawStore, "selectedClipIds">,
+  selection: Selection,
+): Pick<DawStore, "selection" | "pendingWireSelection"> &
+  Partial<Pick<DawStore, "selectedClipIds">> {
+  if (selection == null || selection.kind !== "clip") {
+    return { selection, selectedClipIds: [], pendingWireSelection: null };
+  }
+  if (s.selectedClipIds.includes(selection.id)) {
+    return { selection, pendingWireSelection: null };
+  }
+  return {
+    selection,
+    selectedClipIds: [selection.id],
+    pendingWireSelection: null,
+  };
+}
+
 /** Save the waveform view of the open project (per browser). */
 function persistWaveformView(s: DawStore): void {
   writeWaveformViewPref(s.projectPath, {
@@ -447,20 +466,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       persistWaveformView(get());
     },
     setScrollLeft: (scrollLeft) => set({ scrollLeft }),
-    setSelection: (selection) =>
-      set((s) => {
-        if (selection == null || selection.kind !== "clip") {
-          return { selection, selectedClipIds: [], pendingWireSelection: null };
-        }
-        if (s.selectedClipIds.includes(selection.id)) {
-          return { selection, pendingWireSelection: null };
-        }
-        return {
-          selection,
-          selectedClipIds: [selection.id],
-          pendingWireSelection: null,
-        };
-      }),
+    setSelection: (selection) => set((s) => selectionPatch(s, selection)),
     selectFromInspector: (selection) => {
       set({ inspectorSelection: selection });
       get().setSelection(selection);

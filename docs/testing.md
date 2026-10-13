@@ -1400,6 +1400,7 @@ test; other rows are whole tests.
 | native Tab keeps every Primary navigation indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Undo survives phone to tablet host remount | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Dismiss survives phone to tablet host remount | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a peer's selection and edit that remove the focused Undo hand focus to the sheet Close | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | feedback preserves selected half and full geometry and permitted ruler and lane room | `gui/web/e2e-compat/compact-feedback-detents.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped removal feedback keeps remaining lifetime after closing the compact host | `gui/web/e2e-compat/compact-feedback-host-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | unavailable history feedback stays above a real inspector refusal | `gui/web/e2e-compat/compact-history-hint.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -2450,7 +2451,10 @@ compatibility regression needs Chromium and WebKit because their native focus
 fixup and portal movement differ. It uses one viewport transition per action,
 without duplicating the existing theme, text-size, or detent matrices. Component
 tests cover the smaller focus-request and current valid return-target contracts,
-including modal priority and refused or disabled actions.
+including modal priority, refused or disabled actions, and host teardown.
+A second page in the same browser context stands in for the peer; its selection
+and mute are what a real second host tab sends, which the REST command route
+does not reproduce because it publishes no selection.
 
 The feedback detent matrix compares half and full height before and during a
 real history refusal for Envelope and Pending selections. It covers phone and

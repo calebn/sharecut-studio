@@ -17,12 +17,16 @@ import {
 } from "./feedbackActionFocus";
 import { usePhoneToastDock } from "./toastDock";
 
+const SHEET = '.bottom-sheet[role="dialog"]';
+
+/** The Close of the sheet hosting the toast, or of the open sheet when the toast floats above it. */
 function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
   if (modalShortcuts() !== null) return null;
-  const close =
-    host
-      ?.closest('.bottom-sheet[role="dialog"]')
-      ?.querySelector<HTMLElement>(".dialog-close") ?? null;
+  const closes = host
+    ? (host.closest(SHEET)?.querySelectorAll<HTMLElement>(".dialog-close") ??
+      [])
+    : document.querySelectorAll<HTMLElement>(`${SHEET} .dialog-close`);
+  const close = [...closes].at(-1) ?? null;
   return isValidFocusTarget(close) ? close : null;
 }
 
@@ -78,7 +82,8 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       if (
         state.projectEpoch !== previous.projectEpoch ||
         state.projectPath !== previous.projectPath ||
-        !shallow(state.selection, previous.selection)
+        (state.remoteSelectionRevision === previous.remoteSelectionRevision &&
+          !shallow(state.selection, previous.selection))
       )
         forgetFocus();
     });
@@ -139,6 +144,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       remembered ??
       portal.querySelector<HTMLElement>(`[${FEEDBACK_FOCUS_ATTRIBUTE}]`);
     if (
+      !portal.isConnected ||
       !focused?.hasAttribute(FEEDBACK_FOCUS_ATTRIBUTE) ||
       isValidFeedbackAction(focused)
     )
