@@ -162,6 +162,7 @@ describe("track.remove / nav / Escape fall-through", () => {
       id: expect.any(Number),
       message: "Removed Host",
       undo: "e-remove",
+      baseHead: "root",
     });
   });
 

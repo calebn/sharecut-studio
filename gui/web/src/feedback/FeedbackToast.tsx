@@ -34,7 +34,8 @@ function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
  * The visible twin of `announceStatus`. The shell's polite live region already
  * speaks the same string, so this toast does not announce. Undo names the
  * history entry the change recorded and shows only while that entry is the
- * head this tab sees; the server refuses the undo (`history_stale`) if another
+ * head this tab sees, or while the tab still shows the head it had when the
+ * change was announced (the reply can beat the project's own update); the server refuses the undo (`history_stale`) if another
  * edit landed first, so Undo never reverses someone else's change.
  */
 export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
@@ -137,7 +138,11 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     return () => observer.disconnect();
   }, [host, toast?.id]);
   const undoEntry =
-    toast?.undo != null && toast.undo === headId ? toast.undo : null;
+    toast?.undo != null &&
+    headId != null &&
+    (toast.undo === headId || headId === toast.baseHead)
+      ? toast.undo
+      : null;
 
   useLayoutEffect(() => {
     const focused =
