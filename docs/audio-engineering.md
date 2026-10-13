@@ -638,10 +638,24 @@ boundaries. They do not introduce or adjust a noise-gate threshold. A report wit
 both kinds still adjusts the noise gate once for its own findings.
 
 Analyze's `digital_silence` check streams `engines.asr_silence.peak_envelope`, a per-10 ms
-peak envelope, and flags a dialogue track whose source audio is mostly under
-`DIGITAL_SILENCE_PEAK_DBFS` (-60 dBFS) as a likely gated stem worth transcribing with VAD
-on. That level only separates a gate's zeros from any recorded sound; it is still a fixed
-level, so a quiet ungated recording reads more silent (#1381).
+peak envelope, and flags a dialogue track whose source audio is mostly digital silence
+(`DIGITAL_SILENCE_VAD_FRACTION`, half) as a likely gated stem worth transcribing with VAD on.
+A block is digital silence when its peak is within `DIGITAL_SILENCE_LSB` (2) quantization
+steps of zero at the file's own bit depth (`digital_silence_peak`): an integer-PCM WAV's
+sample width, else 24-bit, so only a gate's zeros (and a step of dither) count outside a WAV.
+The threshold belongs to the file, not to a level, so the same recording at +12 to -36 dB
+gives the same fraction and the same VAD decision (#1381), and a quiet ungated room never
+reads as a gate. A 16-bit file whose room is itself a step or two wide (below about -90 dBFS)
+is quantized to near zero, and reads as silent for that reason. The fraction needs no noise
+floor, so it does not use `TrackRmsCache`; the silence filter's floor is a separate question
+([transcript reconcile](transcript-reconcile.md)).
+
+Lab evidence (2026-10-13, ingested 16-bit tracks, the same recording at five gains): the
+old fixed -60 dBFS peak read Caleb (ungated) at 0.22 at +12 dB and 0.64 at -36 dB, and the
+gated Audra and Lana at 0.81-0.89. The file-derived threshold reads each track at one value
+at every gain: Caleb 0.11, Audra 0.73, Lana 0.73 (24-bit copies; the 16-bit originals read
+0.15, 0.78 and 0.77). The stricter definition moves a gated track below the old 0.8 line, so
+the VAD fraction is half.
 
 ## RNNoise noise reduction (`noise_reduction_rnnoise`)
 

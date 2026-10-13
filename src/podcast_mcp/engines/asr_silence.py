@@ -43,7 +43,6 @@ import numpy as np
 
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import Clip, EpisodeProject, TranscriptWord
-from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.hashing import sha256_head_tail, short_digest
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.project_state import FileRevision, file_revision
@@ -54,9 +53,14 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 PEAK_BLOCK_SEC = 0.01
-# Analyze's gated-stem scan counts a 10 ms block under this peak as digital silence. It only
-# separates a gate's zeros from any recorded sound; the silence filter reads the track's floor.
-DIGITAL_SILENCE_PEAK_DBFS = -60.0
+# Analyze's gated-stem scan counts a 10 ms block as digital silence when its peak is within
+# this many quantization steps of zero at the file's own bit depth: a gate's zeros, or zeros
+# plus a step of dither. A quiet room is many steps wide at any recording gain, so it never
+# counts (#1381).
+DIGITAL_SILENCE_LSB = 2
+# Media that is not integer-PCM WAV (float, compressed) is read at this depth: only a gate's
+# near-exact zeros fall within the tolerance.
+UNKNOWN_DEPTH_BITS = 24
 MIN_SPAN_SEC = 0.05
 # The evidence gate's level resolution: 10 ms frames at 8 kHz, about 80x smaller than samples.
 LEVEL_FRAME_SEC = 0.01
@@ -634,11 +638,25 @@ def peak_envelope(path: Path, *, block_sec: float = PEAK_BLOCK_SEC) -> tuple[np.
     return np.concatenate(parts), sample_rate / block
 
 
-def silent_fraction(peaks: np.ndarray) -> float:
-    """Share of ``peaks`` blocks under ``DIGITAL_SILENCE_PEAK_DBFS`` (0.0 for an empty envelope)."""
+def digital_silence_peak(path: Path) -> float:
+    """The loudest peak (full scale 1.0) a block can have and still be digital silence in ``path``.
+
+    ``DIGITAL_SILENCE_LSB`` quantization steps of the file's own bit depth (an integer-PCM
+    WAV's sample width, else ``UNKNOWN_DEPTH_BITS``), so the threshold does not move with the
+    recording's level.
+    """
+    from podcast_mcp.engines.waveform_pyramid import probe_pcm_source
+
+    wav = probe_pcm_source(path).wav
+    bits = 8 * wav.width if wav is not None else UNKNOWN_DEPTH_BITS
+    return DIGITAL_SILENCE_LSB * 2.0 ** (1 - bits)
+
+
+def silent_fraction(peaks: np.ndarray, *, max_peak: float) -> float:
+    """Share of ``peaks`` blocks at or under ``max_peak`` (0.0 for an empty envelope)."""
     if peaks.size == 0:
         return 0.0
-    return float(np.count_nonzero(peaks < db_to_amplitude(DIGITAL_SILENCE_PEAK_DBFS)) / peaks.size)
+    return float(np.count_nonzero(peaks <= max_peak) / peaks.size)
 
 
 @lru_cache(maxsize=64)
@@ -649,11 +667,11 @@ def _cached_silent_fraction(path: str, revision: FileRevision, head_tail: str) -
     """
     del revision, head_tail  # cache key only
     peaks, _rate = peak_envelope(Path(path))
-    return silent_fraction(peaks)
+    return silent_fraction(peaks, max_peak=digital_silence_peak(Path(path)))
 
 
 def digital_silence_fraction(path: Path) -> float | None:
-    """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence.
+    """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence (``digital_silence_peak``).
 
     Cached in-process per resolved path, ``file_revision`` (device, inode, size, mtime),
     and a SHA-256 of the first and last 64 KiB (``util.hashing.sha256_head_tail``), so a re-run Analyze (GUI button, MCP) does not decode an unchanged

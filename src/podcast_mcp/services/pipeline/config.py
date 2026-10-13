@@ -15,7 +15,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.effects.presets import resolve_presets
 from podcast_mcp.engines.asr_options import AsrOptions
-from podcast_mcp.engines.asr_silence import DIGITAL_SILENCE_PEAK_DBFS, PEAK_BLOCK_SEC
+from podcast_mcp.engines.asr_silence import DIGITAL_SILENCE_LSB, PEAK_BLOCK_SEC
 from podcast_mcp.engines.audio_audit import CLIPPING_PEAK_LEVEL_DB, clipping_indicated
 from podcast_mcp.pipeline.meta import (
     ALLOWED_CONFIG_TOP_KEYS,
@@ -104,8 +104,9 @@ NOISE_FLOOR_WARN_DB = -50.0
 
 # Analyze flags a dialogue source whose share of digital-silence blocks (from
 # engines.asr_silence.peak_envelope) is at or above this as a gated stem, and
-# argues for turning transcribe.vad.enabled on.
-DIGITAL_SILENCE_VAD_FRACTION = 0.8
+# argues for turning transcribe.vad.enabled on. Only a gate's zeros count, so "mostly" is a
+# majority; an ungated recording reads near zero at any level.
+DIGITAL_SILENCE_VAD_FRACTION = 0.5
 
 ANALYZE_CANCELLED = "Analyze cancelled"
 
@@ -756,8 +757,8 @@ def suggest_pipeline_tuning(
             reasons.append(
                 _reason(
                     "digital_silence",
-                    f"{tid}: {frac:.0%} of the source audio is digital silence (peak below "
-                    f"{DIGITAL_SILENCE_PEAK_DBFS:g} dBFS; a gated stem) - "
+                    f"{tid}: {frac:.0%} of the source audio is digital silence (peak within "
+                    f"{DIGITAL_SILENCE_LSB} steps of zero; a gated stem) - "
                     + (
                         "VAD at transcribe is on - keep it"
                         if asr.vad_enabled
@@ -766,7 +767,7 @@ def suggest_pipeline_tuning(
                     {
                         "silent_fraction": round(frac, 3),
                         "threshold_fraction": DIGITAL_SILENCE_VAD_FRACTION,
-                        "peak_dbfs": DIGITAL_SILENCE_PEAK_DBFS,
+                        "max_peak_lsb": DIGITAL_SILENCE_LSB,
                         "block_sec": PEAK_BLOCK_SEC,
                         "audio": path.name,
                         "vad_enabled": asr.vad_enabled,
