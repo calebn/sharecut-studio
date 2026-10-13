@@ -827,6 +827,9 @@ def _dense_bleed_with_independent_gap(
     if content == "hum_room":
         hum = 0.0008 * np.sin(2 * np.pi * 50.0 * clock[inside] + 0.7)
         peer[inside] = hum + noise[inside]
+    elif content == "rumble_room":
+        rumble = 0.0006 * np.sin(2 * np.pi * 25.0 * clock[inside])
+        peer[inside] = rumble + 0.1 * noise[inside]
     elif content == "tone_same_pitch":
         peer[inside] = 0.0045 * np.sin(2 * np.pi * owner_f0 * clock[inside])
     elif content == "tone_other_pitch":
@@ -846,21 +849,25 @@ def _dense_bleed_with_independent_gap(
         ("room_noise", (3.0, 3.1), ()),
         ("room_noise", (3.0, 3.3), ()),
         ("hum_room", (3.0, 3.3), ()),
+        ("rumble_room", (3.0, 3.3), ()),
         ("tone_same_pitch", (3.0, 3.1), ("guest",)),
         ("tone_other_pitch", (3.0, 3.1), ("guest",)),
         ("voice_over_room", (3.0, 3.3), ("guest",)),
         ("unvoiced_burst_over_room", (3.0, 3.3), ("guest",)),
         ("room_noise", (3.0, 3.03), ("guest",)),
+        ("room_noise", (3.0, 3.05), ("guest",)),
     ],
     ids=[
         "room_100ms",
         "room_300ms",
         "room_with_low_hum",
+        "low_rumble_room",
         "voice_at_owner_pitch",
         "voice_at_other_pitch",
         "voice_over_room",
         "unvoiced_burst_over_room",
         "room_too_short_to_judge",
+        "room_under_three_probes",
     ],
 )
 def test_dense_owner_bleed_room_is_told_from_independent_peer_by_the_peers_own_sound(
@@ -888,6 +895,25 @@ def test_dense_owner_bleed_room_is_told_from_independent_peer_by_the_peers_own_s
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == expected
     assert guard.action == ("track_local" if expected else None)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("gain", [-20.0, 0.0, 30.0])
+def test_dense_owner_bleed_room_reference_ignores_a_single_quieter_stretch(
+    tmp_path: Path, cached: bool, gain: float
+) -> None:
+    clock = np.arange(8 * _SR) / _SR
+    owner, peer = _dense_bleed_with_independent_gap(clock, (3.0, 3.3), "room_noise")
+    dip = (clock >= 3.12) & (clock < 3.18)
+    peer[dip] *= 0.3
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    for track in p.tracks:
+        track.gain_db = gain
+    caches = build_track_rms_caches(p) if cached else None
+
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == ()
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])

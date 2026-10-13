@@ -88,10 +88,13 @@ that only falls and would otherwise read as a high voice. Both tests are
 relative to the peer's own sound, so recording gain, the owner's pitch and a
 same-gender pair change nothing. A run that carries pitch, rises above that
 quiet, is under three probes (60 ms) or cannot be read blocks as before.
-Supported boundary: in this case only, a quiet unvoiced peer sound (breath, soft
-fricative, click) or a voice above 350 Hz reads as room, a sound that fills most
-of the peer's own frames sets its own reference, and a steady hum strong enough to
-show a pitch peak reads as voice and still blocks.
+Supported boundary: in this case only, a quiet unvoiced peer sound (for example a
+short "shh" or "psst" 28 to 37 dB under the owner's speech, filling an owner gap) can
+read as room. Voiced speech, whispers with any voicing, laughter and inhales still
+warn; the pitch test finds harmonic voices from 300 to 1,200 Hz, not only the
+70-350 Hz speech range. A sound that fills most of the peer's own frames sets its own
+reference, and a steady hum strong enough to show a pitch peak reads as voice and
+still blocks.
 Initial proposal queries retain the outward pad. After
 edge protection, a non-pause cut checks only its finalized mapped removal;
 approval repeats that check on the current validated removal geometry.
