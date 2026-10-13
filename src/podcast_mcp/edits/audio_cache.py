@@ -168,6 +168,22 @@ def audibility_floor_from_profile(profile: LevelProfile | None) -> float:
     return voice_floor_from_profile(profile)
 
 
+def voice_reach_from_profile(profile: LevelProfile | None) -> float:
+    """The level (dBFS) the mean of a stretch of this track must reach to hold its voice.
+
+    The :func:`audibility_floor_from_profile`, raised to no lower than 27 dB under the
+    track's loudest frames: a speaker who talks under a tenth of the time has room tone
+    for a speech level, and a floor under that would call the room a voice. ``-inf`` for a
+    track with no contrast between its loudest frames and its room, ``inf`` for one with
+    no live audio.
+    """
+    floor = audibility_floor_from_profile(profile)
+    if profile is None or not math.isfinite(floor):
+        return floor
+    loud_db = 20.0 * math.log10(profile.loud_rms)
+    return max(floor, loud_db - VOICE_FLOOR_UNDER_SPEECH_DB)
+
+
 class BandLevels:
     """A recording's 10 ms levels through one :class:`~podcast_mcp.util.dsp.BandShape`, filtered once.
 
@@ -342,6 +358,12 @@ def track_audibility_floor_db(
     project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
 ) -> float:
     return audibility_floor_from_profile(track_level_profile(project, track_id, audio_cache))
+
+
+def track_voice_reach_db(
+    project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
+) -> float:
+    return voice_reach_from_profile(track_level_profile(project, track_id, audio_cache))
 
 
 def build_track_audio_caches(

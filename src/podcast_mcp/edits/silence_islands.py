@@ -9,10 +9,8 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.engines.audio_audit import (
-    build_track_rms_caches,
-    measure_timeline_rms_db,
-)
+from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB
+from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.dsp import bool_runs
 
@@ -42,17 +40,17 @@ class SilenceIsland:
 def silence_islands_from_hops(
     hops: list[tuple[float, float]],
     *,
-    quiet_db: float = -48.0,
     min_duration_sec: float = 0.12,
 ) -> list[SilenceIsland]:
     """Cluster contiguous quiet hops into silence islands.
 
-    ``hops`` are ``(timeline_sec, rms_db)`` samples (any spacing).
+    ``hops`` are ``(timeline_sec, level_over_floor_db)`` samples (any spacing), as
+    :func:`timeline_floor_hops` measures them. A hop is quiet at or under its floor.
     """
     if not hops:
         return []
     ordered = sorted(hops, key=lambda h: h[0])
-    quiet = np.asarray([isfinite(db) and db <= quiet_db for _, db in ordered], dtype=bool)
+    quiet = np.asarray([db <= 0.0 for _, db in ordered], dtype=bool)
     return [
         SilenceIsland(start=ordered[start][0], end=ordered[end - 1][0])
         for start, end in bool_runs(quiet)
@@ -77,14 +75,13 @@ def _snap_to_quiet(
     *,
     lo: float,
     hi: float,
-    quiet_db: float,
     islands: list[SilenceIsland],
     window_sec: float = 0.12,
 ) -> float | None:
     """Quietest hop near ``t`` that sits in a silence island, or ``None``.
 
-    A single quiet frame is not enough — um / chair / bleed can dip below
-    ``quiet_db`` for a hop without being room tone. Transcript word gaps are
+    A single quiet frame is not enough — um / chair / bleed can dip under the
+    floor for a hop without being room tone. Transcript word gaps are
     never consulted. Among equally quiet hops, pick the one closest to ``t``.
     """
     if hi <= lo:
@@ -95,8 +92,7 @@ def _snap_to_quiet(
         for ht, db in hops
         if lo - 1e-9 <= ht <= hi + 1e-9
         and abs(ht - t) <= window_sec
-        and isfinite(db)
-        and db <= quiet_db
+        and db <= 0.0
         and _island_at(islands, ht) is not None
     ]
     if not candidates:
@@ -106,7 +102,7 @@ def _snap_to_quiet(
     return min(near, key=lambda x: (abs(x[0] - t), x[0]))[0]
 
 
-def timeline_rms_hops(
+def timeline_floor_hops(
     project: EpisodeProject,
     track_ids: Sequence[str],
     timeline_start: float,
@@ -114,7 +110,11 @@ def timeline_rms_hops(
     *,
     hop_ms: int = 20,
 ) -> list[tuple[float, float]]:
-    """Measure maximum lane RMS (dB) on shared ``hop_ms`` timeline hops.
+    """Measure, on shared ``hop_ms`` timeline hops, how far the loudest lane is over its floor.
+
+    Each lane is read against its own voice floor (``TrackRmsCache.voice_floor_db``), so a
+    hop is quiet (at or under 0 dB) when no lane holds a voice, at any recording level.
+    A hop with no measurement of some lane is ``inf``: missing evidence is never quiet.
 
     Uses ``TrackRmsCache`` (processed stem when present) so a handoff window is
     one decode, not one FFmpeg spawn per hop.
@@ -130,7 +130,7 @@ def timeline_rms_hops(
     t = float(timeline_start)
     while t < timeline_end - 1e-9:
         t1 = min(timeline_end, t + hop)
-        db = -inf
+        over = -inf
         for tid in track_ids:
             cache = caches.get(tid)
             if (
@@ -138,14 +138,14 @@ def timeline_rms_hops(
                 or t < cache.timeline_offset_sec - 1e-9
                 or t1 > cache.timeline_offset_sec + cache.samples.size / cache.sample_rate + 1e-9
             ):
-                db = inf
+                over = inf
                 break
-            rms = measure_timeline_rms_db(project, tid, t, t1, caches=caches)
+            rms = cache.rms_db(t, t1, floor_db=DIGITAL_SILENCE_DB)
             if rms is None or not isfinite(rms):
-                db = inf
+                over = inf
                 break
-            db = max(db, float(rms))
-        out.append((t, db))
+            over = max(over, rms - cache.voice_floor_db)
+        out.append((t, over))
         t = t1
     return out
 
@@ -156,7 +156,6 @@ def suggest_handoff_cut(
     keep_left_end: float,
     keep_right_start: float,
     *,
-    quiet_db: float = -48.0,
     min_island_sec: float = 0.12,
     hop_ms: int = 20,
     retain_sec: float = 1.0,
@@ -169,7 +168,9 @@ def suggest_handoff_cut(
 
     Targets ``keep_left + retain_sec`` and ``keep_right - retain_sec`` (clamped
     if the gap is shorter), then snaps each bound onto a measured silence
-    island (RMS on the stem — not transcript word gaps). Audible non-words
+    island (RMS on the stem — not transcript word gaps). A hop is quiet when every
+    lane is at or under its own voice floor, so the answer does not move with the
+    recording level. Audible non-words
     (um, chair, bleed) block a join if they sit at the retain target; if they
     sit between the bounds they are removed with the ripple. If a bound is
     still in energy after snap, the suggestion is not ok.
@@ -178,18 +179,14 @@ def suggest_handoff_cut(
         raise ValueError("keep_right_start must be after keep_left_end")
 
     track_ids = list(dict.fromkeys(track_ids))
-    hops = timeline_rms_hops(
+    hops = timeline_floor_hops(
         project,
         track_ids,
         float(keep_left_end),
         float(keep_right_start),
         hop_ms=hop_ms,
     )
-    islands = silence_islands_from_hops(
-        hops,
-        quiet_db=quiet_db,
-        min_duration_sec=min_island_sec,
-    )
+    islands = silence_islands_from_hops(hops, min_duration_sec=min_island_sec)
 
     warnings: list[str] = []
     cut_start: float | None = None
@@ -208,7 +205,6 @@ def suggest_handoff_cut(
             target_out,
             lo=keep_left_end,
             hi=target_in - _MIN_CUT_SEC,
-            quiet_db=quiet_db,
             islands=islands,
         )
         if cut_start is None:
@@ -220,7 +216,6 @@ def suggest_handoff_cut(
             if cut_start is not None
             else keep_left_end + _MIN_CUT_SEC,
             hi=keep_right_start,
-            quiet_db=quiet_db,
             islands=islands,
         )
         if cut_end is None:

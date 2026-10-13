@@ -316,6 +316,15 @@ class TrackRmsCache:
 
         return audibility_floor_from_profile(self.track_profile)
 
+    @cached_property
+    def voice_reach_db(self) -> float:
+        """The level the mean of a stretch must reach to hold this track's voice (dBFS), see
+        :func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`.
+        """
+        from podcast_mcp.edits.audio_cache import voice_reach_from_profile
+
+        return voice_reach_from_profile(self.track_profile)
+
     @classmethod
     def from_timeline_stem(
         cls, path: Path, *, sample_rate: int = _RMS_SAMPLE_RATE
@@ -704,17 +713,18 @@ def _rms_for_track_at_timeline(
     t_end: float,
     *,
     caches: TrackRmsCacheSet | None = None,
+    floor_db: float = DEFAULT_RMS_FLOOR_DB,
 ) -> float | None:
     cache = caches.get(track_id) if caches else None
     if cache is not None:
-        rms = cache.rms_db(t_start, t_end)
+        rms = cache.rms_db(t_start, t_end, floor_db=floor_db)
     elif t_end - t_start <= 0.005:
         return None
     else:
         read = timeline_window_samples(project, track_id, t_start, t_end)
         if read is None or read[0].size == 0:
             return None
-        rms = rms_db(read[0])
+        rms = rms_db(read[0], floor_db=floor_db)
     return _effective_rms_db(rms, _recorded_gain_db(project, track_id))
 
 
@@ -750,9 +760,17 @@ def measure_timeline_rms_db(
     t_end: float,
     *,
     caches: TrackRmsCacheSet | None = None,
+    floor_db: float = DEFAULT_RMS_FLOOR_DB,
 ) -> float | None:
-    """Public RMS (dB) for a timeline window on one dialogue track."""
-    return _rms_for_track_at_timeline(project, track_id, t_start, t_end, caches=caches)
+    """Public RMS (dB) for a timeline window on one dialogue track.
+
+    A digitally silent window reads ``floor_db``. A caller that compares the level with a
+    track's own floor passes ``DIGITAL_SILENCE_DB``: the default sits above the voice floor
+    of a recording quiet enough to put its speech near -80 dBFS.
+    """
+    return _rms_for_track_at_timeline(
+        project, track_id, t_start, t_end, caches=caches, floor_db=floor_db
+    )
 
 
 def _classify_word_audibility(

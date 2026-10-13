@@ -101,6 +101,14 @@ def _two_track(
     return p
 
 
+@pytest.fixture
+def peer_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every track's voice reaches -42 dBFS: these tests mock the span levels over media that is not on disk."""
+    monkeypatch.setattr(
+        "podcast_mcp.edits.speech_energy_guard.track_voice_reach_db", lambda *_a, **_k: -42.0
+    )
+
+
 def test_punch_timeline_range_leaves_hole_without_shift():
     clips = [
         Clip(
@@ -120,10 +128,11 @@ def test_punch_timeline_range_leaves_hole_without_shift():
     assert out[1].timeline_end == pytest.approx(10.0)
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_assess_blocks_when_other_track_hot():
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
         return -30.0 if track_id == "guest" else -55.0
 
     with patch(
@@ -140,7 +149,6 @@ def test_assess_blocks_when_other_track_hot():
                     "speech_energy_guard": {
                         "enabled": True,
                         "on_conflict": "review",
-                        "min_other_rms_db": -42.0,
                         "dominance_db": 3.0,
                     }
                 },
@@ -152,10 +160,11 @@ def test_assess_blocks_when_other_track_hot():
     assert g.action == "review"
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_assess_allows_when_cut_track_dominates():
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
         return -25.0 if track_id == "host" else -40.0
 
     with patch(
@@ -171,7 +180,6 @@ def test_assess_allows_when_cut_track_dominates():
                 "tighten": {
                     "speech_energy_guard": {
                         "enabled": True,
-                        "min_other_rms_db": -42.0,
                         "dominance_db": 3.0,
                     }
                 },
@@ -181,6 +189,7 @@ def test_assess_allows_when_cut_track_dominates():
     assert not g.blocked
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_resolve_skip_retains_peer_evidence():
     p = _two_track()
     with (
@@ -199,7 +208,6 @@ def test_resolve_skip_retains_peer_evidence():
                     "speech_energy_guard": {
                         "enabled": True,
                         "on_conflict": "skip",
-                        "min_other_rms_db": -42.0,
                     }
                 },
                 "analysis": {"heuristics": {}},
@@ -212,6 +220,7 @@ def test_resolve_skip_retains_peer_evidence():
     assert result.guard.action == "skip"
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_add_remove_decision_over_peer_speech_waits_for_review(monkeypatch):
     p = _two_track(
         host_words=[
@@ -227,7 +236,6 @@ def test_add_remove_decision_over_peer_speech_waits_for_review(monkeypatch):
             "speech_energy_guard": {
                 "enabled": True,
                 "on_conflict": "review",
-                "min_other_rms_db": -42.0,
                 "dominance_db": 3.0,
             },
         },
@@ -235,7 +243,7 @@ def test_add_remove_decision_over_peer_speech_waits_for_review(monkeypatch):
         "analysis": {"heuristics": {}},
     }
 
-    def fake_rms(project, track_id, t0, t1, caches=None):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
         return -30.0 if track_id == "guest" else -55.0
 
     def passthrough(project, track_id, start, end, force_enabled=None):
@@ -346,6 +354,7 @@ def test_resolve_cut_scope_speaker_bleed_short_circuits():
     assert guard is None
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_resolve_cut_scope_speaker_exception_falls_through():
     p = _two_track()
     with (
@@ -382,6 +391,7 @@ def test_assess_disabled_returns_no_action() -> None:
     assert not g.blocked
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_resolve_cut_scope_speaker_none_continues_to_rms():
     p = _two_track()
     with (
@@ -418,7 +428,6 @@ def test_assess_empty_span_returns_safe() -> None:
                 "tighten": {
                     "speech_energy_guard": {
                         "enabled": True,
-                        "min_other_rms_db": -42.0,
                     }
                 },
                 "analysis": {"heuristics": {}},
@@ -427,10 +436,11 @@ def test_assess_empty_span_returns_safe() -> None:
     assert not g.blocked
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_assess_skips_quiet_other_tracks() -> None:
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
         return -55.0 if track_id == "guest" else -30.0
 
     with patch(
@@ -446,7 +456,6 @@ def test_assess_skips_quiet_other_tracks() -> None:
                 "tighten": {
                     "speech_energy_guard": {
                         "enabled": True,
-                        "min_other_rms_db": -42.0,
                         "dominance_db": 3.0,
                     }
                 },
@@ -456,6 +465,7 @@ def test_assess_skips_quiet_other_tracks() -> None:
     assert not g.blocked
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_resolve_cut_scope_speaker_own_continues_to_rms():
     p = _two_track()
     with (
@@ -518,10 +528,11 @@ def test_assess_invalid_source_range() -> None:
     assert g.action is None
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_assess_blocks_when_cut_rms_unknown_but_guest_hot() -> None:
     p = _two_track()
 
-    def fake_rms(project, track_id, t0, t1, caches=None):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
         if track_id == "guest":
             return -30.0
         return None
@@ -539,7 +550,6 @@ def test_assess_blocks_when_cut_rms_unknown_but_guest_hot() -> None:
                 "tighten": {
                     "speech_energy_guard": {
                         "enabled": True,
-                        "min_other_rms_db": -42.0,
                     }
                 },
                 "analysis": {"heuristics": {}},
@@ -549,6 +559,7 @@ def test_assess_blocks_when_cut_rms_unknown_but_guest_hot() -> None:
     assert g.blocking_track_ids == ("guest",)
 
 
+@pytest.mark.usefixtures("peer_floor")
 def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
     """A track-local hole inside the gap splits it into two mapped spans;
     peer speech in only the smaller span must still block (#793)."""
@@ -581,7 +592,7 @@ def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
     # Proposed gap 2.8-3.6 straddles the hole: mapped spans are (2.8, 3.0)
     # (len 0.2, the largest) and (3.5, 3.6) (len 0.1, the smaller). Guest
     # speaks only in the smaller span.
-    def fake_rms(project, track_id, t0, t1, caches=None):
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
         if track_id == "guest":
             return -20.0 if t0 >= 3.5 else -60.0
         return -55.0
@@ -600,7 +611,6 @@ def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
                     "speech_energy_guard": {
                         "enabled": True,
                         "on_conflict": "review",
-                        "min_other_rms_db": -42.0,
                         "dominance_db": 3.0,
                     }
                 },
@@ -617,7 +627,6 @@ _GUARD_ON = {
         "speech_energy_guard": {
             "enabled": True,
             "on_conflict": "review",
-            "min_other_rms_db": -42.0,
             "dominance_db": 3.0,
         }
     },
@@ -635,11 +644,20 @@ def _write_wav(path: Path, signal: np.ndarray, *, sample_rate: int = _SR) -> Non
         out.writeframes(data.tobytes())
 
 
-def _project_with_peer_audio(tmp_path: Path, peer: np.ndarray) -> EpisodeProject:
+def _host_speech(samples: int) -> np.ndarray:
+    """A host that speaks in the first second over a gated room: the session's voice level."""
+    clock = np.arange(samples) / _SR
+    voice = clock < 1.0
+    return np.where(voice, 0.1 * np.sin(2 * np.pi * 150 * clock), 0.0)
+
+
+def _project_with_peer_audio(
+    tmp_path: Path, peer: np.ndarray, *, host: np.ndarray | None = None
+) -> EpisodeProject:
     p = _two_track(duration=peer.size / _SR)
     p.meta.workspace_dir = str(tmp_path)
     p.transcripts = []
-    signals = {"host": np.zeros_like(peer), "guest": peer}
+    signals = {"host": np.zeros_like(peer) if host is None else host, "guest": peer}
     for track in p.tracks:
         assert track.media is not None
         path = tmp_path / f"{track.id}.wav"
@@ -946,7 +964,7 @@ def test_noise_without_contrast_uses_mean_while_digital_zero_stays_clear(
     tmp_path: Path, cached: bool, gain: float, silent: bool
 ) -> None:
     peer = np.zeros(8 * _SR) if silent else np.random.default_rng(14).normal(0.0, 0.0004, 8 * _SR)
-    p = _project_with_peer_audio(tmp_path, peer)
+    p = _project_with_peer_audio(tmp_path, peer, host=_host_speech(peer.size))
     p.tracks[1].gain_db = gain
     p.transcripts = [
         Transcript(track_id="guest", words=[TranscriptWord(text="right", start=3.0, end=3.1)])
@@ -965,8 +983,6 @@ def test_noise_without_contrast_uses_mean_while_digital_zero_stays_clear(
     expected = ("guest",) if not silent and gain == 30.0 else ()
     assert levels.speaking == expected
     assert levels.unread == {}
-    if not silent and gain == 30.0:
-        assert levels.peer_rms_db["guest"] > -42.0
     guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
     assert guard.blocking_track_ids == expected
     assert guard.action == ("review" if expected else None)
@@ -1328,8 +1344,8 @@ def test_peer_room_calibration_uses_played_context_and_core_coverage(
     clock = np.arange(8 * _SR) / _SR
     peer = np.random.default_rng(1940).normal(0.0, 0.0004, clock.size)
     voice = (clock >= 4.22) & (clock < 4.26)
-    peer[voice] = 0.01 * np.sin(2 * np.pi * 220 * clock[voice])
-    p = _project_with_peer_audio(tmp_path, peer)
+    peer[voice] = 0.03 * np.sin(2 * np.pi * 220 * clock[voice])
+    p = _project_with_peer_audio(tmp_path, peer, host=_host_speech(peer.size))
     p.clips[1].source_start = p.clips[1].timeline_start = 4.0
     p.clips[1].source_end = 4.5 if gap else 6.0
     if gap:
@@ -1355,7 +1371,9 @@ def test_unavailable_frames_use_readable_mean_without_word_fallback(
     tmp_path: Path, amplitude: float
 ) -> None:
     clock = np.arange(8 * _SR) / _SR
-    p = _project_with_peer_audio(tmp_path, amplitude * np.sin(2 * np.pi * 220 * clock))
+    p = _project_with_peer_audio(
+        tmp_path, amplitude * np.sin(2 * np.pi * 220 * clock), host=_host_speech(clock.size)
+    )
     p.transcripts = [
         Transcript(track_id="guest", words=[TranscriptWord(text="right", start=3.0, end=3.1)])
     ]
