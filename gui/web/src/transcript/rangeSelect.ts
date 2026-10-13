@@ -20,7 +20,6 @@ export const ONE_WORD_REASON = "The range is one word. Clear it to start over.";
 export const NO_EARLIER_WORD_REASON = "There is no earlier word to add.";
 export const NO_LATER_WORD_REASON = "There is no later word to add.";
 
-/** The word range controls, in the order a person grows then trims a range. */
 export const RANGE_STEP_CONTROLS: readonly {
   step: RangeStep;
   label: string;
@@ -75,7 +74,6 @@ export function selectedWordsMessage(span: WordSpan): string {
   return n === 1 ? "1 word selected" : `${n} words selected`;
 }
 
-/** The span between an anchor word and the word the finger is over. */
 export function spanBetween(anchor: number, to: number): WordSpan {
   return {
     startWordIndex: Math.min(anchor, to),

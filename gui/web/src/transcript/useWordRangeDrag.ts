@@ -17,9 +17,7 @@ import {
   wordAtPoint,
 } from "./rangeSelect";
 
-/** Width of the band at the list's top and bottom edge where a held finger scrolls it (px). */
 const EDGE_BAND_PX = 56;
-/** Fastest scroll step per frame, reached at the very edge (px). */
 const EDGE_STEP_PX = 14;
 
 export type WordRangeDraft = WordSpan & { trackId: string };
@@ -45,7 +43,6 @@ type Options = {
   listRef: RefObject<HTMLElement | null>;
   /** The armed finger moved on. Returns what puts the selection back if a second finger cancels the drag. */
   onDragStart: () => (() => void) | null;
-  /** The finger lifted after a drag, on `span`. */
   onCommit: (trackId: string, span: WordSpan) => void;
 };
 

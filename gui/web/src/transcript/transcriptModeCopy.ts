@@ -22,7 +22,6 @@ export const TRANSCRIPT_GUEST_SELECT_HINT: Record<"edit" | "suggest", string> =
 export const TRANSCRIPT_SELECT_TOUCH_HINT =
   "Select (edits audio): hold a word and drag across more, or tap a word and add words in Range actions. Cut and Mute are there too. Ignore strikes through and mutes the selection at render, non-destructively; Restore brings it back.";
 
-/** Guest Select hint on coarse pointers. */
 export const TRANSCRIPT_GUEST_SELECT_TOUCH_HINT: Record<
   "edit" | "suggest",
   string

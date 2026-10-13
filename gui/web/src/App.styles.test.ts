@@ -126,6 +126,25 @@ describe("App styles", () => {
     expect(words![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
   });
 
+  it("stacks each Tighten hit in a narrow panel so Apply and Skip never sit past the edge (#1029)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
+    const block = css.match(
+      /@container tighten \(max-width: 36rem\) \{([\s\S]*?)\n\}\n/,
+    );
+    expect(block).toBeTruthy();
+    expect(block![1]).toMatch(/grid-area:\s*actions/);
+    expect(block![1]).toMatch(/\.tighten-table td:nth-child\(7\)/);
+  });
+
+  it("keeps the native text selection out of the transcript in Select mode on touch (#1029)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
+    expect(css).toMatch(
+      /@media \(pointer: coarse\) \{[\s\S]*?\[data-transcript-intent="select"\] \.utterance-turn \{\s*user-select: none;/,
+    );
+  });
+
   it("paints dialog focus rings inside the scrolling body", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(
