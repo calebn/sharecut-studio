@@ -15,7 +15,7 @@ const { values } = parseArgs({
     "keep-fixture": { type: "boolean", default: false },
   },
 });
-const scenes = [
+const allScenes = [
   "clip",
   "boundary",
   "playback",
@@ -23,16 +23,22 @@ const scenes = [
   "progress-replay",
   "progress-real",
   "progress-reduced",
+  "seek",
+  "trim",
 ];
+const defaultScenes = allScenes.filter(
+  (name) => name !== "seek" && name !== "trim",
+);
+const selected = values.scene?.split(",");
 if (
   !values.out ||
   !["small", "large"].includes(values.preset!) ||
   !/^\d+$/.test(values.repeat!) ||
   Number(values.repeat) < 1 ||
-  (values.scene && !scenes.includes(values.scene))
+  selected?.some((name) => !allScenes.includes(name))
 )
   throw new Error(
-    "Usage: profile:remaining -- --preset small|large --repeat N --out NEW_DIRECTORY [--scene NAME] [--trace] [--keep-fixture]",
+    "Usage: profile:remaining -- --preset small|large --repeat N --out NEW_DIRECTORY [--scene NAME[,NAME]] [--trace] [--keep-fixture]",
   );
 const output = path.resolve(values.out);
 if (fs.existsSync(output))
@@ -41,7 +47,7 @@ fs.mkdirSync(output, { recursive: true });
 const repo = path.resolve("../..");
 let failed = false;
 for (let repeat = 1; repeat <= Number(values.repeat); repeat++) {
-  for (const scene of values.scene ? [values.scene] : scenes) {
+  for (const scene of selected ?? defaultScenes) {
     const root = path.join(output, `run-${repeat}`, scene);
     const fixture = path.join(root, "fixture");
     fs.mkdirSync(root, { recursive: true });
@@ -105,6 +111,6 @@ for (let repeat = 1; repeat <= Number(values.repeat); repeat++) {
 }
 fs.writeFileSync(
   path.join(output, "invocation.json"),
-  `${JSON.stringify({ values, scenes: values.scene ? [values.scene] : scenes, status: failed ? "incomplete" : "complete" }, null, 2)}\n`,
+  `${JSON.stringify({ values, scenes: selected ?? defaultScenes, status: failed ? "incomplete" : "complete" }, null, 2)}\n`,
 );
 process.exitCode = failed ? 1 : 0;
