@@ -58,7 +58,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   } = props;
   const id = useId();
   const workspace = useRef<HTMLDivElement>(null);
-  const timeInput = useRef<HTMLInputElement>(null);
+  const formHeading = useRef<HTMLHeadingElement>(null);
   const select = useRef<HTMLSelectElement>(null);
   const add = useRef<HTMLButtonElement>(null);
   const priorForm = useRef(form != null);
@@ -71,7 +71,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       initialFocus.current = true;
       focusAndReveal(
         formKind
-          ? timeInput.current
+          ? formHeading.current
           : points.length
             ? select.current
             : add.current,
@@ -204,12 +204,13 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               props.onSave();
             }}
           >
-            <h3>{form.kind === "add" ? "Add point" : "Edit point"}</h3>
+            <h3 ref={formHeading} tabIndex={-1} onKeyDown={cancelOnEscape}>
+              {form.kind === "add" ? "Add point" : "Edit point"}
+            </h3>
             {form.notice && <p>{form.notice}</p>}
             <label htmlFor={`${id}-time`}>
               Time (seconds on timeline)
               <input
-                ref={timeInput}
                 id={`${id}-time`}
                 aria-invalid={error?.target === "time" || undefined}
                 aria-describedby={

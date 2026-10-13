@@ -144,6 +144,10 @@ Dynamic Island side in landscape.
 
 Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport override can leave the CSS viewport at tablet width while the OS window is narrower — hard refresh does not clear that; clear the override (or set 390×844) before judging Listen / Text.
 
+## Software keyboard and bottom sheets (#1335)
+
+Mobile Safari shrinks only the *visual* viewport when the keyboard opens and scrolls it under fixed elements, so a sheet sized from the layout viewport lost its pinned header, including **Close**, off the top in portrait and after rotation. While any `BottomSheet` is open, `useKeyboardInset` (`gui/web/src/hooks/useKeyboardInset.ts`) reads `visualViewport` and publishes `--keyboard-inset` and `--visual-viewport-top` with `data-keyboard="open"` on `<html>`. `bottom-sheet.css` then fits the sheet slot to the visible area, so the header and **Close** stay on screen and the body scrolls above the keyboard. A pinch zoom (scale above 1) is not a keyboard. When the viewport changes with a field focused inside a sheet, the field is scrolled into view with `focusAndReveal`. Opening an envelope form focuses its heading rather than a numeric field, so adding a point never raises the keyboard by itself.
+
 ## Phone: four modes + one sheet
 
 ```

@@ -9,6 +9,7 @@ import { focusAndReveal } from "../../ui/focusAndReveal";
 import { errorMessage } from "../../utils/apiError";
 import {
   ENVELOPE_POINT_EPSILON,
+  envelopeTimeRangeMessage,
   envelopeValueAt,
   findVolumeEnvelope,
   replaceEnvelopePoint,
@@ -184,6 +185,11 @@ export function EnvelopeWorkspace({
       return;
     }
     const oldPoint = origin.find((point) => point.id === form.pointId);
+    const duration = project?.timeline_duration_sec ?? 0;
+    if (time > duration && oldPoint?.time !== time) {
+      setError({ target: "time", message: envelopeTimeRangeMessage(duration) });
+      return;
+    }
     const collision = origin.find(
       (point) =>
         point.id !== form.pointId &&

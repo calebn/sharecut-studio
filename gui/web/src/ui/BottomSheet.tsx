@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
 import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
@@ -99,6 +100,7 @@ export function BottomSheet({
   const swipe = useDrawerSwipe(panelRef, open ? drawer : undefined);
   const chromeRef = useRef<HTMLDivElement>(null);
   const hasDrawer = drawer != null;
+  useKeyboardInset(open);
   // A focused control is scrolled clear of the pinned header, which WebKit
   // does not do for a field it counts as partly in view.
   useEffect(() => {

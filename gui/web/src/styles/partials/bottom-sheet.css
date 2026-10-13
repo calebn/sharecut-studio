@@ -353,3 +353,12 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 .bottom-sheet .ui-control[data-variant="primary"]:focus-visible {
   outline-color: var(--color-accent-on-solid);
 }
+
+/* The software keyboard covers the bottom of the layout viewport and mobile
+   Safari scrolls the visual viewport under the fixed sheet. Fit the slot to
+   what is visible, so the pinned header and Close stay on screen and the body
+   scrolls above the keyboard (#1335; useKeyboardInset publishes the values). */
+html[data-keyboard="open"][data-shell] .bottom-sheet-root {
+  top: var(--visual-viewport-top, 0);
+  bottom: var(--keyboard-inset, 0);
+}
