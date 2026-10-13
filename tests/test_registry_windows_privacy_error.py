@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from podcast_mcp.util import registry_backup_windows as windows
+from podcast_mcp.util.coded_error import HostSetupError
 from podcast_mcp.util.registry_privacy_error import (
     GUEST_MESSAGE,
     REGISTRY_NOT_PRIVATE_CODE,
@@ -205,7 +206,7 @@ def test_windows_check_refuses_with_path_reason_and_fix(
     assert str(refusal) == message
     assert refusal.code == REGISTRY_NOT_PRIVATE_CODE
     assert refusal.guest_message() == GUEST_MESSAGE
-    assert isinstance(refusal, PermissionError)
+    assert isinstance(refusal, HostSetupError)
 
 
 def test_no_refusal_names_an_account_identifier():
