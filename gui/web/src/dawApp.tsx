@@ -34,7 +34,7 @@ import { selectPublishKey } from "./state/publishKey";
 import type { DawState } from "./state/types";
 import { pickDaw, useDaw } from "./state/useDaw";
 import { FollowEngine, TransportEngine } from "./TransportEngine";
-import { Button, ErrorScreen, usePressedControl } from "./ui";
+import { ErrorScreen, usePressedControl } from "./ui";
 
 let commandsRegistered = false;
 
@@ -193,16 +193,13 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     <>
       {engines}
       <div data-daw-app-chrome>
-        {bootstrapError && hasProject ? (
-          <div className="guest-banner" role="alert">
-            Could not load transcript and history. {bootstrapError}{" "}
-            <Button variant="link" onClick={retryBootstrap}>
-              Retry
-            </Button>
-          </div>
-        ) : null}
         <StudioShell
           guestShare={guestShare}
+          loadFailure={
+            bootstrapError && hasProject
+              ? { message: bootstrapError, onRetry: retryBootstrap }
+              : null
+          }
           feedbackHostRef={setFeedbackHost}
         />
       </div>

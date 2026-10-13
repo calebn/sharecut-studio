@@ -58,6 +58,7 @@ import { HomeScreenHint } from "./HomeScreenHint";
 import { ListenCommentComposer } from "./ListenCommentComposer";
 import { ListenHero } from "./ListenHero";
 import { ListenScrubber } from "./ListenPlayhead";
+import { type LoadFailure, LoadFailureBanner } from "./LoadFailureBanner";
 import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
 import {
   type MobileScreen,
@@ -380,9 +381,11 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
 function MobileShellAdapter({
   guestShare = false,
   feedbackHostRef,
+  loadFailure,
 }: {
   guestShare?: boolean;
   feedbackHostRef?: RefCallback<HTMLDivElement>;
+  loadFailure?: LoadFailure | null;
 }) {
   const {
     rangeArmed,
@@ -609,6 +612,7 @@ function MobileShellAdapter({
         notices: {
           banners: (
             <>
+              <LoadFailureBanner failure={loadFailure} />
               <Slot id={FEATURE_SHARE_UI_BANNER}>
                 {guestShare ? (
                   <div className="guest-banner" role="status">
