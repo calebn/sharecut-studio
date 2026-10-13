@@ -35,9 +35,9 @@ jobs:
         uses: ./.github/actions/setup-ffmpeg
 
       - name: Install package and dev deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,gui,relay,prosody]"
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: dev gui relay prosody
 
       - name: Python lint / format / security / deps
         run: |
@@ -126,9 +126,9 @@ jobs:
         uses: ./.github/actions/setup-ffmpeg
 
       - name: Install package and dev deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,gui]"
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: dev gui
 
       - name: Extensible-WAV readers on the lowest supported Python
         run: pytest -q --no-cov tests/test_wav_util.py tests/test_bleed_gate_channels.py
@@ -234,9 +234,9 @@ jobs:
           cache-dependency-path: gui/web/package-lock.json
 
       - name: Install GUI Python deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[gui]"
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: gui
 
       - name: Install frontend deps and browser engines
         working-directory: gui/web

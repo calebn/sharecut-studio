@@ -1,0 +1,20 @@
+name: Install locked Python dependencies
+description: Install the project's extras at the versions uv.lock pins, so an upstream release cannot change what CI tests
+inputs:
+  extras:
+    description: Space-separated optional-dependency extras to install
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install the locked dependencies, then the project
+      shell: bash
+      env:
+        EXTRAS: ${{ inputs.extras }}
+      run: |
+        python -m pip install --upgrade pip uv
+        flags=()
+        for extra in $EXTRAS; do flags+=(--extra "$extra"); done
+        uv export --locked --no-emit-project --no-hashes "${flags[@]}" -o "$RUNNER_TEMP/locked-requirements.txt"
+        python -m pip install -r "$RUNNER_TEMP/locked-requirements.txt"
+        python -m pip install --no-deps -e .

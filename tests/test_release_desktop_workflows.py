@@ -158,7 +158,8 @@ def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
         step for step in pinned_job["steps"] if step.get("name") == "Install Python deps"
     )
     assert install == pinned_install
-    assert 'pip install -e ".[gui,dev]"' in install["run"]
+    assert install["uses"] == "./.github/actions/install-locked-python"
+    assert install["with"] == {"extras": "gui dev"}
     assert data["on"]["push"]["paths"] == data["on"]["pull_request"]["paths"]
 
 

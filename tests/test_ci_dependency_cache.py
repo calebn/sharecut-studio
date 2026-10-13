@@ -4,6 +4,7 @@ from github_yaml import load_github_yaml
 
 ROOT = Path(__file__).parents[1]
 WORKFLOW = ROOT / ".github/workflows/test.yml"
+LOCKED_INSTALL = "./.github/actions/install-locked-python"
 
 
 def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
@@ -26,14 +27,12 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         )
         assert python["with"]["cache"] == "pip"
         assert python["with"]["cache-dependency-path"].splitlines() == ["pyproject.toml", "uv.lock"]
-        install = next(step for step in steps if "pip install -e" in step.get("run", ""))
+        install = next(step for step in steps if step.get("uses") == LOCKED_INSTALL)
         assert "if" not in install and not install.get("continue-on-error")
-        extras = {"pytest": "dev,gui,relay,prosody", "pytest-python-floor": "dev,gui"}.get(
+        extras = {"pytest": "dev gui relay prosody", "pytest-python-floor": "dev gui"}.get(
             name, "gui"
         )
-        assert (
-            install["run"] == f'python -m pip install --upgrade pip\npip install -e ".[{extras}]"\n'
-        )
+        assert install["with"] == {"extras": extras}
     frontend_python = next(
         step
         for step in jobs["frontend"]["steps"]
@@ -157,3 +156,18 @@ def test_linux_newer_host_verifies_transferred_payload_without_download():
     )
     assert 'python scripts/ffmpeg_payload.py --output "$PAYLOAD" --verify-only' in proof["run"]
     assert all(step.get("uses") != "./.github/actions/setup-ffmpeg" for step in job["steps"])
+
+
+def test_python_jobs_install_the_versions_uv_lock_pins() -> None:
+    """A new upstream release must not change what a required check tests (#1384)."""
+    for path in (ROOT / ".github/workflows").glob("*.yml"):
+        for name, job in load_github_yaml(path).get("jobs", {}).items():
+            for step in job.get("steps", []):
+                run = step.get("run", "")
+                assert "pip install -e" not in run, f"{path.name}:{name} installs unlocked"
+    action = load_github_yaml(ROOT / ".github/actions/install-locked-python/action.yml")
+    (step,) = action["runs"]["steps"]
+    assert step["shell"] == "bash"
+    assert "uv export --locked --no-emit-project" in step["run"]
+    assert "pip install -r" in step["run"]
+    assert "pip install --no-deps -e ." in step["run"]
