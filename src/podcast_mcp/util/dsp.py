@@ -297,6 +297,7 @@ def autocorr_peak(
     *,
     fmin: float,
     fmax: float,
+    interior: bool = False,
 ) -> tuple[float, float] | None:
     """Strongest normalized autocorrelation peak over pitch lags ``[sr/fmax, sr/fmin)``.
 
@@ -304,6 +305,11 @@ def autocorr_peak(
     zero-lag energy of the mean-removed frame, or ``None`` when the frame has no
     energy or is too short to cover the lag range (lags are capped at half the
     frame so the estimate always has at least two periods of support).
+
+    ``interior`` counts only lags where the correlation is a local maximum. Low-frequency
+    noise has an autocorrelation that only falls, so its strongest value sits on the
+    shortest lag and reads as a high-pitched voice; a periodic signal has a true peak.
+    ``None`` when no lag is one.
     """
     x = samples.astype(np.float64, copy=True)
     x -= np.mean(x) if x.size else 0.0
@@ -316,6 +322,11 @@ def autocorr_peak(
         return None
     corr = np.correlate(x, x, mode="full")[x.size - 1 :]
     seg = corr[min_lag:max_lag]
+    if interior:
+        around = corr[min_lag - 1 : max_lag + 1]
+        seg = np.where((seg > around[:-2]) & (seg >= around[2:]), seg, -np.inf)
+        if not np.isfinite(seg).any():
+            return None
     lag = int(np.argmax(seg)) + min_lag
     return float(sample_rate) / float(lag), float(corr[lag]) / energy
 
@@ -328,11 +339,12 @@ def voicing_probes(
     hop_sec: float,
     fmin: float,
     fmax: float,
+    interior: bool = False,
 ) -> np.ndarray:
     """Normalized speech-pitch autocorrelation peak of each ``probe_sec`` frame every ``hop_sec``.
 
     A frame :func:`autocorr_peak` cannot score (silent, or too short for the lag
-    range) scores 0.0. Input shorter than one probe is scored as a single frame;
+    range, or with ``interior`` no true peak) scores 0.0. Input shorter than one probe is scored as a single frame;
     empty input yields an empty array.
     """
     if samples.size == 0:
@@ -341,7 +353,9 @@ def voicing_probes(
     hop = max(1, round(sample_rate * hop_sec))
     scores = []
     for start in range(0, samples.size - frame + 1, hop):
-        peak = autocorr_peak(samples[start : start + frame], sample_rate, fmin=fmin, fmax=fmax)
+        peak = autocorr_peak(
+            samples[start : start + frame], sample_rate, fmin=fmin, fmax=fmax, interior=interior
+        )
         scores.append(peak[1] if peak is not None else 0.0)
     return np.asarray(scores, dtype=np.float64)
 

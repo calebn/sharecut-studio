@@ -33,7 +33,7 @@ from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
 from podcast_mcp.edits.ranges import SPAN_EPS_S
 from podcast_mcp.edits.session_air import lane_placements
-from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC, carries_speech_pitch
+from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC, PROBE_SEC, carries_speech_pitch
 from podcast_mcp.engines.audio_audit import (
     _RMS_SAMPLE_RATE,
     AnalysisPolicy,
@@ -194,10 +194,15 @@ def _removal_sample_spans(
     return supported, supported != eligible
 
 
+# The lower quartile of the peer's own windows is its room: a quiet room dips now and then, and
+# a sound that fills a minority of its own frames does not move the reference up with it.
+_OWN_ROOM_PERCENTILE = 25.0
+
+
 class _PeerFrames(NamedTuple):
     levels: np.ndarray
     own: np.ndarray
-    room_like: Callable[[], np.ndarray]
+    pitchless: Callable[[], np.ndarray]
     """Which independent frames lie in a run that carries no speech pitch (read on demand)."""
 
 
@@ -209,16 +214,19 @@ def _pitchless_independent_runs(
     own: np.ndarray,
     caches: TrackRmsCacheSet | None,
 ) -> np.ndarray:
-    room_like = np.zeros(own.size, dtype=bool)
+    pitchless = np.zeros(own.size, dtype=bool)
     read = timeline_window_samples(project, peer_track_id, start, end, caches=caches)
     if read is None:
-        return room_like
+        return pitchless
     samples, rate = read
     frame = max(1, round(rate * LEVEL_FRAME_SEC))
     for first, last in bool_runs(own):
-        if carries_speech_pitch(samples[first * frame : last * frame], rate) is False:
-            room_like[first:last] = True
-    return room_like
+        if (
+            carries_speech_pitch(samples[first * frame : last * frame], rate, interior=True)
+            is False
+        ):
+            pitchless[first:last] = True
+    return pitchless
 
 
 def _owned_peer_frames(
@@ -280,7 +288,7 @@ class _PeerSpan(NamedTuple):
     levels: np.ndarray
     own: np.ndarray
     reference: np.ndarray
-    room_like: Callable[[], np.ndarray]
+    pitchless: Callable[[], np.ndarray]
 
 
 def _chained(
@@ -289,18 +297,46 @@ def _chained(
     return lambda: np.concatenate((head(), tail()))
 
 
+def _run_windows(levels: np.ndarray, own: np.ndarray) -> list[tuple[tuple[int, int], np.ndarray]]:
+    """Each run of the peer's own frames and the level of each pitch-probe window inside it.
+
+    A window spans :data:`~podcast_mcp.edits.voiced_runs.PROBE_SEC`, long enough that a
+    low-frequency hum does not flicker its level from frame to frame. Runs shorter than a
+    window are left out.
+    """
+    size = round(PROBE_SEC / LEVEL_FRAME_SEC)
+    runs = []
+    for first, last in bool_runs(own):
+        if last - first >= size:
+            power = np.convolve(10 ** (levels[first:last] / 10), np.ones(size) / size, "valid")
+            runs.append(((first, last), 10 * np.log10(power)))
+    return runs
+
+
 def _independent_frames_are_room(block: _PeerSpan, references: Sequence[_PeerSpan]) -> bool:
     """Whether every frame of ``block`` that is the peer's own is quiet room, not speech.
 
     Called only where the room cannot be read from the peer's reference frames, because
     the owner's bleed fills them. The peer's own frames then show its room: a run of them
-    that carries no speech pitch, and stays within
-    :data:`~podcast_mcp.edits.audio_cache.VOICE_FLOOR_OVER_ROOM_DB` of the quietest of
-    them, is room. A run too short to judge, or that carries pitch or rises above that
-    quiet, may be a remark and is not.
+    that carries no speech pitch, and no window of which rises more than
+    :data:`~podcast_mcp.edits.audio_cache.VOICE_FLOOR_OVER_ROOM_DB` over the lower quartile
+    of the peer's own windows, is room. A run too short to judge, or that carries pitch or
+    rises above that quiet, may be a remark and is not.
     """
-    room = room_floor_db(np.concatenate([part.levels[part.own] for part in references]))
-    room_like = block.room_like() & (block.levels <= room + VOICE_FLOOR_OVER_ROOM_DB)
+    runs = _run_windows(block.levels, block.own)
+    if not runs:
+        return False
+    room = room_floor_db(
+        np.concatenate(
+            [windows for part in references for _, windows in _run_windows(part.levels, part.own)]
+        ),
+        percentile=_OWN_ROOM_PERCENTILE,
+    )
+    pitchless = block.pitchless()
+    room_like = np.zeros(block.own.size, dtype=bool)
+    for (first, last), windows in runs:
+        if bool(pitchless[first:last].all()) and windows.max() <= room + VOICE_FLOOR_OVER_ROOM_DB:
+            room_like[first:last] = True
     return not bool((block.own & ~room_like).any())
 
 
@@ -387,7 +423,7 @@ def _peer_speaks_near_span(
             reference = np.concatenate(
                 (reference, covered(hi - LEVEL_FRAME_SEC, tail.levels.size, sealed=sealed))
             )
-            pitchless = _chained(pitchless, tail.room_like)
+            pitchless = _chained(pitchless, tail.pitchless)
         return _PeerSpan(levels, own, reference, pitchless)
 
     before = frames(max(0.0, start - 5.0), start)

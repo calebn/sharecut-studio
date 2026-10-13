@@ -106,6 +106,28 @@ def test_autocorr_peak_finds_pitch_and_rejects_degenerate_frames() -> None:
     assert autocorr_peak(np.sin(2 * np.pi * 200 * t[:40]), sr, fmin=70, fmax=400) is None
 
 
+def test_autocorr_peak_interior_ignores_a_correlation_that_only_falls() -> None:
+    sr = 16_000
+    t = np.arange(640) / sr
+    rumble = np.sin(2 * np.pi * 30 * t) + 0.3 * np.sin(2 * np.pi * 45 * t + 1.0)
+    voice = np.sin(2 * np.pi * 200 * t)
+
+    plain = autocorr_peak(rumble, sr, fmin=70, fmax=350)
+    assert plain is not None
+    assert plain[0] == pytest.approx(sr // int(sr / 350), rel=0.01)
+    assert plain[1] > 0.55
+    assert autocorr_peak(rumble, sr, fmin=70, fmax=350, interior=True) is None
+    interior = autocorr_peak(voice, sr, fmin=70, fmax=350, interior=True)
+    assert interior is not None
+    assert interior[0] == pytest.approx(200.0, rel=0.02)
+    assert (
+        voicing_probes(
+            rumble, sr, probe_sec=0.04, hop_sec=0.01, fmin=70, fmax=350, interior=True
+        ).max()
+        == 0.0
+    )
+
+
 def test_bool_runs_and_dip_bridging() -> None:
     mask = np.array([1, 1, 0, 1, 0, 0, 0, 1, 0], dtype=bool)
 

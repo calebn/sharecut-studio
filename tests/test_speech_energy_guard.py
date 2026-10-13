@@ -824,7 +824,10 @@ def _dense_bleed_with_independent_gap(
     remark = (clock >= (gap[0] + gap[1]) / 2 - 0.05) & (clock < (gap[0] + gap[1]) / 2 + 0.05)
     owner[inside] = 0.0
     peer[inside] = noise[inside]
-    if content == "tone_same_pitch":
+    if content == "hum_room":
+        hum = 0.0008 * np.sin(2 * np.pi * 50.0 * clock[inside] + 0.7)
+        peer[inside] = hum + noise[inside]
+    elif content == "tone_same_pitch":
         peer[inside] = 0.0045 * np.sin(2 * np.pi * owner_f0 * clock[inside])
     elif content == "tone_other_pitch":
         peer[inside] = 0.0045 * np.sin(2 * np.pi * 140.0 * clock[inside])
@@ -842,6 +845,7 @@ def _dense_bleed_with_independent_gap(
     [
         ("room_noise", (3.0, 3.1), ()),
         ("room_noise", (3.0, 3.3), ()),
+        ("hum_room", (3.0, 3.3), ()),
         ("tone_same_pitch", (3.0, 3.1), ("guest",)),
         ("tone_other_pitch", (3.0, 3.1), ("guest",)),
         ("voice_over_room", (3.0, 3.3), ("guest",)),
@@ -851,6 +855,7 @@ def _dense_bleed_with_independent_gap(
     ids=[
         "room_100ms",
         "room_300ms",
+        "room_with_low_hum",
         "voice_at_owner_pitch",
         "voice_at_other_pitch",
         "voice_over_room",
