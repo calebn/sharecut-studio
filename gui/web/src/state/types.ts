@@ -142,6 +142,12 @@ export interface FeedbackToast {
   message: string;
   /** The history entry this change recorded; Undo shows while it is still the head. */
   undo: HistoryEntryId | null;
+  /**
+   * The head this tab showed when it announced. The change's own reply can
+   * reach the toast before the project shows its entry, so Undo also waits
+   * while the head is still this one.
+   */
+  baseHead: HistoryEntryId | null;
 }
 
 export interface AnnounceOptions {

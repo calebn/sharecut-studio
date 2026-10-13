@@ -312,7 +312,14 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           statusAnnouncement: message,
           statusAnnouncementSeq: id,
           ...(showToast
-            ? { feedbackToast: { id, message, undo: options.undo ?? null } }
+            ? {
+                feedbackToast: {
+                  id,
+                  message,
+                  undo: options.undo ?? null,
+                  baseHead: s.project?.history?.head_id ?? null,
+                },
+              }
             : {}),
         };
       }),

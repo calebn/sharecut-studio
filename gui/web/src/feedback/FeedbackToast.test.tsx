@@ -470,6 +470,22 @@ describe("FeedbackToast", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps Undo through the moment the change is announced before the project shows its head, and drops it once another edit lands", () => {
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore
+        .getState()
+        .announceStatus("Restored selection", { undo: entry("restore-entry") });
+    });
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    act(() => atHead("restore-entry", 400));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    act(() => atHead("agent-cut", 401));
+    expect(
+      screen.queryByRole("button", { name: "Undo" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("drops Undo when an agent edit replaces the head at the 400-entry cap, though the cursor stays put", () => {
     render(<FeedbackToast />);
     act(() => {
