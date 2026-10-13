@@ -2,6 +2,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -137,6 +138,7 @@ export function TransportBar({
   const historyControls = useHistoryControls();
   const zoomControls = useZoomControls();
   const { preference, setPreference } = useTheme();
+  const menuErrorId = useId();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [viewOpenState, setViewOpenState] = useState(false);
   const [transportWidth, setTransportWidth] = useState<number | null>(null);
@@ -287,11 +289,16 @@ export function TransportBar({
         {...t}
         aria-label={label}
         title={title}
-        aria-description={
-          label === "Menu" ? (desktopError ?? undefined) : undefined
+        aria-describedby={
+          label === "Menu" && desktopError ? menuErrorId : undefined
         }
       >
         {content}
+        {label === "Menu" && desktopError ? (
+          <span id={menuErrorId} className="sr-only">
+            {desktopError}
+          </span>
+        ) : null}
       </button>
     );
 
