@@ -125,6 +125,57 @@ describe("TranscriptPanel touch range drag", () => {
     });
   });
 
+  it("starts a new track anchor on Shift-click after a drag releases on the background", () => {
+    fireEvent.mouseDown(word("the"), { button: 0 });
+    fireEvent.mouseEnter(word("plan"));
+    fireEvent.mouseUp(container);
+    fireEvent.click(container);
+    expect(useDawStore.getState().selection).toEqual(range(1, 2));
+
+    fireEvent.mouseDown(word("first"), { button: 0, shiftKey: true });
+    fireEvent.mouseUp(word("first"), { button: 0, shiftKey: true });
+    fireEvent.click(word("first"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptRange",
+      trackId: "guest-lane",
+      startWordIndex: 21,
+      endWordIndex: 21,
+    });
+
+    fireEvent.click(word("last"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptRange",
+      trackId: "guest-lane",
+      startWordIndex: 21,
+      endWordIndex: 22,
+    });
+  });
+
+  it("keeps the original anchor on same-track Shift-click after a background drag release", () => {
+    fireEvent.mouseDown(word("simple"), { button: 0 });
+    fireEvent.mouseEnter(word("plan"));
+    fireEvent.mouseUp(container);
+    fireEvent.click(container);
+    expect(useDawStore.getState().selection).toEqual(range(2, 4));
+
+    fireEvent.mouseDown(word("the"), { button: 0, shiftKey: true });
+    fireEvent.mouseUp(word("the"), { button: 0, shiftKey: true });
+    fireEvent.click(word("the"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual(range(1, 4));
+    fireEvent.click(word("really"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual(range(4, 5));
+  });
+
+  it("keeps the mouse drag range when release generates an ordinary word click", () => {
+    fireEvent.mouseDown(word("the"), { button: 0 });
+    fireEvent.mouseEnter(word("plan"));
+    fireEvent.mouseUp(word("plan"));
+    fireEvent.click(word("plan"));
+    expect(useDawStore.getState().selection).toEqual(range(1, 2));
+    fireEvent.click(word("simple"), { shiftKey: true });
+    expect(useDawStore.getState().selection).toEqual(range(1, 4));
+  });
+
   it("ignores another track during a mouse drag and resumes on the original track", () => {
     fireEvent.mouseDown(word("the"), { button: 0 });
     fireEvent.mouseEnter(word("plan"));
