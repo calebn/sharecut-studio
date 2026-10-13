@@ -320,7 +320,7 @@ audited finding.
   top holds titles/status/infrequent controls only.
 - [ ] Every interactive target is at least 44 CSS px (2.75rem), or
   has invisible hit-area expansion (`::before`/`::after` slop) on
-  coarse pointers. Token floor: `--tap-min` ≥ 2.75rem (today 1.5rem in
+  coarse pointers (every `Button variant="link"` carries `--touch-min` on a coarse pointer, #1315). Token floor: `--tap-min` ≥ 2.75rem (today 1.5rem in
   `gui/web/src/styles/theme/brand-tokens.css`; #1032 tracks target-size coverage).
 - [ ] Dense canvas targets (envelope points, edges of short clips, pending
   handles) may draw smaller than 44 CSS px only through the dense-target

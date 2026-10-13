@@ -265,6 +265,14 @@ button.pill.pill--info {
   padding-inline: var(--space-1);
 }
 
+@media (pointer: coarse) {
+  .ui-control.linkish,
+  .ui-control[data-variant="link"] {
+    min-block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+  }
+}
+
 .ui-control--quiet,
 .ui-control[data-ui-kind="tab"] {
   background: transparent;

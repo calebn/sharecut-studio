@@ -128,6 +128,18 @@ describe("App styles", () => {
     expect(words![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
   });
 
+  it("gives every link-style button the touch target on a coarse pointer (#1315)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
+    const coarse = src.match(
+      /@media \(pointer: coarse\) \{\s*\.ui-control\.linkish,\s*\.ui-control\[data-variant="link"\] \{([^}]*)\}/,
+    );
+    expect(coarse).toBeTruthy();
+    const body = coarse![1] ?? "";
+    expect(body).toMatch(/min-block-size:\s*var\(--touch-min\)/);
+    expect(body).toMatch(/min-inline-size:\s*var\(--touch-min\)/);
+  });
+
   it("stacks each Tighten hit in a narrow panel so Apply and Skip never sit past the edge (#1029)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
