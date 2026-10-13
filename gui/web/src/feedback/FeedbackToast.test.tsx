@@ -216,6 +216,7 @@ describe("FeedbackToast", () => {
           origin: "agent",
           last_role: "agent",
           selection: { kind: "chapter", id: "Intro", time: 3 },
+          agent_selection_seq: 1,
         }),
       ),
     );
