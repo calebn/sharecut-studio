@@ -818,6 +818,14 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   `skewed`, with `skew_sec`, a `clip_skew.warnings[]` line and a `clip_skew`
   hypothesis (`history_undo`, or a `trim_clip_edge_tool` ripple trim of the join).
 
+`util.dsp.autocorr_peak(..., interior=True)` counts only a lag where the correlation is a
+true local maximum. Low-frequency room noise has a correlation that only falls, so its
+strongest value sits on the shortest lag and reads as a high voice; a periodic signal has
+a real peak. The peer speech guard uses it (`voiced_runs.carries_speech_pitch`) to tell a
+peer's quiet room from a remark when the owner's bleed fills its reference
+([filler-cut-quality.md § Peer speech guard](filler-cut-quality.md#peer-speech-guard));
+the default stays unchanged for the voiced runs tighten reads.
+
 `clipping_in_window` ignores `flat_factor` below a -20 dBFS peak
 (`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-measure_astats).
 
