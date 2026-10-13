@@ -21,6 +21,16 @@
   --font-size-heading: 1.125rem;
   --font-size-transport-time: 1.5rem;
   --font-size-transport-total: 0.875rem;
+  /* Floor for text typed into a field. iOS Safari zooms the page when a
+     focused field is under 16px, so touch devices raise it to 1rem. */
+  --font-size-field-min: 0rem;
+  --font-size-field: max(var(--font-size-ui), var(--font-size-field-min));
+  --font-size-field-small: max(
+    var(--font-size-small),
+    var(--font-size-field-min)
+  );
+  /* A field that keeps the size of the text around it. */
+  --font-size-field-current: max(1em, var(--font-size-field-min));
 
   --s3: calc(var(--s2) * var(--ratio));
 
@@ -203,4 +213,10 @@
   --clipping-edges:
     inset 0 0.1875rem 0 var(--color-danger),
     inset 0 -0.1875rem 0 var(--color-danger);
+}
+
+@media (pointer: coarse) {
+  :root {
+    --font-size-field-min: 1rem;
+  }
 }

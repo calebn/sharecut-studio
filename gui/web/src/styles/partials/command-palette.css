@@ -490,6 +490,7 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-3);
   font: inherit;
+  font-size: var(--font-size-field-current);
 }
 
 .share-dialog-select:disabled {

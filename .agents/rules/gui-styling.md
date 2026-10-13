@@ -35,6 +35,10 @@ Theme files are Stylelint-ignored; pytest is the only theme/deploy/ux/docs-site 
 
 **Motion has no exceptions.** In partials, every `transition*` and `animation*` times with a token (`--motion-press/hover/toggle/panel/state` and `--motion-ease-out` for chrome, `--motion-loop-*` for status loops), never a literal time, `0s` included. Stylelint's `declaration-property-unit-disallowed-list` (any case, `-webkit-`/`-moz-` too) and `tests/test_css_policy.py::test_partial_motion_uses_motion_tokens` both enforce it; to stop motion, write `none`. Only pytest checks that each one sits inside exactly `@media (prefers-reduced-motion: no-preference)`, loops included. Detail: [docs/design-tokens.md](../../docs/design-tokens.md) § Motion.
 
+## Form fields on touch
+
+A focused field under 16px makes iOS Safari zoom the page. Field rules (`input`, `select`, `textarea`, and classes that style one) set text size only through `--font-size-field`, `--font-size-field-small` or `--font-size-field-current`; each is `max(<size>, var(--font-size-field-min))`, and `--font-size-field-min` is `1rem` under `@media (pointer: coarse)`. Do not shrink a field below it on touch, and do not set `maximum-scale` or `user-scalable=no` in the viewport meta. `tests/test_css_policy.py` enforces it. Detail: [docs/gui-mobile.md](../../docs/gui-mobile.md) § Software keyboard.
+
 ## Token vs layout geometry
 
 Lint **theme** properties (color, type, space, radius). Do **not** force `width` / `height` / `min-*` / `max-*` / `flex-basis` / `inline-size` / `block-size` onto `--space-*`. Those are element geometry: `%`, `auto`, `min-content`, `max-content`, `fit-content`, `100dvh`, `minmax()`, and one-off rem sizes are fine.

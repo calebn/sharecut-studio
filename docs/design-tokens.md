@@ -78,7 +78,9 @@ to cap scrollable supplementary errors at 30dvh. Review buttons keep their
 touch-target size.
 
 **Type** — `--font-size-<role>` (`--font-size-ui`, `--font-size-body`, …),
-`--font-family-<role>`. `line-height` stays a unitless literal;
+`--font-family-<role>`. Text typed into a field uses `--font-size-field`
+(`-small`, `-current`), which never drops below `--font-size-field-min`
+(`1rem` on coarse pointers, so iOS Safari does not zoom on focus). `line-height` stays a unitless literal;
 `font-weight` stays numeric — small closed sets, not theme values.
 
 **Radius** — `--radius-<size>` (`xs`/`sm`/`md`/`lg`/`xl`).
