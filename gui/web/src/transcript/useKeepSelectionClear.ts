@@ -2,6 +2,7 @@ import { type RefObject, useEffect } from "react";
 import { KEEP_CLEAR_PX } from "../layout/useCompactInspector";
 import type { Selection } from "../types/project";
 import { inspectorSheetPanel, inspectorSheetTop } from "../ui/compactSheet";
+import { useResizeObserver } from "../ui/useResizeObserver";
 
 function chipFor(
   list: HTMLElement,
@@ -83,19 +84,19 @@ export function useKeepSelectionClear(
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    const run = () => keepSelectionClear(list, selection);
-    run();
-    const frame = requestAnimationFrame(run);
-    const panel = inspectorSheetPanel();
-    const observer =
-      panel && typeof ResizeObserver === "function"
-        ? new ResizeObserver(run)
-        : null;
-    if (panel) observer?.observe(panel);
+    keepSelectionClear(list, selection);
+    const frame = requestAnimationFrame(() =>
+      keepSelectionClear(list, selection),
+    );
     return () => {
       cancelAnimationFrame(frame);
-      observer?.disconnect();
       list.style.removeProperty("--sheet-clearance");
     };
   }, [listRef, selection]);
+  useResizeObserver(
+    () => (selection ? inspectorSheetPanel() : null),
+    () => {
+      if (listRef.current) keepSelectionClear(listRef.current, selection);
+    },
+  );
 }
