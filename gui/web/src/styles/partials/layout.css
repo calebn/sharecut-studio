@@ -846,7 +846,7 @@ html[data-shell] body {
   display: none;
 }
 
-@container app (max-width: 30rem) {
+@container app (max-width: 40rem) {
   .editing-tool-rail .editing-tool-rail-ingest {
     display: none;
   }
