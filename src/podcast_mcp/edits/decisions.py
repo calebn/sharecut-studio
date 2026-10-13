@@ -29,6 +29,7 @@ from podcast_mcp.edits.source_removals import (
     CutScopeHold,
     ScopeChangedAtApproval,
     consume_source_remove,
+    cut_label,
     require_source_remove,
 )
 from podcast_mcp.edits.timeline_ops import (
@@ -273,9 +274,11 @@ def approve_edits(
     if asked:
         raise UnconfirmedCutSpeech(confirmation_for(merge_cut_speech([a.speech for a in asked])))
     if held:
+        by_id = {e.id: e for e in removes}
         raise ScopeChangedAtApproval(
             held,
             {tid: _speaker_name(project, tid) for h in held for tid in h.peers},
+            {h.edit_id: cut_label(project, by_id[h.edit_id]) for h in held if h.edit_id in by_id},
         )
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
         at_time = float(edit.start)
