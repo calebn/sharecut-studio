@@ -79,6 +79,13 @@ _ROOM_PAIR_MEASURED = patch(
 )
 
 
+def _floors_at(floor_db: float):
+    return patch(
+        "podcast_mcp.engines.audio_audit._voice_floors",
+        new=lambda project, track_ids, caches: dict.fromkeys(track_ids, floor_db),
+    )
+
+
 def _two_track_project(tmp_path: Path) -> EpisodeProject:
     project = EpisodeProject.create("ep", str(tmp_path))
     project.ensure_dirs()
@@ -245,7 +252,6 @@ def test_reconcile_word_never_auto_flips_locked_word() -> None:
 def test_analysis_policy_bleed_defaults():
     pol = AnalysisPolicy.from_defaults()
     assert pol.bleed_dominance_db == 6.0
-    assert pol.bleed_min_other_rms_db == -50.0
     assert pol.reconcile_on_render is True
     assert pol.transcript_mode == "reconcile"
     assert pol.bleed_text_match_enabled is True
@@ -399,7 +405,7 @@ def test_waiver_stays_clear_after_real_reconciliation(tmp_path: Path):
 @_ROOM_PAIR_MEASURED
 def test_compute_word_audibility_map_bleed(tmp_path: Path):
     project = _two_track_project(tmp_path)
-    pol = AnalysisPolicy(audibility_rms_db=-42.0, bleed_dominance_db=6.0)
+    pol = AnalysisPolicy(bleed_dominance_db=6.0)
 
     def fake_rms(project, track_id, t_start, t_end, **kwargs):
         if track_id == "host" and t_start >= 1.0:
@@ -410,9 +416,12 @@ def test_compute_word_audibility_map_bleed(tmp_path: Path):
             return -30.0
         return -35.0
 
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        side_effect=fake_rms,
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            side_effect=fake_rms,
+        ),
+        _floors_at(-42.0),
     ):
         rows = compute_word_audibility_map(project, policy=pol)
 
@@ -425,7 +434,7 @@ def test_compute_word_audibility_map_bleed(tmp_path: Path):
 @_ROOM_PAIR_MEASURED
 def test_list_flagged_words_includes_inaudible_and_bleed(tmp_path: Path):
     project = _two_track_project(tmp_path)
-    pol = AnalysisPolicy(audibility_rms_db=-35.0, bleed_dominance_db=6.0)
+    pol = AnalysisPolicy(bleed_dominance_db=6.0)
 
     def fake_rms(project, track_id, t_start, t_end, **kwargs):
         if track_id == "host" and t_start >= 1.0:
@@ -434,9 +443,12 @@ def test_list_flagged_words_includes_inaudible_and_bleed(tmp_path: Path):
             return -30.0
         return -50.0
 
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        side_effect=fake_rms,
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            side_effect=fake_rms,
+        ),
+        _floors_at(-35.0),
     ):
         flagged = list_flagged_words(project, policy=pol)
 

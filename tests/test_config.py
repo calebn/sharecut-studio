@@ -43,7 +43,7 @@ def test_load_defaults_analysis_section():
     defaults = load_defaults()
     analysis = defaults["analysis"]
     assert "heuristics" in analysis
-    assert analysis["heuristics"]["audibility_rms_db"] == -42.0
+    assert analysis["heuristics"]["bleed_dominance_db"] == 6.0
 
 
 def test_load_defaults_transcribe_model_is_turbo(tmp_path, monkeypatch):

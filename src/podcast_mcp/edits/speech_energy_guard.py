@@ -40,7 +40,6 @@ from podcast_mcp.edits.session_air import (
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC, PROBE_SEC, carries_speech_pitch
 from podcast_mcp.engines.audio_audit import (
     _RMS_SAMPLE_RATE,
-    AnalysisPolicy,
     TrackRmsCache,
     TrackRmsCacheSet,
     measure_timeline_rms_db,
@@ -64,6 +63,7 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 log = logging.getLogger(__name__)
 
 ConflictAction = Literal["track_local", "skip", "review"]
+DEFAULT_MIN_OTHER_RMS_DB = -42.0
 
 
 @dataclass(frozen=True)
@@ -559,8 +559,7 @@ def measure_peer_speech(
             code="invalid_range",
         )
     cfg = _guard_cfg(defaults)
-    policy = AnalysisPolicy.from_defaults(defaults)
-    min_other = float(cfg.get("min_other_rms_db", policy.audibility_rms_db))
+    min_other = float(cfg.get("min_other_rms_db", DEFAULT_MIN_OTHER_RMS_DB))
     dominance = float(cfg.get("dominance_db", 3.0))
     min_overlap = float(cfg.get("min_overlap_sec", 0.03))
     checked = [(s, e) for s, e in timeline_spans if e - s >= min_overlap]

@@ -196,7 +196,7 @@ def test_reconciled_transcript_does_not_move_with_recording_level(tmp_path: Path
 
 @pytest.mark.parametrize("gain_db", GAINS_DB)
 def test_low_audibility_scan_does_not_move_with_recording_level(tmp_path: Path, gain_db: float):
-    rows = list_low_audibility_words(_two_mics(tmp_path, gain_db), policy=AnalysisPolicy())
+    rows = list_low_audibility_words(_two_mics(tmp_path, gain_db))
     assert [(r["track_id"], r["text"]) for r in rows] == [("host", "faint")]
 
 
@@ -240,7 +240,7 @@ def test_one_floor_serves_the_audit_and_tighten(tmp_path: Path):
     audit = TrackRmsCache.from_timeline_stem(tmp_path / "raw" / "host.wav", sample_rate=RATE)
     tighten = TrackAudioCache(jump=audit, waveform=audit)
     assert audit.voice_floor_db == tighten.voice_floor_db
-    assert -48.0 < audit.voice_floor_db < -42.0
+    assert audit.voice_floor_db == pytest.approx(SPEECH_DB - 12.0 - 27.0, abs=0.5)
 
 
 def _stretched_token(gain_db: float) -> tuple[TrackRmsCache, list[TranscriptWord]]:

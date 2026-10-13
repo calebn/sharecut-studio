@@ -46,7 +46,6 @@ from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 
 def test_analysis_policy_from_defaults():
     pol = AnalysisPolicy.from_defaults()
-    assert pol.audibility_rms_db == -42.0
     assert str(pol.ml_backend).lower() in ("off", "false", "0")
 
 
@@ -89,12 +88,11 @@ def test_list_low_audibility_flags_quiet_word(sample_wav: Path, tmp_path: Path):
         )
     ]
 
-    pol = AnalysisPolicy(audibility_rms_db=0.0)
     with patch(
         "podcast_mcp.engines.audio_audit.measure_window_rms_db",
         return_value=-50.0,
     ):
-        flagged = list_low_audibility_words(project, policy=pol, track_id="host")
+        flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1
     assert flagged[0]["text"] == "hello"
 
@@ -607,7 +605,7 @@ def test_analyze_cleanup_matches_separate_scans(tmp_path: Path):
                 ],
             )
         )
-    pol = AnalysisPolicy(audibility_rms_db=-35.0, bleed_dominance_db=6.0)
+    pol = AnalysisPolicy(bleed_dominance_db=6.0)
 
     def fake_rms(proj, track_id, t_start, t_end, **kwargs):
         if track_id == "host" and t_start >= 1.0:
@@ -625,10 +623,14 @@ def test_analyze_cleanup_matches_separate_scans(tmp_path: Path):
             "podcast_mcp.engines.audio_audit.measure_window_rms_db",
             return_value=-50.0,
         ),
+        patch(
+            "podcast_mcp.engines.audio_audit._voice_floors",
+            return_value={"host": -35.0, "guest": -35.0},
+        ),
+        patch("podcast_mcp.edits.audio_cache.track_voice_floor_db", return_value=-35.0),
     ):
         expected_low = {
-            tid: list_low_audibility_words(project, policy=pol, track_id=tid)
-            for tid in ("host", "guest")
+            tid: list_low_audibility_words(project, track_id=tid) for tid in ("host", "guest")
         }
         expected_flagged = {
             tid: list_flagged_words(project, policy=pol, track_id=tid) for tid in ("host", "guest")
@@ -673,7 +675,6 @@ def test_analysis_policy_from_custom_defaults():
         {
             "analysis": {
                 "heuristics": {
-                    "audibility_rms_db": -30.0,
                     "bleed_text_match_enabled": False,
                     "bleed_text_match_min_overlap_sec": 0.1,
                     "bleed_text_match_min_dominance_db": 4.0,
@@ -682,7 +683,6 @@ def test_analysis_policy_from_custom_defaults():
             }
         }
     )
-    assert pol.audibility_rms_db == -30.0
     assert pol.ml_backend == "nisqa"
     assert pol.bleed_text_match_enabled is False
     assert pol.bleed_text_match_min_overlap_sec == 0.1
@@ -1011,9 +1011,7 @@ def test_list_low_audibility_uses_proc_cache(sample_wav: Path, tmp_path: Path):
         "podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db",
         return_value=-55.0,
     ):
-        flagged = list_low_audibility_words(
-            project, policy=AnalysisPolicy(audibility_rms_db=-40.0), track_id="host"
-        )
+        flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1
     assert flagged[0]["context_before"] == ""
 

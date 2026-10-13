@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import contextlib
+import math
 import re
 import tempfile
 from collections import Counter
 from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
@@ -72,9 +74,7 @@ def parse_bleed_handling(value: object) -> BleedHandling:
 
 @dataclass(frozen=True)
 class AnalysisPolicy:
-    audibility_rms_db: float = -42.0
     bleed_dominance_db: float = 6.0
-    bleed_min_other_rms_db: float = -50.0
     # How the transcript gate reduces another speaker's voice on a lane (#945), and
     # how far ``attenuate`` turns it down.
     bleed_handling: BleedHandling = "auto"
@@ -105,9 +105,7 @@ class AnalysisPolicy:
         heur = cfg.get("heuristics", {})
         min_dom = heur.get("bleed_text_match_min_dominance_db")
         return cls(
-            audibility_rms_db=float(heur.get("audibility_rms_db", -42.0)),
             bleed_dominance_db=float(heur.get("bleed_dominance_db", 6.0)),
-            bleed_min_other_rms_db=float(heur.get("bleed_min_other_rms_db", -50.0)),
             bleed_handling=parse_bleed_handling(heur.get("bleed_handling", "auto")),
             bleed_attenuation_db=float(heur.get("bleed_attenuation_db", 20.0)),
             gate_onset_drop_db=float(heur.get("gate_onset_drop_db", 15.0)),
@@ -269,6 +267,24 @@ class TrackRmsCache:
     samples: np.ndarray
     sample_rate: int = _RMS_SAMPLE_RATE
     timeline_offset_sec: float = 0.0
+
+    @cached_property
+    def track_profile(self) -> tuple[float, float] | None:
+        """The whole track's level profile (room, speech), measured once."""
+        from podcast_mcp.edits.audio_cache import level_profile
+
+        return level_profile(self.samples, int(self.sample_rate), whole_track=True)
+
+    @cached_property
+    def voice_floor_db(self) -> float:
+        """The level under which a frame of this track holds no voice (dBFS).
+
+        The one floor every audibility test reads, tighten's included, so a word is judged
+        against the track's own speech and room, never a fixed dBFS level.
+        """
+        from podcast_mcp.edits.audio_cache import voice_floor_from_profile
+
+        return voice_floor_from_profile(self.track_profile)
 
     @classmethod
     def from_timeline_stem(
@@ -682,8 +698,13 @@ def _classify_word_audibility(
     *,
     policy: AnalysisPolicy,
     bleed_sources: Collection[str],
+    voice_floors: dict[str, float],
 ) -> tuple[str, str | None]:
     """The acoustic verdict for one word window.
+
+    A word is ``inaudible`` under its own track's voice floor and a mic is a bleed source
+    only while it sounds above its own (``voice_floors``, effective dBFS per track; a
+    track with no floor never judges a word inaudible).
 
     ``bleed`` needs a louder mic *and* a measured bleed path from that mic to this one
     (``bleed_sources``): a word quieter than another mic on a pair with no path is two
@@ -699,16 +720,26 @@ def _classify_word_audibility(
 
     if dominant_tid != own_track_id and dominant_tid in bleed_sources:
         own_val = track_rms.get(own_track_id, own_rms)
-        if (
-            dominant_rms - own_val >= policy.bleed_dominance_db
-            and dominant_rms >= policy.bleed_min_other_rms_db
+        if dominant_rms - own_val >= policy.bleed_dominance_db and dominant_rms >= voice_floors.get(
+            dominant_tid, -math.inf
         ):
             return "bleed", dominant_tid
 
-    if own_rms < policy.audibility_rms_db:
+    if own_rms < voice_floors.get(own_track_id, -math.inf):
         return "inaudible", None
 
     return "audible", None
+
+
+def _voice_floors(
+    project: EpisodeProject, track_ids: Collection[str], caches: TrackRmsCacheSet
+) -> dict[str, float]:
+    """Each decoded track's voice floor in the units its word levels are read in."""
+    return {
+        tid: cache.voice_floor_db + _recorded_gain_db(project, tid)
+        for tid in track_ids
+        if (cache := caches.get(tid)) is not None
+    }
 
 
 def _track_levels(
@@ -760,6 +791,7 @@ def compute_word_audibility_map(
     out: list[dict[str, Any]] = []
     all_tracks = dialogue_track_ids(project)
     targets = [track_id] if track_id else all_tracks
+    floors = _voice_floors(project, all_tracks, caches)
 
     total_words = sum(len(tr.words) for tid in targets if (tr := project.transcript_for_track(tid)))
 
@@ -851,13 +883,18 @@ def compute_word_audibility_map(
                 track_rms = _track_levels(project, all_tracks, tl_start, tl_end, lags, caches)
                 own_rms = track_rms.get(tid)
                 status, dominant = _classify_word_audibility(
-                    tid, own_rms, track_rms, policy=pol, bleed_sources=paths
+                    tid, own_rms, track_rms, policy=pol, bleed_sources=paths, voice_floors=floors
                 )
                 unlike_copy = False
                 if status == "bleed" and dominant in lags:
                     at_zero = _track_levels(project, all_tracks, tl_start, tl_end, {}, caches)
                     zero = _classify_word_audibility(
-                        tid, at_zero.get(tid), at_zero, policy=pol, bleed_sources=paths
+                        tid,
+                        at_zero.get(tid),
+                        at_zero,
+                        policy=pol,
+                        bleed_sources=paths,
+                        voice_floors=floors,
                     )
                     unlike_copy = zero[0] != "bleed" and not paths[dominant].carries(
                         caches.copy_match(dominant, tid, tl_start, tl_end)
@@ -935,14 +972,12 @@ def _track_has_gate(project: EpisodeProject, track_id: str) -> bool:
 def list_low_audibility_words(
     project: EpisodeProject,
     *,
-    policy: AnalysisPolicy | None = None,
     track_id: str | None = None,
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
 ) -> list[dict[str, Any]]:
-    """Flag transcript words whose timeline windows are below audibility threshold."""
+    """Flag transcript words whose timeline windows are under their track's voice floor."""
 
-    pol = policy or AnalysisPolicy.from_defaults()
     caches = caches if caches is not None else build_track_rms_caches(project)
     st = SessionTimeline(project)
     out: list[dict[str, Any]] = []
@@ -971,6 +1006,7 @@ def list_low_audibility_words(
             if not tr:
                 continue
             proc_cache = caches.get(tid)
+            floor_db: float | None = proc_cache.voice_floor_db if proc_cache is not None else None
             for i, w in enumerate(tr.words):
                 if w.suppressed:
                     continue
@@ -985,13 +1021,17 @@ def list_low_audibility_words(
                     try:
                         path = track_audio_path(project, tid)
                         rms = measure_window_rms_db(path, w.start, w.end)
+                        if floor_db is None:
+                            from podcast_mcp.edits.audio_cache import track_voice_floor_db
+
+                            floor_db = track_voice_floor_db(project, tid)
                     except Exception:
                         done += 1
                         _tick()
                         continue
                 done += 1
                 _tick()
-                if rms is None or rms >= pol.audibility_rms_db:
+                if rms is None or floor_db is None or rms >= floor_db:
                     continue
                 ctx_before = " ".join(
                     x.text for x in tr.words[max(0, i - 3) : i] if not x.suppressed
@@ -1007,7 +1047,7 @@ def list_low_audibility_words(
                         "start": w.start,
                         "end": w.end,
                         "rms_db": round(rms, 2),
-                        "threshold_db": pol.audibility_rms_db,
+                        "threshold_db": round(floor_db, 2),
                         "context_before": ctx_before,
                         "context_after": ctx_after,
                         "reason": "below_audibility_threshold",
@@ -1510,9 +1550,7 @@ def analyze_cleanup(
                 task.advance(1, total=len(tracks), message=f"track {tid}")
                 continue
             gate = analyze_gate_overreach(project, tid, policy=pol, progress=None, caches=caches)
-            low_aud = list_low_audibility_words(
-                project, policy=pol, track_id=tid, progress=None, caches=caches
-            )
+            low_aud = list_low_audibility_words(project, track_id=tid, progress=None, caches=caches)
             flagged = flagged_by_track.get(tid, [])
             bleed = [f for f in flagged if f["audibility_status"] == "bleed"]
             tr_for_ratio = project.transcript_for_track(tid)
@@ -1567,9 +1605,7 @@ def analyze_cleanup(
     result: dict[str, Any] = {
         "tracks": per_track,
         "policy": {
-            "audibility_rms_db": pol.audibility_rms_db,
             "bleed_dominance_db": pol.bleed_dominance_db,
-            "bleed_min_other_rms_db": pol.bleed_min_other_rms_db,
             "bleed_ratio_warn_threshold": pol.bleed_ratio_warn_threshold,
             "ml_backend": pol.ml_backend,
             "transcript_mode": pol.transcript_mode,

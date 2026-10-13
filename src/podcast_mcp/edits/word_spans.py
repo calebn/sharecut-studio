@@ -56,7 +56,6 @@ class WordSpanCaps:
     short_tokens: frozenset[str]
     short_sec: float
     word_sec: float
-    floor_db: float
     end_slack_sec: float
 
     @classmethod
@@ -66,7 +65,6 @@ class WordSpanCaps:
             short_tokens=lexicon_tokens(defaults.get("tighten", {})),
             short_sec=pol.max_short_token_sec,
             word_sec=pol.max_word_audibility_sec,
-            floor_db=pol.audibility_rms_db,
             end_slack_sec=pol.word_span_end_slack_sec,
         )
 
@@ -121,7 +119,7 @@ def trim_implausible_words(
         if word.timing_edited or not caps.is_implausible(word):
             continue
         search_end = _search_end(words, i, caps.end_slack_sec)
-        runs = voiced_runs(audio, word.start, search_end, floor_db=caps.floor_db)
+        runs = voiced_runs(audio, word.start, search_end, floor_db=audio.voice_floor_db)
         span = plausible_span(word.start, word.end, search_end, caps.cap_for(word), runs)
         if span is None:
             word.overlong = True
