@@ -7,6 +7,7 @@ import {
   useRef,
 } from "react";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
+import { enterTopLayerPanel } from "./topLayerFloor";
 import { useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
 
@@ -87,9 +88,16 @@ export function Menu({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const attachPanel = useCallback((panel: HTMLDivElement) => {
     panelRef.current = panel;
-    panel.showPopover();
+    const topLayer = typeof panel.showPopover === "function";
+    if (topLayer) {
+      panel.showPopover();
+    }
+    const leave = enterTopLayerPanel();
     return () => {
-      panel.hidePopover();
+      leave();
+      if (topLayer) {
+        panel.hidePopover();
+      }
       panelRef.current = null;
     };
   }, []);

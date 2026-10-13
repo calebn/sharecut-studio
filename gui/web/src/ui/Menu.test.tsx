@@ -82,6 +82,27 @@ describe("Menu", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("opens as a fixed panel on a webview without the Popover API", async () => {
+    const user = userEvent.setup();
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    try {
+      render(<Fixture />);
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      expect(screen.getByRole("menu", { hidden: true })).toHaveAttribute(
+        "aria-label",
+        "Test menu",
+      );
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      expect(screen.queryByRole("menu", { hidden: true })).toBeNull();
+    } finally {
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
+  });
+
   it("closes when its already-open trigger is clicked again", async () => {
     const user = userEvent.setup();
     render(<Fixture />);
