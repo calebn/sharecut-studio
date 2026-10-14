@@ -63,7 +63,7 @@ export function InspectorSeekFooterView({
             <Icon name="play" />
           )}
           {playBusySec != null
-            ? `Preparing preview… ${playBusySec}s`
+            ? `Preparing this preview… ${playBusySec}s`
             : playLabel}
         </Button>
       ) : null}

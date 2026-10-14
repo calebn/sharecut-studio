@@ -41,6 +41,18 @@ describe("warmPendingPreview", () => {
     await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(2));
   });
 
+  it("asks again when a side did not render", async () => {
+    open("/tmp/failed-side.json");
+    vi.mocked(hostFetch).mockImplementationOnce(async () =>
+      Response.json({ trim_db: -3, sides: { current: "failed" } }),
+    );
+    warmPendingPreview("/tmp/failed-side.json", "cut");
+    await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    warmPendingPreview("/tmp/failed-side.json", "cut");
+    await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(2));
+  });
+
   it("never asks for a guest", () => {
     open("/tmp/guest.json");
     useDawStore.setState({ guestMode: "edit" });
