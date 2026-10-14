@@ -48,9 +48,9 @@ describe("solo commands", () => {
   });
 
   it("does not call the render API when solo toggles", async () => {
-    const hostFetch = vi.spyOn(transport, "hostFetch").mockResolvedValue(
-      new Response("{}"),
-    );
+    const hostFetch = vi
+      .spyOn(transport, "hostFetch")
+      .mockResolvedValue(new Response("{}"));
     await execute("track.soloToggle", { trackId: "host" });
     const renderCalls = hostFetch.mock.calls.filter(([path]) =>
       String(path).includes("render-preview"),
