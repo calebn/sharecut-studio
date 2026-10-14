@@ -89,7 +89,6 @@ function withVolatileOutcomes(
   return [...byCommand.values()];
 }
 
-/** Keep an outcome visible in this tab when IndexedDB cannot record it. */
 export function recordVolatileOutcome(
   projectPath: string,
   conflict: OfflineConflict,
@@ -109,7 +108,6 @@ export function recordVolatileOutcome(
   }
 }
 
-/** Clear the tab-local fallback after the same command gets a durable outcome. */
 export function clearVolatileOutcome(
   projectPath: string,
   commandId: string,
