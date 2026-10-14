@@ -160,8 +160,12 @@ allowlist holds physical constants only: the clipping ceiling (`CLIPPING_PEAK_LE
 `CLIPPING_MIN_PEAK_DB`). "Is this silent" guards read `DIGITAL_SILENCE_RMS` (`util/dsp.py`), the level below which a
 signal holds no audio at all. Long-delay bleed evidence compares a peer stretch to the window
 it is matched to (`LongDelayConfig.min_power_ratio`). The ingest gates (`vad_speech_intervals`, the
-acoustic-window `min_rms`) keep fixed thresholds and are listed in `ALLOWED` until #1533 finishes
-them. Ingest no longer estimates the session start from speech onsets (#1533): two speakers'
+acoustic-window `min_rms`) keep fixed thresholds on purpose and are listed in `ALLOWED`. On Daniela's quiet track no
+gate relative to the file's level (voice reach, or speech minus 3 to 21 dB) kept her words
+without admitting up to 40 s of audio with no word under it, and the offsets that held the Zoom
+lab tracks within 1.3% of the fixed gate did not help her; a level gate cannot tell a quiet
+mic's voice from another speaker's leakage. The replacement is to drop the other speaker's
+copy before gating (the leak paths of #1548), not a better level. Ingest no longer estimates the session start from speech onsets (#1533): two speakers'
 first words are not one event, and a level that follows the audio read a later speaker as a
 late recorder (+36 to +48 s on aligned lab tracks).
 The ffmpeg filter graph and the delivery loudness targets set render levels, not detection thresholds, and are not scanned.
