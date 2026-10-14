@@ -334,7 +334,7 @@ def _closure_profile(path: Path, holes: GateHoles) -> np.ndarray:
     rows: list[np.ndarray] = []
     for samples in _before_closures(path, holes):
         n = min(blocks, samples.shape[0] // block)
-        tail = samples[samples.shape[0] - n * block :].reshape(n, block, -1)[::-1]
+        tail = samples[samples.shape[0] - n * block :].reshape(n, block, samples.shape[1])[::-1]
         power = np.mean(np.var(tail, axis=1, dtype=np.float64), axis=1)
         power[np.max(np.abs(tail), axis=(1, 2), initial=0.0) <= residue] = np.nan
         rows.append(np.pad(power, (0, blocks - n), constant_values=np.nan))

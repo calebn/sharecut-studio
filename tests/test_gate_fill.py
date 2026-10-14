@@ -544,6 +544,23 @@ def test_unmeasurable_closure_keeps_the_measured_room_fill(
     assert "comfort noise" in summary
 
 
+@pytest.mark.parametrize("remaining_frames", [0, 79])
+def test_only_unmeasurable_closures_leave_holes_silent(
+    tmp_path: Path, remaining_frames: int
+) -> None:
+    samples = np.zeros(round(DURATION_SEC * SR))
+    for start, _ in PHRASES:
+        a = round(start * SR)
+        samples[a : a + round(0.03 * SR)] = 1.0 / 32767
+        samples[a : a + round(0.01 * SR) + remaining_frames] = 0.1
+    project = _project(tmp_path, samples)
+
+    summary = fill_gate_holes(project, _defaults())
+
+    assert project.track_by_id("guest").gate_fill is None
+    assert summary == "guest: 9 holes left silent, no noise measured under its speech"
+
+
 def test_mode_off_clears_an_existing_fill(tmp_path: Path) -> None:
     project = _project(tmp_path, _gated_track())
     fill_gate_holes(project, _defaults())
