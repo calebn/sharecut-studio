@@ -20,8 +20,8 @@ describe("warmPendingPreview", () => {
 
   it("asks the host once per mix and not again", () => {
     open("/tmp/once.json");
-    warmPendingPreview("/tmp/once.json", "cut");
-    warmPendingPreview("/tmp/once.json", "cut");
+    void warmPendingPreview("/tmp/once.json", "cut");
+    void warmPendingPreview("/tmp/once.json", "cut");
     expect(hostFetch).toHaveBeenCalledTimes(1);
     expect(hostFetch).toHaveBeenCalledWith(
       `/api/pending-preview/warm?path=${encodeURIComponent("/tmp/once.json")}&edit_id=cut`,
@@ -34,10 +34,10 @@ describe("warmPendingPreview", () => {
     vi.mocked(hostFetch).mockImplementationOnce(
       async () => new Response("no", { status: 500 }),
     );
-    warmPendingPreview("/tmp/refused.json", "cut");
+    void warmPendingPreview("/tmp/refused.json", "cut");
     await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(1));
     await Promise.resolve();
-    warmPendingPreview("/tmp/refused.json", "cut");
+    void warmPendingPreview("/tmp/refused.json", "cut");
     await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(2));
   });
 
@@ -46,10 +46,10 @@ describe("warmPendingPreview", () => {
     vi.mocked(hostFetch).mockImplementationOnce(async () =>
       Response.json({ trim_db: -3, sides: { current: "failed" } }),
     );
-    warmPendingPreview("/tmp/failed-side.json", "cut");
+    void warmPendingPreview("/tmp/failed-side.json", "cut");
     await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(1));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    warmPendingPreview("/tmp/failed-side.json", "cut");
+    void warmPendingPreview("/tmp/failed-side.json", "cut");
     await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(2));
   });
 
@@ -73,7 +73,7 @@ describe("warmPendingPreview", () => {
   it("never asks for a guest", () => {
     open("/tmp/guest.json");
     useDawStore.setState({ guestMode: "edit" });
-    warmPendingPreview("/tmp/guest.json", "cut");
+    void warmPendingPreview("/tmp/guest.json", "cut");
     expect(hostFetch).not.toHaveBeenCalled();
   });
 });
