@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import contextvars
 import functools
 import hashlib
 import logging
@@ -960,7 +961,17 @@ def schedule_pyramid_build(
             return False
         _PENDING.add(job)
     try:
-        fut = _pyramid_pool().submit(_run_pyramid_job, ref, slug, key, audio, out, current_key)
+        # The job keeps the caller's context: a background warm's lower priority reaches its decodes.
+        fut = _pyramid_pool().submit(
+            contextvars.copy_context().run,
+            _run_pyramid_job,
+            ref,
+            slug,
+            key,
+            audio,
+            out,
+            current_key,
+        )
     except BaseException:
         with _JOBS_LOCK:
             _PENDING.discard(job)

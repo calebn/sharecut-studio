@@ -13,12 +13,13 @@ never orphans one.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess  # nosec B404
 import threading
 import weakref
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
@@ -44,7 +45,7 @@ def low_priority(niceness: int = 10) -> Iterator[None]:
     """Start children at a lower CPU priority while inside this block (background work).
 
     Per context, not process-wide: a user's own render started meanwhile keeps its priority.
-    No effect where the platform has no ``setpriority``.
+    No effect where there is no ``nice`` (Windows).
     """
     token = _niceness.set(niceness)
     try:
@@ -114,6 +115,18 @@ def _check_argv(argv: Sequence[str | bytes | Path]) -> list[str]:
     return [str(a) for a in argv]
 
 
+def _with_niceness(cmd: list[str]) -> list[str]:
+    """``cmd`` under ``nice`` when this context asked for a lower priority.
+
+    ``nice`` lowers the priority before the program starts, so every thread it creates
+    inherits it (``setpriority`` on the pid afterwards only reaches the main thread).
+    Relative, so a child never runs above the server's own niceness.
+    """
+    niceness = _niceness.get()
+    nice = shutil.which("nice") if niceness and os.name == "posix" else None
+    return [nice, "-n", str(niceness), *cmd] if nice else cmd
+
+
 def _spawn(
     cmd: list[str],
     *,
@@ -125,6 +138,8 @@ def _spawn(
     env: Mapping[str, str] | None = None,
     start_new_session: bool = False,
 ) -> subprocess.Popen[Any]:
+    cmd = _with_niceness(cmd)
+
     def popen_(*, detach: bool) -> subprocess.Popen[Any]:
         return subprocess.Popen(  # nosec B603
             cmd,
@@ -139,24 +154,13 @@ def _spawn(
         )
 
     if not _detach_depth:
-        return _niced(popen_(detach=False))
+        return popen_(detach=False)
     # Spawn and register under the lock so a concurrent kill never misses this child.
     with _detach_lock:
         detach = _detach_depth > 0
         proc = popen_(detach=detach)
         if detach:
             _detached.add(proc)
-    return _niced(proc)
-
-
-def _niced(proc: subprocess.Popen[Any]) -> subprocess.Popen[Any]:
-    niceness = _niceness.get()
-    if niceness and hasattr(os, "setpriority"):
-        # Already exited, or not ours to lower: it just runs at normal priority.
-        # setpriority is absolute: never raise a child above the server's own niceness.
-        with suppress(OSError):
-            own = os.getpriority(os.PRIO_PROCESS, 0)
-            os.setpriority(os.PRIO_PROCESS, proc.pid, min(19, max(own, niceness)))
     return proc
 
 
