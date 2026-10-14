@@ -450,6 +450,11 @@ def test_rendered_mute_is_silent_inside_and_unchanged_outside(tmp_path, sample_w
     assert ClipMuteRegion(start_s=0.4, end_s=0.7).fade_out_ms == 5
 
 
+# White noise at -60 dBFS RMS reads 6 dB lower in the 8 kHz band the level reads use, which
+# low-pass before they downsample (#1542): the band holds a sixth of the noise power.
+FLOOR_READ_DB = -60.0 + 10 * np.log10(4 / 24)
+
+
 def _noise_floor_project(tmp_path: Path, *, uh_sec: float = 0.3) -> EpisodeProject:
     """A 4 s mic track: white noise at -60 dBFS RMS, with a -20 dBFS ``uh`` at 1.0-1.3 s.
 
@@ -505,7 +510,7 @@ def _noise_floor_project(tmp_path: Path, *, uh_sec: float = 0.3) -> EpisodeProje
     # The nearest stretch of the -60 dBFS floor clear of the uh's onset, as a ripple pad
     # samples it.
     [
-        ("room_tone", (pytest.approx(0.55), pytest.approx(0.85)), -60.0),
+        ("room_tone", (pytest.approx(0.55), pytest.approx(0.85)), FLOOR_READ_DB),
         ("silence", None, DIGITAL_SILENCE_DB),
     ],
 )
@@ -521,14 +526,14 @@ def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, i
     render_track_from_timeline(project, project.tracks[0], out, {})
 
     assert measure_window_rms_db(out, 1.01, 1.29) == pytest.approx(inside_db, abs=1.5)
-    assert measure_window_rms_db(out, 0.2, 0.8) == pytest.approx(-60.0, abs=1.5)
-    assert measure_window_rms_db(out, 1.5, 3.5) == pytest.approx(-60.0, abs=1.5)
+    assert measure_window_rms_db(out, 0.2, 0.8) == pytest.approx(FLOOR_READ_DB, abs=1.5)
+    assert measure_window_rms_db(out, 1.5, 3.5) == pytest.approx(FLOOR_READ_DB, abs=1.5)
     assert project.timeline.duration_sec == pytest.approx(4.0)
     # A window starting inside the mute (playback, bounce) lays the same fill.
     window = Path(project.workspace_dir) / "artifacts" / "window.wav"
     render_track_segment(project, "host", 1.1, 2.0, window, {})
     assert measure_window_rms_db(window, 0.0, 0.18) == pytest.approx(inside_db, abs=1.5)
-    assert measure_window_rms_db(window, 0.4, 0.9) == pytest.approx(-60.0, abs=1.5)
+    assert measure_window_rms_db(window, 0.4, 0.9) == pytest.approx(FLOOR_READ_DB, abs=1.5)
 
 
 @pytest.mark.parametrize(
@@ -559,7 +564,7 @@ def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region,
     )
     out = Path(project.workspace_dir) / "artifacts" / "host.wav"
     render_track_from_timeline(project, project.tracks[0], out, {})
-    assert measure_window_rms_db(out, 0.9, 0.99) == pytest.approx(-60.5, abs=0.5)
+    assert measure_window_rms_db(out, 0.9, 0.99) == pytest.approx(FLOOR_READ_DB, abs=1.0)
     assert measure_window_rms_db(out, 1.0, 1.3) == pytest.approx(DIGITAL_SILENCE_DB)
     assert [
         measure_window_rms_db(out, a, b) for a, b in ((1.3, 1.31), (1.31, 1.33), (1.35, 1.4))
