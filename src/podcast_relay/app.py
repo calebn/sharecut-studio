@@ -744,7 +744,11 @@ def create_relay_app() -> FastAPI:
         path: str,
         required_cap: str,
     ) -> None:
-        """Bridge a guest WS through the host tunnel (text frames only)."""
+        """Bridge a guest WS through the host tunnel (text frames only).
+
+        The query string rides in ``ws_open`` as it does in ``http`` frames, so the host sees the
+        guest's ``client_id`` and ``name``.
+        """
 
         async def _reject(code: int, reason: str) -> None:
             await websocket.accept()
@@ -783,6 +787,7 @@ def create_relay_app() -> FastAPI:
                     "ws_open",
                     id=stream_id,
                     path=path,
+                    query=str(websocket.url.query or ""),
                     share_token=token,
                 )
             )

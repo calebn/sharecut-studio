@@ -392,6 +392,7 @@ class TunnelClient:
 
         stream_id = str(open_data.get("id") or "")
         path_suffix = str(open_data.get("path") or "")
+        query = str(open_data.get("query") or "")
         share_token = str(open_data.get("share_token") or "")
         if not stream_id:
             return
@@ -415,6 +416,8 @@ class TunnelClient:
         else:
             ws_base = base.replace("http", "ws", 1)
         url = ws_base + local_path
+        if query:
+            url = url + "?" + query
 
         stream = TextWsStream()
         queue = stream.queue

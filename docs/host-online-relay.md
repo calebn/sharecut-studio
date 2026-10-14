@@ -819,7 +819,7 @@ Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and t
 
 | Frame | Direction | Fields |
 |-------|-----------|--------|
-| `ws_open` | relay → host | `id`, `path` (`api/review/daw/ws` or `api/rec/ws`), `share_token` |
+| `ws_open` | relay → host | `id`, `path` (`api/review/daw/ws` or `api/rec/ws`), `query` (the guest socket's raw query string, e.g. `client_id` and `name`), `share_token` |
 | `ws_data` | both | `id`, `text` (JSON text frame) |
 | `ws_close` | both | `id`, `code`, `reason` |
 
