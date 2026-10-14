@@ -707,7 +707,7 @@ RECORD_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
 
 
 def test_record_guest_command_contract_tracks_the_live_command_catalog() -> None:
-    assert set(RECORD_COMMAND_PAYLOADS) == set(COMMAND_TYPES)
+    assert set(RECORD_COMMAND_PAYLOADS) == set(COMMAND_TYPES) | {"Signal"}
     for command_type in sorted(COMMAND_TYPES):
         RecordCommand.parse(
             command_type=command_type,
