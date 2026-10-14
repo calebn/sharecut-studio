@@ -65,37 +65,47 @@ export function EditingToolRailView({
         role="group"
         aria-label="Editing tools"
       >
-        {bladeAllowed ? toolToggle : null}
-        {mayIngest ? (
-          <>
+        <div className="editing-tool-rail-tools">
+          {bladeAllowed ? toolToggle : null}
+          {mayIngest ? (
+            <>
+              <Button
+                className="editing-tool-rail-ingest"
+                onClick={onAddTrack}
+                title="Add empty track"
+              >
+                + Track
+              </Button>
+              <Button
+                className="editing-tool-rail-ingest"
+                onClick={onImport}
+                title="Import audio files"
+              >
+                Import
+              </Button>
+            </>
+          ) : null}
+          {bladeAllowed && toolMode === "blade" && !commentMode ? (
             <Button
-              className="editing-tool-rail-ingest"
-              onClick={onAddTrack}
-              title="Add empty track"
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={onCutAtPlayhead}
+              title="Cut selected tracks at playhead"
             >
-              + Track
+              Cut at playhead
             </Button>
-            <Button
-              className="editing-tool-rail-ingest"
-              onClick={onImport}
-              title="Import audio files"
-            >
-              Import
-            </Button>
-          </>
-        ) : null}
-        {bladeAllowed && toolMode === "blade" && !commentMode ? (
-          <Button
-            disabledReason={busy ? BUSY_REASON : undefined}
-            onClick={onCutAtPlayhead}
-            title="Cut selected tracks at playhead"
-          >
-            Cut at playhead
-          </Button>
-        ) : null}
-        <div className="editing-tool-rail-end">
-          <ZoomControls zoom={zoom} onZoomIn={onZoomIn} onZoomOut={onZoomOut} />
-          <HistoryControls history={history} onUndo={onUndo} onRedo={onRedo} />
+          ) : null}
+          <div className="editing-tool-rail-end">
+            <ZoomControls
+              zoom={zoom}
+              onZoomIn={onZoomIn}
+              onZoomOut={onZoomOut}
+            />
+            <HistoryControls
+              history={history}
+              onUndo={onUndo}
+              onRedo={onRedo}
+            />
+          </div>
         </div>
       </div>
       {bladeAllowed ? (

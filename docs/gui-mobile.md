@@ -127,6 +127,20 @@ rail row at 440px and narrower (498px usable, 4 lanes). Now the pair is a
 non-wrapping unit and **+ Track** and **Import** give way on a rail at most
 40rem wide, so the rail stays one 67px row at 440, 390 and 360px.
 
+At large text the rail stays one row too (#1347). A rail narrower than 23rem,
+which is every phone at 200% text, keeps its tools in `.editing-tool-rail-tools`
+and scrolls them sideways instead of wrapping them into rows that eat the lanes.
+The tools sit in their own box so the scroll does not clip the Undo and Redo
+hint, which hangs from the rail above it. `reachability-sweep.spec.ts` holds the
+rail to one row at every boundary cell.
+
+On a coarse pointer the track-row clip-light clear sits below the lane's meter,
+not up over the Solo button above it, so a tap on Solo's lower corner no longer
+reaches Clear clip light. The Add track row, the Listen **Open all** link, the
+track sheet's Label, Speaker and Role fields and Select range's In and Out
+fields and track checkboxes all hold the 44px floor; a native `select` takes it
+as `block-size` because WebKit ignores `min-block-size` on one.
+
 Round 9 (#1181) moved the strip above the tool rail after an Undo tap could
 nudge a pending edit. Issue #1205 moves the shared Undo and Redo controls into
 the compact inspector header at peek, half and full height, then lets the strip

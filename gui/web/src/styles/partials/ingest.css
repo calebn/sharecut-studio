@@ -42,6 +42,12 @@
   padding: var(--space-3) var(--space-4);
 }
 
+@media (pointer: coarse) {
+  .track-add-row {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .track-add-row:focus-visible {
   border-color: var(--color-accent);
   color: var(--color-text-primary);

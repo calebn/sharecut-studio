@@ -98,6 +98,18 @@
 }
 
 @media (pointer: coarse) {
+  .inspector
+    dd
+    :where(input:not([type="checkbox"], [type="radio"], [type="range"])),
+  .range-numeric input[type="number"] {
+    min-block-size: var(--touch-min);
+  }
+
+  /* WebKit draws a native select at its own height unless it is given one. */
+  .inspector dd select {
+    block-size: var(--touch-min);
+  }
+
   .pending-source-time-field,
   .pending-source-time-apply,
   .pending-cut-suggestion .ui-control,
@@ -109,6 +121,18 @@
   .modifier-footer-actions .ui-segmented {
     block-size: auto;
   }
+}
+
+html[data-shell="phone"]
+  .inspector
+  dd
+  :where(input:not([type="checkbox"], [type="radio"], [type="range"])),
+html[data-shell="phone"] .range-numeric input[type="number"] {
+  min-block-size: var(--touch-min);
+}
+
+html[data-shell="phone"] .inspector dd select {
+  block-size: var(--touch-min);
 }
 
 html[data-shell="phone"] .pending-source-time-field,
