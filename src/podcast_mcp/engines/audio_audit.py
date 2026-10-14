@@ -32,6 +32,13 @@ from podcast_mcp.engines.envelope_lag import (
     copy_lag,
     copy_levels_db,
 )
+from podcast_mcp.engines.lane_words import (
+    WordKey,
+    lane_transcripts,
+    lanes_transcripts,
+    transcript_word_key,
+    word_timeline_window,
+)
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
@@ -875,7 +882,8 @@ def compute_word_audibility_map(
     targets = [track_id] if track_id else all_tracks
     floors = _voice_floors(project, all_tracks, caches)
 
-    total_words = sum(len(tr.words) for tid in targets if (tr := project.transcript_for_track(tid)))
+    lanes = lanes_transcripts(project, targets)
+    total_words = sum(len(lane.transcript.words) for lane in lanes)
 
     # RMS windows shorter than this cannot be measured (see TrackRmsCache.rms_db).
     _min_rms_dur = 0.005
@@ -893,10 +901,8 @@ def compute_word_audibility_map(
             if done % 50 == 0 or done == total_words:
                 task.advance_to(done, total=total_words)
 
-        for tid in targets:
-            tr = project.transcript_for_track(tid)
-            if not tr:
-                continue
+        for lane in lanes:
+            tid, tr = lane.track_id, lane.transcript
             paths = caches.bleed_paths(tid)
             lags = {src: path.lag_sec for src, path in paths.items() if path.lag_sec}
             for i, w in enumerate(tr.words):
@@ -913,6 +919,7 @@ def compute_word_audibility_map(
                     out.append(
                         {
                             "track_id": tid,
+                            "source_id": tr.source_id,
                             "word_index": i,
                             "text": w.text,
                             "start": w.start,
@@ -940,6 +947,7 @@ def compute_word_audibility_map(
                     out.append(
                         {
                             "track_id": tid,
+                            "source_id": tr.source_id,
                             "word_index": i,
                             "text": w.text,
                             "start": w.start,
@@ -956,7 +964,7 @@ def compute_word_audibility_map(
                     _tick()
                     continue
 
-                tl_span = _word_timeline_span(st, tid, w.start, w.end)
+                tl_span = word_timeline_window(st, lane, w.start, w.end)
                 if tl_span is None:
                     done += 1
                     _tick()
@@ -986,6 +994,7 @@ def compute_word_audibility_map(
 
                 entry: dict[str, Any] = {
                     "track_id": tid,
+                    "source_id": tr.source_id,
                     "word_index": i,
                     "text": w.text,
                     "start": w.start,
@@ -1064,11 +1073,8 @@ def list_low_audibility_words(
     st = SessionTimeline(project)
     out: list[dict[str, Any]] = []
     tracks = [track_id] if track_id else dialogue_track_ids(project)
-    total_words = sum(
-        len([w for w in tr.words if not w.suppressed])
-        for tid in tracks
-        if (tr := project.transcript_for_track(tid))
-    )
+    lanes = lanes_transcripts(project, tracks)
+    total_words = sum(len([w for w in lane.transcript.words if not w.suppressed]) for lane in lanes)
 
     with resolve_progress_task(
         "low-audibility",
@@ -1083,10 +1089,8 @@ def list_low_audibility_words(
             if done % 50 == 0 or done == total_words:
                 task.advance_to(done, total=total_words)
 
-        for tid in tracks:
-            tr = project.transcript_for_track(tid)
-            if not tr:
-                continue
+        for lane in lanes:
+            tid, tr = lane.track_id, lane.transcript
             proc_cache = caches.get(tid)
             floor_db: float | None = (
                 proc_cache.audibility_floor_db if proc_cache is not None else None
@@ -1094,7 +1098,7 @@ def list_low_audibility_words(
             for i, w in enumerate(tr.words):
                 if w.suppressed:
                     continue
-                tl_span = _word_timeline_span(st, tid, w.start, w.end)
+                tl_span = word_timeline_window(st, lane, w.start, w.end)
                 if proc_cache is not None:
                     if tl_span is None:
                         done += 1
@@ -1126,6 +1130,7 @@ def list_low_audibility_words(
                 out.append(
                     {
                         "track_id": tid,
+                        "source_id": tr.source_id,
                         "word_index": i,
                         "text": w.text,
                         "start": w.start,
@@ -1603,7 +1608,7 @@ def analyze_cleanup(
 
     raise_if_cancel_requested(cancel_check, "Cleanup analysis cancelled")
     flagged_by_track: dict[str, list[dict[str, Any]]] = {}
-    targets: dict[tuple[str, int], dict[str, Any]] = {}
+    targets: dict[WordKey, dict[str, Any]] = {}
     if pol.transcript_mode != "off":
         # Whole project, not just `tracks`: a text-match loser's winner may sit on a
         # track outside this report's scope, and `word_targets` judges every pair
@@ -1637,8 +1642,8 @@ def analyze_cleanup(
             low_aud = list_low_audibility_words(project, track_id=tid, progress=None, caches=caches)
             flagged = flagged_by_track.get(tid, [])
             bleed = [f for f in flagged if f["audibility_status"] == "bleed"]
-            tr_for_ratio = project.transcript_for_track(tid)
-            total_words = len(tr_for_ratio.words) if tr_for_ratio else 0
+            lanes = lane_transcripts(project, tid)
+            total_words = sum(len(lane.transcript.words) for lane in lanes)
             bleed_ratio = round(len(bleed) / total_words, 3) if total_words else None
             fades = recommend_boundary_fades(project, policy=pol, track_id=tid, caches=caches)
             chain = next((c for c in project.processing_chains if c.track_id == tid), None)
@@ -1671,12 +1676,13 @@ def analyze_cleanup(
                     "alone won't remove it from the audio; see podcast-mute-bleed to gate "
                     "stems, and check mic gain staging/placement for future recordings."
                 )
-            if pol.transcript_mode == "suggest" and tr_for_ratio:
+            if pol.transcript_mode == "suggest" and lanes:
                 recs = [
-                    {"track_id": tid, "word_index": i}
-                    for i, w in enumerate(tr_for_ratio.words)
+                    {"track_id": tid, "source_id": lane.transcript.source_id, "word_index": i}
+                    for lane in lanes
+                    for i, w in enumerate(lane.transcript.words)
                     if not (w.ignored or w.audibility_locked or w.suppressed)
-                    and (target := targets.get((tid, i))) is not None
+                    and (target := targets.get(transcript_word_key(lane.transcript, i))) is not None
                     and target["audibility_status"] in _FLAGGED_STATUSES
                 ]
                 if recs:

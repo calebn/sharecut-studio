@@ -1089,7 +1089,7 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
         report = analyze_cleanup(project, policy=pol)
     assert len(report["tracks"]) == 1
     assert report["tracks"][0]["suppression_recommendations"] == [
-        {"track_id": "host", "word_index": 0}
+        {"track_id": "host", "source_id": None, "word_index": 0}
     ]
     assert "boundary fade" in report["summary"]
 
@@ -1561,7 +1561,7 @@ def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
     by_track = {row["track_id"]: row for row in report["tracks"]}
     assert by_track["guest"]["flagged_count"] == 0
     assert by_track["guest"]["suppression_recommendations"] == [
-        {"track_id": "guest", "word_index": 1}
+        {"track_id": "guest", "source_id": None, "word_index": 1}
     ]
     assert "suppression_recommendations" not in by_track["host"]
 

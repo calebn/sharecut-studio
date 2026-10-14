@@ -11,6 +11,7 @@ from podcast_mcp.engines.audio_audit import (
     build_reconciliation_caches,
     compute_word_audibility_map,
 )
+from podcast_mcp.engines.lane_words import WordKey, transcript_word_key, word_key
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.progress import (
@@ -95,6 +96,7 @@ def _reconcile_word(
     if _should_suppress(status) and not w.suppressed:
         entry = {
             "track_id": tr.track_id,
+            "source_id": tr.source_id,
             "word_index": i,
             "text": w.text,
             "start": w.start,
@@ -118,6 +120,7 @@ def _reconcile_word(
         result.unsuppress.append(
             {
                 "track_id": tr.track_id,
+                "source_id": tr.source_id,
                 "word_index": i,
                 "text": w.text,
                 "start": w.start,
@@ -127,9 +130,6 @@ def _reconcile_word(
         )
         if apply_suppression:
             tr.words[i] = tr.words[i].model_copy(update={"suppressed": False})
-
-
-WordKey = tuple[str, int]
 
 
 def word_targets(
@@ -167,17 +167,16 @@ def word_targets(
         if audibility_map is None
         else audibility_map
     )
-    by_key: dict[WordKey, dict[str, Any]] = {
-        (row["track_id"], row["word_index"]): row for row in rows
-    }
+    by_key: dict[WordKey, dict[str, Any]] = {word_key(row): row for row in rows}
     if not policy.bleed_text_match_enabled:
         return by_key
 
-    words_by_track = {tr.track_id: tr.words for tr in project.transcripts}
+    words_by_transcript = {tr.key: tr.words for tr in project.transcripts}
 
-    def acoustic_suppressed(tid: str, i: int) -> bool:
-        w = words_by_track[tid][i]
-        row = by_key.get((tid, i))
+    def acoustic_suppressed(key: WordKey) -> bool:
+        tid, source_id, i = key
+        w = words_by_transcript[(tid, source_id)][i]
+        row = by_key.get(key)
         if row is None or w.ignored or w.audibility_locked:
             return w.suppressed
         return _should_suppress(row["audibility_status"])
@@ -190,7 +189,7 @@ def word_targets(
         is_suppressed=acoustic_suppressed,
         echo_pairs=caches.echo_pairs(),
     ):
-        key = (loser["track_id"], loser["word_index"])
+        key = word_key(loser)
         by_key[key] = {
             **by_key.get(key, {}),
             "audibility_status": loser["audibility_status"],
@@ -246,7 +245,7 @@ def reconcile_transcript(
             if track_id and tr.track_id != track_id:
                 continue
             for i in range(len(tr.words)):
-                row = targets.get((tr.track_id, i))
+                row = targets.get(transcript_word_key(tr, i))
                 if not row:
                     continue
                 _reconcile_word(

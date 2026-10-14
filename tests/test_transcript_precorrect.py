@@ -258,12 +258,14 @@ def test_cross_track_sync_rejects_talking_to_i_lab_pair() -> None:
     ctx = _ctx(cross_track=CrossTrackConfig(min_overlap_sec=0.1, min_similarity=0.55))
     pair = {
         "track_a": "caleb",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "I",
         "start_a": 1606.74,
         "end_a": 1607.32,
         "status_a": "audible",
         "track_b": "lana",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "talking",
         "start_b": 1595.94,
@@ -506,11 +508,13 @@ def test_cross_track_sync_applies_winner_text() -> None:
     p, ctx = _two_track_words()
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "trooth",
         "start_b": 1.1,
@@ -536,11 +540,13 @@ def test_cross_track_sync_keeps_loser_evidence() -> None:
     p.transcripts[1].words[0].suspect_hallucination = True
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "trooth",
         "start_b": 1.1,
@@ -588,11 +594,13 @@ def test_cross_track_sync_defers_low_similarity_bleed() -> None:
     p, ctx = _two_track_words()
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "alpha",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "omega",
         "start_b": 1.1,
@@ -619,11 +627,13 @@ def test_cross_track_sync_defers_ambiguous_winner() -> None:
     p.transcripts[1].words[0].audibility_status = "audible"
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "trooth",
         "start_b": 1.1,
@@ -651,11 +661,13 @@ def test_cross_track_sync_skips_filler_word() -> None:
     )
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "trooth",
         "start_b": 1.1,
@@ -681,11 +693,13 @@ def test_cross_track_sync_skips_skip_span() -> None:
     )
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "trooth",
         "start_b": 1.1,
@@ -867,11 +881,13 @@ def test_cross_track_sync_skips_matching_text() -> None:
     p.transcripts[1].words[0].text = "truth"
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "truth",
         "start_b": 1.1,
@@ -1012,11 +1028,13 @@ def test_cross_track_sync_low_similarity_without_bleed_not_deferred() -> None:
     p, ctx = _two_track_words()
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "alpha",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "omega",
         "start_b": 1.1,
@@ -1044,11 +1062,13 @@ def test_cross_track_sync_guest_wins_and_mutates_host() -> None:
     p.transcripts[1].words[0].confidence = 0.95
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "trooth",
         "start_a": 1.0,
         "status_a": "bleed",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "truth",
         "start_b": 1.1,
@@ -1071,11 +1091,13 @@ def test_cross_track_sync_skips_invalid_loser_index() -> None:
     p, ctx = _two_track_words()
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 99,
         "text_b": "trooth",
         "start_b": 1.1,
@@ -1099,11 +1121,13 @@ def test_cross_track_sync_reads_word_confidence_defaults() -> None:
     p.transcripts[1].words[0].confidence = None
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "trooth",
         "start_b": 1.1,
@@ -1128,12 +1152,14 @@ def _overlap_pair(idx: int, *, low_sim: bool = False, ambiguous: bool = False) -
     conf_b = 0.91 if ambiguous else 0.4
     return {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": text_a,
         "start_a": 1.0 + idx * 0.01,
         "status_a": "audible",
         "confidence_a": 0.9,
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": text_b,
         "start_b": 1.1 + idx * 0.01,
@@ -1187,11 +1213,13 @@ def test_cross_track_sync_missing_track_skips_confidence() -> None:
     p.transcripts = [p.transcripts[1]]
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "trooth",
         "start_a": 1.0,
         "status_a": "bleed",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "truth",
         "start_b": 1.1,
@@ -1219,11 +1247,13 @@ def test_cross_track_sync_progress_on_ambiguous_batch() -> None:
         pairs.append(
             {
                 "track_a": "host",
+                "source_a": None,
                 "word_index_a": 0,
                 "text_a": "truth",
                 "start_a": 1.0 + i * 0.01,
                 "status_a": "audible",
                 "track_b": "guest",
+                "source_b": None,
                 "word_index_b": 0,
                 "text_b": "trooth",
                 "start_b": 1.1 + i * 0.01,
@@ -1263,12 +1293,14 @@ def _stretched_pair() -> dict:
     """Host 'I' (0.58 s) under a 10 s guest token: a duration mismatch with a stretched side."""
     return {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "I",
         "start_a": 1606.74,
         "end_a": 1607.32,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "talking",
         "start_b": 1595.94,
@@ -1285,11 +1317,13 @@ def test_cross_track_sync_ignores_pairs_with_no_bleed_path() -> None:
     p, ctx = _two_track_words()
     pair = {
         "track_a": "host",
+        "source_a": None,
         "word_index_a": 0,
         "text_a": "truth",
         "start_a": 1.0,
         "status_a": "audible",
         "track_b": "guest",
+        "source_b": None,
         "word_index_b": 0,
         "text_b": "trooth",
         "start_b": 1.1,
