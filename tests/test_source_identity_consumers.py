@@ -6,7 +6,7 @@ import pytest
 from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, update_pending_edit
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.pending_preview import _timeline_span
-from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_cuts import cut_text_match, cut_words, search_transcript
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.export.transcript import combined_transcript_markdown
@@ -307,6 +307,56 @@ def test_source_witness_allows_nonoverlapping_foreign_clip() -> None:
         before_b.source_end,
         before_b.timeline_start,
     )
+
+
+def test_partial_approval_drops_held_source_from_next_batch(monkeypatch) -> None:
+    project = _two_take_project()
+    first = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    later = cut_words(project, "host", 3, 3, source_id="B", use_inaudible_opt=False)
+    seen: list[tuple[str, tuple[tuple[float, float], ...]]] = []
+
+    def hold(_project, edit, *, batch, **_kwargs):
+        seen.append((edit.id, tuple((item.start, item.end) for item in batch)))
+        return CutScopeHold(edit.id, (), reason="source_geometry")
+
+    monkeypatch.setattr("podcast_mcp.edits.decisions.consume_source_remove", hold)
+    before = _clip_geometry(project)
+    held: list = []
+    asked: list = []
+
+    assert approve_edits(project, [first.id, later.id], held_out=held, asked_out=asked) == 0
+    assert [item.edit_id for item in held] == [later.id, first.id]
+    assert asked == []
+    assert seen == [
+        (later.id, ((first.start, first.end), (later.start, later.end))),
+        (first.id, ((first.start, first.end),)),
+    ]
+    assert _clip_geometry(project) == before
+
+
+def test_auto_apply_drops_held_source_from_next_batch(monkeypatch) -> None:
+    project = _two_take_project()
+    first = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    later = cut_words(project, "host", 3, 3, source_id="B", use_inaudible_opt=False)
+    for decision in project.edit_decisions:
+        decision.reason = "filler:um"
+        decision.review_required = False
+    seen: list[tuple[str, tuple[tuple[float, float], ...]]] = []
+
+    def hold(_project, edit, *, batch, **_kwargs):
+        seen.append((edit.id, tuple((item.start, item.end) for item in batch)))
+        return CutScopeHold(edit.id, (), reason="source_geometry")
+
+    monkeypatch.setattr("podcast_mcp.edits.decisions.consume_source_remove", hold)
+    before = _clip_geometry(project)
+
+    assert apply_auto_edits(project) == 0
+    assert sorted(edit.id for edit in project.edit_decisions) == sorted([first.id, later.id])
+    assert seen == [
+        (later.id, ((first.start, first.end), (later.start, later.end))),
+        (first.id, ((first.start, first.end),)),
+    ]
+    assert _clip_geometry(project) == before
 
 
 def test_source_witness_allows_one_equivalent_recording_alias_clip() -> None:

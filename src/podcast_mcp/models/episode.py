@@ -17,7 +17,7 @@ from podcast_mcp.models.words_revision import (
     words_revision,
 )
 from podcast_mcp.util.batch_scope import scoped
-from podcast_mcp.util.coded_error import CodedError, CodedFileNotFoundError, CodedKeyError
+from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.media_identity import same_recording
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
@@ -998,43 +998,6 @@ class EpisodeProject(BaseModel):
     def transcripts(self, value: list[Transcript]) -> None:
         self.transcript_data.per_track = value
 
-    def equivalent_source_ids(self, track_id: str, source_id: str | None) -> frozenset[str | None]:
-        from podcast_mcp.util.media_identity import same_recording
-        from podcast_mcp.util.workspace_paths import resolve_under_workspace
-
-        selected_source = self.source_by_id(source_id) if source_id is not None else None
-        if source_id is not None and selected_source is None:
-            return frozenset()
-        selected_path = selected_source.path if selected_source is not None else None
-        track = self.track_by_id(track_id)
-        if source_id is None and track is not None and track.media is not None:
-            selected_path = track.media.path
-        if selected_path is None:
-            return frozenset({source_id})
-
-        try:
-            selected_media = resolve_under_workspace(self, selected_path)
-        except (OSError, ValueError):
-            return frozenset()
-
-        def names_selected_recording(path: str) -> bool:
-            try:
-                return same_recording(selected_media, resolve_under_workspace(self, path))
-            except (OSError, ValueError):
-                return False
-
-        source_ids: set[str | None] = {source_id}
-        if (
-            track is not None
-            and track.media is not None
-            and names_selected_recording(track.media.path)
-        ):
-            source_ids.add(None)
-        for source in self.sources:
-            if names_selected_recording(source.path):
-                source_ids.add(source.id)
-        return frozenset(source_ids)
-
     def transcript_for_source(self, track_id: str, source_id: str | None) -> Transcript | None:
         fallback: Transcript | None = None
         for tr in self.transcripts:
@@ -1180,29 +1143,40 @@ class EpisodeProject(BaseModel):
         return next((s for s in self.sources if s.id == source_id), None)
 
     def equivalent_source_ids(self, track_id: str, source_id: str | None) -> frozenset[str | None]:
-        """Every ``source_id`` on ``track_id`` that names the same recording file."""
-        from podcast_mcp.engines.session_timeline import clip_plays_lane
-        from podcast_mcp.util.tracks import recording_audio_path
+        from podcast_mcp.util.workspace_paths import resolve_under_workspace
+
+        selected_source = self.source_by_id(source_id) if source_id is not None else None
+        if source_id is not None and selected_source is None:
+            return frozenset()
+        selected_path = selected_source.path if selected_source is not None else None
+        track = self.track_by_id(track_id)
+        if source_id is None and track is not None and track.media is not None:
+            selected_path = track.media.path
+        if selected_path is None:
+            return frozenset({source_id})
 
         try:
-            target = recording_audio_path(self, track_id, source_id)
-        except CodedError:
-            return frozenset({source_id})
-        equivalent: set[str | None] = set()
-        for clip in self.clips:
-            if not clip_plays_lane(self, clip, track_id):
-                continue
-            sid = clip.source_id
+            selected_media = resolve_under_workspace(self, selected_path)
+        except (OSError, ValueError):
+            return frozenset()
+
+        def names_selected_recording(path: str) -> bool:
             try:
-                media = recording_audio_path(self, track_id, sid)
-            except CodedKeyError:
-                continue
-            if same_recording(media, target):
-                equivalent.add(sid)
-        if not equivalent:
-            return frozenset({source_id})
-        equivalent.add(source_id)
-        return frozenset(equivalent)
+                return same_recording(selected_media, resolve_under_workspace(self, path))
+            except (OSError, ValueError):
+                return False
+
+        source_ids: set[str | None] = {source_id}
+        if (
+            track is not None
+            and track.media is not None
+            and names_selected_recording(track.media.path)
+        ):
+            source_ids.add(None)
+        for source in self.sources:
+            if names_selected_recording(source.path):
+                source_ids.add(source.id)
+        return frozenset(source_ids)
 
     def transcript_by_key(self, key: TranscriptKey) -> Transcript | None:
         """The transcript whose identity is exactly ``(track_id, source_id)``."""

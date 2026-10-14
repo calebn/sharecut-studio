@@ -16,7 +16,7 @@ from history_helpers import history_move
 from podcast_mcp.cli.main import app
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
-    SourceExtent,
+    LaneSourceExtent,
     SpeechClearance,
     clear_ripple,
 )
@@ -381,7 +381,7 @@ def test_speech_another_edit_in_the_same_approval_cuts_does_not_ask(episode, cut
         project,
         removal,
         confirm_cut_speech=False,
-        also_chosen=[SourceExtent("guest", *chosen)],
+        also_chosen=[LaneSourceExtent("guest", *chosen)],
     )
 
     assert isinstance(alone, CutSpeechConfirmation)
