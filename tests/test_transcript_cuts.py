@@ -730,6 +730,77 @@ def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monk
             source_id="B",
             source_start=0,
             source_end=10,
+            timeline_start=20,
+        ),
+    ]
+    proj.transcripts = [
+        Transcript(
+            track_id="host", source_id="A", words=[TranscriptWord(text="alpha", start=0.1, end=0.4)]
+        ),
+        Transcript(
+            track_id="host", source_id="B", words=[TranscriptWord(text="beta", start=0.1, end=0.4)]
+        ),
+    ]
+    proj.sources = [
+        SourceRecording(id="A", path="raw/take-a.wav"),
+        SourceRecording(id="B", path="raw/take-b.wav"),
+    ]
+    a_before = proj.clips[0].model_dump(mode="json")
+    monkeypatch.setattr(
+        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        lambda *args, **kwargs: ResolvedCutScope("session_clear"),
+    )
+
+    decision = cut_words(proj, "host", 0, 0, source_id="B")
+
+    assert decision.source_id == "B"
+    assert decision.source_timeline_span.start == 20.1
+    assert decision.source_timeline_span.end == pytest.approx(20.4)
+
+    saved = load_project(save_project(proj, tmp_path / "episode.project.json"))
+    persisted = next(row for row in saved.edit_decisions if row.id == decision.id)
+    assert persisted.source_id == "B"
+    assert persisted.source_timeline_span.start == 20.1
+    assert persisted.source_timeline_span.end == pytest.approx(20.4)
+
+    assert approve_edits(proj, [decision.id]) == 1
+
+    assert proj.clips[0].model_dump(mode="json") == a_before
+    b_segments = sorted(
+        (
+            clip.source_start,
+            clip.source_end,
+            clip.timeline_start,
+            clip.timeline_end,
+        )
+        for clip in proj.clips
+        if clip.source_id == "B"
+    )
+    assert b_segments == [
+        pytest.approx((0, 0.1, 20, 20.1)),
+        pytest.approx((0.4, 10, 20.1, 29.7)),
+    ]
+
+
+def test_transcript_cut_refuses_overlapping_unselected_source_without_mutation(monkeypatch):
+    from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+
+    proj = _project_with_media()
+    proj.clips = [
+        Clip(
+            id="take-a",
+            track_id="host",
+            source_id="A",
+            source_start=0,
+            source_end=10,
+            timeline_start=0,
+        ),
+        Clip(
+            id="take-b",
+            track_id="host",
+            source_id="B",
+            source_start=0,
+            source_end=10,
             timeline_start=0,
         ),
     ]
@@ -745,19 +816,16 @@ def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monk
         SourceRecording(id="A", path="raw/take-a.wav"),
         SourceRecording(id="B", path="raw/take-b.wav"),
     ]
-
-    decision = cut_words(proj, "host", 0, 0, source_id="B")
-
-    assert decision.source_id == "B"
-    assert decision.source_timeline_span.start == 0.1
-    assert decision.source_timeline_span.end == 0.4
+    before = proj.model_dump(mode="json")
     monkeypatch.setattr(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
         lambda *args, **kwargs: ResolvedCutScope("session_clear"),
     )
-    assert approve_edits(proj, [decision.id]) == 1
 
-    assert all(clip.source_end <= 0.1 or clip.source_start >= 0.4 for clip in proj.clips)
+    with pytest.raises(ScopeChangedAtApproval, match="selected audio"):
+        cut_words(proj, "host", 0, 0, source_id="B")
+
+    assert proj.model_dump(mode="json") == before
 
 
 def test_transcript_cut_holds_if_selected_source_moves_before_approval(tmp_path):
