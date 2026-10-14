@@ -1,41 +1,56 @@
-"""No share guest reads any piece of a host folder name, whatever the name holds (#1327).
+"""One contract over every guest surface: no host path or secret leaves, a crash reads the same.
 
-A host's folders can hold apostrophes, quotes, ``?``, spaces and non-ASCII. A guest or relayed
-caller reaches coded errors that name a host path; every one reads a fixed, path-free message.
-The sweep builds a real share under such a folder, breaks it two ways (the frozen review mix
-is gone, the project file is gone) and reads every guest surface for any word of the folder name.
+Every route the app serves under a share ``{token}``, both guest sockets and every remote MCP
+tool is probed. Each probe names the call inside its own handler where a fault is planted, so a
+leak in that handler's own error path fails here. The sweep also breaks a real share two ways
+(the frozen review mix is gone, the project file is gone) under folder names that hold
+apostrophes, quotes, ``?``, spaces and non-ASCII, and reads every answer for a word of the
+folder name (#1327).
 """
 
 from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+import podcast_mcp.edits.transcript_cuts as transcript_cuts
+import podcast_mcp.gui.jobs as gui_jobs
+import podcast_mcp.services.collaboration as collaboration
 from podcast_mcp.edits.review_versions import get_version, version_audio_path
-from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
+from podcast_mcp.gui.routes import record_share, remote_mcp, review_share, share_common
+from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.guest_progress import guest_ws_progress_sink
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.record.commands import RecordCommand
+from podcast_mcp.services.record.service import (
+    RecordSessionService,
+    next_record_client_seq,
+    reset_record_runtime_for_tests,
+)
+from podcast_mcp.services.record.upload import RecordUploadService
+from podcast_mcp.services.remote_mcp import tools as remote_tools
 from podcast_mcp.services.remote_mcp.progress import GuestMcpProgressContext
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
-from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS
-from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, CodedFileNotFoundError
 from podcast_mcp.util.progress import progress_task, register_guest_progress_sink
 
 RELAYED = {"x-sharecut-relayed": "1"}
 FOLDER_NAMES = [
     "Talkin' Shop",
     "Rock 'n' Roll Hourz",
-    '"Bestz" Cut',
+    '"Bestz" Cutz',
     "Whatz? Showz",
     "Café Ünïcodz ☕ Radio",
     "Spaced   Outz Pod",
@@ -45,6 +60,9 @@ PROJECT_GONE = "project_file_gone"
 REVIEW_AUDIO_GONE_MESSAGE = (
     "This review's audio isn't available right now; ask the host to republish."
 )
+PLANTED_SECRET = "planted-credential-0xC0FFEE-do-not-leak"
+INTERNAL_ERROR = {"detail": "internal error"}
+SHARE_CAPS = ["view", "play", "comment", "reply", "action", "suggest", "edit", "mcp"]
 
 
 def _words(folder: str) -> list[str]:
@@ -57,6 +75,8 @@ class World:
     workspace: Path
     token: str
     record_token: str
+    participant: str
+    lease: str
     mix: Path
     dist: Path
 
@@ -69,7 +89,51 @@ class World:
         ]
 
 
+def _consented_guest(ws: ProjectWorkspace, room: dict[str, Any]) -> tuple[str, str]:
+    """A guest who joined the record room and consented to take 0, so uploads pass the lease."""
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    caps = ["join", "monitor"]
+    svc.join(
+        token=room["guest"]["token"],
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    echo, _snapshot = svc.join(
+        token=room["guest"]["token"],
+        role="guest",
+        display_name="Ava",
+        client_id="Ava",
+        connection_id="a1",
+        capabilities=caps,
+        client_seq=1,
+    )
+    pid = echo["participant_id"]
+
+    def command(
+        ctype: str, *, role: str, participant: str, payload: dict[str, Any]
+    ) -> RecordCommand:
+        return RecordCommand.parse(
+            command_type=ctype,
+            payload=payload,
+            client_id=role,
+            role=role,
+            participant_id=participant,
+            client_seq=next_record_client_seq(),
+        )
+
+    consent = {"accepted": True, "display_name": "Ava"}
+    svc.submit(
+        command("Consent", role="guest", participant=pid, payload=consent), capabilities=caps
+    )
+    svc.submit(command("Start", role="host", participant="p_host", payload={}), now_wall_ms=1000)
+    svc.submit(command("Stop", role="host", participant="p_host", payload={}), now_wall_ms=2000)
+    return pid, echo["lease"]
+
+
 def _build_world(tmp_path: Path, sample_wav: Path, folder: str) -> World:
+    reset_record_runtime_for_tests()
     workspace = tmp_path / folder / "ep1"
     (workspace / "raw").mkdir(parents=True)
     (workspace / "raw" / "host.wav").write_bytes(sample_wav.read_bytes())
@@ -81,15 +145,16 @@ def _build_world(tmp_path: Path, sample_wav: Path, folder: str) -> World:
     )
     ws = ProjectWorkspace.open(path)
     version = ReviewService(ws).publish(label="guest")
-    token = ShareService(ws).create(
-        review_version_id=version["id"], capabilities=["view", "play", "comment", "mcp"]
-    )["token"]
-    record_token = ShareService(ws).create_record_room()["guest"]["token"]
+    token = ShareService(ws).create(review_version_id=version["id"], capabilities=SHARE_CAPS)[
+        "token"
+    ]
+    room = ShareService(ws).create_record_room()
+    participant, lease = _consented_guest(ws, room)
     mix = version_audio_path(load_project(path), version["id"])
     dist = tmp_path / "dist"
     dist.mkdir()
     (dist / "index.html").write_text("<html>studio</html>", encoding="utf-8")
-    return World(folder, workspace, token, record_token, mix, dist)
+    return World(folder, workspace, token, room["guest"]["token"], participant, lease, mix, dist)
 
 
 @pytest.fixture(autouse=True)
@@ -103,7 +168,7 @@ def world(tmp_path: Path, sample_wav: Path) -> World:
     return _build_world(tmp_path, sample_wav, FOLDER_NAMES[0])
 
 
-def _break(world: World, how: str, monkeypatch: pytest.MonkeyPatch) -> None:
+def _break(world: World, how: str) -> None:
     if how == PROJECT_GONE:
         (world.workspace / "episode.project.json").unlink()
         return
@@ -119,160 +184,291 @@ def _client(world: World) -> TestClient:
     return TestClient(create_app(static_dir=world.dist), raise_server_exceptions=False)
 
 
-def _http(
-    client: TestClient,
-    method: str,
-    url: str,
-    headers: dict[str, str] | None = None,
-    **kwargs: object,
-) -> str:
-    response = client.request(method, url, headers={**RELAYED, **(headers or {})}, **kwargs)
-    return json.dumps([response.status_code, dict(response.headers), response.text])
-
-
-def _refused_socket(client: TestClient, url: str) -> str:
-    """Every frame, then the close reason, of a socket the server refuses at admission."""
-    seen: list[object] = []
-    try:
-        with client.websocket_connect(url, headers=RELAYED) as sock:
-            for _ in range(8):
-                seen.append(sock.receive_json())
-    except WebSocketDisconnect as closed:
-        seen.append([closed.code, closed.reason])
-    return json.dumps(seen)
-
-
 def _rpc(method: str, **params: object) -> dict:
     return {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
 
 
-PLANTED_SECRET = "planted-credential-0xC0FFEE-do-not-leak"
-FAULTS = ("mix_missing", "project_gone", "coded_path", "crash", "os_error")
-GUEST_ROUTERS = (review_share.router, record_share.router, remote_mcp.router)
-NO_WORKSPACE = {
-    ("GET", "/api/review/{token}/daw/waveform/tiles/{key}"),
-    ("GET", "/api/review/{token}/features"),
-    ("GET", "/api/rec/{token}/features"),
-    ("GET", "/mcp/{token}"),
-    ("GET", "/mcp/{token}/mcp"),
-    ("GET", "/r/{token}/mcp"),
-    ("OPTIONS", "/mcp/{token}/mcp"),
-    ("OPTIONS", "/r/{token}/mcp"),
-}
-"""Routes that never call ``ProjectWorkspace.open``: the planted fault cannot reach them.
+@dataclass(frozen=True)
+class Site:
+    """The call inside a route's or tool's own handler where a fault is planted.
 
-The tile route reads the project file directly, so the ``project_gone`` fault covers it.
-"""
+    ``not_found`` is set when the call is the share-token lookup: an uncoded ``KeyError``
+    there reads as that fixed 404, not as a crash.
+    """
+
+    owner: object
+    name: str
+    not_found: str | None = None
+    is_async: bool = False
+
+
+@dataclass(frozen=True)
+class Probe:
+    site: Site
+    request: dict[str, object] = field(default_factory=dict)
+    no_store: bool = False
+
+
+def _review(name: str) -> Site:
+    return Site(review_share, name)
+
+
+TOKEN_LOOKUP = Site(share_common, "lookup_share", not_found="invalid or revoked share token")
+MCP_PREFLIGHT = Site(remote_mcp, "share_allows_mcp", not_found="share not found")
 RANGE = {"intervals": [{"start": 0, "end": 1}], "track_ids": ["t"], "clips": [], "media_seals": {}}
-RECORD_HEADERS = {"X-Record-Participant": "p_123456789abc", "X-Record-Lease": "lease"}
 UPLOAD = "/api/rec/{token}/upload"
-PROBES: dict[tuple[str, str], dict[str, object]] = {
-    ("GET", "/api/review/{token}/project"): {},
-    ("GET", "/api/review/{token}/features"): {},
-    ("GET", "/api/review/{token}/audio"): {},
-    ("GET", "/api/review/{token}/daw/project"): {},
-    ("GET", "/api/review/{token}/daw/meta"): {},
-    ("GET", "/api/review/{token}/daw/waveform/status"): {},
-    ("GET", "/api/review/{token}/daw/waveform/tiles/{key}"): {
-        "params": {"ref": "track:t", "level": 0, "start": 0}
-    },
-    ("GET", "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"): {},
-    ("GET", "/api/review/{token}/daw/waveform-snap"): {
-        "params": {"track_id": "t", "start": 0, "end": 1}
-    },
-    ("GET", "/api/review/{token}/daw/audio"): {"params": {"kind": "review"}},
-    ("GET", "/api/review/{token}/daw/pending-preview"): {"params": {"edit_id": "e"}},
-    ("GET", "/api/review/{token}/daw/pending-preview-image"): {
-        "params": {"edit_id": "e", "kind": "wave"}
-    },
-    ("GET", "/api/review/{token}/daw/audition-context"): {"params": {"start": 0, "end": 1}},
-    ("GET", "/api/review/{token}/daw/audition-context-image"): {
-        "params": {"start": 0, "end": 1, "track_id": "t", "kind": "wave"}
-    },
-    ("GET", "/api/review/{token}/daw/proxy/manifest"): {},
-    ("GET", "/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}"): {},
-    ("POST", "/api/review/{token}/daw/render-preview"): {"json": {}},
-    ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): {},
-    ("GET", "/api/review/{token}/daw/document/state"): {},
-    ("POST", "/api/review/{token}/daw/boundary/context"): {
-        "json": {
-            "target": {"kind": "trim", "clip_id": "c", "edge": "in"},
-            "expected_geometry": [],
-        }
-    },
-    ("POST", "/api/review/{token}/daw/document/command"): {
-        "json": {
-            "type": "SetTrackMute",
-            "payload": {"track_id": "t", "muted": True},
-            "client_id": "guest",
-            "client_seq": 1,
-        }
-    },
-    ("POST", "/api/review/{token}/daw/media/upload"): {
-        "params": {"filename": "x.wav"},
-        "content": b"RIFF",
-    },
-    ("POST", "/api/review/{token}/comments"): {
-        "json": {"body": "b", "author": "A", "timeline_start": 0}
-    },
-    ("POST", "/api/review/{token}/comments/{comment_id}/replies"): {
-        "json": {"body": "b", "author": "A"}
-    },
-    ("POST", "/api/review/{token}/comments/{comment_id}/actions/{action_id}/done"): {"json": {}},
-    ("POST", "/api/review/{token}/daw/range-audio"): {"json": {"target": RANGE}},
-    ("GET", "/api/rec/{token}/bootstrap"): {},
-    ("GET", "/api/rec/{token}/features"): {},
-    ("GET", UPLOAD): {"headers": RECORD_HEADERS},
-    ("POST", UPLOAD): {
-        "headers": RECORD_HEADERS,
-        "params": {"take_index": 0, "segment_index": 0, "part_seq": 0},
-        "content": b"audio",
-    },
-    ("DELETE", UPLOAD): {"headers": RECORD_HEADERS, "params": {"kind": "room_tone"}},
-    ("GET", "/mcp/{token}"): {},
-    ("GET", "/mcp/{token}/mcp"): {},
-    ("POST", "/mcp/{token}/mcp"): {"json": _rpc("initialize")},
-    ("OPTIONS", "/mcp/{token}/mcp"): {},
-    ("GET", "/r/{token}/mcp"): {},
-    ("POST", "/r/{token}/mcp"): {"json": _rpc("tools/list")},
-    ("OPTIONS", "/r/{token}/mcp"): {},
+PROBES: dict[tuple[str, str], Probe] = {
+    ("GET", "/r/{token}"): Probe(TOKEN_LOOKUP),
+    ("GET", "/rec/{token}"): Probe(TOKEN_LOOKUP),
+    ("GET", "/api/review/{token}/project"): Probe(_review("share_project_view")),
+    ("GET", "/api/review/{token}/features"): Probe(_review("share_features_manifest")),
+    ("GET", "/api/review/{token}/audio"): Probe(_review("share_audio_path")),
+    ("GET", "/api/review/{token}/daw/project"): Probe(_review("share_daw_project_view")),
+    ("GET", "/api/review/{token}/daw/meta"): Probe(_review("share_daw_meta")),
+    ("GET", "/api/review/{token}/daw/waveform/status"): Probe(
+        _review("share_daw_waveform_status"), no_store=True
+    ),
+    ("GET", "/api/review/{token}/daw/waveform/tiles/{key}"): Probe(
+        _review("share_daw_waveform_tiles"),
+        {"params": {"ref": "track:t", "level": 0, "start": 0}},
+        no_store=True,
+    ),
+    ("GET", "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"): Probe(
+        _review("share_pending_cut_suggestion")
+    ),
+    ("GET", "/api/review/{token}/daw/waveform-snap"): Probe(
+        _review("share_daw_waveform_snap"), {"params": {"track_id": "t", "start": 0, "end": 1}}
+    ),
+    ("GET", "/api/review/{token}/daw/audio"): Probe(
+        _review("share_daw_audio_path"), {"params": {"kind": "review"}}
+    ),
+    ("GET", "/api/review/{token}/daw/pending-preview"): Probe(
+        _review("share_pending_preview_wav_cached"), {"params": {"edit_id": "e"}}
+    ),
+    ("GET", "/api/review/{token}/daw/pending-preview-image"): Probe(
+        _review("share_pending_preview_image_cached"),
+        {"params": {"edit_id": "e", "kind": "wave"}},
+    ),
+    ("GET", "/api/review/{token}/daw/audition-context"): Probe(
+        _review("share_audition_context_info"),
+        {"params": {"start": 0, "end": 1, "visual": False}},
+    ),
+    ("GET", "/api/review/{token}/daw/audition-context-image"): Probe(
+        _review("share_audition_context_image_cached"),
+        {"params": {"start": 0, "end": 1, "track_id": "t", "kind": "wave"}},
+    ),
+    ("GET", "/api/review/{token}/daw/proxy/manifest"): Probe(_review("share_proxy_manifest")),
+    ("GET", "/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}"): Probe(
+        _review("share_proxy_chunk_path")
+    ),
+    ("POST", "/api/review/{token}/daw/render-preview"): Probe(
+        Site(gui_jobs.PipelineJobManager, "start_render_preview"), {"json": {}}
+    ),
+    ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): Probe(
+        Site(gui_jobs, "guest_render_job")
+    ),
+    ("GET", "/api/review/{token}/daw/document/state"): Probe(_review("DocumentSyncService")),
+    ("POST", "/api/review/{token}/daw/boundary/context"): Probe(
+        _review("EditService"),
+        {
+            "json": {
+                "target": {"kind": "trim", "clip_id": "c", "edge": "in"},
+                "expected_geometry": [],
+            }
+        },
+    ),
+    ("POST", "/api/review/{token}/daw/document/command"): Probe(
+        _review("DocumentSyncService"),
+        {
+            "json": {
+                "type": "SetTrackMute",
+                "payload": {"track_id": "t", "muted": True},
+                "client_id": "guest",
+                "client_seq": 1,
+            }
+        },
+    ),
+    ("POST", "/api/review/{token}/daw/media/upload"): Probe(
+        _review("share_upload_media"), {"params": {"filename": "x.wav"}, "content": b"RIFF"}
+    ),
+    ("POST", "/api/review/{token}/comments"): Probe(
+        _review("share_add_comment"), {"json": {"body": "b", "author": "A", "timeline_start": 0}}
+    ),
+    ("POST", "/api/review/{token}/comments/{comment_id}/replies"): Probe(
+        _review("share_add_reply"), {"json": {"body": "b", "author": "A"}}
+    ),
+    ("POST", "/api/review/{token}/comments/{comment_id}/actions/{action_id}/done"): Probe(
+        _review("share_set_action_done"), {"json": {}}
+    ),
+    ("POST", "/api/review/{token}/daw/range-audio"): Probe(
+        Site(collaboration, "share_selected_range_audio"), {"json": {"target": RANGE}}
+    ),
+    ("GET", "/api/rec/{token}/bootstrap"): Probe(Site(record_share, "record_bootstrap")),
+    ("GET", "/api/rec/{token}/features"): Probe(Site(record_share, "share_features_manifest")),
+    ("GET", UPLOAD): Probe(Site(RecordUploadService, "status")),
+    ("POST", UPLOAD): Probe(
+        Site(record_share, "ingest_record_upload_request", is_async=True),
+        {"params": {"take_index": 0, "segment_index": 0, "part_seq": 0}, "content": b"audio"},
+    ),
+    ("DELETE", UPLOAD): Probe(
+        Site(RecordUploadService, "revoke_room_tone"), {"params": {"kind": "room_tone"}}
+    ),
+    ("GET", "/mcp/{token}"): Probe(MCP_PREFLIGHT),
+    ("GET", "/mcp/{token}/mcp"): Probe(MCP_PREFLIGHT),
+    ("POST", "/mcp/{token}/mcp"): Probe(MCP_PREFLIGHT, {"json": _rpc("initialize")}),
+    ("OPTIONS", "/mcp/{token}/mcp"): Probe(MCP_PREFLIGHT),
+    ("GET", "/r/{token}/mcp"): Probe(MCP_PREFLIGHT),
+    ("POST", "/r/{token}/mcp"): Probe(MCP_PREFLIGHT, {"json": _rpc("tools/list")}),
+    ("OPTIONS", "/r/{token}/mcp"): Probe(MCP_PREFLIGHT),
 }
-SOCKETS = {"/api/review/{token}/daw/ws", "/api/rec/{token}/ws"}
+SOCKETS: dict[str, Site] = {
+    "/api/review/{token}/daw/ws": _review("require_share_cap"),
+    "/api/rec/{token}/ws": Site(record_share, "open_share_workspace"),
+}
+TOOLS: dict[str, tuple[Site | None, dict[str, object]]] = {
+    "guest_get_review_summary": (Site(remote_tools, "share_project_view"), {}),
+    "guest_get_project": (Site(remote_tools, "share_daw_project_view"), {}),
+    "guest_get_session_presence": (Site(collaboration, "SessionControlService"), {}),
+    "guest_list_clips": (Site(remote_tools, "share_daw_project_view"), {}),
+    "guest_list_pending_edits": (Site(remote_tools, "share_daw_project_view"), {}),
+    "guest_list_applied_edits": (Site(remote_tools, "share_daw_project_view"), {}),
+    "guest_search_transcript": (Site(transcript_cuts, "search_transcript"), {"query": "x"}),
+    "guest_render_status": (Site(remote_tools, "share_daw_project_view"), {}),
+    "guest_list_comments": (Site(remote_tools, "share_project_view"), {}),
+    "guest_audio_info": (None, {}),
+    "guest_pending_preview": (Site(remote_tools, "share_pending_preview_info"), {"edit_id": "e"}),
+    "guest_audition_context": (
+        Site(remote_tools, "share_audition_context_info"),
+        {"start": 0, "end": 1},
+    ),
+    "guest_add_comment": (
+        Site(remote_tools, "share_add_comment"),
+        {"body": "b", "author": "A", "timeline_start": 0},
+    ),
+    "guest_add_reply": (
+        Site(remote_tools, "share_add_reply"),
+        {"comment_id": "c", "body": "b", "author": "A"},
+    ),
+    "guest_set_action_done": (
+        Site(remote_tools, "share_set_action_done"),
+        {"comment_id": "c", "action_id": "a"},
+    ),
+    "guest_submit_document_command": (
+        Site(remote_tools, "DocumentSyncService"),
+        {"type": "SetTrackMute", "payload": {"track_id": "t", "muted": True}, "client_seq": 1},
+    ),
+    "guest_render_preview": (Site(gui_jobs, "shared_job_manager"), {}),
+    "guest_render_preview_job": (Site(gui_jobs, "shared_job_manager"), {"job_id": "j"}),
+    "guest_upload_media": (
+        Site(remote_tools, "share_upload_media"),
+        {"filename": "x.wav", "data_base64": "UklGRg=="},
+    ),
+}
+"""``guest_audio_info`` only formats share URLs: it calls nothing a fault could be planted in."""
 
 
-def _guest_routes() -> set[tuple[str, str]]:
+def _walk(routes: list[Any]) -> Iterator[Any]:
+    for route in routes:
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            yield from _walk(list(included.routes))
+        else:
+            yield route
+
+
+def _guest_routes(world: World) -> set[tuple[str, str]]:
+    """Every (method, path) the app serves under a share ``{token}``, sockets as ``WS``."""
+    app = _client(world).app
     return {
         (method, route.path)
-        for router in GUEST_ROUTERS
-        for route in router.routes
+        for route in _walk(list(app.routes))
+        if "{token}" in getattr(route, "path", "")
         for method in sorted(getattr(route, "methods", None) or {"WS"})
         if method != "HEAD"
     }
 
 
-def _plant(world: World, fault: str, monkeypatch: pytest.MonkeyPatch) -> list[int]:
-    """Break the project the way ``fault`` says; the list counts how often the break was hit."""
-    hits: list[int] = []
-    if fault in (MIX_MISSING, PROJECT_GONE):
-        _break(world, fault, monkeypatch)
-        return hits
-    host_path = world.workspace / "episode.project.json"
-    errors = {
-        "coded_path": lambda: CodedFileNotFoundError(f"missing {host_path}", code="file_gone"),
-        "crash": lambda: RuntimeError(f"{host_path} {PLANTED_SECRET}"),
-        "os_error": lambda: PermissionError(13, f"denied {PLANTED_SECRET}", str(host_path)),
+def test_every_guest_route_has_a_probe(world: World) -> None:
+    routes = _guest_routes(world)
+
+    assert {key for key in routes if key[0] != "WS"} == set(PROBES)
+    assert {path for method, path in routes if method == "WS"} == set(SOCKETS)
+    assert set(TOOLS) == set(remote_tools.TOOL_HANDLERS)
+
+
+@dataclass(frozen=True)
+class Fault:
+    """An exception planted in a site, and what a guest reads when the site raises it."""
+
+    name: str
+    error: Any
+    coded: bool = False
+    is_key_error: bool = False
+
+    def http(self, site: Site) -> tuple[int, dict[str, object], bool]:
+        """The status, the body and whether the host log carries the crash."""
+        if self.coded:
+            return 404, {"detail": GENERIC_GUEST_MESSAGE}, False
+        if self.is_key_error and site.not_found is not None:
+            return 404, {"detail": site.not_found}, False
+        return 500, INTERNAL_ERROR, True
+
+    def socket_close(self) -> list[object]:
+        if self.coded:
+            return [4403, GENERIC_GUEST_MESSAGE]
+        return [1011, "internal error"]
+
+    def tool_result(self, tool: str) -> dict[str, object]:
+        if self.coded:
+            text = [{"type": "text", "text": GENERIC_GUEST_MESSAGE}]
+            refusal = {"ok": False, "error": GENERIC_GUEST_MESSAGE, "error_code": "file_gone"}
+            return {"content": text, "structuredContent": refusal, "isError": True}
+        return {
+            "content": [{"type": "text", "text": f"Error executing tool {tool}"}],
+            "isError": True,
+        }
+
+
+def _faults(host_path: Path) -> dict[str, Fault]:
+    return {
+        "coded_path": Fault(
+            "coded_path",
+            lambda: CodedFileNotFoundError(
+                f"missing {host_path} {PLANTED_SECRET}", code="file_gone"
+            ),
+            coded=True,
+        ),
+        "crash": Fault("crash", lambda: RuntimeError(f"{host_path} {PLANTED_SECRET}")),
+        "os_error": Fault(
+            "os_error", lambda: PermissionError(13, f"denied {PLANTED_SECRET}", str(host_path))
+        ),
+        "key_error": Fault(
+            "key_error", lambda: KeyError(f"{host_path} {PLANTED_SECRET}"), is_key_error=True
+        ),
     }
 
-    def planted(_path: object) -> None:
-        hits.append(1)
-        raise errors[fault]()
 
-    monkeypatch.setattr(ProjectWorkspace, "open", staticmethod(planted))
+PLANTED_FAULTS = ("coded_path", "crash", "os_error", "key_error")
+
+
+def _plant(site: Site, fault: Fault, monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Make ``site`` raise ``fault``; the list counts how often it was reached."""
+    hits: list[int] = []
+
+    def planted(*_args: object, **_kwargs: object) -> None:
+        hits.append(1)
+        raise fault.error()
+
+    async def planted_async(*_args: object, **_kwargs: object) -> None:
+        planted()
+
+    monkeypatch.setattr(site.owner, site.name, planted_async if site.is_async else planted)
     return hits
 
 
 def _expand(template: str, world: World) -> str:
-    token = world.record_token if template.startswith("/api/rec/") else world.token
+    rec = template.startswith(("/api/rec/", "/rec/"))
+    token = world.record_token if rec else world.token
     return re.sub(
         r"\{(\w+)\}",
         lambda m: token if m[1] == "token" else "0" if m[1] == "chunk_idx" else "x1",
@@ -280,63 +476,122 @@ def _expand(template: str, world: World) -> str:
     )
 
 
-def _probe_http(client: TestClient, method: str, template: str, world: World) -> str:
-    spec = dict(PROBES[(method, template)])
-    headers = {**RELAYED, **spec.pop("headers", {})}
-    response = client.request(method, _expand(template, world), headers=headers, **spec)
-    return json.dumps([response.status_code, dict(response.headers), response.text])
+def _send(client: TestClient, method: str, template: str, world: World) -> Any:
+    spec = dict(PROBES[(method, template)].request)
+    record = {"X-Record-Participant": world.participant, "X-Record-Lease": world.lease}
+    headers = {**RELAYED, **(record if template == UPLOAD else {})}
+    return client.request(method, _expand(template, world), headers=headers, **spec)
 
 
-def test_every_guest_route_has_a_probe() -> None:
-    routes = _guest_routes()
+def _socket(client: TestClient, url: str) -> list[object]:
+    """Every frame the server sends, then its close code and reason.
 
-    assert {key for key in routes if key[0] != "WS"} == set(PROBES)
-    assert {path for method, path in routes if method == "WS"} == SOCKETS
+    An admitted socket is fed unparseable frames until the guest malformed-frame limit closes
+    it, so the probe ends whether or not admission succeeds.
+    """
+    seen: list[object] = []
+    try:
+        with client.websocket_connect(url, headers=RELAYED) as sock:
+            for _ in range(GUEST_MALFORMED_LIMIT + 1):
+                sock.send_text("{")
+            while True:
+                seen.append(sock.receive_json())
+    except WebSocketDisconnect as closed:
+        seen.append([closed.code, closed.reason])
+    return seen
 
 
-@pytest.mark.parametrize("fault", FAULTS)
-def test_no_guest_route_shows_a_host_path_or_secret(
-    fault: str,
-    tmp_path: Path,
-    sample_wav: Path,
+def _logged_secret(caplog: pytest.LogCaptureFixture, since: int) -> bool:
+    return any(
+        record.exc_info and PLANTED_SECRET in str(record.exc_info[1])
+        for record in caplog.records[since:]
+    )
+
+
+def _assert_private(world: World, label: str, text: str) -> None:
+    assert world.leaks(text) == [], f"{label}: {text}"
+    assert PLANTED_SECRET not in text, f"{label}: {text}"
+
+
+@pytest.mark.parametrize("fault_name", PLANTED_FAULTS)
+def test_a_fault_in_any_guest_handler_reads_the_fixed_answer(
+    fault_name: str,
+    world: World,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    folders = FOLDER_NAMES if fault in (MIX_MISSING, PROJECT_GONE) else FOLDER_NAMES[:1]
-    for index, folder in enumerate(folders):
-        world = _build_world(tmp_path / str(index), sample_wav, folder)
-        with monkeypatch.context() as patch:
-            outputs = _probe_world(world, fault, patch)
-        for route, text in outputs.items():
-            assert world.leaks(text) == [], f"{fault} {route}: {text}"
-            assert PLANTED_SECRET not in text, f"{fault} {route}: {text}"
-        if fault in {"crash", "os_error"}:
-            logged = [str(r.exc_info[1]) for r in caplog.records if r.exc_info]
-            assert any(PLANTED_SECRET in line for line in logged)
-
-
-def _probe_world(world: World, fault: str, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
-    """Every guest route, socket and MCP tool answered while ``fault`` is planted."""
-    hits = _plant(world, fault, monkeypatch)
+    fault = _faults(world.workspace / "episode.project.json")[fault_name]
     client = _client(world)
-    outputs: dict[str, str] = {}
-    for method, template in sorted(PROBES):
-        before = len(hits)
-        outputs[f"{method} {template}"] = _probe_http(client, method, template, world)
-        if (method, template) not in NO_WORKSPACE and hits:
-            assert len(hits) > before, f"{method} {template} never reached the planted fault"
-    for template in sorted(SOCKETS):
-        outputs[f"WS {template}"] = _refused_socket(client, _expand(template, world))
-    for tool in sorted(TOOL_HANDLERS):
-        call = _rpc("tools/call", name=tool, arguments={})
-        outputs[f"tool {tool}"] = json.dumps(handle_mcp_jsonrpc(world.token, call))
-    return outputs
+
+    for (method, template), probe in sorted(PROBES.items()):
+        label = f"{fault_name} {method} {template}"
+        since = len(caplog.records)
+        with monkeypatch.context() as patch:
+            hits = _plant(probe.site, fault, patch)
+            response = _send(client, method, template, world)
+        status, body, logged = fault.http(probe.site)
+
+        assert hits, f"{label} never reached {probe.site.name}"
+        _assert_private(world, label, json.dumps([dict(response.headers), response.text]))
+        assert (response.status_code, response.json()) == (status, body), label
+        assert _logged_secret(caplog, since) is logged, label
+        if probe.no_store:
+            assert response.headers.get("cache-control") == "no-store", label
+
+    for template, site in sorted(SOCKETS.items()):
+        label = f"{fault_name} WS {template}"
+        since = len(caplog.records)
+        with monkeypatch.context() as patch:
+            hits = _plant(site, fault, patch)
+            seen = _socket(client, _expand(template, world))
+
+        assert hits, f"{label} never reached {site.name}"
+        _assert_private(world, label, json.dumps(seen))
+        assert seen == [fault.socket_close()], label
+        assert _logged_secret(caplog, since) is not fault.coded, label
+
+    for tool, (site, arguments) in sorted(TOOLS.items()):
+        if site is None:
+            continue
+        label = f"{fault_name} tool {tool}"
+        since = len(caplog.records)
+        with monkeypatch.context() as patch:
+            hits = _plant(site, fault, patch)
+            out = handle_mcp_jsonrpc(
+                world.token, _rpc("tools/call", name=tool, arguments=arguments)
+            )
+
+        assert hits, f"{label} never reached {site.name}"
+        _assert_private(world, label, json.dumps(out))
+        assert out == {"jsonrpc": "2.0", "id": 1, "result": fault.tool_result(tool)}, label
+        assert _logged_secret(caplog, since) is not fault.coded, label
 
 
-def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(
-    world: World, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("broken", [MIX_MISSING, PROJECT_GONE])
+def test_no_guest_route_shows_a_word_of_a_broken_share_folder(
+    broken: str, tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _break(world, MIX_MISSING, monkeypatch)
+    # Unplanted, a guest render would start a real background job that outlives the test.
+    monkeypatch.delenv("PODCAST_GUEST_RENDER")
+    for index, folder in enumerate(FOLDER_NAMES):
+        world = _build_world(tmp_path / str(index), sample_wav, folder)
+        _break(world, broken)
+        client = _client(world)
+        for method, template in sorted(PROBES):
+            response = _send(client, method, template, world)
+            text = json.dumps([response.status_code, dict(response.headers), response.text])
+            _assert_private(world, f"{broken} {method} {template}", text)
+        for template in sorted(SOCKETS):
+            seen = _socket(client, _expand(template, world))
+            _assert_private(world, f"{broken} WS {template}", json.dumps(seen))
+        for tool, (_site, arguments) in sorted(TOOLS.items()):
+            call = _rpc("tools/call", name=tool, arguments=arguments)
+            out = handle_mcp_jsonrpc(world.token, call)
+            _assert_private(world, f"{broken} tool {tool}", json.dumps(out))
+
+
+def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(world: World) -> None:
+    _break(world, MIX_MISSING)
     client = _client(world)
 
     for url in (
@@ -350,10 +605,8 @@ def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(
         assert response.json() == {"detail": REVIEW_AUDIO_GONE_MESSAGE}
 
 
-def test_host_still_reads_the_path_when_the_mix_is_gone(
-    world: World, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _break(world, MIX_MISSING, monkeypatch)
+def test_host_still_reads_the_path_when_the_mix_is_gone(world: World) -> None:
+    _break(world, MIX_MISSING)
     project = load_project(world.workspace / "episode.project.json")
 
     with pytest.raises(CodedFileNotFoundError) as refusal:
@@ -366,8 +619,6 @@ def test_host_still_reads_the_path_when_the_mix_is_gone(
 def test_guest_progress_stream_never_carries_a_fragment_of_the_host_folder_name(
     world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.services.remote_mcp import tools as remote_tools
-
     raw = world.workspace / "raw" / "host.wav"
     captured: list[GuestMcpProgressContext] = []
 

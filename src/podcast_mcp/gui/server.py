@@ -406,12 +406,9 @@ def create_app(
                 return _serve_share_spa(token, request, kind="record")
 
             def _serve_share_spa(token: str, request: Request, *, kind: str) -> Any:
-                from podcast_mcp.services.collaboration import lookup_share
+                from podcast_mcp.gui.routes.share_common import check_share_token
 
-                try:
-                    lookup_share(token, kind=kind)
-                except KeyError as exc:
-                    raise HTTPException(status_code=404, detail="not found") from exc
+                check_share_token(token, kind=kind)
                 index_path = static_root / "index.html"
                 index_html = index_path.read_text(encoding="utf-8")
                 for hook in registry.spa_hooks:

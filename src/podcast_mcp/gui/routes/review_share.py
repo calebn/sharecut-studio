@@ -186,7 +186,8 @@ def get_review_features(token: str, request: Request) -> dict[str, Any]:
     """Share-scoped feature manifest (relay-safe; guests cannot hit /api/features)."""
     _check_token(token)
     _rate_limit(token, "read")
-    return share_features_manifest(request)
+    with guest_boundary(log, "review features"):
+        return share_features_manifest(request)
 
 
 @router.get("/api/review/{token}/audio")
