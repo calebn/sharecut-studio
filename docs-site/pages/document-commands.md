@@ -39,7 +39,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
-| `ApproveEdits` | `ids` (array[string]) | `allow_review` (boolean), `confirm_cut_speech` (boolean) |
+| `ApproveEdits` | `ids` (array[string]) | `allow_review` (boolean), `confirm_cut_speech` (boolean), `hold_blocked` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `confirm_cut_speech` (boolean), `track_ids` (array[string]) |

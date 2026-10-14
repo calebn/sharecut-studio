@@ -97,16 +97,17 @@ export function ImpactPanel() {
       startedAtSec: Date.now() / 1000,
     });
     await run(async () => {
-      const { queued, asked, historyHead } =
+      const outcome =
         action === "approve"
-          ? await approveEdits(projectPath, ids)
+          ? await approveEdits(projectPath, ids, false, true, undefined, true)
           : { ...(await rejectEdits(projectPath, ids)), asked: false };
+      const { queued, asked, historyHead } = outcome;
       setQueued(queued);
       setSelection(null);
       if (!queued && !asked) {
         useDawStore
           .getState()
-          .announceStatus(bulkReviewDoneMessage(action, ids.length), {
+          .announceStatus(bulkReviewDoneMessage(action, ids.length, outcome), {
             undo: historyHead,
           });
       }

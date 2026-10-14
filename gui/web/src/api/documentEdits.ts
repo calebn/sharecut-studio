@@ -40,6 +40,7 @@ import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import {
   capturePendingReview,
   type PendingReviewCapture,
+  type HeldCut,
   type ReviewOutcome,
   requireCurrentPendingReview,
 } from "../utils/pendingReviewPass";
@@ -196,9 +197,21 @@ function reviewOutcome(
   choices?: CutSpeechChoices,
 ): ReviewOutcome {
   if (result.queued === true)
-    return { queued: true, asked: false, count: null, historyHead: null };
+    return {
+      queued: true,
+      asked: false,
+      count: null,
+      historyHead: null,
+      held: [],
+    };
   if (choices && rippleOutcome(projectPath, result, choices).asked)
-    return { queued: false, asked: true, count: null, historyHead: null };
+    return {
+      queued: false,
+      asked: true,
+      count: null,
+      historyHead: null,
+      held: [],
+    };
   const command = result.command;
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const review = isSuggestionRecord(payload) ? payload.result : null;
@@ -210,7 +223,22 @@ function reviewOutcome(
     asked: false,
     count,
     historyHead: replyHistoryHead(result),
+    held: heldOf(review),
   };
+}
+
+/** Cuts Approve all left pending, each with the reason the list can show. */
+function heldOf(review: unknown): HeldCut[] {
+  const held = isSuggestionRecord(review) ? review.held : null;
+  if (!Array.isArray(held)) return [];
+  return held.flatMap((row): HeldCut[] =>
+    isSuggestionRecord(row) &&
+    typeof row.id === "string" &&
+    typeof row.label === "string" &&
+    typeof row.reason === "string"
+      ? [{ id: row.id, label: row.label, reason: row.reason }]
+      : [],
+  );
 }
 
 export async function approveEdits(
@@ -219,17 +247,20 @@ export async function approveEdits(
   confirmCutSpeech = false,
   allowReview = true,
   review: PendingReviewCapture = capturePendingReview("approve", projectPath),
+  holdBlocked = false,
 ): Promise<ReviewOutcome> {
   if (confirmCutSpeech) requireCurrentPendingReview(review);
   const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
     ids,
     allow_review: allowReview,
+    ...(holdBlocked ? { hold_blocked: true } : {}),
     ...confirmed(confirmCutSpeech),
   });
   return reviewOutcome(projectPath, result, {
     kind: "pending-review",
     review,
-    cutAnyway: () => approveEdits(projectPath, ids, true, allowReview, review),
+    cutAnyway: () =>
+      approveEdits(projectPath, ids, true, allowReview, review, holdBlocked),
     leaveGap: null,
   });
 }

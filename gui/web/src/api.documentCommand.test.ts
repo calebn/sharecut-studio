@@ -204,9 +204,8 @@ describe("host document command queue", () => {
         ),
       );
       const { submitDocumentCommand } = await import("./api");
-      const { headLandedSince, savesLandedMark } = await import(
-        "./state/documentSendOrder"
-      );
+      const { headLandedSince, savesLandedMark } =
+        await import("./state/documentSendOrder");
       const mark = savesLandedMark(path);
       const scope = (await import("./document/authorityState")).documentScope();
       await submitDocumentCommand(path, "TrimClipEdge", {});
@@ -225,9 +224,8 @@ describe("host document command queue", () => {
         }),
       );
       const { submitDocumentCommand } = await import("./api");
-      const { headLandedSince, savesLandedMark } = await import(
-        "./state/documentSendOrder"
-      );
+      const { headLandedSince, savesLandedMark } =
+        await import("./state/documentSendOrder");
       const mark = savesLandedMark(path);
       const scope = (await import("./document/authorityState")).documentScope();
       const result = await submitDocumentCommand(path, "TrimClipEdge", {});
@@ -872,7 +870,13 @@ describe("host document command queue", () => {
           false,
           allowReview,
         ),
-      ).toEqual({ queued: true, asked: false, count: null, historyHead: null });
+      ).toEqual({
+        queued: true,
+        asked: false,
+        count: null,
+        historyHead: null,
+        held: [],
+      });
       const command = enqueueHostCommand.mock.calls[0][1] as {
         command_id: string;
         client_id: string;
@@ -911,6 +915,7 @@ describe("host document command queue", () => {
       asked: false,
       count: null,
       historyHead: null,
+      held: [],
     });
   });
 
@@ -937,7 +942,48 @@ describe("host document command queue", () => {
       asked: false,
       count: 1,
       historyHead: "a1b2c3d4e5f6",
+      held: [],
     });
+  });
+
+  it("asks the host to hold blocked cuts and reports which it held", async () => {
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            history_head_id: "a1b2c3d4e5f6",
+            command: {
+              payload: {
+                result: {
+                  count: 2,
+                  held: [
+                    { id: "e2", label: "Dani's cut at 1:02", reason: "x" },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const { approveEdits } = await import("./api");
+    const outcome = await approveEdits(
+      "/tmp/episode.project.json",
+      ["a", "e2"],
+      false,
+      true,
+      undefined,
+      true,
+    );
+    const sent = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
+      payload: Record<string, unknown>;
+    };
+    expect(sent.payload).toMatchObject({ hold_blocked: true });
+    expect(outcome.held).toEqual([
+      { id: "e2", label: "Dani's cut at 1:02", reason: "x" },
+    ]);
   });
 
   it.each([
@@ -971,6 +1017,7 @@ describe("host document command queue", () => {
         asked: false,
         count,
         historyHead: head,
+        held: [],
       });
     },
   );

@@ -234,6 +234,7 @@ def approve_edits(
     *,
     confirm_cut_speech: bool = False,
     allow_review: bool = True,
+    held_out: list[HeldEdit] | None = None,
 ) -> int:
     """Apply the pending edits ``ids``.
 
@@ -241,7 +242,9 @@ def approve_edits(
     Unless ``confirm_cut_speech``, a batch whose ripples would cut speech outside their
     suggested spans raises :class:`UnconfirmedCutSpeech` with every such remove's
     speech; the caller's mutation rolls back, so nothing applies. A session remove a peer
-    is now speaking over raises :class:`ScopeChangedAtApproval` the same way.
+    is now speaking over raises :class:`ScopeChangedAtApproval` the same way. With
+    ``held_out`` (Approve all) such a remove is instead left pending and reported there,
+    in the clock the list shows, while every other edit applies.
     """
     from podcast_mcp.edits.range_edits import apply_ranges
 
@@ -280,6 +283,8 @@ def approve_edits(
         )
         applied_ids.add(edit.id)
     batch = _source_extents(removes)
+    # Named before any ripple moves anything, so a held cut reads as the list shows it.
+    labels = {e.id: cut_label(project, e) for e in removes}
     asked: list[CutSpeechConfirmation] = []
     held: list[CutScopeHold] = []
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
@@ -314,11 +319,15 @@ def approve_edits(
     if asked:
         raise UnconfirmedCutSpeech(confirmation_for(merge_cut_speech([a.speech for a in asked])))
     if held:
-        by_id = {e.id: e for e in removes}
-        raise ScopeChangedAtApproval(
+        error = ScopeChangedAtApproval(
             held,
             {tid: _speaker_name(project, tid) for h in held for tid in h.peers},
-            {h.edit_id: cut_label(project, by_id[h.edit_id]) for h in held if h.edit_id in by_id},
+            {h.edit_id: labels[h.edit_id] for h in held if h.edit_id in labels},
+        )
+        if held_out is None:
+            raise error
+        held_out.extend(
+            HeldEdit(h.edit_id, labels.get(h.edit_id, ""), error.reason_for(h)) for h in held
         )
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
         at_time = float(edit.start)
@@ -352,6 +361,15 @@ def reject_edits(project: EpisodeProject, ids: list[str]) -> int:
     )
     project.edit_decisions = kept
     return removed
+
+
+@dataclass(frozen=True)
+class HeldEdit:
+    """A pending cut Approve all left in the list, with the reason the list shows."""
+
+    edit_id: str
+    label: str
+    reason: str
 
 
 @dataclass(frozen=True)
