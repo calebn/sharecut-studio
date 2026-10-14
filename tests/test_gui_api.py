@@ -3880,7 +3880,7 @@ def test_build_project_view_with_track_and_transcript(minimal_project) -> None:
     project.transcripts = [
         Transcript(
             track_id="host",
-            words=[TranscriptWord(text="hello", start=0.0, end=0.5)],
+            words=[TranscriptWord(text="hello", start=0.0, end=1.0)],
         )
     ]
     project.timeline.tracks = [
@@ -3937,8 +3937,6 @@ def test_track_view_reports_source_presence_without_duration(minimal_project) ->
 
 
 def test_build_project_view_transcripts_without_combined(minimal_project) -> None:
-    from unittest.mock import patch
-
     from podcast_mcp.gui.assembler import build_project_view
     from podcast_mcp.models import (
         MediaAsset,
@@ -3967,12 +3965,9 @@ def test_build_project_view_transcripts_without_combined(minimal_project) -> Non
         )
     ]
     save_project(project, minimal_project)
-    with patch(
-        "podcast_mcp.gui.assembler.TranscriptService.get",
-        return_value='{"utterances": []}',
-    ):
-        view = build_project_view(minimal_project)
-    assert view.transcript == {"utterances": []}
+    view = build_project_view(minimal_project)
+    assert view.transcript is not None
+    assert view.transcript["utterances"][0]["text"] == "hi"
 
 
 def test_build_project_view_minimal(minimal_project) -> None:

@@ -20,6 +20,7 @@ def test_social_clip_export(e2e_workspace) -> None:
     from podcast_mcp.project_store import ProjectStore
 
     proj = load_project(e2e_workspace)
+    proj.transcripts = []
     proj.combined_transcript = CombinedTranscript(
         utterances=[
             CombinedUtterance(

@@ -165,7 +165,17 @@ def test_raw_source_selection_range_and_nonraw_rejection(timing_workspace):
 
 def test_mapper_provenance_and_unplaced_waveform_refs(timing_workspace):
     project = timing_workspace.project
-    combined = {"utterances": [{"track_id": "host", "start": 1, "end": 2, "text": "same"}]}
+    combined = {
+        "utterances": [
+            {
+                "track_id": "host",
+                "source_id": "extra",
+                "start": 1,
+                "end": 2,
+                "text": "same",
+            }
+        ]
+    }
     shown = map_transcript_utterances_to_timeline(project, combined)
     assert shown["utterances"][0]["words"][0]["timing_target"] == {
         "track_id": "host",
