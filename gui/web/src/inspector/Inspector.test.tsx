@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type { ClipRow, TrackView } from "../types/project";
-import { Inspector, SheetInspector } from "./Inspector";
+import { Inspector } from "./Inspector";
+import { SelectionSheetBody } from "./SelectionSheetBody";
 
 vi.mock("../api", () => ({
   applyFadeRecommendations: vi.fn(),
@@ -158,7 +159,7 @@ describe("Inspector clip lookup", () => {
   });
 });
 
-describe("SheetInspector", () => {
+describe("SelectionSheetBody", () => {
   beforeEach(() => {
     useDawStore.getState().hydrate(
       "/tmp/ep",
@@ -179,7 +180,7 @@ describe("SheetInspector", () => {
     useDawStore.setState({ selection: null, rangeArmed: true });
     render(
       <div className="bottom-sheet-body">
-        <SheetInspector />
+        <SelectionSheetBody />
       </div>,
     );
     expect(
@@ -195,7 +196,7 @@ describe("SheetInspector", () => {
     });
     render(
       <div className="bottom-sheet-body">
-        <SheetInspector />
+        <SelectionSheetBody />
       </div>,
     );
     expect(
