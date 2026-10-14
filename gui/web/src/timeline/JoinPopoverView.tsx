@@ -17,6 +17,7 @@ import {
   SegmentedControl,
   ToggleButton,
 } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 export interface JoinPopoverViewProps {
   id: string;
@@ -95,7 +96,13 @@ export function JoinPopoverView({
               key={m}
               quiet
               pressed={glyph === m}
-              disabled={busy || (m === "crossfade" && maxMs < 1)}
+              disabledReason={
+                busy
+                  ? BUSY_REASON
+                  : m === "crossfade" && maxMs < 1
+                    ? "These clips are too short to crossfade."
+                    : undefined
+              }
               title={joinModeLabel(m)}
               onClick={() => {
                 if (m !== glyph) {

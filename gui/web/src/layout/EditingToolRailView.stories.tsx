@@ -67,7 +67,11 @@ function RailPreview({
         toolToggle={
           <ToolModeToggleView
             compact
-            structuralToolsAllowed={bladeAllowed}
+            bladeReason={
+              bladeAllowed
+                ? undefined
+                : "Blade requires permission to suggest edits"
+            }
             toolMode={toolMode}
             commentMode={commentMode}
             selectTitle="Select tool (V)"

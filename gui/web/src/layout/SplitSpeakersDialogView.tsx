@@ -1,6 +1,7 @@
 import { type RefObject, useId, useRef } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, Field, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import {
   MAX_SPLIT_SPEAKERS,
   MIN_SPLIT_SPEAKERS,
@@ -24,7 +25,8 @@ export type SplitSpeakersStage =
   | {
       kind: "running";
       job: PipelineJobSnapshot | null;
-      canCancel: boolean;
+      /** Why Cancel is unavailable right now, or null when it can run. */
+      cancelReason: string | null;
       cancelling: boolean;
       cancelError: string | null;
     }
@@ -256,23 +258,17 @@ function SplitSpeakersFooter({
   onUndo,
   onRestart,
 }: SplitSpeakersDialogViewProps) {
-  const blockerId = useId();
   return (
     <div className="bounce-dialog-footer">
       {stage.kind === "configure" && stage.blocker && !stage.countError ? (
-        <p id={blockerId} className="export-dialog-note">
-          {stage.blocker}
-        </p>
+        <p className="export-dialog-note">{stage.blocker}</p>
       ) : null}
       <div className="bounce-dialog-actions split-speakers-actions">
         {stage.kind === "configure" ? (
           <Button
             variant="primary"
             type="button"
-            disabled={stage.blocker != null}
-            aria-describedby={
-              stage.blocker && !stage.countError ? blockerId : undefined
-            }
+            disabledReason={stage.blocker ?? undefined}
             onClick={onSplit}
           >
             Split speakers
@@ -281,7 +277,7 @@ function SplitSpeakersFooter({
         {stage.kind === "running" ? (
           <Button
             type="button"
-            disabled={!stage.canCancel}
+            disabledReason={stage.cancelReason ?? undefined}
             onClick={onCancelSplit}
           >
             {stage.cancelling ? "Cancelling…" : "Cancel split"}
@@ -290,7 +286,11 @@ function SplitSpeakersFooter({
         {stage.kind === "done" ? (
           <>
             {stage.canUndo ? (
-              <Button type="button" disabled={stage.undoing} onClick={onUndo}>
+              <Button
+                type="button"
+                disabledReason={stage.undoing ? BUSY_REASON : undefined}
+                onClick={onUndo}
+              >
                 {stage.undoing ? "Undoing…" : "Undo split"}
               </Button>
             ) : null}
