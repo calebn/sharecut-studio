@@ -657,7 +657,7 @@ def _loudest_window_db(
     mean_db: float,
     caches: TrackRmsCacheSet | None,
 ) -> float:
-    """The loudest 100 ms window of ``span`` on ``track_id`` (recorded dB), at least ``mean_db``.
+    """The loudest 100 ms window of ``span`` on ``track_id`` (recorded dB, balance gain included), at least ``mean_db``.
 
     A span's mean is diluted by its silence: a peer word 15 dB under its voice, inside a 3 s
     span, reads under the voice's reach. The loudest window is what a listener hears (#1419).
