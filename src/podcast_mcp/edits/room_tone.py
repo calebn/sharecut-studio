@@ -334,6 +334,10 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
                 picked.sample.start != kept.start for kept in pool
             ):
                 pool.append(picked.sample)
+    if any(x.speech_prob is None for x in pool):
+        # No voice detector this time: a pool recorded now would skip the ``voiced`` check
+        # for good, so leave it unpicked for a run that has one.
+        return None
     result = tuple(pool)
     record = _pool_record_path(project, key)
     try:
@@ -351,6 +355,20 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
     with _POOLS_LOCK:
         _POOLS[key] = result
     return result
+
+
+def room_tone_pool_digest(project: EpisodeProject) -> str:
+    """Identity of every track's pool, so a render that depends on it changes when it does.
+
+    A preview made before the pool existed picked live; once the pool is recorded the same
+    edit approves with a pooled sample, so the cached preview must not be reused.
+    """
+    parts = []
+    for track in project.tracks:
+        pool = read_room_tone_pool(project, track.id)
+        if pool is not None:
+            parts.append([track.id, [[x.start, x.end] for x in pool]])
+    return json.dumps(parts) if parts else ""
 
 
 def _from_pool(

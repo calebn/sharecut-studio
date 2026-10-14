@@ -591,3 +591,26 @@ def test_a_replaced_recording_is_picked_again(tmp_path: Path) -> None:
 
     _write_wav(tmp_path / "raw" / "host.wav", _host_audio(floor_db=-65.0))
     assert room_tone.read_room_tone_pool(project, "host") is None
+
+
+def test_a_pool_picked_without_the_voice_detector_is_not_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    monkeypatch.setattr(room_tone, "_speech_prob", lambda _audio: None)
+
+    assert room_tone.record_room_tone_pool(project, "host") is None
+    assert room_tone.read_room_tone_pool(project, "host") is None
+
+
+def test_the_pool_digest_changes_once_a_pool_is_recorded(tmp_path: Path) -> None:
+    from podcast_mcp.edits import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    before = room_tone.room_tone_pool_digest(project)
+    room_tone.record_room_tone_pool(project, "host")
+
+    assert before == ""
+    assert room_tone.room_tone_pool_digest(project) != before
