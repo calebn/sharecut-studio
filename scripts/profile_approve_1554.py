@@ -16,6 +16,7 @@ from podcast_mcp.edits import source_removals
 from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EditDecisionType, load_project
+from podcast_mcp.util.batch_scope import batch_scope
 
 project = load_project(Path(sys.argv[1]))
 ids = (
@@ -50,7 +51,9 @@ held, asked = [], []
 prof = cProfile.Profile()
 t = time.perf_counter()
 prof.enable()
-count = approve_edits(work, ids, allow_review=True, held_out=held, asked_out=asked)
+# The service wraps a batch in batch_scope(); without it nothing is shared across cuts.
+with batch_scope():
+    count = approve_edits(work, ids, allow_review=True, held_out=held, asked_out=asked)
 prof.disable()
 total = time.perf_counter() - t
 print(f"\nids={len(ids)} applied={count} held={len(held)} asked={sum(len(a.edit_ids) for a in asked)} total={total:.1f}s")
