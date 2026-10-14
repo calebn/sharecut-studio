@@ -269,10 +269,14 @@ test.describe("Pending inspector layout", () => {
       recovery.getByRole("button", { name: "Waive with reason" }),
     ).toBeAttached();
 
-    // The refused approval lists itself in Needs attention at once, which
-    // shrinks the stage and docks the bar. Dismiss it to measure the floating bar.
-    await page.getByRole("button", { name: "Dismiss all" }).click();
-    await expect(page.getByText("Needs attention")).toHaveCount(0);
+    const attention = page.getByRole("alert", { name: /^Needs attention/ });
+    const details = attention.locator("details");
+    await details
+      .getByLabel("View attention details and recovery actions")
+      .click();
+    await expect(details).toHaveAttribute("open", "");
+    await attention.getByRole("button", { name: "Dismiss all" }).click();
+    await expect(attention).toHaveCount(0);
     await page.setViewportSize({ width: 1280, height: 480 });
     await expect
       .poll(() =>
