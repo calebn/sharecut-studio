@@ -40,10 +40,23 @@ export function SaveStateDot() {
           loaded: attention.loaded,
           settling: attention.settling,
         });
+  const latest = attention.conflicts.at(-1);
+  const showsDismissedOutcome =
+    latest?.dismissed &&
+    ((state?.kind === "failed" &&
+      state.cause === "refused" &&
+      latest.kind === "refused" &&
+      latest.reason === state.reason) ||
+      (state?.kind === "unknown" &&
+        latest.kind === "unknown" &&
+        latest.reason === state.reason &&
+        latest.recovery === state.recovery));
 
   useLayoutEffect(() => {
     if (attention.recoverySelection) {
-      document.getElementById(ATTENTION_BANNER_ID)?.focus();
+      const banner = document.getElementById(ATTENTION_BANNER_ID);
+      banner?.querySelector("details")?.setAttribute("open", "");
+      banner?.focus();
     }
   }, [attention.recoverySelection]);
 
@@ -51,28 +64,24 @@ export function SaveStateDot() {
   return (
     <SaveStateDotView
       state={state}
-      onShowAttention={() => {
-        const latest = attention.conflicts.at(-1);
-        const showsDismissedOutcome =
-          latest?.dismissed &&
-          ((state.kind === "failed" &&
-            state.cause === "refused" &&
-            latest.kind === "refused" &&
-            latest.reason === state.reason) ||
-            (state.kind === "unknown" &&
-              latest.kind === "unknown" &&
-              latest.reason === state.reason &&
-              latest.recovery === state.recovery));
-        if (
-          projectPath &&
-          latest?.dismissed &&
-          showsDismissedOutcome &&
-          selectRecoveryOutcome(projectPath, latest)
-        ) {
-          return;
-        }
-        document.getElementById(ATTENTION_BANNER_ID)?.focus();
-      }}
+      attention={
+        state.kind === "failed" && !showsDismissedOutcome
+          ? { kind: "passive" }
+          : {
+              kind: "button",
+              activate: () => {
+                if (
+                  projectPath &&
+                  latest?.dismissed &&
+                  showsDismissedOutcome &&
+                  selectRecoveryOutcome(projectPath, latest)
+                ) {
+                  return;
+                }
+                document.getElementById(ATTENTION_BANNER_ID)?.focus();
+              },
+            }
+      }
     />
   );
 }

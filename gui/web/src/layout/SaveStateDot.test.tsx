@@ -59,6 +59,16 @@ async function settle(ms = 0) {
   });
 }
 
+function openDetails() {
+  const details = screen.getByText("Details");
+  if (!details.parentElement?.hasAttribute("open")) fireEvent.click(details);
+}
+
+function getActionButton(name: string) {
+  openDetails();
+  return screen.getByRole("button", { name });
+}
+
 describe("SaveStateDot", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -241,14 +251,13 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    const dot = screen.getByRole("button", {
+    const dot = screen.getByRole("img", {
       name: "Save failed · The clip moved. Edit and submit again.",
     });
     expect(dot).toHaveAttribute("data-save-state", "failed");
     const banner = screen.getByRole("alert");
+    openDetails();
     expect(banner).toHaveTextContent("The clip moved");
-    fireEvent.click(dot);
-    expect(banner).toHaveFocus();
   });
 
   it("uses a newer volatile outcome as the latest Save failed reason", async () => {
@@ -279,7 +288,7 @@ describe("SaveStateDot", () => {
     act(() => recordVolatileOutcome(path, replacement));
 
     expect(
-      screen.getByRole("button", {
+      screen.getByRole("img", {
         name: "Save failed · The newer result was refused. Edit and submit again.",
       }),
     ).toBeInTheDocument();
@@ -302,7 +311,7 @@ describe("SaveStateDot", () => {
     );
     await settle();
 
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    fireEvent.click(getActionButton("Dismiss all"));
     await settle();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     rendered.unmount();
@@ -348,7 +357,7 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    fireEvent.click(getActionButton("Dismiss all"));
     await settle();
 
     const dot = screen.getByRole("button", {
@@ -361,6 +370,8 @@ describe("SaveStateDot", () => {
     const banner = screen.getByRole("alert");
     expect(banner).toHaveTextContent("The server rejected this edit.");
     expect(banner).toHaveFocus();
+    expect(banner.querySelector("details")).toHaveAttribute("open");
+    expect(banner).toHaveTextContent("Edit the change and submit it again.");
   });
 
   it("reveals dismissed History as inspect-only and keeps its queue reservation", async () => {
@@ -384,9 +395,9 @@ describe("SaveStateDot", () => {
     );
     await settle();
 
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    fireEvent.click(getActionButton("Dismiss all"));
     await settle();
-    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 pending/);
     rendered.unmount();
     offlineStore.loadHostConflicts.mockResolvedValue([
       { ...history, dismissed: true },
@@ -398,7 +409,7 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 pending/);
     fireEvent.click(
       screen.getByRole("button", {
         name: /Outcome unknown .* Inspect History before trying again/,
@@ -407,13 +418,11 @@ describe("SaveStateDot", () => {
 
     const banner = screen.getByRole("alert");
     expect(banner).toHaveFocus();
-    expect(
-      screen.getByRole("button", { name: "Inspect History" }),
-    ).toBeInTheDocument();
+    expect(getActionButton("Inspect History")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Dismiss all" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Inspect History" }));
+    fireEvent.click(getActionButton("Inspect History"));
     expect(useDawStore.getState().moreDestination).toBe("history");
     expect(drain.requestHostDrain).not.toHaveBeenCalled();
   });
@@ -433,10 +442,10 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    fireEvent.click(getActionButton("Dismiss all"));
     await settle();
 
-    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 pending/);
     expect(
       screen.getByRole("button", { name: "Send now" }),
     ).toBeInTheDocument();
@@ -469,7 +478,7 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    fireEvent.click(getActionButton("Dismiss all"));
     act(() => recordVolatileOutcome(racePath, newer));
     await act(async () => {
       dismissal.resolve({
@@ -502,7 +511,7 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    fireEvent.click(getActionButton("Dismiss all"));
     let send!: ReturnType<typeof beginDocumentSend>;
     act(() => {
       send = beginDocumentSend(PATH, "dismissed-while-busy");
@@ -538,12 +547,12 @@ describe("SaveStateDot", () => {
     );
     await settle();
     expect(
-      screen.getByRole("button", {
+      screen.getByRole("img", {
         name: "Saved edits could not be read · Retry to read them",
       }),
     ).toHaveAttribute("data-save-state", "failed");
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(getActionButton("Retry"));
     await settle();
     expect(
       screen.getByRole("img", { name: "Saved to project" }),

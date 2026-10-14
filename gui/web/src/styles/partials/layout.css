@@ -137,7 +137,11 @@ html[data-shell] body {
 }
 
 .guest-attention {
-  padding: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  block-size: var(--touch-min);
+  padding-inline: var(--space-4);
   background: var(--color-warning-attention);
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-small);
@@ -146,13 +150,43 @@ html[data-shell] body {
 .guest-attention-head {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+  gap: var(--space-3);
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+  inline-size: 100%;
+}
+
+.guest-attention-head > strong,
+.guest-attention-head > span[role="img"] {
+  flex: none;
+  white-space: nowrap;
 }
 
 .guest-attention-actions {
   display: flex;
   gap: var(--space-3);
+}
+
+.guest-attention-details {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.guest-attention-details > summary {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  cursor: pointer;
+}
+
+.guest-attention-details-content {
+  padding-block: var(--space-3);
+}
+
+.guest-attention-details-content .guest-attention-list {
+  max-block-size: min(35dvh, 14rem);
+  overflow-y: auto;
 }
 
 @media (pointer: coarse) {
@@ -689,6 +723,10 @@ button.save-dot {
   inset: calc((var(--save-dot-box) - var(--touch-min)) / 2);
 }
 
+.save-dot:not(button)::after {
+  content: none;
+}
+
 .save-dot[data-save-state="saved"]::before {
   background: var(--color-success);
 }
@@ -743,7 +781,7 @@ button.save-dot {
 @media (pointer: coarse) {
   html:not([data-shell="phone"]):has(
     .status-bar
-      .save-dot:is(
+      button.save-dot:is(
         [data-save-state="waiting"],
         [data-save-state="failed"],
         [data-save-state="unknown"]
@@ -753,12 +791,16 @@ button.save-dot {
   }
 
   .status-bar
-    .save-dot:is(
+    button.save-dot:is(
       [data-save-state="waiting"],
       [data-save-state="failed"],
       [data-save-state="unknown"]
     ) {
     block-size: var(--touch-min);
+  }
+
+  .status-bar span.save-dot[data-save-state="failed"] {
+    block-size: var(--save-dot-box);
   }
 }
 

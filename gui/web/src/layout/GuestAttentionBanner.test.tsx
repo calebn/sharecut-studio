@@ -58,6 +58,16 @@ type Dismissal = {
   conflicts: ReturnType<typeof offlineConflict>[];
 };
 
+function openDetails() {
+  const details = screen.getByText("Details");
+  if (!details.parentElement?.hasAttribute("open")) fireEvent.click(details);
+}
+
+function getActionButton(name: string) {
+  openDetails();
+  return screen.getByRole("button", { name });
+}
+
 describe("GuestAttentionBanner", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -91,7 +101,7 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 pending/);
     expect(offlineStore.loadConflicts).not.toHaveBeenCalled();
     expect(offlineStore.loadHostConflicts).toHaveBeenCalledWith("/tmp/p.json");
 
@@ -100,14 +110,14 @@ describe("GuestAttentionBanner", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+      fireEvent.click(getActionButton("Dismiss all"));
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(offlineStore.dismissHostConflicts).toHaveBeenCalledWith(
       "/tmp/p.json",
       [expect.objectContaining({ command: expect.any(Object) })],
     );
-    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 pending/);
   });
 
   it("uses the share path: loadConflicts(token), no host command count", async () => {
@@ -117,12 +127,12 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByText("1 conflict")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 conflict/);
     expect(offlineStore.loadConflicts).toHaveBeenCalledWith("tok-sample");
     expect(offlineStore.loadHostCommandCount).not.toHaveBeenCalled();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+      fireEvent.click(getActionButton("Dismiss all"));
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(offlineStore.dismissConflicts).toHaveBeenCalledWith("tok-sample", [
@@ -149,7 +159,7 @@ describe("GuestAttentionBanner", () => {
     await act(() => vi.advanceTimersByTimeAsync(0));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+      fireEvent.click(getActionButton("Dismiss all"));
       recordVolatileOutcome(path, newer);
     });
     await act(async () =>
@@ -159,6 +169,7 @@ describe("GuestAttentionBanner", () => {
       }),
     );
 
+    openDetails();
     expect(screen.getByRole("alert")).toHaveTextContent("Newer refusal.");
     expect(volatileOutcomeFor(path, "same-command")).toMatchObject({
       reason: "Newer refusal.",
@@ -180,7 +191,7 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
-    expect(screen.getByText("3 pending")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(/3 pending/);
   });
 
   it("shows retained-work status when the initial loads reject", async () => {
@@ -191,6 +202,7 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    openDetails();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Could not read saved edits on this device. Your saved edits have been kept.",
     );
@@ -200,15 +212,14 @@ describe("GuestAttentionBanner", () => {
     offlineStore.loadHostConflicts.mockResolvedValue([offlineConflict()]);
     offlineStore.loadHostCommandCount.mockResolvedValue(2);
     await act(() => vi.advanceTimersByTimeAsync(2000));
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "2 pending, 1 conflict",
+    openDetails();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(
+      /2 pending, 1 conflict/,
     );
     expect(
       screen.queryByText(/Could not read saved edits/),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Dismiss all" }),
-    ).toBeInTheDocument();
+    expect(getActionButton("Dismiss all")).toBeInTheDocument();
   });
 
   it("opens History for an Undo outcome whose result is unknown", async () => {
@@ -223,7 +234,7 @@ describe("GuestAttentionBanner", () => {
     render(<GuestAttentionBanner />);
     await act(() => vi.advanceTimersByTimeAsync(0));
 
-    fireEvent.click(screen.getByRole("button", { name: "Inspect History" }));
+    fireEvent.click(getActionButton("Inspect History"));
     expect(useDawStore.getState().moreDestination).toBe("history");
   });
 
@@ -239,6 +250,7 @@ describe("GuestAttentionBanner", () => {
     render(<GuestAttentionBanner />);
     await act(() => vi.advanceTimersByTimeAsync(0));
 
+    openDetails();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Ask the project owner to inspect History before trying this action again.",
     );
@@ -254,6 +266,7 @@ describe("GuestAttentionBanner", () => {
     useDawStore.getState().hydrate("share:tok-sample", minimalProject());
     render(<GuestAttentionBanner />);
     await act(() => vi.advanceTimersByTimeAsync(0));
+    openDetails();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Your saved edits have been kept.",
     );
@@ -271,21 +284,24 @@ describe("GuestAttentionBanner", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     render(<GuestAttentionBanner />);
     await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "2 pending, 1 conflict",
+    openDetails();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(
+      /2 pending, 1 conflict/,
     );
     offlineStore.loadHostConflicts.mockRejectedValue(
       new Error("Invalid saved conflict"),
     );
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     await act(() => vi.advanceTimersByTimeAsync(2000));
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "2 pending, 1 conflict",
+    openDetails();
+    expect(screen.getByRole("alert")).toHaveAccessibleName(
+      /2 pending, 1 conflict/,
     );
+    openDetails();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Your saved edits have been kept.",
     );
-    expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
+    expect(getActionButton("Dismiss all")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
@@ -311,12 +327,11 @@ describe("GuestAttentionBanner", () => {
       useDawStore.getState().hydrate(path, minimalProject());
       render(<GuestAttentionBanner />);
       await act(() => vi.advanceTimersByTimeAsync(0));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Verified retained conflict",
       );
-      expect(
-        screen.getByRole("button", { name: "Dismiss all" }),
-      ).toBeInTheDocument();
+      expect(getActionButton("Dismiss all")).toBeInTheDocument();
     }
 
     it("keeps a newer unreadable result after an older success", async () => {
@@ -327,21 +342,25 @@ describe("GuestAttentionBanner", () => {
         .mockRejectedValueOnce(new Error("unreadable"));
       offlineStore.loadHostCommandCount.mockResolvedValue(0);
       await act(() => vi.advanceTimersByTimeAsync(4000));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Your saved edits have been kept.",
       );
       await act(async () => old.resolve([newer]));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Verified retained conflict",
       );
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Your saved edits have been kept.",
       );
       if (host)
-        expect(screen.getByRole("alert")).toHaveTextContent("2 pending");
-      expect(
-        screen.getByRole("button", { name: "Dismiss all" }),
-      ).toHaveAttribute("aria-disabled", "true");
+        expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
+      expect(getActionButton("Dismiss all")).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
 
     it("keeps a newer admission after an older failure", async () => {
@@ -349,19 +368,19 @@ describe("GuestAttentionBanner", () => {
       const old = deferred<ReturnType<typeof offlineConflict>[]>();
       read().mockReturnValueOnce(old.promise).mockResolvedValueOnce([newer]);
       await act(() => vi.advanceTimersByTimeAsync(4000));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
       await act(async () => old.reject(new Error("old unreadable")));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
       expect(
         screen.queryByText(/Could not read saved edits/),
       ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Dismiss all" }),
-      ).toBeInTheDocument();
+      expect(getActionButton("Dismiss all")).toBeInTheDocument();
     });
 
     it.each(["queue", "conflicts"])(
@@ -376,23 +395,23 @@ describe("GuestAttentionBanner", () => {
           offlineStore.loadHostCommandCount.mockReturnValueOnce(count.promise);
         else offlineStore.loadCommandQueue.mockReturnValueOnce(queue.promise);
         await act(() => vi.advanceTimersByTimeAsync(2000));
+        openDetails();
         expect(screen.getByRole("alert")).toHaveTextContent(
           "Verified retained conflict",
         );
         if (host)
-          expect(screen.getByRole("alert")).toHaveTextContent("2 pending");
-        expect(
-          screen.getByRole("button", { name: "Dismiss all" }),
-        ).toHaveAttribute("aria-disabled", "true");
+          expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
+        expect(getActionButton("Dismiss all")).toHaveAttribute(
+          "aria-disabled",
+          "true",
+        );
         expect(clear()).not.toHaveBeenCalled();
         await act(async () => {
           current.resolve([newer]);
           count.resolve(3);
           queue.resolve([]);
         });
-        expect(
-          screen.getByRole("button", { name: "Dismiss all" }),
-        ).toBeInTheDocument();
+        expect(getActionButton("Dismiss all")).toBeInTheDocument();
       },
     );
 
@@ -400,7 +419,7 @@ describe("GuestAttentionBanner", () => {
       "preserves focused dismissal throughout a pending %s read",
       async (kind) => {
         await showVerified();
-        const button = screen.getByRole("button", { name: "Dismiss all" });
+        const button = getActionButton("Dismiss all");
         button.focus();
         expect(button).toHaveFocus();
         const conflicts = deferred<ReturnType<typeof offlineConflict>[]>();
@@ -415,9 +434,7 @@ describe("GuestAttentionBanner", () => {
         await act(async () => fireEvent.click(button));
         expect(clear()).not.toHaveBeenCalled();
         expect(button).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Dismiss all" })).toBe(
-          button,
-        );
+        expect(getActionButton("Dismiss all")).toBe(button);
         expect(button).toHaveFocus();
         expect(
           (button as HTMLButtonElement).disabled ||
@@ -432,9 +449,7 @@ describe("GuestAttentionBanner", () => {
           count.resolve(3);
           queue.resolve([]);
         });
-        expect(screen.getByRole("button", { name: "Dismiss all" })).toBe(
-          button,
-        );
+        expect(getActionButton("Dismiss all")).toBe(button);
         expect(button).toHaveFocus();
         expect((button as HTMLButtonElement).disabled).toBe(false);
         expect(button).not.toHaveAttribute("aria-disabled", "true");
@@ -443,24 +458,24 @@ describe("GuestAttentionBanner", () => {
 
     it("rejects a stale button click before the pending read renders", async () => {
       await showVerified();
-      const button = screen.getByRole("button", { name: "Dismiss all" });
+      const button = getActionButton("Dismiss all");
       const current = deferred<ReturnType<typeof offlineConflict>[]>();
       read().mockReturnValueOnce(current.promise);
       await act(async () => {
         vi.advanceTimersByTime(2000);
         fireEvent.click(button);
       });
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Verified retained conflict",
       );
       expect(clear()).not.toHaveBeenCalled();
       await act(async () => current.resolve([newer]));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
-      expect(
-        screen.getByRole("button", { name: "Dismiss all" }),
-      ).toBeInTheDocument();
+      expect(getActionButton("Dismiss all")).toBeInTheDocument();
     });
 
     it("keeps a successful dismissal after an older read completes", async () => {
@@ -468,12 +483,11 @@ describe("GuestAttentionBanner", () => {
       const old = deferred<ReturnType<typeof offlineConflict>[]>();
       read().mockReturnValueOnce(old.promise).mockResolvedValueOnce([newer]);
       await act(() => vi.advanceTimersByTimeAsync(4000));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
-      await act(async () =>
-        fireEvent.click(screen.getByRole("button", { name: "Dismiss all" })),
-      );
+      await act(async () => fireEvent.click(getActionButton("Dismiss all")));
       await act(async () => old.resolve([verified]));
       expect(
         screen.queryByText("Verified retained conflict"),
@@ -481,9 +495,9 @@ describe("GuestAttentionBanner", () => {
       expect(
         screen.queryByText("Newer admitted conflict"),
       ).not.toBeInTheDocument();
-      if (host)
-        expect(screen.getByRole("alert")).toHaveTextContent("2 pending");
-      else expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      if (host) {
+        expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
+      } else expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
     it("ignores a read result from the previous project", async () => {
@@ -499,10 +513,12 @@ describe("GuestAttentionBanner", () => {
             minimalProject(),
           ),
       );
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
       await act(async () => old.resolve([verified]));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
@@ -518,13 +534,16 @@ describe("GuestAttentionBanner", () => {
       const retry = deferred<ReturnType<typeof offlineConflict>[]>();
       read().mockReturnValueOnce(retry.promise);
       await act(() => vi.advanceTimersByTimeAsync(2000));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Verified retained conflict",
       );
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Your saved edits have been kept.",
       );
       await act(async () => retry.resolve([newer]));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
@@ -536,34 +555,36 @@ describe("GuestAttentionBanner", () => {
     it("handles refused dismissal and keeps it withheld during a successful retry", async () => {
       await showVerified();
       clear().mockRejectedValueOnce(new Error("Invalid saved conflict"));
-      await act(async () =>
-        fireEvent.click(screen.getByRole("button", { name: "Dismiss all" })),
-      );
+      await act(async () => fireEvent.click(getActionButton("Dismiss all")));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Verified retained conflict",
       );
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Dismissal failed. Your saved outcomes have been kept.",
       );
-      expect(
-        screen.getByRole("button", { name: "Dismiss all" }),
-      ).toHaveAttribute("aria-disabled", "true");
+      expect(getActionButton("Dismiss all")).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
       await act(() => vi.advanceTimersByTimeAsync(2000));
       const dismiss = deferred<Dismissal>();
       clear().mockReturnValueOnce(dismiss.promise);
-      await act(async () =>
-        fireEvent.click(screen.getByRole("button", { name: "Dismiss all" })),
-      );
+      await act(async () => fireEvent.click(getActionButton("Dismiss all")));
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Verified retained conflict",
       );
-      expect(
-        screen.getByRole("button", { name: "Dismiss all" }),
-      ).toHaveAttribute("aria-disabled", "true");
+      expect(getActionButton("Dismiss all")).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
       await act(() => vi.advanceTimersByTimeAsync(2000));
-      expect(
-        screen.getByRole("button", { name: "Dismiss all" }),
-      ).toHaveAttribute("aria-disabled", "true");
+      expect(getActionButton("Dismiss all")).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
       await act(async () =>
         dismiss.resolve({
           pending: host ? 2 : 0,
@@ -573,18 +594,16 @@ describe("GuestAttentionBanner", () => {
       expect(
         screen.queryByText("Verified retained conflict"),
       ).not.toBeInTheDocument();
-      if (host)
-        expect(screen.getByRole("alert")).toHaveTextContent("2 pending");
-      else expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      if (host) {
+        expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
+      } else expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
     it("ignores dismissal completion after a project switch", async () => {
       await showVerified();
       const dismiss = deferred<Dismissal>();
       clear().mockReturnValueOnce(dismiss.promise);
-      await act(async () =>
-        fireEvent.click(screen.getByRole("button", { name: "Dismiss all" })),
-      );
+      await act(async () => fireEvent.click(getActionButton("Dismiss all")));
       read().mockResolvedValue([newer]);
       await act(async () =>
         useDawStore
@@ -594,12 +613,14 @@ describe("GuestAttentionBanner", () => {
             minimalProject(),
           ),
       );
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
       await act(async () =>
         dismiss.resolve({ pending: host ? 2 : 0, conflicts: [newer] }),
       );
+      openDetails();
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
@@ -614,7 +635,7 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send now" }));
+    fireEvent.click(getActionButton("Send now"));
     expect(drain.requestHostDrain).toHaveBeenCalledWith("/tmp/p-1448.json");
     unmount();
 
@@ -643,6 +664,7 @@ describe("GuestAttentionBanner", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
+    openDetails();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The app will retry this same command automatically.",
     );
