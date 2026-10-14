@@ -309,6 +309,9 @@ in order and creates no cache directories. Inaccessible optional directories are
 unavailable candidates. Unsupported automatic candidates are rejected before a
 later supported candidate can be selected.
 Single-command helpers use the same validated pair.
+After a successful admission, a process reuses that result only while the
+effective selectors, search precedence, and candidate executable identities
+remain unchanged. Failed pair admission is retried rather than cached.
 
 The authoritative [source recipe](../contracts/ffmpeg-build.json) pins FFmpeg
 9.0.2, static LAME 4.0, static zlib 1.3.2 and static Opus 1.6.1 by independently

@@ -9,6 +9,7 @@ import pytest
 
 from podcast_mcp.engines.align import AudioWindowUnavailableError
 from podcast_mcp.engines.alignment_audit import (
+    VADWindowRMSCache,
     render_comparison_waveforms,
     score_session_start_candidate,
     simultaneous_speech_sec,
@@ -74,6 +75,70 @@ def test_vad_and_overlap_metric(tmp_path: Path) -> None:
     overlap_aligned = simultaneous_speech_sec(ref_iv, src_iv, shift_b_sec=0.0)
     overlap_shifted = simultaneous_speech_sec(ref_iv, src_iv, shift_b_sec=0.5)
     assert overlap_shifted < overlap_aligned
+
+
+def test_vad_window_rms_cache_reuses_only_identical_successful_windows(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "source.aac"
+    source.write_bytes(b"fixture")
+    calls: list[tuple[float, float, int]] = []
+
+    def load_window(_path, *, start_sec, duration_sec, sample_rate, **_kwargs):
+        calls.append((start_sec, duration_sec, sample_rate))
+        chunk = round(start_sec / 0.25)
+        return np.full(4, 0.03 if chunk in {0, 3, 4} else 0.0, dtype=np.float32)
+
+    monkeypatch.setattr("podcast_mcp.engines.alignment_audit.load_mono_window", load_window)
+    cache = VADWindowRMSCache()
+
+    first_uncached = vad_speech_intervals(source, start_sec=0.0, duration_sec=1.0)
+    second_uncached = vad_speech_intervals(source, start_sec=0.5, duration_sec=1.0)
+    uncached_calls = len(calls)
+    calls.clear()
+
+    first_cached = vad_speech_intervals(source, start_sec=0.0, duration_sec=1.0, rms_cache=cache)
+    second_cached = vad_speech_intervals(source, start_sec=0.5, duration_sec=1.0, rms_cache=cache)
+    assert first_cached == [(0.0, 0.25), (0.75, 1.0)]
+    assert second_cached == [(0.75, 1.25)]
+    assert (first_cached, second_cached) == (first_uncached, second_uncached)
+    assert uncached_calls == 8
+    assert len(calls) == 6
+
+
+def test_vad_rms_cache_does_not_cache_unavailable_and_preserves_empty_windows(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "source.aac"
+    source.write_bytes(b"fixture")
+    calls = 0
+
+    def unavailable(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise AudioWindowUnavailableError("past EOF")
+
+    monkeypatch.setattr("podcast_mcp.engines.alignment_audit.load_mono_window", unavailable)
+    cache = VADWindowRMSCache()
+    assert vad_speech_intervals(source, duration_sec=0.25, rms_cache=cache) == []
+    assert vad_speech_intervals(source, duration_sec=0.25, rms_cache=cache) == []
+    assert calls == 2
+
+    empty_calls = 0
+
+    def empty_window(*_args, **_kwargs):
+        nonlocal empty_calls
+        empty_calls += 1
+        return np.array([], dtype=np.float32)
+
+    monkeypatch.setattr("podcast_mcp.engines.alignment_audit.load_mono_window", empty_window)
+    assert (
+        vad_speech_intervals(source, duration_sec=0.25, rms_threshold=-1.0, rms_cache=cache) == []
+    )
+    assert (
+        vad_speech_intervals(source, duration_sec=0.25, rms_threshold=-1.0, rms_cache=cache) == []
+    )
+    assert empty_calls == 1
 
 
 def test_sweep_session_start_recovers_delay(tmp_path: Path) -> None:

@@ -6,6 +6,9 @@ participates in application runtime pair selection.
 Explicit commands win, followed by a declared desktop bundle, native Homebrew,
 a complete PATH directory, and the existing source-use cache. Selection runs
 bounded version probes and never downloads tools.
+Successful pair admission is reused within a process only while selectors,
+search precedence, and candidate executable identities remain unchanged; failed
+admission is never cached.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ import os
 import platform
 import re
 import shutil
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
 from os import environ
@@ -57,6 +61,80 @@ _DEVELOPMENT_SUFFIX = re.compile(
     r"^(?:dev(?:elopment)?|alpha|beta|rc)(?:[._+-]|\d|$)|\d+-g[0-9a-f]+$",
     re.IGNORECASE,
 )
+
+_PAIR_CACHE_LIMIT = 8
+_PAIR_CACHE: dict[tuple[object, ...], FFmpegPair] = {}
+_PAIR_CACHE_LOCK = threading.RLock()
+
+
+def _path_identity(path: Path) -> tuple[object, ...]:
+    absolute = path.absolute()
+    try:
+        stat = absolute.stat()
+    except OSError:
+        return (str(absolute), None)
+    return (
+        str(absolute.resolve()),
+        stat.st_dev,
+        stat.st_ino,
+        stat.st_mode,
+        stat.st_size,
+        stat.st_mtime_ns,
+        stat.st_ctime_ns,
+    )
+
+
+def _admission_cache_key(ffmpeg: str | None, ffprobe: str | None) -> tuple[object, ...]:
+    """Fingerprint selectors, search precedence, and candidate binary identities."""
+    path_value = environ.get("PATH", os.defpath)
+    bundle = environ.get("PODCAST_MCP_FFMPEG_BUNDLE")
+    selectors = (
+        ffmpeg,
+        ffprobe,
+        environ.get("PODCAST_MCP_FFMPEG"),
+        environ.get("PODCAST_MCP_FFPROBE"),
+        bundle,
+        path_value,
+        os.getcwd(),
+        tuple(ffmpeg_policy()["minimum_version"]),
+        ffmpeg_policy()["supported_major"],
+        ffmpeg_policy()["version"],
+    )
+    directories = [Path(entry or os.curdir) for entry in path_value.split(os.pathsep)]
+    if bundle:
+        directories.insert(0, Path(bundle))
+    native_pair = _native_homebrew_pair()
+    if native_pair:
+        directories.insert(0, Path(native_pair[0]).parent)
+    directories.append(bin_cache_dir())
+
+    identities: list[tuple[object, ...]] = []
+    seen: set[str] = set()
+    for directory in directories:
+        absolute = directory.absolute()
+        if str(absolute) in seen:
+            continue
+        seen.add(str(absolute))
+        identities.append(("dir", *_path_identity(absolute)))
+        for name in ("ffmpeg" + _exe_suffix(), "ffprobe" + _exe_suffix()):
+            identities.append(("candidate", *_path_identity(absolute / name)))
+
+    selected_ffmpeg = _explicit_value(ffmpeg, "PODCAST_MCP_FFMPEG")
+    selected_ffprobe = _explicit_value(ffprobe, "PODCAST_MCP_FFPROBE")
+    selected_commands = [selected_ffmpeg, selected_ffprobe]
+    if selected_ffmpeg is not None and selected_ffprobe is None:
+        resolved = shutil.which(selected_ffmpeg) or selected_ffmpeg
+        selected_commands.append(
+            str(Path(resolved).absolute().parent / ("ffprobe" + _exe_suffix()))
+        )
+    elif selected_ffprobe is not None and selected_ffmpeg is None:
+        resolved = shutil.which(selected_ffprobe) or selected_ffprobe
+        selected_commands.append(str(Path(resolved).absolute().parent / ("ffmpeg" + _exe_suffix())))
+    for command in selected_commands:
+        if command:
+            resolved = shutil.which(command) or command
+            identities.append(("selected", *_path_identity(Path(resolved))))
+    return (*selectors, tuple(identities))
 
 
 def _version(command: str, name: str) -> tuple[int, int, int]:
@@ -158,7 +236,7 @@ def _executable_sibling(command: str, sibling: str) -> str:
     )
 
 
-def resolve_ffmpeg_pair(ffmpeg: str | None = None, ffprobe: str | None = None) -> FFmpegPair:
+def _resolve_ffmpeg_pair_uncached(ffmpeg: str | None, ffprobe: str | None) -> FFmpegPair:
     """Admit a complete supported pair without mixing partial installations."""
     selected_ffmpeg = _explicit_value(ffmpeg, "PODCAST_MCP_FFMPEG")
     selected_ffprobe = _explicit_value(ffprobe, "PODCAST_MCP_FFPROBE")
@@ -183,6 +261,22 @@ def resolve_ffmpeg_pair(ffmpeg: str | None = None, ffprobe: str | None = None) -
         except FFmpegPairResolutionError as exc:
             raise FFmpegPairResolutionError(f"Invalid FFmpeg bundle {bundle!r}: {exc}") from exc
     return _automatic_pair()
+
+
+def resolve_ffmpeg_pair(ffmpeg: str | None = None, ffprobe: str | None = None) -> FFmpegPair:
+    """Admit a supported pair once while its selectors and binaries stay unchanged."""
+    with _PAIR_CACHE_LOCK:
+        key = _admission_cache_key(ffmpeg, ffprobe)
+        cached = _PAIR_CACHE.get(key)
+        if cached is not None:
+            _PAIR_CACHE.pop(key)
+            _PAIR_CACHE[key] = cached
+            return cached
+        pair = _resolve_ffmpeg_pair_uncached(ffmpeg, ffprobe)
+        _PAIR_CACHE[key] = pair
+        while len(_PAIR_CACHE) > _PAIR_CACHE_LIMIT:
+            _PAIR_CACHE.pop(next(iter(_PAIR_CACHE)))
+        return pair
 
 
 def resolve_ffmpeg() -> str:

@@ -171,6 +171,64 @@ def test_ingest_suggest_cmd(tmp_path, sample_wav):
     assert "Suggested manifest fragment" in result.stdout
 
 
+def test_ingest_suggest_reports_candidate_progress_on_stderr(tmp_path, sample_wav):
+    audio_dir, manifest = _ingest_fixture(tmp_path, sample_wav)
+    result = runner.invoke(
+        app,
+        [
+            "--json-progress",
+            "ingest",
+            "suggest",
+            "--audio-dir",
+            str(audio_dir),
+            "--manifest",
+            str(manifest),
+            "--analysis-duration",
+            "1.5",
+            "--sweep-max",
+            "0.5",
+            "--sweep-step",
+            "0.5",
+            "--no-waveforms",
+        ],
+    )
+    assert result.exit_code == 0
+    output = result.stdout.split("\n# Suggested manifest fragment:")[0].strip()
+    assert json.loads(output)["reference_speaker"] == "Ref"
+    events = [json.loads(line) for line in result.stderr.splitlines() if line.startswith("{")]
+    candidate_updates = [
+        event
+        for event in events
+        if event.get("kind") == "update" and event.get("phase") == "candidate_scoring"
+    ]
+    assert candidate_updates
+    assert candidate_updates[-1]["current"] == candidate_updates[-1]["total"] == 2
+    assert "candidate 2/2" in candidate_updates[-1]["message"]
+    candidate_task_id = candidate_updates[-1]["task_id"]
+    candidate_starts = [
+        event
+        for event in events
+        if event.get("kind") == "start" and event.get("task_id") == candidate_task_id
+    ]
+    assert candidate_starts and candidate_starts[0]["total"] == 2
+
+    parent_task_id = candidate_task_id.rsplit(".candidates.", 1)[0]
+    parent_events = [event for event in events if event.get("task_id") == parent_task_id]
+    parent_start = next(event for event in parent_events if event.get("kind") == "start")
+    parent_finalizing = next(
+        i
+        for i, event in enumerate(events)
+        if event.get("task_id") == parent_task_id and event.get("phase") == "finalizing"
+    )
+    parent_end = next(
+        i
+        for i, event in enumerate(events)
+        if event.get("task_id") == parent_task_id and event.get("kind") == "end"
+    )
+    assert parent_start["total"] is None
+    assert parent_finalizing < parent_end
+
+
 def test_ingest_verify_cmd(minimal_project, sample_wav):
     proj = load_project(minimal_project)
     ws = Path(proj.workspace_dir)

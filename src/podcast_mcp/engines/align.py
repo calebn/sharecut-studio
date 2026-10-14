@@ -298,6 +298,7 @@ def estimate_offset_sec(
     source_start_sec: float | None = None,
     analysis_duration_sec: float = 90.0,
     sample_rate: int = 8000,
+    ffmpeg: str | None = None,
 ) -> AlignmentResult:
     """
     Estimate how many seconds to delay ``source`` so it aligns with ``reference``.
@@ -312,12 +313,14 @@ def estimate_offset_sec(
         start_sec=ref_start,
         duration_sec=analysis_duration_sec,
         sample_rate=sample_rate,
+        ffmpeg=ffmpeg,
     )
     src = load_mono_window(
         source,
         start_sec=src_start,
         duration_sec=analysis_duration_sec,
         sample_rate=sample_rate,
+        ffmpeg=ffmpeg,
     )
     return estimate_offset_from_arrays(
         ref,

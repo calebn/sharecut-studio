@@ -44,6 +44,12 @@ Results and structured command output remain on **stdout**. Progress never write
 - Piped / `PODCAST_PROGRESS=0` → `default_progress_enabled()` is false and the consumer is `NullProgress`
 - TTY Rich output is best-effort; tests assert JSON + stderr/stdout separation, not escape sequences
 
+`podcast ingest suggest` keeps the overall operation indeterminate while it reports each
+guest's candidate scoring in a determinate child task. That child's work units are that
+guest's sweep starts, each a `(guest, session-start)` candidate. Content-offset estimates,
+drift checks, and optional waveform rendering remain visible phases on the overall task;
+the scoring bar completes before those follow-up stages begin.
+
 ## Determinate vs indeterminate
 
 The Rich view renders on **stderr** (`Console(stderr=True)`), never stdout.
