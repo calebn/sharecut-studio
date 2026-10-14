@@ -214,12 +214,12 @@ T = TypeVar("T")
 
 
 def _user_transcript_edit(
-    track_id: str, fn: Callable[[EpisodeProject], T]
+    track_id: str, fn: Callable[[EpisodeProject], T], source_id: str | None = None
 ) -> Callable[[EpisodeProject], T]:
-    """``ws.mutate`` callback: run ``fn`` as a user edit of ``track_id``'s transcript."""
+    """``ws.mutate`` callback: run ``fn`` as a user edit of one of ``track_id``'s transcripts."""
 
     def run(p: EpisodeProject) -> T:
-        return run_user_transcript_edit(p, track_id, fn)
+        return run_user_transcript_edit(p, track_id, fn, source_id)
 
     return run
 
@@ -1444,6 +1444,7 @@ class EditService:
         end_word_index: int,
         expected_text: str | None,
         edit: Callable[[EpisodeProject], T],
+        source_id: str | None = None,
     ) -> T:
         """Check ``expected_text`` (#650) and apply ``edit`` in one transaction.
 
@@ -1452,9 +1453,13 @@ class EditService:
         ``edit``'s result.
         """
         with self.ws.transaction() as project:
-            require_word_text(project, track_id, start_word_index, end_word_index, expected_text)
+            require_word_text(
+                project, track_id, start_word_index, end_word_index, expected_text, source_id
+            )
             return self.ws.mutate(
-                f"before {label}", f"after {label}", _user_transcript_edit(track_id, edit)
+                f"before {label}",
+                f"after {label}",
+                _user_transcript_edit(track_id, edit, source_id),
             )
 
     def word_timing_context(
@@ -1529,6 +1534,7 @@ class EditService:
         new_text: str,
         *,
         expected_text: str | None = None,
+        source_id: str | None = None,
     ) -> None:
         """Fix one word's text. ``expected_text`` guards against a stale index (#650)."""
         self._guarded_transcript_edit(
@@ -1537,7 +1543,8 @@ class EditService:
             word_index,
             word_index,
             expected_text,
-            lambda p: correct_word(p, track_id, word_index, new_text),
+            lambda p: correct_word(p, track_id, word_index, new_text, source_id),
+            source_id,
         )
 
     def correct_phrase(
@@ -1548,6 +1555,7 @@ class EditService:
         new_text: str,
         *,
         expected_text: str | None = None,
+        source_id: str | None = None,
     ) -> None:
         """Replace a word range's text. ``expected_text`` guards against stale indices (#650)."""
         self._guarded_transcript_edit(
@@ -1556,7 +1564,10 @@ class EditService:
             start_word_index,
             end_word_index,
             expected_text,
-            lambda p: correct_phrase(p, track_id, start_word_index, end_word_index, new_text),
+            lambda p: correct_phrase(
+                p, track_id, start_word_index, end_word_index, new_text, source_id
+            ),
+            source_id,
         )
 
     def set_word_suppressed(
@@ -1566,6 +1577,7 @@ class EditService:
         suppressed: bool,
         *,
         expected_text: str | None = None,
+        source_id: str | None = None,
     ) -> dict:
         """Toggle suppressed on one word. ``expected_text`` guards against a stale index (#744)."""
         return self._guarded_transcript_edit(
@@ -1574,7 +1586,8 @@ class EditService:
             word_index,
             word_index,
             expected_text,
-            lambda p: set_word_suppressed(p, track_id, word_index, suppressed),
+            lambda p: set_word_suppressed(p, track_id, word_index, suppressed, source_id),
+            source_id,
         )
 
     def set_word_automatic(
@@ -1583,6 +1596,7 @@ class EditService:
         word_index: int,
         *,
         expected_text: str | None = None,
+        source_id: str | None = None,
     ) -> dict:
         """Clear a word's suppression lock; ``suppressed`` waits for the next reconcile (#824).
 
@@ -1594,7 +1608,8 @@ class EditService:
             word_index,
             word_index,
             expected_text,
-            lambda p: set_word_automatic(p, track_id, word_index),
+            lambda p: set_word_automatic(p, track_id, word_index, source_id),
+            source_id,
         )
 
     def set_words_ignored(
@@ -1605,6 +1620,7 @@ class EditService:
         ignored: bool,
         *,
         expected_text: str | None = None,
+        source_id: str | None = None,
     ) -> dict:
         """Text-and-audio hide for a word range, muted at render without a cut (#633).
 
@@ -1616,7 +1632,10 @@ class EditService:
             start_word_index,
             end_word_index,
             expected_text,
-            lambda p: set_words_ignored(p, track_id, start_word_index, end_word_index, ignored),
+            lambda p: set_words_ignored(
+                p, track_id, start_word_index, end_word_index, ignored, source_id
+            ),
+            source_id,
         )
 
     def low_confidence_words(

@@ -40,8 +40,8 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
 | `ApproveEdits` | `ids` (array[string]) | `allow_review` (boolean), `confirm_cut_speech` (boolean) |
-| `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null) |
-| `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
+| `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
+| `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `confirm_cut_speech` (boolean), `track_ids` (array[string]) |
 | `DeleteChapter` | `time` (number), `title` (string) | — |
 | `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `confirm_cut_speech` (boolean), `reason` (string \| null) |
@@ -70,10 +70,10 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTrackMedia` | `rel_path` (string), `track_id` (string) | — |
 | `SetTrackMeta` | `track_id` (string) | `label` (string \| null), `role` (string \| null), `speaker` (string \| null) |
 | `SetTrackMute` | `muted` (boolean), `track_id` (string) | — |
-| `SetTranscriptWordAutomatic` | `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
-| `SetTranscriptWordSuppressed` | `suppressed` (boolean), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
+| `SetTranscriptWordAutomatic` | `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
+| `SetTranscriptWordSuppressed` | `suppressed` (boolean), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `SetTranscriptWordTiming` | `end` (number), `expected_token` (string), `start` (number), `target` (object) | — |
-| `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null) |
+| `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
 | `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | `confirm_cut_speech` (boolean) |

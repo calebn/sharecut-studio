@@ -17,6 +17,11 @@ def _expected_text(p: dict[str, Any]) -> str | None:
     return None if value is None else str(value)
 
 
+def _source_id(p: dict[str, Any]) -> str | None:
+    value = p.get("source_id")
+    return None if value is None else str(value)
+
+
 def replace_transcript_matches(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     count = EditService(ws).replace_transcript_matches(
         str(p["search"]),
@@ -31,8 +36,15 @@ def correct_transcript_word(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str
     track_id = str(p["track_id"])
     word_index = int(p["word_index"])
     text = str(p["text"])
-    EditService(ws).correct_word(track_id, word_index, text, expected_text=_expected_text(p))
-    return {"track_id": track_id, "word_index": word_index, "text": text}
+    EditService(ws).correct_word(
+        track_id, word_index, text, expected_text=_expected_text(p), source_id=_source_id(p)
+    )
+    return {
+        "track_id": track_id,
+        "source_id": _source_id(p),
+        "word_index": word_index,
+        "text": text,
+    }
 
 
 def correct_transcript_phrase(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
@@ -41,10 +53,16 @@ def correct_transcript_phrase(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[s
     end_word_index = int(p["end_word_index"])
     text = str(p["text"])
     EditService(ws).correct_phrase(
-        track_id, start_word_index, end_word_index, text, expected_text=_expected_text(p)
+        track_id,
+        start_word_index,
+        end_word_index,
+        text,
+        expected_text=_expected_text(p),
+        source_id=_source_id(p),
     )
     return {
         "track_id": track_id,
+        "source_id": _source_id(p),
         "start_word_index": start_word_index,
         "end_word_index": end_word_index,
         "text": text,
@@ -57,6 +75,7 @@ def set_transcript_word_suppressed(ws: ProjectWorkspace, p: dict[str, Any]) -> d
         word_index=int(p["word_index"]),
         suppressed=bool(p["suppressed"]),
         expected_text=_expected_text(p),
+        source_id=_source_id(p),
     )
 
 
@@ -65,6 +84,7 @@ def set_transcript_word_automatic(ws: ProjectWorkspace, p: dict[str, Any]) -> di
         track_id=str(p["track_id"]),
         word_index=int(p["word_index"]),
         expected_text=_expected_text(p),
+        source_id=_source_id(p),
     )
 
 
@@ -75,6 +95,7 @@ def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dic
         end_word_index=int(p["end_word_index"]),
         ignored=bool(p["ignored"]),
         expected_text=_expected_text(p),
+        source_id=_source_id(p),
     )
 
 

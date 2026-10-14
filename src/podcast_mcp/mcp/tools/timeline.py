@@ -515,15 +515,22 @@ def correct_transcript_tool(
     word_index: int,
     new_text: str,
     expected_text: str | None = None,
+    source_id: str | None = None,
 ) -> str:
     """Fix the text of one transcript word without changing its timing.
 
     Pass ``expected_text`` (the word text you read) to refuse the fix if the word at
     ``word_index`` changed meanwhile (for example a GUI edit shifted indices); omit to skip.
+    ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
+    track recorded as several takes, and the refusal is ``word_source_required``.
     """
     ws = ProjectWorkspace.open(project_path)
-    EditService(ws).correct_word(track_id, word_index, new_text, expected_text=expected_text)
-    return to_json({"track_id": track_id, "word_index": word_index, "text": new_text})
+    EditService(ws).correct_word(
+        track_id, word_index, new_text, expected_text=expected_text, source_id=source_id
+    )
+    return to_json(
+        {"track_id": track_id, "source_id": source_id, "word_index": word_index, "text": new_text}
+    )
 
 
 def correct_transcript_phrase_tool(
@@ -533,19 +540,28 @@ def correct_transcript_phrase_tool(
     end_word_index: int,
     new_text: str,
     expected_text: str | None = None,
+    source_id: str | None = None,
 ) -> str:
     """Replace a word range's text with corrected phrase text.
 
     Pass ``expected_text`` (the space-joined words you read for this range) to refuse the fix
     if those words changed meanwhile; omit to skip.
+    ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
+    track recorded as several takes, and the refusal is ``word_source_required``.
     """
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).correct_phrase(
-        track_id, start_word_index, end_word_index, new_text, expected_text=expected_text
+        track_id,
+        start_word_index,
+        end_word_index,
+        new_text,
+        expected_text=expected_text,
+        source_id=source_id,
     )
     return to_json(
         {
             "track_id": track_id,
+            "source_id": source_id,
             "start_word_index": start_word_index,
             "end_word_index": end_word_index,
             "text": new_text,
@@ -559,16 +575,19 @@ def set_word_suppressed_tool(
     word_index: int,
     suppressed: bool,
     expected_text: str | None = None,
+    source_id: str | None = None,
 ) -> str:
     """Toggle suppressed on one per-track word (TOOL_TIMEBASE: source).
 
     Pass ``expected_text`` (the word text you read) to refuse the toggle if the word at
     ``word_index`` changed meanwhile; omit to skip.
+    ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
+    track recorded as several takes, and the refusal is ``word_source_required``.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).set_word_suppressed(
-            track_id, word_index, suppressed, expected_text=expected_text
+            track_id, word_index, suppressed, expected_text=expected_text, source_id=source_id
         )
     )
 
@@ -578,6 +597,7 @@ def set_word_automatic_tool(
     track_id: str,
     word_index: int,
     expected_text: str | None = None,
+    source_id: str | None = None,
 ) -> str:
     """Clear one word's suppression lock; ``suppressed`` waits for the next reconcile (#824).
 
@@ -586,10 +606,14 @@ def set_word_automatic_tool(
     call. It does not itself change ``suppressed`` — run ``reconcile_transcript_tool`` after
     to get the computed target. Pass ``expected_text`` (the word text you read) to refuse the
     unlock if the word at ``word_index`` changed meanwhile; omit to skip. TOOL_TIMEBASE: source.
+    ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
+    track recorded as several takes, and the refusal is ``word_source_required``.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
-        EditService(ws).set_word_automatic(track_id, word_index, expected_text=expected_text)
+        EditService(ws).set_word_automatic(
+            track_id, word_index, expected_text=expected_text, source_id=source_id
+        )
     )
 
 
@@ -667,6 +691,7 @@ def set_words_ignored_tool(
     end_word_index: int,
     ignored: bool,
     expected_text: str | None = None,
+    source_id: str | None = None,
 ) -> str:
     """Strike through and mute (or restore) a word range at render, without a cut.
 
@@ -676,11 +701,18 @@ def set_words_ignored_tool(
 
     Pass ``expected_text`` (the space-joined words you read for this range) to refuse the
     toggle if those words changed meanwhile; omit to skip.
+    ``source_id`` names the recording whose words ``word_index`` counts; it is required on a
+    track recorded as several takes, and the refusal is ``word_source_required``.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).set_words_ignored(
-            track_id, start_word_index, end_word_index, ignored, expected_text=expected_text
+            track_id,
+            start_word_index,
+            end_word_index,
+            ignored,
+            expected_text=expected_text,
+            source_id=source_id,
         )
     )
 

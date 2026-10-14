@@ -98,7 +98,7 @@ Full tuning guide: [docs/transcript-reconcile.md](../../docs/transcript-reconcil
 1. `bleed_words_tool` or `audibility_map_tool` on the affected track; optional `--start` / `--end` time scope.
 2. `overlap_duplicates_tool` for overlapping pairs with text-match hints (read-only).
 3. Audition ambiguous spans with `play_compose_tool` (both mics at once) or `play_audio_tool` solos — keep real speech on the off-mic track when dominance mis-tags it.
-4. `apply_bleed_suppression_tool` (applies by default; bleed-only, not inaudible). Use `dry_run=true` to preview. `exclude_words` for keep-words; scope with `start_sec` / `end_sec`. On a lane recorded as several takes, give each listed word its `source_id` (rows and pairs carry it); a bare `word_index` is refused there (#1470).
+4. `apply_bleed_suppression_tool` (applies by default; bleed-only, not inaudible). Use `dry_run=true` to preview. `exclude_words` for keep-words; scope with `start_sec` / `end_sec`. On a lane recorded as several takes, give each listed word its `source_id` (rows and pairs carry it); a bare `word_index` is refused there (#1470). The same holds for the word commands (`set_word_suppressed_tool`, `set_word_automatic_tool`, `correct_transcript_tool`, …): pass `source_id` (#1476).
 5. Re-attribution: bleed on track A dominant on track B → suppress on A only (B already has Whisper output).
 
 **When premix sounds fine:** leave audio unchanged; fix transcript metadata only. The audio gate attenuates only verified directed bleed. It preserves owner speech and uncertain or untranscribed audio, so it does not act as a word-time whitelist.

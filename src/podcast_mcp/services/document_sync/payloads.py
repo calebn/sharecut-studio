@@ -246,8 +246,19 @@ class ReplaceTranscriptMatchesPayload(TranscriptReplacementOptions):
     preview_token: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+_SOURCE_ID_DESCRIPTION = (
+    "The recording whose words word_index counts. Required on a track recorded as several "
+    "takes (refused with word_source_required); optional on a track with one transcript."
+)
+
+
 class CorrectTranscriptWordPayload(BaseModel):
     track_id: str
+    source_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description=_SOURCE_ID_DESCRIPTION,
+    )
     word_index: int
     text: str = Field(
         min_length=1,
@@ -268,6 +279,11 @@ class CorrectTranscriptWordPayload(BaseModel):
 
 class CorrectTranscriptPhrasePayload(BaseModel):
     track_id: str
+    source_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description=_SOURCE_ID_DESCRIPTION,
+    )
     start_word_index: int
     end_word_index: int
     text: str
@@ -292,6 +308,11 @@ class SetTranscriptWordTimingPayload(BaseModel):
 
 class SetTranscriptWordSuppressedPayload(BaseModel):
     track_id: str
+    source_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description=_SOURCE_ID_DESCRIPTION,
+    )
     word_index: int
     suppressed: bool
     expected_text: str | None = Field(
@@ -302,6 +323,11 @@ class SetTranscriptWordSuppressedPayload(BaseModel):
 
 class SetTranscriptWordAutomaticPayload(BaseModel):
     track_id: str
+    source_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description=_SOURCE_ID_DESCRIPTION,
+    )
     word_index: int
     expected_text: str | None = Field(
         default=None,
@@ -311,6 +337,11 @@ class SetTranscriptWordAutomaticPayload(BaseModel):
 
 class SetTranscriptWordsIgnoredPayload(BaseModel):
     track_id: str
+    source_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description=_SOURCE_ID_DESCRIPTION,
+    )
     start_word_index: int = Field(ge=0)
     end_word_index: int = Field(ge=0)
     ignored: bool

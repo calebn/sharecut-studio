@@ -1339,6 +1339,19 @@
             "description": "Optional stale-index guard: the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
             "title": "Expected Text"
           },
+          "source_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recording whose words word_index counts. Required on a track recorded as several takes (refused with word_source_required); optional on a track with one transcript.",
+            "title": "Source Id"
+          },
           "start_word_index": {
             "title": "Start Word Index",
             "type": "integer"
@@ -1464,6 +1477,19 @@
             ],
             "description": "Optional stale-index guard: the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
             "title": "Expected Text"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recording whose words word_index counts. Required on a track recorded as several takes (refused with word_source_required); optional on a track with one transcript.",
+            "title": "Source Id"
           },
           "text": {
             "description": "Correction text containing at least one visible character.",
@@ -5135,6 +5161,19 @@
             "description": "Optional stale-index guard: the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
             "title": "Expected Text"
           },
+          "source_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recording whose words word_index counts. Required on a track recorded as several takes (refused with word_source_required); optional on a track with one transcript.",
+            "title": "Source Id"
+          },
           "track_id": {
             "title": "Track Id",
             "type": "string"
@@ -5254,6 +5293,19 @@
             ],
             "description": "Optional stale-index guard: the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
             "title": "Expected Text"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recording whose words word_index counts. Required on a track recorded as several takes (refused with word_source_required); optional on a track with one transcript.",
+            "title": "Source Id"
           },
           "suppressed": {
             "title": "Suppressed",
@@ -5508,6 +5560,19 @@
           "ignored": {
             "title": "Ignored",
             "type": "boolean"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recording whose words word_index counts. Required on a track recorded as several takes (refused with word_source_required); optional on a track with one transcript.",
+            "title": "Source Id"
           },
           "start_word_index": {
             "minimum": 0.0,

@@ -136,6 +136,30 @@ def word_timeline_window(
     return (start, end) if start is not None and end is not None else None
 
 
+def lane_transcript(
+    project: EpisodeProject, track_id: str, source_id: str | None = None
+) -> Transcript | None:
+    """The transcript a word command on ``track_id`` addresses (#1476).
+
+    ``source_id`` names the recording. Left out, it addresses the lane's primary (source-less)
+    transcript, or the only one. On a multi-take lane with no primary transcript a bare word
+    index names no single word, so it is refused with ``word_source_required``. ``None``
+    means the lane has no transcript.
+    """
+    if source_id is not None:
+        return project.transcript_for_source(track_id, source_id)
+    candidates = [tr for tr in project.transcripts if tr.track_id == track_id]
+    primary = [tr for tr in candidates if tr.source_id is None]
+    if len(candidates) > 1 and len(primary) == 1:
+        return primary[0]
+    if len(candidates) > 1:
+        raise CodedValueError(
+            f"track {track_id!r} has {len(candidates)} transcripts; give each word's source_id",
+            code="word_source_required",
+        )
+    return candidates[0] if candidates else None
+
+
 def requested_word_keys(
     project: EpisodeProject, items: Iterable[dict[str, Any]] | None
 ) -> set[WordKey]:
@@ -147,22 +171,16 @@ def requested_word_keys(
     keys: set[WordKey] = set()
     for item in items or ():
         tid = str(item["track_id"])
-        if "source_id" not in item:
-            candidates = [tr for tr in project.transcripts if tr.track_id == tid]
-            if len(candidates) > 1:
-                raise CodedValueError(
-                    f"track {tid!r} has {len(candidates)} transcripts; give each word's source_id",
-                    code="word_source_required",
-                )
-            source_id = candidates[0].source_id if candidates else None
-        else:
-            source_id = item["source_id"]
-            named = project.transcript_for_source(tid, source_id)
+        if "source_id" in item:
+            named = project.transcript_for_source(tid, item["source_id"])
             if named is None:
                 raise CodedValueError(
-                    f"track {tid!r} has no transcript for source {source_id!r}",
+                    f"track {tid!r} has no transcript for source {item['source_id']!r}",
                     code="word_source_unknown",
                 )
             source_id = named.source_id
+        else:
+            only = lane_transcript(project, tid)
+            source_id = only.source_id if only else None
         keys.add((tid, source_id, int(item["word_index"])))
     return keys

@@ -429,12 +429,12 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `SetTrackFader` | `EpisodeService.set_track_volume` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |
 | `SetTrackMute` | `EpisodeService.set_track_mute` | `track_id`, `muted` (saved mix mute) |
 | `ReplaceTranscriptMatches` | `EditService.replace_transcript_matches` | `search`, `replacement`, `match_case`, `preview_token` (host-only; full source-keyed preview, one history action) |
-| `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text`, `expected_text?` |
-| `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
+| `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `source_id?`, `word_index`, `text`, `expected_text?` |
+| `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `source_id?`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
 | `SetTranscriptWordTiming` | `EditService.set_word_timing` | `target`, `expected_token`, `start`, `end` (source clock; host-only) |
-| `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `word_index`, `suppressed`, `expected_text?` |
-| `SetTranscriptWordAutomatic` | `EditService.set_word_automatic` | `track_id`, `word_index`, `expected_text?` — clears `audibility_locked` only (#824); `suppressed` waits for the next reconcile pass |
-| `SetTranscriptWordsIgnored` | `EditService.set_words_ignored` | `track_id`, `start_word_index`, `end_word_index` (`ge=0`), `ignored`, `expected_text?` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; host-only, not in guest `EDIT_COMMANDS` |
+| `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `source_id?`, `word_index`, `suppressed`, `expected_text?` |
+| `SetTranscriptWordAutomatic` | `EditService.set_word_automatic` | `track_id`, `source_id?`, `word_index`, `expected_text?` — clears `audibility_locked` only (#824); `suppressed` waits for the next reconcile pass |
+| `SetTranscriptWordsIgnored` | `EditService.set_words_ignored` | `track_id`, `source_id?`, `start_word_index`, `end_word_index` (`ge=0`), `ignored`, `expected_text?` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; host-only, not in guest `EDIT_COMMANDS` |
 | `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{time, value, id?}]`, and required `expected_points: [{time, value, id}]` baseline (unique IDs; each list ≤ 10 000 points); missing IDs on new points are generated before the command is journaled. Only the track's volume envelope (`parameter` `volume`/`gain`/unset, via `EpisodeProject.volume_envelope_for`) is compared and replaced; `pan` and other parameters are untouched. The handler reloads the project under the submit lock and rejects a stale baseline with a 409 before mutation/history/logging. Floats compare exactly, so clients must echo the server's points verbatim (never rounded or clamped). Host MCP `set_envelope` submits this same command (optional `expected_points`; default baseline is the envelope read at call time). |
 | `AddChapter` | `EditService.add_chapter` | `time`, `title` (timeline clocks) |
 | `UpdateChapter` | `EditService.update_chapter` | `old_time`, `old_title`, `time`, `title` |

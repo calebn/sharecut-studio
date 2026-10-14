@@ -81,6 +81,7 @@ def test_set_words_ignored_tool_mcp(tmp_path):
     out = json.loads(mcp_server.set_words_ignored_tool(path, "host", 0, 1, True))
     assert out == {
         "track_id": "host",
+        "source_id": None,
         "start_word_index": 0,
         "end_word_index": 1,
         "ignored": True,
