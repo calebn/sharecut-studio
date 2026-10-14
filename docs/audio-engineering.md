@@ -182,8 +182,11 @@ Known limits:
 - Comparisons between two tracks still add back `path_reference_db` for reported copy
   level (`level_db`) and word-level loudness. Pair discovery does not: `echo_risk_pairs`
   selects frames from per-track voice floors, and a voice-normalized dominance mask when
-  enough co-open frames pass it, so unequal per-track gain no longer drops or flips the
-  directed pair (#1376).
+  enough co-open frames pass it. After the null test it drops a co-open fallback reverse
+  when the other direction holds; the quieter-source fallback stays when it is the only
+  risk; both-ways voice-dom and both-ways fallback stay. Unequal per-track gain no longer
+  inverts the true pair (#1376). `audition_context_tool` (`echo_profiles`) does not apply
+  that drop.
 
 - A 16-bit recording made quieter loses the frames under one quantization step to digital
   silence, so its room reads differently and pause trims that cut only air can move. That
@@ -928,7 +931,11 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   least 20 copy frames, at least 12 consistent ones, its consistent count is
   improbable under the null (one-sided binomial tail `p_value` ≤ `null_p_max`,
   0.001, exact in log space) and its rate is at least `null_margin` (1.5×) the null,
-  so a long span cannot flag a small excess. Measured on the lab tape: the same-room
+  so a long span cannot flag a small excess. That is the test `audition_context_tool`
+  uses (`echo_profiles`). `echo_risk_pairs` (reconcile) then drops a co-open fallback
+  reverse when the other direction holds; the quieter-source fallback stays when it is
+  the only risk; both-ways voice-dom and both-ways fallback stay.
+  Measured on the lab tape: the same-room
   pair audra→caleb has p ≤ 1.4e-6 on every 600 s span of the unedited run (ratios
   2.4 to 5.9) and p = 1.2e-24 on the 220 s agent timeline; the best remote pair with
   the count floors met is caleb→lana at 100–700 s, ratio 1.83, p = 0.035; 16
@@ -949,7 +956,7 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   or reading the per-pair evidence, then gate the bleed mic to its own words
   ([podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md)) or fix mic
   placement for the next session; never gate a track on the code alone. Reconcile
-  runs the same statistic on its own RMS caches (`TrackRmsCacheSet.echo_pairs`, over
+  uses that post-filtered set on its own RMS caches (`TrackRmsCacheSet.echo_pairs`, over
   `echo_risk_pairs`) to tag acoustic `bleed` at all and to pick the source mic on a
   flagged pair ([transcript-reconcile.md](transcript-reconcile.md#bleed-pairs-the-source-wins-by-lag-not-by-loudness-774));
   precorrect's cross-track sync judges only pairs it flags.
