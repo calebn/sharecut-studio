@@ -348,7 +348,7 @@ Waveform PNGs under `artifacts/alignment/` (`showwavespic` via ffmpeg) show whet
 
 ## v2 project fields written by consolidate
 
-- **`sources`** — one raw file per speaker
+- **`sources`** — the raw files per speaker (normally one; several takes of one mic are allowed)
 - **`timeline.tracks`** / **`timeline.clips`** — one dialogue track per speaker; untrimmed clips carry the session placement (`source_start`, `timeline_start`)
 - **`meta.ingest_alignment`** — per-speaker (or `track_id:clip_id` when a speaker has several whole-file clips or another dialogue track shares the speaker label; ingest and align share `ingest_alignment_meta_key`) `session_start_in_file_sec`, `content_align_sec`, `align_method`; the placement shift is `content_align_sec - session_start_in_file_sec` (`SpeakerIngestAlignment.source_to_timeline_shift_sec`)
 
@@ -376,7 +376,7 @@ Waveform PNGs under `artifacts/alignment/` (`showwavespic` via ffmpeg) show whet
 
 ## Assigning speakers
 
-The tool does not guess speaker names. List **one file per speaker** in `ingest.yaml`. Omit intro/outro/SFX from `speakers`.
+The tool does not guess speaker names. List **one speaker per person** in `ingest.yaml`: normally one file, or several takes of one mic as that speaker's `sources`. Omit intro/outro/SFX from `speakers`.
 
 ## Split one recording by speaker
 
