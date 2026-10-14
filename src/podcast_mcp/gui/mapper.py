@@ -221,8 +221,6 @@ class _LaneRecordings:
         lane = self.lane(track_id)
         if len(lane) == 1:
             return lane[0]
-        # Rows come in run order, so takes with an identical line (same times, same
-        # text) are told apart by taking their sources in turn.
         matched, source_id = self._sources().try_source_id_for(
             track_id,
             float(row.get("start", 0.0)),

@@ -40,7 +40,6 @@ def utterance_speaker(project: EpisodeProject, track_id: str) -> str:
 
 
 def lane_has_recording_clips(project: EpisodeProject, track_id: str, source_id: str | None) -> bool:
-    """True when ``track_id`` has a clip placed for ``source_id``."""
     return any(clip.track_id == track_id and clip.source_id == source_id for clip in project.clips)
 
 
@@ -95,8 +94,6 @@ def _utterance_run_source_key(
 
 @dataclass
 class UtteranceRunSourceMatcher:
-    """Map combined-utterance rows to ``transcript_word_runs`` take ids in run order."""
-
     _queues: dict[tuple[str, float, float, str], deque[str | None]] = field(default_factory=dict)
 
     @classmethod

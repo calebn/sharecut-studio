@@ -46,7 +46,6 @@ import {
 import { loadBoundaryContext } from "./boundary";
 import { loadDocumentState } from "./project";
 
-/** Recording the indexed words belong to; omitted when the take is primary (#1476). */
 function withWordSource(sourceId?: string | null): { source_id?: string } {
   return sourceId == null ? {} : { source_id: sourceId };
 }

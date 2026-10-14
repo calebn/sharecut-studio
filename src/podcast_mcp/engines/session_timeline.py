@@ -689,7 +689,7 @@ class SessionTimeline:
         start: SourceSec,
         end: SourceSec,
     ) -> tuple[TimelineSec, TimelineSec] | None:
-        """Like :meth:`exact_source_span`, but only through clips with ``source_id``."""
+        """Complete source placement through clips of ``source_id`` only."""
         if end <= start:
             return None
         idx = self._selected_index(track_id, source_id)

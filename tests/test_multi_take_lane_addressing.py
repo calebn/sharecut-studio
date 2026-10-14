@@ -1,5 +1,3 @@
-"""A lane with two takes: public APIs must address the take that owns the words (#1486)."""
-
 from __future__ import annotations
 
 from pathlib import Path

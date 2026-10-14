@@ -7,7 +7,7 @@ import type {
 } from "../types/project";
 import { memoByRef } from "./memoByRef";
 
-/** First indexed word on a track among these utterances, in transcript order. */
+/** Indexed word on a track among these utterances. Pass `sourceId` to pick a take. */
 export function findTranscriptWordIn(
   utterances: readonly CombinedUtterance[],
   trackId: string,
@@ -34,7 +34,7 @@ export function findTranscriptWordIn(
   return null;
 }
 
-/** First indexed word on a track, in transcript order. For display; the #650 guard text goes through `transcriptSpanText`, which rejects disagreeing duplicates. */
+/** Indexed word on a track. Pass `sourceId` to pick a take. For display; the #650 guard text goes through `transcriptSpanText`, which rejects disagreeing duplicates. */
 export function findTranscriptWord(
   project: ProjectView | null,
   trackId: string,

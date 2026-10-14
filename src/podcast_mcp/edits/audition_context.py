@@ -391,8 +391,10 @@ def build_audition_context(
             None,
         )
         if clip_at_mid is not None:
-            first_of_take = next(clip for clip in clips if clip.source_id == clip_at_mid.source_id)
-            alignment_shift[tid] = clip_source_to_timeline_shift(first_of_take)
+            take_alignment_clip = next(
+                clip for clip in clips if clip.source_id == clip_at_mid.source_id
+            )
+            alignment_shift[tid] = clip_source_to_timeline_shift(take_alignment_clip)
         words = _words_in_source_spans(project, tid, spans)
         text = " ".join(w.text for w in words).strip()
         mapped_words: list[tuple[float, str]] = []
@@ -1337,11 +1339,10 @@ def _clip_skew_warnings(
 
     ``source_delta_sec`` alone is not desync: tracks aligned with different offsets
     (local recorders) differ by design. Each track's shift at mid (timeline minus
-    source) is compared with the first clip of the recording playing at mid (that
-    take's alignment), not the first clip on the lane. A session ripple moves every
-    track's shift alike and a track-local punch moves none, so a pair whose shifts
-    moved apart by more than ``skew_warn_sec`` was rippled on one track only
-    (``skewed``). A later take on the same lane is not a ripple.
+    source) is compared with its alignment; a session ripple moves every track's
+    shift alike and a track-local punch moves none, so a pair whose shifts moved
+    apart by more than ``skew_warn_sec`` was rippled on one track only
+    (``skewed``).
     """
     pairs: list[dict[str, Any]] = []
     warnings: list[str] = []
