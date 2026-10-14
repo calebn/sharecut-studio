@@ -719,6 +719,7 @@ enforced-by:
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
 - tests/test_non_speech_action_defaults.py::test_default_action_table_matches_product_table
 - tests/test_apply_non_speech_suggestions.py::test_apply_suggested_actions_cuts_and_leaves
+- tests/test_change_non_speech_action.py::test_bulk_apply_records_outcomes_and_cut_to_leave_keeps_sibling_cut
 - tests/test_cut_scope_publication_contract.py::test_a_guard_blocked_filler_waits_for_auto_apply_but_applies_with_suggested_actions
 -->
 

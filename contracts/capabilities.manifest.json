@@ -380,7 +380,8 @@
           "tightenPanel"
         ],
         "mcp": [
-          "apply_suggested_non_speech_actions_tool"
+          "apply_suggested_non_speech_actions_tool",
+          "change_non_speech_action_tool"
         ],
         "cli": "podcast edit apply-suggested-actions",
         "skill": "podcast-tighten-dialogue"

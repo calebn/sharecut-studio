@@ -63,8 +63,11 @@ def test_apply_suggested_actions_cuts_and_leaves(tmp_path, sample_wav) -> None:
     out = json.loads(mcp_server.apply_suggested_non_speech_actions_tool(path))
     assert out["applied_cuts"] == 1
     assert out["left"] == 1
-    pending = [d.id for d in load_project(Path(path)).edit_decisions if not d.applied]
+    assert out["outcomes"] == 2
+    proj = load_project(Path(path))
+    pending = [d.id for d in proj.edit_decisions if not d.applied]
     assert pending == []
+    assert len(proj.editorial.non_speech_outcomes) == 2
 
 
 def test_cli_apply_suggested_actions(tmp_path, sample_wav) -> None:

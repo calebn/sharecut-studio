@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**121** capabilities · **105** Sharecut Studio commands · **54** keyed · **181** MCP tools · **17** skills on rows (+ **19** hub skills).
+**121** capabilities · **105** Sharecut Studio commands · **54** keyed · **182** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -43,7 +43,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Resolve comment | project | `comment.resolve` | — (Direct comment card gesture and button; no standard shortcut) | `swipe-left` | `mobileShell.gesture.swipeLeftComment` | `resolve_comment_tool` | `podcast comment resolve` | — | yes | none · none |
 | Apply tighten hit | project | `tighten.applyHit` | `Enter` | — | `tightenPanel` | `approve_edits_tool` | `podcast edit approve` | `podcast-tighten-dialogue` | — | none · none |
 | Skip tighten hit | project | `tighten.skipHit` | `Backspace` | — | `tightenPanel` | `reject_edits_tool` | `podcast edit reject` | `podcast-tighten-dialogue` | — | none · none |
-| Apply suggested actions | project | `tighten.applySuggestedActions` | — (Bulk non-speech apply is panel-only until a shortcut is assigned) | — | `tightenPanel` | `apply_suggested_non_speech_actions_tool` | `podcast edit apply-suggested-actions` | `podcast-tighten-dialogue` | — | none · none |
+| Apply suggested actions | project | `tighten.applySuggestedActions` | — (Bulk non-speech apply is panel-only until a shortcut is assigned) | — | `tightenPanel` | `apply_suggested_non_speech_actions_tool`, `change_non_speech_action_tool` | `podcast edit apply-suggested-actions` | `podcast-tighten-dialogue` | — | none · none |
 | Apply eligible tighten hits | project | `tighten.applyAllSafe` | `Mod+Shift+Enter` | — | `tightenPanel` | `approve_edits_tool` | `podcast edit approve --all-safe` | `podcast-tighten-dialogue` | — | none · none |
 | Preview tighten hit | session | `tighten.previewHit` | `P` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Go to tighten hit | session | `tighten.goToHit` | — (pointer/row action; seek+select) | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |

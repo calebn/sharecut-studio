@@ -766,9 +766,33 @@ class SpeakerSplit(BaseModel):
         return [(t.start_s, t.end_s) for t in self.turns if t.crosstalk]
 
 
+class NonSpeechOutcome(BaseModel):
+    """Applied non-speech suggestion state (#1434 item 5b)."""
+
+    id: str
+    decision_id: str
+    track_id: str
+    kind: str
+    label: str
+    source_start: float
+    source_end: float
+    applied_action: Literal["cut", "shorten", "lower", "leave"]
+    applied_at: str
+    effective_source_start: float
+    effective_source_end: float
+    timeline_start: float | None = None
+    timeline_end: float | None = None
+    ripple_duration_sec: float | None = None
+    edit_log_id: str | None = None
+    envelope_point_ids: list[str] = Field(default_factory=list)
+    attenuation_db: float | None = None
+    batch_id: str | None = None
+
+
 class EditorialSection(BaseModel):
     edit_decisions: list[EditDecision] = Field(default_factory=list)
     edit_log: list[AppliedEditRecord] = Field(default_factory=list)
+    non_speech_outcomes: list[NonSpeechOutcome] = Field(default_factory=list)
     chapters: list[ChapterMarker] = Field(default_factory=list)
     retained_bleed_alignments: list[RetainedBleedAlignmentDecision] = Field(default_factory=list)
     speaker_splits: list[SpeakerSplit] = Field(default_factory=list)

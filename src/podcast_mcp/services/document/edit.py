@@ -561,6 +561,33 @@ class EditService:
             params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
         )
 
+    def change_non_speech_action(
+        self,
+        outcome_id: str,
+        action: str,
+        *,
+        confirm_cut_speech: bool = False,
+        defaults: dict | None = None,
+    ) -> dict[str, Any]:
+        from podcast_mcp.edits.change_non_speech_action import change_non_speech_action
+
+        def mutate(p) -> dict[str, Any]:
+            return change_non_speech_action(
+                p,
+                outcome_id,
+                action,
+                confirm_cut_speech=confirm_cut_speech,
+                defaults=defaults,
+            )
+
+        return self.ws.mutate(
+            "before change non-speech action",
+            "after change non-speech action",
+            mutate,
+            operation="change_non_speech_action",
+            params={"outcome_id": outcome_id, "action": action},
+        )
+
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:
             if not allow_exact and any(

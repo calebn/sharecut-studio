@@ -232,11 +232,52 @@
         "image_url": { "type": ["string", "null"] }
       }
     },
+    "NonSpeechOutcome": {
+      "type": "object",
+      "required": [
+        "id",
+        "decision_id",
+        "track_id",
+        "kind",
+        "label",
+        "source_start",
+        "source_end",
+        "applied_action",
+        "applied_at",
+        "effective_source_start",
+        "effective_source_end"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "decision_id": { "type": "string" },
+        "track_id": { "type": "string" },
+        "kind": { "type": "string" },
+        "label": { "type": "string" },
+        "source_start": { "type": "number" },
+        "source_end": { "type": "number" },
+        "applied_action": { "type": "string", "enum": ["cut", "shorten", "lower", "leave"] },
+        "applied_at": { "type": "string" },
+        "effective_source_start": { "type": "number" },
+        "effective_source_end": { "type": "number" },
+        "timeline_start": { "type": ["number", "null"] },
+        "timeline_end": { "type": ["number", "null"] },
+        "ripple_duration_sec": { "type": ["number", "null"] },
+        "edit_log_id": { "type": ["string", "null"] },
+        "envelope_point_ids": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "attenuation_db": { "type": ["number", "null"] },
+        "batch_id": { "type": ["string", "null"] }
+      }
+    },
     "EditorialSection": {
       "type": "object",
       "properties": {
         "edit_decisions": { "type": "array", "items": { "$ref": "#/$defs/EditDecision" } },
         "edit_log": { "type": "array", "items": { "$ref": "#/$defs/AppliedEditRecord" } },
+        "non_speech_outcomes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/NonSpeechOutcome" },
+          "default": []
+        },
         "chapters": { "type": "array", "items": { "$ref": "#/$defs/ChapterMarker" } },
         "retained_bleed_alignments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RetainedBleedAlignmentDecision" } },
         "speaker_splits": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SpeakerSplit" } }

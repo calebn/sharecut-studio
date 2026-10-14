@@ -34,6 +34,14 @@ def apply_suggested_non_speech_actions(ws: ProjectWorkspace, p: dict[str, Any]) 
     )
 
 
+def change_non_speech_action(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EditService(ws).change_non_speech_action(
+        str(p["outcome_id"]),
+        str(p["action"]),
+        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+    )
+
+
 def reject_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = list(p["ids"])
     count = EditService(ws).reject(ids, allow_exact=p.get("_allow_exact") is True)

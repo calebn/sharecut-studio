@@ -186,6 +186,26 @@ def edit_apply_suggested_actions_cmd(
     )
 
 
+@edit_app.command("change-non-speech-action")
+def edit_change_non_speech_action_cmd(
+    project: Path = typer.Option(..., "--project"),
+    outcome_id: str = typer.Option(..., "--outcome-id"),
+    action: str = typer.Option(..., "--action", help="cut, shorten, lower, or leave"),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
+) -> None:
+    ws = ProjectWorkspace.open(project)
+    result = with_cut_speech_confirmation(
+        lambda confirm: EditService(ws).change_non_speech_action(
+            outcome_id, action, confirm_cut_speech=confirm
+        ),
+        yes=yes,
+    )
+    typer.echo(
+        f"Changed non-speech outcome {result.get('outcome_id')}: "
+        f"{result.get('from')} → {result.get('to')}."
+    )
+
+
 @edit_app.command("reject")
 def edit_reject_cmd(
     project: Path = typer.Option(..., "--project"),

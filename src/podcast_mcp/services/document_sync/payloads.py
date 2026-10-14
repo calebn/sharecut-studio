@@ -169,6 +169,12 @@ class ApplySuggestedNonSpeechActionsPayload(BaseModel):
     confirm_cut_speech: ConfirmCutSpeech = False
 
 
+class ChangeNonSpeechActionPayload(BaseModel):
+    outcome_id: str
+    action: Literal["cut", "shorten", "lower", "leave"]
+    confirm_cut_speech: ConfirmCutSpeech = False
+
+
 class UpdatePendingEditPayload(BaseModel):
     id: str
     start: float
@@ -578,6 +584,11 @@ class ApplySuggestedNonSpeechActionsCommand(DocumentCommandEnvelope):
     payload: ApplySuggestedNonSpeechActionsPayload
 
 
+class ChangeNonSpeechActionCommand(DocumentCommandEnvelope):
+    type: Literal["ChangeNonSpeechAction"] = "ChangeNonSpeechAction"
+    payload: ChangeNonSpeechActionPayload
+
+
 class UpdatePendingEditCommand(DocumentCommandEnvelope):
     type: Literal["UpdatePendingEdit"] = "UpdatePendingEdit"
     payload: UpdatePendingEditPayload
@@ -787,6 +798,7 @@ DocumentCommandBody = Annotated[
     | RedoHistoryCommand
     | ApproveEditsCommand
     | ApplySuggestedNonSpeechActionsCommand
+    | ChangeNonSpeechActionCommand
     | RejectEditsCommand
     | UpdatePendingEditCommand
     | RestoreAppliedEditCommand
@@ -896,6 +908,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "RedoHistory": RedoHistoryPayload,
     "ApproveEdits": ApproveEditsPayload,
     "ApplySuggestedNonSpeechActions": ApplySuggestedNonSpeechActionsPayload,
+    "ChangeNonSpeechAction": ChangeNonSpeechActionPayload,
     "RejectEdits": RejectEditsPayload,
     "UpdatePendingEdit": UpdatePendingEditPayload,
     "RestoreAppliedEdit": RestoreAppliedEditPayload,

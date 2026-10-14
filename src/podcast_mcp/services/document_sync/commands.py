@@ -20,6 +20,7 @@ DocumentCommandType = Literal[
     "RedoHistory",
     "ApproveEdits",
     "ApplySuggestedNonSpeechActions",
+    "ChangeNonSpeechAction",
     "RejectEdits",
     "UpdatePendingEdit",
     "RestoreAppliedEdit",

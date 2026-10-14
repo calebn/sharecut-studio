@@ -41,6 +41,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
 | `ApplySuggestedNonSpeechActions` | — | `confirm_cut_speech` (boolean), `ids` (array \| null) |
 | `ApproveEdits` | `ids` (array[string]) | `allow_review` (boolean), `confirm_cut_speech` (boolean) |
+| `ChangeNonSpeechAction` | `action` (cut \| shorten \| lower \| leave), `outcome_id` (string) | `confirm_cut_speech` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
 | `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `confirm_cut_speech` (boolean), `track_ids` (array[string]) |
@@ -84,7 +85,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 51 command types._
+_Generated 52 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

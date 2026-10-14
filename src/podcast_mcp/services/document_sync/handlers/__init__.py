@@ -25,6 +25,7 @@ HANDLERS: dict[str, Handler] = {
     "EditSelectedRange": edits.edit_selected_range,
     "ApproveEdits": edits.approve_edits,
     "ApplySuggestedNonSpeechActions": edits.apply_suggested_non_speech_actions,
+    "ChangeNonSpeechAction": edits.change_non_speech_action,
     "RejectEdits": edits.reject_edits,
     "UpdatePendingEdit": edits.update_pending_edit,
     "RestoreAppliedEdit": edits.restore_applied_edit,

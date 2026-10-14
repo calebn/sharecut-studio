@@ -1149,6 +1149,126 @@
         "title": "BoundaryContextInput",
         "type": "object"
       },
+      "ChangeNonSpeechActionCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ChangeNonSpeechActionPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ChangeNonSpeechAction",
+            "default": "ChangeNonSpeechAction",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "ChangeNonSpeechActionCommand",
+        "type": "object"
+      },
+      "ChangeNonSpeechActionPayload": {
+        "properties": {
+          "action": {
+            "enum": [
+              "cut",
+              "shorten",
+              "lower",
+              "leave"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "confirm_cut_speech": {
+            "default": false,
+            "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
+            "title": "Confirm Cut Speech",
+            "type": "boolean"
+          },
+          "outcome_id": {
+            "title": "Outcome Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome_id",
+          "action"
+        ],
+        "title": "ChangeNonSpeechActionPayload",
+        "type": "object"
+      },
       "Clip": {
         "properties": {
           "fade_in_ms": {
@@ -7831,6 +7951,7 @@
                     "ApplyFadeRecommendations": "#/components/schemas/ApplyFadeRecommendationsCommand",
                     "ApplySuggestedNonSpeechActions": "#/components/schemas/ApplySuggestedNonSpeechActionsCommand",
                     "ApproveEdits": "#/components/schemas/ApproveEditsCommand",
+                    "ChangeNonSpeechAction": "#/components/schemas/ChangeNonSpeechActionCommand",
                     "CorrectTranscriptPhrase": "#/components/schemas/CorrectTranscriptPhraseCommand",
                     "CorrectTranscriptWord": "#/components/schemas/CorrectTranscriptWordCommand",
                     "CutRange": "#/components/schemas/CutRangeCommand",
@@ -7909,6 +8030,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/ApplySuggestedNonSpeechActionsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ChangeNonSpeechActionCommand"
                   },
                   {
                     "$ref": "#/components/schemas/RejectEditsCommand"
