@@ -11,7 +11,6 @@ import type { ExecuteResult } from "./types";
 
 type Choice = "cutAnyway" | "leaveGap";
 
-/** Pending-review Cut anyway cleared the dialog; cancel drops late batch feedback. */
 let pendingReviewCutInFlight: PendingReviewCapture | null = null;
 
 /** Resubmit the refused ripple the way the person chose; the prompt stays open with the error on failure. */
