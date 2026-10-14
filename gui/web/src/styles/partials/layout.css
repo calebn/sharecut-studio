@@ -719,21 +719,32 @@ button.save-dot {
   }
 }
 
-/* The desktop/tablet status bar is --status-height tall. On a touch pointer the
-   row grows to the touch floor so the save light's 44pt target sits inside it,
-   unclipped; the sheets and toasts that anchor to the row follow the token. The
-   phone shell has no such row and keeps its own. */
+/* A read-only light (saved, saving) takes no tap, so it paints no target. */
+.save-dot:is([data-save-state="saved"], [data-save-state="saving"])::after {
+  content: none;
+}
+
+/* The desktop/tablet status bar is --status-height tall. Its light never paints
+   a target taller than the bar, so the bar cannot scroll on any pointer. */
+.status-bar .save-dot::after {
+  inset-block: 0;
+}
+
+/* On a touch pointer the row grows only while the light is actionable (waiting
+   or failed, the Needs attention banner is up then): the full --touch-min
+   target plus the bar's 1px top border. The sheets and toasts that anchor to
+   the row follow the token. The phone shell keeps its own row. */
 @media (pointer: coarse) {
-  html:not([data-shell="phone"]) {
-    --status-height: var(--touch-min);
+  html:not([data-shell="phone"]):has(
+    .status-bar
+      .save-dot:is([data-save-state="waiting"], [data-save-state="failed"])
+  ) {
+    --status-height: calc(var(--touch-min) + 1px);
   }
 
-  .status-bar .save-dot {
+  .status-bar
+    .save-dot:is([data-save-state="waiting"], [data-save-state="failed"]) {
     block-size: var(--touch-min);
-  }
-
-  .status-bar .save-dot::after {
-    inset-block: 0;
   }
 }
 
