@@ -76,7 +76,9 @@ _GATE_LOST_UNDER_VOICE_DB = 65.0
 # Acoustic statuses that call for transcript suppression (used both for the flagged/
 # bleed report and, via `word_targets`, for suggest-mode's suppression_recommendations).
 # A path is a one-way leak when the reverse path has this many times fewer consistent frames.
-ONE_WAY_RATIO = 10
+# Frames count talk time as well as leak strength, so the ratio must exceed any plausible
+# split of the talking (one speaker under 2% of it); the Daniela pair measures 164.
+ONE_WAY_RATIO = 50
 _FLAGGED_STATUSES = ("inaudible", "bleed")
 
 
