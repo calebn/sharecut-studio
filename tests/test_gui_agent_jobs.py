@@ -172,6 +172,25 @@ def test_agent_job_coexists_with_pipeline_job() -> None:
     assert pipeline.status == "running"
 
 
+def test_agent_job_nested_fail_does_not_keep_child_headline_on_ok() -> None:
+    mgr = PipelineJobManager()
+    sink = AgentJobFanInReporter(mgr)
+    sink.start("propose_edits", "Propose edits")
+    sink.message("propose_edits", "Proposing")
+    sink.start("word-probe", "Listening for missed words", total=4)
+    sink.fail("word-probe", message="whisper weights missing")
+    job = sink._job
+    assert job is not None
+    assert job.status == "running"
+    assert job.error is None
+    sink.end("propose_edits")
+    assert job.status == "ok"
+    assert job.error is None
+    headline = job.message or ""
+    assert "whisper weights missing" not in headline
+    assert "failed" not in headline.lower()
+
+
 def test_agent_job_fail_strips_traceback_and_does_not_stay_running() -> None:
     mgr = PipelineJobManager()
     sink = AgentJobFanInReporter(mgr)

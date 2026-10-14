@@ -192,6 +192,7 @@ class GuestWsProgressReporter(ElapsedProgressMixin):
         self._total: int | None = None
         self._label = ""
         self._task_id = "task"
+        self._wrap_task_id: str | None = None
         self._generation = 0
         self._closed = False
 
@@ -292,10 +293,18 @@ class GuestWsProgressReporter(ElapsedProgressMixin):
             self._last_flush = time.monotonic()
         self._hub.publish(self._token, payload)
 
+    def _close_if_wrap(self, task_id: str) -> None:
+        with self._lock:
+            wrap = self._wrap_task_id
+        if wrap is None or task_id == wrap:
+            self.close()
+
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
         with self._lock:
             if self._closed:
                 return
+            if self._wrap_task_id is None:
+                self._wrap_task_id = task_id
             self._task_id = task_id
             self._label = label
             self._total = total
@@ -400,7 +409,7 @@ class GuestWsProgressReporter(ElapsedProgressMixin):
                 message=message,
             )
         )
-        self.close()
+        self._close_if_wrap(task_id)
 
     def fail(
         self,
@@ -426,7 +435,7 @@ class GuestWsProgressReporter(ElapsedProgressMixin):
                 phase=phase,
             )
         )
-        self.close()
+        self._close_if_wrap(task_id)
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:
         with self._lock:
@@ -444,7 +453,7 @@ class GuestWsProgressReporter(ElapsedProgressMixin):
                 message=message,
             )
         )
-        self.close()
+        self._close_if_wrap(task_id)
 
     def _emit_heartbeat(self, task_id: str, state: Any, elapsed_sec: float) -> None:
         del state, elapsed_sec

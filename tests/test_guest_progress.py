@@ -102,6 +102,30 @@ async def test_mcp_progress_sink_preserves_accepted_payload_when_closed() -> Non
     assert queue.empty()
 
 
+@pytest.mark.asyncio
+async def test_guest_ws_nested_fail_does_not_leave_chip_on_child_error() -> None:
+    reset_guest_progress_hub()
+    hub = guest_progress_hub()
+    q = hub.subscribe("tok", asyncio.get_running_loop())
+    reporter = GuestWsProgressReporter(hub, "tok")
+    try:
+        reporter.start("propose_edits", "propose_edits")
+        reporter.update("propose_edits", 1, message="working")
+        reporter.start("word-probe", "Listening for missed words", total=4)
+        reporter.fail("word-probe", message="whisper weights missing")
+        reporter.end("propose_edits", message="done")
+        await asyncio.sleep(0.05)
+        events = drain(q)
+        assert any(item.get("kind") == "fail" for item in events)
+        last = events[-1]
+        assert last.get("kind") == "end"
+        assert last.get("status") == "ok"
+        assert last.get("task_id") == "propose_edits"
+    finally:
+        reporter.close()
+        hub.unsubscribe("tok", q)
+
+
 def test_guest_mcp_parent_end_after_nested_fail_does_not_snap() -> None:
     ctx = GuestMcpProgressContext("pt-nested-fail")
     ctx.start("propose-edits", "Propose edits")
