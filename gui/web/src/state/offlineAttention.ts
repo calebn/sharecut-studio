@@ -85,15 +85,15 @@ function withVolatileOutcomes(
     conflicts.map((conflict) => [conflict.command.command_id, conflict]),
   );
   for (const conflict of volatileOutcomes.get(projectPath) ?? []) {
-    const persisted = byCommand.get(conflict.command.command_id);
-    byCommand.set(
-      conflict.command.command_id,
-      volatileOutcomeInstances.has(conflict)
-        ? conflict
-        : persisted && sameOutcome(persisted, conflict) && persisted.dismissed
-          ? { ...conflict, dismissed: true }
-          : conflict,
-    );
+    const commandId = conflict.command.command_id;
+    const persisted = byCommand.get(commandId);
+    const outcome = volatileOutcomeInstances.has(conflict)
+      ? conflict
+      : persisted && sameOutcome(persisted, conflict) && persisted.dismissed
+        ? { ...conflict, dismissed: true }
+        : conflict;
+    byCommand.delete(commandId);
+    byCommand.set(commandId, outcome);
   }
   return [...byCommand.values()];
 }
