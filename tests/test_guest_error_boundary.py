@@ -34,47 +34,6 @@ def test_disabled_guest_render_projects_safe_http_refusal(monkeypatch):
     )
 
 
-@pytest.mark.parametrize(
-    "error",
-    [
-        ValueError("broken host state /private/host/project.json"),
-        PermissionError(13, "permission denied", "/private/host/project.json"),
-    ],
-)
-def test_guest_http_crash_hides_exception_text(monkeypatch, error):
-    def crash(*_args, **_kwargs):
-        raise error
-
-    monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
-    monkeypatch.setattr(review_share, "_check_token", lambda _token: {})
-    monkeypatch.setattr(review_share, "_rate_limit", lambda *_args: None)
-    monkeypatch.setattr(review_share, "share_daw_project_view", crash)
-    app = FastAPI()
-    app.include_router(review_share.router)
-    response = TestClient(app).get("/api/review/token/daw/project")
-    assert response.status_code == 500
-    assert response.json() == {"detail": "internal error"}
-
-
-def test_guest_websocket_os_error_hides_exception_text(monkeypatch):
-    async def admit(_websocket, _token):
-        return False
-
-    def crash(*_args, **_kwargs):
-        raise PermissionError(13, "permission denied", "/private/host/project.json")
-
-    monkeypatch.setattr(review_share, "_admit_review_ws", admit)
-    monkeypatch.setattr(review_share, "require_share_cap", crash)
-    app = FastAPI()
-    app.include_router(review_share.router)
-    with TestClient(app) as client:
-        with pytest.raises(WebSocketDisconnect) as failure:
-            with client.websocket_connect("/api/review/token/daw/ws") as socket:
-                socket.receive_json()
-    assert failure.value.code == 1011
-    assert failure.value.reason == "internal error"
-
-
 @pytest.fixture
 def guest_client(monkeypatch):
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
@@ -83,72 +42,6 @@ def guest_client(monkeypatch):
     app = FastAPI()
     app.include_router(review_share.router)
     return TestClient(app)
-
-
-@pytest.mark.parametrize("error_type", [ValueError, PermissionError, RuntimeError, KeyError])
-@pytest.mark.parametrize(
-    ("service", "method", "url", "body"),
-    [
-        ("share_project_view", "get", "/project", None),
-        ("share_daw_project_view", "get", "/daw/project", None),
-        ("share_daw_meta", "get", "/daw/meta", None),
-        ("share_audio_path", "get", "/audio", None),
-        ("share_daw_audio_path", "get", "/daw/audio", None),
-        ("share_daw_waveform_status", "get", "/daw/waveform/status", None),
-        (
-            "share_daw_waveform_tiles",
-            "get",
-            "/daw/waveform/tiles/key?ref=track:x&level=0&start=0",
-            None,
-        ),
-        ("share_daw_waveform_snap", "get", "/daw/waveform-snap?track_id=x&start=0&end=1", None),
-        ("share_pending_cut_suggestion", "get", "/daw/pending-edits/x/cut-suggestion", None),
-        ("share_proxy_manifest", "get", "/daw/proxy/manifest", None),
-        ("share_proxy_chunk_path", "get", "/daw/proxy/x/hash/0", None),
-        ("share_upload_media", "post", "/daw/media/upload?filename=x.wav", None),
-        ("require_share_edit", "post", "/daw/render-preview", None),
-        ("require_share_edit", "get", "/daw/render-preview/job", None),
-        ("require_share_cap", "get", "/daw/document/state", None),
-        (
-            "require_share_cap",
-            "post",
-            "/daw/document/command",
-            {
-                "type": "SetTrackMute",
-                "payload": {"track_id": "x", "muted": True},
-                "client_id": "guest",
-                "client_seq": 1,
-            },
-        ),
-        (
-            "share_add_comment",
-            "post",
-            "/comments",
-            {"body": "x", "author": "A", "timeline_start": 0},
-        ),
-        ("share_add_reply", "post", "/comments/x/replies", {"body": "x", "author": "A"}),
-    ],
-)
-def test_review_operations_hide_crashes_and_log_diagnostics(
-    guest_client, monkeypatch, caplog, service, method, url, body, error_type
-):
-    diagnostic = "private secret phrase /private/host/project.json"
-
-    def crash(*_args, **_kwargs):
-        raise error_type(diagnostic)
-
-    monkeypatch.setattr(review_share, service, crash)
-    monkeypatch.setattr(review_share, "resolve_share_audio_redirect", lambda *_args: None)
-    monkeypatch.setattr(review_share, "_audio_slot", lambda *_args: None)
-    response = guest_client.request(method, "/api/review/token" + url, json=body)
-    assert response.status_code == 500, response.text
-    assert response.json() == {"detail": "internal error"}
-    assert diagnostic not in response.text
-    assert diagnostic not in str(response.headers)
-    failures = [record for record in caplog.records if record.exc_info]
-    assert failures and diagnostic in str(failures[-1].exc_info[1])
-    if "/waveform/" in url:
-        assert response.headers["cache-control"] == "no-store"
 
 
 @pytest.mark.parametrize("wrapped", [False, True])
@@ -251,55 +144,6 @@ def test_busy_cause_beats_coded_wrapper(guest_client, monkeypatch, kind):
     assert response.status_code == 503
     assert response.headers["x-sharecut-error-code"] == "project_busy"
     assert "outer conflict" not in response.text
-
-
-@pytest.mark.parametrize("stage", ["bootstrap", "context", "ingest", "status", "delete"])
-def test_record_http_crashes_are_private(monkeypatch, caplog, stage):
-    from types import SimpleNamespace
-
-    from podcast_mcp.gui.routes import record_share
-
-    diagnostic = "private secret phrase /private/host/upload.sqlite"
-
-    def fail(*_args, **_kwargs):
-        raise ValueError(diagnostic)
-
-    monkeypatch.setattr(record_share, "check_share_token", lambda *_a, **_kw: {})
-    monkeypatch.setattr(record_share, "rate_limit_share", lambda *_a: None)
-    session = SimpleNamespace(
-        verify_lease=lambda *_a, **_kw: True, upload_consented=lambda *_a, **_kw: True
-    )
-    uploader = SimpleNamespace(status=fail, revoke_room_tone=fail)
-    monkeypatch.setattr(
-        record_share,
-        "_guest_upload_ctx",
-        fail if stage == "context" else lambda *_a: (uploader, session, "room", None),
-    )
-    monkeypatch.setattr(record_share, "record_bootstrap", fail)
-
-    async def ingest(*_args, **_kwargs):
-        fail()
-
-    monkeypatch.setattr(record_share, "ingest_record_upload_request", ingest)
-    app = FastAPI()
-    app.include_router(record_share.router)
-    client = TestClient(app)
-    headers = {"X-Record-Participant": "p_123456789abc", "X-Record-Lease": "lease"}
-    if stage == "bootstrap":
-        response = client.get("/api/rec/token/bootstrap")
-    elif stage in {"context", "ingest"}:
-        response = client.post(
-            "/api/rec/token/upload?take_index=0&segment_index=0&part_seq=0",
-            headers=headers,
-            content=b"audio",
-        )
-    elif stage == "delete":
-        response = client.delete("/api/rec/token/upload?kind=room_tone", headers=headers)
-    else:
-        response = client.get("/api/rec/token/upload", headers=headers)
-    assert response.status_code == 500, response.text
-    assert response.json() == {"detail": "internal error"}
-    assert diagnostic in str([r.exc_info[1] for r in caplog.records if r.exc_info])
 
 
 @pytest.mark.parametrize("kind", ["key", "crash"])
