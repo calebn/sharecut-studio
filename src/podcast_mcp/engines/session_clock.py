@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
-from podcast_mcp.engines.level_profile import window_voice_reach_rms
 
 
 def first_speech_onset_sec(
@@ -14,23 +13,12 @@ def first_speech_onset_sec(
     search_start_sec: float = 0.0,
     search_end_sec: float | None = None,
     chunk_sec: float = 2.0,
-    rms_threshold: float | None = None,
+    rms_threshold: float = 0.02,
     sample_rate: int = 8000,
 ) -> float | None:
-    """First time (file clock) with sustained speech above threshold.
-
-    ``rms_threshold`` defaults to the searched window's own voice reach
-    (``window_voice_reach_rms``), so a recording at any gain gets the same onset.
-    """
+    """First time (file clock) with sustained speech above threshold."""
     if search_end_sec is None:
         search_end_sec = search_start_sec + 600.0
-    if rms_threshold is None:
-        rms_threshold = window_voice_reach_rms(
-            path,
-            start_sec=max(0.0, search_start_sec),
-            duration_sec=search_end_sec - max(0.0, search_start_sec),
-            sample_rate=sample_rate,
-        )
     t = max(0.0, search_start_sec)
     while t < search_end_sec:
         try:
@@ -56,15 +44,13 @@ def estimate_session_start_in_file(
     *,
     session_hint_sec: float = 0.0,
     search_pad_sec: float = 60.0,
-    ref_rms_threshold: float | None = None,
-    source_rms_threshold: float | None = None,
+    ref_rms_threshold: float = 0.02,
+    source_rms_threshold: float = 0.008,
 ) -> float:
     """
     Seconds into ``source`` file that correspond to session time 0 on ``reference``.
 
-    Positive means the source recorder started later (typical remote guest). Each file's
-    onset is read against its own voice reach unless a threshold is given, so a guest
-    recorded quieter than the host needs no separate threshold.
+    Positive means the source recorder started later (typical remote guest).
     """
     lo = max(0.0, session_hint_sec - search_pad_sec)
     hi = session_hint_sec + search_pad_sec

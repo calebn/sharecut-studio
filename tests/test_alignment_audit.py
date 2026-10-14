@@ -92,21 +92,13 @@ def test_vad_window_rms_cache_reuses_only_identical_successful_windows(
     monkeypatch.setattr("podcast_mcp.engines.alignment_audit.load_mono_window", load_window)
     cache = VADWindowRMSCache()
 
-    first_uncached = vad_speech_intervals(
-        source, start_sec=0.0, duration_sec=1.0, rms_threshold=0.01
-    )
-    second_uncached = vad_speech_intervals(
-        source, start_sec=0.5, duration_sec=1.0, rms_threshold=0.01
-    )
+    first_uncached = vad_speech_intervals(source, start_sec=0.0, duration_sec=1.0)
+    second_uncached = vad_speech_intervals(source, start_sec=0.5, duration_sec=1.0)
     uncached_calls = len(calls)
     calls.clear()
 
-    first_cached = vad_speech_intervals(
-        source, start_sec=0.0, duration_sec=1.0, rms_threshold=0.01, rms_cache=cache
-    )
-    second_cached = vad_speech_intervals(
-        source, start_sec=0.5, duration_sec=1.0, rms_threshold=0.01, rms_cache=cache
-    )
+    first_cached = vad_speech_intervals(source, start_sec=0.0, duration_sec=1.0, rms_cache=cache)
+    second_cached = vad_speech_intervals(source, start_sec=0.5, duration_sec=1.0, rms_cache=cache)
     assert first_cached == [(0.0, 0.25), (0.75, 1.0)]
     assert second_cached == [(0.75, 1.25)]
     assert (first_cached, second_cached) == (first_uncached, second_uncached)
@@ -128,12 +120,8 @@ def test_vad_rms_cache_does_not_cache_unavailable_and_preserves_empty_windows(
 
     monkeypatch.setattr("podcast_mcp.engines.alignment_audit.load_mono_window", unavailable)
     cache = VADWindowRMSCache()
-    assert (
-        vad_speech_intervals(source, duration_sec=0.25, rms_threshold=0.01, rms_cache=cache) == []
-    )
-    assert (
-        vad_speech_intervals(source, duration_sec=0.25, rms_threshold=0.01, rms_cache=cache) == []
-    )
+    assert vad_speech_intervals(source, duration_sec=0.25, rms_cache=cache) == []
+    assert vad_speech_intervals(source, duration_sec=0.25, rms_cache=cache) == []
     assert calls == 2
 
     empty_calls = 0
@@ -235,7 +223,7 @@ def test_vad_speech_intervals_stops_at_past_eof_and_keeps_prior_speech(sample_wa
         "podcast_mcp.engines.alignment_audit.load_mono_window",
         side_effect=[speech, speech, AudioWindowUnavailableError("no audio decoded")],
     ) as load_window:
-        intervals = vad_speech_intervals(sample_wav, duration_sec=90.0, rms_threshold=0.5)
+        intervals = vad_speech_intervals(sample_wav, duration_sec=90.0)
 
     assert intervals == [(0.0, 0.5)]
     assert load_window.call_count == 3
@@ -248,7 +236,7 @@ def test_vad_speech_intervals_bridges_one_quiet_chunk_only(sample_wav: Path):
     windows = [loud, quiet, loud, quiet, quiet, loud, quiet]
     with patch("podcast_mcp.engines.alignment_audit.load_mono_window", side_effect=windows):
         intervals = vad_speech_intervals(
-            sample_wav, start_sec=2.0, duration_sec=1.75, min_run_sec=0.2, rms_threshold=0.5
+            sample_wav, start_sec=2.0, duration_sec=1.75, min_run_sec=0.2
         )
     assert intervals == [(2.0, 2.75), (3.25, 3.5)]
 

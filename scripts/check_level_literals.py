@@ -89,7 +89,8 @@ def _reads_as(name: str, vocabulary: frozenset[str]) -> bool:
     return bool(_tokens(name) & vocabulary)
 
 
-# (file, name): why the level is physical, the same at any recording gain.
+# (file, name): why the level is physical, the same at any recording gain, or the issue
+# that will replace it.
 ALLOWED: dict[tuple[str, str], str] = {
     ("src/podcast_mcp/engines/audio_audit.py", "CLIPPING_PEAK_LEVEL_DB"): (
         "clipping ceiling: how close a peak sits to digital full scale"
@@ -97,6 +98,29 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("src/podcast_mcp/engines/audio_audit.py", "CLIPPING_MIN_PEAK_DB"): (
         "clipping ceiling: a peak this far under full scale was never clipped"
     ),
+    # Deferred to #1533: a per-window voice reach regressed real ingest (session start moved
+    # 36-48 s on aligned lab tracks), so these keep the fixed gates until a whole-file
+    # reference exists.
+    (
+        "src/podcast_mcp/engines/session_clock.py",
+        "rms_threshold",
+    ): "ingest gate kept fixed until #1533",
+    (
+        "src/podcast_mcp/engines/session_clock.py",
+        "ref_rms_threshold",
+    ): "ingest gate kept fixed until #1533",
+    (
+        "src/podcast_mcp/engines/session_clock.py",
+        "source_rms_threshold",
+    ): "ingest gate kept fixed until #1533",
+    (
+        "src/podcast_mcp/engines/alignment_audit.py",
+        "rms_threshold",
+    ): "ingest gate kept fixed until #1533",
+    (
+        "src/podcast_mcp/edits/conversation_align.py",
+        "min_rms",
+    ): "ingest gate kept fixed until #1533",
 }
 
 
