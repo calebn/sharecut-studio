@@ -112,6 +112,12 @@ def _block_rms(
         first = round((t - t0) * sample_rate)
         last = round((t - t0 + dur) * sample_rate)
         if first >= window.size:
+            # Either the end of the file or a reader that clamps a wide window (a WAV read
+            # is capped in bytes). Decode from here again: the end of the file then
+            # raises, and a clamped window moves on.
+            if i != block[0]:
+                rest = block[block.index(i) :]
+                out.update(_block_rms(path, rest, chunks, sample_rate=sample_rate, ffmpeg=ffmpeg))
             break
         piece = window[first:last]
         out[i] = float(np.sqrt(np.mean(piece**2))) if piece.size else None
