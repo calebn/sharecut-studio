@@ -26,7 +26,8 @@ export type ExportStage =
       /** Null until the start request returns the job. */
       job: PipelineJobSnapshot | null;
       /** The job has started and no cancel is pending. */
-      canCancel: boolean;
+      /** Why Cancel is unavailable right now, or null when it can run. */
+      cancelReason: string | null;
       cancelling: boolean;
       cancelError: string | null;
     }
@@ -239,24 +240,23 @@ function ExportDialogFooter({
   onCancelExport,
   onRestart,
 }: ExportDialogViewProps) {
-  const blockerId = useId();
   return (
     <div className="bounce-dialog-footer">
       {stage.kind === "configure" && stage.blocker ? (
-        <p id={blockerId} className="export-dialog-note">
-          {stage.blocker}
-        </p>
+        <p className="export-dialog-note">{stage.blocker}</p>
       ) : null}
       <div className="bounce-dialog-actions">
         {stage.kind === "configure" ? (
           <Button
             variant="primary"
             type="button"
-            disabled={
-              stage.blocker != null ||
-              (stage.settings == null && stage.settingsError == null)
+            disabledReason={
+              stage.blocker != null
+                ? stage.blocker
+                : stage.settings == null && stage.settingsError == null
+                  ? "Wait for the export settings to load."
+                  : undefined
             }
-            aria-describedby={stage.blocker ? blockerId : undefined}
             onClick={onExport}
           >
             Export
@@ -265,7 +265,7 @@ function ExportDialogFooter({
         {stage.kind === "running" ? (
           <Button
             type="button"
-            disabled={!stage.canCancel}
+            disabledReason={stage.cancelReason ?? undefined}
             onClick={onCancelExport}
           >
             {stage.cancelling ? "Cancelling…" : "Cancel export"}

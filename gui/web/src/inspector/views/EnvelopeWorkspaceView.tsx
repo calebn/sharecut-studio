@@ -133,7 +133,11 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       subtitle={editable ? "Editing volume envelope" : "Volume envelope"}
       error={error?.target === "form" ? error.message : null}
       primaryActions={[
-        { label: "Done", disabled: busy, onClick: props.onDone },
+        {
+          label: "Done",
+          disabledReason: busy ? BUSY_REASON : undefined,
+          onClick: props.onDone,
+        },
       ]}
     >
       <div

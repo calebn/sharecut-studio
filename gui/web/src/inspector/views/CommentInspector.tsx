@@ -41,7 +41,7 @@ export function CommentInspector({ comment, onSeek }: Props) {
               {
                 label: comment.resolved ? "Reopen" : "Resolve",
                 variant: "primary",
-                disabled: busy,
+                disabledReason: busy ? BUSY_REASON : undefined,
                 onClick: () => void resolve(comment, !comment.resolved),
               },
             ]

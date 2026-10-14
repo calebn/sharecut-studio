@@ -221,7 +221,13 @@ export function TransportBar({
           <ToggleButton
             key={m.id}
             quiet
-            disabled={loading || (guestMixOnly && m.id !== "mix")}
+            disabledReason={
+              loading
+                ? "Open a project to choose what you hear."
+                : guestMixOnly && m.id !== "mix"
+                  ? GUESTS_HEAR_FULL_MIX
+                  : undefined
+            }
             pressed={auditionMode === m.id}
             className={m.id === "mix" && premixCue ? "stale-highlight" : ""}
             title={hint ? `${m.title} (${hint})` : m.title}

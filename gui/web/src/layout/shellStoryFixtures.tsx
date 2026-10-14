@@ -104,7 +104,6 @@ export function ShellStoryTools() {
   return (
     <ToolModeToggleView
       compact
-      structuralToolsAllowed
       toolMode={tool}
       commentMode={comment}
       selectTitle="Select tool"

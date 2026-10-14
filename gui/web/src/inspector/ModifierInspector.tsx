@@ -6,7 +6,8 @@ import { InlineError } from "../ui/InlineError";
 export type ModifierAction = {
   label: string;
   onClick: () => void;
-  disabled?: boolean;
+  /** Why the action is unavailable; omit when it can run. */
+  disabledReason?: string;
   variant?: "primary" | "danger" | "default";
   title?: string;
 };
@@ -58,7 +59,7 @@ export const ModifierInspector = forwardRef<
             <Button
               key={action.label}
               variant={action.variant ?? "default"}
-              disabled={action.disabled}
+              disabledReason={action.disabledReason}
               onClick={action.onClick}
               title={action.title}
             >

@@ -147,7 +147,7 @@ export const Splitting: Story = {
     stage: {
       kind: "running",
       job: runningJob,
-      canCancel: true,
+      cancelReason: null,
       cancelling: false,
       cancelError: null,
     },

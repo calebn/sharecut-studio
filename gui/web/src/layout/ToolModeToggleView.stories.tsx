@@ -13,7 +13,7 @@ import { TransportFrame, TransportZone } from "./TransportFrame";
  */
 function ToolModePreview({
   compact,
-  structuralToolsAllowed,
+  bladeReason,
   selectTitle,
   bladeTitle,
   commentTitle,
@@ -22,7 +22,7 @@ function ToolModePreview({
   onToggleComment,
 }: {
   compact?: boolean;
-  structuralToolsAllowed: boolean;
+  bladeReason?: string;
   selectTitle: string;
   bladeTitle: string;
   commentTitle: string;
@@ -35,7 +35,7 @@ function ToolModePreview({
   return (
     <ToolModeToggleView
       compact={compact}
-      structuralToolsAllowed={structuralToolsAllowed}
+      bladeReason={bladeReason}
       toolMode={toolMode}
       commentMode={commentMode}
       selectTitle={selectTitle}
@@ -68,7 +68,6 @@ const meta: Meta<typeof ToolModePreview> = {
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
   args: {
-    structuralToolsAllowed: true,
     selectTitle: "Select tool (V)",
     bladeTitle: "Blade tool (C)",
     commentTitle:
@@ -138,7 +137,7 @@ export const CommentMode: Story = {
 };
 
 export const CommentOnlyGuest: Story = {
-  args: { structuralToolsAllowed: false },
+  args: { bladeReason: "Blade requires permission to suggest edits" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "Select" })).toBeEnabled();

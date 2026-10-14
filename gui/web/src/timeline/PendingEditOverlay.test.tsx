@@ -194,6 +194,7 @@ describe("PendingEditOverlay handles", () => {
         expect(
           screen.getByText(
             "Only the host or an Editor can review exact range proposals.",
+            { selector: "p" },
           ),
         ).toBeVisible();
       expect(updatePendingEdit).not.toHaveBeenCalled();

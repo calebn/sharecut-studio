@@ -158,7 +158,6 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const timingDirty =
     startStr.trim() !== sourceTime(edit.source_start) ||
     endStr.trim() !== sourceTime(edit.source_end);
-  const suggestionHintId = useId();
   const role = commentRole(projectPath, guestMode);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [askBody, setAskBody] = useState("");
@@ -500,19 +499,21 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
               {
                 label: "Approve",
                 variant: "primary" as const,
-                disabled: timingBusy || !canApply,
-                title: !canApply
-                  ? "Only the host or an Editor can review exact range proposals"
-                  : undefined,
+                disabledReason: timingBusy
+                  ? BUSY_REASON
+                  : !canApply
+                    ? "Only the host or an Editor can review exact range proposals."
+                    : undefined,
                 onClick: () => void runAction("approve"),
               },
               {
                 label: "Reject",
                 variant: "danger" as const,
-                disabled: timingBusy || !canApply,
-                title: !canApply
-                  ? "Only the host or an Editor can review exact range proposals"
-                  : undefined,
+                disabledReason: timingBusy
+                  ? BUSY_REASON
+                  : !canApply
+                    ? "Only the host or an Editor can review exact range proposals."
+                    : undefined,
                 onClick: () => void runAction("reject"),
               },
             ]
@@ -730,15 +731,20 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
             <p className="ui-field-hint">Loading suggested bounds…</p>
           ) : null}
           {timingDirty ? (
-            <p id={suggestionHintId} className="ui-field-hint">
+            <p className="ui-field-hint">
               Apply timing first to review a suggestion for your changes.
             </p>
           ) : null}
           <Button
-            disabled={
-              timingBusy || timingDirty || suggestion.state?.kind !== "ready"
+            disabledReason={
+              timingBusy
+                ? BUSY_REASON
+                : timingDirty
+                  ? "Apply timing first to review a suggestion for your changes."
+                  : suggestion.state?.kind !== "ready"
+                    ? "Wait for the suggested bounds to load."
+                    : undefined
             }
-            aria-describedby={timingDirty ? suggestionHintId : undefined}
             onClick={() => void acceptSuggestion()}
           >
             Use suggestion

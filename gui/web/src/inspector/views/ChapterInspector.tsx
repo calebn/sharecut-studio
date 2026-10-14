@@ -71,7 +71,7 @@ export function ChapterInspector({
               {
                 label: "Delete",
                 variant: "danger",
-                disabled: busy,
+                disabledReason: busy ? BUSY_REASON : undefined,
                 onClick: () => void remove(),
               },
             ]

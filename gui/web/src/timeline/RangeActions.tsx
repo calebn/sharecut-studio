@@ -115,12 +115,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
               <Button
                 type="button"
                 className="ui-control--compact"
-                disabled={d.reason !== null}
-                aria-describedby={
-                  d.reason
-                    ? `range-${sheet ? "sheet" : "bar"}-${d.action}-reason`
-                    : undefined
-                }
+                disabledReason={d.reason ?? undefined}
                 onClick={() =>
                   void executePointerCommand(d.commandId).then((result) => {
                     if (result.status === "disabled") setError(result.reason);
@@ -129,13 +124,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
               >
                 {d.label}
               </Button>
-              {d.reason ? (
-                <small
-                  id={`range-${sheet ? "sheet" : "bar"}-${d.action}-reason`}
-                >
-                  {d.reason}
-                </small>
-              ) : null}
+              {d.reason ? <small>{d.reason}</small> : null}
             </div>
           ))}
           <Button
@@ -212,7 +201,11 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
             <Button
               type="button"
               className="ui-control--compact"
-              disabled={selectedTrackIds.length === 0}
+              disabledReason={
+                selectedTrackIds.length === 0
+                  ? "Select at least one track to use the agent range."
+                  : undefined
+              }
               onClick={() => {
                 const next = makeRangeTarget(
                   project,
