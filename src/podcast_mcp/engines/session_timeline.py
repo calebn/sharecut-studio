@@ -15,7 +15,7 @@ from __future__ import annotations
 import itertools
 import math
 from bisect import bisect_right
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Any, Protocol
@@ -731,12 +731,44 @@ class SessionTimeline:
         return [self._map_source_span(index, start, end) for start, end in spans]
 
     def _selected_index(self, track_id: str, source_id: str | None) -> _TrackIndex | None:
+        return self._placements_index(track_id, (source_id,))
+
+    def _placements_index(
+        self, track_id: str, source_ids: Collection[str | None]
+    ) -> _TrackIndex | None:
         keys = tuple(
             (clip.timeline_start, clip.source_start, clip.source_end)
             for clip in self._project.clips
-            if clip.track_id == track_id and clip.source_id == source_id
+            if clip.track_id == track_id and clip.source_id in source_ids
         )
         return _build_index(keys) if keys else None
+
+    def map_placements_source_span(
+        self,
+        track_id: str,
+        source_ids: Collection[str | None],
+        start: SourceSec,
+        end: SourceSec,
+    ) -> list[tuple[TimelineSec, TimelineSec]]:
+        """Map one recording's source span through the clips naming any of ``source_ids``.
+
+        One recording can be placed under several ``source_id`` spellings (implicit
+        primary media and an explicit source of the same file).
+        """
+        index = self._placements_index(track_id, source_ids)
+        return self._map_source_span(index, start, end) if index is not None else []
+
+    def map_placements_word_spans(
+        self,
+        track_id: str,
+        source_ids: Collection[str | None],
+        words: Sequence[tuple[float, float]],
+    ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
+        """Map words through the clips naming any of ``source_ids``."""
+        index = self._placements_index(track_id, source_ids)
+        if index is None:
+            return [[] for _ in words]
+        return self._map_word_spans(index, words)
 
     def map_word_spans(
         self, track_id: str, words: Sequence[tuple[float, float]]

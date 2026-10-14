@@ -6,7 +6,16 @@ from pathlib import Path
 
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline
-from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole, Transcript, TranscriptWord
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    SourceRecording,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+)
 
 
 def _words(prefix: str, starts: list[float], **kw: object) -> list[TranscriptWord]:
@@ -128,3 +137,47 @@ def test_edge_suppressed_word_attaches_within_its_own_take(tmp_path: Path) -> No
     # b1 (take 3 word 1) is suppressed and attaches to a take 3 row, never to take 2's.
     assert owners["a0"] == [] and owners["a1"] == []
     assert sum(1 in v for k, v in owners.items() if k.startswith("b")) == 1
+
+
+def test_one_recording_under_two_source_spellings_maps_through_both(tmp_path: Path) -> None:
+    """Clips naming the track's own media implicitly and as an explicit source are one take."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            speaker="host",
+            media=MediaAsset(path="raw/host.wav", duration_sec=20.0),
+        )
+    ]
+    project.sources = [SourceRecording(id="S", path="raw/host.wav")]
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(
+            id="c2",
+            track_id="host",
+            source_id="S",
+            source_start=10.0,
+            source_end=20.0,
+            timeline_start=10.0,
+        ),
+    ]
+    project.transcripts = [Transcript(track_id="host", words=_words("h", [1.0, 12.0]))]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    rows = _view(project)
+    assert [(row["text"], row["timeline_start"]) for row in rows] == [("h0", 1.0), ("h1", 12.0)]
+    assert [w["timeline_start"] for w in rows[1]["words"]] == [12.0]
+
+
+def test_stale_row_maps_through_the_whole_lane(tmp_path: Path) -> None:
+    """A row no current run matches keeps the old whole-lane mapping, never cut away."""
+    project = _two_take_project(tmp_path)
+    assert project.combined_transcript is not None
+    utterances = project.combined_transcript.utterances
+    position = next(i for i, u in enumerate(utterances) if u.text == "b3")
+    utterances[position] = utterances[position].model_copy(update={"text": "edited"})
+    row = next(r for r in _view(project) if r["text"] == "edited")
+    # Take 3's source 12 s: read through take 2's clips alone it would be cut away.
+    assert row["mappable"] is True
+    assert row["timeline_start"] == 22.0
