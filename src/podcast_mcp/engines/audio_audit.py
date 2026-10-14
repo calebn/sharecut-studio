@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import math
 import re
 import tempfile
@@ -59,6 +60,8 @@ from podcast_mcp.util.progress import (
 )
 from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
+
+_LOG = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
@@ -526,8 +529,11 @@ def build_track_rms_caches(
             try:
                 caches[tid] = _ungated_cache(snapshot, tid, with_chain=False)
                 continue
-            except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
-                pass  # no unprocessed render: fall back to the track's evidence as before
+            except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
+                # No unprocessed render: the track's evidence stays as before, processed.
+                _LOG.warning(
+                    "reconcile evidence for track %s keeps its effects chain: %s", tid, exc
+                )
         if before_transcript_gate and track is not None:
             proc = _fresh_stem_path(project, tid)
             if not track.transcript_gate and proc is not None:
