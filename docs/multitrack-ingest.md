@@ -328,6 +328,13 @@ Its bounded WAV windows accept 8-, 16-, 24-, and 32-bit integer PCM, normalize
 by the source width, and average channels in float64 before resampling. The
 recording keeper format remains 16-bit PCM.
 
+For an `audio` speaker, `cross_speaker_offsets_sec` printed by `ingest
+consolidate` is the raw estimator lag: positive means the guest content is
+later in its source file. When that audio result is applied to a project,
+ingest converts it to the session-clock placement shift (`content_align_sec`),
+which has the opposite sign. Manifest and transcript offsets already use the
+session-clock sign and are applied unchanged.
+
 **Primary score:** `simultaneous_speech_sec` (VAD overlap). **Secondary:** correlation peak, anchor match, drift between two windows (`drift_warning` in suggest output).
 
 **Do not** use transcript word overlap alone to confirm sync on bleed-heavy tracks.

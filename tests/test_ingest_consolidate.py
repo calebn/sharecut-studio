@@ -317,7 +317,7 @@ def test_alignment_report_includes_correlation_peak(
         patch(
             "podcast_mcp.ingest.consolidate.vad_speech_intervals",
             return_value=[(0.0, 1.0)],
-        ),
+        ) as vad_mock,
         patch(
             "podcast_mcp.ingest.consolidate.simultaneous_speech_sec",
             return_value=5.0,
@@ -332,6 +332,10 @@ def test_alignment_report_includes_correlation_peak(
         )
     guest_row = next(r for r in rows if r["speaker"] == "Guest")
     assert guest_row["correlation_peak"] == 0.12
+    assert guest_row["content_align_sec"] == -0.2
+    assert guest_row["session_offset_sec"] == -0.2
+    assert guest_row["extract_trim_start_sec"] == 0.2
+    assert [call.kwargs["start_sec"] for call in vad_mock.call_args_list] == [0.0, 0.2]
 
 
 def test_alignment_report_skips_empty_source_groups(
@@ -438,6 +442,34 @@ def test_consolidate_extract_start_alone_trims_to_eof(tmp_path: Path, sample_wav
     assert result.session_trimmed is True
     dur = FFmpegEngine().probe(result.speaker_tracks["Ref"]).duration_sec
     assert abs(dur - 1.5) < 0.1
+
+
+def test_consolidate_audio_extract_uses_session_clock_offset(
+    tmp_path: Path,
+    sample_wav: Path,
+) -> None:
+    audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
+    raw_audio_offset = AlignmentResult(
+        reference=audio_dir / "ref.wav",
+        source=audio_dir / "guest.wav",
+        offset_sec=0.5,
+        correlation_peak=0.9,
+    )
+    with patch(
+        "podcast_mcp.ingest.consolidate.cross_speaker_offsets",
+        return_value={"Guest": raw_audio_offset},
+    ):
+        result = consolidate_speakers(
+            manifest,
+            audio_dir,
+            tmp_path / "raw",
+            analysis_start_sec=0.0,
+            analysis_duration_sec=1.5,
+            extract_start_sec=0.5,
+            align_mode="audio",
+        )
+    guest_duration = FFmpegEngine().probe(result.speaker_tracks["Guest"]).duration_sec
+    assert abs(guest_duration - 1.0) < 0.1
 
 
 def test_consolidate_extract_start_past_eof_raises(tmp_path: Path, sample_wav: Path) -> None:

@@ -381,6 +381,9 @@ speakers:
     assert project.meta.ingest_alignment is not None
     assert project.meta.ingest_alignment["Guest Early"].content_align_sec == -3.0
     assert project.meta.ingest_alignment["Guest Late"].content_align_sec == 3.0
+    source_offsets = {source.speaker: source.offset_sec for source in project.sources}
+    assert source_offsets["Guest Early"] == 3.0
+    assert source_offsets["Guest Late"] == -3.0
 
 
 # --- edit subcommands not covered elsewhere ---
