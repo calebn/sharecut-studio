@@ -78,6 +78,19 @@ def origin_track_id_for_clip(project: EpisodeProject, clip: Clip) -> str:
     return clip.track_id
 
 
+def clip_plays_lane(project: EpisodeProject, clip: Clip, track_id: str) -> bool:
+    """Whether ``clip`` plays ``track_id``'s recording, wherever the clip now sits.
+
+    A clip moved to another lane keeps playing the lane it came from: its source is
+    that lane's media, or a take with a transcript on that lane.
+    """
+    if origin_track_id_for_clip(project, clip) == track_id:
+        return True
+    return clip.source_id is not None and any(
+        tr.track_id == track_id and tr.source_id == clip.source_id for tr in project.transcripts
+    )
+
+
 @dataclass(frozen=True)
 class _Span:
     timeline_start: float
@@ -748,8 +761,7 @@ class SessionTimeline:
         keys = tuple(
             (clip.timeline_start, clip.source_start, clip.source_end)
             for clip in self._project.clips
-            if clip.source_id in source_ids
-            and origin_track_id_for_clip(self._project, clip) == track_id
+            if clip.source_id in source_ids and clip_plays_lane(self._project, clip, track_id)
         )
         return _build_index(keys) if keys else None
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -14,7 +15,7 @@ from podcast_mcp.edits.tighten_hits import (
 from podcast_mcp.edits.timeline_span import map_source_span_fields, timeline_span_dicts
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    origin_track_id_for_clip,
+    clip_plays_lane,
     word_source_span,
 )
 from podcast_mcp.engines.utterance_runs import (
@@ -186,7 +187,7 @@ class _LaneRecordings:
     def __init__(self, project: EpisodeProject) -> None:
         self._project = project
         self._lanes: dict[str, list[_Recording]] = {}
-        self._run_sources: dict[tuple[str, float, float, str], str | None] | None = None
+        self._run_sources: dict[tuple[str, float, float, str], deque[str | None]] | None = None
 
     def lane(self, track_id: str) -> list[_Recording]:
         cached = self._lanes.get(track_id)
@@ -196,7 +197,7 @@ class _LaneRecordings:
             # clips that play it by the transcript they resolve to.
             placements: dict[int, tuple[Transcript, set[str | None]]] = {}
             for clip in self._project.clips:
-                if origin_track_id_for_clip(self._project, clip) != track_id:
+                if not clip_plays_lane(self._project, clip, track_id):
                     continue
                 transcript = self._project.transcript_for_source(track_id, clip.source_id)
                 if transcript is not None:
@@ -227,24 +228,28 @@ class _LaneRecordings:
             float(row.get("end", 0.0)),
             str(row.get("text", "")),
         )
-        sources = self._sources()
-        if key in sources:
-            match = next((r for r in lane if r.source_id == sources[key]), None)
+        # Rows come in run order, so takes with an identical line (same times, same
+        # text) are told apart by taking their sources in turn.
+        queue = self._sources().get(key)
+        if queue:
+            source_id = queue.popleft()
+            match = next((r for r in lane if r.source_id == source_id), None)
             if match is not None:
                 return match
         return _Recording(track_id, self._project.transcript_for_track(track_id))
 
-    def _sources(self) -> dict[tuple[str, float, float, str], str | None]:
+    def _sources(self) -> dict[tuple[str, float, float, str], deque[str | None]]:
         if self._run_sources is None:
-            self._run_sources = {
-                (
+            sources: dict[tuple[str, float, float, str], deque[str | None]] = {}
+            for run in transcript_word_runs(self._project):
+                key = (
                     run.track_id,
                     float(run.words[0].start),
                     float(run.words[-1].end),
                     utterance_text(run.words),
-                ): run.source_id
-                for run in transcript_word_runs(self._project)
-            }
+                )
+                sources.setdefault(key, deque()).append(run.source_id)
+            self._run_sources = sources
         return self._run_sources
 
 
@@ -715,27 +720,25 @@ def map_transcript_utterances_to_timeline(
         # Stable sort by source start: synthetic rows are ordered only within each
         # track, so a merge would not do. Input rows come first, so they win ties.
         mapped = sorted([*mapped, *synthetic], key=lambda row: row["start"])
-    take_rows = {id(row) for row, rec in zip(rows, row_recordings, strict=True) if rec.placements}
-    return {**transcript, "utterances": _in_playback_order(mapped, take_rows)}
+    by_timeline = any(rec.placements for rec in row_recordings)
+    return {**transcript, "utterances": _in_playback_order(mapped) if by_timeline else mapped}
 
 
-def _in_playback_order(rows: list[dict[str, Any]], take_rows: set[int]) -> list[dict[str, Any]]:
-    """Rows in the order a lane's takes play.
+def _in_playback_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rows in the order the timeline plays them.
 
-    The combined transcript is ordered by source start. That is wrong for a lane
-    holding several takes: a later take's source clock restarts at 0, so its rows
-    land among the first take's. Following the playhead walks this list, so a take's
-    rows (``take_rows``) sort by their timeline start instead. Every other row keeps
-    its source start, which a clip move or paste on a single-recording lane does not
-    disturb. A take row that does not play (cut away) keeps its place after the row
-    before it. The sort is stable, so rows starting together keep their source order.
+    The combined transcript is ordered by source start. That is wrong once a lane
+    holds several takes: a later take's source clock restarts at 0, so its rows land
+    among the first take's. Following the playhead walks this list, so such a view
+    sorts every row by its timeline start. (A view without a multi-take lane keeps
+    source order, which a clip move or paste does not disturb.) A row that does not
+    play (cut away) keeps its place after the row before it. The sort is stable, so
+    rows starting together keep their source order.
     """
     keys: list[float] = []
     last = float("-inf")
     for row in rows:
-        if id(row) not in take_rows:
-            last = float(row["start"])
-        elif row.get("timeline_start") is not None:
+        if row.get("timeline_start") is not None:
             last = float(row["timeline_start"])
         keys.append(last)
     order = sorted(range(len(rows)), key=keys.__getitem__)
