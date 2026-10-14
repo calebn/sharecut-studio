@@ -54,7 +54,9 @@ from podcast_mcp.util.workspace_paths import resolve_cache_file
 log = logging.getLogger(__name__)
 
 PROFILE_SCHEMA = "prosody_profile.v1"
-ALGORITHM_VERSION = 4  # 4: per-segment windowed Praat over a streamed decode (#727)
+ALGORITHM_VERSION = (
+    5  # 5: wordless-track segments start at the track's own audibility floor (#1443)
+)
 MAX_WINDOW_SEGMENTS = 6
 # Waiters time out only behind a track tens of hours long at ~0.31s/audio-min (docs/pipeline.md).
 PROSODY_LOCK_TIMEOUT_SEC = 600.0

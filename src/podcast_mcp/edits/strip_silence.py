@@ -63,10 +63,11 @@ def strip_silence(
 ) -> dict:
     """Rebuild a track from speech islands between detected silences.
 
-    Silence is 10 ms frames under the recording's own voice floor
-    (``LevelProfile.voice_floor_db``) plus ``over_voice_floor_db``, read from the same
+    Silence is 10 ms frames under the recording's own audibility floor
+    (``LevelProfile.audibility_floor_db``) plus ``over_voice_floor_db``, read from the same
     frames as the floor, so the same recording at any gain keeps the same islands. A
-    recording with no live audio is silence end to end.
+    recording with no live audio is silence end to end, and one whose voice does not
+    stand out of its room (no contrast) has no silence to strip.
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored: strip
     keeps speech islands as-is (no ``optimize_source_cut_range``). Micro-fades
@@ -90,7 +91,7 @@ def strip_silence(
     levels = frame_levels_db(
         load_mono_full(src, sample_rate=PROFILE_SAMPLE_RATE), PROFILE_SAMPLE_RATE
     )
-    floor_db = file_level_profile(src, levels=levels).voice_floor_db
+    floor_db = file_level_profile(src, levels=levels).audibility_floor_db
     silences = quiet_intervals(
         levels, under_db=floor_db + over_voice_floor_db, min_duration_sec=min_duration_sec
     )
