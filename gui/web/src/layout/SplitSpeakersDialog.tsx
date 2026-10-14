@@ -57,35 +57,35 @@ type Flow =
  * Host Split speakers dialog: the same `SpeakerService.split_speakers` as MCP
  * `speaker_split_tool` and CLI `podcast speaker split`, run as a job. The flow
  * outlives the dialog: closing it leaves the split running on the Activity
- * chip, and reopening shows its progress. A project switch stops following
- * the job and returns to the settings.
+ * chip, and reopening shows its progress or its current result. A project
+ * switch stops following the job and returns to the settings.
  */
 export function SplitSpeakersDialog() {
-  const { trackId, setTrackId, project, projectPath, activityJob, headId } =
-    useDaw((s) => ({
-      trackId: s.splitSpeakersTrackId,
-      setTrackId: s.setSplitSpeakersTrackId,
-      project: s.project,
-      projectPath: s.projectPath,
-      activityJob: s.activityJob,
-      headId: s.project?.history?.head_id ?? null,
-    }));
+  const {
+    trackId,
+    setTrackId,
+    setReview,
+    project,
+    projectPath,
+    activityJob,
+    headId,
+  } = useDaw((s) => ({
+    trackId: s.splitSpeakersTrackId,
+    setTrackId: s.setSplitSpeakersTrackId,
+    setReview: s.setSplitSpeakersReview,
+    project: s.project,
+    projectPath: s.projectPath,
+    activityJob: s.activityJob,
+    headId: s.project?.history?.head_id ?? null,
+  }));
   const [flow, setFlow] = useState<Flow>({ kind: "configure" });
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const open = trackId != null && project != null;
   const [wasOpen, setWasOpen] = useState(false);
-  // Opening shows a running split's progress; anything finished starts over
-  // (its outcome was already announced).
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open && flow.kind !== "running") {
-      setFlow({ kind: "configure" });
-      setSettings(DEFAULT_SETTINGS);
-    }
-  }
   const doneMatchesProject =
     flow.kind === "done" &&
     flow.projectPath === projectPath &&
+    flow.result.history_head_id === headId &&
     flow.result.lanes.every((lane) =>
       project?.tracks.some(
         (candidate) =>
@@ -93,6 +93,13 @@ export function SplitSpeakersDialog() {
           candidate.speaker_split_id === flow.result.split_id,
       ),
     );
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open && flow.kind !== "running" && !doneMatchesProject) {
+      setFlow({ kind: "configure" });
+      setSettings(DEFAULT_SETTINGS);
+    }
+  }
   const showingConfigure =
     flow.kind === "configure" || (flow.kind === "done" && !doneMatchesProject);
   const shownTrackId = showingConfigure ? trackId : flow.trackId;
@@ -120,6 +127,7 @@ export function SplitSpeakersDialog() {
     const s = useDawStore.getState();
     if (
       s.projectPath !== projectPath ||
+      s.project?.history?.head_id !== result.history_head_id ||
       !result.lanes.every((lane) =>
         s.project?.tracks.some(
           (candidate) =>
@@ -128,8 +136,19 @@ export function SplitSpeakersDialog() {
         ),
       )
     ) {
+      setReview(null);
+      setFlow({ kind: "configure" });
       return;
     }
+    setReview(
+      result.history_head_id == null
+        ? null
+        : {
+            trackId: forTrackId,
+            splitId: result.split_id,
+            historyHeadId: result.history_head_id,
+          },
+    );
     s.announceStatus(
       splitSpeakersDoneCopy(result, label),
       s.splitSpeakersTrackId == null
@@ -237,6 +256,7 @@ export function SplitSpeakersDialog() {
       });
       if (result.status === "ok") {
         useDawStore.getState().announceStatus("Undone: speaker split");
+        useDawStore.getState().setSplitSpeakersReview(null);
         setFlow({ kind: "configure" });
       } else {
         setFlow({

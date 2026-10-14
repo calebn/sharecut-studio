@@ -45,6 +45,7 @@ export function TrackInspector({
   const {
     projectPath,
     project,
+    splitSpeakersReview,
     setSelection,
     setLayerVisible,
     guestMode,
@@ -55,6 +56,7 @@ export function TrackInspector({
   } = useDaw((s) => ({
     projectPath: s.projectPath,
     project: s.project,
+    splitSpeakersReview: s.splitSpeakersReview,
     setSelection: s.setSelection,
     setLayerVisible: s.setLayerVisible,
     guestMode: s.guestMode,
@@ -71,6 +73,10 @@ export function TrackInspector({
   const mixOnly = guestHearsMixOnly(guestMode);
   const hostCanSplit = canManageProjects(projectPath);
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
+  const canReviewSplit =
+    splitSpeakersReview?.trackId === track.id &&
+    splitSpeakersReview.splitId === track.speaker_split_id &&
+    splitSpeakersReview.historyHeadId === project?.history?.head_id;
   const [label, setLabel] = useState(track.label);
   const [speaker, setSpeaker] = useState(track.speaker ?? "");
   const [role, setRole] = useState(track.role);
@@ -240,10 +246,14 @@ export function TrackInspector({
                 args={{ trackId: track.id }}
                 className="split-speakers-entry"
                 disabledReason={
-                  busy ? BUSY_REASON : (splitBlocker ?? undefined)
+                  busy
+                    ? BUSY_REASON
+                    : canReviewSplit
+                      ? undefined
+                      : (splitBlocker ?? undefined)
                 }
               >
-                Split speakers…
+                {canReviewSplit ? "Review split…" : "Split speakers…"}
               </CommandButton>
             ) : null}
             <CommandButton
@@ -255,7 +265,7 @@ export function TrackInspector({
               Remove track
             </CommandButton>
           </div>
-          {hostCanSplit && splitBlocker ? (
+          {hostCanSplit && splitBlocker && !canReviewSplit ? (
             <p className="modifier-note">{splitBlocker}</p>
           ) : null}
         </>

@@ -262,6 +262,8 @@ type UiSlice = Pick<
   | "setBounceDialogOpen"
   | "exportDialogOpen"
   | "setExportDialogOpen"
+  | "splitSpeakersReview"
+  | "setSplitSpeakersReview"
   | "splitSpeakersTrackId"
   | "setSplitSpeakersTrackId"
   | "shareDialogOpen"
@@ -796,6 +798,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       ),
     exportDialogOpen: false,
     setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
+    splitSpeakersReview: null,
+    setSplitSpeakersReview: (splitSpeakersReview) =>
+      set({ splitSpeakersReview }),
     splitSpeakersTrackId: null,
     setSplitSpeakersTrackId: (splitSpeakersTrackId) =>
       set({ splitSpeakersTrackId }),

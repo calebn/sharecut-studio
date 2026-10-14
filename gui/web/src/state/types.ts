@@ -276,6 +276,18 @@ export interface DawState {
   bounceDialogOpen: boolean;
   /** Host Export deliverables dialog (configure, progress, outcome). */
   exportDialogOpen: boolean;
+  splitSpeakersReview: {
+    trackId: string;
+    splitId: string;
+    historyHeadId: HistoryEntryId;
+  } | null;
+  setSplitSpeakersReview: (
+    review: {
+      trackId: string;
+      splitId: string;
+      historyHeadId: HistoryEntryId;
+    } | null,
+  ) => void;
   /** Track the Split speakers dialog is open for; null while it is closed. */
   splitSpeakersTrackId: string | null;
   /** Host share management dialog. */
