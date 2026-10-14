@@ -271,8 +271,9 @@ inner overlay closes without a usable return target. A remounted inspector
 does not steal focus from a docked waiver field. A new sheet still takes
 Close after deferred envelope first-entry. The keymap skips Escape
 commands while any overlay is open (`hasOpenOverlay()` skips
-`edit.clearSelection`). Clip Inspector fade Escape stops propagation and
-cancels the fade preview, so the sheet stays open. `Toast` re-reads
+`edit.clearSelection`). Clip Inspector fade Escape stops propagation only
+while a fade preview is in progress, so cancelling it leaves the sheet
+open. Idle Escape on a fade slider still dismisses the sheet. `Toast` re-reads
 `document.activeElement` after each commit, so a host move that detaches a
 focused action without a blur resumes its timer. Store announcements and command authority
 remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).

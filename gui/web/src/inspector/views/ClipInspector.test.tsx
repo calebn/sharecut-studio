@@ -401,6 +401,24 @@ describe("ClipInspector fades", () => {
     ).toBeInTheDocument();
   });
 
+  it("closes the inspector sheet when idle Escape hits a fade slider", () => {
+    hydrateClipProject(sampleTrack());
+    const onClose = vi.fn();
+    render(
+      <BottomSheet
+        open
+        onClose={onClose}
+        backgroundPolicy="interactive"
+        title="Inspector"
+      >
+        <ClipInspector clip={clip} />
+      </BottomSheet>,
+    );
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.keyDown(fadeIn, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("commits an ordinary blur once and ignores a completion after project switch", async () => {
     hydrateClipProject(sampleTrack());
     render(<ClipInspector clip={clip} />);
