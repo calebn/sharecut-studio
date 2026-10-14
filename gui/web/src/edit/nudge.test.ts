@@ -6,6 +6,7 @@ import {
   sampleTrack,
 } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
+import { dbToLinear } from "../utils/audio";
 import { type NudgeField, nudgeAxis, nudgeStep, withNudge } from "./nudge";
 import { softBoundaries } from "./nudgeBoundaries";
 
@@ -183,11 +184,48 @@ describe("nudgeStep", () => {
         value: 10.499,
         stop: { kind: "limit" },
       });
-      expect(nudge(pointLevel, 0.1, held)).toEqual({
+      expect(nudge(pointLevel, 0.5, held)).toEqual({
         value: 1.5,
         stop: { kind: "limit" },
       });
     }
+  });
+
+  it("steps envelope level in dB, including the explicit silent-point floor transition", () => {
+    const levelProject = (value: number) => ({
+      ...project,
+      envelopes: [
+        {
+          track_id: "host",
+          parameter: "volume",
+          points: [
+            { id: "e1", time: 9.95, value },
+            { id: "e2", time: 10.5, value: 1 },
+          ],
+        },
+      ],
+    });
+    const axisAt = (value: number) => {
+      const axis = nudgeAxis(levelProject(value), pointLevel);
+      if (!axis) throw new Error("no envelope axis");
+      return axis;
+    };
+
+    expect(nudgeStep(axisAt(0.75), [], 0.75, 0.5, false).value).toBeCloseTo(
+      0.75 * dbToLinear(0.5),
+      6,
+    );
+    const fromSilence = nudgeStep(axisAt(0), [], 0, 0.5, false);
+    expect(fromSilence.value).toBeCloseTo(dbToLinear(-59.5), 6);
+    expect(fromSilence.stop).toBeNull();
+    expect(nudgeStep(axisAt(0), [], 0, -0.5, false)).toEqual({
+      value: 0,
+      stop: { kind: "limit" },
+    });
+    expect(nudgeStep(axisAt(0.0001), [], 0.0001, 0.5, false).value).toBeCloseTo(
+      0.0001 * dbToLinear(0.5),
+      6,
+    );
   });
 });
 

@@ -18,6 +18,7 @@ import {
   sortedVolumePoints,
 } from "../../utils/envelopes";
 import { randomUuid } from "../../utils/randomUuid";
+import { useNudgeRun } from "../useNudgeRun";
 import {
   type EnvelopeError,
   type EnvelopeForm,
@@ -51,6 +52,7 @@ export function EnvelopeWorkspace({
     pointerKind: state.pointerKind,
   }));
   const [draft, setDraft] = useState<Draft | null>(null);
+  const nudgeRun = useNudgeRun();
   const [error, setError] = useState<EnvelopeError | null>(null);
   const [collisionId, setCollisionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -227,12 +229,15 @@ export function EnvelopeWorkspace({
   if (!track) return <aside className="inspector">Track not found</aside>;
   return (
     <EnvelopeWorkspaceView
+      trackId={trackId}
+      nudgeRun={nudgeRun}
+      nudgeActive={nudgeRun.running}
       trackName={track.label || track.id}
       points={points}
       pointId={pointId}
       editable={editable}
       form={draft?.form ?? null}
-      busy={busy}
+      busy={busy || nudgeRun.saving}
       error={error}
       touch={pointerKind === "coarse"}
       collisionId={collisionId}

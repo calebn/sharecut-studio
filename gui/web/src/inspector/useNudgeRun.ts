@@ -81,6 +81,7 @@ export interface NudgeBump {
 
 export function useNudgeRun() {
   const run = useRef<Run | null>(null);
+  const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [bump, setBump] = useState<NudgeBump | null>(null);
   const bumps = useRef(0);
@@ -102,6 +103,7 @@ export function useNudgeRun() {
     if (r.timer) clearTimeout(r.timer);
     r.timer = null;
     if (run.current === r) run.current = null;
+    setRunning(false);
     return true;
   };
 
@@ -222,6 +224,7 @@ export function useNudgeRun() {
       timer: null,
     };
     run.current = r;
+    setRunning(true);
     step(r, false);
     return r;
   };
@@ -231,6 +234,7 @@ export function useNudgeRun() {
     if (!r) return;
     if (r.field.kind === "trim" && discardStale(r)) return;
     run.current = null;
+    setRunning(false);
     endedAt.current = Date.now();
     if (r.timer) clearTimeout(r.timer);
     if (r.trimToken) {
@@ -341,5 +345,5 @@ export function useNudgeRun() {
     },
   });
 
-  return { buttonProps, saving, bump };
+  return { buttonProps, running, saving, bump };
 }

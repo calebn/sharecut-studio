@@ -1,7 +1,8 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { StrictMode, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasValidFocusedFeedbackAction } from "../../feedback/feedbackActionFocus";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { registerFocusHold } from "../../ui/focusHold";
 import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { useDialogModal } from "../../ui/useDialogModal";
@@ -201,6 +202,62 @@ describe("envelope initial focus", () => {
     expect(
       screen.getByRole("button", { name: "Close ordinary sheet" }),
     ).toHaveFocus();
+  });
+});
+
+describe("selected envelope nudge controls", () => {
+  it("offers timeline steps and half-dB steps, disabling a downward step from silence", async () => {
+    const run = {
+      buttonProps: vi.fn(() => ({})),
+      saving: false,
+      bump: null,
+    } as unknown as NonNullable<EnvelopeWorkspaceViewProps["nudgeRun"]>;
+    const point = { id: "p1", time: 12.345, value: 0 };
+    const { container } = render(
+      <EnvelopeWorkspaceView
+        {...props}
+        trackId="host"
+        nudgeRun={run}
+        points={[point]}
+        pointId="p1"
+        form={null}
+      />,
+    );
+    const time = screen.getByRole("group", { name: "Nudge envelope time" });
+    expect(
+      within(time).getByRole("button", { name: "10 ms earlier" }),
+    ).toBeEnabled();
+    expect(
+      within(time).getByRole("button", { name: "100 ms later" }),
+    ).toBeEnabled();
+    const level = screen.getByRole("group", { name: "Nudge envelope level" });
+    expect(
+      within(level).getByRole("button", { name: "0.5 dB lower" }),
+    ).toBeDisabled();
+    expect(
+      within(level).getByRole("button", { name: "0.5 dB higher" }),
+    ).toBeEnabled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("does not expose nudge controls while a typed edit form is active", () => {
+    const run = {
+      buttonProps: vi.fn(() => ({})),
+      saving: false,
+      bump: null,
+    } as unknown as NonNullable<EnvelopeWorkspaceViewProps["nudgeRun"]>;
+    render(
+      <EnvelopeWorkspaceView
+        {...props}
+        trackId="host"
+        nudgeRun={run}
+        points={[{ id: "p1", time: 12, value: 0.5 }]}
+        pointId="p1"
+      />,
+    );
+    expect(
+      screen.queryByRole("group", { name: "Nudge envelope time" }),
+    ).toBeNull();
   });
 });
 

@@ -10,6 +10,7 @@ import {
   pendingEditBaseline,
 } from "../../api/documentEdits";
 import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
+import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../../edit/nudge";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
   canComment,
@@ -46,6 +47,7 @@ import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
 } from "../TranscriptRefineRecovery";
+import { useNudgeRun } from "../useNudgeRun";
 import { usePendingCutSuggestion } from "../usePendingCutSuggestion";
 import { useQueuedReviewNotice } from "../useQueuedReviewNotice";
 
@@ -114,6 +116,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();
+  const nudgeRun = useNudgeRun();
   const {
     notice: queuedNotice,
     queued,
@@ -132,6 +135,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     canSuggestBounds && !queued && !checkingQueue,
   );
   const timingBusy = busy || queued || checkingQueue;
+  const timingFieldsDisabled =
+    timingBusy || nudgeRun.running || nudgeRun.saving;
   const [previewMode, setPreviewMode] = useState<PreviewMode>(
     edit.suggest_reason ? "current" : "suggested",
   );
@@ -158,6 +163,38 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const timingDirty =
     startStr.trim() !== sourceTime(edit.source_start) ||
     endStr.trim() !== sourceTime(edit.source_end);
+  const pendingNudgeField = (edge: "start" | "end"): NudgeField => ({
+    kind: "pending",
+    trackId: edit.track_id,
+    editId: edit.id,
+    edge,
+  });
+  const renderTimingNudges = (edge: "start" | "end") => {
+    const field = pendingNudgeField(edge);
+    if (!project || !nudgeAxis(project, field)) return null;
+    const [small, large] = NUDGE_KINDS.pending.steps;
+    return (
+      <div
+        className="nudge-row-buttons"
+        role="group"
+        aria-label={`Nudge source ${edge}`}
+      >
+        {[-large, -small, small, large].map((delta) => (
+          <button
+            key={delta}
+            type="button"
+            className="ui-control nudge-button"
+            aria-label={`${Math.abs(delta) * 1000} ms ${delta < 0 ? "earlier" : "later"}`}
+            disabled={timingBusy || timingDirty || nudgeRun.saving}
+            {...nudgeRun.buttonProps(field, delta, `Pending ${edge}`)}
+          >
+            {delta < 0 ? "−" : "+"}
+            {Math.abs(delta) * 1000}
+          </button>
+        ))}
+      </div>
+    );
+  };
   const role = commentRole(projectPath, guestMode);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [askBody, setAskBody] = useState("");
@@ -567,7 +604,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                     spellCheck={false}
                     placeholder="m:ss.mmm"
                     value={startStr}
-                    disabled={timingBusy}
+                    disabled={timingFieldsDisabled}
                     aria-label="Cut time"
                     aria-describedby={timeHintId}
                     onChange={(e) => setStartStr(e.target.value)}
@@ -619,11 +656,12 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   spellCheck={false}
                   placeholder="m:ss.mmm"
                   value={startStr}
-                  disabled={timingBusy}
+                  disabled={timingFieldsDisabled}
                   aria-label="Source start"
                   aria-describedby={timeHintId}
                   onChange={(e) => setStartStr(e.target.value)}
                 />
+                {renderTimingNudges("start")}
                 <span>–</span>
                 <input
                   id={pendingEditTimingFieldId(edit.id, "end")}
@@ -632,11 +670,12 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   spellCheck={false}
                   placeholder="m:ss.mmm"
                   value={endStr}
-                  disabled={timingBusy}
+                  disabled={timingFieldsDisabled}
                   aria-label="Source end"
                   aria-describedby={timeHintId}
                   onChange={(e) => setEndStr(e.target.value)}
                 />
+                {renderTimingNudges("end")}
                 <span id={timeHintId} className="ui-field-hint">
                   m:ss.mmm or seconds
                 </span>
@@ -653,7 +692,9 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 </label>
                 <Button
                   className="pending-source-time-apply"
-                  disabledReason={timingBusy ? BUSY_REASON : undefined}
+                  disabledReason={
+                    timingFieldsDisabled ? BUSY_REASON : undefined
+                  }
                   onClick={() => void applyNudge()}
                 >
                   Apply timing

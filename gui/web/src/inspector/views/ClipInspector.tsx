@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { setClipFade, setClipJoin } from "../../api";
 import { capabilityTooltip } from "../../capabilities/copy";
 import { executePointerCommand } from "../../commands/pointer";
+import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
 import { clampFadeMs, edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
   clipIdsBeforeCut,
@@ -13,6 +14,8 @@ import {
   joinRenderNote,
 } from "../../edit/joinRender";
 import { muteRegionsOverlapping } from "../../edit/muteRegions";
+import { NUDGE_KINDS, type NudgeField } from "../../edit/nudge";
+import { trimEdgeLimits } from "../../edit/trimLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -29,8 +32,15 @@ import { BUSY_REASON } from "../../ui/disabledReason";
 import { errorMessage } from "../../utils/apiError";
 import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
 import { ModifierInspector } from "../ModifierInspector";
+import { useNudgeRun } from "../useNudgeRun";
 
 type FadePair = { inMs: number; outMs: number };
+type TrimInputDraft = { baseline: number; text: string };
+type TrimDraftState = {
+  clipId: string;
+  start: TrimInputDraft;
+  end: TrimInputDraft;
+};
 type FadeCapture = {
   projectPath: string;
   projectEpoch: number;
@@ -82,6 +92,12 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   const operationRef = useRef(0);
   const [fadeError, setFadeError] = useState<string | null>(null);
   const [joinLengthStr, setJoinLengthStr] = useState("");
+  const [trimDrafts, setTrimDrafts] = useState(() => ({
+    clipId: clip.id,
+    start: { baseline: clip.source_start, text: String(clip.source_start) },
+    end: { baseline: clip.source_end, text: String(clip.source_end) },
+  }));
+  const trimRun = useNudgeRun();
 
   const changeFadeGesture = (next: FadeGesture) => {
     fadeGestureRef.current = next;
@@ -203,7 +219,198 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
         ? fadeGesture.pair
         : { inMs: clip.fade_in_ms, outMs: clip.fade_out_ms };
   const isFadeBusy = fadeGesture.kind === "committing";
-  const clipMutationBusy = busy || isFadeBusy;
+  const clipMutationBusy = busy || isFadeBusy || trimRun.saving;
+
+  const trimField = (edge: "in" | "out"): NudgeField => ({
+    kind: "trim",
+    trackId: clip.track_id,
+    clipId: clip.id,
+    edge,
+  });
+  const startDraft = trimDrafts.clipId === clip.id ? trimDrafts.start : null;
+  const endDraft = trimDrafts.clipId === clip.id ? trimDrafts.end : null;
+  const sourceStartStr =
+    startDraft && startDraft.text !== String(startDraft.baseline)
+      ? startDraft.text
+      : String(clip.source_start);
+  const sourceEndStr =
+    endDraft && endDraft.text !== String(endDraft.baseline)
+      ? endDraft.text
+      : String(clip.source_end);
+  const trimDraft = (edge: "in" | "out") =>
+    edge === "in" ? sourceStartStr : sourceEndStr;
+  const setTrimDraft = (edge: "in" | "out", value: string) => {
+    setTrimDrafts((current): TrimDraftState => {
+      const next =
+        current.clipId === clip.id
+          ? current
+          : {
+              clipId: clip.id,
+              start: {
+                baseline: clip.source_start,
+                text: String(clip.source_start),
+              },
+              end: {
+                baseline: clip.source_end,
+                text: String(clip.source_end),
+              },
+            };
+      return edge === "in"
+        ? {
+            ...next,
+            start: { baseline: clip.source_start, text: value },
+          }
+        : { ...next, end: { baseline: clip.source_end, text: value } };
+    });
+  };
+  const trimDraftIsStale = (edge: "in" | "out") => {
+    const draft = edge === "in" ? startDraft : endDraft;
+    const current = edge === "in" ? clip.source_start : clip.source_end;
+    return (
+      draft != null &&
+      draft.text !== String(draft.baseline) &&
+      draft.baseline !== current
+    );
+  };
+  const trimIsDirty = (edge: "in" | "out") =>
+    trimDraft(edge) !==
+    String(edge === "in" ? clip.source_start : clip.source_end);
+  const trimBounds = (edge: "in" | "out") => {
+    const lane =
+      useDawStore.getState().project?.clips.tracks[clip.track_id] ?? [];
+    const index = lane.findIndex((item) => item.id === clip.id);
+    return index < 0 ? null : trimEdgeLimits(lane, index, edge, TRIM_MODE);
+  };
+  const commitTrim = async (edge: "in" | "out") => {
+    if (!editable || clipMutationBusy || trimRun.running) return;
+    if (trimDraftIsStale(edge)) {
+      setError(
+        "This clip changed while its source field was being edited. Reload the clip before trimming.",
+      );
+      return;
+    }
+    const text = trimDraft(edge).trim();
+    const value = Number(text);
+    if (!text || !Number.isFinite(value)) {
+      setError(
+        `Source ${edge === "in" ? "start" : "end"} must be a finite number of seconds.`,
+      );
+      return;
+    }
+    const bounds = trimBounds(edge);
+    if (!bounds || value < bounds.lo || value > bounds.hi) {
+      setError(
+        `Source ${edge === "in" ? "start" : "end"} must be between ${bounds?.lo ?? "the current clip bounds"} and ${bounds?.hi ?? "the current clip bounds"} seconds.`,
+      );
+      return;
+    }
+    const state = useDawStore.getState();
+    const current = state.project?.clips.tracks[clip.track_id]?.find(
+      (item) => item.id === clip.id,
+    );
+    if (
+      state.projectPath !== projectPath ||
+      state.projectEpoch !== projectEpoch ||
+      current?.source_start !== clip.source_start ||
+      current.source_end !== clip.source_end
+    ) {
+      setError("This clip changed. Reload its source bounds before trimming.");
+      return;
+    }
+    const saved = await run(async () => {
+      const fresh = () => {
+        const latest = useDawStore.getState();
+        const saved = latest.project?.clips.tracks[clip.track_id]?.find(
+          (item) => item.id === clip.id,
+        );
+        return (
+          latest.projectPath === projectPath &&
+          latest.projectEpoch === projectEpoch &&
+          saved?.source_start === clip.source_start &&
+          saved.source_end === clip.source_end
+        );
+      };
+      return saveClipEdge(
+        projectPath,
+        clip,
+        {
+          kind: "trim",
+          edge,
+          mode: TRIM_MODE,
+          sourceSec: value,
+        },
+        fresh,
+      );
+    });
+    if (saved) {
+      const start = edge === "in" ? value : clip.source_start;
+      const end = edge === "out" ? value : clip.source_end;
+      setTrimDrafts({
+        clipId: clip.id,
+        start: { baseline: start, text: String(start) },
+        end: { baseline: end, text: String(end) },
+      });
+    }
+  };
+
+  const renderTrimField = (edge: "in" | "out") => {
+    const name = edge === "in" ? "start" : "end";
+    const field = trimField(edge);
+    const kind = NUDGE_KINDS.trim;
+    const [small, large] = kind.steps;
+    const deltas = [-large, -small, small, large];
+    const dirty = trimIsDirty(edge);
+    return (
+      <DefItem label={`Source ${name}`} key={edge}>
+        {editable ? (
+          <>
+            <FieldRow>
+              <input
+                type="number"
+                min={trimBounds(edge)?.lo}
+                max={trimBounds(edge)?.hi}
+                step="any"
+                inputMode="decimal"
+                aria-label={`Source ${name}`}
+                value={trimDraft(edge)}
+                disabled={clipMutationBusy || trimRun.running}
+                onChange={(event) => setTrimDraft(edge, event.target.value)}
+              />
+              <Button
+                disabledReason={
+                  clipMutationBusy || trimRun.running ? BUSY_REASON : undefined
+                }
+                onClick={() => void commitTrim(edge)}
+              >
+                Apply source {name}
+              </Button>
+            </FieldRow>
+            <div
+              className="nudge-row-buttons"
+              role="group"
+              aria-label={`Nudge source ${name}`}
+            >
+              {deltas.map((delta) => (
+                <button
+                  key={delta}
+                  type="button"
+                  className="ui-control nudge-button"
+                  aria-label={`${Math.abs(delta) * 1000} ms ${delta < 0 ? "earlier" : "later"}`}
+                  disabled={clipMutationBusy || dirty}
+                  {...trimRun.buttonProps(field, delta, `Trim ${name}`)}
+                >
+                  {delta < 0 ? "−" : "+"}
+                  {Math.abs(delta) * 1000}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          String(edge === "in" ? clip.source_start : clip.source_end)
+        )}
+      </DefItem>
+    );
+  };
 
   const beginFadeGesture = (edge: FadeCapture["edge"]) => {
     if (
@@ -402,9 +609,8 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
         <DefItem label="Timeline">
           {labels.start} to {labels.end}
         </DefItem>
-        <DefItem label="Source">
-          {clip.source_start.toFixed(3)} – {clip.source_end.toFixed(3)} s
-        </DefItem>
+        {renderTrimField("in")}
+        {renderTrimField("out")}
         <DefItem label="Fades">
           {editable ? (
             <div className="clip-fade-controls">
