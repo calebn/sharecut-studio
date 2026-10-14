@@ -578,11 +578,13 @@ def _peer_voice_in_span(
     peer_track_id: str,
     span: tuple[float, float],
     caches: TrackRmsCacheSet | None,
+    *,
+    dominance_db: float = 3.0,
 ) -> bool | None:
     """Whether any frame in ``span`` on the peer reaches its own voice level.
 
     Uses the tighten level grid (:data:`LEVEL_FRAME_SEC`, 10 ms frames stepped by the same
-    hop). That grid subdivides the 40–100 ms windows from the generality audit; one frame at
+    hop). That grid subdivides the 40-100 ms windows from the generality audit; one frame at
     or above reach is enough. Where no frame-by-frame calibration can be made, each frame is
     held to the level the peer's voice reaches
     (:func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`). A peer with no live
@@ -608,12 +610,14 @@ def _peer_voice_in_span(
         return None
     if reach == math.inf:
         return False
+    slack = 0.0
     if reach == -math.inf:
         session_reach = _session_voice_reach_db(project, peer_track_id, caches)
         if session_reach is None:
             return None
         reach = session_reach
-    return bool((levels >= reach).any())
+        slack = dominance_db
+    return bool((levels >= reach - slack).any())
 
 
 def _peer_voice_in_mean(
@@ -640,8 +644,10 @@ def _peer_voice_fallback(
     span: tuple[float, float],
     rms: float,
     caches: TrackRmsCacheSet | None,
+    *,
+    dominance_db: float,
 ) -> bool | None:
-    framed = _peer_voice_in_span(project, peer_track_id, span, caches)
+    framed = _peer_voice_in_span(project, peer_track_id, span, caches, dominance_db=dominance_db)
     if framed is not None:
         return framed
     return _peer_voice_in_mean(project, peer_track_id, rms, caches)
@@ -739,7 +745,9 @@ def measure_peer_speech(
                 else None,
             )
             if calibrated is None:
-                voiced = _peer_voice_fallback(project, tid, (tl_start, tl_end), rms, caches)
+                voiced = _peer_voice_fallback(
+                    project, tid, (tl_start, tl_end), rms, caches, dominance_db=dominance
+                )
                 calibrated = (
                     span_owner is None or rms - span_owner >= dominance
                     if voiced is None

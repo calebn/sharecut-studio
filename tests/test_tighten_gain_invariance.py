@@ -15,9 +15,12 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.silence_islands import suggest_handoff_cut
-from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
+from podcast_mcp.edits.speech_energy_guard import (
+    _peer_voice_in_mean,
+    measure_peer_speech,
+)
 from podcast_mcp.edits.tighten import propose_tighten_edits
-from podcast_mcp.engines.audio_audit import build_track_rms_caches
+from podcast_mcp.engines.audio_audit import build_track_rms_caches, measure_timeline_rms_db
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -451,20 +454,43 @@ def test_a_same_pitch_peer_is_detected_by_its_own_reach_not_owner_dominance(
         assert speaking == expected, gain
 
 
-@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
-def test_frame_fallback_finds_quiet_peer_in_long_span_when_calibration_missing(
-    tmp_path: Path, cached: bool
-) -> None:
-    """When calibration is unavailable, 10 ms frames must hear a 1 s word 15 dB down in a 3 s pause.
-
-    Whole-span mean on trunk reads silent here; this pins the frame fallback (#1419).
-    """
+def _frame_fallback_quiet_peer_tracks() -> tuple:
+    """A 1 s guest word 30 dB under speech in a 3 s pause; span mean stays under reach."""
     host = _room(11, gated=False)
     _voice(host, 1.0, 5.5, SPEECH_DB + 4.0)
     _voice(host, 9.5, 14.0, SPEECH_DB + 4.0)
     guest = np.random.default_rng(23).normal(0, 10 ** (_OPEN_MIC_DB / 20), SECONDS * RATE)
-    _voice(guest, 6.5, 7.5, SPEECH_DB - 15.0)
-    tracks = (("host", (host, [])), ("guest", (guest, [])))
+    _voice(guest, 6.5, 7.5, SPEECH_DB - 30.0)
+    return (("host", (host, [])), ("guest", (guest, [])))
+
+
+def test_frame_fallback_finds_quiet_peer_when_mean_and_trunk_stay_silent(tmp_path: Path) -> None:
+    """Frame fallback must hear a brief peer word the whole-span mean and trunk miss (#1419).
+
+    At 30 dB under speech the span mean stays below session reach; merge-base fallback stays
+    silent. Tighten retains decoded RMS caches, so live and cached frame reads must agree.
+    """
+    tracks = _frame_fallback_quiet_peer_tracks()
+    project = _project(tmp_path, 0.0, gated=False, tracks=tracks)
+    caches = build_track_rms_caches(project)
+    span_rms = measure_timeline_rms_db(project, "guest", *_PEER_SPAN, caches=caches)
+    assert span_rms is not None
+    assert _peer_voice_in_mean(project, "guest", span_rms, caches) is False
+    kwargs = {
+        "owner_track_ids": ["host"],
+        "peer_track_ids": ["guest"],
+        "defaults": _GUARD_ON,
+    }
+    with patch("podcast_mcp.edits.speech_energy_guard._peer_speaks_near_span", return_value=None):
+        cached = measure_peer_speech(project, [_PEER_SPAN], caches=caches, **kwargs)
+        live = measure_peer_speech(project, [_PEER_SPAN], caches=None, **kwargs)
+    assert cached is not None and live is not None
+    assert cached.speaking == live.speaking == ("guest",)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+def test_frame_fallback_quiet_peer_is_gain_invariant(tmp_path: Path, cached: bool) -> None:
+    tracks = _frame_fallback_quiet_peer_tracks()
     for gain in (0.0, *LEVELS_DB):
         project = _project(tmp_path / str(gain), gain, gated=False, tracks=tracks)
         caches = build_track_rms_caches(project) if cached else None

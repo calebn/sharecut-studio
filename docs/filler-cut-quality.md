@@ -120,13 +120,15 @@ Detection and own speech-level frames, whole-span means, and unread spans retain
 their existing meaning. Missing room reference uses the peer fallback below.
 When frame calibration is unavailable, the peer fallback (#1306, #1373, #1419) reads the
 peer's own 10 ms level frames on the tighten grid (`LEVEL_FRAME_SEC` in `edits/audio_cache.py`).
-That grid subdivides the 40–100 ms windows from the generality audit; one frame at or above the
+That grid subdivides the 40-100 ms windows from the generality audit; one frame at or above the
 peer's reach counts as voice. Reach is `TrackRmsCache.voice_reach_db` (`voice_reach_from_profile`):
 the audibility floor, no lower than 27 dB (`VOICE_FLOOR_UNDER_SPEECH_DB`) under its loudest frames.
 A peer with no live audio never speaks. A peer with no contrast between its loudest frames and its
 room has no voice level of its own, so reach is the median voice reach of the session's other
 dialogue lanes that can be read; lanes whose media is missing are skipped instead of failing the
-cut. Once voice is decided from the peer's own frames or reach, owner-dominance across tracks does
+cut. When reach is that session median, frame peaks may sit within ``dominance_db`` (default 3 dB)
+of reach because retained RMS caches decode slightly quieter than a live lane read; the same slack
+already gates owner dominance. Once voice is decided from the peer's own frames or reach, owner-dominance across tracks does
 not veto it. If frames cannot be read at all, the span's whole-span mean is compared to the same
 reach (not owner level). Only when reach itself cannot be resolved does the legacy rule apply: the
 peer speaks when its mean is `dominance_db` or more over the owner's mean in the span. There is no
