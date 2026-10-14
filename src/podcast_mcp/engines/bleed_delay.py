@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_RMS
+
 
 @dataclass(frozen=True)
 class LongDelayConfig:
@@ -17,7 +19,9 @@ class LongDelayConfig:
     min_null_windows: int = 2
     peak_margin: float = 0.05
     peak_exclusion_sec: float = 0.002
-    min_rms: float = 0.0001
+    # A peer stretch this far under the window it is matched to (in power) holds no
+    # candidate; relative, so the same recording at any gain gives the same answer.
+    min_power_ratio: float = 1e-8
 
 
 @dataclass(frozen=True)
@@ -48,7 +52,7 @@ def _match(
     radius: int,
     shift: int,
     exclusion: int,
-    min_rms: float,
+    min_power_ratio: float,
 ) -> tuple[int, float, float] | None:
     ref_first, ref_last = first - radius + shift, last + radius + shift
     if ref_first < 0 or ref_last > reference.size:
@@ -56,7 +60,7 @@ def _match(
     own = target[first:last].astype(np.float64)
     own -= own.mean()
     energy = float(own @ own)
-    if energy < own.size * min_rms**2:
+    if energy < own.size * DIGITAL_SILENCE_RMS**2:
         return None
     peer = reference[ref_first:ref_last].astype(np.float64)
     size = 1 << (peer.size + own.size - 2).bit_length()
@@ -70,7 +74,7 @@ def _match(
         - squares[: -own.size]
         - (sums[own.size :] - sums[: -own.size]) ** 2 / own.size
     )
-    usable = power >= own.size * min_rms**2
+    usable = power >= energy * min_power_ratio
     if not np.any(usable):
         return None
     scores = np.zeros(power.size, dtype=np.float64)
@@ -119,7 +123,7 @@ def measure_long_delay_regions(
     rows: list[LongDelayEvidence] = []
     for value in starts:
         lo, hi = int(value), int(value) + frame
-        observed = _match(source, bleed, lo, hi, radius, 0, exclusion, cfg.min_rms)
+        observed = _match(source, bleed, lo, hi, radius, 0, exclusion, cfg.min_power_ratio)
         if observed is None:
             continue
         lag, peak, competitor = observed
@@ -135,7 +139,7 @@ def measure_long_delay_regions(
                     radius,
                     round(shift * sample_rate),
                     exclusion,
-                    cfg.min_rms,
+                    cfg.min_power_ratio,
                 )
             )
             is not None

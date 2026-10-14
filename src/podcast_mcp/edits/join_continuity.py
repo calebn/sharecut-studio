@@ -43,7 +43,13 @@ from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
-from podcast_mcp.util.dsp import autocorr_peak, clamp01, linear_rms, rms_db
+from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_RMS,
+    autocorr_peak,
+    clamp01,
+    linear_rms,
+    rms_db,
+)
 from podcast_mcp.util.process import DEVNULL, run
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
@@ -217,7 +223,7 @@ def _stft_mags(samples: np.ndarray, *, n_fft: int = 256, hop: int = 64) -> np.nd
 
 
 def _estimate_f0(samples: np.ndarray, sr: int) -> float | None:
-    if samples.size < sr * 0.02 or _rms(samples) < 1e-4:
+    if samples.size < sr * 0.02 or _rms(samples) < DIGITAL_SILENCE_RMS:
         return None
     peak = autocorr_peak(samples, sr, fmin=_F0_MIN_HZ, fmax=_F0_MAX_HZ)
     if peak is None or peak[1] < 0.3:  # pragma: no cover

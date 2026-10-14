@@ -21,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, db_to_amplitude, frame_rms_db_stream
@@ -223,6 +224,42 @@ def level_profile(
 def track_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
     """The whole-track profile of ``samples``; :data:`SILENT` when none of it is live."""
     return level_profile(samples, sample_rate, whole_track=True) or SILENT
+
+
+def samples_voice_reach_rms(samples: np.ndarray, sample_rate: int) -> float:
+    """:func:`window_voice_reach_rms` for samples already in hand."""
+    return db_to_amplitude(track_profile(samples, sample_rate).voice_reach_db)
+
+
+def window_voice_reach_rms(
+    path: Path,
+    *,
+    start_sec: float,
+    duration_sec: float,
+    sample_rate: int = 8000,
+    ffmpeg: str | None = None,
+) -> float:
+    """The RMS a stretch of ``path`` must reach to hold its voice, read from one window of it.
+
+    :attr:`LevelProfile.voice_reach_db` of the window ``[start_sec, start_sec +
+    duration_sec]``, as a linear amplitude for a stretch's mean to be compared with. A
+    window whose loudest frames sit within 6 dB of its room has no quiet to find, so every
+    stretch reaches it (``0.0``); a window with no live audio, or none to read, is reached
+    by none (``inf``). The same recording at any gain gets the same answers, which a fixed
+    ``0.02`` would not give. For the ingest detectors, which judge a raw file before it
+    has a track to hold a whole-file profile.
+    """
+    try:
+        window = load_mono_window(
+            path,
+            start_sec=start_sec,
+            duration_sec=duration_sec,
+            sample_rate=sample_rate,
+            ffmpeg=ffmpeg,
+        )
+    except AudioWindowUnavailableError:
+        return math.inf
+    return samples_voice_reach_rms(window, sample_rate)
 
 
 _FILE_PROFILES: dict[tuple[str, FileRevision, int], LevelProfile] = {}

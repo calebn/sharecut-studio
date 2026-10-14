@@ -9,6 +9,7 @@ import numpy as np
 
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_RMS
 from podcast_mcp.util.pcm_stream import no_audio_decoded_message
 from podcast_mcp.util.process import run
 from podcast_mcp.util.wav import open_wav
@@ -72,7 +73,7 @@ xcorr_lag_window = _xcorr_lag_window
 """Public name for callers outside alignment (the bleed echo profile)."""
 
 GCC_PHAT_MIN_CONFIDENCE = 0.25
-_SILENCE_STD = 1e-4
+_SILENCE_STD = DIGITAL_SILENCE_RMS
 
 
 def gcc_phat_offset(

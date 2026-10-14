@@ -17,7 +17,7 @@ import numpy as np
 # it is the same at any recording gain (docs/audio-engineering.md § Detection levels).
 DIGITAL_SILENCE_DB = -200.0
 # Below this linear RMS a frame is treated as digital silence.
-_SILENCE_RMS = 10 ** (DIGITAL_SILENCE_DB / 20)
+DIGITAL_SILENCE_RMS = 10 ** (DIGITAL_SILENCE_DB / 20)
 
 
 def clamp01(value: float) -> float:
@@ -46,7 +46,7 @@ def rms_db(samples: np.ndarray, *, floor_db: float = DIGITAL_SILENCE_DB) -> floa
     if samples.size == 0:
         return floor_db
     rms = linear_rms(samples)
-    if rms < _SILENCE_RMS:
+    if rms < DIGITAL_SILENCE_RMS:
         return floor_db
     return 20.0 * math.log10(rms)
 
@@ -72,7 +72,7 @@ def frame_rms_db(
         windows = windows[:max_frames]
     rms = np.sqrt(np.mean(np.square(windows, dtype=np.float64), axis=1))
     out = np.full(rms.shape, floor_db, dtype=np.float64)
-    loud = rms >= _SILENCE_RMS
+    loud = rms >= DIGITAL_SILENCE_RMS
     out[loud] = 20.0 * np.log10(rms[loud])
     return out
 
@@ -235,7 +235,7 @@ def frame_band_db(
     band = np.fft.rfftfreq(frame, d=1.0 / sample_rate) >= lo_hz
     mean_square = 2.0 * np.sum(power[:, band], axis=1) / (frame * float(np.sum(window**2)))
     out = np.full(mean_square.shape, floor_db, dtype=np.float64)
-    loud = mean_square >= _SILENCE_RMS**2
+    loud = mean_square >= DIGITAL_SILENCE_RMS**2
     out[loud] = 10.0 * np.log10(mean_square[loud])
     return out
 
@@ -249,7 +249,7 @@ def frame_peak_db(
     windows = np.lib.stride_tricks.sliding_window_view(samples, frame)[::hop]
     peak = np.abs(windows).max(axis=1).astype(np.float64)
     out = np.full(peak.shape, floor_db, dtype=np.float64)
-    loud = peak >= _SILENCE_RMS
+    loud = peak >= DIGITAL_SILENCE_RMS
     out[loud] = 20.0 * np.log10(peak[loud])
     return out
 
