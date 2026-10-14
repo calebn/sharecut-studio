@@ -1669,6 +1669,8 @@ test; other rows are whole tests.
 | the strip leaves the timeline undimmed and the half sheet dims it: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | phone: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | desktop: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
+| desktop: network boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
+| desktop: stale boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | a document state load the server never answers shows a banner whose retry recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | the banner sits in view, not under the fixed shell, and its retry recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 
