@@ -28,7 +28,12 @@ export function registerTranscriptRangeCommands(): void {
       selection,
       args,
       (wordIndex) =>
-        findTranscriptWord(project, selection.trackId, wordIndex) !== null,
+        findTranscriptWord(
+          project,
+          selection.trackId,
+          wordIndex,
+          selection.sourceId,
+        ) !== null,
     );
     if (!result.ok) {
       return { status: "disabled", reason: result.reason };
@@ -36,6 +41,7 @@ export function registerTranscriptRangeCommands(): void {
     s.setSelection({
       kind: "transcriptRange",
       trackId: selection.trackId,
+      ...(selection.sourceId != null ? { sourceId: selection.sourceId } : {}),
       ...result.span,
     });
     s.announceStatus(selectedWordsMessage(result.span), { toast: false });

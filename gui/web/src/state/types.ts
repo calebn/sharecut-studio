@@ -45,6 +45,7 @@ export interface TranscriptInlineEditFailure {
   /** Project the fix was submitted to; a failure from another project is dropped. */
   projectPath: string;
   trackId: string;
+  sourceId?: string | null;
   wordIndex: number;
   /** Word text when the fix was submitted; different text means it was fixed since. */
   originalText: string;
@@ -56,6 +57,7 @@ export interface TranscriptInlineEditFailure {
 /** Low-confidence walkthrough position (#634). */
 export interface TranscriptReviewCursor {
   trackId: string;
+  sourceId?: string | null;
   wordIndex: number;
   /** `LowConfidenceStop.order` when visited: once this word leaves the list (corrected, maybe in a batch), the walk resumes at the nearest stop after / before it in transcript order. */
   order: number;
@@ -64,6 +66,7 @@ export interface TranscriptReviewCursor {
 export interface TranscriptInlineEditRequest {
   projectPath: string;
   trackId: string;
+  sourceId?: string | null;
   wordIndex: number;
 }
 

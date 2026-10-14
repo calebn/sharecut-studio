@@ -25,15 +25,23 @@ export function registerTranscriptWordCommands(): void {
         : selection?.kind === "transcriptWord"
           ? selection.wordIndex
           : null;
+    const sourceId =
+      typeof args.sourceId === "string" || args.sourceId === null
+        ? args.sourceId
+        : selection?.kind === "transcriptWord"
+          ? (selection.sourceId ?? null)
+          : null;
     if (
       trackId == null ||
       wordIndex == null ||
-      !findTranscriptWord(s.project, trackId, wordIndex)?.timing_target
+      !findTranscriptWord(s.project, trackId, wordIndex, sourceId)
+        ?.timing_target
     )
       return { status: "disabled", reason: "Select a source transcript word" };
     s.setTranscriptTimingRequest({
       projectPath: s.projectPath,
       trackId,
+      sourceId,
       wordIndex,
     });
     return { status: "ok" };
@@ -53,6 +61,7 @@ export function registerTranscriptWordCommands(): void {
       return { status: "disabled", reason: "Focus a word in Navigate mode" };
     }
     const trackId = chip.dataset.trackId;
+    const sourceId = chip.dataset.sourceId || null;
     const rawIndex = chip.dataset.wordIndex;
     const wordIndex = Number(rawIndex);
     if (
@@ -65,12 +74,13 @@ export function registerTranscriptWordCommands(): void {
     ) {
       return { status: "disabled", reason: "Word correction unavailable" };
     }
-    const word = findTranscriptWord(s.project, trackId, wordIndex);
+    const word = findTranscriptWord(s.project, trackId, wordIndex, sourceId);
     if (!word || wordSeekSec(word) == null)
       return { status: "disabled", reason: "Word is not timed" };
     s.setTranscriptInlineEditRequest({
       projectPath: s.projectPath,
       trackId,
+      sourceId,
       wordIndex,
     });
     return { status: "ok" };

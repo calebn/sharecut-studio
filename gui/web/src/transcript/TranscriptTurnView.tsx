@@ -11,6 +11,7 @@ import {
 export type TranscriptTurnWord = {
   word: TranscriptWordView;
   trackId: string;
+  sourceId?: string | null;
   active?: boolean;
   unmapped?: boolean;
   selected?: boolean;
@@ -155,6 +156,7 @@ export function TranscriptTurnView({
                       className={chipClass}
                       data-transcript-word
                       data-track-id={item.trackId}
+                      data-source-id={item.sourceId ?? ""}
                       data-word-index={item.word.word_index}
                       {...item.anchorProps}
                       title={item.title}

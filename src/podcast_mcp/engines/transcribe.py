@@ -901,6 +901,7 @@ class TranscriptionEngine:
         utterances = [
             CombinedUtterance(
                 track_id=run.track_id,
+                source_id=run.source_id,
                 speaker=run.speaker,
                 start=run.words[0].start,
                 end=run.words[-1].end,

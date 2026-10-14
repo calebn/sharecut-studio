@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
+from podcast_mcp.edits.range_edits import apply_ranges
 from podcast_mcp.edits.transcript_cuts import (
     append_remove_decision,
     apply_edit_plan,
@@ -11,12 +12,14 @@ from podcast_mcp.edits.transcript_cuts import (
     cut_time_range,
     cut_utterance,
     cut_words,
+    ensure_combined_transcript,
     format_transcript_timestamps,
     search_transcript,
     time_range_from_utterance,
     time_range_from_words,
 )
 from podcast_mcp.models import (
+    Clip,
     CombinedTranscript,
     CombinedUtterance,
     EditDecision,
@@ -27,6 +30,8 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
     TranscriptWord,
+    load_project,
+    save_project,
 )
 
 
@@ -383,8 +388,9 @@ def test_time_range_from_words_empty():
 
 def test_time_range_from_utterance():
     proj = _project_with_transcript()
-    tid, start, _end, text = time_range_from_utterance(proj.combined_transcript, 0)
+    tid, source_id, start, _end, text = time_range_from_utterance(proj.combined_transcript, 0)
     assert tid == "host"
+    assert source_id is None
     assert start == 0.0
     assert "coffee" in text
 
@@ -647,6 +653,138 @@ def test_cut_words_no_transcript():
     proj = _project_with_media()
     with pytest.raises(ValueError, match="No transcript"):
         cut_words(proj, "host", 0, 1)
+
+
+def test_transcript_cuts_resolve_source_and_placement(tmp_path):
+    proj = _project_with_media()
+    proj.clips = [
+        Clip(
+            id="take-a",
+            track_id="host",
+            source_id="A",
+            source_start=0,
+            source_end=10,
+            timeline_start=0,
+        ),
+        Clip(
+            id="take-b",
+            track_id="host",
+            source_id="B",
+            source_start=0,
+            source_end=10,
+            timeline_start=10,
+        ),
+    ]
+    proj.transcripts = [
+        Transcript(
+            track_id="host", source_id="A", words=[TranscriptWord(text="alpha", start=0, end=0.4)]
+        ),
+        Transcript(
+            track_id="host", source_id="B", words=[TranscriptWord(text="beta", start=0, end=0.4)]
+        ),
+    ]
+    proj.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(track_id="host", speaker="Host", start=0, end=0.4, text="stale")
+        ]
+    )
+
+    by_word = cut_words(proj, "host", 0, 0, source_id="B")
+    assert by_word.exact_range is not None
+    assert [clip.id for clip in by_word.exact_range.clips] == ["take-b"]
+    assert by_word.exact_range.intervals[0].start == 10
+
+    by_utterance = cut_utterance(proj, 1)
+    assert by_utterance.exact_range is not None
+    assert [clip.id for clip in by_utterance.exact_range.clips] == ["take-b"]
+    assert by_utterance.exact_range.intervals[0].start == 10
+
+
+def test_transcript_cut_target_excludes_overlapping_unselected_take(tmp_path):
+    proj = _project_with_media()
+    proj.clips = [
+        Clip(
+            id="take-a",
+            track_id="host",
+            source_id="A",
+            source_start=0,
+            source_end=10,
+            timeline_start=0,
+        ),
+        Clip(
+            id="take-b",
+            track_id="host",
+            source_id="B",
+            source_start=0,
+            source_end=10,
+            timeline_start=0,
+        ),
+    ]
+    proj.transcripts = [
+        Transcript(
+            track_id="host", source_id="A", words=[TranscriptWord(text="alpha", start=0.1, end=0.4)]
+        ),
+        Transcript(
+            track_id="host", source_id="B", words=[TranscriptWord(text="beta", start=0.1, end=0.4)]
+        ),
+    ]
+
+    decision = cut_words(proj, "host", 0, 0, source_id="B")
+
+    assert decision.exact_range is not None
+    apply_ranges(proj, [decision])
+
+    unselected_take = [clip for clip in proj.clips if clip.source_id == "A"]
+    assert [(clip.source_start, clip.source_end) for clip in unselected_take] == [(0, 10)]
+
+
+def test_combined_projection_rebuilds_from_saved_current_source_transcripts(tmp_path):
+    proj = _project_with_media()
+    proj.transcripts = [
+        Transcript(
+            track_id="host", source_id="A", words=[TranscriptWord(text="alpha", start=0, end=0.4)]
+        ),
+        Transcript(
+            track_id="host",
+            source_id="B",
+            user_edited=True,
+            words=[
+                TranscriptWord(
+                    text="beta",
+                    start=0,
+                    end=0.4,
+                    suppressed=True,
+                    audibility_locked=True,
+                    timing_edited=True,
+                )
+            ],
+        ),
+    ]
+    proj.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(track_id="host", speaker="Host", start=0, end=0.4, text="old cache")
+        ]
+    )
+    path = save_project(proj, tmp_path / "episode.project.json")
+
+    reloaded = load_project(path)
+    rebuilt = ensure_combined_transcript(reloaded)
+    assert [(u.source_id, u.text) for u in rebuilt.utterances] == [("A", "alpha")]
+    edited = reloaded.transcript_for_source("host", "B")
+    assert edited is not None
+    assert edited.user_edited is True
+    assert edited.words[0].suppressed is True
+    assert edited.words[0].audibility_locked is True
+    assert edited.words[0].timing_edited is True
+
+    reloaded.transcripts[1].words[0] = (
+        reloaded.transcripts[1]
+        .words[0]
+        .model_copy(update={"text": "beta changed", "suppressed": False})
+    )
+    reloaded.transcripts[1].user_edited = True
+    current = ensure_combined_transcript(reloaded)
+    assert [u.text for u in current.utterances] == ["alpha", "beta changed"]
 
 
 def test_format_transcript_timestamps():

@@ -2,7 +2,7 @@ import type { CSSProperties, RefObject } from "react";
 import { memo, useEffect, useRef } from "react";
 import { useDawStore } from "../state/dawStore";
 import type { SessionClient, SessionSelection } from "../types/session";
-import { presenceAnchor, resolvePresenceAnchor } from "./anchors";
+import { resolvePresenceAnchor, transcriptWordPresenceAnchor } from "./anchors";
 import { presenceColorVar, rosterDisplayName } from "./colors";
 import { createCursorMotion } from "./cursorMotion";
 import { sessionClientList } from "./roster";
@@ -89,8 +89,16 @@ function wordSelectionAnchors(
       ? (sel.word_end ?? sel.word_index)
       : sel.word_index;
   return {
-    start: presenceAnchor("transcript", "word", sel.track_id, sel.word_index),
-    end: presenceAnchor("transcript", "word", sel.track_id, endIdx),
+    start: transcriptWordPresenceAnchor(
+      sel.track_id,
+      sel.source_id ?? null,
+      sel.word_index,
+    ),
+    end: transcriptWordPresenceAnchor(
+      sel.track_id,
+      sel.source_id ?? null,
+      endIdx,
+    ),
   };
 }
 

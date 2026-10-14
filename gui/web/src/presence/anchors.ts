@@ -25,6 +25,25 @@ export function presenceAnchor(
   return [kind, ...clean].join(":").slice(0, 96);
 }
 
+/** Compact stable identity for a transcript word, including its take. */
+export function transcriptWordPresenceAnchor(
+  trackId: string,
+  sourceId: string | null,
+  wordIndex: number,
+): string {
+  const identity = JSON.stringify([trackId, sourceId, wordIndex]);
+  let hash = 0xcbf29ce484222325n;
+  for (let i = 0; i < identity.length; i += 1) {
+    hash ^= BigInt(identity.charCodeAt(i));
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return presenceAnchor(
+    "transcript",
+    "word",
+    hash.toString(16).padStart(16, "0"),
+  );
+}
+
 export function presenceAnchorProps(id: string): Record<string, string> {
   return { [PRESENCE_ANCHOR_ATTR]: id };
 }

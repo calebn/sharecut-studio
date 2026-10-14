@@ -81,7 +81,11 @@ export function spanBetween(anchor: number, to: number): WordSpan {
   };
 }
 
-export type WordTarget = { trackId: string; wordIndex: number };
+export type WordTarget = {
+  trackId: string;
+  sourceId: string | null;
+  wordIndex: number;
+};
 
 /** The word chip a viewport point is over, even where a sheet covers it. */
 export function wordAtPoint(
@@ -94,7 +98,12 @@ export function wordAtPoint(
     if (!chip) continue;
     const wordIndex = Number(chip.dataset.wordIndex);
     const trackId = chip.dataset.trackId;
-    if (trackId && Number.isInteger(wordIndex)) return { trackId, wordIndex };
+    if (trackId && Number.isInteger(wordIndex))
+      return {
+        trackId,
+        sourceId: chip.dataset.sourceId || null,
+        wordIndex,
+      };
   }
   return null;
 }

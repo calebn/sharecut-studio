@@ -101,6 +101,28 @@ def test_each_take_words_are_addressable_by_source_and_index(tmp_path: Path) -> 
     assert word["timing_target"] == {"track_id": "vicky", "source_id": "take3", "word_index": 1}
 
 
+def test_suppressed_only_second_take_keeps_source_identity_and_deleted_placement(
+    tmp_path: Path,
+) -> None:
+    project = _two_take_project(tmp_path)
+    take3 = project.transcripts[1]
+    take3.words = [word.model_copy(update={"suppressed": True}) for word in take3.words]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+
+    rows = _view(project)
+    suppressed = [row for row in rows if row.get("suppressed_only")]
+    assert suppressed
+    assert all(row["source_id"] == "take3" for row in suppressed)
+    assert all(row["words"][0]["timing_target"]["source_id"] == "take3" for row in suppressed)
+
+    project.clips = [clip for clip in project.clips if clip.id != "c3"]
+    rows = _view(project)
+    suppressed = [row for row in rows if row.get("suppressed_only")]
+    assert suppressed
+    assert all(row["mappable"] is False for row in suppressed)
+    assert all(row["words"][0]["word_index"] is not None for row in suppressed)
+
+
 def test_rows_run_in_playback_order(tmp_path: Path) -> None:
     project = _two_take_project(tmp_path)
     for include_words in (True, False):

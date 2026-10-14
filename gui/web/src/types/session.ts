@@ -10,6 +10,7 @@ export interface SessionSelection {
   kind: string;
   id?: string;
   track_id?: string;
+  source_id?: string | null;
   time?: number;
   word_index?: number | null;
   word_end?: number | null;

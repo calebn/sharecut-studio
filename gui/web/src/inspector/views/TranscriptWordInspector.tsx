@@ -60,10 +60,12 @@ const APPLIED_CORRECTIONS_KEPT = 20;
 
 export function TranscriptWordInspector({
   trackId,
+  sourceId = null,
   wordIndex,
   embedded = false,
 }: {
   trackId: string;
+  sourceId?: string | null;
   wordIndex: number;
   /** Docked inside TranscriptPanel (text focus) — not the side rail. */
   embedded?: boolean;
@@ -76,9 +78,9 @@ export function TranscriptWordInspector({
   const word = useMemo(
     () =>
       project && wordsHydrated
-        ? findTranscriptWord(project, trackId, wordIndex)
+        ? findTranscriptWord(project, trackId, wordIndex, sourceId)
         : null,
-    [project, trackId, wordIndex, wordsHydrated],
+    [project, trackId, sourceId, wordIndex, wordsHydrated],
   );
   // Word texts on this track under the shared duplicate-index rule (#650): a
   // disagreeing duplicate maps to null. `findTranscriptWord` stays
@@ -88,9 +90,9 @@ export function TranscriptWordInspector({
   const wordTexts = useMemo(
     () =>
       project && wordsHydrated
-        ? trackWordTexts(project, trackId)
+        ? trackWordTexts(project, trackId, sourceId)
         : NO_WORD_TEXTS,
-    [project, trackId, wordsHydrated],
+    [project, trackId, sourceId, wordsHydrated],
   );
   const wordSpanText = spanTextFromIndex(wordTexts, wordIndex, wordIndex);
   const { busy, error, setError, run } = useProjectMutation();
@@ -191,6 +193,7 @@ export function TranscriptWordInspector({
       reportDetachedWordFailure({
         projectPath,
         trackId,
+        sourceId,
         wordIndex,
         word: before,
         action,
@@ -217,6 +220,7 @@ export function TranscriptWordInspector({
           endIndex,
           text,
           expectedText,
+          sourceId,
         ),
       endIndex === wordIndex ? "Word text fixed" : "Phrase text fixed",
     );
@@ -235,6 +239,7 @@ export function TranscriptWordInspector({
         trackId,
         wordIndex,
         applied.endWordIndex,
+        sourceId,
       );
       const baseline = stored === applied.text ? stored : null;
       setEndIndexStr(String(applied.endWordIndex));
@@ -259,6 +264,7 @@ export function TranscriptWordInspector({
         trackId,
         wordIndex,
         endIndex,
+        sourceId,
       );
       setExpectedText(current);
       // Promise a retry only when the store now reads differently. If the
@@ -281,6 +287,7 @@ export function TranscriptWordInspector({
           wordIndex,
           !suppressed,
           wordSpanText,
+          sourceId,
         ),
       suppressed
         ? "Word put back in the transcript text"
@@ -297,6 +304,7 @@ export function TranscriptWordInspector({
           trackId,
           wordIndex,
           wordSpanText,
+          sourceId,
         ),
       "Word back to automatic",
     );
@@ -316,6 +324,7 @@ export function TranscriptWordInspector({
           wordIndex,
           !ignored,
           wordSpanText,
+          sourceId,
         ),
       ignored ? "Restored word" : "Ignored word",
     );

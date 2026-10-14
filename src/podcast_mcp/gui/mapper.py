@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -20,7 +19,6 @@ from podcast_mcp.engines.session_timeline import (
     word_source_span,
 )
 from podcast_mcp.engines.utterance_runs import (
-    transcript_word_runs,
     utterance_runs,
     utterance_speaker,
     utterance_text,
@@ -179,19 +177,11 @@ class _Recording:
 
 
 class _LaneRecordings:
-    """Resolves each combined row to the recording (take) its words come from.
-
-    A combined row names only its track; on a multi-take lane its take is the
-    transcript whose kept-word run has the row's start, end and text (the run
-    ``merge_transcripts`` built it from). A row no run matches (a stale combined
-    transcript) reads the lane's first transcript through every clip, as a
-    one-recording lane does.
-    """
+    """Resolve each combined row from its persisted ``(track_id, source_id)`` identity."""
 
     def __init__(self, project: EpisodeProject) -> None:
         self._project = project
         self._lanes: dict[str, list[_Recording]] = {}
-        self._run_sources: dict[tuple[str, float, float, str], deque[str | None]] | None = None
 
     def lane(self, track_id: str) -> list[_Recording]:
         cached = self._lanes.get(track_id)
@@ -223,38 +213,27 @@ class _LaneRecordings:
 
     def for_row(self, row: Mapping[str, Any]) -> _Recording:
         track_id = str(row.get("track_id", ""))
+        source_id = row.get("source_id")
+        transcript = self._project.transcript_for_source(track_id, source_id)
         lane = self.lane(track_id)
-        if len(lane) == 1:
+        if len(lane) == 1 and lane[0].transcript is transcript:
             return lane[0]
-        key = (
-            track_id,
-            float(row.get("start", 0.0)),
-            float(row.get("end", 0.0)),
-            str(row.get("text", "")),
+        if not any(clip_plays_lane(self._project, clip, track_id) for clip in self._project.clips):
+            # Preserve the established implicit-primary media mapping when the lane
+            # has no explicit placements at all. A deleted secondary source stays unmapped.
+            if transcript is not None and transcript.source_id is None:
+                return _Recording(track_id, transcript)
+        placements = frozenset(
+            clip.source_id
+            for clip in self._project.clips
+            if transcript is not None
+            and clip_plays_lane(self._project, clip, track_id)
+            and self._project.transcript_for_source(track_id, clip.source_id) is transcript
         )
-        # Rows come in run order, so takes with an identical line (same times, same
-        # text) are told apart by taking their sources in turn.
-        queue = self._sources().get(key)
-        if queue:
-            source_id = queue.popleft()
-            match = next((r for r in lane if r.source_id == source_id), None)
-            if match is not None:
-                return match
-        return _Recording(track_id, self._project.transcript_for_track(track_id))
+        return _Recording(track_id, transcript, placements)
 
-    def _sources(self) -> dict[tuple[str, float, float, str], deque[str | None]]:
-        if self._run_sources is None:
-            sources: dict[tuple[str, float, float, str], deque[str | None]] = {}
-            for run in transcript_word_runs(self._project):
-                key = (
-                    run.track_id,
-                    float(run.words[0].start),
-                    float(run.words[-1].end),
-                    utterance_text(run.words),
-                )
-                sources.setdefault(key, deque()).append(run.source_id)
-            self._run_sources = sources
-        return self._run_sources
+    def for_source(self, track_id: str, source_id: str | None) -> _Recording:
+        return self.for_row({"track_id": track_id, "source_id": source_id})
 
 
 def _mapped_word_index(
@@ -472,7 +451,7 @@ def _edge_suppressed_word_indices(
 def _suppressed_only_rows(
     project: EpisodeProject,
     timeline: SessionTimeline,
-    tracks_with_rows: set[str],
+    sources_with_rows: set[tuple[str, str | None]],
     word_indexes: dict[tuple[str, str | None, bool], _MappedWordIndex],
     recordings: _LaneRecordings,
     *,
@@ -498,11 +477,12 @@ def _suppressed_only_rows(
     the caller sorts them into the transcript by timeline position.
     """
     rows: list[dict[str, Any]] = []
-    for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
-        if track_id in tracks_with_rows:
+    for transcript in project.transcripts:
+        track_id = transcript.track_id
+        source_id = transcript.source_id
+        if (track_id, source_id) in sources_with_rows:
             continue
-        recording = recordings.primary(track_id)
-        transcript = recording.transcript
+        recording = recordings.for_source(track_id, source_id)
         words = transcript.words if transcript is not None else []
         if not words or not all(bool(w.suppressed) for w in words):
             continue
@@ -514,6 +494,7 @@ def _suppressed_only_rows(
                 recording,
                 {
                     "track_id": track_id,
+                    "source_id": source_id,
                     "speaker": speaker,
                     "start": float(run_words[0].start),
                     "end": float(run_words[-1].end),
@@ -708,7 +689,7 @@ def map_transcript_utterances_to_timeline(
     synthetic = _suppressed_only_rows(
         project,
         timeline,
-        {row["track_id"] for row in rows},
+        {(row["track_id"], row.get("source_id")) for row in rows},
         word_indexes,
         recordings,
         include_words=include_words,

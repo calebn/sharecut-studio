@@ -201,6 +201,7 @@ class PresenceSelection(BaseModel):
     kind: PresenceSelectionKind
     id: str | None = Field(default=None, max_length=64)
     track_id: str | None = Field(default=None, max_length=64)
+    source_id: str | None = Field(default=None, max_length=64)
     time: PresenceSec | None = None
     word_index: int | None = Field(default=None, ge=0)
     word_end: int | None = Field(default=None, ge=0)

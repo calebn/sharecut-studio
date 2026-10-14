@@ -33,7 +33,12 @@ function canStepNow(step: RangeStep): boolean {
     selection,
     step,
     (wordIndex) =>
-      findTranscriptWord(project, selection.trackId, wordIndex) !== null,
+      findTranscriptWord(
+        project,
+        selection.trackId,
+        wordIndex,
+        selection.sourceId,
+      ) !== null,
   ).ok;
 }
 
@@ -81,9 +86,15 @@ export function WordRangeControls({
     selection.trackId,
     selection.startWordIndex,
     selection.endWordIndex,
+    selection.sourceId,
   );
   const exists = (wordIndex: number) =>
-    findTranscriptWord(project, selection.trackId, wordIndex) !== null;
+    findTranscriptWord(
+      project,
+      selection.trackId,
+      wordIndex,
+      selection.sourceId,
+    ) !== null;
   const rows = RANGE_STEP_CONTROLS.map(({ step, label }) => {
     const result = stepWordSpan(selection, step, exists);
     return { step, label, reason: result.ok ? null : result.reason };
@@ -96,6 +107,7 @@ export function WordRangeControls({
       selection.trackId,
       selection.startWordIndex,
       selection.endWordIndex,
+      selection.sourceId,
     ),
   );
   return (

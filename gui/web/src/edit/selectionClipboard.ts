@@ -85,8 +85,9 @@ export function wordTimelineSpan(
   project: ProjectView,
   trackId: string,
   wordIndex: number,
+  sourceId?: string | null,
 ): { start: number; end: number; text: string } | null {
-  const word = findTranscriptWord(project, trackId, wordIndex);
+  const word = findTranscriptWord(project, trackId, wordIndex, sourceId);
   if (!word) {
     return null;
   }
@@ -100,12 +101,14 @@ export function rangeTimelineSpan(
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
+  sourceId?: string | null,
 ): { start: number; end: number; text: string } | null {
   const span = transcriptWordRange(
     project,
     trackId,
     startWordIndex,
     endWordIndex,
+    { sourceId },
   );
   return span && span.end > span.start ? span : null;
 }
@@ -166,6 +169,7 @@ export function payloadFromSelection(
       project,
       selection.trackId,
       selection.wordIndex,
+      selection.sourceId,
     );
     if (!span) {
       return null;
@@ -181,6 +185,7 @@ export function payloadFromSelection(
       selection.trackId,
       selection.startWordIndex,
       selection.endWordIndex,
+      selection.sourceId,
     );
     if (!span) {
       return null;

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { correctTranscriptWord } from "../api";
 import { execute } from "../commands/execute";
 import { registerTranscriptWordCommands } from "../commands/transcriptWord";
+import { transcriptWordPresenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -607,6 +608,76 @@ describe("TranscriptPanel", () => {
         ).toBeNull();
       });
       expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("corrects the selected take when both takes have word index zero", async () => {
+      const base = project();
+      const row = base.transcript!.utterances[0]!;
+      const takes = [
+        {
+          ...row,
+          source_id: "take-a",
+          text: "alpha",
+          words: [
+            {
+              ...row.words![0]!,
+              text: "alpha",
+              end: 0.5,
+              timeline_end: 0.5,
+              timing_target: {
+                track_id: "host",
+                source_id: "take-a",
+                word_index: 0,
+              },
+            },
+          ],
+        },
+        {
+          ...row,
+          source_id: "take-b",
+          text: "beta",
+          words: [
+            {
+              ...row.words![0]!,
+              text: "beta",
+              end: 0.5,
+              timeline_end: 0.5,
+              timing_target: {
+                track_id: "host",
+                source_id: "take-b",
+                word_index: 0,
+              },
+            },
+          ],
+        },
+      ];
+      useDawStore.setState({
+        project: { ...base, transcript: { utterances: takes } },
+      });
+      const { container } = render(<TranscriptPanel />);
+      const beta = container.querySelector<HTMLButtonElement>(
+        '[data-source-id="take-b"][data-word-index="0"]',
+      );
+      expect(beta).toBeTruthy();
+      fireEvent.doubleClick(beta!);
+      const input = within(container).getByRole("textbox", {
+        name: /Correct word/,
+      });
+      fireEvent.change(input, { target: { value: "Beta" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      await vi.waitFor(() => {
+        expect(correctTranscriptWord).toHaveBeenCalledWith(
+          "/tmp/ep",
+          "host",
+          0,
+          "Beta",
+          "beta",
+          "take-b",
+        );
+      });
+      expect(takes[0]?.words[0]?.text).toBe("alpha");
+      expect(takes[1]?.words[0]?.text).toBe("beta");
     });
 
     it("Escape closes without a call and refocuses the chip", () => {
@@ -1453,7 +1524,7 @@ describe("TranscriptPanel", () => {
     ).toBeTruthy();
     expect(
       container.querySelector(
-        '[data-presence-anchor="transcript:word:host:0"]',
+        `[data-presence-anchor="${transcriptWordPresenceAnchor("host", null, 0)}"]`,
       ),
     ).toBeTruthy();
   });

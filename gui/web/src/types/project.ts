@@ -320,6 +320,7 @@ export type TranscriptWordBooleanFlag = {
 
 export interface CombinedUtterance {
   track_id: string;
+  source_id?: string | null;
   speaker: string;
   start: number;
   end: number;
@@ -449,10 +450,16 @@ export type Selection =
   | { kind: "chapter"; id: string; time: number }
   | { kind: "social"; id: string }
   | { kind: "comment"; id: string }
-  | { kind: "transcriptWord"; trackId: string; wordIndex: number }
+  | {
+      kind: "transcriptWord";
+      trackId: string;
+      sourceId?: string | null;
+      wordIndex: number;
+    }
   | {
       kind: "transcriptRange";
       trackId: string;
+      sourceId?: string | null;
       startWordIndex: number;
       endWordIndex: number;
     }

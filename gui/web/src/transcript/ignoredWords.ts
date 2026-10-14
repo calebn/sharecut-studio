@@ -7,6 +7,7 @@ import { findTranscriptWordIn } from "../utils/transcript";
 
 export interface IgnoredWordRun {
   trackId: string;
+  sourceId?: string | null;
   startWordIndex: number;
   endWordIndex: number;
 }
@@ -18,6 +19,7 @@ export interface IgnoredWordRun {
 export function ignoredRuns(
   trackId: string,
   words: readonly TranscriptWordView[],
+  sourceId: string | null = null,
 ): IgnoredWordRun[] {
   const runs: IgnoredWordRun[] = [];
   let start: number | null = null;
@@ -35,19 +37,30 @@ export function ignoredRuns(
       continue;
     }
     if (start !== null && prev !== null) {
-      runs.push({ trackId, startWordIndex: start, endWordIndex: prev });
+      runs.push({
+        trackId,
+        ...(sourceId != null ? { sourceId } : {}),
+        startWordIndex: start,
+        endWordIndex: prev,
+      });
     }
     start = null;
     prev = null;
   }
   if (start !== null && prev !== null) {
-    runs.push({ trackId, startWordIndex: start, endWordIndex: prev });
+    runs.push({
+      trackId,
+      ...(sourceId != null ? { sourceId } : {}),
+      startWordIndex: start,
+      endWordIndex: prev,
+    });
   }
   return runs;
 }
 
 export interface IgnoreTargetArgs {
   trackId?: string;
+  sourceId?: string | null;
   startWordIndex?: number;
   endWordIndex?: number;
   ignored?: boolean;
@@ -55,6 +68,7 @@ export interface IgnoreTargetArgs {
 
 export interface IgnoreTarget {
   trackId: string;
+  sourceId?: string | null;
   startWordIndex: number;
   endWordIndex: number;
   ignored: boolean;
@@ -66,13 +80,14 @@ export function selectionAllIgnored(
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
+  sourceId: string | null = null,
 ): boolean {
   const utterances = project?.transcript?.utterances ?? [];
   const lo = Math.min(startWordIndex, endWordIndex);
   const hi = Math.max(startWordIndex, endWordIndex);
   let sawWord = false;
   for (let i = lo; i <= hi; i += 1) {
-    const word = findTranscriptWordIn(utterances, trackId, i);
+    const word = findTranscriptWordIn(utterances, trackId, i, sourceId);
     if (!word) {
       continue;
     }
@@ -100,6 +115,12 @@ export function ignoreTarget(
     return null;
   }
   const [startWordIndex, endWordIndex] = resolveRange(selection, args);
+  const sourceId =
+    args.sourceId ??
+    (selection?.kind === "transcriptWord" ||
+    selection?.kind === "transcriptRange"
+      ? (selection.sourceId ?? null)
+      : null);
   if (
     startWordIndex == null ||
     endWordIndex == null ||
@@ -109,8 +130,20 @@ export function ignoreTarget(
   }
   const ignored =
     args.ignored ??
-    !selectionAllIgnored(project, trackId, startWordIndex, endWordIndex);
-  return { trackId, startWordIndex, endWordIndex, ignored };
+    !selectionAllIgnored(
+      project,
+      trackId,
+      startWordIndex,
+      endWordIndex,
+      sourceId,
+    );
+  return {
+    trackId,
+    ...(sourceId != null ? { sourceId } : {}),
+    startWordIndex,
+    endWordIndex,
+    ignored,
+  };
 }
 
 function selectionTrackId(selection: Selection): string | undefined {

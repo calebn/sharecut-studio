@@ -9,6 +9,7 @@ import {
   presenceAnchor,
   presenceAnchorProps,
   resolvePresenceAnchor,
+  transcriptWordPresenceAnchor,
 } from "../presence/anchors";
 import { useProsodyOverlay } from "../prosody/useProsodyOverlay";
 import { canIngestMedia, isShareProjectKey, rangeEditMode } from "../shareMode";
@@ -89,27 +90,36 @@ const WORDS_LOADING_REASON = "Wait for the transcript words to load.";
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
 
-type WordRef = { trackId: string; wordIndex: number };
+type WordRef = { trackId: string; sourceId: string | null; wordIndex: number };
 
 function wordInRange(
   selection: {
     kind: string;
     trackId?: string;
+    sourceId?: string | null;
     wordIndex?: number;
     startWordIndex?: number;
     endWordIndex?: number;
   } | null,
   trackId: string,
+  sourceId: string | null,
   wordIndex: number | undefined,
 ): boolean {
   if (wordIndex == null || !selection) {
     return false;
   }
   if (selection.kind === "transcriptWord") {
-    return selection.trackId === trackId && selection.wordIndex === wordIndex;
+    return (
+      selection.trackId === trackId &&
+      (selection.sourceId ?? null) === sourceId &&
+      selection.wordIndex === wordIndex
+    );
   }
   if (selection.kind === "transcriptRange") {
-    if (selection.trackId !== trackId) {
+    if (
+      selection.trackId !== trackId ||
+      (selection.sourceId ?? null) !== sourceId
+    ) {
       return false;
     }
     const lo = Math.min(
@@ -277,10 +287,14 @@ export function TranscriptPanel() {
    * Open word correction from a touch gesture. Scoped to the gesture: the
    * previous intent (and Select range) comes back once the sheet closes.
    */
-  const openWordCorrection = ({ trackId, wordIndex }: WordRef): boolean => {
+  const openWordCorrection = ({
+    trackId,
+    sourceId,
+    wordIndex,
+  }: WordRef): boolean => {
     if (
       !canCorrect ||
-      !findTranscriptWordIn(allUtterances, trackId, wordIndex)
+      !findTranscriptWordIn(allUtterances, trackId, wordIndex, sourceId)
     ) {
       return false;
     }
@@ -291,7 +305,12 @@ export function TranscriptPanel() {
       };
     }
     setIntent("correct");
-    setSelection({ kind: "transcriptWord", trackId, wordIndex });
+    setSelection({
+      kind: "transcriptWord",
+      trackId,
+      ...(sourceId != null ? { sourceId } : {}),
+      wordIndex,
+    });
     return true;
   };
 
@@ -348,6 +367,9 @@ export function TranscriptPanel() {
     setSelection({
       kind: "transcriptWord",
       trackId: transcriptReviewCursor.trackId,
+      ...(transcriptReviewCursor.sourceId != null
+        ? { sourceId: transcriptReviewCursor.sourceId }
+        : {}),
       wordIndex: transcriptReviewCursor.wordIndex,
     });
   }, [transcriptReviewCursor, intent, canCorrect, setSelection]);
@@ -402,9 +424,10 @@ export function TranscriptPanel() {
       allUtterances,
       request.trackId,
       request.wordIndex,
+      request.sourceId,
     );
     if (!word || wordSeekSec(word) == null) return;
-    openInlineEdit(request);
+    openInlineEdit({ ...request, sourceId: request.sourceId ?? null });
   }, [
     transcriptInlineEditRequest,
     setTranscriptInlineEditRequest,
@@ -420,6 +443,7 @@ export function TranscriptPanel() {
       if (
         !cur ||
         cur.trackId !== ref.trackId ||
+        cur.sourceId !== ref.sourceId ||
         cur.wordIndex !== ref.wordIndex
       ) {
         // A replaced editor's late close: leave state and focus alone.
@@ -442,6 +466,7 @@ export function TranscriptPanel() {
           allUtterances,
           inlineEdit.trackId,
           inlineEdit.wordIndex,
+          inlineEdit.sourceId,
         ))
     ) {
       setInlineEdit(null);
@@ -465,6 +490,7 @@ export function TranscriptPanel() {
           allUtterances,
           transcriptInlineEditFailure.trackId,
           transcriptInlineEditFailure.wordIndex,
+          transcriptInlineEditFailure.sourceId,
         ),
       )
     ) {
@@ -500,10 +526,16 @@ export function TranscriptPanel() {
     }
   }, [inlineEdit]);
 
-  const setRange = (trackId: string, a: number, b: number) => {
+  const setRange = (
+    trackId: string,
+    sourceId: string | null,
+    a: number,
+    b: number,
+  ) => {
     setSelection({
       kind: "transcriptRange",
       trackId,
+      ...(sourceId != null ? { sourceId } : {}),
       startWordIndex: Math.min(a, b),
       endWordIndex: Math.max(a, b),
     });
@@ -521,9 +553,13 @@ export function TranscriptPanel() {
       setSelection(null);
       return () => setSelection(held);
     },
-    onCommit: (trackId, span) => {
-      rangeAnchorRef.current = { trackId, wordIndex: span.startWordIndex };
-      setRange(trackId, span.startWordIndex, span.endWordIndex);
+    onCommit: (trackId, sourceId, span) => {
+      rangeAnchorRef.current = {
+        trackId,
+        sourceId,
+        wordIndex: span.startWordIndex,
+      };
+      setRange(trackId, sourceId, span.startWordIndex, span.endWordIndex);
       useDawStore
         .getState()
         .announceStatus(selectedWordsMessage(span), { toast: false });
@@ -609,17 +645,15 @@ export function TranscriptPanel() {
   );
   const selectedAnchor =
     selection?.kind === "transcriptWord"
-      ? presenceAnchor(
-          "transcript",
-          "word",
+      ? transcriptWordPresenceAnchor(
           selection.trackId,
+          selection.sourceId ?? null,
           selection.wordIndex,
         )
       : selection?.kind === "transcriptRange"
-        ? presenceAnchor(
-            "transcript",
-            "word",
+        ? transcriptWordPresenceAnchor(
             selection.trackId,
+            selection.sourceId ?? null,
             selection.startWordIndex,
           )
         : null;
@@ -640,10 +674,9 @@ export function TranscriptPanel() {
         inlineEdit
           ? transcriptAnchorTurnIndex(
               turns,
-              presenceAnchor(
-                "transcript",
-                "word",
+              transcriptWordPresenceAnchor(
                 inlineEdit.trackId,
+                inlineEdit.sourceId ?? null,
                 inlineEdit.wordIndex,
               ),
             )
@@ -873,6 +906,7 @@ export function TranscriptPanel() {
       selection.trackId,
       selection.startWordIndex,
       selection.endWordIndex,
+      selection.sourceId,
     );
 
   return (
@@ -1071,8 +1105,9 @@ export function TranscriptPanel() {
       {dockWordEditor && selection?.kind === "transcriptWord" ? (
         <div className="transcript-docked-editor">
           <TranscriptWordInspector
-            key={`${selection.trackId}:${selection.wordIndex}`}
+            key={`${selection.trackId}:${selection.sourceId ?? "primary"}:${selection.wordIndex}`}
             trackId={selection.trackId}
+            sourceId={selection.sourceId}
             wordIndex={selection.wordIndex}
             embedded
           />
@@ -1109,9 +1144,10 @@ export function TranscriptPanel() {
               : null;
           const wordIndex = Number(word?.dataset.wordIndex);
           const trackId = word?.dataset.trackId;
+          const sourceId = word?.dataset.sourceId || null;
           pressedWordRef.current =
             trackId && Number.isInteger(wordIndex)
-              ? { trackId, wordIndex }
+              ? { trackId, sourceId, wordIndex }
               : null;
           rangeDrag.onPointerDown(event);
           // Arm only where correction is possible; elsewhere a hold is a tap.
@@ -1178,10 +1214,9 @@ export function TranscriptPanel() {
               const words = wordsForUtterance(u);
               const runsByLastPos = hostEditable
                 ? new Map(
-                    ignoredRuns(u.track_id, words).map((run) => [
-                      run.endWordIndex,
-                      run,
-                    ]),
+                    ignoredRuns(u.track_id, words, u.source_id ?? null).map(
+                      (run) => [run.endWordIndex, run],
+                    ),
                   )
                 : null;
               const activeWord = words.find(
@@ -1201,9 +1236,12 @@ export function TranscriptPanel() {
                   const wActive =
                     !unmapped && active.words.has(activeWordId(flatIndex, wi));
                   const wordIndex = w.word_index;
+                  const sourceId =
+                    w.timing_target?.source_id ?? u.source_id ?? null;
                   const selected = wordInRange(
                     shownSelection,
                     u.track_id,
+                    sourceId,
                     wordIndex,
                   );
                   const lowConf =
@@ -1217,6 +1255,7 @@ export function TranscriptPanel() {
                     transcriptAnnotate &&
                     wordIndex != null &&
                     transcriptReviewCursor?.trackId === u.track_id &&
+                    (transcriptReviewCursor.sourceId ?? null) === sourceId &&
                     transcriptReviewCursor.wordIndex === wordIndex;
                   // Suppressed words are already handled; they keep only the strikethrough.
                   const suspectChip =
@@ -1241,11 +1280,13 @@ export function TranscriptPanel() {
                   const editingThis =
                     inlineEditable &&
                     inlineEdit?.trackId === u.track_id &&
+                    (inlineEdit.sourceId ?? null) === sourceId &&
                     inlineEdit.wordIndex === wordIndex;
                   const wordAnchor = presenceAnchorProps(
                     transcriptWordAnchor(
                       turnIndex,
                       u.track_id,
+                      sourceId,
                       wordIndex,
                       afterWordIndex,
                     ),
@@ -1288,6 +1329,7 @@ export function TranscriptPanel() {
                   return {
                     word: w,
                     trackId: u.track_id,
+                    sourceId,
                     active: wActive,
                     unmapped: w.mappable === false,
                     selected,
@@ -1319,6 +1361,7 @@ export function TranscriptPanel() {
                         commandId="transcript.ignoreWords"
                         args={{
                           trackId: u.track_id,
+                          ...(sourceId != null ? { sourceId } : {}),
                           startWordIndex: restoreRun.startWordIndex,
                           endWordIndex: restoreRun.endWordIndex,
                           ignored: false,
@@ -1334,13 +1377,14 @@ export function TranscriptPanel() {
                     editor:
                       editingThis && wordIndex != null ? (
                         <InlineWordEditor
-                          key={`${u.track_id}:${wordIndex}`}
+                          key={`${u.track_id}:${sourceId ?? "primary"}:${wordIndex}`}
                           trackId={u.track_id}
+                          sourceId={sourceId}
                           wordIndex={wordIndex}
                           initialText={w.text}
                           onClose={(restore) =>
                             closeInlineEdit(
-                              { trackId: u.track_id, wordIndex },
+                              { trackId: u.track_id, sourceId, wordIndex },
                               restore,
                             )
                           }
@@ -1366,9 +1410,15 @@ export function TranscriptPanel() {
                             dragExtendedRef.current = false;
                             rangeAnchorRef.current = {
                               trackId: u.track_id,
+                              sourceId,
                               wordIndex,
                             };
-                            setRange(u.track_id, wordIndex, wordIndex);
+                            setRange(
+                              u.track_id,
+                              sourceId,
+                              wordIndex,
+                              wordIndex,
+                            );
                           },
                           onPointerUp: (e) => {
                             // Single taps still act immediately via onClick;
@@ -1384,11 +1434,13 @@ export function TranscriptPanel() {
                             const now = Date.now();
                             lastTouchTapRef.current = {
                               trackId: u.track_id,
+                              sourceId,
                               wordIndex,
                               at: now,
                             };
                             if (
                               previous?.trackId === u.track_id &&
+                              previous.sourceId === sourceId &&
                               previous.wordIndex === wordIndex &&
                               now - previous.at <= DOUBLE_TAP_MS
                             ) {
@@ -1396,6 +1448,7 @@ export function TranscriptPanel() {
                               lastTouchTapRef.current = null;
                               pendingCorrectionRef.current = {
                                 trackId: u.track_id,
+                                sourceId,
                                 wordIndex,
                               };
                             }
@@ -1406,7 +1459,8 @@ export function TranscriptPanel() {
                               intent !== "select" ||
                               wordIndex == null ||
                               rangeAnchorRef.current == null ||
-                              rangeAnchorRef.current.trackId !== u.track_id
+                              rangeAnchorRef.current.trackId !== u.track_id ||
+                              rangeAnchorRef.current.sourceId !== sourceId
                             ) {
                               return;
                             }
@@ -1417,6 +1471,7 @@ export function TranscriptPanel() {
                             }
                             setRange(
                               u.track_id,
+                              sourceId,
                               rangeAnchorRef.current.wordIndex,
                               wordIndex,
                             );
@@ -1434,6 +1489,7 @@ export function TranscriptPanel() {
                             );
                             if (
                               pending?.trackId === u.track_id &&
+                              pending.sourceId === sourceId &&
                               pending.wordIndex === wordIndex &&
                               recentDoubleTap
                             ) {
@@ -1448,6 +1504,7 @@ export function TranscriptPanel() {
                               setSelection({
                                 kind: "transcriptWord",
                                 trackId: u.track_id,
+                                ...(sourceId != null ? { sourceId } : {}),
                                 wordIndex,
                               });
                               return;
@@ -1456,10 +1513,13 @@ export function TranscriptPanel() {
                               if (e.shiftKey) {
                                 dragExtendedRef.current = false;
                                 if (
-                                  rangeAnchorRef.current?.trackId === u.track_id
+                                  rangeAnchorRef.current?.trackId ===
+                                    u.track_id &&
+                                  rangeAnchorRef.current.sourceId === sourceId
                                 ) {
                                   setRange(
                                     u.track_id,
+                                    sourceId,
                                     rangeAnchorRef.current.wordIndex,
                                     wordIndex,
                                   );
@@ -1473,9 +1533,15 @@ export function TranscriptPanel() {
                               }
                               rangeAnchorRef.current = {
                                 trackId: u.track_id,
+                                sourceId,
                                 wordIndex,
                               };
-                              setRange(u.track_id, wordIndex, wordIndex);
+                              setRange(
+                                u.track_id,
+                                sourceId,
+                                wordIndex,
+                                wordIndex,
+                              );
                               return;
                             }
                             if (wSeek != null) {
@@ -1502,6 +1568,7 @@ export function TranscriptPanel() {
                                   if (inlineEditable && wordIndex != null) {
                                     openInlineEdit({
                                       trackId: u.track_id,
+                                      sourceId,
                                       wordIndex,
                                     });
                                     return;

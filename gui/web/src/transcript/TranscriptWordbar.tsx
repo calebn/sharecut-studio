@@ -82,13 +82,14 @@ export function TranscriptWordbar({
   const open =
     request?.projectPath === projectPath &&
     request.trackId === trackId &&
+    (request.sourceId ?? null) === word.timing_target?.source_id &&
     request.wordIndex === wordIndex;
   if (!word.timing_target) return null;
   return (
     <section className="transcript-wordbar" aria-label="Word timing">
       <CommandButton
         commandId="transcript.adjustTiming"
-        args={{ trackId, wordIndex }}
+        args={{ trackId, sourceId: word.timing_target.source_id, wordIndex }}
       >
         Adjust timing
       </CommandButton>

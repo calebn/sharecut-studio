@@ -20,7 +20,10 @@ import {
 const EDGE_BAND_PX = 56;
 const EDGE_STEP_PX = 14;
 
-export type WordRangeDraft = WordSpan & { trackId: string };
+export type WordRangeDraft = WordSpan & {
+  trackId: string;
+  sourceId: string | null;
+};
 
 type Press = {
   pointerId: number;
@@ -43,7 +46,7 @@ type Options = {
   listRef: RefObject<HTMLElement | null>;
   /** The armed finger moved on. Returns what puts the selection back if a second finger cancels the drag. */
   onDragStart: () => (() => void) | null;
-  onCommit: (trackId: string, span: WordSpan) => void;
+  onCommit: (trackId: string, sourceId: string | null, span: WordSpan) => void;
 };
 
 /**
@@ -91,14 +94,19 @@ export function useWordRangeDrag({
 
   const extendTo = (p: Press) => {
     const hit = wordAtPoint(document, p.x, p.y);
-    if (!hit || hit.trackId !== p.anchor.trackId) return;
+    if (
+      !hit ||
+      hit.trackId !== p.anchor.trackId ||
+      hit.sourceId !== p.anchor.sourceId
+    )
+      return;
     const next = spanBetween(p.anchor.wordIndex, hit.wordIndex);
     p.span = next;
     setDraft((cur) =>
       cur?.startWordIndex === next.startWordIndex &&
       cur.endWordIndex === next.endWordIndex
         ? cur
-        : { trackId: p.anchor.trackId, ...next },
+        : { trackId: p.anchor.trackId, sourceId: p.anchor.sourceId, ...next },
     );
   };
 
@@ -123,7 +131,11 @@ export function useWordRangeDrag({
     p.timer = null;
     p.armed = true;
     listRef.current?.setPointerCapture?.(p.pointerId);
-    setDraft({ trackId: p.anchor.trackId, ...p.span });
+    setDraft({
+      trackId: p.anchor.trackId,
+      sourceId: p.anchor.sourceId,
+      ...p.span,
+    });
   };
 
   useEffect(() => {
@@ -160,9 +172,10 @@ export function useWordRangeDrag({
       const wordIndex = Number(chip?.dataset.wordIndex);
       const trackId = chip?.dataset.trackId;
       if (!trackId || !Number.isInteger(wordIndex)) return;
+      const sourceId = chip.dataset.sourceId || null;
       const p: Press = {
         pointerId: event.pointerId,
-        anchor: { trackId, wordIndex },
+        anchor: { trackId, sourceId, wordIndex },
         x: event.clientX,
         y: event.clientY,
         armed: false,
@@ -205,7 +218,7 @@ export function useWordRangeDrag({
       liftedAt.current = Date.now();
       const { anchor, span } = p;
       clear();
-      callbacks.current.onCommit(anchor.trackId, span);
+      callbacks.current.onCommit(anchor.trackId, anchor.sourceId, span);
     },
     onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => {
       if (press.current?.pointerId === event.pointerId) cancel();

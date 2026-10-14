@@ -1,4 +1,7 @@
-import { presenceAnchor } from "../presence/anchors";
+import {
+  presenceAnchor,
+  transcriptWordPresenceAnchor,
+} from "../presence/anchors";
 import type {
   CombinedUtterance,
   ProjectView,
@@ -12,9 +15,13 @@ export function findTranscriptWordIn(
   utterances: readonly CombinedUtterance[],
   trackId: string,
   wordIndex: number,
+  sourceId?: string | null,
 ): TranscriptWordView | null {
   for (const utterance of utterances) {
-    if (utterance.track_id !== trackId) {
+    if (
+      utterance.track_id !== trackId ||
+      (utterance.source_id ?? null) !== (sourceId ?? null)
+    ) {
       continue;
     }
     for (const word of utterance.words ?? []) {
@@ -31,34 +38,14 @@ export function findTranscriptWord(
   project: ProjectView | null,
   trackId: string,
   wordIndex: number,
+  sourceId?: string | null,
 ): TranscriptWordView | null {
   return findTranscriptWordIn(
     project?.transcript?.utterances ?? [],
     trackId,
     wordIndex,
+    sourceId,
   );
-}
-
-/**
- * The recording the track's indexed words belong to. The host numbers `word_index` within one
- * recording and refuses a bare index on a track recorded as several takes, so every word
- * command sends this alongside the index (#1476). Null when the track has no indexed word.
- */
-export function trackWordSourceId(
-  project: ProjectView | null,
-  trackId: string,
-): string | null {
-  for (const utterance of project?.transcript?.utterances ?? []) {
-    if (utterance.track_id !== trackId) {
-      continue;
-    }
-    for (const word of utterance.words ?? []) {
-      if (word.word_index !== undefined) {
-        return word.timing_target?.source_id ?? null;
-      }
-    }
-  }
-  return null;
 }
 
 /** Indexed words on `trackId` with `lo <= word_index <= hi`, in transcript order (duplicates included). */
@@ -67,9 +54,13 @@ function* trackWordsInRange(
   trackId: string,
   lo: number,
   hi: number,
+  sourceId?: string | null,
 ): Generator<{ index: number; word: TranscriptWordView }> {
   for (const utterance of project?.transcript?.utterances ?? []) {
-    if (utterance.track_id !== trackId) {
+    if (
+      utterance.track_id !== trackId ||
+      (utterance.source_id ?? null) !== (sourceId ?? null)
+    ) {
       continue;
     }
     for (const word of utterance.words ?? []) {
@@ -121,20 +112,21 @@ export function transcriptWordRange(
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
+  options?: { boundsOnly?: false; sourceId?: string | null },
 ): { start: number; end: number; text: string } | null;
 export function transcriptWordRange(
   project: ProjectView | null,
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
-  options: { boundsOnly: true },
+  options: { boundsOnly: true; sourceId?: string | null },
 ): { start: number; end: number } | null;
 export function transcriptWordRange(
   project: ProjectView | null,
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
-  options?: { boundsOnly: true },
+  options?: { boundsOnly?: boolean; sourceId?: string | null },
 ): { start: number; end: number; text?: string } | null {
   const lo = Math.min(startWordIndex, endWordIndex);
   const hi = Math.max(startWordIndex, endWordIndex);
@@ -143,7 +135,13 @@ export function transcriptWordRange(
   const texts: Map<number, string> | null = options?.boundsOnly
     ? null
     : new Map();
-  for (const { index, word } of trackWordsInRange(project, trackId, lo, hi)) {
+  for (const { index, word } of trackWordsInRange(
+    project,
+    trackId,
+    lo,
+    hi,
+    options?.sourceId,
+  )) {
     start = Math.min(start, word.timeline_start ?? word.start);
     end = Math.max(end, word.timeline_end ?? word.end);
     if (texts) {
@@ -181,9 +179,16 @@ function collectWordTexts(
   trackId: string,
   lo: number,
   hi: number,
+  sourceId?: string | null,
 ): Map<number, string | null> {
   const texts = new Map<number, string | null>();
-  for (const { index, word } of trackWordsInRange(project, trackId, lo, hi)) {
+  for (const { index, word } of trackWordsInRange(
+    project,
+    trackId,
+    lo,
+    hi,
+    sourceId,
+  )) {
     if (!addIndexedText(texts, index, word.text)) {
       texts.set(index, null);
     }
@@ -195,12 +200,14 @@ function collectWordTexts(
 export function trackWordTexts(
   project: ProjectView | null,
   trackId: string,
+  sourceId?: string | null,
 ): TrackWordTexts {
   return collectWordTexts(
     project,
     trackId,
     Number.NEGATIVE_INFINITY,
     Number.POSITIVE_INFINITY,
+    sourceId,
   );
 }
 
@@ -239,12 +246,13 @@ export function transcriptSpanText(
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
+  sourceId?: string | null,
 ): string | null {
   if (!isWordSpan(startWordIndex, endWordIndex)) {
     return null;
   }
   return spanTextFromIndex(
-    collectWordTexts(project, trackId, startWordIndex, endWordIndex),
+    collectWordTexts(project, trackId, startWordIndex, endWordIndex, sourceId),
     startWordIndex,
     endWordIndex,
   );
@@ -458,11 +466,12 @@ export function findTurnIndexForUtterance(
 export function transcriptWordAnchor(
   turnIndex: number,
   trackId: string,
+  sourceId: string | null,
   wordIndex: number | undefined,
   flatWordIndex: number,
 ): string {
   return wordIndex != null
-    ? presenceAnchor("transcript", "word", trackId, wordIndex)
+    ? transcriptWordPresenceAnchor(trackId, sourceId, wordIndex)
     : presenceAnchor("transcript", "turn", turnIndex, "w", flatWordIndex);
 }
 
@@ -485,6 +494,7 @@ function buildAnchorTurnIndex(turns: TranscriptTurn[]): Map<string, number> {
           transcriptWordAnchor(
             turnIndex,
             u.track_id,
+            u.source_id ?? null,
             w.word_index,
             flatWordIndex,
           ),
