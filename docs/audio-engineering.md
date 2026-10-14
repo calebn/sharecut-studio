@@ -127,6 +127,7 @@ tape reads as before:
 | Echo mic open (`EchoConfig.open_under_voice_db`) | -60 | 45 |
 | Gate overreach, word judged / lost | -60 / -80 | 45 / 65 |
 | Analyze noise floor warning | -50 | 35 |
+| Join onset collision (`join_continuity._ONSET_UNDER_VOICE_DB`), ramp from 5 dB over it | -50 | 35 |
 
 `scripts/check_level_literals.py` (run by `make lint-py` and `tests/test_level_literals.py`)
 fails on a negative dB literal in `edits/` or `engines/`. A name that says what the level is
