@@ -1225,7 +1225,7 @@ describe("host document command queue", () => {
     );
   });
 
-  it("does not add a banner row for a live 4xx the caller already shows", async () => {
+  it("records a live 4xx so save state cannot return to Saved", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("bad payload", { status: 422 })),
@@ -1235,7 +1235,10 @@ describe("host document command queue", () => {
     await expect(
       submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
     ).rejects.toThrow("bad payload");
-    expect(addHostConflict).not.toHaveBeenCalled();
+    expect(addHostConflict).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      expect.objectContaining({ reason: "bad payload" }),
+    );
   });
 
   it("shows a queued envelope edit so the next edit builds on it", async () => {
