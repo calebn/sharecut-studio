@@ -25,12 +25,20 @@ from bleed_helpers import RATE as BLEED_RATE
 from podcast_mcp.edits.silence_islands import suggest_handoff_cut
 from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import SpeechLevels, refresh_silence_flags
-from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
+from podcast_mcp.engines.audio_audit import (
+    AnalysisPolicy,
+    TrackRmsCache,
+    compute_word_audibility_map,
+    list_low_audibility_words,
+)
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.speaker_split import attribute_speakers
+from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -128,7 +136,7 @@ def _project(
                 id=track_id,
                 label=track_id,
                 role=TrackRole.DIALOGUE,
-                media=MediaAsset(path=f"raw/{track_id}.wav", duration_sec=float(SECONDS)),
+                media=MediaAsset(path=f"raw/{track_id}.wav", duration_sec=audio.size / RATE),
             )
         )
         project.timeline.clips.append(
@@ -136,7 +144,7 @@ def _project(
                 id=f"c_{track_id}",
                 track_id=track_id,
                 source_start=0.0,
-                source_end=float(SECONDS),
+                source_end=audio.size / RATE,
                 timeline_start=0.0,
             )
         )
@@ -369,6 +377,174 @@ def _speaker_split(samples: np.ndarray) -> list:
     return [(turn.start, turn.end, turn.speakers) for turn in attribution.turns]
 
 
+LOUD_DB = -18.0
+LEVEL_NAMES = ("alpha", "soft", "faint", "bleed", "long", "end")
+
+
+def _two_mics_scene(tmp_path: Path) -> EpisodeProject:
+    """Loud words that set the speech level, a soft but audible one, a faint one on the room
+    tone, a host word the guest's copy explains, and a guest who speaks only three times."""
+    host = _room(11, gated=False)
+    spans = [
+        ("alpha", 1.0, 1.6, LOUD_DB),
+        ("soft", 2.0, 2.5, LOUD_DB - 15.0),
+        ("faint", 3.0, 3.5, LOUD_DB - 36.0),
+        ("bleed", 5.0, 5.6, LOUD_DB - 12.0),
+        ("long", 8.0, 10.0, LOUD_DB),
+        ("end", 12.0, 13.0, LOUD_DB),
+    ]
+    for _, start, end, level in spans:
+        _voice(host, start, end, level)
+    guest = _room(23, gated=False)
+    guest_spans = [("bravo", 5.0, 5.6), ("charlie", 14.0, 15.0), ("delta", 16.0, 17.0)]
+    for _, start, end in guest_spans:
+        _voice(guest, start, end, LOUD_DB)
+    return _project(
+        tmp_path,
+        {
+            "host": (host, [(t, s, e) for t, s, e, _ in spans]),
+            "guest": (guest, guest_spans),
+        },
+    )
+
+
+def _guest_reaches_host() -> Any:
+    path = EchoPairProfile(
+        source_track_id="guest",
+        bleed_track_id="host",
+        span_start=0.0,
+        span_end=float(SECONDS),
+        dominated_frames=100,
+        copy_frames=40,
+        consistent_frames=30,
+        lag_ms=3.0,
+        level_db=-18.0,
+        examples=(1.0,),
+        null_runs=8,
+        null_copy_rate=0.05,
+        null_consistent_rate=0.02,
+    )
+    return patch(
+        "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs", new=lambda self: [path]
+    )
+
+
+def _audibility(project: EpisodeProject) -> list:
+    with _guest_reaches_host():
+        rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+    return [(r["track_id"], r["text"], r["audibility_status"]) for r in rows]
+
+
+def _reconciled(project: EpisodeProject) -> list:
+    with _guest_reaches_host():
+        reconcile_transcript(project, policy=AnalysisPolicy(), dry_run=False, update_status=True)
+    host = project.transcript_for_track("host")
+    assert host is not None
+    return [(w.text, w.audibility_status, w.suppressed) for w in host.words]
+
+
+def _low_audibility(project: EpisodeProject) -> list:
+    return [(r["track_id"], r["text"]) for r in list_low_audibility_words(project)]
+
+
+def _one_track_scene(kind: str) -> Callable[[Path], EpisodeProject]:
+    """One track: a single word, a steady tone (no room to tell the voice from), digital
+    silence, or a sparse speaker (three bursts in two minutes) with two words on room tone."""
+
+    def scene(tmp_path: Path) -> EpisodeProject:
+        if kind == "single-word":
+            audio = _room(5, gated=False)[: SECONDS * RATE // 20]
+            _voice(audio, 0.2, 0.6, LOUD_DB)
+            words = [("hi", 0.2, 0.6)]
+        elif kind == "no-contrast":
+            audio = _tone(2 * RATE, LOUD_DB)
+            words = [("hi", 0.5, 1.5)]
+        elif kind == "no-live-audio":
+            audio = np.zeros(2 * RATE)
+            words = [("hi", 0.5, 1.0)]
+        else:
+            audio = np.random.default_rng(7).normal(0, 10 ** (ROOM_DB / 20), 120 * RATE)
+            real = [(8.0, 8.6), (50.0, 50.6), (99.0, 99.6)]
+            for start, end in real:
+                _voice(audio, start, end, LOUD_DB)
+            words = [(f"real{n}", s, e) for n, (s, e) in enumerate(real)]
+            words += [("ghost0", 104.0, 104.4), ("ghost1", 116.0, 116.4)]
+        return _project(tmp_path, {"solo": (audio, words)})
+
+    return scene
+
+
+def _solo_audibility(project: EpisodeProject) -> list:
+    rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+    return [(r["text"], r["audibility_status"]) for r in rows]
+
+
+def _stretched_token_scene(tmp_path: Path) -> EpisodeProject:
+    """A filler token whose span runs far past its 0.3 s of voice, in a long quiet track."""
+    audio = _room(3, gated=False)
+    _voice(audio, 1.0, 1.3, LOUD_DB)
+    _voice(audio, 6.0, 8.0, LOUD_DB)
+    words = [("uh", 0.5, 5.0), ("so", 6.0, 8.0)]
+    return _project(tmp_path, {"solo": (audio, words)})
+
+
+def _trimmed_token(project: EpisodeProject) -> tuple:
+    cache = TrackRmsCache.from_timeline_stem(
+        project.workspace_path() / "raw" / "solo.wav", sample_rate=RATE
+    )
+    words = [TranscriptWord(text="uh", start=0.5, end=5.0)]
+    caps = WordSpanCaps.from_defaults({"tighten": {"filler_words": ["uh"]}})
+    trim_implausible_words(words, cache, caps)
+    return round(words[0].start, 1), round(words[0].end, 1)
+
+
+def _asr_scene(*, gated: bool, seconds: float, speech: list[tuple[float, float]]) -> Callable:
+    def scene(tmp_path: Path) -> EpisodeProject:
+        audio = (
+            np.zeros(round(seconds * RATE))
+            if gated
+            else np.random.default_rng(7).normal(0, 10 ** (ROOM_DB / 20), round(seconds * RATE))
+        )
+        for start, end in speech:
+            _voice(audio, start, end, SPEECH_DB)
+        return _project(tmp_path, {"solo": (audio, [])})
+
+    return scene
+
+
+_SPOKEN = [(1.0, 1.7), (3.0, 3.6), (5.0, 5.8), (8.0, 9.0), (11.0, 11.5), (13.0, 14.0)]
+_INVENTED = [(2.0, 2.6), (6.5, 7.2), (10.0, 10.6), (15.0, 15.8)]
+_SPARSE_SPEECH = [(10.0, 10.8), (31.0, 31.6), (52.0, 52.9)]
+_SPARSE_INVENTED = [(20.0, 20.7), (41.0, 41.8)]
+
+
+def _asr_flags(spans: list[tuple[float, float]]) -> Callable[[EpisodeProject], list]:
+    def flags(project: EpisodeProject) -> list:
+        words = [TranscriptWord(text="w", start=s, end=e) for s, e in spans]
+        assert (
+            refresh_silence_flags(
+                words, project.workspace_path() / "raw" / "solo.wav", AsrOptions()
+            )
+            is not None
+        )
+        return [w.suspect_hallucination for w in words]
+
+    return flags
+
+
+def _asr_detector(
+    *, gated: bool, seconds: float, speech: list[tuple[float, float]], invented: list
+) -> Detector:
+    spans = sorted(speech + invented)
+    return Detector(
+        _asr_scene(gated=gated, seconds=seconds, speech=speech),
+        _asr_flags(spans),
+        _equal,
+        [span in invented for span in spans],
+        loudest_db=12.0,
+    )
+
+
 def _same_rows(got: list, want: list) -> None:
     """Same rows; a time may move by one 10 ms frame."""
     assert [r[:2] + r[4:] for r in got] == [r[:2] + r[4:] for r in want]
@@ -400,6 +576,11 @@ class Detector:
     same: Callable[[Any, Any], None]
     expected: Any
     alone: str = "host"
+    # The recording levels the scene is pinned at. Louder than ``loudest_db`` its peaks pass
+    # full scale. Quieter than ``quietest_db`` tighten-mute's soft filler edge moves by 26 ms
+    # (-40 dB puts that filler at -86 dBFS), so it is not pinned there.
+    loudest_db: float = 12.0
+    quietest_db: float = -40.0
 
 
 _RIPPLE_FILLERS = [
@@ -417,6 +598,7 @@ DETECTORS = {
             ("host", "filler:uh:voiced_edge", 5.84, 6.295, True),
             ("host", "filler:um", 2.84, 3.47, False),
         ],
+        quietest_db=-36.0,
     ),
     "tighten-ripple-gated": Detector(
         lambda path: _tighten_scene(path, gated=True),
@@ -439,22 +621,125 @@ DETECTORS = {
         _reconcile,
         _equal,
         {("host", "bleed"): 208, ("host", "audible"): 278, ("guest", "audible"): 208},
+        loudest_db=6.0,
     ),
     "bleed-gate": Detector(_bleed_scene, _gate, _same_spans, (((1.03, 30.79),), "mute", ())),
     "analyze": Detector(
-        _same_room_scene, _analyze, _equal, [("bleed", "host"), ("pre_aligned", None)]
+        _same_room_scene,
+        _analyze,
+        _equal,
+        [("bleed", "host"), ("pre_aligned", None)],
+        loudest_db=6.0,
     ),
     "asr-silence-filter": Detector(
         _bleed_scene, _silence_filter, _equal, ["ghost", *(f"w{n}" for n in range(74))]
     ),
+    "audibility-verdicts": Detector(
+        _two_mics_scene,
+        _audibility,
+        _equal,
+        [
+            ("host", "alpha", "audible"),
+            ("host", "soft", "audible"),
+            ("host", "faint", "inaudible"),
+            ("host", "bleed", "bleed"),
+            ("host", "long", "audible"),
+            ("host", "end", "audible"),
+            ("guest", "bravo", "audible"),
+            ("guest", "charlie", "audible"),
+            ("guest", "delta", "audible"),
+        ],
+        loudest_db=6.0,
+    ),
+    "reconciled-transcript": Detector(
+        _two_mics_scene,
+        _reconciled,
+        _equal,
+        [
+            ("alpha", "audible", False),
+            ("soft", "audible", False),
+            ("faint", "inaudible", True),
+            ("bleed", "bleed", True),
+            ("long", "audible", False),
+            ("end", "audible", False),
+        ],
+        loudest_db=6.0,
+    ),
+    "low-audibility-scan": Detector(
+        _two_mics_scene, _low_audibility, _equal, [("host", "faint")], loudest_db=6.0
+    ),
+    "single-word-track": Detector(
+        _one_track_scene("single-word"),
+        _solo_audibility,
+        _equal,
+        [("hi", "audible")],
+        alone="solo",
+        loudest_db=6.0,
+    ),
+    "no-contrast-track": Detector(
+        _one_track_scene("no-contrast"),
+        _solo_audibility,
+        _equal,
+        [("hi", "audible")],
+        alone="solo",
+        loudest_db=6.0,
+    ),
+    "no-live-audio-track": Detector(
+        _one_track_scene("no-live-audio"),
+        _solo_audibility,
+        _equal,
+        [("hi", "inaudible")],
+        alone="solo",
+    ),
+    "sparse-speaker-reconcile": Detector(
+        _one_track_scene("sparse"),
+        _solo_audibility,
+        _equal,
+        [
+            ("real0", "audible"),
+            ("real1", "audible"),
+            ("real2", "audible"),
+            ("ghost0", "inaudible"),
+            ("ghost1", "inaudible"),
+        ],
+        alone="solo",
+        loudest_db=6.0,
+    ),
+    "word-span-trim": Detector(
+        _stretched_token_scene, _trimmed_token, _equal, (1.0, 1.3), alone="solo", loudest_db=6.0
+    ),
+    "asr-silence-ungated": _asr_detector(
+        gated=False, seconds=17.0, speech=_SPOKEN, invented=_INVENTED
+    ),
+    "asr-silence-gated": _asr_detector(
+        gated=True, seconds=17.0, speech=_SPOKEN, invented=_INVENTED
+    ),
+    "asr-silence-sparse": _asr_detector(
+        gated=False, seconds=60.0, speech=_SPARSE_SPEECH, invented=_SPARSE_INVENTED
+    ),
+    "asr-silence-too-short-to-learn": _asr_detector(
+        gated=False, seconds=1.5, speech=[(0.2, 0.6)], invented=[(1.0, 1.4)]
+    ),
 }
 
-SCALINGS = {
-    "0dB": lambda alone: {},
-    "all-12dB": lambda alone: dict.fromkeys(("host", "guest"), -12.0),
-    "all-24dB": lambda alone: dict.fromkeys(("host", "guest"), -24.0),
-    "one-track-24dB": lambda alone: {alone: -24.0},
-}
+# Every track recorded this many dB louder (+) or quieter (-) than the 0 dB scene.
+ALL_TRACK_GAINS = (6.0, 12.0, -12.0, -24.0, -34.0, -36.0, -40.0)
+
+
+def _scalings() -> dict[str, tuple[float | None, Callable[[str], dict[str, float]]]]:
+    scalings: dict[str, tuple[float | None, Callable[[str], dict[str, float]]]] = {
+        "0dB": (0.0, lambda alone: {})
+    }
+    for gain in ALL_TRACK_GAINS:
+        scalings[f"all{gain:+.0f}dB"] = (
+            gain,
+            lambda alone, gain=gain: dict.fromkeys(("host", "guest"), gain),
+        )
+    scalings["one-track-24dB"] = (None, lambda alone: {alone: -24.0})
+    return scalings
+
+
+SCALINGS = _scalings()
 
 
 @pytest.mark.parametrize("scaling", SCALINGS)
@@ -463,7 +748,10 @@ def test_a_detector_decides_the_same_at_any_recording_level(
     tmp_path: Path, name: str, scaling: str
 ) -> None:
     detector = DETECTORS[name]
-    project = _scaled(detector.scene(tmp_path), SCALINGS[scaling](detector.alone))
+    gain, gains = SCALINGS[scaling]
+    if gain is not None and not detector.quietest_db <= gain <= detector.loudest_db:
+        pytest.skip(f"{name} is not pinned at {gain:+.0f} dB")
+    project = _scaled(detector.scene(tmp_path), gains(detector.alone))
     detector.same(detector.outcome(project), detector.expected)
 
 
@@ -480,7 +768,7 @@ def test_a_fixed_voice_floor_would_break_the_contract(tmp_path: Path) -> None:
     """Sabotage: every lane read against -48 dBFS again moves the handoff with the level."""
     detector = DETECTORS["handoff"]
     with patch.object(LevelProfile, "voice_floor_db", PropertyMock(return_value=-48.0)):
-        quieter = _scaled(detector.scene(tmp_path), SCALINGS["all-24dB"](detector.alone))
+        quieter = _scaled(detector.scene(tmp_path), SCALINGS["all-24dB"][1](detector.alone))
         assert detector.outcome(quieter) != detector.expected
 
 
