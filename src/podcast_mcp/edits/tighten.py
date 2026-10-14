@@ -237,7 +237,8 @@ def _flag_possible_words(
     """Mark acoustic proposals the project's Whisper hears as a word (``:possible_word``)."""
     if not AcousticGapConfig.from_tighten(cfg.get("tighten")).word_probe:
         return
-    if not any(is_acoustic_filler_reason(d.reason) for d in decisions):
+    acoustic = sum(1 for d in decisions if is_acoustic_filler_reason(d.reason))
+    if not acoustic:
         return
 
     def window(track_id: str, start: float, end: float) -> np.ndarray | None:
@@ -254,7 +255,7 @@ def _flag_possible_words(
             {t.track_id: t.language for t in project.transcripts},
         )
     except WhisperWeightsMissingError:
-        skip_counts["word_probe:unavailable"] = len(decisions)
+        skip_counts["word_probe:unavailable"] = acoustic
 
 
 def apply_tighten_decisions(project: EpisodeProject) -> int:
