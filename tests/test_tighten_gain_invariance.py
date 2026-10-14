@@ -17,7 +17,7 @@ import pytest
 from podcast_mcp.edits.silence_islands import suggest_handoff_cut
 from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
-from podcast_mcp.engines.audio_audit import TrackRmsCache, build_track_rms_caches
+from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
