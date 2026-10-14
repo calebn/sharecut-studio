@@ -144,11 +144,11 @@ inserted sample tiles. See [filler cut quality](filler-cut-quality.md#policy).
 | `micro_fade_ms` | Default fade length at optimized joins |
 | `short_cut_max_sec` | Only apply trailing-energy end extend when cut ≤ this (default `1.2`) |
 | `trailing_energy_extend_ms` | Max forward search / chew when end is mid-filler energy (default `350`) |
-| `trailing_energy_hot_over_floor_db` / `trailing_energy_quiet_over_floor_db` | RMS thresholds for “still speaking” (default `6`) vs quiet enough to stop / skip (default `-3`), in dB over the track's voice floor (`LevelProfile.voice_floor_db`, read through `track_level_profile` / `TrackAudioCache.profile`), so the recording's level does not move them |
+| `trailing_energy_hot_over_floor_db` / `trailing_energy_quiet_over_floor_db` | RMS thresholds for “still speaking” (default `6`) vs quiet enough to stop / skip (default `-3`), in dB over the selected recording's voice floor (`LevelProfile.voice_floor_db`). Source-aware cuts use `file_level_profile` for the selected file; primary-track cuts use `track_level_profile` and its `TrackAudioCache.profile` when available. Trailing-energy extension and trailing-silence absorption use the same profile. The offsets and optimizer, pacing, and speech-guard policies are unchanged. |
 | `absorb_trailing_silence` | Extend cut end through quiet air before the next word (default `true`) |
 | `absorb_trailing_silence_retain_sec` | Breath left before the next word (default `0.4`) |
 | `absorb_trailing_silence_max_sec` | Only absorb when next word is within this gap (default `2.0`) |
-| `absorb_trailing_silence_quiet_over_floor_db` | Max RMS in the gap, in dB over the track's voice floor, to treat as absorbable silence (default `-3`) |
+| `absorb_trailing_silence_quiet_over_floor_db` | Max RMS in the gap, in dB over the selected recording's voice floor, to treat as absorbable silence (default `-3`) |
 | `weights.energy` / `zero_cross` / `continuity` | Candidate scoring weights |
 
 ## CLI
