@@ -491,7 +491,13 @@ def _peer_speaks_near_span(
                 unavailable = True
     # Under the track's own voice floor a frame holds no voice, whatever its room is (#1549): a
     # peer whose room tone sits 40 dB under its speech never "speaks" in it.
-    audible = _peer_profile(project, peer_track_id, caches).audibility_floor_db + gain
+    # A track with no recording, no live audio or no contrast has no voice level to read it against.
+    audible = (
+        _peer_profile(project, peer_track_id, caches).audibility_floor_db
+        if track and track.media
+        else -math.inf
+    )
+    audible = audible + gain if math.isfinite(audible) else -math.inf
     blocks: list[tuple[float, float]] = []
     for left, right in decision_spans:
         block_start = left
