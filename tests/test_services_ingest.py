@@ -273,7 +273,7 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
                 ],
             )
         ],
-        cross_speaker_offsets={"Host": 0.5},
+        cross_speaker_offsets={"Host": -0.5},
         session_start_in_file_sec={"Host": 1.0},
         cross_speaker_align_method={"Host": "audio"},
     )
@@ -289,7 +289,7 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
     proj = load_project(minimal_project)
     assert len(proj.timeline.tracks) == 1
     assert proj.timeline.tracks[0].speaker == "Host"
-    assert proj.sources and proj.sources[0].offset_sec == 0.5
+    assert proj.sources and proj.sources[0].offset_sec == -0.5
     assert proj.meta.ingest_alignment is not None
     assert proj.meta.ingest_alignment["Host"].content_align_sec == 0.5
 
@@ -669,7 +669,7 @@ def test_apply_places_clip_by_session_start(minimal_project: Path, sample_wav: P
 
 def test_apply_places_clip_by_content_align(minimal_project: Path, sample_wav: Path) -> None:
     (clip,), _ = _apply_placed(
-        minimal_project, sample_wav, content=2.0, session_start=0.0, trimmed=False
+        minimal_project, sample_wav, content=-2.0, session_start=0.0, trimmed=False
     )
     assert clip.source_start == 0.0
     assert clip.timeline_start == 2.0
