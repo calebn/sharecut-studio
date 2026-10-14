@@ -30,14 +30,33 @@ vi.mock("../hooks/useViewportClass", async (importOriginal) => ({
   useViewportClass: () => viewport.shell,
 }));
 
-const offlineStore = vi.hoisted(() => ({
-  clearConflicts: vi.fn(),
-  clearHostConflicts: vi.fn(),
-  loadConflicts: vi.fn(),
-  loadCommandQueue: vi.fn(),
-  loadHostCommandCount: vi.fn(),
-  loadHostConflicts: vi.fn(),
-}));
+const offlineStore = vi.hoisted(() => {
+  const state = {
+    clearConflicts: vi.fn(),
+    clearHostConflicts: vi.fn(),
+    loadConflicts: vi.fn(),
+    loadCommandQueue: vi.fn(),
+    loadHostCommandCount: vi.fn(),
+    loadHostConflicts: vi.fn(),
+  };
+  return {
+    ...state,
+    loadHostAttention: vi.fn(async (projectPath: string) => {
+      const [pending, conflicts] = await Promise.all([
+        state.loadHostCommandCount(projectPath),
+        state.loadHostConflicts(projectPath),
+      ]);
+      return { pending, conflicts };
+    }),
+    loadGuestAttention: vi.fn(async (token: string) => {
+      const [, conflicts] = await Promise.all([
+        state.loadCommandQueue(token),
+        state.loadConflicts(token),
+      ]);
+      return { pending: 0, conflicts };
+    }),
+  };
+});
 
 vi.mock("../state/offlineStore", () => offlineStore);
 
