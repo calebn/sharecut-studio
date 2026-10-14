@@ -513,7 +513,8 @@ def test_zero_and_negative_loss_rows_cannot_consume_the_eligible_twin(
     assert ws.project.model_dump(mode="json") == before_model
     assert service.apply_auto() == 1
     saved = load_project(ws.path)
-    assert [e.id for e in saved.edit_decisions] == ["loss-held"]
+    # The eligible cut plays away the held pause's span, so the proposal is retired (#1487).
+    assert saved.edit_decisions == []
     assert [r.decision_ids for r in saved.editorial.edit_log] == [["eligible"]]
     assert (
         saved.editorial.edit_log[0].timeline_start,

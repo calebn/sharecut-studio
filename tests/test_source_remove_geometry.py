@@ -23,6 +23,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _workspace(tmp_path: Path) -> ProjectWorkspace:
@@ -200,18 +201,23 @@ def test_saved_known_finite_identity_lane_remove_materializes_real_clips(tmp_pat
 def test_saved_unresolved_or_intentionally_empty_identity_remove_holds(tmp_path: Path, empty: bool):
     ws = _workspace(tmp_path)
 
-    def setup(project: EpisodeProject):
-        project.clips = []
-        project.tracks[0].timeline_empty = empty
-        if not empty:
-            project.tracks[0].media.duration_sec = None
-        project.edit_decisions = [_cut()]
-
-    ws.mutate("before identity", "after identity", setup)
+    # Saved directly: a mutation would retire the proposal this test needs to hold (#1487).
+    ws.project.clips = []
+    ws.project.tracks[0].timeline_empty = empty
+    if not empty:
+        ws.project.tracks[0].media.duration_sec = None
+    ws.project.edit_decisions = [_cut()]
+    ws.save()
     before = ws.path.read_bytes()
-    with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"])
-    assert held.value.held[0].reason == ("source_geometry" if empty else "media_extent_unavailable")
+    if empty:
+        # No clip plays the span, so approval refuses the proposal outright (#1487).
+        with pytest.raises(CodedValueError) as refused:
+            EditService(ws).approve(["cut"])
+        assert refused.value.code == "edit_span_not_played"
+    else:
+        with pytest.raises(ScopeChangedAtApproval) as held:
+            EditService(ws).approve(["cut"])
+        assert held.value.held[0].reason == "media_extent_unavailable"
     assert ws.path.read_bytes() == before
     assert ws.project.clips == []
     assert [e.id for e in ws.project.edit_decisions] == ["cut"]

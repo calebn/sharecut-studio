@@ -206,14 +206,10 @@ def test_suggested_preview_refuses_a_pause_with_repeated_source(tmp_path: Path) 
 
 def test_a_pause_without_mapped_clips_is_held(tmp_path: Path) -> None:
     ws = _workspace(tmp_path)
-    ws.mutate(
-        "before removing placements",
-        "after removing placements",
-        lambda p: (
-            setattr(p, "clips", [c for c in p.clips if c.track_id != "host"]),
-            setattr(p.tracks[0], "timeline_empty", True),
-        ),
-    )
+    # Saved directly: a mutation would retire the proposal this test needs to hold (#1487).
+    ws.project.clips = [c for c in ws.project.clips if c.track_id != "host"]
+    ws.project.tracks[0].timeline_empty = True
+    ws.save()
 
     _assert_held(ws, ["pause"])
 
