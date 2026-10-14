@@ -95,7 +95,15 @@ export function MobileShellView({
         </div>
       ) : null}
       <main className="mobile-mode-body" tabIndex={-1}>
-        <div className="mobile-status-row">{chrome.status}</div>
+        <div
+          className={
+            screen.kind === "listen"
+              ? "mobile-status-row"
+              : "mobile-status-row mobile-status-row--overlay"
+          }
+        >
+          {chrome.status}
+        </div>
         {screen.kind === "listen" && screen.content}
         {screen.kind === "timeline" && (
           <div className="mobile-timeline-mode">
