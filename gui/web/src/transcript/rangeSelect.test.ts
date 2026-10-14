@@ -113,7 +113,7 @@ describe("wordAtPoint", () => {
     chip.append(inner);
     expect(
       wordAtPoint({ elementsFromPoint: () => [sheet, inner] }, 10, 10),
-    ).toEqual({ trackId: "guest", wordIndex: 7 });
+    ).toEqual({ trackId: "guest", sourceId: null, wordIndex: 7 });
   });
 
   it("finds nothing over plain text", () => {

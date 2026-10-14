@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { presenceAnchor } from "../presence/anchors";
+import { transcriptWordPresenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
@@ -130,7 +130,7 @@ describe("transcript.next/prevLowConfidence", () => {
         .find((w) => w.text === text)!;
       expect(s.playheadSec).toBe(word.timeline_start);
       expect(s.transcriptScrollRequest).toBe(
-        presenceAnchor("transcript", "word", trackId, wordIndex),
+        transcriptWordPresenceAnchor(trackId, null, wordIndex),
       );
       expect(s.statusAnnouncement).toBe(
         `Low-confidence word ${(i % 3) + 1} of 3: ${text}`,
@@ -191,7 +191,7 @@ describe("transcript.next/prevLowConfidence", () => {
     // The cut-away step does not seek: playhead stays at the previous stop's time.
     expect(s.playheadSec).toBe(3);
     expect(s.transcriptScrollRequest).toBe(
-      presenceAnchor("transcript", "word", "guest", 1),
+      transcriptWordPresenceAnchor("guest", null, 1),
     );
   });
 
@@ -277,7 +277,7 @@ describe("transcript.next/prevLowConfidence", () => {
     });
     expect(s.playheadSec).toBe(0.5);
     expect(s.transcriptScrollRequest).toBe(
-      presenceAnchor("transcript", "word", "host", 1),
+      transcriptWordPresenceAnchor("host", null, 1),
     );
   });
 });

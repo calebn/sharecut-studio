@@ -133,6 +133,7 @@ describe("TranscriptPanel suppressed-only rows (#758)", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptWord",
       trackId: "guest",
+      sourceId: null,
       wordIndex: 0,
     });
 
@@ -147,6 +148,7 @@ describe("TranscriptPanel suppressed-only rows (#758)", () => {
       0,
       false,
       "um",
+      null,
     );
 
     await expectNoA11yViolations(container);

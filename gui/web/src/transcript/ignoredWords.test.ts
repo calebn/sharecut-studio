@@ -49,8 +49,18 @@ describe("ignoredRuns", () => {
       ]),
     );
     expect(runs).toEqual([
-      { trackId: "host", startWordIndex: 1, endWordIndex: 2 },
-      { trackId: "host", startWordIndex: 4, endWordIndex: 4 },
+      {
+        trackId: "host",
+        sourceId: null,
+        startWordIndex: 1,
+        endWordIndex: 2,
+      },
+      {
+        trackId: "host",
+        sourceId: null,
+        startWordIndex: 4,
+        endWordIndex: 4,
+      },
     ]);
   });
 
@@ -75,7 +85,12 @@ describe("ignoredRuns", () => {
       ]),
     );
     expect(runs).toEqual([
-      { trackId: "host", startWordIndex: 0, endWordIndex: 1 },
+      {
+        trackId: "host",
+        sourceId: null,
+        startWordIndex: 0,
+        endWordIndex: 1,
+      },
     ]);
   });
 });
@@ -101,6 +116,33 @@ describe("selectionAllIgnored", () => {
 });
 
 describe("ignoreTarget", () => {
+  it("uses the selected recording when the caller omits source identity", () => {
+    const selection: Selection = {
+      kind: "transcriptWord",
+      trackId: "host",
+      sourceId: "take-b",
+      wordIndex: 0,
+    };
+    const target = ignoreTarget(null, selection, { ignored: true });
+
+    expect(target?.sourceId).toBe("take-b");
+  });
+
+  it("keeps explicit primary identity when another recording is selected", () => {
+    const selection: Selection = {
+      kind: "transcriptWord",
+      trackId: "host",
+      sourceId: "take-b",
+      wordIndex: 0,
+    };
+    const target = ignoreTarget(null, selection, {
+      sourceId: null,
+      ignored: true,
+    });
+
+    expect(target?.sourceId).toBeNull();
+  });
+
   it("uses explicit args over the selection", () => {
     const target = ignoreTarget(null, null, {
       trackId: "host",
@@ -110,6 +152,7 @@ describe("ignoreTarget", () => {
     });
     expect(target).toEqual({
       trackId: "host",
+      sourceId: null,
       startWordIndex: 2,
       endWordIndex: 4,
       ignored: true,
@@ -133,6 +176,7 @@ describe("ignoreTarget", () => {
     const target = ignoreTarget(project, selection, {});
     expect(target).toEqual({
       trackId: "host",
+      sourceId: null,
       startWordIndex: 0,
       endWordIndex: 1,
       ignored: true,
@@ -166,6 +210,7 @@ describe("ignoreTarget", () => {
     const target = ignoreTarget(null, selection, { ignored: true });
     expect(target).toEqual({
       trackId: "host",
+      sourceId: null,
       startWordIndex: 3,
       endWordIndex: 3,
       ignored: true,

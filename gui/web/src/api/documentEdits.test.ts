@@ -192,7 +192,14 @@ describe("word commands on a multi-take track (#1476)", () => {
 
   it("sends the recording the indexed words belong to", async () => {
     vi.mocked(useDawStore.getState).mockReturnValue(lane("take1") as never);
-    await setTranscriptWordSuppressed("/tmp/ep", "host", 0, true);
+    await setTranscriptWordSuppressed(
+      "/tmp/ep",
+      "host",
+      0,
+      true,
+      undefined,
+      "take1",
+    );
     expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
       "/tmp/ep",
       "SetTranscriptWordSuppressed",
