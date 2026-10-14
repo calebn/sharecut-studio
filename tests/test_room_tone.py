@@ -543,3 +543,51 @@ def test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull(tmp_path: Pat
 
     assert held.value.held[0].reason == "source_geometry"
     assert project.model_dump() == before
+
+
+def test_room_tone_is_picked_once_and_recorded_with_the_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    assert room_tone.read_room_tone_pool(project, "host") is None
+
+    pool = room_tone.record_room_tone_pool(project, "host")
+    assert pool
+    assert all(
+        not any(s < x.end and x.start < e for _, s, e in WORDS)
+        and not (x.end > 2.6 and x.start < 3.9)
+        for x in pool
+    )
+
+    # A later process reads the record: no decode, no measuring, no picking again.
+    room_tone._POOLS.clear()
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("a recorded pool must not read audio")
+
+    monkeypatch.setattr(room_tone, "track_floor", refuse)
+    monkeypatch.setattr(room_tone, "load_mono_window", refuse)
+    monkeypatch.setattr(room_tone, "_pick_sample", refuse)
+    assert room_tone.record_room_tone_pool(project, "host") == pool
+
+    nearest = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3)
+    assert isinstance(nearest, OwnQuietSample)
+    assert any(x.start <= nearest.sample.start and nearest.sample.end <= x.end for x in pool)
+    avoided = (nearest.sample.start - 0.01, nearest.sample.end + 0.01)
+    other = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3, avoid=[avoided])
+    assert isinstance(other, OwnQuietSample)
+    assert other.sample.end <= avoided[0] or other.sample.start >= avoided[1]
+
+
+def test_a_replaced_recording_is_picked_again(tmp_path: Path) -> None:
+    from podcast_mcp.edits import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    room_tone.record_room_tone_pool(project, "host")
+    room_tone._POOLS.clear()
+    assert room_tone.read_room_tone_pool(project, "host") is not None
+
+    _write_wav(tmp_path / "raw" / "host.wav", _host_audio(floor_db=-65.0))
+    assert room_tone.read_room_tone_pool(project, "host") is None

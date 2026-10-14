@@ -25,14 +25,21 @@ level for the same credibility rule (``edits/gate_fill.py``).
 A request ranks the quiet runs by distance from the cut (all of them sit at the floor,
 so the nearest matches the room at the cut best), takes the window of its length nearest
 the cut from each, and returns the first window that passes every row of ``CHECKS``.
-Spectral flatness is not a check: on the lab tape the room floor's flatness (median
+Picking is done once per recording: :func:`record_room_tone_pool` runs that pick at evenly
+spaced points along the track, keeps the samples that passed, and records them under the
+project's ``artifacts``, keyed on the recording's identity. A request on a track with a pool
+takes the nearest pooled sample that is clear of ``avoid``, reading no audio; a track
+without one picks as above. Spectral flatness is not a check: on the lab tape the room floor's flatness (median
 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold
 separates them; the floor band does.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import math
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -43,6 +50,7 @@ import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
 from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.project_state import FileRevision, file_revision
@@ -212,6 +220,14 @@ def room_tone_span(
         return SampleAbsent("missing_track", bed_failure=bed.cause)
     if track.media is None:
         return SampleAbsent("missing_media", bed_failure=bed.cause)
+    pooled = _from_pool(
+        read_room_tone_pool(project, track_id) or (),
+        near_sec=near_sec,
+        duration_sec=duration_sec,
+        avoid=avoid,
+    )
+    if pooled is not None:
+        return pooled
     read = track_floor(track_audio_path(project, track_id))
     if isinstance(read, Unmeasured):
         return SampleAbsent(read.cause, bed_failure=bed.cause)
@@ -225,6 +241,130 @@ def room_tone_span(
             selected.cause, selected.rejected_checks, selected.unreadable_windows, bed.cause
         )
     return selected
+
+
+# Pool: one pick per recording, at this many evenly spaced points along the track.
+POOL_ANCHORS = 12
+# Each pooled sample is up to this long; a request takes the piece it needs.
+POOL_SAMPLE_SEC = 2.0
+_POOL_REV = 1
+_POOL_RECORDS_KEPT = 64
+_POOLS: dict[tuple[str, FileRevision], tuple[Sample, ...]] = {}
+_POOLS_LOCK = threading.Lock()
+
+
+def _pool_key(path: Path) -> tuple[str, FileRevision] | None:
+    try:
+        resolved = path.resolve(strict=True)
+        return str(resolved), file_revision(resolved)
+    except OSError:
+        return None
+
+
+def _pool_record_path(project: EpisodeProject, key: tuple[str, FileRevision]) -> Path:
+    from podcast_mcp.util.hashing import short_digest
+
+    return (
+        project.artifacts_dir()
+        / "room_tone_pools"
+        / f"{short_digest(json.dumps([_POOL_REV, *map(str, key)]))}.json"
+    )
+
+
+def read_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
+    """The track's pooled samples; ``()`` when none passed, None when it was never picked.
+
+    Read from the process's memory, else from the record an earlier process made. Never
+    writes, never decodes: a planning or preview request costs a file read.
+    """
+    track = project.track_by_id(track_id)
+    if track is None or track.media is None:
+        return None
+    try:
+        key = _pool_key(track_audio_path(project, track_id))
+    except (OSError, ValueError):
+        return None
+    if key is None:
+        return None
+    with _POOLS_LOCK:
+        known = _POOLS.get(key)
+    if known is not None:
+        return known
+    try:
+        values = json.loads(_pool_record_path(project, key).read_text(encoding="utf-8"))
+        pool = tuple(
+            Sample(float(a), float(b), float(c), None if d is None else float(d))
+            for a, b, c, d in values["samples"]
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not all(math.isfinite(x.rms_db) and x.end > x.start >= 0 for x in pool):
+        return None
+    with _POOLS_LOCK:
+        _POOLS[key] = pool
+    return pool
+
+
+def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
+    """Pick the track's room tone once and record it with the project.
+
+    A no-op returning the recorded pool when there is one. Runs the pick at ``POOL_ANCHORS``
+    points along the track (a pass over its quiet runs each, measuring audio), so it belongs
+    in ingest or a background warm, never in a request. None when the recording cannot be
+    read; ``()`` (also recorded) when it is gated or no sample passes, so it is not picked again.
+    """
+    known = read_room_tone_pool(project, track_id)
+    if known is not None:
+        return known
+    track = project.track_by_id(track_id)
+    if track is None or track.media is None:
+        return None
+    path = track_audio_path(project, track_id)
+    key = _pool_key(path)
+    read = track_floor(path)
+    if key is None or isinstance(read, Unmeasured):
+        return None
+    pool: list[Sample] = []
+    if isinstance(read, LiveFloor) and not read.gated and read.floor.runs:
+        low, high = read.floor.runs[0][0], read.floor.runs[-1][1]
+        for index in range(POOL_ANCHORS):
+            anchor = low + (high - low) * (index + 0.5) / POOL_ANCHORS
+            picked = _pick_sample(read.floor, near_sec=anchor, duration_sec=POOL_SAMPLE_SEC)
+            if isinstance(picked, OwnQuietSample) and all(
+                picked.sample.start != kept.start for kept in pool
+            ):
+                pool.append(picked.sample)
+    result = tuple(pool)
+    record = _pool_record_path(project, key)
+    try:
+        record.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(
+            record,
+            json.dumps({"samples": [[x.start, x.end, x.rms_db, x.speech_prob] for x in result]}),
+        )
+        for old in sorted(record.parent.glob("*.json"), key=lambda p: p.stat().st_mtime)[
+            :-_POOL_RECORDS_KEPT
+        ]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        log.debug("room tone pool not recorded to %s", record, exc_info=True)
+    with _POOLS_LOCK:
+        _POOLS[key] = result
+    return result
+
+
+def _from_pool(
+    pool: Sequence[Sample], *, near_sec: float, duration_sec: float, avoid: Sequence[Span]
+) -> OwnQuietSample | None:
+    """The pooled sample nearest ``near_sec`` with a clear piece long enough, else None."""
+    need = min(duration_sec, MIN_SAMPLE_SEC)
+    ranked = sorted(pool, key=lambda x: max(x.start - near_sec, near_sec - x.end, 0.0))
+    for sample in ranked:
+        for piece in subtract_intervals([(sample.start, sample.end)], avoid):
+            if piece[1] - piece[0] >= need - 1e-9:
+                start, end = _window_nearest(piece, near_sec, duration_sec)
+                return OwnQuietSample(Sample(start, end, sample.rms_db, sample.speech_prob))
+    return None
 
 
 def _pick_sample(

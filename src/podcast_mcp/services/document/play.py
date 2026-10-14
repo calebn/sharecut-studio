@@ -30,6 +30,7 @@ from podcast_mcp.edits.pending_preview import (
     resolve_pending_preview,
 )
 from podcast_mcp.edits.ripple import plan_trim
+from podcast_mcp.edits.room_tone import record_room_tone_pool
 from podcast_mcp.edits.timeline_ops import roll_clip_join, trim_clip_edge
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
@@ -65,6 +66,7 @@ from podcast_mcp.services.media import schedule_stem_waveforms
 from podcast_mcp.services.session_sync import publish_agent_play
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import short_digest
@@ -1586,6 +1588,7 @@ class PlayService:
         dry_run: bool = False,
         player: str | None = None,
         rerender: bool = False,
+        lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
     ) -> PlayResult:
         """Current / Suggested / A/B full mix around a pending edit.
 
@@ -1602,10 +1605,13 @@ class PlayService:
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
             raise CodedValueError(window.suggest_reason, code="pending_preview_unavailable")
-        wavs = [
-            self._pending_window_wav(window, side, rerender=rerender)
-            for side in _PENDING_SIDES[kind]
-        ]
+        # One scope for the sides: a path resolution or decode of an unchanged file is paid
+        # once, not once per word the Suggested side's approval re-optimizes against.
+        with batch_scope():
+            wavs = [
+                self._pending_window_wav(window, side, rerender=rerender, lock_timeout=lock_timeout)
+                for side in _PENDING_SIDES[kind]
+            ]
         if kind == "ab":
             return self.play_ab_wavs(
                 wavs[0],
@@ -1757,11 +1763,17 @@ class PlayService:
                     track_level_profile(self.project, track.id, sample_rate=rate, record=True)
                 except (OSError, ValueError, KeyError):
                     log.debug("level profile warm skipped for %s", track.id, exc_info=True)
+            try:
+                record_room_tone_pool(self.project, track.id)
+            except (OSError, ValueError, KeyError):
+                log.debug("room tone pool skipped for %s", track.id, exc_info=True)
         sides: dict[str, str] = {}
         if edit_id is not None:
             for mode in _PENDING_SIDES:
                 try:
-                    self.play_pending_preview(edit_id, mode=mode, dry_run=True)
+                    self.play_pending_preview(
+                        edit_id, mode=mode, dry_run=True, lock_timeout=lock_timeout
+                    )
                     sides[mode] = "ready"
                 except (CodedValueError, KeyError, ValueError):
                     log.debug("pending %s not warmed for %s", mode, edit_id, exc_info=True)
@@ -1806,7 +1818,12 @@ class PlayService:
         return path
 
     def _pending_window_wav(
-        self, window: PendingPreviewWindow, side: str, *, rerender: bool
+        self,
+        window: PendingPreviewWindow,
+        side: str,
+        *,
+        rerender: bool,
+        lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
     ) -> Path:
         out = self._pending_window_path(window, side)
         if out.is_file() and not rerender:
@@ -1817,7 +1834,7 @@ class PlayService:
             play_end = apply_for_suggested(project, window)
         else:
             project, play_end = self.project, window.play_end
-        trim = self.mix_trim_db()
+        trim = self.mix_trim_db(lock_timeout=lock_timeout)
         with tempfile.TemporaryDirectory(dir=out.parent) as directory:
             segments: list[tuple[Path, float]] = []
             for track in project.tracks:
