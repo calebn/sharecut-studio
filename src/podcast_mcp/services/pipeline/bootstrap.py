@@ -124,7 +124,7 @@ def word_aligner_component() -> dict[str, Any]:
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
-    """Return GUI first-run readiness without downloads; FFmpeg gets fresh probes."""
+    """Return GUI first-run readiness without downloads."""
     from podcast_mcp.engines.vad_silero import is_available as silero_available
 
     model = resolve_whisper_model(requested=whisper_model)
