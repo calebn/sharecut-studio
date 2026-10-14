@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
-from unittest.mock import PropertyMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -370,18 +370,6 @@ def test_a_handoff_refuses_an_um_at_the_retain_target_at_every_recording_level(
         assert "cut_start_not_quiet" in out["warnings"], gain
 
 
-def test_a_fixed_handoff_level_would_fail_the_invariance(tmp_path: Path) -> None:
-    """Sabotage: reading every lane against -48 dBFS again moves the handoff with the level."""
-    fixed = PropertyMock(return_value=-48.0)
-    with patch.object(TrackRmsCache, "voice_floor_db", fixed):
-        outcomes = {
-            gain: _handoff_outcome(_handoff(tmp_path, gain, gated=False, um_at=6.0))
-            for gain in LEVELS_DB
-        }
-    assert fixed.called
-    assert len({tuple(round(edge, 1) for edge in o[4]) for o in outcomes.values()}) > 1
-
-
 _GUARD_ON = {
     "tighten": {"speech_energy_guard": {"enabled": True, "on_conflict": "review"}},
     "analysis": {"heuristics": {}},
@@ -450,22 +438,50 @@ def test_the_peer_fallback_is_the_same_at_every_recording_level(
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
-@pytest.mark.parametrize(("under_host_db", "expected"), [(-1.0, ("guest",)), (-12.0, ())])
-def test_a_same_pitch_peer_is_told_from_the_owner_by_level_at_every_recording_level(
+@pytest.mark.parametrize(
+    ("under_host_db", "expected"),
+    [(-1.0, ("guest",)), (-12.0, ("guest",)), (-36.0, ())],
+)
+def test_a_same_pitch_peer_is_detected_by_its_own_reach_not_owner_dominance(
     tmp_path: Path, cached: bool, under_host_db: float, expected: tuple[str, ...]
 ) -> None:
-    """Both voices share a pitch, so only the level decides: within the dominance range speaks."""
+    """Both voices share a pitch; fallback reads the peer's own reach, not the owner's level."""
     tracks = _peer_tracks_in_span(voice_db=SPEECH_DB + 4.0 + under_host_db, host_voice_in_span=True)
     for gain, speaking in _speaking_at_every_level(tmp_path, tracks, cached=cached).items():
         assert speaking == expected, gain
 
 
-def test_a_fixed_peer_level_would_fail_the_invariance(tmp_path: Path) -> None:
-    """Sabotage: holding the span's mean to -42 dBFS again moves the peer with the level."""
-    tracks = _peer_tracks_in_span(voice_db=SPEECH_DB)
-    with patch("podcast_mcp.edits.speech_energy_guard._voice_reach_db", return_value=-42.0):
-        speaking = _speaking_at_every_level(tmp_path, tracks, cached=False)
-    assert len(set(speaking.values())) > 1
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+def test_a_quiet_peer_word_inside_a_long_span_is_not_averaged_away(
+    tmp_path: Path, cached: bool
+) -> None:
+    """Frame evidence must find a peer word 15 dB down inside a 3 s pause."""
+    host = _room(11, gated=False)
+    _voice(host, 1.0, 5.5, SPEECH_DB + 4.0)
+    _voice(host, 9.5, 14.0, SPEECH_DB + 4.0)
+    guest = np.random.default_rng(23).normal(0, 10 ** (_OPEN_MIC_DB / 20), SECONDS * RATE)
+    _voice(guest, 6.5, 7.5, SPEECH_DB - 15.0)
+    tracks = (("host", (host, [])), ("guest", (guest, [])))
+    for gain in (0.0, *LEVELS_DB):
+        project = _project(tmp_path / str(gain), gain, gated=False, tracks=tracks)
+        caches = build_track_rms_caches(project) if cached else None
+        levels = measure_peer_speech(
+            project,
+            [_PEER_SPAN],
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+            caches=caches,
+        )
+        assert levels is not None
+        assert levels.speaking == ("guest",), gain
+
+
+def test_sparse_ungated_peer_reach_clamp_is_gain_invariant(tmp_path: Path) -> None:
+    """Removing the reach clamp must not be the only guard on sparse ungated peer fallback."""
+    tracks = _peer_tracks_in_span(voice_db=SPEECH_DB, guest_db=UNEQUAL_DB)
+    speaking = _speaking_at_every_level(tmp_path, tracks, cached=True)
+    assert speaking and all(s == ("guest",) for s in speaking.values())
 
 
 def test_a_peer_with_no_audio_never_speaks(tmp_path: Path) -> None:

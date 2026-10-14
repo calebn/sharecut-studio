@@ -550,29 +550,96 @@ def _voice_reach_db(
     return reach + (track.gain_db if track else 0.0)
 
 
+def _finite_voice_reach_db(
+    project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None
+) -> float | None:
+    try:
+        reach = _voice_reach_db(project, track_id, caches)
+    except OSError:
+        return None
+    return reach if math.isfinite(reach) else None
+
+
+def _session_voice_reach_db(
+    project: EpisodeProject, peer_track_id: str, caches: TrackRmsCacheSet | None
+) -> float | None:
+    session = [
+        r
+        for tid in dialogue_track_ids(project)
+        if tid != peer_track_id and (r := _finite_voice_reach_db(project, tid, caches)) is not None
+    ]
+    if not session:
+        return None
+    return float(np.median(session))
+
+
+def _peer_voice_in_span(
+    project: EpisodeProject,
+    peer_track_id: str,
+    span: tuple[float, float],
+    caches: TrackRmsCacheSet | None,
+) -> bool | None:
+    """Whether any frame in ``span`` on the peer reaches its own voice level.
+
+    Where no frame-by-frame calibration can be made, each :data:`LEVEL_FRAME_SEC` window is
+    held to the level the peer's voice reaches
+    (:func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`). A peer with no live
+    audio never speaks. A peer whose loudest frames show no contrast with its room has no
+    voice level of its own to read, so it is held to the voice level of the session's other
+    tracks (the median of theirs), at any recording level. ``None`` when the session has no
+    track to read it against.
+    """
+    levels = timeline_frame_levels_db(
+        project,
+        peer_track_id,
+        span[0],
+        span[1],
+        frame_sec=LEVEL_FRAME_SEC,
+        hop_sec=LEVEL_FRAME_SEC,
+    )
+    if levels is None or not levels.size:
+        return None
+    try:
+        reach = _voice_reach_db(project, peer_track_id, caches)
+    except OSError:
+        return None
+    if reach == math.inf:
+        return False
+    if reach == -math.inf:
+        reach = _session_voice_reach_db(project, peer_track_id, caches)
+        if reach is None:
+            return None
+    return bool((levels >= reach).any())
+
+
 def _peer_voice_in_mean(
     project: EpisodeProject, peer_track_id: str, rms: float, caches: TrackRmsCacheSet | None
 ) -> bool | None:
-    """Whether a peer's whole-span mean level ``rms`` (recorded dB) holds its voice.
-
-    Where no frame-by-frame calibration can be made, the span's mean is held to the level
-    the peer's voice reaches (:func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`):
-    a peer with no live audio never speaks. A peer whose loudest frames show no contrast with
-    its room has no voice level of its own to read, so it is held to the voice level of the
-    session's other tracks (the median of theirs), at any recording level. ``None`` when the
-    session has no track to read it against.
-    """
-    reach = _voice_reach_db(project, peer_track_id, caches)
+    """Whether a peer's whole-span mean ``rms`` reaches its voice level when frames cannot be read."""
+    try:
+        reach = _voice_reach_db(project, peer_track_id, caches)
+    except OSError:
+        return None
+    if reach == math.inf:
+        return False
     if reach == -math.inf:
-        session = [
-            r
-            for tid in dialogue_track_ids(project)
-            if math.isfinite(r := _voice_reach_db(project, tid, caches))
-        ]
-        if not session:
+        reach = _session_voice_reach_db(project, peer_track_id, caches)
+        if reach is None:
             return None
-        reach = float(np.median(session))
     return rms >= reach
+
+
+def _peer_voice_fallback(
+    project: EpisodeProject,
+    peer_track_id: str,
+    span: tuple[float, float],
+    rms: float,
+    caches: TrackRmsCacheSet | None,
+) -> bool | None:
+    framed = _peer_voice_in_span(project, peer_track_id, span, caches)
+    if framed is not None:
+        return framed
+    return _peer_voice_in_mean(project, peer_track_id, rms, caches)
 
 
 def measure_peer_speech(
@@ -667,11 +734,11 @@ def measure_peer_speech(
                 else None,
             )
             if calibrated is None:
-                voiced = _peer_voice_in_mean(project, tid, rms, caches)
+                voiced = _peer_voice_fallback(project, tid, (tl_start, tl_end), rms, caches)
                 calibrated = (
                     span_owner is None or rms - span_owner >= dominance
                     if voiced is None
-                    else voiced and (span_owner is None or span_owner - rms < dominance)
+                    else voiced
                 )
             speaks |= calibrated
         if speaks:
