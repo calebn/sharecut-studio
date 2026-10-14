@@ -138,7 +138,7 @@ tape reads as before:
 `scripts/check_level_literals.py` (run by `make lint-py` and `tests/test_level_literals.py`)
 fails on two kinds of absolute level in `edits/` or `engines/`: a negative dB literal, and a
 linear amplitude between `1e-6` and `1` that is compared or bound to a level name (an
-`rms_threshold`, a `min_rms`, a `_SILENCE_STD`). A name that says what the level is relative
+`rms_threshold`, a `min_rms`). A name that says what the level is relative
 to (`*_over_floor_db`, `*_under_voice_db`, `*_power_ratio`) passes, and that is by design:
 the lint reads names, so a relative name over an absolute number is a review matter. The
 allowlist holds physical constants only: the clipping ceiling (`CLIPPING_PEAK_LEVEL_DB`,
@@ -148,8 +148,7 @@ it is matched to (`LongDelayConfig.min_power_ratio`). The ingest gates (`first_s
 `estimate_session_start_in_file`, `vad_speech_intervals`, the acoustic-window `min_rms`) keep
 fixed thresholds and are listed in `ALLOWED` until #1533: a per-window voice reach moved the
 session start of aligned lab tracks by 36 to 48 s, so they need a whole-file reference.
-The ffmpeg filter graph and the
-delivery loudness targets set render levels, not detection thresholds, and are not scanned.
+The ffmpeg filter graph and the delivery loudness targets set render levels, not detection thresholds, and are not scanned.
 `tests/test_tighten_gain_invariance.py` is the one contract: tighten, reconcile, the bleed
 gate, Analyze, the ASR silence filter, the speaker split and long-delay bleed evidence each decide the same at 0, -12 and -24 dB, and
 (for the project-level detectors) with one track alone 24 dB down.
