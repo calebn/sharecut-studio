@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.batch_scope import scoped
 
 
 def resolve_within(root: Path, stored: str, *, base: Path | None = None) -> Path:
@@ -13,10 +14,17 @@ def resolve_within(root: Path, stored: str, *, base: Path | None = None) -> Path
     Relative *stored* paths join onto *base* (default: *root*). Symlinks are
     followed before the check, so a link that points outside *root* is rejected.
     *root* itself is resolved too, so a symlinked root directory still works.
-    Raises ``ValueError`` when the resolved path escapes *root*. The message
+    Raises ``ValueError`` when the resolved path escapes *root*. Inside a
+    :func:`~podcast_mcp.util.batch_scope.batch_scope` a repeat call returns the first result. The message
     includes *stored* (possibly an absolute host path); guest-facing callers must
     catch it and raise a scrubbed message (see ``edits/review_versions._resolve_review_media``).
     """
+    return scoped(
+        ("resolve_within", root, stored, base), lambda: _resolve_within(root, stored, base)
+    )
+
+
+def _resolve_within(root: Path, stored: str, base: Path | None) -> Path:
     root_resolved = root.expanduser().resolve()
     path = Path(stored).expanduser()
     if not path.is_absolute():
