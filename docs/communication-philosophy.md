@@ -273,6 +273,15 @@ the empty state, not a separate discovery task.
   keeps its own `ui/Toast` for comment resolution. A multi-minute
   export whose only "done" signal is invisible is a high-severity bug.
   (Surface 6.)
+- **A press answers at once, and a long one says it is working.** Make the
+  action fast first: a slow command is a defect to fix, not a state to
+  decorate. Work that stays long after that shows, in place beside the
+  control that started it, what is running ("Approving 86 edits…") and, past
+  two seconds, how long it has run. It shows no percent unless the host reports
+  a real total ([progress.md](progress.md)). The control stays disabled with
+  the busy reason, and the status clears when the command ends, leaving the
+  result toast and its Undo. Impact's Approve all and Reject all are the
+  reference (#1491). A job that outlives the panel belongs on the Activity chip.
 - **Destructive list actions get toast-with-undo.** Approve, reject,
   skip, blade, trim: after the mutation, a transient confirmation
   with an Undo action. The History tab is the backstop, not the

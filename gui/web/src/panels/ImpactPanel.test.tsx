@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { approveEdits, rejectEdits, waiveTranscriptRefine } from "../api";
@@ -458,6 +458,33 @@ describe("ImpactPanel bulk review", () => {
       expect(useDawStore.getState().feedbackToast).toBeNull(),
     );
     expect(rejectEdits).not.toHaveBeenCalled();
+  });
+
+  it("shows what is running while the approval is in flight, then clears it", async () => {
+    const user = userEvent.setup();
+    answerQuestions(true);
+    let finish: () => void = () => {};
+    vi.mocked(approveEdits).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({
+              queued: false,
+              asked: false,
+              count: 3,
+              historyHead: null,
+            });
+        }),
+    );
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Approving 3 edits…",
+    );
+    act(() => finish());
+    await waitFor(() =>
+      expect(screen.queryByText(/Approving 3 edits/)).not.toBeInTheDocument(),
+    );
   });
 
   it("offers no Undo while the approval is still sending", async () => {
