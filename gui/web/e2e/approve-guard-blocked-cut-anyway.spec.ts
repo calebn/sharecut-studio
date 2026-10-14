@@ -44,47 +44,56 @@ test("approving a pending cut a peer speaks over asks Cut anyway, then sends it 
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   const before = new Set(await pendingIds(page));
   await openSuggestedPendingEdit(page, e2eProjectPath);
-  await page.route("**/api/document/command**", async (route) => {
-    const body = route.request().postDataJSON() as {
-      type?: string;
-      payload?: Record<string, unknown>;
-    } | null;
-    if (body?.type !== "ApproveEdits") {
-      await route.continue();
-      return;
-    }
-    approvals.push(body.payload ?? {});
-    const confirmed = body.payload?.confirm_cut_speech === true;
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(confirmed ? { ok: true } : ASKED),
+  try {
+    await page.route("**/api/document/command**", async (route) => {
+      const body = route.request().postDataJSON() as {
+        type?: string;
+        payload?: Record<string, unknown>;
+      } | null;
+      if (body?.type !== "ApproveEdits") {
+        await route.continue();
+        return;
+      }
+      approvals.push(body.payload ?? {});
+      const confirmed = body.payload?.confirm_cut_speech === true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(confirmed ? { ok: true } : ASKED),
+      });
     });
-  });
 
-  await page
-    .getByRole("region", { name: "Pending edit actions" })
-    .getByRole("button", { name: "Approve", exact: true })
-    .click();
+    await page
+      .getByRole("region", { name: "Pending edit actions" })
+      .getByRole("button", { name: "Approve", exact: true })
+      .click();
 
-  const dialog = page.getByRole("dialog", { name: "Cut Caleb's speech too?" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Caleb at 0:00.4");
-  await expect(dialog.getByRole("button", { name: "Leave a gap" })).toHaveCount(
-    0,
-  );
-  expect(approvals).toHaveLength(1);
-  expect(approvals[0]).not.toHaveProperty("confirm_cut_speech");
+    const dialog = page.getByRole("dialog", {
+      name: "Cut Caleb's speech too?",
+    });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Caleb at 0:00.4");
+    await expect(
+      dialog.getByRole("button", { name: "Leave a gap" }),
+    ).toHaveCount(0);
+    expect(approvals).toHaveLength(1);
+    expect(approvals[0]).not.toHaveProperty("confirm_cut_speech");
 
-  await dialog.getByRole("button", { name: "Cut anyway" }).click();
+    await dialog.getByRole("button", { name: "Cut anyway" }).click();
 
-  await expect(dialog).toBeHidden();
-  expect(approvals).toHaveLength(2);
-  expect(approvals[1]).toMatchObject({ confirm_cut_speech: true });
-
-  await page.unroute("**/api/document/command**");
-  const created = (await pendingIds(page)).filter((id) => !before.has(id));
-  await postDocumentCommand(page, "e2e-approve-guard-blocked", "RejectEdits", {
-    ids: created,
-  });
+    await expect(dialog).toBeHidden();
+    expect(approvals).toHaveLength(2);
+    expect(approvals[1]).toMatchObject({ confirm_cut_speech: true });
+  } finally {
+    await page.unroute("**/api/document/command**");
+    const created = (await pendingIds(page)).filter((id) => !before.has(id));
+    await postDocumentCommand(
+      page,
+      "e2e-approve-guard-blocked",
+      "RejectEdits",
+      {
+        ids: created,
+      },
+    );
+  }
 });
