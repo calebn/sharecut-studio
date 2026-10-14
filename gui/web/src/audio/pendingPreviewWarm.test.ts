@@ -53,6 +53,23 @@ describe("warmPendingPreview", () => {
     await vi.waitFor(() => expect(hostFetch).toHaveBeenCalledTimes(2));
   });
 
+  it("asks for the mix alone, at a low priority, with no edit", async () => {
+    open("/tmp/mixonly.json");
+    await warmPendingPreview("/tmp/mixonly.json", null);
+    expect(hostFetch).toHaveBeenCalledWith(
+      `/api/pending-preview/warm?path=${encodeURIComponent("/tmp/mixonly.json")}&background=true`,
+      { method: "POST" },
+    );
+  });
+
+  it("reports a busy host as not done", async () => {
+    open("/tmp/busy.json");
+    vi.mocked(hostFetch).mockImplementationOnce(
+      async () => new Response("busy", { status: 503 }),
+    );
+    expect(await warmPendingPreview("/tmp/busy.json", null)).toBe(false);
+  });
+
   it("never asks for a guest", () => {
     open("/tmp/guest.json");
     useDawStore.setState({ guestMode: "edit" });

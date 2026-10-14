@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import nullcontext
 from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -145,22 +146,41 @@ def pending_preview_warm(
     request: Request,
     path: str = Query(...),
     edit_id: str | None = Query(None),
+    background: bool = Query(False),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    """Run a pending preview's whole-episode passes ahead of the first Play around."""
+    """Run a pending preview's whole-episode passes ahead of the first Play around.
+
+    ``background`` is the idle pre-measure: the passes run at a lower CPU priority and give
+    up after a short wait for the render lock, so a render the user starts is never queued
+    behind it for long (the client asks again later).
+    """
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC, render_lock
+    from podcast_mcp.util.process import low_priority
+    from podcast_mcp.util.project_state import (
+        BACKGROUND_RENDER_LOCK_TIMEOUT_SEC,
+        REQUEST_RENDER_LOCK_TIMEOUT_SEC,
+        render_lock,
+    )
 
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     try:
         # Warm the mix as it is once the lock is ours: a warm queued behind another reads
         # what that one recorded, not the mix it was asked about.
-        with render_lock(
-            ProjectWorkspace.open(project_path).project, timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+        with (
+            low_priority() if background else nullcontext(),
+            render_lock(
+                ProjectWorkspace.open(project_path).project,
+                timeout=(
+                    BACKGROUND_RENDER_LOCK_TIMEOUT_SEC
+                    if background
+                    else REQUEST_RENDER_LOCK_TIMEOUT_SEC
+                ),
+            ),
         ):
             return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(edit_id)
     except ValueError as exc:

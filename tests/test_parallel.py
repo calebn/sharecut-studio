@@ -104,3 +104,11 @@ def test_run_parallel_matches_serial_output_for_pure_function():
     serial = run_parallel(items, square, max_workers=1)
     parallel = run_parallel(items, square, max_workers=4)
     assert serial == parallel == [i * i for i in items]
+
+
+def test_run_parallel_tasks_see_the_callers_context():
+    import contextvars
+
+    marker: contextvars.ContextVar[str] = contextvars.ContextVar("marker", default="unset")
+    marker.set("caller")
+    assert run_parallel([1, 2, 3], lambda _i: marker.get(), max_workers=3) == ["caller"] * 3

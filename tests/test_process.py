@@ -12,6 +12,7 @@ from podcast_mcp.util.process import (
     TimeoutExpired,
     detached_children,
     kill_detached_children,
+    low_priority,
     popen,
     run,
 )
@@ -129,3 +130,21 @@ def test_kill_detached_children_kills_a_child_another_thread_is_waiting_on() -> 
         waiter.join(timeout=5)
     assert not waiter.is_alive()
     assert child.returncode != 0
+
+
+@pytest.mark.skipif(not hasattr(os, "setpriority"), reason="no setpriority")
+def test_a_child_started_in_low_priority_runs_nicer_and_one_outside_does_not():
+    base = os.getpriority(os.PRIO_PROCESS, 0)
+    with low_priority(5):
+        proc = popen(_SLEEP)
+    try:
+        assert os.getpriority(os.PRIO_PROCESS, proc.pid) == min(19, max(base, 5))
+    finally:
+        proc.kill()
+        proc.wait()
+    after = popen(_SLEEP)
+    try:
+        assert os.getpriority(os.PRIO_PROCESS, after.pid) == base
+    finally:
+        after.kill()
+        after.wait()

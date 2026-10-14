@@ -116,36 +116,46 @@ export function releasePendingPreview(editId: string): void {
 const warmed = new Map<string, string>();
 
 /**
- * Ask the host to do a pending edit's slow work (mix headroom, track levels and
- * the Current / Suggested / A/B renders) before the first Play around, once per
- * edit and mix. Best effort: a refused or failed warm is asked again, and
- * until it lands the click pays for what is left.
+ * Ask the host to do the slow work behind Play around (mix headroom, track
+ * levels and, for an `editId`, its Current / Suggested / A/B renders) before the
+ * first click, once per edit and mix. Best effort: a refused or failed warm is
+ * asked again, and until it lands the click pays for what is left. With no
+ * `editId` it is the idle pre-measure of the mix alone, which the host runs at a
+ * low priority and drops when a render holds the project.
+ *
+ * Resolves true when the work is done (or was already done for this mix), false
+ * when the host refused, was busy or a side failed.
  */
-export function warmPendingPreview(projectPath: string, editId: string): void {
+export async function warmPendingPreview(
+  projectPath: string,
+  editId: string | null,
+): Promise<boolean> {
   const state = useDawStore.getState();
-  if (isShareProjectKey(projectPath) || state.guestMode !== null) return;
-  if (state.projectPath !== projectPath || !state.project) return;
-  const key = `${projectPath}|${editId}`;
+  if (isShareProjectKey(projectPath) || state.guestMode !== null) return true;
+  if (state.projectPath !== projectPath || !state.project) return true;
+  const key = `${projectPath}|${editId ?? ""}`;
   const mix = mixKey(state.project);
-  if (warmed.get(key) === mix) return;
+  if (warmed.get(key) === mix) return true;
   warmed.set(key, mix);
-  const query = new URLSearchParams({ path: projectPath, edit_id: editId });
-  void (async () => {
-    try {
-      const response = await hostFetch(`/api/pending-preview/warm?${query}`, {
-        method: "POST",
-      });
-      const failed =
-        !response.ok ||
-        Object.values(
-          ((await response.json()) as { sides?: Record<string, string> })
-            .sides ?? {},
-        ).includes("failed");
-      if (failed && warmed.get(key) === mix) warmed.delete(key);
-    } catch {
-      if (warmed.get(key) === mix) warmed.delete(key);
-    }
-  })();
+  const query = new URLSearchParams({ path: projectPath });
+  if (editId === null) query.set("background", "true");
+  else query.set("edit_id", editId);
+  try {
+    const response = await hostFetch(`/api/pending-preview/warm?${query}`, {
+      method: "POST",
+    });
+    const failed =
+      !response.ok ||
+      Object.values(
+        ((await response.json()) as { sides?: Record<string, string> }).sides ??
+          {},
+      ).includes("failed");
+    if (failed && warmed.get(key) === mix) warmed.delete(key);
+    return !failed;
+  } catch {
+    if (warmed.get(key) === mix) warmed.delete(key);
+    return false;
+  }
 }
 
 /**

@@ -18,7 +18,8 @@ import subprocess  # nosec B404
 import threading
 import weakref
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -30,9 +31,26 @@ CompletedProcess = subprocess.CompletedProcess
 TimeoutExpired = subprocess.TimeoutExpired
 Popen = subprocess.Popen
 
+# Niceness for children started in this context (and in pool threads that copy it).
+_niceness: ContextVar[int] = ContextVar("process_niceness", default=0)
+
 _detach_lock = threading.RLock()
 _detach_depth = 0
 _detached: weakref.WeakSet[subprocess.Popen[Any]] = weakref.WeakSet()
+
+
+@contextmanager
+def low_priority(niceness: int = 10) -> Iterator[None]:
+    """Start children at a lower CPU priority while inside this block (background work).
+
+    Per context, not process-wide: a user's own render started meanwhile keeps its priority.
+    No effect where the platform has no ``setpriority``.
+    """
+    token = _niceness.set(niceness)
+    try:
+        yield
+    finally:
+        _niceness.reset(token)
 
 
 @contextmanager
@@ -121,13 +139,24 @@ def _spawn(
         )
 
     if not _detach_depth:
-        return popen_(detach=False)
+        return _niced(popen_(detach=False))
     # Spawn and register under the lock so a concurrent kill never misses this child.
     with _detach_lock:
         detach = _detach_depth > 0
         proc = popen_(detach=detach)
         if detach:
             _detached.add(proc)
+    return _niced(proc)
+
+
+def _niced(proc: subprocess.Popen[Any]) -> subprocess.Popen[Any]:
+    niceness = _niceness.get()
+    if niceness and hasattr(os, "setpriority"):
+        # Already exited, or not ours to lower: it just runs at normal priority.
+        # setpriority is absolute: never raise a child above the server's own niceness.
+        with suppress(OSError):
+            own = os.getpriority(os.PRIO_PROCESS, 0)
+            os.setpriority(os.PRIO_PROCESS, proc.pid, min(19, max(own, niceness)))
     return proc
 
 
