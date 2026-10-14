@@ -11,6 +11,7 @@ import pytest
 from podcast_mcp.engines import bleed_echo
 from podcast_mcp.engines.bleed_echo import EchoConfig, echo_pair_profile, echo_profiles
 from podcast_mcp.engines.level_profile import track_profile
+from podcast_mcp.util.dsp import frame_rms_db
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -323,6 +324,69 @@ def test_echo_risk_pairs_flags_only_the_measured_direction() -> None:
     assert flagged[0].span_start == 0.0
     assert flagged[0].span_end == pytest.approx(20.0, abs=0.01)
     assert _risk_pairs({"host": host, "remote": remote}) == []
+
+
+def _frame_population(
+    src_db: np.ndarray,
+    bld_db: np.ndarray,
+    partner: np.ndarray,
+    cfg: EchoConfig,
+    selected_n: int,
+) -> str:
+    n = min(src_db.size, bld_db.size)
+    open_m = (src_db[:n] > -cfg.source_under_voice_db) & (
+        bld_db[partner] > -cfg.open_under_voice_db
+    )
+    dominated = open_m & (src_db[:n] - bld_db[partner] >= cfg.dominance_db)
+    if selected_n == int(open_m.sum()):
+        return "open"
+    if selected_n == int(dominated.sum()):
+        return "dominated"
+    return "other"
+
+
+def test_one_way_null_uses_the_same_frames_as_observation() -> None:
+    host = _speech_like(20.0, seed=3)
+    guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
+    (src, _), (bld, _) = _at_voice(host), _at_voice(guest)
+    cfg = EchoConfig()
+    frame = max(1, round(cfg.frame_sec * RATE))
+    n_samples = min(src.size, bld.size)
+    src_db = frame_rms_db(src[:n_samples], frame, frame)
+    bld_db = frame_rms_db(bld[:n_samples], frame, frame)
+    n = min(src_db.size, bld_db.size)
+    idx = np.arange(n)
+    obs_n, _ = bleed_echo._copy_rows(
+        src,
+        bld,
+        src_db,
+        bld_db,
+        sample_rate=RATE,
+        frame=frame,
+        shift_frames=0,
+        cfg=cfg,
+        limit=None,
+    )
+    expected = _frame_population(src_db, bld_db, idx, cfg, obs_n)
+    for shift_sec in cfg.null_shifts_sec:
+        shift = round(shift_sec / cfg.frame_sec) % n if n else 0
+        if shift == 0:
+            continue
+        partner = (idx + shift) % n
+        selected_n, _ = bleed_echo._copy_rows(
+            src,
+            bld,
+            src_db,
+            bld_db,
+            sample_rate=RATE,
+            frame=frame,
+            shift_frames=shift,
+            cfg=cfg,
+            limit=None,
+        )
+        if selected_n < cfg.null_min_dominated:
+            continue
+        assert _frame_population(src_db, bld_db, partner, cfg, selected_n) == expected
 
 
 def test_audition_context_exposes_long_delay_without_claiming_owner_absence(tmp_path, monkeypatch):
