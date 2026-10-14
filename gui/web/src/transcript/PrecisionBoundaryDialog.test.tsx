@@ -432,6 +432,45 @@ describe("PrecisionBoundaryDialog", () => {
     expect(loadBoundaryContext).toHaveBeenCalledTimes(2);
   });
 
+  it.each([new TypeError("Load failed"), new TypeError("Failed to fetch")])(
+    "offers Try again for a network failure %s",
+    async (failure) => {
+      loadBoundaryContext.mockRejectedValueOnce(failure);
+      render(<PrecisionBoundaryDialog {...boundaryProps()} />);
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        failure.message,
+      );
+      expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+    },
+  );
+
+  it.each(["Try again", "Reload boundary"])(
+    "keeps focus on progress then the input after %s",
+    async (action) => {
+      let answer: ((value: BoundaryContext) => void) | undefined;
+      loadBoundaryContext
+        .mockRejectedValueOnce(
+          action === "Try again"
+            ? hungLoad()
+            : new Error("409 stale boundary geometry"),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              answer = resolve;
+            }),
+        );
+      render(<PrecisionBoundaryDialog {...boundaryProps()} />);
+      const button = await screen.findByRole("button", { name: action });
+      await waitForDialogFocus();
+      button.focus();
+      fireEvent.click(button);
+      expect(screen.getByRole("status")).toHaveFocus();
+      await act(async () => answer?.(context));
+      expect(await screen.findByRole("spinbutton")).toHaveFocus();
+    },
+  );
+
   it("offers no retry for an error a second attempt cannot fix", async () => {
     loadBoundaryContext.mockRejectedValueOnce(new Error("400 bad target"));
     render(<PrecisionBoundaryDialog {...boundaryProps()} />);
