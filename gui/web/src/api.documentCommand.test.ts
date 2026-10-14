@@ -204,8 +204,9 @@ describe("host document command queue", () => {
         ),
       );
       const { submitDocumentCommand } = await import("./api");
-      const { headLandedSince, savesLandedMark } =
-        await import("./state/documentSendOrder");
+      const { headLandedSince, savesLandedMark } = await import(
+        "./state/documentSendOrder"
+      );
       const mark = savesLandedMark(path);
       const scope = (await import("./document/authorityState")).documentScope();
       await submitDocumentCommand(path, "TrimClipEdge", {});
@@ -224,8 +225,9 @@ describe("host document command queue", () => {
         }),
       );
       const { submitDocumentCommand } = await import("./api");
-      const { headLandedSince, savesLandedMark } =
-        await import("./state/documentSendOrder");
+      const { headLandedSince, savesLandedMark } = await import(
+        "./state/documentSendOrder"
+      );
       const mark = savesLandedMark(path);
       const scope = (await import("./document/authorityState")).documentScope();
       const result = await submitDocumentCommand(path, "TrimClipEdge", {});
