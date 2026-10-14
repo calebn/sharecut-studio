@@ -6,6 +6,7 @@ import {
   startSplitSpeakersJob,
 } from "../api";
 import { executePointerCommand } from "../commands/pointer";
+import { seekTransport } from "../commands/seek";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
@@ -43,6 +44,7 @@ type Flow =
   | {
       kind: "done";
       trackId: string;
+      projectPath: string;
       label: string;
       result: SplitSpeakersResult;
       undoing: boolean;
@@ -81,12 +83,23 @@ export function SplitSpeakersDialog() {
       setSettings(DEFAULT_SETTINGS);
     }
   }
-  const shownTrackId = flow.kind === "configure" ? trackId : flow.trackId;
+  const doneMatchesProject =
+    flow.kind === "done" &&
+    flow.projectPath === projectPath &&
+    flow.result.lanes.every((lane) =>
+      project?.tracks.some(
+        (candidate) =>
+          candidate.id === lane.track_id &&
+          candidate.speaker_split_id === flow.result.split_id,
+      ),
+    );
+  const showingConfigure =
+    flow.kind === "configure" || (flow.kind === "done" && !doneMatchesProject);
+  const shownTrackId = showingConfigure ? trackId : flow.trackId;
   const track = project?.tracks.find((t) => t.id === shownTrackId);
-  const trackLabel =
-    flow.kind === "configure"
-      ? track?.label || shownTrackId || "this track"
-      : flow.label;
+  const trackLabel = showingConfigure
+    ? track?.label || shownTrackId || "this track"
+    : flow.label;
 
   const count = settings.count.trim() === "" ? null : Number(settings.count);
   const names =
@@ -105,6 +118,18 @@ export function SplitSpeakersDialog() {
     }
     await refreshDocumentProject(projectPath);
     const s = useDawStore.getState();
+    if (
+      s.projectPath !== projectPath ||
+      !result.lanes.every((lane) =>
+        s.project?.tracks.some(
+          (candidate) =>
+            candidate.id === lane.track_id &&
+            candidate.speaker_split_id === result.split_id,
+        ),
+      )
+    ) {
+      return;
+    }
     s.announceStatus(
       splitSpeakersDoneCopy(result, label),
       s.splitSpeakersTrackId == null
@@ -115,6 +140,7 @@ export function SplitSpeakersDialog() {
     setFlow({
       kind: "done",
       trackId: forTrackId,
+      projectPath,
       label,
       result,
       undoing: false,
@@ -226,7 +252,7 @@ export function SplitSpeakersDialog() {
   }
 
   const stage: SplitSpeakersStage =
-    flow.kind === "configure"
+    flow.kind === "configure" || (flow.kind === "done" && !doneMatchesProject)
       ? {
           kind: "configure",
           count: settings.count,
@@ -253,6 +279,31 @@ export function SplitSpeakersDialog() {
           ? {
               kind: "done",
               result: flow.result,
+              reviewSpans: flow.result.review_spans.flatMap((span) => {
+                const labels = [
+                  ...(span.unsure ? ["Unsure stretch"] : []),
+                  ...(span.overlapping ? ["Overlapping speech"] : []),
+                ];
+                const trackNames = span.speakers.map(
+                  (id) =>
+                    flow.result.lanes.find((lane) => lane.track_id === id)
+                      ?.name ?? id,
+                );
+                const timelineSpans = span.timeline_spans.length
+                  ? span.timeline_spans
+                  : [{ start_s: span.start_s, end_s: span.end_s }];
+                return timelineSpans.map((timelineSpan) => ({
+                  ...timelineSpan,
+                  clock: span.timeline_spans.length
+                    ? ("Timeline" as const)
+                    : ("Recording" as const),
+                  labels,
+                  trackNames,
+                  timelineSec: span.timeline_spans.length
+                    ? timelineSpan.start_s
+                    : null,
+                }));
+              }),
               durationSec: track?.duration_sec ?? null,
               canUndo:
                 flow.result.history_head_id != null &&
@@ -293,6 +344,7 @@ export function SplitSpeakersDialog() {
       onSplit={() => void onSplit()}
       onCancelSplit={() => void onCancelSplit()}
       onUndo={() => void onUndo()}
+      onGoTo={(sec) => void seekTransport(sec)}
       onRestart={() => setFlow({ kind: "configure" })}
     />
   );

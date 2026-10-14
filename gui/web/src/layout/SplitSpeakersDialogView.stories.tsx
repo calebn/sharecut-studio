@@ -33,6 +33,7 @@ const runningJob = {
 } satisfies PipelineJobSnapshot;
 
 const result: SplitSpeakersResult = {
+  split_id: "split_1",
   lanes: [
     { track_id: "room", name: "Caleb", muted_sec: 102 },
     { track_id: "room_audra", name: "Audra", muted_sec: 124 },
@@ -40,6 +41,16 @@ const result: SplitSpeakersResult = {
   ],
   crosstalk_sec: 3,
   low_confidence_sec: 13,
+  review_spans: [
+    {
+      start_s: 32,
+      end_s: 34.5,
+      speakers: ["room_audra", "room_lana"],
+      unsure: false,
+      overlapping: true,
+      timeline_spans: [{ start_s: 32, end_s: 34.5 }],
+    },
+  ],
   history_head_id: "h2" as HistoryEntryId,
 };
 
@@ -89,6 +100,7 @@ const meta: Meta<typeof SplitSpeakersDialogView> = {
     onSplit: fn(),
     onCancelSplit: fn(),
     onUndo: fn(),
+    onGoTo: fn(),
     onRestart: fn(),
     nowSec: 1_005,
   },
@@ -171,6 +183,16 @@ export const Split: Story = {
     stage: {
       kind: "done",
       result,
+      reviewSpans: [
+        {
+          start_s: 32,
+          end_s: 34.5,
+          clock: "Timeline",
+          labels: ["Overlapping speech"],
+          trackNames: ["Audra", "Lana"],
+          timelineSec: 32,
+        },
+      ],
       durationSec: 184.7,
       canUndo: true,
       undoing: false,
@@ -196,6 +218,16 @@ export const SplitNoLongerLatest: Story = {
     stage: {
       kind: "done",
       result,
+      reviewSpans: [
+        {
+          start_s: 32,
+          end_s: 34.5,
+          clock: "Timeline",
+          labels: ["Overlapping speech"],
+          trackNames: ["Audra", "Lana"],
+          timelineSec: 32,
+        },
+      ],
       durationSec: 184.7,
       canUndo: false,
       undoing: false,

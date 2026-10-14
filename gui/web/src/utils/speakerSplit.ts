@@ -33,11 +33,22 @@ export type SplitSpeakersLane = {
   muted_sec: number;
 };
 
+export type SplitSpeakerReviewSpan = {
+  start_s: number;
+  end_s: number;
+  speakers: string[];
+  unsure: boolean;
+  overlapping: boolean;
+  timeline_spans: Array<{ start_s: number; end_s: number }>;
+};
+
 /** `SpeakerService.split_speakers`'s result, as the `split_speakers` job carries it. */
 export type SplitSpeakersResult = {
+  split_id: string;
   lanes: SplitSpeakersLane[];
   crosstalk_sec: number;
   low_confidence_sec: number;
+  review_spans: SplitSpeakerReviewSpan[];
   history_head_id: HistoryEntryId | null;
 };
 
@@ -52,6 +63,7 @@ export function parseSplitSpeakersResult(
   if (!isRecord(raw) || !Array.isArray(raw.lanes)) {
     return null;
   }
+  if (typeof raw.split_id !== "string") return null;
   const lanes = raw.lanes.filter(
     (lane): lane is SplitSpeakersLane =>
       isRecord(lane) &&
@@ -62,13 +74,62 @@ export function parseSplitSpeakersResult(
   if (lanes.length < 2) {
     return null;
   }
+  const laneIds = new Set(lanes.map((lane) => lane.track_id));
+  const reviewSpans = Array.isArray(raw.review_spans)
+    ? raw.review_spans.flatMap((span): SplitSpeakerReviewSpan[] => {
+        if (
+          !isRecord(span) ||
+          typeof span.start_s !== "number" ||
+          !Number.isFinite(span.start_s) ||
+          typeof span.end_s !== "number" ||
+          !Number.isFinite(span.end_s) ||
+          span.start_s < 0 ||
+          span.end_s <= span.start_s ||
+          !Array.isArray(span.speakers) ||
+          span.speakers.length === 0 ||
+          !span.speakers.every(
+            (speaker) => typeof speaker === "string" && laneIds.has(speaker),
+          ) ||
+          typeof span.unsure !== "boolean" ||
+          typeof span.overlapping !== "boolean" ||
+          (!span.unsure && !span.overlapping) ||
+          !Array.isArray(span.timeline_spans)
+        ) {
+          return [];
+        }
+        const timelineSpans = span.timeline_spans.flatMap(
+          (timelineSpan): Array<{ start_s: number; end_s: number }> =>
+            isRecord(timelineSpan) &&
+            typeof timelineSpan.start_s === "number" &&
+            Number.isFinite(timelineSpan.start_s) &&
+            typeof timelineSpan.end_s === "number" &&
+            Number.isFinite(timelineSpan.end_s) &&
+            timelineSpan.start_s >= 0 &&
+            timelineSpan.end_s > timelineSpan.start_s
+              ? [{ start_s: timelineSpan.start_s, end_s: timelineSpan.end_s }]
+              : [],
+        );
+        return [
+          {
+            start_s: span.start_s,
+            end_s: span.end_s,
+            speakers: span.speakers,
+            unsure: span.unsure,
+            overlapping: span.overlapping,
+            timeline_spans: timelineSpans,
+          },
+        ];
+      })
+    : [];
   const head = raw.history_head_id;
   return {
+    split_id: raw.split_id,
     lanes,
     crosstalk_sec:
       typeof raw.crosstalk_sec === "number" ? raw.crosstalk_sec : 0,
     low_confidence_sec:
       typeof raw.low_confidence_sec === "number" ? raw.low_confidence_sec : 0,
+    review_spans: reviewSpans,
     history_head_id: typeof head === "string" ? (head as HistoryEntryId) : null,
   };
 }

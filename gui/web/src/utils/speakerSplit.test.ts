@@ -10,6 +10,7 @@ import {
 } from "./speakerSplit";
 
 const result = {
+  split_id: "split_1",
   lanes: [
     { track_id: "room", name: "Ana", muted_sec: 30 },
     { track_id: "room_ben", name: "Ben", muted_sec: 60 },
@@ -17,6 +18,16 @@ const result = {
   ],
   crosstalk_sec: 12.4,
   low_confidence_sec: 75,
+  review_spans: [
+    {
+      start_s: 20,
+      end_s: 22,
+      speakers: ["room_ben"],
+      unsure: true,
+      overlapping: false,
+      timeline_spans: [{ start_s: 9, end_s: 11 }],
+    },
+  ],
   history_head_id: "h2" as HistoryEntryId,
 };
 
@@ -53,12 +64,48 @@ describe("parseSplitSpeakersResult", () => {
   });
 
   it("keeps a missing head and numbers as safe defaults", () => {
-    const parsed = parseSplitSpeakersResult({ lanes: result.lanes });
+    const parsed = parseSplitSpeakersResult({
+      split_id: result.split_id,
+      lanes: result.lanes,
+    });
     expect(parsed).toMatchObject({
       crosstalk_sec: 0,
       low_confidence_sec: 0,
+      review_spans: [],
       history_head_id: null,
     });
+  });
+
+  it("drops malformed persisted review spans", () => {
+    const parsed = parseSplitSpeakersResult({
+      ...result,
+      review_spans: [
+        ...result.review_spans,
+        {
+          start_s: 3,
+          end_s: 2,
+          speakers: ["room"],
+          unsure: true,
+          overlapping: false,
+        },
+        {
+          start_s: 4,
+          end_s: 5,
+          speakers: [],
+          unsure: true,
+          overlapping: false,
+        },
+        {
+          start_s: 5,
+          end_s: 6,
+          speakers: ["missing-lane"],
+          unsure: false,
+          overlapping: true,
+          timeline_spans: [],
+        },
+      ],
+    });
+    expect(parsed?.review_spans).toEqual(result.review_spans);
   });
 });
 

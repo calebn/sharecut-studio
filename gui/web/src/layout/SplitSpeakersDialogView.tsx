@@ -33,6 +33,14 @@ export type SplitSpeakersStage =
   | {
       kind: "done";
       result: SplitSpeakersResult;
+      reviewSpans: Array<{
+        start_s: number;
+        end_s: number;
+        clock: "Timeline" | "Recording";
+        labels: string[];
+        trackNames: string[];
+        timelineSec: number | null;
+      }>;
       /** Length of the recording each track plays, when known. */
       durationSec: number | null;
       /** Undo reverses this split only while it is the latest change. */
@@ -53,6 +61,7 @@ export type SplitSpeakersDialogViewProps = {
   onSplit: () => void;
   onCancelSplit: () => void;
   onUndo: () => void;
+  onGoTo: (sec: number) => void;
   /** Back to the settings after a failure, a cancel or an undo. */
   onRestart: () => void;
   /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
@@ -86,7 +95,11 @@ export function SplitSpeakersDialogView(props: SplitSpeakersDialogViewProps) {
           <SplitSpeakersProgress stage={stage} nowSec={props.nowSec} />
         ) : null}
         {stage.kind === "done" ? (
-          <SplitSpeakersOutcome stage={stage} trackLabel={props.trackLabel} />
+          <SplitSpeakersOutcome
+            stage={stage}
+            trackLabel={props.trackLabel}
+            onGoTo={props.onGoTo}
+          />
         ) : null}
         {stage.kind === "failed" ? (
           <InlineError message={`Split failed: ${stage.reason}`} />
@@ -203,9 +216,11 @@ function SplitSpeakersProgress({
 function SplitSpeakersOutcome({
   stage,
   trackLabel,
+  onGoTo,
 }: {
   stage: Extract<SplitSpeakersStage, { kind: "done" }>;
   trackLabel: string;
+  onGoTo: (sec: number) => void;
 }) {
   const { result, durationSec } = stage;
   const notes = splitSpeakersListenNotes(result);
@@ -237,6 +252,48 @@ function SplitSpeakersOutcome({
             ))}
           </ul>
         </>
+      ) : null}
+      {stage.reviewSpans.length ? (
+        <section
+          className="split-speakers-review"
+          aria-labelledby="split-review-title"
+        >
+          <h3 id="split-review-title" className="split-speakers-subhead">
+            Review these stretches
+          </h3>
+          <p className="export-dialog-note">
+            Times are on the timeline. Stretches removed from it show recording
+            time.
+          </p>
+          <ul className="split-speakers-review-list">
+            {stage.reviewSpans.map((span, index) => (
+              <li key={`${span.start_s}:${span.end_s}:${index}`}>
+                <div className="split-speakers-review-detail">
+                  <span className="split-speakers-review-labels">
+                    {span.labels.join(" · ")}
+                  </span>
+                  <span>
+                    {span.clock} {formatTimeShort(span.start_s)} ·{" "}
+                    {formatTimeShort(span.end_s - span.start_s)}
+                  </span>
+                  <span>{span.trackNames.join(", ")}</span>
+                </div>
+                <Button
+                  disabledReason={
+                    span.timelineSec == null
+                      ? "This stretch is not on the timeline."
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (span.timelineSec != null) onGoTo(span.timelineSec);
+                  }}
+                >
+                  Go to
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
       {stage.undoError ? (
         <InlineError message={`Undo failed: ${stage.undoError}`} />
