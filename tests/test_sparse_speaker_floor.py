@@ -1,8 +1,9 @@
 """A sparse speaker on an ungated track keeps a voice floor (#1324).
 
 Where a speaker talks under a tenth of the time, the track's 90th-percentile level is
-room tone, so contrast between voice and room must be read from its loudest frames. The
-same recording at any gain gets the same verdicts and the same word spans.
+room tone, so contrast between voice and room must be read from its loudest frames.
+The same recording at any gain gets the same answers by the detectors' one gain contract
+(``test_tighten_gain_invariance``).
 """
 
 from __future__ import annotations
@@ -17,11 +18,18 @@ from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCache,
-    TrackRmsCacheSet,
     compute_word_audibility_map,
 )
-from podcast_mcp.models import TranscriptWord
-from test_transcript_gain_invariance import RATE, _project, _voice
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+)
+from test_tighten_gain_invariance import RATE, _tone, _write
 
 SECONDS = 120
 SPEECH_DB = -26.0
@@ -29,9 +37,37 @@ BURST_SEC = 0.6
 UH_VOICE = (111.0, 111.31)
 UH_TOKEN = (108.0, 114.0)
 ON_ROOM = ((104.0, 104.4), (116.0, 116.4))
-GAINS_DB = (12.0, 0.0, -12.0, -24.0, -36.0)
 SPEECH_SHARES = (0.03, 0.06, 0.10)
 ROOMS_DB = (-70.0, -55.0)
+
+
+def _voice(audio: np.ndarray, start: float, end: float, level_db: float) -> None:
+    lo, hi = round(start * RATE), round(end * RATE)
+    audio[lo:hi] += _tone(hi - lo, level_db)
+
+
+def _project(tmp_path: Path, audio: np.ndarray, words: list[TranscriptWord]) -> EpisodeProject:
+    project = EpisodeProject.create("sparse", str(tmp_path))
+    _write(tmp_path / "raw" / "solo.wav", audio, RATE)
+    project.timeline.tracks.append(
+        Track(
+            id="solo",
+            label="solo",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/solo.wav", duration_sec=float(SECONDS)),
+        )
+    )
+    project.timeline.clips.append(
+        Clip(
+            id="c_solo",
+            track_id="solo",
+            source_start=0.0,
+            source_end=float(SECONDS),
+            timeline_start=0.0,
+        )
+    )
+    project.transcripts.append(Transcript(track_id="solo", words=words))
+    return project
 
 
 @cache
@@ -55,14 +91,11 @@ def _words(bursts: tuple[tuple[float, float], ...]) -> list[TranscriptWord]:
     return real + ghosts
 
 
-@pytest.mark.parametrize("gain_db", GAINS_DB)
 @pytest.mark.parametrize("room_db", ROOMS_DB)
 @pytest.mark.parametrize("speech_share", SPEECH_SHARES)
-def test_words_on_room_tone_are_inaudible_whatever_the_gain(
-    tmp_path: Path, speech_share: float, room_db: float, gain_db: float
-):
+def test_words_on_room_tone_are_inaudible(tmp_path: Path, speech_share: float, room_db: float):
     audio, bursts = _scene(speech_share, room_db)
-    project = _project(tmp_path, gain_db, (("solo", audio, _words(bursts)),))
+    project = _project(tmp_path, audio, _words(bursts))
     rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
     verdicts = {r["text"]: r["audibility_status"] for r in rows}
     expected = {f"real{i}": "audible" for i in range(len(bursts))}
@@ -70,35 +103,12 @@ def test_words_on_room_tone_are_inaudible_whatever_the_gain(
     assert verdicts == expected
 
 
-@pytest.mark.parametrize("gain_db", GAINS_DB)
 @pytest.mark.parametrize("room_db", ROOMS_DB)
 @pytest.mark.parametrize("speech_share", SPEECH_SHARES)
-def test_stretched_token_trims_onto_its_voice_whatever_the_gain(
-    speech_share: float, room_db: float, gain_db: float
-):
+def test_stretched_token_trims_onto_its_voice(speech_share: float, room_db: float):
     audio, _ = _scene(speech_share, room_db)
-    cache = TrackRmsCache(samples=audio * 10 ** (gain_db / 20), sample_rate=RATE)
+    cache = TrackRmsCache(samples=audio, sample_rate=RATE)
     words = [TranscriptWord(text="uh", start=UH_TOKEN[0], end=UH_TOKEN[1])]
     caps = WordSpanCaps.from_defaults({"tighten": {"filler_words": ["uh"]}})
     trim_implausible_words(words, cache, caps)
     assert (round(words[0].start, 1), round(words[0].end, 1)) == (111.0, 111.3)
-
-
-def _dense_host() -> np.ndarray:
-    audio = np.random.default_rng(3).normal(0, 10 ** (ROOMS_DB[0] / 20), SECONDS * RATE)
-    for start in np.arange(1.0, SECONDS - 1.0, 1.0):
-        _voice(audio, float(start), float(start) + 0.6, SPEECH_DB)
-    return audio
-
-
-@pytest.mark.parametrize("speech_share", SPEECH_SHARES)
-@pytest.mark.parametrize("gain_db", (12.0, 0.0, -24.0))
-def test_a_sparse_guest_does_not_move_the_session_reference(speech_share: float, gain_db: float):
-    """The reference gain follows the voices, not a guest's room tone (#1324)."""
-    scale = np.float32(10 ** (gain_db / 20))
-    host = TrackRmsCache(samples=_dense_host().astype(np.float32) * scale, sample_rate=RATE)
-    guest_audio, _ = _scene(speech_share, ROOMS_DB[0])
-    guest = TrackRmsCache(samples=guest_audio.astype(np.float32) * scale, sample_rate=RATE)
-    alone = TrackRmsCacheSet(caches={"host": host})
-    together = TrackRmsCacheSet(caches={"host": host, "guest": guest})
-    assert together.reference_gain_db == pytest.approx(alone.reference_gain_db, abs=1.0)
