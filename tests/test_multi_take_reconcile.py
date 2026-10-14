@@ -164,9 +164,9 @@ def test_lane_transcripts_read_each_take_at_its_placement(tmp_path: Path) -> Non
 
     lanes = lane_transcripts(project, "vicky")
 
-    assert [(lt.key, lt.session_time(4.5)) for lt in lanes] == [
-        (("vicky", "take2"), 4.5),
-        (("vicky", "take3"), 14.5),
+    assert [(lt.key, lt.session_span(4.5, 4.9)) for lt in lanes] == [
+        (("vicky", "take2"), (4.5, 4.9)),
+        (("vicky", "take3"), (14.5, 14.9)),
     ]
 
 
@@ -190,7 +190,10 @@ def test_a_teaser_clip_does_not_move_the_rest_of_its_lane(tmp_path: Path) -> Non
     (host,) = lane_transcripts(project, "host")
     report = overlap_duplicate_report(project, audibility=[])
 
-    assert [host.session_time(100.0), host.session_time(605.0)] == [110.0, 615.0]
+    assert [host.session_span(100.0, 100.4)[0], host.session_span(605.0, 605.4)[0]] == [
+        110.0,
+        615.0,
+    ]
     assert [(p["word_index_a"], p["word_index_b"]) for p in report["pairs"]] == [(0, 0)]
 
 
@@ -218,3 +221,56 @@ def test_explicit_suppression_touches_only_the_named_take(tmp_path: Path) -> Non
     assert take2 is not None and take3 is not None
     assert [w.suppressed for w in take2.words] == [False, False]
     assert [w.suppressed for w in take3.words] == [False, True, False, False, False]
+
+
+def _cut_project(tmp_path: Path, host_clips: list[Clip], guest_clips: list[Clip]) -> EpisodeProject:
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id=tid, label=tid, role=TrackRole.DIALOGUE, speaker=tid) for tid in ("host", "guest")
+    ]
+    project.clips = [*host_clips, *guest_clips]
+    return project
+
+
+def test_a_word_ending_at_a_ripple_cut_keeps_its_length(tmp_path: Path) -> None:
+    """Both lanes lose source 10.4-12.4 s; a word ending at the cut stays one 0.4 s word."""
+
+    def lane(tid: str) -> list[Clip]:
+        return [
+            Clip(id=f"{tid}1", track_id=tid, source_start=0.0, source_end=10.4, timeline_start=0.0),
+            Clip(
+                id=f"{tid}2", track_id=tid, source_start=12.4, source_end=900.0, timeline_start=10.4
+            ),
+        ]
+
+    project = _cut_project(tmp_path, lane("host"), lane("guest"))
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hello", start=10.0, end=10.4)]),
+        Transcript(track_id="guest", words=[TranscriptWord(text="hello", start=10.02, end=10.4)]),
+    ]
+
+    (host,) = lane_transcripts(project, "host")
+    report = overlap_duplicate_report(project, audibility=[])
+
+    assert host.session_span(10.0, 10.4) == (10.0, 10.4)
+    assert [(p["text_match"], p["overlap_sec"]) for p in report["pairs"]] == [(True, 0.38)]
+
+
+def test_a_gap_after_a_word_does_not_stretch_it_onto_a_later_peer_word(tmp_path: Path) -> None:
+    """A 5 s gap inserted after the host's word leaves it at 10.0-10.4 s, not 10.0-15.4 s."""
+    project = _cut_project(
+        tmp_path,
+        [
+            Clip(id="h1", track_id="host", source_start=0.0, source_end=10.4, timeline_start=0.0),
+            Clip(
+                id="h2", track_id="host", source_start=10.4, source_end=900.0, timeline_start=15.4
+            ),
+        ],
+        [Clip(id="g", track_id="guest", source_start=0.0, source_end=900.0, timeline_start=0.0)],
+    )
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="the", start=10.0, end=10.4)]),
+        Transcript(track_id="guest", words=[TranscriptWord(text="the", start=13.0, end=13.3)]),
+    ]
+
+    assert overlap_duplicate_report(project, audibility=[])["pairs"] == []

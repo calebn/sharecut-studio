@@ -95,7 +95,7 @@ def overlap_duplicate_report(
             suppressed = w.suppressed if is_suppressed is None else is_suppressed(key)
             if suppressed:
                 continue
-            start, end = lane.session_time(w.start), lane.session_time(w.end)
+            start, end = lane.session_span(w.start, w.end)
             if start_sec is not None and start < start_sec:
                 continue
             if end_sec is not None and start >= end_sec:
