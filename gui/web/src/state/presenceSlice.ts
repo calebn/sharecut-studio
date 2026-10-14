@@ -44,10 +44,15 @@ type PresenceSlice = Pick<
 >;
 
 function remoteSelectionPatch(
+  state: Pick<DawStore, "selectedClipIds">,
   wire: ReturnType<typeof wireSelectionPatch>,
   revision: number,
 ) {
-  return { ...wire, remoteSelectionRevision: revision + 1 };
+  return {
+    ...selectionPatch(state, wire.selection),
+    pendingWireSelection: wire.pendingWireSelection,
+    remoteSelectionRevision: revision + 1,
+  };
 }
 
 export const createPresenceSlice: StateCreator<
@@ -174,6 +179,7 @@ export const createPresenceSlice: StateCreator<
         ...(adoptSelection
           ? {
               ...remoteSelectionPatch(
+                get(),
                 wireSelectionPatch(state.selection, get().project),
                 get().remoteSelectionRevision,
               ),
