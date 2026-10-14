@@ -1,5 +1,6 @@
 import type { ReactNode, Ref } from "react";
 import { Button } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 type Props = {
   body: string;
@@ -64,7 +65,13 @@ export function CommentCompose({
         {anchor}
         <Button
           variant="primary"
-          disabled={busy || !body.trim()}
+          disabledReason={
+            busy
+              ? BUSY_REASON
+              : !body.trim()
+                ? "Write a comment to post."
+                : undefined
+          }
           aria-busy={busy || undefined}
           onClick={() => onSubmit()}
         >

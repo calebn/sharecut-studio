@@ -36,7 +36,10 @@ export const Link: Story = {
 };
 
 export const Disabled: Story = {
-  args: { disabled: true, children: "Unavailable" },
+  args: {
+    disabledReason: "Finish the required step to enable this action.",
+    children: "Unavailable",
+  },
 };
 
 export const AllVariants: Story = {
@@ -46,7 +49,9 @@ export const AllVariants: Story = {
       <Button variant="primary">Primary</Button>
       <Button variant="danger">Danger</Button>
       <Button variant="link">Link</Button>
-      <Button disabled>Disabled</Button>
+      <Button disabledReason="Finish the required step to enable this action.">
+        Disabled
+      </Button>
     </div>
   ),
 };

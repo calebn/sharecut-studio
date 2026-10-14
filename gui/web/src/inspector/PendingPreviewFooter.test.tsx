@@ -232,7 +232,9 @@ describe("pending preview footer", () => {
     });
     expect(screen.getByRole("button", { name: "Suggested" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "A/B" })).toBeDisabled();
-    expect(screen.getByText(SPLIT_REASON)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Suggested" }),
+    ).toHaveAccessibleDescription(SPLIT_REASON);
     expect(playButton()).toBeDisabled();
     expect(playButton()).toHaveAttribute("title", SPLIT_REASON);
     fireEvent.click(playButton());

@@ -57,6 +57,8 @@ function useNewCommentAnnouncement(
   return announcement;
 }
 
+const CLOSED_REASON = "Start a take to add live comments.";
+
 export function LiveComments({
   snapshot,
   comments = snapshot.comments ?? [],
@@ -87,7 +89,11 @@ export function LiveComments({
         <p>No live comments yet.</p>
       )}
       <div className="cluster">
-        <Button type="button" onClick={onMarker} disabled={!open}>
+        <Button
+          type="button"
+          onClick={onMarker}
+          disabledReason={open ? undefined : CLOSED_REASON}
+        >
           Marker
         </Button>
       </div>
@@ -108,7 +114,16 @@ export function LiveComments({
             />
           )}
         </Field>
-        <Button type="submit" disabled={!open || !note.trim()}>
+        <Button
+          type="submit"
+          disabledReason={
+            !open
+              ? CLOSED_REASON
+              : !note.trim()
+                ? "Write a note to add."
+                : undefined
+          }
+        >
           Add note
         </Button>
       </form>

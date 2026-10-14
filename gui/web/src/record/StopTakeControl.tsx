@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, InlineConfirm } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { STOP_CONFIRM_COPY } from "./hostControls";
 
 type Props = {
@@ -37,7 +38,7 @@ export function StopTakeControl({ busy, onStop }: Props) {
           prompt={STOP_CONFIRM_COPY}
           keepLabel="Keep recording"
           actionLabel="Stop take"
-          disabled={busy}
+          disabledReason={busy ? BUSY_REASON : undefined}
           onKeep={close}
           onConfirm={() => {
             close();

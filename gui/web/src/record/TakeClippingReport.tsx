@@ -69,7 +69,9 @@ export function TakeClippingReport({ report, roomState, jumpFor }: Props) {
                 <Button
                   type="button"
                   onClick={jump ?? undefined}
-                  disabled={jump === null}
+                  disabledReason={
+                    jump === null ? `${CLIPPING_JUNCTION_HINT}.` : undefined
+                  }
                   aria-describedby={jump === null ? hintId : undefined}
                 >
                   Jump to

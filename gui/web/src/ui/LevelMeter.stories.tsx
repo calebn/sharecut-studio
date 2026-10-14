@@ -127,7 +127,10 @@ function LiveSimulationDemo() {
         showScale
       />
       <div>
-        <Button onClick={take.clearClip} disabled={!take.clipped}>
+        <Button
+          onClick={take.clearClip}
+          disabledReason={take.clipped ? undefined : "No clipping to clear."}
+        >
           Clear clip indicator
         </Button>
       </div>

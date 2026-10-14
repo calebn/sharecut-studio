@@ -17,7 +17,9 @@ function renderConfirm(disabled = false) {
         prompt={PROMPT}
         keepLabel="Keep track"
         actionLabel="Remove track"
-        disabled={disabled}
+        disabledReason={
+          disabled ? "Wait for the current action to finish." : undefined
+        }
         onKeep={onKeep}
         onConfirm={onConfirm}
       />

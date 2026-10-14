@@ -30,7 +30,7 @@ export const Default: Story = {
 };
 
 export const Busy: Story = {
-  args: { disabled: true },
+  args: { disabledReason: "Wait for the current action to finish." },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", { name: "Stop sharing" }),

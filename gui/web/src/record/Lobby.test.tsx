@@ -204,7 +204,7 @@ describe("Lobby", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
-    expect(screen.getByText(ROOM_TONE_GATE_COPY)).toBeInTheDocument();
+    expect(screen.getAllByText(ROOM_TONE_GATE_COPY).length).toBeGreaterThan(0);
     await expectNoA11yViolations(container);
     rerender(
       <Lobby
@@ -274,10 +274,6 @@ describe("Lobby", () => {
       />,
     );
     const accept = screen.getByRole("button", { name: "Accept" });
-    const described = accept.getAttribute("aria-describedby");
-    expect(described).toBeTruthy();
-    expect(document.getElementById(described ?? "")).toHaveTextContent(
-      ROOM_TONE_GATE_COPY,
-    );
+    expect(accept).toHaveAccessibleDescription(new RegExp(ROOM_TONE_GATE_COPY));
   });
 });

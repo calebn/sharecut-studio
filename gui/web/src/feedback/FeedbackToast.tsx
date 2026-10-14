@@ -6,6 +6,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { HistoryEntryId } from "../types/project";
 import { Toast } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { registerFocusHold } from "../ui/focusHold";
 import { isValidFocusTarget } from "../ui/focusTarget";
 import { modalShortcuts } from "../ui/modalGate";
@@ -212,7 +213,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
           ? () => void undo(toast.message, undoEntry)
           : undefined
       }
-      undoDisabled={undoing}
+      undoDisabledReason={undoing ? BUSY_REASON : undefined}
       visibility={visibility}
     />,
     portal,

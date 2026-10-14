@@ -5,14 +5,15 @@ import { CONSENT_COPY } from "./types";
 type Props = {
   onAccept: () => void;
   onDecline: () => void;
-  canAccept?: boolean;
+  /** Why Accept is unavailable; undefined when the lobby is ready. */
+  acceptDisabledReason?: string;
   acceptDescribedBy?: string;
 };
 
 export function ConsentGate({
   onAccept,
   onDecline,
-  canAccept = true,
+  acceptDisabledReason,
   acceptDescribedBy,
 }: Props) {
   const headingId = useId();
@@ -24,8 +25,10 @@ export function ConsentGate({
         <Button
           variant="primary"
           type="button"
-          disabled={!canAccept}
-          aria-describedby={!canAccept ? acceptDescribedBy : undefined}
+          disabledReason={acceptDisabledReason}
+          aria-describedby={
+            acceptDisabledReason ? acceptDescribedBy : undefined
+          }
           onClick={onAccept}
         >
           Accept

@@ -93,7 +93,11 @@ describe("Room", () => {
     expect(
       screen.getByRole("button", { name: "Retry full-quality recording" }),
     ).toBeDisabled();
-    expect(screen.getByText(/ask the host to resume/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Ask the host to resume the take before retrying full-quality recording.",
+      ),
+    ).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 

@@ -48,11 +48,9 @@ export function PendingPreviewFooter({
       onPlay={() => void play()}
       previewMode={mode}
       onPreviewModeChange={onModeChange}
-      playDisabled={busy || blocked !== null}
       playDisabledReason={
         busy ? "Preparing full mix preview" : (blocked ?? undefined)
       }
-      suggestDisabled={edit.suggest_reason !== null}
       suggestDisabledReason={edit.suggest_reason}
     />
   );
