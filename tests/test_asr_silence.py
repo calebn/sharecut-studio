@@ -5,7 +5,6 @@ import wave
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.audio_cache import frame_levels_db
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     below_evidence_floor,
@@ -19,6 +18,7 @@ from podcast_mcp.engines.asr_silence import (
     silence_filter_fingerprint,
     silent_fraction,
 )
+from podcast_mcp.engines.level_profile import frame_levels_db
 from podcast_mcp.models import TranscriptWord
 from two_mic_project import two_mic_project, write_wav
 
@@ -374,7 +374,7 @@ def test_speech_levels_gate_flags_bleed_and_silence_but_not_a_short_real_word(tm
     levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
     assert set(levels.tracks) == {"host", "guest"}
     assert levels.skipped == []
-    assert levels.floors_db["host"] == pytest.approx(-70.0, abs=2.0)
+    assert levels.tracks["host"].profile.audibility_floor_db == pytest.approx(-57.1, abs=0.5)
     assert levels.tracks["host"].frames_db.dtype == np.float32
     assert levels.tracks["host"].frames_db.size == 300
 

@@ -141,8 +141,11 @@ export {
   revokeHostRoom,
   revokeHostShare,
 } from "./api/sharesRecord";
-export type { SplitSpeakersRequest } from "./api/speakerSplit";
-export { startSplitSpeakersJob } from "./api/speakerSplit";
+export type {
+  SpeakerDoctorReport,
+  SplitSpeakersRequest,
+} from "./api/speakerSplit";
+export { getSpeakerDoctor, startSplitSpeakersJob } from "./api/speakerSplit";
 export type {
   TranscriptReplacementOptions,
   TranscriptReplacementPreview,

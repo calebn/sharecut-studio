@@ -55,6 +55,7 @@ import numpy as np
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.level_profile import SILENT, profile_from_levels
 from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db, frame_rms_db_stream
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.pcm_stream import SequentialWindowReader
@@ -198,11 +199,17 @@ def _segments_from_levels(
     *,
     gap_sec: float,
     max_sec: float,
-    floor_db: float = -40.0,
 ) -> list[tuple[float, float]]:
+    """Runs of frames that hold the track's voice, merged and split.
+
+    ``db`` is the whole track's energy envelope, so it is also the track's level profile:
+    a frame holds voice over the profile's audibility floor, which follows the track's
+    own gain. A track whose loudest frames do not stand out of its room is all voice.
+    """
     if db.size == 0:
         return []
-    runs = bool_runs(db > floor_db)
+    profile = profile_from_levels(db, whole_track=True) or SILENT
+    runs = bool_runs(db > profile.audibility_floor_db)
     if not runs:
         return []
     spans = [(s * hop_sec, e * hop_sec) for s, e in runs]
@@ -223,13 +230,10 @@ def _segments_from_energy(
     *,
     gap_sec: float,
     max_sec: float,
-    floor_db: float = -40.0,
 ) -> list[tuple[float, float]]:
     frame, hop = _energy_frame(sr)
     db = frame_rms_db(samples, frame, hop)
-    return _segments_from_levels(
-        db, hop / float(sr), gap_sec=gap_sec, max_sec=max_sec, floor_db=floor_db
-    )
+    return _segments_from_levels(db, hop / float(sr), gap_sec=gap_sec, max_sec=max_sec)
 
 
 def _cancellable(

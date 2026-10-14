@@ -24,10 +24,35 @@ const sends = new Map<string, Send[]>();
 const finishedCount = new Map<string, number>();
 const drains = new Map<string, Promise<void>>();
 const preparing = new Map<string, Set<Promise<void>>>();
+const activityListeners = new Set<() => void>();
 const landed = new Map<
   string,
   { count: number; head: HistoryEntryId; scope: DocumentScope }
 >();
+
+function notifyActivity(): void {
+  for (const listener of [...activityListeners]) listener();
+}
+
+/** Calls `listener` whenever a send, edit save or drain begins or ends for any project. */
+export function subscribeDocumentActivity(listener: () => void): () => void {
+  activityListeners.add(listener);
+  return () => {
+    activityListeners.delete(listener);
+  };
+}
+
+/**
+ * True while this tab has an edit save preparing, a live send in flight or a
+ * drain running for the project: the edit is on its way to the server.
+ */
+export function documentActivityBusy(projectPath: string): boolean {
+  return (
+    (preparing.get(projectPath)?.size ?? 0) > 0 ||
+    (sends.get(projectPath)?.length ?? 0) > 0 ||
+    drains.has(projectPath)
+  );
+}
 
 /**
  * Publish the drain run in progress (`requestHostDrain`, `requestGuestDrain`). Its replays are
@@ -40,8 +65,12 @@ export function trackDocumentDrain(
   done: Promise<void>,
 ): void {
   drains.set(projectPath, done);
+  notifyActivity();
   void done.then(() => {
-    if (drains.get(projectPath) === done) drains.delete(projectPath);
+    if (drains.get(projectPath) === done) {
+      drains.delete(projectPath);
+      notifyActivity();
+    }
   });
 }
 
@@ -85,6 +114,7 @@ export function beginDocumentSend(
   });
   const entry: Send = { commandId, done };
   sends.set(projectPath, [...list, entry]);
+  notifyActivity();
   return {
     earlier,
     earlierWithin: (ms) =>
@@ -99,6 +129,7 @@ export function beginDocumentSend(
       else sends.delete(projectPath);
       finishedCount.set(projectPath, documentSendsFinished(projectPath) + 1);
       resolveDone();
+      notifyActivity();
     },
   };
 }
@@ -131,11 +162,13 @@ export function trackEditSave<T>(
     () => undefined,
   );
   open.add(settled);
+  notifyActivity();
   void settled.then(() => {
     open.delete(settled);
     if (open.size === 0 && preparing.get(projectPath) === open) {
       preparing.delete(projectPath);
     }
+    notifyActivity();
   });
   return save;
 }

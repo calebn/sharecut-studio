@@ -9,8 +9,21 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import SpeakerSplitRequest
+from podcast_mcp.services.media import SpeakerService
+from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
+
+
+@router.get("/api/speaker/doctor")
+def speaker_doctor(
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Report whether this host can import a speaker recognition backend."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    return SpeakerService.doctor_static()
 
 
 def _jobs(request: Request) -> PipelineJobManager:
@@ -34,6 +47,14 @@ def speaker_split(
             speaker_count=body.speaker_count,
             names=body.names,
         )
+    except CodedValueError as exc:
+        if exc.code != "speaker_backend_unavailable":
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers={"X-Sharecut-Error-Code": exc.code},
+        ) from exc
     except (RuntimeError, ImportError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, FileNotFoundError) as exc:

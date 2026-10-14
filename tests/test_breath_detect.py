@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.audio_cache import level_profile
 from podcast_mcp.edits.breath_detect import (
     LevelBand,
     PauseAirSkip,
@@ -671,38 +670,6 @@ def test_find_breath_in_window_skips_voiced_run_for_later_unvoiced_run():
 
     assert hit is not None
     assert (hit.start, hit.end) == pytest.approx((2.2, 2.3))
-
-
-def test_level_profile_reads_floor_and_speech_from_live_frames():
-    frames = np.concatenate(
-        [
-            np.full(40 * 160, 0.001, dtype=np.float32),
-            np.full(60 * 160, 0.1, dtype=np.float32),
-            np.zeros(200 * 160, dtype=np.float32),
-        ]
-    )
-
-    assert level_profile(frames, 16000) == pytest.approx((0.001, 0.1, 0.1))
-
-
-def test_level_profile_of_a_whole_track_reads_it_a_minute_at_a_time():
-    from podcast_mcp.util.dsp import frame_rms_db
-
-    # 150 s: three chunks, the last one partial.
-    rng = np.random.default_rng(4)
-    samples = rng.standard_normal(150 * 16000) * np.repeat(rng.uniform(0.001, 0.2, 1500), 1600)
-    levels = frame_rms_db(samples.astype(np.float32), 160, 160)
-
-    floor, speech, loud = level_profile(samples.astype(np.float32), 16000)
-
-    assert 20 * np.log10([floor, speech, loud]) == pytest.approx(
-        np.percentile(levels, (10, 90, 99))
-    )
-
-
-def test_level_profile_needs_half_a_second_of_live_audio():
-    assert level_profile(np.zeros(16000, dtype=np.float32), 16000) is None
-    assert level_profile(np.full(int(0.4 * 16000), 0.01, dtype=np.float32), 16000) is None
 
 
 def test_breath_level_band_sits_between_room_tone_and_speech():

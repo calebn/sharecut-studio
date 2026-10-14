@@ -11,7 +11,7 @@ another voice copied onto the lane's mic. Both copies on the lane's track move w
 latency. A source lag ``lam`` pairs the other track's frame ``f`` with source frame
 ``f + lam``, and the lane plays in sync where its timeline-minus-source shift is ``-lam``.
 Units are the lane's talk spurts (its full-band envelope open, split at silences of at
-least ``MIN_GAP_SEC``). A frame is silent when its RMS is under ``OPEN_DB`` and its every
+least ``MIN_GAP_SEC``). A frame is silent when its RMS is under ``PEER_OPEN_DB`` and its every
 sample peaks under ``SKIP_PEAK_DB``, so a step skips or repeats nothing louder. Per spurt,
 pair and candidate lag the Pearson sums over frames where the talker out-levels the copy
 are kept, and each spurt is scored on its own correlation: a run of spurts fits as the sum
@@ -60,18 +60,17 @@ from podcast_mcp.edits.bleed_latency import (
     DOMINANCE_DB,
     FRAME_SEC,
     HOP_SEC,
-    OPEN_DB,
     LatencySettings,
     measure_pair,
 )
-from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, MIN_CORRELATION
+from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, MIN_CORRELATION, PEER_OPEN_DB
 
 MIN_GAP_SEC = 0.06
 EDGE_SEC = 0.02
-# A step skips or repeats only audio whose 30 ms RMS is under OPEN_DB and whose every
+# A step skips or repeats only audio whose 30 ms RMS is under PEER_OPEN_DB and whose every
 # sample peaks under this: 10 dB over the RMS gate, about the crest of a noise floor
 # sitting at the gate, so a click the RMS averages away still counts as sound.
-SKIP_PEAK_DB = OPEN_DB + 10.0
+SKIP_PEAK_DB = PEER_OPEN_DB + 10.0
 SEARCH_SEC = 0.1
 # The 95% normal quantile, and half its square (the 95% chi-square(1) quantile over two):
 # how far a lag must fit worse, in nats, before a piece's evidence rules it out.
@@ -101,7 +100,7 @@ class LagSegment:
 
 def _talk_spurts(heard: np.ndarray, heard_peak: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """First and last open frame of each talk spurt (RMS or sample peak over its gate)."""
-    open_frames = np.flatnonzero((heard > OPEN_DB) | (heard_peak[: heard.size] > SKIP_PEAK_DB))
+    open_frames = np.flatnonzero((heard > PEER_OPEN_DB) | (heard_peak[: heard.size] > SKIP_PEAK_DB))
     if open_frames.size == 0:
         return open_frames, open_frames
     breaks = np.flatnonzero(np.diff(open_frames) >= round(MIN_GAP_SEC / HOP_SEC))
@@ -124,6 +123,13 @@ class BleedPair:
     other: np.ndarray
     lane_talks: bool
     lag_sec: float
+    other_over_lane_db: float
+    """``other``'s ``LevelProfile.path_reference_db`` less the lane's: each envelope is read
+    at its own voice level, and this puts the pair back as recorded."""
+
+    @property
+    def copy_over_talker_db(self) -> float:
+        return self.other_over_lane_db if self.lane_talks else -self.other_over_lane_db
 
 
 def steady_lag(
@@ -133,6 +139,7 @@ def steady_lag(
     lane_talks: bool,
     near_sec: float,
     settings: LatencySettings,
+    other_over_lane_db: float,
 ) -> float | None:
     """A pair's steady lag in lane source time, from the lane's media; None when it scatters.
 
@@ -148,6 +155,7 @@ def steady_lag(
         copy,
         source_track_id="talker",
         mic_track_id="copy",
+        mic_over_source_db=other_over_lane_db if lane_talks else -other_over_lane_db,
         tolerance_sec=settings.tolerance_sec,
         deadband_sec=settings.deadband_sec,
     )
@@ -167,7 +175,9 @@ def _frames(source: np.ndarray, pair: BleedPair, lags: np.ndarray) -> np.ndarray
     other = pair.other
     near = windows.max(axis=1)[: other.size]
     talker, copy = (near, other[: near.size]) if pair.lane_talks else (other[: near.size], near)
-    return np.flatnonzero((talker > OPEN_DB) & (talker - copy >= DOMINANCE_DB))
+    return np.flatnonzero(
+        (talker > PEER_OPEN_DB) & (talker - copy >= DOMINANCE_DB + pair.copy_over_talker_db)
+    )
 
 
 def _sums(
@@ -187,7 +197,7 @@ def _sums(
         f = frames[inside]
         x, y = pair.other[f], source[f + lag]
         key = owner[f + lag] * FOLDS + fold[inside]
-        voiced = (y if pair.lane_talks else x) > OPEN_DB
+        voiced = (y if pair.lane_talks else x) > PEER_OPEN_DB
         for col, value in enumerate(
             (np.ones_like(x), x, y, x * x, y * y, x * y, voiced.astype(float))
         ):

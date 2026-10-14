@@ -10,7 +10,13 @@ from podcast_mcp.edits.clips_ops import (
 from podcast_mcp.edits.inaudible_cuts import recommend_micro_fades
 from podcast_mcp.edits.ranges import merge_timeline_ranges, subtract_ranges_from_intervals
 from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
-from podcast_mcp.engines.silence import SilenceInterval, detect_silence
+from podcast_mcp.engines.level_profile import (
+    PROFILE_SAMPLE_RATE,
+    file_level_profile,
+    frame_levels_db,
+)
+from podcast_mcp.engines.silence import SilenceInterval, quiet_intervals
+from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -50,12 +56,18 @@ def strip_silence(
     project: EpisodeProject,
     track_id: str,
     *,
-    threshold_db: float = -40.0,
+    over_voice_floor_db: float = 0.0,
     min_duration_sec: float = 0.5,
     keep_padding_sec: float = 0.05,
     use_inaudible_opt: bool | None = None,
 ) -> dict:
     """Rebuild a track from speech islands between detected silences.
+
+    Silence is 10 ms frames under the recording's own audibility floor
+    (``LevelProfile.audibility_floor_db``) plus ``over_voice_floor_db``, read from the same
+    frames as the floor, so the same recording at any gain keeps the same islands. A
+    recording with no live audio is silence end to end, and one whose voice does not
+    stand out of its room (no contrast) has no silence to strip.
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored: strip
     keeps speech islands as-is (no ``optimize_source_cut_range``). Micro-fades
@@ -76,10 +88,12 @@ def strip_silence(
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
     probe = FFmpegEngine().probe(src)
-    silences = detect_silence(
-        src,
-        threshold_db=threshold_db,
-        min_duration_sec=min_duration_sec,
+    levels = frame_levels_db(
+        load_mono_full(src, sample_rate=PROFILE_SAMPLE_RATE), PROFILE_SAMPLE_RATE
+    )
+    floor_db = file_level_profile(src, levels=levels).audibility_floor_db
+    silences = quiet_intervals(
+        levels, under_db=floor_db + over_voice_floor_db, min_duration_sec=min_duration_sec
     )
     kept = _kept_source_ranges(probe.duration_sec, silences, keep_padding_sec)
 

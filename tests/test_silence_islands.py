@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -93,7 +94,7 @@ class _Lane:
     def __init__(self, track_id, level, voice_floor_db):
         self._track_id = track_id
         self._level = level
-        self.voice_floor_db = voice_floor_db
+        self.profile = SimpleNamespace(voice_floor_db=voice_floor_db)
 
     def rms_db(self, start, end, *, floor_db):
         return self._level(None, self._track_id, start, end)

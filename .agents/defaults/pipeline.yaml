@@ -316,15 +316,15 @@ transcribe:
     enabled: null
     # Aligned words whose mean character posterior is below this get
     # suspect_hallucination (flag only, never deleted; #195), but only when the
-    # audio agrees (#780): the word's own track is quieter than its noise floor
-    # + evidence_speech_margin_db over the aligned span (checked at transcribe
-    # time), or another dialogue track is evidence_bleed_margin_db louder there
-    # (checked by reconcile_transcript, once align_tracks has placed the tracks
-    # on one clock; a placement change re-flags). The score alone is low by
+    # audio agrees (#780): the word's own track holds no voice over the aligned
+    # span (its loudest frame under the track's own audibility floor, the
+    # silence filter's test, #1382; checked at transcribe time), or another
+    # dialogue track is evidence_bleed_margin_db louder there (checked by
+    # reconcile_transcript, once align_tracks has placed the tracks on one
+    # clock; a placement change re-flags). The score alone is low by
     # construction on one-to-four-frame words ("um", "to"), so it never flags on
     # its own. Stored scores keep flagging when enabled is turned off; 0 = off.
     min_word_score: 0.01
-    evidence_speech_margin_db: 12.0
     evidence_bleed_margin_db: 3.0
 
 align:
@@ -387,9 +387,10 @@ analysis:
     # Transcript gate (`podcast edit apply-bleed-mute`, #945): what happens to another
     # speaker's copy on a lane wherever that speaker's own track is talking and the
     # lane's own speaker is not. `auto` decides per lane from its bed (median level
-    # away from its own speech and the copies): `attenuate` by bleed_attenuation_db
-    # when the bed would still be above the 16-bit floor (-90 dBFS) once turned down,
-    # which keeps a room mic's bed steady; else `mute`, as on a call app's gated track
+    # away from its own speech and the copies, in dB relative to the lane's own voice
+    # level): `attenuate` by bleed_attenuation_db when the bed would still be above the
+    # gate's level floor (75 dB under the voice level) once turned down, which keeps a
+    # room mic's bed steady; else `mute`, as on a call app's gated track
     # whose bed is digital silence. Explicit `mute` or `attenuate` overrides it. The
     # lane's own speech is never touched, and the copy never stands in for the peer's
     # own track, even where that track's gate opened late.
@@ -440,7 +441,7 @@ inaudible_cuts:
   # Short filler/NL: extend cut end through voiced energy that straddles ASR bounds
   short_cut_max_sec: 1.2
   trailing_energy_extend_ms: 350
-  # dB over the track's own voice floor (TrackAudioCache.voice_floor_db), never dBFS.
+  # dB over the track's own voice floor (LevelProfile.voice_floor_db via TrackAudioCache.profile), never dBFS.
   trailing_energy_hot_over_floor_db: 6.0
   trailing_energy_quiet_over_floor_db: -3.0
   trailing_energy_hop_ms: 10
@@ -524,8 +525,9 @@ join_continuity:
   # above it, judged on the splice's louder side. 0 keeps full weight everywhere.
   spectral_audibility_db: 30.0
   # Both splice sides this far under the track's own voice floor
-  # (TrackAudioCache.voice_floor_db) cannot be heard: room tone against gated digital
-  # silence reads "inaudible splice" (pass) instead of a level jump.
+  # (LevelProfile.voice_floor_db via TrackAudioCache.profile) cannot be heard:
+  # room tone against gated digital silence reads "inaudible splice" (pass)
+  # instead of a level jump.
   inaudible_under_voice_floor_db: 18.0
   sample_rate: 16000
   pass_below: 0.28

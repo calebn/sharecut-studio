@@ -135,10 +135,9 @@ class AsrOptions:
     forced_alignment: ForcedAlignment = field(default_factory=lambda: ForcedAlignment.resolve(None))
     # Flag-only threshold on TranscriptWord.alignment_score; not a decode_key input. A low
     # score flags a word only when its own track carries no speech over the aligned span
-    # (below the noise floor + speech margin) or another dialogue track is louder there by
-    # the bleed margin (#780).
+    # (the silence filter's test against its own audibility floor, #1382) or another dialogue
+    # track is louder there by the bleed margin (#780).
     forced_alignment_min_word_score: float = 0.01
-    forced_alignment_speech_margin_db: float = 12.0
     forced_alignment_bleed_margin_db: float = 3.0
 
     @property
@@ -193,12 +192,6 @@ class AsrOptions:
             forced_alignment=ForcedAlignment.resolve(fa.get("enabled")),
             forced_alignment_min_word_score=bounded_float(
                 fa.get("min_word_score"), base.forced_alignment_min_word_score, 0.0, 1.0
-            ),
-            forced_alignment_speech_margin_db=bounded_float(
-                fa.get("evidence_speech_margin_db"),
-                base.forced_alignment_speech_margin_db,
-                0.0,
-                60.0,
             ),
             forced_alignment_bleed_margin_db=bounded_float(
                 fa.get("evidence_bleed_margin_db"),

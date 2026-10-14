@@ -35,6 +35,7 @@ from podcast_mcp.engines.envelope_lag import (
     copy_lag,
     copy_levels_db,
 )
+from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
@@ -54,7 +55,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 16
+BLEED_GATE_REV = 17
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -71,12 +72,14 @@ GATE_FADE_SEC = 0.02
 _ONSET_HOLD_SEC = 0.04
 _TAIL_HOLD_SEC = 0.08
 _LEVEL_FRAME_SEC = COPY_FRAME_SEC
+# Every lane and peer is read with its own voice level at 0 dB (``LevelProfile.voice_gain``
+# of the audio read), so the gate's levels are offsets under each track's voice level.
 # ``auto`` attenuates only a lane whose bed would still be heard once turned down:
 # its median level away from its own speech and the peers' copies, less
-# bleed_attenuation_db, must stay above the evidence level floor (-90 dB, about one
-# 16-bit step). Below it, attenuating leaves digital silence where the bed was, so
-# muting changes nothing audible and keeps no echo. A call app's gated track sits at
-# that floor most of the time, so its median is the floor.
+# bleed_attenuation_db, must stay above the evidence level floor (``LEVEL_FLOOR_DB``,
+# 75 dB under the voice level). Below it, attenuating leaves next to nothing where the bed
+# was, so muting changes nothing audible and keeps no echo. A call app's gated track sits
+# at that floor most of the time, so its median is the floor.
 _AUDIBLE_BED_DB = LEVEL_FLOOR_DB
 _COPY_HOLD_SEC = 0.05
 _ONSET_REACH_SEC = 0.2
@@ -87,7 +90,9 @@ _SPREAD_PERCENTILE = 95
 _TIMBRE_WINDOW_SEC = 0.2
 _OWNER_FRAME_SEC = 0.02
 _OWNER_HOP_SEC = COPY_HOP_SEC
-_OWNER_FLOOR_DB = -80.0
+# A lane's own sound is never read under this far below its voice level (-80 dBFS on the
+# lab tape, whose median voice level is -15.3 dBFS).
+_OWNER_FLOOR_UNDER_VOICE_DB = 65.0
 _OWNER_FLOOR_PERCENTILE = 10
 _OWNER_FLOOR_MARGIN_DB = 6
 _OWNER_BRIDGE_FRAMES = 15
@@ -281,7 +286,7 @@ def _owner_levels(samples: np.ndarray) -> np.ndarray:
 def _owner_floor_db(levels: np.ndarray) -> float:
     """The level above which a frame of this lane is sound rather than its noise floor."""
     return max(
-        _OWNER_FLOOR_DB,
+        -_OWNER_FLOOR_UNDER_VOICE_DB,
         float(np.percentile(levels, _OWNER_FLOOR_PERCENTILE)) + _OWNER_FLOOR_MARGIN_DB,
     )
 
@@ -599,20 +604,30 @@ def _lane_signals(project: EpisodeProject, track_id: str) -> list[np.ndarray]:
     A stereo or ambisonic mic can carry its speaker on one channel while a peer's
     copy reaches all of them. A mixdown halves that own sound against the copy, so a
     quiet "uh-huh" there was judged copy (#1094). Channels that carry one signal are
-    judged once, on the mono level the gate's absolute floors were set on. Stereo is
+    judged once, on the mono level the lane's voice level is read from. Stereo is
     mixed here, as ffmpeg does; any other layout asks ffmpeg for its own matrix
     (LFE, centre and surround weights differ by layout) at the cost of a second decode.
+    Every signal is read with the mono lane's voice level at 0 dB (:func:`_at_voice_level`).
     """
     channels = raw_timeline_samples(
         project, track_id, sample_rate=EVIDENCE_RATE, preserve_channels=True
     )
     if channels.shape[1] == 1:
-        return [channels[:, 0]]
-    if _channels_are_one_signal(channels):
-        if channels.shape[1] == 2:
-            return [channels.sum(axis=1) * _STEREO_MONO_GAIN]
-        return [raw_timeline_samples(project, track_id, sample_rate=EVIDENCE_RATE)]
-    return [np.ascontiguousarray(channel) for channel in channels.T]
+        return [_at_voice_level(channels[:, 0])]
+    mono = (
+        channels.sum(axis=1) * _STEREO_MONO_GAIN
+        if channels.shape[1] == 2
+        else raw_timeline_samples(project, track_id, sample_rate=EVIDENCE_RATE)
+    )
+    gain = np.float32(track_profile(mono, EVIDENCE_RATE).voice_gain)
+    if _channels_are_one_signal(channels * gain):
+        return [mono * gain]
+    return [np.ascontiguousarray(channel) * gain for channel in channels.T]
+
+
+def _at_voice_level(samples: np.ndarray) -> np.ndarray:
+    """A lane's samples with its voice level at 0 dB, as every gate level is read."""
+    return samples * np.float32(track_profile(samples, EVIDENCE_RATE).voice_gain)
 
 
 def _bed_db(
@@ -739,8 +754,8 @@ def _compute_bleed_gate_plan(
     reasons = {"untranscribed_source_protected"} if untranscribed_spans else set()
     for peer_id in peer_ids:
         try:
-            peer = raw_timeline_samples(
-                project, peer_id, sources=sources, sample_rate=EVIDENCE_RATE
+            peer = _at_voice_level(
+                raw_timeline_samples(project, peer_id, sources=sources, sample_rate=EVIDENCE_RATE)
             )
         except (OSError, ValueError, wave.Error, CalledProcessError):
             reasons.add("unavailable_peer_source")
@@ -900,7 +915,7 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
             "likeness_frames": LIKENESS_FRAMES,
             "owner_frame_sec": _OWNER_FRAME_SEC,
             "owner_hop_sec": _OWNER_HOP_SEC,
-            "owner_floor_db": _OWNER_FLOOR_DB,
+            "owner_floor_under_voice_db": _OWNER_FLOOR_UNDER_VOICE_DB,
             "owner_floor_percentile": _OWNER_FLOOR_PERCENTILE,
             "owner_floor_margin_db": _OWNER_FLOOR_MARGIN_DB,
             "owner_bridge_frames": _OWNER_BRIDGE_FRAMES,

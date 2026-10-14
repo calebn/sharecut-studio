@@ -6,6 +6,7 @@ from typing import Any
 
 from podcast_mcp.edits.speaker_split import (
     LOW_CONFIDENCE,
+    SplitMediaIdentity,
     ensure_splittable,
     split_track_by_speaker,
 )
@@ -297,9 +298,10 @@ class SpeakerService:
         speakers = _speaker_names(count, names, list(enrolled))
         backend = resolve_speaker_backend()
         if backend.name() == "mock":
-            raise ImportError(
-                "speaker split needs a speaker embedding: install the [speaker] or "
-                "[speaker-lite] extra"
+            raise CodedValueError(
+                "Speaker recognition isn't available on this computer. "
+                "See the speaker setup instructions to enable it.",
+                code="speaker_backend_unavailable",
             )
         return speakers, backend
 
@@ -333,6 +335,13 @@ class SpeakerService:
             enrolled=list(enrollment or {}),
         )
         count = len(speakers)
+        source_track = project.track_by_id(track_id)
+        if source_track is None or source_track.media is None:
+            raise CodedValueError(
+                f"track {track_id} has no media to split",
+                code="speaker_split_no_media",
+            )
+        media_identity = SplitMediaIdentity.capture(source_track.media)
         media_path = track_audio_path(project, track_id)
         samples = load_mono_full(media_path, sample_rate=RATE)
         attribution = attribute_speakers(
@@ -355,6 +364,7 @@ class SpeakerService:
                 p,
                 track_id,
                 attribution,
+                media_identity=media_identity,
                 names=speakers,
                 crosstalk_mode=crosstalk_mode,
                 room_tone_fill=room_tone_fill,

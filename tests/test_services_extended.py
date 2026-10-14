@@ -1346,7 +1346,7 @@ def test_edit_strip_silence(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"removed_sec": 0.3, "clips": 2}
     with patch("podcast_mcp.services.document.edit.strip_silence", return_value=report) as strip:
-        out = EditService(ws).strip_silence(speaker="Host", threshold_db=-35.0)
+        out = EditService(ws).strip_silence(speaker="Host", over_voice_floor_db=3.0)
     strip.assert_called_once()
     assert out == report
 

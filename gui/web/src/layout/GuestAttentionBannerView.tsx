@@ -1,9 +1,13 @@
 import { useId } from "react";
 import type { OfflineConflict } from "../state/offlineStore";
+import { Button } from "../ui/Button";
 import { overflowLabel, plural } from "../utils/format";
 
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
 export const ATTENTION_LISTED_CONFLICTS = 5;
+
+/** The banner's id, so the save state's "See why" can move focus to it. */
+export const ATTENTION_BANNER_ID = "needs-attention";
 
 export interface GuestAttentionBannerViewProps {
   /** Count of host edits queued but not yet applied. */
@@ -12,6 +16,10 @@ export interface GuestAttentionBannerViewProps {
   unreadable?: boolean;
   checking?: boolean;
   onDismissAll: () => void;
+  /** Send the queued host edits now. Offered beside a pending count. */
+  onSendNow?: () => void;
+  /** Read the saved edits again. Offered when they could not be read. */
+  onRetry?: () => void;
 }
 
 /** Props-only guest-attention rendering for live state and static catalog cases. */
@@ -19,6 +27,8 @@ export function GuestAttentionBannerView({
   pending,
   conflicts,
   onDismissAll,
+  onSendNow,
+  onRetry,
   unreadable = false,
   checking = false,
 }: GuestAttentionBannerViewProps) {
@@ -38,7 +48,12 @@ export function GuestAttentionBannerView({
   );
 
   return (
-    <div className="guest-attention" role="alert">
+    <div
+      id={ATTENTION_BANNER_ID}
+      className="guest-attention"
+      role="alert"
+      tabIndex={-1}
+    >
       <div className="guest-attention-head">
         <strong>Needs attention</strong>
         <span>
@@ -48,6 +63,14 @@ export function GuestAttentionBannerView({
             ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
             : ""}
         </span>
+        {(pending > 0 && onSendNow) || (unreadable && onRetry) ? (
+          <span className="guest-attention-actions">
+            {pending > 0 && onSendNow && (
+              <Button onClick={onSendNow}>Send now</Button>
+            )}
+            {unreadable && onRetry && <Button onClick={onRetry}>Retry</Button>}
+          </span>
+        ) : null}
         {conflicts.length > 0 && (
           <button
             type="button"

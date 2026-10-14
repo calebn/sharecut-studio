@@ -5,14 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from podcast_mcp.config import join_micro_fade_ms, load_defaults
-from podcast_mcp.edits.audio_cache import (
-    DIGITAL_SILENCE_DB,
-    TrackAudioCache,
-    speech_db_from_profile,
-    track_level_profile,
-    track_voice_floor_db,
-    voice_floor_from_profile,
-)
+from podcast_mcp.edits.audio_cache import TrackAudioCache, track_level_profile
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
     InaudibleCutConfig,
@@ -21,6 +14,7 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_source_cut_range,
 )
 from podcast_mcp.engines.audio_audit import measure_window_rms_db
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 from podcast_mcp.util.tracks import track_audio_path
 
 
@@ -237,8 +231,8 @@ def recommend_post_pad_fade_in_ms(
     fade_ms = min_ms
     if peak_db is not None:
         profile = track_level_profile(project, track_id, audio_cache)
-        quiet_db = voice_floor_from_profile(profile)
-        hot_db = speech_db_from_profile(profile) - hot_under_speech_db
+        quiet_db = profile.voice_floor_db
+        hot_db = profile.speech_db - hot_under_speech_db
         span = max(1e-6, hot_db - quiet_db)
         energy_t = max(0.0, min(1.0, (peak_db - quiet_db) / span))
         energy_fade = round(min_ms + energy_t * (max_ms - min_ms))
@@ -294,7 +288,7 @@ def recommend_prev_word_lead_out_ms(
         )
         if db is not None:
             if not saw_energy:
-                quiet_db = track_voice_floor_db(project, track_id, audio_cache)
+                quiet_db = track_level_profile(project, track_id, audio_cache).voice_floor_db
             saw_energy = True
             if db <= quiet_db:
                 quiet_at = t

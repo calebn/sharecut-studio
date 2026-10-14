@@ -22,14 +22,7 @@ from typing import Any, Literal, NamedTuple, TypeAlias
 import numpy as np
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.audio_cache import (
-    DIGITAL_SILENCE_DB,
-    LEVEL_FRAME_SEC,
-    VOICE_FLOOR_OVER_ROOM_DB,
-    room_floor_db,
-    speech_level_db,
-    track_voice_reach_db,
-)
+from podcast_mcp.edits.audio_cache import track_level_profile
 from podcast_mcp.edits.clips_ops import clips_for_track, remove_timeline_range_from_clips
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
 from podcast_mcp.edits.session_air import (
@@ -47,6 +40,12 @@ from podcast_mcp.engines.audio_audit import (
     timeline_frame_levels_db,
     timeline_window_samples,
 )
+from podcast_mcp.engines.level_profile import (
+    LEVEL_FRAME_SEC,
+    VOICE_FLOOR_OVER_ROOM_DB,
+    room_floor_db,
+    speech_level_db,
+)
 from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -56,7 +55,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import CutSpeechWord, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.dsp import bool_runs
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs
 from podcast_mcp.util.intervals import intersect_intervals, merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -146,15 +145,23 @@ class _RemovedCells:
         return [(self.seconds(a), self.seconds(b)) for a, b in cells]
 
     def removed_audio(
-        self, peer_track_id: str, caches: TrackRmsCacheSet | None
+        self, project: EpisodeProject, peer_track_id: str, caches: TrackRmsCacheSet | None
     ) -> TrackRmsCacheSet:
-        """``caches`` with the peer's lane replaced by only the audio the removal deletes."""
+        """``caches`` with the peer's lane replaced by only the audio the removal deletes.
+
+        The lane keeps the peer's own level profile: the removed audio is read against
+        the whole recording's levels, not its own.
+        """
         first = min(a for a, _ in self.shared)
         last = max(b for _, b in self.shared)
+        peer = caches.get(peer_track_id) if caches else None
         only = TrackRmsCache(
             samples=read_samples(self.runs, first, last - first, self.rate),
             sample_rate=self.rate,
             timeline_offset_sec=self.seconds(first),
+            recording_profile=(
+                peer.profile if peer is not None else track_level_profile(project, peer_track_id)
+            ),
         )
         return TrackRmsCacheSet(caches={**(caches.caches if caches else {}), peer_track_id: only})
 
@@ -475,7 +482,7 @@ def _peer_speaks_near_span(
         decision_spans = removed.spans(removed.sole)
         if removed.shared:
             try:
-                source = removed.removed_audio(peer_track_id, caches)
+                source = removed.removed_audio(project, peer_track_id, caches)
                 decision_spans = merge_intervals([*decision_spans, *removed.spans(removed.shared)])
             except (OSError, ValueError):
                 unavailable = True
@@ -545,7 +552,9 @@ def _voice_reach_db(
 ) -> float:
     """The level the mean of a stretch must reach to hold ``track_id``'s voice, in recorded dB."""
     cache = caches.get(track_id) if caches else None
-    reach = cache.voice_reach_db if cache is not None else track_voice_reach_db(project, track_id)
+    reach = (
+        cache.profile if cache is not None else track_level_profile(project, track_id)
+    ).voice_reach_db
     track = project.track_by_id(track_id)
     return reach + (track.gain_db if track else 0.0)
 
@@ -556,7 +565,7 @@ def _peer_voice_in_mean(
     """Whether a peer's whole-span mean level ``rms`` (recorded dB) holds its voice.
 
     Where no frame-by-frame calibration can be made, the span's mean is held to the level
-    the peer's voice reaches (:func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`):
+    the peer's voice reaches (:attr:`~podcast_mcp.engines.level_profile.LevelProfile.voice_reach_db`):
     a peer with no live audio never speaks. A peer whose loudest frames show no contrast with
     its room has no voice level of its own to read, so it is held to the voice level of the
     session's other tracks (the median of theirs), at any recording level. ``None`` when the

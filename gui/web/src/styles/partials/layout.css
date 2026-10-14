@@ -150,6 +150,23 @@ html[data-shell] body {
   flex-wrap: wrap;
 }
 
+.guest-attention-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+@media (pointer: coarse) {
+  .guest-attention-actions .ui-control,
+  .guest-attention-dismiss {
+    min-block-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] .guest-attention-actions .ui-control,
+html[data-shell="phone"] .guest-attention-dismiss {
+  min-block-size: var(--touch-min);
+}
+
 .guest-attention-dismiss {
   margin-left: auto;
   background: transparent;
@@ -637,6 +654,98 @@ html[data-shell] body {
 .audition-modes button.stale-highlight {
   outline: var(--focus-ring-width) solid var(--color-warning);
   outline-offset: 1px;
+}
+
+.save-dot {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--save-dot-box);
+  block-size: var(--save-dot-box);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+button.save-dot {
+  cursor: pointer;
+}
+
+/* Painted light: shape differs per state so colour is never the only cue. */
+.save-dot::before {
+  content: "";
+  box-sizing: border-box;
+  inline-size: var(--save-dot-size);
+  block-size: var(--save-dot-size);
+  border-radius: 50%;
+}
+
+/* The 44pt target is the box plus this padding; it overlaps only empty chrome. */
+.save-dot::after {
+  content: "";
+  position: absolute;
+  inset: calc((var(--save-dot-box) - var(--touch-min)) / 2);
+}
+
+.save-dot[data-save-state="saved"]::before {
+  background: var(--color-success);
+}
+
+.save-dot[data-save-state="saving"]::before {
+  border: var(--save-dot-stroke) solid var(--color-text-secondary);
+}
+
+.save-dot[data-save-state="waiting"]::before {
+  border: var(--save-dot-stroke) solid var(--color-warning);
+}
+
+.save-dot[data-save-state="failed"]::before {
+  background: var(--color-danger);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .save-dot[data-save-state="saving"]::before {
+    animation: save-dot-pulse var(--motion-loop-pipeline) var(--motion-ease-out)
+      infinite;
+  }
+}
+
+@keyframes save-dot-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* A read-only light (saved, saving) takes no tap, so it paints no target. */
+.save-dot:is([data-save-state="saved"], [data-save-state="saving"])::after {
+  content: none;
+}
+
+/* The desktop/tablet status bar is --status-height tall. Its light never paints
+   a target taller than the bar, so the bar cannot scroll on any pointer. */
+.status-bar .save-dot::after {
+  inset-block: 0;
+}
+
+/* On a touch pointer the row grows only while the light is actionable (waiting
+   or failed, the Needs attention banner is up then): the full --touch-min
+   target plus the bar's 1px top border. The sheets and toasts that anchor to
+   the row follow the token. The phone shell keeps its own row. */
+@media (pointer: coarse) {
+  html:not([data-shell="phone"]):has(
+    .status-bar
+      .save-dot:is([data-save-state="waiting"], [data-save-state="failed"])
+  ) {
+    --status-height: calc(var(--touch-min) + 1px);
+  }
+
+  .status-bar
+    .save-dot:is([data-save-state="waiting"], [data-save-state="failed"]) {
+    block-size: var(--touch-min);
+  }
 }
 
 .status-bar .stale-highlight {

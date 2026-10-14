@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
+from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
@@ -259,7 +260,7 @@ def test_preview_reports_each_lanes_resolved_reduction(tmp_path: Path) -> None:
     project = _episode(tmp_path)
     preview = apply_transcript_bleed_mute(project, track_id="host", dry_run=True)
     candidate = preview["candidates"][0]
-    assert (candidate["bleed_reduction"], candidate["bleed_bed_db"]) == ("mute", -90.0)
+    assert (candidate["bleed_reduction"], candidate["bleed_bed_db"]) == ("mute", LEVEL_FLOOR_DB)
 
 
 def test_segment_beginning_inside_attenuation_fade_matches_full_render(tmp_path):
@@ -319,7 +320,7 @@ def test_other_lane_origin_copy_cannot_protect_selected_lane_foreign_audio(tmp_p
     copy.timeline_start = 2
     after = build_bleed_gate_plan(project, "host")
     assert after == plan
-    assert after.attenuation_spans == ((1.71, 2.74),)
+    assert after.attenuation_spans == ((1.7, 2.75),)
     assert not any(start < 2.6 and end > 2.0 for start, end in after.protected_spans)
     assert track_render_hash(project, "host") == before
     next(clip for clip in project.clips if clip.track_id == "host").timeline_start = 0.1
@@ -346,7 +347,7 @@ def test_implicit_primary_gate_words_do_not_follow_other_lane_origin_copy(tmp_pa
     )
     before = project.model_dump(mode="json")
     plan = build_bleed_gate_plan(project, "host")
-    assert plan.attenuation_spans == ((1.71, 2.74),)
+    assert plan.attenuation_spans == ((1.7, 2.75),)
     assert any(start <= 0.55 and end >= 1.0 for start, end in plan.protected_spans)
     assert project.model_dump(mode="json") == before
 

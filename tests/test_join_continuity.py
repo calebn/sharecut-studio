@@ -15,6 +15,7 @@ from podcast_mcp.edits.join_continuity import (
     assess_proposed_cut,
     score_splice_samples,
 )
+from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
@@ -24,6 +25,9 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.util.dsp import linear_rms
+
+# The lab tape's levels: a -42 dBFS voice floor and a -15 dBFS voice level.
+LAB_LEVELS = LevelProfile(room_db=-60.0, speech_db=-15.0, loud_db=-9.0)
 
 
 def _cfg(**kwargs) -> JoinContinuityConfig:
@@ -88,7 +92,7 @@ def test_hot_onset_scores() -> None:
     left = 0.05 * np.sin(2 * np.pi * 200 * np.arange(n) / sr)
     right = np.zeros(n)
     right[: n // 4] = 0.8
-    _, hits = score_splice_samples(left, right, sample_rate=sr, config=_cfg())
+    _, hits = score_splice_samples(left, right, sample_rate=sr, config=_cfg().at_levels(LAB_LEVELS))
     onset = next(h for h in hits if h.name == "onset_collision")
     assert onset.score > 0.3
 
@@ -700,7 +704,11 @@ def test_proposed_cut_reports_the_highest_tolerated_placement_risk(
         join_continuity, "_resolve_source_samples", lambda *args, **kwargs: np.ones(32000)
     )
     monkeypatch.setattr(join_continuity, "score_splice_samples", score)
-    monkeypatch.setattr(join_continuity, "track_voice_floor_db", lambda *args, **kwargs: -42.0)
+    monkeypatch.setattr(
+        join_continuity,
+        "track_level_profile",
+        lambda *args, **kwargs: LAB_LEVELS,
+    )
     project = load_project(minimal_project)
 
     report = assess_proposed_cut(
@@ -839,8 +847,8 @@ def test_spectral_shape_detectors_lose_weight_on_quiet_air() -> None:
         gain = 10 ** (level_db / 20)
         return dark / linear_rms(dark) * gain, white / linear_rms(white) * gain
 
-    full = _cfg(spectral_audibility_db=0.0)
-    ramped = _cfg(spectral_audibility_db=30.0).at_voice_floor(-42.0)
+    full = _cfg(spectral_audibility_db=0.0).at_levels(LAB_LEVELS)
+    ramped = _cfg(spectral_audibility_db=30.0).at_levels(LAB_LEVELS)
 
     quiet_full, hits_full = score_splice_samples(*sides(-50.0), sample_rate=sr, config=full)
     quiet_ramped, hits_ramped = score_splice_samples(*sides(-50.0), sample_rate=sr, config=ramped)

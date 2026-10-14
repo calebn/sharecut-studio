@@ -23,11 +23,15 @@ def strip_silence_tool(
     project_path: str,
     track_id: str | None = None,
     speaker: str | None = None,
-    threshold_db: float = -40.0,
+    over_voice_floor_db: float = 0.0,
     min_duration_sec: float = 0.5,
     use_inaudible_opt: bool | None = None,
 ) -> str:
     """Rebuild a track from speech islands between detected silences.
+
+    Silence is audio under the track's own audibility floor (its voice floor) plus
+    ``over_voice_floor_db``. A track whose voice does not stand out of its room has no
+    silence to strip, whatever ``over_voice_floor_db`` is.
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored.
     """
@@ -35,7 +39,7 @@ def strip_silence_tool(
     result = EditService(ws).strip_silence(
         track_id=track_id,
         speaker=speaker,
-        threshold_db=threshold_db,
+        over_voice_floor_db=over_voice_floor_db,
         min_duration_sec=min_duration_sec,
         use_inaudible_opt=use_inaudible_opt,
     )

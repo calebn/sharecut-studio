@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_DB,
     LOW_BAND,
     SPEECH_BAND,
     GaussianBand,
@@ -30,8 +31,8 @@ from podcast_mcp.util.dsp import (
 
 def test_rms_db_levels_and_floor() -> None:
     assert rms_db(np.full(100, 0.1)) == pytest.approx(-20.0)
-    assert rms_db(np.array([])) == -80.0
-    assert rms_db(np.zeros(10), floor_db=-200.0) == -200.0
+    assert rms_db(np.array([])) == DIGITAL_SILENCE_DB
+    assert rms_db(np.zeros(10), floor_db=-120.0) == -120.0
 
 
 def test_frame_rms_db_matches_scalar_rms_and_caps_frames() -> None:

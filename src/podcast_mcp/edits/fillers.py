@@ -20,11 +20,7 @@ from podcast_mcp.edits.acoustic_gap import (
     find_voiced_gap_runs,
 )
 from podcast_mcp.edits.acoustic_phrase import phrase_hit_indexes, word_step_ceiling
-from podcast_mcp.edits.audio_cache import (
-    DIGITAL_SILENCE_DB,
-    TrackAudioCache,
-    build_track_audio_caches,
-)
+from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.breath_detect import (
     PauseAirSkip,
     detect_adjacent_breath,
@@ -86,7 +82,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.util.dsp import db_to_amplitude, rms_db
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, db_to_amplitude, rms_db
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.parallel import run_parallel
@@ -858,7 +854,7 @@ def _peer_voiced_at(
             cache.waveform,
             lo - _PEER_VOICE_CONTEXT_SEC,
             hi + _PEER_VOICE_CONTEXT_SEC,
-            floor_db=cache.voice_floor_db,
+            floor_db=cache.profile.voice_floor_db,
         ):
             if run[1] <= lo or run[0] >= hi:
                 continue
@@ -1452,7 +1448,7 @@ def _flanking_speech_rms(
     nxt: TranscriptWord,
 ) -> float | None:
     """Use the quieter of two short word windows as local speech context."""
-    floor = db_to_amplitude(audio_cache.voice_floor_db)
+    floor = db_to_amplitude(audio_cache.profile.voice_floor_db)
     windows = (
         audio_cache.window(max(word.start, word.end - 0.2), word.end),
         audio_cache.window(nxt.start, min(nxt.end, nxt.start + 0.2)),
@@ -2111,10 +2107,10 @@ def _check_voiced_speech(
     reach = _EDGE_NUDGE_MAX_SEC + _VOICE_EDGE_PAD_SEC + FRAME_SEC
     window_lo, window_hi = cut_start - reach, cut_end + reach
     own_runs = voiced_runs(
-        audio_cache.waveform, window_lo, window_hi, floor_db=audio_cache.voice_floor_db
+        audio_cache.waveform, window_lo, window_hi, floor_db=audio_cache.profile.voice_floor_db
     )
     peer_runs = [
-        voiced_runs(c.waveform, window_lo, window_hi, floor_db=c.voice_floor_db)
+        voiced_runs(c.waveform, window_lo, window_hi, floor_db=c.profile.voice_floor_db)
         for c in peer_caches
     ]
     span_lo = min(candidate.start, cut_start)
@@ -2159,7 +2155,7 @@ def _check_voiced_speech(
         return _VoicedSpeechCheck(cut_start, cut_end, "interior_speech")
     if candidate.cut_kind == "pause" and any(
         voiced_sec_inside(
-            audible_runs(c.waveform, cut_start, cut_end, floor_db=c.voice_floor_db),
+            audible_runs(c.waveform, cut_start, cut_end, floor_db=c.profile.voice_floor_db),
             cut_start,
             cut_end,
         )
@@ -2377,7 +2373,7 @@ def _gate_cut_edges(
         checks.audible_only
         and audio_cache is not None
         and rms_db(audio_cache.window(cut_start, cut_end), floor_db=DIGITAL_SILENCE_DB)
-        < audio_cache.voice_floor_db
+        < audio_cache.profile.voice_floor_db
     ):
         return _CutRejected("inaudible")
     admissible_spans = None

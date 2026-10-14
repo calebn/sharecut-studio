@@ -175,9 +175,7 @@ def test_a_word_whole_but_late_on_its_own_track_is_not_flagged(tmp_path: Path) -
 
     lanes = [t.id for t in ws.project.tracks if t.role == TrackRole.DIALOGUE]
     levels = clipped_onsets.timeline_levels(ws.project, lanes)
-    leads = clipped_onsets.copy_leads(
-        levels, clipped_onsets.copy_paths(levels.grid), tolerance_sec=0.04
-    )
+    leads = clipped_onsets.copy_leads(levels, clipped_onsets.copy_paths(levels), tolerance_sec=0.04)
     report = flag_clipped_word_starts(ws.project)
 
     [lead] = [x for x in leads if x.track_id == "audra" and abs(x.copy_sec - turn) < 0.04]

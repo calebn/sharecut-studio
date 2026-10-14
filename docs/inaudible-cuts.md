@@ -76,13 +76,13 @@ placed overlapping actors stay outside the saved predecessor crossfade chain.
 - Transcript cuts: `cut_time_range`, `cut_text_match`, `cut_utterance`, `cut_words`, `apply_edit_plan`.
 - **Filler/pause tighten** — proposals and apply both use waveform optimization when `tighten.inaudible_opt: true` (default). Lexicon membership is in [filler-cut-quality.md](filler-cut-quality.md); discourse markers (`like`, `you know`, …) are demoted there and are not cut from fluent speech.
 - Timeline cuts: `ripple_delete`, `ripple_delete_text`, `shorten_gaps`, clip split/rejoin. `shorten_gaps` maps word gaps in batches against one clip snapshot, then applies each merged removal right to left with `ripple_delete` so clip holes, fades, edit records, and regional render invalidations retain their usual behavior.
-- `strip_silence` rebuilds speech islands from silence detection (padding from silence interiors). It does **not** run `optimize_source_cut_range`; `--inaudible-opt` / `use_inaudible_opt` on strip are accepted for API compatibility and ignored. Joins still get micro-fades via `recommend_micro_fades`.
+- `strip_silence` rebuilds speech islands between silences (padding from silence interiors). Silence is a run of 10 ms frames, read at 16 kHz (`frame_levels_db`), under the track's own audibility floor (its voice floor) plus `over_voice_floor_db`, lasting at least `min_duration_sec` (`engines/silence.quiet_intervals`); a track with no live audio is silence end to end, and a track whose voice does not stand out of its room has no silence to strip. It does **not** run `optimize_source_cut_range`; `--inaudible-opt` / `use_inaudible_opt` on strip are accepted for API compatibility and ignored. Joins still get micro-fades via `recommend_micro_fades`.
 
 NL editing tools and CLI commands are listed in [nl-editing.md](nl-editing.md).
 
 ## Narrative handoffs
 
-For narrative handoffs, omit track and speaker on `suggest_handoff_cut_tool` or CLI `suggest-handoff-cut` to require quiet across every dialogue lane, including saved-muted dialogue. Music is excluded. Explicit track or speaker selects one lane. The domain receives an explicit track collection and builds RMS caches once for the scan. Each common timeline hop reads every lane against its own voice floor (`TrackRmsCache.voice_floor_db`), and a hop is quiet when no lane is over its floor, so any audible lane blocks that hop and the answer does not move with the recording level or with one lane being recorded quieter than another. There is no `--quiet-db`; a lane with no live audio is always quiet, and one whose floor sits over everything it recorded (a track of room tone alone) never blocks. Missing measurements or incomplete cache coverage cannot qualify a hop as quiet. Each proposed boundary must lie in a shared measured quiet island; the suggestion does not certify audio coverage throughout the removed interval. Intentional zero-filled timeline gaps remain silence. Results include `track_ids`, with `track_id` populated for one lane and null for multiple lanes. Lock approved bounds with `use_inaudible_opt=false`, then audition the join.
+For narrative handoffs, omit track and speaker on `suggest_handoff_cut_tool` or CLI `suggest-handoff-cut` to require quiet across every dialogue lane, including saved-muted dialogue. Music is excluded. Explicit track or speaker selects one lane. The domain receives an explicit track collection and builds RMS caches once for the scan. Each common timeline hop reads every lane against its own voice floor (`TrackRmsCache.profile.voice_floor_db`, a `LevelProfile`), and a hop is quiet when no lane is over its floor, so any audible lane blocks that hop and the answer does not move with the recording level or with one lane being recorded quieter than another. There is no `--quiet-db`; a lane with no live audio is always quiet, and one whose floor sits over everything it recorded (a track of room tone alone) never blocks. Missing measurements or incomplete cache coverage cannot qualify a hop as quiet. Each proposed boundary must lie in a shared measured quiet island; the suggestion does not certify audio coverage throughout the removed interval. Intentional zero-filled timeline gaps remain silence. Results include `track_ids`, with `track_id` populated for one lane and null for multiple lanes. Lock approved bounds with `use_inaudible_opt=false`, then audition the join.
 
 The default optimizer is a **local** boundary tool — not a multi-second transition planner:
 
@@ -144,7 +144,7 @@ inserted sample tiles. See [filler cut quality](filler-cut-quality.md#policy).
 | `micro_fade_ms` | Default fade length at optimized joins |
 | `short_cut_max_sec` | Only apply trailing-energy end extend when cut ≤ this (default `1.2`) |
 | `trailing_energy_extend_ms` | Max forward search / chew when end is mid-filler energy (default `350`) |
-| `trailing_energy_hot_over_floor_db` / `trailing_energy_quiet_over_floor_db` | RMS thresholds for “still speaking” (default `6`) vs quiet enough to stop / skip (default `-3`), in dB over the track's voice floor (`TrackAudioCache.voice_floor_db`), so the recording's level does not move them |
+| `trailing_energy_hot_over_floor_db` / `trailing_energy_quiet_over_floor_db` | RMS thresholds for “still speaking” (default `6`) vs quiet enough to stop / skip (default `-3`), in dB over the track's voice floor (`LevelProfile.voice_floor_db`, read through `track_level_profile` / `TrackAudioCache.profile`), so the recording's level does not move them |
 | `absorb_trailing_silence` | Extend cut end through quiet air before the next word (default `true`) |
 | `absorb_trailing_silence_retain_sec` | Breath left before the next word (default `0.4`) |
 | `absorb_trailing_silence_max_sec` | Only absorb when next word is within this gap (default `2.0`) |
@@ -196,7 +196,7 @@ other instant reads both sides of that one point. Before #775 the sweep mapped
 the join to the resume point alone and scored raw source continuity there, which
 passed a cut that resumed inside a phrase. A splice whose two sides are both below
 `join_continuity.inaudible_under_voice_floor_db` (18 dB) under the track's voice floor
-(`TrackAudioCache.voice_floor_db`; -60 dBFS at the lab host's -42 dBFS floor; RMS over the 45 ms side windows,
+(`LevelProfile.voice_floor_db`; -60 dBFS at the lab host's -42 dBFS floor; RMS over the 45 ms side windows,
 e.g. room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
 verdict `pass`, one `inaudible_splice` detector carrying both levels, instead of a
 level-jump `fail` nobody can hear. On the lab tape that turned 7 of 8 sweep fails

@@ -1,7 +1,7 @@
 """Flag ASR words that sit over silence (issue #521, #1366).
 
 Whisper sometimes invents text over silent stretches. A word whose loudest 10 ms frame
-sits under its own track's audibility floor (``TrackRmsCache.audibility_floor_db``, the one
+sits under its own track's audibility floor (``LevelProfile.audibility_floor_db``, the one
 floor reconcile and tighten read) holds no voice on that track, so it is marked
 ``suspect_hallucination``. So is a word over digital silence on any track. The floor
 follows the track's own speech and room levels, so the same recording at any level flags
@@ -42,7 +42,9 @@ from typing import TYPE_CHECKING, Protocol
 import numpy as np
 
 from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.level_profile import LevelProfile, file_level_profile
 from podcast_mcp.models import Clip, EpisodeProject, TranscriptWord
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 from podcast_mcp.util.hashing import sha256_head_tail, short_digest
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.project_state import FileRevision, file_revision
@@ -65,10 +67,6 @@ MIN_SPAN_SEC = 0.05
 # The evidence gate's level resolution: 10 ms frames at 8 kHz, about 80x smaller than samples.
 LEVEL_FRAME_SEC = 0.01
 LEVEL_SAMPLE_RATE = 8000
-# A frame at or below this is digital silence: it never counts toward a track's noise floor.
-# Digital silence is the same level at any recording gain; a fixed dBFS cutoff above it moved
-# a quiet room into it as the recording got quieter (#1366).
-SILENT_FRAME_DB = -200.0
 
 
 def silence_filter_fingerprint(
@@ -94,9 +92,8 @@ def silence_filter_fingerprint(
     # stored before it stay valid and unchanged reused transcripts are not re-decoded.
     if any(w.alignment_score is not None for w in words):
         digest.update(
-            "ctc3:"
+            "ctc4:"
             f"{float(options.forced_alignment_min_word_score).hex()}:"
-            f"{float(options.forced_alignment_speech_margin_db).hex()}:"
             f"{float(options.forced_alignment_bleed_margin_db).hex()}:"
             f"{evidence}:".encode()
         )
@@ -271,31 +268,33 @@ def evidence_terms(
     return (settled,) if bleed_check else (own, settled)
 
 
+def span_is_silent(levels_db: np.ndarray, start: float, end: float, floor_db: float) -> bool | None:
+    """Whether ``[start, end)`` holds no voice: its loudest 10 ms frame is under ``floor_db``
+    (the track's ``LevelProfile.audibility_floor_db``) or is digital silence.
+
+    The span is widened to ``MIN_SPAN_SEC`` about its centre, so a one-frame word still
+    measures something. ``None`` when it falls outside the decoded audio: no evidence.
+    """
+    centre = (start + end) / 2.0
+    half = max(end - start, MIN_SPAN_SEC) / 2.0
+    lo = max(0, int((centre - half) / LEVEL_FRAME_SEC))
+    hi = min(int(levels_db.size), int(np.ceil((centre + half) / LEVEL_FRAME_SEC)))
+    if lo >= hi:
+        return None
+    loudest = float(np.max(levels_db[lo:hi]))
+    return loudest < floor_db or loudest <= DIGITAL_SILENCE_DB
+
+
 def flag_words_below_floor(
     words: Sequence[TranscriptWord], levels_db: np.ndarray, *, floor_db: float
 ) -> int:
-    """Set ``suspect_hallucination`` on every word; return how many are True.
+    """Set ``suspect_hallucination`` on every word by :func:`span_is_silent`; return the count.
 
-    ``levels_db`` holds the track's 10 ms frame levels (``frame_levels_db``). A word is
-    silent when its loudest frame is under ``floor_db`` or is digital silence.
+    ``levels_db`` holds the track's 10 ms frame levels (``frame_levels_db``).
     """
-    from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB
-
-    total = int(levels_db.size)
-    flagged = 0
     for w in words:
-        w.suspect_hallucination = False
-        centre = (w.start + w.end) / 2.0
-        half = max(w.end - w.start, MIN_SPAN_SEC) / 2.0
-        lo = max(0, int((centre - half) / LEVEL_FRAME_SEC))
-        hi = min(total, int(np.ceil((centre + half) / LEVEL_FRAME_SEC)))
-        if lo >= hi:
-            continue  # span outside the decoded audio: no evidence either way
-        loudest = float(np.max(levels_db[lo:hi]))
-        if loudest < floor_db or loudest <= DIGITAL_SILENCE_DB:
-            w.suspect_hallucination = True
-            flagged += 1
-    return flagged
+        w.suspect_hallucination = bool(span_is_silent(levels_db, w.start, w.end, floor_db))
+    return sum(w.suspect_hallucination for w in words)
 
 
 def below_evidence_floor(score: float | None, min_score: float) -> bool:
@@ -311,30 +310,28 @@ class SpeechEvidence(Protocol):
 
 @dataclass
 class TrackEnergy:
-    """One dialogue track as 10 ms frame levels (dBFS, float32) and its noise floor.
+    """One dialogue track as 10 ms frame levels (dBFS, float32) and its level profile.
 
     The gate only reads span RMS, so frames replace samples: a 28-minute track is 0.7 MB
     instead of 54 MB, and the decode streams so nothing larger than one chunk is resident.
+    The profile is the recording's own (``file_level_profile``), read from these same frames.
     """
 
     frames_db: np.ndarray
-    floor_db: float
+    profile: LevelProfile
 
     @classmethod
-    def decode(cls, path: Path, *, floor_percentile: float = 5.0) -> TrackEnergy:
+    def decode(cls, path: Path) -> TrackEnergy:
         from podcast_mcp.engines.ffmpeg import FFmpegEngine
         from podcast_mcp.util.dsp import frame_rms_db_stream
 
         frame = round(LEVEL_SAMPLE_RATE * LEVEL_FRAME_SEC)
         chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=LEVEL_SAMPLE_RATE)
-        frames_db = frame_rms_db_stream(chunks, frame, frame, floor_db=SILENT_FRAME_DB).astype(
-            np.float32
-        )
+        frames_db = frame_rms_db_stream(chunks, frame, frame).astype(np.float32)
         if frames_db.size == 0:
             raise NoAudioDecodedError(path)
-        heard = frames_db[frames_db > SILENT_FRAME_DB]
-        floor = float(np.percentile(heard, floor_percentile)) if heard.size else SILENT_FRAME_DB
-        return cls(frames_db=frames_db, floor_db=floor)
+        profile = file_level_profile(path, sample_rate=LEVEL_SAMPLE_RATE, levels=frames_db)
+        return cls(frames_db=frames_db, profile=profile)
 
     def level_db(self, start: float, end: float) -> float | None:
         """RMS over ``[start, end)`` source seconds from the frames it covers; None past the end."""
@@ -344,7 +341,7 @@ class TrackEnergy:
             return None
         seg = self.frames_db[i0 : min(i1, self.frames_db.size)].astype(np.float64)
         power = float(np.mean(10.0 ** (seg / 10.0)))
-        return 10.0 * np.log10(power) if power > 0.0 else SILENT_FRAME_DB
+        return 10.0 * np.log10(power) if power > 0.0 else DIGITAL_SILENCE_DB
 
 
 @dataclass(frozen=True)
@@ -359,10 +356,10 @@ class MediaEnergy:
 class SpeechLevels:
     """Dialogue-track levels for the aligner evidence gate (#780).
 
-    A word has speech evidence when its own track's level over the aligned span (the
-    recording's level plus the track gain, the same rule reconcile's audibility uses) sits
-    at least ``speech_margin_db`` above that track's noise floor and, with ``bleed_check``,
-    no other dialogue track is ``bleed_margin_db`` louder over the same session-clock span.
+    A word has speech evidence when its own track is not silent over the aligned span (the
+    silence filter's :func:`span_is_silent` against the track's own audibility floor, #1382)
+    and, with ``bleed_check``, no other dialogue track is ``bleed_margin_db`` louder over
+    the same session-clock span, both read with each track's gain.
     ``bleed_check`` is off at transcribe time, before ``align_tracks`` has placed the tracks
     against each other, and on when ``reconcile_transcript`` re-flags afterwards; the
     fingerprint records the gains, placement and selected-media revisions measured by
@@ -379,7 +376,6 @@ class SpeechLevels:
     media_revisions: dict[str, FileRevision | None]
     selected_media_keys: dict[str, tuple[str, ...]]
     gains_db: dict[str, float]
-    speech_margin_db: float
     bleed_margin_db: float
     bleed_check: bool
     placement: str
@@ -444,7 +440,6 @@ class SpeechLevels:
             media_revisions=media_revisions,
             selected_media_keys=selected_media_keys,
             gains_db=gains_db,
-            speech_margin_db=options.forced_alignment_speech_margin_db,
             bleed_margin_db=options.forced_alignment_bleed_margin_db,
             bleed_check=bleed_check,
             placement=placement_digest(project),
@@ -477,10 +472,6 @@ class SpeechLevels:
         levels.skipped[:] = list(dict.fromkeys(skipped))
         return levels
 
-    @property
-    def floors_db(self) -> dict[str, float]:
-        return {tid: energy.floor_db for tid, energy in self.tracks.items()}
-
     def fingerprint_term(self, track_id: str) -> str:
         """What ``silence_filter_fingerprint`` records about the gate these flags came from."""
         return _evidence_term(
@@ -505,11 +496,14 @@ class SpeechLevels:
     def has_speech(self, track_id: str, start: float, end: float) -> bool:
         from podcast_mcp.util.source_spans import source_span_timeline_bounds
 
+        energy = self.tracks.get(track_id)
+        if energy is None:
+            return True
+        if span_is_silent(energy.frames_db, start, end, energy.profile.audibility_floor_db):
+            return False
         own = self._level_db(track_id, start, end)
         if own is None:
             return True
-        if own < self.tracks[track_id].floor_db + self.speech_margin_db:
-            return False
         if not self.bleed_check:
             return True
         tl_start, tl_end = source_span_timeline_bounds(self.timeline, track_id, start, end)
@@ -583,7 +577,7 @@ class SpeechLevels:
         total_duration = sum(duration for _, duration in powers)
         mean_power = sum(10.0 ** (level / 10.0) * duration for level, duration in powers)
         mean_power /= total_duration
-        level = 10.0 * np.log10(mean_power) if mean_power > 0.0 else SILENT_FRAME_DB
+        level = 10.0 * np.log10(mean_power) if mean_power > 0.0 else DIGITAL_SILENCE_DB
         return level + self.gains_db[track_id]
 
 
@@ -692,13 +686,13 @@ def digital_silence_fraction(path: Path) -> float | None:
 
 def flag_silent_words_in_file(words: Sequence[TranscriptWord], path: Path) -> int | None:
     """Flag silent words in ``path``; ``None`` (logged as a warning) when it cannot be decoded."""
-    from podcast_mcp.edits.audio_cache import frame_levels_db
     from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.level_profile import frame_levels_db
 
     try:
         track = TrackRmsCache.from_timeline_stem(path)
         levels = frame_levels_db(track.samples, int(track.sample_rate))
-        floor_db = track.audibility_floor_db
+        floor_db = track.profile.audibility_floor_db
     except Exception as exc:
         log.warning("silence filter skipped for %s: %s", path, exc)
         return None

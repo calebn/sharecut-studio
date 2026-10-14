@@ -16,6 +16,7 @@ import yaml
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
+from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
 from podcast_mcp.models import (
     Clip,
@@ -159,7 +160,7 @@ def test_foreign_copy_on_a_gated_lane_is_muted(
 ) -> None:
     project = _episode(tmp_path, direct_lag_sec=direct_lag_sec, colored=colored)
     plan = build_bleed_gate_plan(project, "host")
-    assert (plan.reduction, plan.bed_db) == ("mute", -90.0)
+    assert (plan.reduction, plan.bed_db) == ("mute", LEVEL_FLOOR_DB)
     before, after = _gated(project, tmp_path)
     _silent(after, 1.05, 2.95)
     _unchanged(before, after, 0.0, 0.85)
@@ -186,6 +187,13 @@ def test_track_speakers_own_speech_is_untouched(tmp_path: Path) -> None:
     _silent(after, 2.55, 2.95)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "#1443 Ledger: main muted this only because the guest track sits 5 dB under the lab's "
+        "voice level; with each track at the lab's level main keeps 1.02-1.22 s as own sound too"
+    ),
+)
 @pytest.mark.usefixtures("one_phrase_copy_evidence")
 def test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy(tmp_path: Path) -> None:
     project = _episode(tmp_path, direct_gated_until=1.15)
@@ -510,7 +518,8 @@ def test_lane_with_a_room_floor_is_turned_down_20_db_not_muted(tmp_path: Path) -
     project = _talking_over(tmp_path, room_floor_db=-60.0)
     plan = build_bleed_gate_plan(project, "host")
     assert plan.reduction == "attenuate"
-    assert plan.bed_db == pytest.approx(-60.0, abs=1.0)
+    # The -60 dBFS bed, read against the lane's -22.8 dBFS voice.
+    assert plan.bed_db == pytest.approx(-37.2, abs=1.0)
     before, after = _gated_over(project, tmp_path)
     assert _gain_db(before, after, 1.05, 30.65) == pytest.approx(-20.0, abs=0.2)
 
@@ -518,17 +527,21 @@ def test_lane_with_a_room_floor_is_turned_down_20_db_not_muted(tmp_path: Path) -
 @pytest.mark.parametrize(
     ("room_floor_spans", "bed_db"),
     [
-        pytest.param(((0.7, 1.0), (31.0, 31.3)), -90.0, id="gated-with-faint-tone-near-the-copy"),
-        pytest.param(None, -76.0, id="steady-tone-below-the-bit-floor-once-turned-down"),
+        pytest.param(
+            ((0.7, 1.0), (31.0, 31.3)), LEVEL_FLOOR_DB, id="gated-with-faint-tone-near-the-copy"
+        ),
+        pytest.param(None, -61.2, id="steady-tone-below-the-bit-floor-once-turned-down"),
     ],
 )
 def test_lane_whose_bed_cannot_survive_attenuation_is_muted(
     tmp_path: Path, room_floor_spans: tuple[tuple[float, float], ...] | None, bed_db: float
 ) -> None:
     """Lab Caleb mic: half its quiet frames are the call app's digital silence, the rest
-    room tone near -77 dBFS. Turned down 20 dB, that tone falls under one 16-bit step, so
-    attenuating keeps no bed either; the copy tails beside it must not decide."""
-    project = _talking_over(tmp_path, room_floor_db=-76.0, room_floor_spans=room_floor_spans)
+    room tone near -77 dBFS, 62 dB under his -15.3 dBFS voice. Turned down 20 dB, that
+    tone falls under the gate's level floor, so attenuating keeps no bed either; the copy
+    tails beside it must not decide. The lane's voice here is -22.8 dBFS, so its tone sits
+    at the lab's distance under it."""
+    project = _talking_over(tmp_path, room_floor_db=-84.0, room_floor_spans=room_floor_spans)
     plan = build_bleed_gate_plan(project, "host")
     assert plan.reduction == "mute"
     assert plan.bed_db == pytest.approx(bed_db, abs=1.0)

@@ -214,6 +214,144 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
   });
 }
 
+test("phone save light outside Listen takes no tap meant for the control under it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  const dot = page.locator("[data-save-state]");
+  await expect(dot).toHaveAttribute("data-save-state", "saved");
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  for (const mode of ["Timeline", "Text", "More"]) {
+    await nav.getByRole("button", { name: mode, exact: true }).click();
+    const box = await dot.boundingBox();
+    expect(box).not.toBeNull();
+    const hitsDot = await page.evaluate(
+      ({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest("[data-save-state]") !== null,
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 },
+    );
+    expect(hitsDot, `${mode} save light is tap-through`).toBe(false);
+  }
+  await nav.getByRole("button", { name: "More", exact: true }).click();
+  await page
+    .locator(".mobile-more-list")
+    .getByRole("button", { name: "Comments", exact: true })
+    .click();
+  await page.getByRole("button", { name: "← More", exact: true }).click();
+  await expect(page.locator(".mobile-more-list")).toBeVisible();
+});
+
+const failedSaveInit = () => {
+  // An unreadable offline queue is the Failed save state.
+  indexedDB.open = () => {
+    throw new Error("queue unreadable");
+  };
+};
+
+async function statusBarScroll(bar: Locator) {
+  return bar.evaluate((el) => ({
+    scrollHeight: el.scrollHeight,
+    clientHeight: el.clientHeight,
+    height: el.getBoundingClientRect().height,
+  }));
+}
+
+test("tablet status bar on a touch pointer holds the failed save light's whole 44pt target", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 834, height: 1194 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    const page = await context.newPage();
+    await page.addInitScript(failedSaveInit);
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    const bar = page.locator("footer.status-bar");
+    const dot = bar.locator('[data-save-state="failed"]');
+    await expect(dot).toBeVisible();
+    const barBox = await bar.boundingBox();
+    const dotBox = await dot.boundingBox();
+    expect(barBox).not.toBeNull();
+    expect(dotBox).not.toBeNull();
+    expect(barBox!.height).toBeGreaterThanOrEqual(44);
+    expect(dotBox!.height).toBeGreaterThanOrEqual(44);
+    expect(dotBox!.y).toBeGreaterThanOrEqual(barBox!.y - 0.5);
+    expect(dotBox!.y + dotBox!.height).toBeLessThanOrEqual(
+      barBox!.y + barBox!.height + 0.5,
+    );
+    const { scrollHeight, clientHeight } = await statusBarScroll(bar);
+    expect(scrollHeight, "failed bar does not scroll").toBeLessThanOrEqual(
+      clientHeight,
+    );
+    const centreX = dotBox!.x + dotBox!.width / 2;
+    const centreY = dotBox!.y + dotBox!.height / 2;
+    for (const offset of [-20, 0, 20]) {
+      const hitsDot = await page.evaluate(
+        ({ x, y }) =>
+          document.elementFromPoint(x, y)?.closest("[data-save-state]") !==
+          null,
+        { x: centreX, y: centreY + offset },
+      );
+      expect(hitsDot, `tap ${offset}px from centre reaches the light`).toBe(
+        true,
+      );
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test("tablet status bar on a touch pointer stays the normal height while the save light is read-only", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 834, height: 1194 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    const bar = page.locator("footer.status-bar");
+    await expect(bar.locator('[data-save-state="saved"]')).toBeVisible();
+    const normal = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.blockSize = "var(--status-height)";
+      document.body.append(probe);
+      const height = probe.getBoundingClientRect().height;
+      probe.remove();
+      return height;
+    });
+    const { scrollHeight, clientHeight, height } = await statusBarScroll(bar);
+    expect(height).toBeCloseTo(normal, 0);
+    expect(height).toBeLessThan(44);
+    expect(scrollHeight, "saved bar does not scroll").toBeLessThanOrEqual(
+      clientHeight,
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+for (const state of ["saved", "failed"] as const) {
+  test(`desktop status bar does not scroll while the save light is ${state}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    if (state === "failed") {
+      await page.addInitScript(failedSaveInit);
+    }
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    const bar = page.locator("footer.status-bar");
+    await expect(bar.locator(`[data-save-state="${state}"]`)).toBeVisible();
+    const { scrollHeight, clientHeight } = await statusBarScroll(bar);
+    expect(scrollHeight).toBeLessThanOrEqual(clientHeight);
+  });
+}
+
 test("phone pipeline step parameters trap focus, close on Escape, and restore the trigger", async ({
   page,
 }) => {

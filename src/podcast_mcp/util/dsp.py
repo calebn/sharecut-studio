@@ -13,10 +13,11 @@ from typing import Protocol
 
 import numpy as np
 
-# Below this linear RMS a frame is treated as digital silence (-200 dBFS).
-_SILENCE_RMS = 1e-10
-# What ``rms_db`` reports for digital silence unless the caller names its own floor.
-DEFAULT_RMS_FLOOR_DB = -80.0
+# What a frame of zeros reads: the one absolute level a detector may compare with, since
+# it is the same at any recording gain (docs/audio-engineering.md § Detection levels).
+DIGITAL_SILENCE_DB = -200.0
+# Below this linear RMS a frame is treated as digital silence.
+_SILENCE_RMS = 10 ** (DIGITAL_SILENCE_DB / 20)
 
 
 def clamp01(value: float) -> float:
@@ -40,7 +41,7 @@ def linear_rms(samples: np.ndarray, *, epsilon: float = 0.0) -> float:
     return float(np.sqrt(np.mean(np.square(samples, dtype=np.float64)) + epsilon))
 
 
-def rms_db(samples: np.ndarray, *, floor_db: float = DEFAULT_RMS_FLOOR_DB) -> float:
+def rms_db(samples: np.ndarray, *, floor_db: float = DIGITAL_SILENCE_DB) -> float:
     """RMS level in dBFS; empty or digitally silent input returns ``floor_db``."""
     if samples.size == 0:
         return floor_db
@@ -61,7 +62,7 @@ def frame_rms_db(
     hop: int,
     *,
     max_frames: int | None = None,
-    floor_db: float = -200.0,
+    floor_db: float = DIGITAL_SILENCE_DB,
 ) -> np.ndarray:
     """Vectorized per-frame RMS dB for overlapping ``frame``-sample windows every ``hop``."""
     if frame <= 0 or hop <= 0 or samples.size < frame:
@@ -184,7 +185,7 @@ def frame_band_filtered_db(
     frame: int,
     band: BandShape,
     *,
-    floor_db: float = -200.0,
+    floor_db: float = DIGITAL_SILENCE_DB,
 ) -> np.ndarray:
     """Per-frame dB level of ``samples`` through ``band``, on :func:`frame_rms_db`'s grid.
 
@@ -219,7 +220,7 @@ def frame_band_db(
     hop: int,
     *,
     lo_hz: float,
-    floor_db: float = -200.0,
+    floor_db: float = DIGITAL_SILENCE_DB,
 ) -> np.ndarray:
     """Per-frame dB level of the signal's content at or above ``lo_hz``.
 
@@ -240,7 +241,7 @@ def frame_band_db(
 
 
 def frame_peak_db(
-    samples: np.ndarray, frame: int, hop: int, *, floor_db: float = -200.0
+    samples: np.ndarray, frame: int, hop: int, *, floor_db: float = DIGITAL_SILENCE_DB
 ) -> np.ndarray:
     """Per-frame sample peak in dB on the :func:`frame_rms_db` frame grid."""
     if frame <= 0 or hop <= 0 or samples.size < frame:
@@ -283,7 +284,7 @@ def frame_db_stream(
 
 
 def frame_rms_db_stream(
-    chunks: Iterable[np.ndarray], frame: int, hop: int, *, floor_db: float = -200.0
+    chunks: Iterable[np.ndarray], frame: int, hop: int, *, floor_db: float = DIGITAL_SILENCE_DB
 ) -> np.ndarray:
     """:func:`frame_rms_db` over a forward-only chunk stream (see :func:`frame_db_stream`)."""
     return frame_db_stream(

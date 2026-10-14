@@ -21,9 +21,9 @@ A word is tagged **`bleed`** when another track's RMS exceeds the own-track RMS 
 | `bleed_dominance_db` | 6.0 | Required RMS gap (other − own) for bleed |
 | `max_word_audibility_sec` | 2.0 | Longer ASR words → `deferred` (no mean-RMS suppress) |
 
-**The floor is the track's own (#1324).** There is no fixed dBFS level in this table. A word is `inaudible` when its RMS is under its own track's voice floor, and a mic is a bleed source only while it sounds above its own. The floor is `TrackRmsCache.voice_floor_db`, `max(S − 27 dB, R + 6 dB)` for the track's speech level S and room R over the same timeline audio the word levels are read from, and tighten reads the same figure ([filler-cut-quality.md § Voice floor](filler-cut-quality.md)). So the same recording at any gain, or a quieter copy of it, gets the same verdicts and the same transcript. A track with no live audio has an infinite floor, so every word on it is `inaudible`; a track that was not decoded has no floor and judges nothing inaudible. A track whose loudest frames (the 99th percentile of its live 10 ms frames, not its 90th-percentile speech level) sit within 6 dB of its room has no quiet to find (its floor would sit over its own speech), so it judges nothing inaudible either (`audibility_floor_db`). Contrast is read from the loudest frames so that a speaker who talks under a tenth of the time on an ungated track, whose speech level is room tone, keeps the floor `R + 6 dB`; a steady tone has no louder frames and takes the fallback. The ASR silence filter that sets `suspect_hallucination` reads the same `audibility_floor_db` (#1366, [transcript-workflow.md](transcript-workflow.md)), so a word flagged silent at transcribe time and a word judged `inaudible` here use one measurement.
+**The floor is the track's own (#1324).** There is no fixed dBFS level in this table. A word is `inaudible` when its RMS is under its own track's voice floor, and a mic is a bleed source only while it sounds above its own. The floor is the track's `LevelProfile.voice_floor_db`, `max(S − 27 dB, R + 6 dB)` for the track's speech level S and room R, measured once per audio file revision and sample rate ([audio-engineering.md § Detection levels](audio-engineering.md#detection-levels)), and tighten reads the same figure ([filler-cut-quality.md § Voice floor](filler-cut-quality.md)). So the same recording at any gain, or a quieter copy of it, gets the same verdicts and the same transcript. A track with no live audio has an infinite floor, so every word on it is `inaudible`; a track that was not decoded has no floor and judges nothing inaudible. A track whose loudest frames (the 99th percentile of its live 10 ms frames, not its 90th-percentile speech level) sit within 6 dB of its room has no quiet to find (its floor would sit over its own speech), so it judges nothing inaudible either (`audibility_floor_db`). Contrast is read from the loudest frames so that a speaker who talks under a tenth of the time on an ungated track, whose speech level is room tone, keeps the floor `R + 6 dB`; a steady tone has no louder frames and takes the fallback. The ASR silence filter that sets `suspect_hallucination` reads the same `audibility_floor_db` (#1366, [transcript-workflow.md](transcript-workflow.md)), so a word flagged silent at transcribe time and a word judged `inaudible` here use one measurement.
 
-**The bleed path is measured at the session's speech level (#1324).** The echo pairs and the copy lag use fixed levels (`bleed_echo.EchoConfig` source and open floors, `envelope_lag.PEER_OPEN_DB`, `LEVEL_FLOOR_DB`), so on a quieter copy of a recording the pair, then the lag, were lost and words changed owner (the lab tape 12 dB down moved the lag from 140 to 150 ms, 24 dB down lost it). `TrackRmsCacheSet.reference_samples` gives them every track at one gain, `PATH_REFERENCE_LOUD_DB` (−10 dBFS, the lab recording's median track loud level, where those levels were set) less the median loud level of the tracks whose loudest frames stand out of their room. The loud level is the 99th percentile of a track's live frames, 5 to 6 dB over its speech level on the lab tape; it is read instead of the speech level (the 90th percentile) because a guest who talks under a tenth of the time has room tone there, and one such track in a two-person session moved the gain by 24 dB (a 3% guest next to a dense host: +28.1 dB against +3.9 dB; at 10% speech +16.1 dB) (`tests/test_sparse_speaker_floor.py`). One gain for all tracks keeps which mic is louder, which is the evidence. A session with no such track is measured as recorded. The bleed gate (`bleed_gate.py`) still reads the fixed levels (#1374), and so does the ASR silence filter's `suspect_hallucination` flag (#1366).
+**The bleed path reads each track against its own voice (#1324, #1443).** The echo pairs and the copy lag read every track through `LevelProfile.voice_gain` (`TrackRmsCacheSet.path_samples`), so their open and source levels are offsets under each track's voice level, and the same recording at any gain finds the same pair and lag. The voice level is the speech level, or 6 dB under the loud level for a speaker who talks under a tenth of the time, whose speech level is room tone. Which side of a pair is louder, and the copy's level against its source, are read as recorded: the two tracks' references are added back, so one mic recorded far quieter can still lose or flip a pair (#1376). The bleed gate reads its lanes the same way. See [audio-engineering.md § Detection levels](audio-engineering.md#detection-levels) for the offsets and their limits.
 
 Bleed uses **acoustic dominance**, not identical ASR text. Overlapping words with different transcripts are still bleed candidates when the other mic is louder.
 
@@ -196,7 +196,7 @@ The gate defaults to unity gain. Where it acts it reduces the copy by
 
 | `bleed_handling` | Inside a reduced span |
 |---|---|
-| `auto` (default) | `attenuate` on a lane whose bed stays above the 16-bit floor once turned down, else `mute` |
+| `auto` (default) | `attenuate` on a lane whose bed stays above the gate's level floor once turned down, else `mute` |
 | `mute` | silence |
 | `attenuate` | turned down by `bleed_attenuation_db` (default 20 dB) |
 
@@ -204,17 +204,22 @@ The gate defaults to unity gain. Where it acts it reduces the copy by
 its own speech and hold and from the peers' copies. A room mic's bed that a mute
 would make vanish and return at every span edge is kept steady by attenuating
 instead, but only if it is still there once turned down: the bed less
-`bleed_attenuation_db` must stay above the −90 dB level floor, about one 16-bit
-step. Below it, attenuating leaves digital silence where the bed was, so the lane
-is muted. A call app that gates each track to digital silence reads at that floor
+`bleed_attenuation_db` must stay above the gate's level floor, 75 dB under the
+lane's own voice level (`LEVEL_FLOOR_DB`; −90 dBFS on the lab tape, whose median
+voice level is −15.3 dBFS). Below it, attenuating leaves next to nothing where the
+bed was, so the lane is muted. Every gate level, `bleed_bed_db` included, is dB
+relative to the lane's voice level, not dBFS, so the same recording at any gain
+gets the same plan ([audio-engineering.md § Detection levels](audio-engineering.md#detection-levels)). A call app that gates each track to digital silence reads at that floor
 most of the time, so its median is the floor. It is a median because copy tails and
 the lane's breaths fill a few percent of those frames and would set a mean. On the
 lab tape 3% of Caleb's frames beside the copies gave 97% of their power, so the
 round-3 power mean (−57 dBFS) read a bed that is not there. On a fresh aligned lab
 run every track resolves to `mute`: Caleb's quiet frames are 76% digital silence
-and otherwise room tone at −80 dBFS (median), Audra's and Lana's 88%. A steady
-−60 dBFS room bed resolves to `attenuate`. The plan and the apply preview report
-each lane's `bleed_reduction` and `bleed_bed_db`.
+and otherwise room tone at −80 dBFS (median, measured), Audra's and Lana's 88%.
+A steady −60 dBFS room bed on a lane whose voice is −22.8 dBFS reads a
+`bleed_bed_db` of −37.2 dB and resolves to `attenuate`. The plan and the apply
+preview report each lane's `bleed_reduction` and `bleed_bed_db` (dB relative to
+the lane's voice level).
 
 Around the lane's own speech the gate holds full level for 40 ms before and 80 ms
 after, then ramps over 20 ms. On the lab tape the level just outside Caleb's
@@ -228,7 +233,8 @@ at 20/40 ms. The hold also covers plosive bursts before a word's vowel (#978). I
 The gate measures each lane against every other dialogue track's audio at 8 kHz
 (100 ms level frames every 10 ms):
 
-- **A copy path.** Over the peer's own speech (its track open above −60 dBFS), the
+- **A copy path.** Over the peer's own speech (its track open: within 45 dB of its
+  own voice level, `PEER_OPEN_DB`; −60 dBFS on the lab tape), the
   lane's syllable contour (its level less the half-second mean) must follow the
   peer's at one lag within ±300 ms, with correlation at least 0.4 and 0.15 above the
   same lag shifted by ±1 s and ±2 s. The lag is found by the shared
@@ -441,6 +447,18 @@ sound, away from the host's words:
 | 250 ms late on 7 or 15 of 74 words | 2.17 s / 13, 5.07 s / 26 | | 2.23 s / 15, 5.17 s / 29 |
 | on time, own breaths +4 dB ending 20 ms before 10 openings | 0.84 s / 12 | 1.36 s / 19 | 0.84 s / 12 |
 
+These figures were measured at #1134, when the gate compared fixed dBFS levels. Since
+#1443 it reads each track against its own voice level, and
+`tests/test_bleed_gate_generality.py` pins what it leaves now: 0.86 s in 12 pieces
+beside the breaths; at most 5.3 s in 24 beside two laughs on a peer opening 30–120 ms
+late on every word (5.3 s in 24 on macOS arm64, 5.05 s in 23 on Linux x86-64); and,
+with no own sound, at most 15.5 s in 60 on that peer over a −70 dBFS mic floor (15.0 s
+in 58 on macOS arm64) and 7.27 s in 37 on a peer 180 ms late on every word.
+`tests/test_bleed_attenuation.py::test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy`
+is a strict xfail since #1443: the gate no longer mutes all of that copy. Main muted it
+only because the guest track sits 5 dB under the lab's voice level; with each track at
+the lab's level main also keeps 1.02–1.22 s of it as own sound.
+
 **The trade (owner decision, #1134).** No placement of own sound is touched more than
 on main: 600 random laughs, breaths, "mm"s and crosstalk beside on-time, late and
 partly late peers, with and without a mic floor, touched 12.6 s less in total. The
@@ -458,8 +476,8 @@ late copy's start from an own laugh, so 'never trim more own sound than main' an
 and breaths whole and accept slightly more leak on peers whose call app opens their
 gate late. The tests pin both sides: the laughs and breaths above, the late-word and
 breath rows equal to main, and the −70 dBFS and 180 ms every-word rows capped at the
-accepted cost. Frames near a −70 dBFS floor flip between platforms (10.82 s in 46
-pieces on macOS arm64, 11.07 s in 47 on Linux x86-64), so that cap is 11.3 s in 48.
+accepted cost. Frames near a −70 dBFS floor flip between platforms, so that cap is
+rounded up (15.5 s in 60 since #1443).
 
 **Late-opening copy is not reduced further.** On the peer opening 30–120 ms late on
 every word, 2.5 s of the copy stays at full level, as on main. It is whole words, not

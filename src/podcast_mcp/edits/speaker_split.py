@@ -20,6 +20,7 @@ from __future__ import annotations
 import uuid
 from bisect import bisect_right
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from podcast_mcp.edits.clips_ops import clips_for_track, new_clip_id
 from podcast_mcp.edits.mute_regions import add_source_mute
@@ -32,6 +33,7 @@ from podcast_mcp.engines.speaker_split import SpeakerAttribution
 from podcast_mcp.models import (
     ClipMuteRegion,
     EpisodeProject,
+    MediaAsset,
     SpeakerSplit,
     SpeakerSplitCrosstalk,
     SpeakerTurnRecord,
@@ -50,6 +52,21 @@ LOW_CONFIDENCE = 0.5
 CROSSTALK_LANE_NAME = "crosstalk"
 
 Span = tuple[float, float]
+
+
+@dataclass(frozen=True)
+class SplitMediaIdentity:
+    """Primary media fields used to create the attribution being committed."""
+
+    path: str
+    duration_sec: float | None
+
+    @classmethod
+    def capture(cls, media: MediaAsset) -> SplitMediaIdentity:
+        return cls(path=media.path, duration_sec=media.duration_sec)
+
+    def matches(self, media: MediaAsset) -> bool:
+        return media.path == self.path and media.duration_sec == self.duration_sec
 
 
 def split_for_track(project: EpisodeProject, track_id: str) -> SpeakerSplit | None:
@@ -197,6 +214,7 @@ def split_track_by_speaker(
     track_id: str,
     attribution: SpeakerAttribution,
     *,
+    media_identity: SplitMediaIdentity,
     names: Sequence[str],
     crosstalk_mode: SpeakerSplitCrosstalk = "owner",
     room_tone_fill: bool = False,
@@ -209,6 +227,13 @@ def split_track_by_speaker(
     ``lane`` mode) gets a copy of it.
     """
     track, media_path = ensure_splittable(project, track_id)
+    if track.media is None or not media_identity.matches(track.media):
+        from podcast_mcp.util.coded_error import CodedValueError
+
+        raise CodedValueError(
+            "the track's primary media changed while speaker recognition was running",
+            code="speaker_split_media_changed",
+        )
     if crosstalk_mode not in CROSSTALK_MODES:
         raise ValueError(f"crosstalk_mode must be one of {CROSSTALK_MODES}")
     if len(names) != attribution.speaker_count:

@@ -3,6 +3,7 @@ import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useDaw } from "../state/useDaw";
 import { pipelineChipOpensPanel } from "../utils/pipeline";
 import { PresenceStatus } from "./PresenceStatus";
+import { SaveStateDot } from "./SaveStateDot";
 import { StatusBarView } from "./StatusBarView";
 import { statusBarSummary } from "./statusBarSummary";
 
@@ -41,6 +42,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
       summary={project ? statusBarSummary(project, render) : null}
       narrow={narrow}
       presence={<PresenceStatus narrow={narrow} />}
+      saveState={<SaveStateDot />}
       reconcileHighlight={highlightStaleRender && render.reconcileStale}
       job={chipJob}
       runningCount={activityRunningCount}

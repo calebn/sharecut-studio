@@ -43,7 +43,9 @@ from podcast_mcp.engines.bleed_delay import (
     LongDelayEvidence,
     measure_long_delay_regions,
 )
+from podcast_mcp.engines.envelope_lag import OPEN_UNDER_VOICE_DB
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.level_profile import file_level_profile
 from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
@@ -57,11 +59,13 @@ class EchoConfig:
     sample_rate: int = 8000
     frame_sec: float = 0.05
     max_lag_sec: float = 0.04
-    # A frame counts when the source speaker is above this, the other mic is open
-    # (above ``open_floor_db``: not gated or digital silence) and at least
+    # Levels are dB re each track's own voice level: callers pass samples read through
+    # ``LevelProfile.voice_gain``. A frame counts when the source speaker is no further
+    # than ``source_under_voice_db`` under its voice level, the other mic is open (within
+    # ``open_under_voice_db`` of its own: not gated or digital silence) and at least
     # ``dominance_db`` quieter, so what it carries is likely bleed, not its own voice.
-    source_floor_db: float = -40.0
-    open_floor_db: float = -60.0
+    source_under_voice_db: float = 25.0
+    open_under_voice_db: float = OPEN_UNDER_VOICE_DB
     dominance_db: float = 6.0
     # Per-frame peak NCC at which the other mic holds a copy of the source.
     copy_ncc: float = 0.25
@@ -203,19 +207,22 @@ def _copy_rows(
     shift_frames: int,
     cfg: EchoConfig,
     limit: int | None,
+    gap_db: float,
 ) -> tuple[int, list[tuple[int, float, float]]]:
     """Dominated frame count and ``(frame, lag_ms, ncc)`` copy rows.
 
     ``shift_frames`` pairs source frame ``i`` with bleed frame ``i + shift`` (wrapped),
     so a non-zero shift measures two independent stretches of the same two mics.
+    ``gap_db`` is the bleed mic's voice level less the source's: dominance compares the
+    two as recorded.
     """
     n = min(src_db.size, bld_db.size)
     idx = np.arange(n)
     partner = (idx + shift_frames) % n if n else idx
     selected = idx[
-        (src_db[:n] > cfg.source_floor_db)
-        & (bld_db[partner] > cfg.open_floor_db)
-        & (src_db[:n] - bld_db[partner] >= cfg.dominance_db)
+        (src_db[:n] > -cfg.source_under_voice_db)
+        & (bld_db[partner] > -cfg.open_under_voice_db)
+        & (src_db[:n] - bld_db[partner] - gap_db >= cfg.dominance_db)
     ]
     dominated = int(selected.size)
     if limit is not None and selected.size > limit:
@@ -260,6 +267,7 @@ def _null_rates(
     sample_rate: int,
     frame: int,
     cfg: EchoConfig,
+    gap_db: float,
 ) -> tuple[int, float | None, float | None]:
     """``(runs, pooled copy rate, pooled consistent rate)`` over the time-shifted null pairs.
 
@@ -287,6 +295,7 @@ def _null_rates(
             shift_frames=shift,
             cfg=cfg,
             limit=cfg.null_max_frames,
+            gap_db=gap_db,
         )
         if dominated < cfg.null_min_dominated:
             continue
@@ -307,9 +316,15 @@ def echo_pair_profile(
     t0: float,
     source_track_id: str,
     bleed_track_id: str,
+    gap_db: float,
     config: EchoConfig | None = None,
 ) -> EchoPairProfile:
-    """Profile one direction of one mic pair from timeline-aligned samples starting at ``t0``."""
+    """Profile one direction of one mic pair from timeline-aligned samples starting at ``t0``.
+
+    Each track is read at its own voice level (``LevelProfile.voice_gain``); ``gap_db`` is the
+    bleed mic's voice level less the source's, so dominance and the copy's level compare
+    the two as recorded.
+    """
     cfg = config or EchoConfig()
     frame = max(1, round(cfg.frame_sec * sample_rate))
     n = min(source.size, bleed.size)
@@ -325,9 +340,10 @@ def echo_pair_profile(
         shift_frames=0,
         cfg=cfg,
         limit=None,
+        gap_db=gap_db,
     )
     null_runs, null_copy, null_consistent = _null_rates(
-        source, bleed, src_db, bld_db, sample_rate=sample_rate, frame=frame, cfg=cfg
+        source, bleed, src_db, bld_db, sample_rate=sample_rate, frame=frame, cfg=cfg, gap_db=gap_db
     )
     span_end = t0 + n / sample_rate
     long_regions = (
@@ -363,7 +379,7 @@ def echo_pair_profile(
     # The most common lag is the candidate acoustic path.
     consistent = _consistent(copies, cfg)
     lag_ms = float(np.median([c[1] for c in consistent]))
-    level_db = float(np.median([bld_db[c[0]] - src_db[c[0]] for c in consistent]))
+    level_db = float(np.median([bld_db[c[0]] - src_db[c[0]] for c in consistent])) + gap_db
     strongest = sorted(consistent, key=lambda c: -c[2])[: cfg.max_examples]
     examples = tuple(t0 + c[0] * frame / sample_rate for c in strongest)
     return EchoPairProfile(
@@ -410,6 +426,7 @@ def _cached_profiles(
     eng = FFmpegEngine()
     frames = max(0, round((span_end - span_start) * cfg.sample_rate))
     audio: dict[str, np.ndarray] = {}
+    voices: dict[str, float] = {}
     for tid, path, _revision in stems:
         block = eng.decode_window_f32(
             Path(path),
@@ -418,12 +435,20 @@ def _cached_profiles(
             cfg.sample_rate,
             1,
         )
-        audio[tid] = block[:, 0] if block.ndim == 2 else block.reshape(-1)
-    return _profile_pairs(audio, sample_rate=cfg.sample_rate, t0=span_start, cfg=cfg)
+        mono = block[:, 0] if block.ndim == 2 else block.reshape(-1)
+        profile = file_level_profile(Path(path))
+        audio[tid] = mono * np.float32(profile.voice_gain)
+        voices[tid] = profile.path_reference_db
+    return _profile_pairs(audio, voices, sample_rate=cfg.sample_rate, t0=span_start, cfg=cfg)
 
 
 def _profile_pairs(
-    audio: Mapping[str, np.ndarray], *, sample_rate: int, t0: float, cfg: EchoConfig
+    audio: Mapping[str, np.ndarray],
+    voices: Mapping[str, float],
+    *,
+    sample_rate: int,
+    t0: float,
+    cfg: EchoConfig,
 ) -> tuple[EchoPairProfile, ...]:
     return tuple(
         echo_pair_profile(
@@ -433,6 +458,7 @@ def _profile_pairs(
             t0=t0,
             source_track_id=a,
             bleed_track_id=b,
+            gap_db=voices[b] - voices[a],
             config=cfg,
         )
         for a, b in permutations(audio, 2)
@@ -441,20 +467,22 @@ def _profile_pairs(
 
 def echo_risk_pairs(
     audio: Mapping[str, np.ndarray],
+    voices: Mapping[str, float],
     *,
     sample_rate: int,
     config: EchoConfig | None = None,
 ) -> list[EchoPairProfile]:
     """Directed pairs with a measured bleed path, over whole timeline-clock tracks.
 
-    ``audio`` is one decoded mono track per id on the timeline clock, such as the RMS
-    caches reconcile already holds, so nothing is decoded again. The profile spans the
-    whole track; the null shifts wrap inside it as in :func:`echo_profiles`.
+    ``audio`` is one decoded mono track per id on the timeline clock at its own voice level,
+    such as the caches reconcile already holds, so nothing is decoded again; ``voices`` is
+    each track's ``LevelProfile.path_reference_db``. The profile spans the whole track; the
+    null shifts wrap inside it as in :func:`echo_profiles`.
     """
     cfg = config or EchoConfig()
     return [
         p
-        for p in _profile_pairs(audio, sample_rate=sample_rate, t0=0.0, cfg=cfg)
+        for p in _profile_pairs(audio, voices, sample_rate=sample_rate, t0=0.0, cfg=cfg)
         if p.echo_risk(cfg)
     ]
 

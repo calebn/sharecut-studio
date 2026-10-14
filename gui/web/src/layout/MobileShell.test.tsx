@@ -240,6 +240,40 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(alert);
   });
 
+  it("shows the save light in every phone mode", async () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    const dot = await screen.findByRole("img", { name: "Saved to project" });
+    expect(dot.closest(".mobile-status-row")).not.toBeNull();
+    for (const mode of ["timeline", "text", "more", "listen"] as const) {
+      act(() => useDawStore.getState().setMobileMode(mode));
+      expect(
+        container.querySelector(".mobile-status-row [data-save-state='saved']"),
+      ).not.toBeNull();
+    }
+  });
+
+  it("goes to Needs attention from the waiting light in any mode", async () => {
+    offlineStore.loadHostCommandCount.mockResolvedValue(2);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    const dot = await screen.findByRole("button", {
+      name: "Not saved yet · 2 waiting to send",
+    });
+    expect(dot.closest(".mobile-status-row")).not.toBeNull();
+    act(() => useDawStore.getState().setMobileMode("timeline"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Not saved yet · 2 waiting to send" }),
+    );
+    expect(screen.getByRole("alert")).toHaveFocus();
+  });
+
   it("provides exactly one project heading in every phone mode", async () => {
     const user = userEvent.setup();
     render(

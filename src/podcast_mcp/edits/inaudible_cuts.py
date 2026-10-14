@@ -10,7 +10,7 @@ from typing import Literal
 import numpy as np
 
 from podcast_mcp.config import DEFAULT_MICRO_FADE_MS, join_micro_fade_ms, load_defaults
-from podcast_mcp.edits.audio_cache import TrackAudioCache, track_voice_floor_db
+from podcast_mcp.edits.audio_cache import TrackAudioCache, track_level_profile
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Track, Transcript
@@ -37,7 +37,7 @@ class InaudibleCutConfig:
     # word-timed boundary (ASR often ends "um" early while energy continues).
     short_cut_max_sec: float = 1.2
     trailing_energy_extend_ms: int = 350
-    # Levels are dB over the track's voice floor (``TrackAudioCache.voice_floor_db``).
+    # Levels are dB over the track's voice floor (``LevelProfile.voice_floor_db``).
     trailing_energy_hot_over_floor_db: float = 6.0
     trailing_energy_quiet_over_floor_db: float = -3.0
     trailing_energy_hop_ms: int = 10
@@ -605,7 +605,7 @@ def _absorb_trailing_silence(
         return cut_end, False
     target = next_start - retain
     quiet_db = (
-        track_voice_floor_db(project, track_id, audio_cache)
+        track_level_profile(project, track_id, audio_cache).voice_floor_db
         + config.absorb_trailing_silence_quiet_over_floor_db
     )
     if not _region_is_quiet(
@@ -699,7 +699,7 @@ def optimize_source_cut_range(
                 start,
                 end,
                 config=cfg,
-                floor_db=track_voice_floor_db(project, track_id, audio_cache),
+                floor_db=track_level_profile(project, track_id, audio_cache).voice_floor_db,
                 audio_cache=audio_cache,
                 search_until=search_until,
             )

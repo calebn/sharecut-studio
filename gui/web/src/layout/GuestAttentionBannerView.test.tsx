@@ -175,4 +175,54 @@ describe("GuestAttentionBannerView", () => {
     );
     expect(screen.getByText("1 conflict")).toBeInTheDocument();
   });
+
+  it("offers Send now beside pending edits and calls it", async () => {
+    const onSendNow = vi.fn();
+    const { container } = render(
+      <GuestAttentionBannerView
+        pending={2}
+        conflicts={[]}
+        onDismissAll={vi.fn()}
+        onSendNow={onSendNow}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send now" }));
+    expect(onSendNow).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", { name: "Retry" }),
+    ).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("offers Retry when saved edits are unreadable and calls it", async () => {
+    const onRetry = vi.fn();
+    render(
+      <GuestAttentionBannerView
+        pending={0}
+        conflicts={[]}
+        unreadable
+        onDismissAll={vi.fn()}
+        onRetry={onRetry}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", { name: "Send now" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no Send now without pending edits", () => {
+    render(
+      <GuestAttentionBannerView
+        pending={0}
+        conflicts={[offlineConflict()]}
+        onDismissAll={vi.fn()}
+        onSendNow={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Send now" }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -419,22 +419,6 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         maximum=1.0,
     ),
     ParamField(
-        path="transcribe.forced_alignment.evidence_speech_margin_db",
-        label="Aligner evidence speech margin",
-        description=(
-            "A low-scoring aligned word counts as spoken when its own track is at least this "
-            "far above the track's noise floor over the word; quieter words are flagged."
-        ),
-        type="number",
-        default=12.0,
-        unit="dB",
-        group="advanced",
-        section="transcribe",
-        affects=("transcribe_tracks",),
-        minimum=0.0,
-        maximum=60.0,
-    ),
-    ParamField(
         path="transcribe.forced_alignment.evidence_bleed_margin_db",
         label="Aligner evidence bleed margin",
         description=(

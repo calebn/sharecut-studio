@@ -39,12 +39,17 @@ from podcast_mcp.engines.lane_words import (
     transcript_word_key,
     word_timeline_window,
 )
+from podcast_mcp.engines.level_profile import (
+    LevelProfile,
+    file_level_profile,
+    track_profile,
+)
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
-from podcast_mcp.util.dsp import DEFAULT_RMS_FLOOR_DB, frame_rms_db, rms_db
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, frame_rms_db, rms_db
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
@@ -56,16 +61,15 @@ from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 if TYPE_CHECKING:
-    from podcast_mcp.edits.audio_cache import LevelProfile
     from podcast_mcp.engines.bleed_echo import EchoPairProfile
 
 _RMS_SAMPLE_RATE = 8000
-# The voice level (dBFS) the fixed levels of the bleed-path measurement (``bleed_echo``'s
-# source and open floors, ``envelope_lag.PEER_OPEN_DB`` and ``LEVEL_FLOOR_DB``) were set at:
-# the median track loud level (99th percentile of the live frames, 5 to 6 dB over the
-# speech level) of the lab recording. A session is measured at this level whatever it was
-# recorded at (``TrackRmsCacheSet.reference_samples``).
-PATH_REFERENCE_LOUD_DB = -10.0
+# The transcript gate's overreach check judges a word only where its ungated audio is
+# within this of the track's voice level, and calls the word lost where the gated stem
+# sits this far under it (-60 and -80 dBFS on the lab tape, whose median voice level is
+# -15.3 dBFS).
+_GATE_JUDGED_UNDER_VOICE_DB = 45.0
+_GATE_LOST_UNDER_VOICE_DB = 65.0
 # Acoustic statuses that call for transcript suppression (used both for the flagged/
 # bleed report and, via `word_targets`, for suggest-mode's suppression_recommendations).
 _FLAGGED_STATUSES = ("inaudible", "bleed")
@@ -281,62 +285,22 @@ class TrackRmsCache:
     samples: np.ndarray
     sample_rate: int = _RMS_SAMPLE_RATE
     timeline_offset_sec: float = 0.0
+    recording_profile: LevelProfile | None = field(default=None, repr=False)
 
     @cached_property
-    def track_profile(self) -> LevelProfile | None:
-        """The whole track's level profile (room, speech), measured once."""
-        from podcast_mcp.edits.audio_cache import level_profile
-
-        return level_profile(self.samples, int(self.sample_rate), whole_track=True)
-
-    @cached_property
-    def speech_db(self) -> float:
-        """The track's own speech level (dBFS); ``-inf`` with no live audio."""
-        from podcast_mcp.edits.audio_cache import speech_db_from_profile
-
-        return speech_db_from_profile(self.track_profile)
-
-    @cached_property
-    def loud_db(self) -> float:
-        """The level of the track's loudest frames (dBFS); ``-inf`` with no live audio."""
-        profile = self.track_profile
-        return -math.inf if profile is None else 20.0 * math.log10(profile.loud_rms)
-
-    @cached_property
-    def voice_floor_db(self) -> float:
-        """The level under which a frame of this track holds no voice (dBFS).
-
-        The one floor tighten reads, so a frame is judged against the track's own speech
-        and room, never a fixed dBFS level.
-        """
-        from podcast_mcp.edits.audio_cache import voice_floor_from_profile
-
-        return voice_floor_from_profile(self.track_profile)
-
-    @cached_property
-    def audibility_floor_db(self) -> float:
-        """The level a word of this track must reach to be audible (dBFS): its voice floor,
-        unless the track's loudest frames show no contrast with its room (see
-        :func:`~podcast_mcp.edits.audio_cache.audibility_floor_from_profile`).
-        """
-        from podcast_mcp.edits.audio_cache import audibility_floor_from_profile
-
-        return audibility_floor_from_profile(self.track_profile)
-
-    @cached_property
-    def voice_reach_db(self) -> float:
-        """The level the mean of a stretch must reach to hold this track's voice (dBFS), see
-        :func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`.
-        """
-        from podcast_mcp.edits.audio_cache import voice_reach_from_profile
-
-        return voice_reach_from_profile(self.track_profile)
+    def profile(self) -> LevelProfile:
+        """The track's level profile: its recording's, else measured from these samples."""
+        if self.recording_profile is not None:
+            return self.recording_profile
+        return track_profile(self.samples, int(self.sample_rate))
 
     @classmethod
     def from_timeline_stem(
         cls, path: Path, *, sample_rate: int = _RMS_SAMPLE_RATE
     ) -> TrackRmsCache:
-        return cls(samples=load_mono_full(path, sample_rate=sample_rate), sample_rate=sample_rate)
+        samples = load_mono_full(path, sample_rate=sample_rate)
+        profile = file_level_profile(path, samples, sample_rate=sample_rate)
+        return cls(samples=samples, sample_rate=sample_rate, recording_profile=profile)
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
         i0 = int(max(0.0, t_start - self.timeline_offset_sec) * self.sample_rate)
@@ -353,7 +317,7 @@ class TrackRmsCache:
         return self.samples[rng[0] : rng[1]]
 
     def rms_db(
-        self, t_start: float, t_end: float, *, floor_db: float = DEFAULT_RMS_FLOOR_DB
+        self, t_start: float, t_end: float, *, floor_db: float = DIGITAL_SILENCE_DB
     ) -> float | None:
         dur = t_end - t_start
         if dur <= 0.005:
@@ -392,37 +356,26 @@ class TrackRmsCacheSet:
     _copy_paths: dict[tuple[str, str], CopyPath] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
-    _reference: dict[str, np.ndarray] = field(
+    _path_samples: dict[str, np.ndarray] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
 
     def get(self, track_id: str) -> TrackRmsCache | None:
         return self.caches.get(track_id)
 
-    @cached_property
-    def reference_gain_db(self) -> float:
-        """The gain that puts the session's median track loud level at the path reference.
+    def path_samples(self, track_id: str) -> np.ndarray:
+        """The track's samples with its voice level at 0 dB, as the bleed path reads them.
 
-        One gain for every track, so the tracks keep their levels relative to each other
-        (which side of a pair is louder is evidence) while the measurement no longer
-        depends on how loud the session was recorded. Each track is read at its loudest
-        frames, not its speech level: a speaker who talks under a tenth of the time has
-        room tone at the 90th percentile, and would drag the median down to their room's.
-        Only a track whose loud frames stand out of its room counts (a finite
-        ``audibility_floor_db``). With no such track the session is measured as recorded.
+        Each track is read against its own voice (``LevelProfile.voice_db``), so the bleed
+        path's levels mean the same at any recording gain, whichever track it is.
         """
-        loud = [c.loud_db for c in self.caches.values() if math.isfinite(c.audibility_floor_db)]
-        return PATH_REFERENCE_LOUD_DB - float(np.median(loud)) if loud else 0.0
-
-    def reference_samples(self, track_id: str) -> np.ndarray:
-        """The track's samples at the session's reference level."""
-        if track_id not in self._reference:
-            samples = self.caches[track_id].samples
-            gain = self.reference_gain_db
-            self._reference[track_id] = (
-                samples if gain == 0.0 else samples * np.float32(10 ** (gain / 20))
+        if track_id not in self._path_samples:
+            cache = self.caches[track_id]
+            gain = cache.profile.voice_gain
+            self._path_samples[track_id] = (
+                cache.samples if gain == 1.0 else cache.samples * np.float32(gain)
             )
-        return self._reference[track_id]
+        return self._path_samples[track_id]
 
     def echo_pairs(self) -> list[EchoPairProfile]:
         """Directed mic pairs with a measured bleed path, from cached timeline audio.
@@ -436,7 +389,9 @@ class TrackRmsCacheSet:
 
             rate = next((c.sample_rate for c in self.caches.values()), _RMS_SAMPLE_RATE)
             self._echo_pairs = echo_risk_pairs(
-                {tid: self.reference_samples(tid) for tid in self.caches}, sample_rate=rate
+                {tid: self.path_samples(tid) for tid in self.caches},
+                {tid: cache.profile.path_reference_db for tid, cache in self.caches.items()},
+                sample_rate=rate,
             )
         return self._echo_pairs
 
@@ -478,8 +433,8 @@ class TrackRmsCacheSet:
         return float(
             np.median(
                 copy_similarity(
-                    self.reference_samples(bleed_track_id),
-                    self.reference_samples(source_track_id),
+                    self.path_samples(bleed_track_id),
+                    self.path_samples(source_track_id),
                     frames,
                     lag,
                     sample_rate=bleed.sample_rate,
@@ -496,8 +451,8 @@ class TrackRmsCacheSet:
             or source.timeline_offset_sec != bleed.timeline_offset_sec
         ):
             return CopyPath()
-        own_samples = self.reference_samples(bleed_track_id)
-        peer_samples = self.reference_samples(source_track_id)
+        own_samples = self.path_samples(bleed_track_id)
+        peer_samples = self.path_samples(source_track_id)
         own = copy_levels_db(own_samples, sample_rate=bleed.sample_rate)
         peer = copy_levels_db(peer_samples, sample_rate=source.sample_rate)
         reach = round(MAX_COPY_LAG_SEC / COPY_HOP_SEC)
@@ -511,7 +466,9 @@ class TrackRmsCacheSet:
         direct = np.full(own.size, LEVEL_FLOOR_DB)
         lo, hi = max(0, -lag), min(own.size, peer.size - lag)
         direct[lo:hi] = peer[lo + lag : hi + lag]
-        frames = (direct > PEER_OPEN_DB) & (own > LEVEL_FLOOR_DB) & (own < direct)
+        # The copy is quieter than its source as recorded: each level back at its own voice.
+        gap = bleed.profile.path_reference_db - source.profile.path_reference_db
+        frames = (direct > PEER_OPEN_DB) & (own > LEVEL_FLOOR_DB) & (own + gap < direct)
         if not frames.any():
             return CopyPath()
         loud_db = float(np.median(direct[frames]))
@@ -628,7 +585,7 @@ def measure_window_rms_db(
     *,
     sample_rate: int = _RMS_SAMPLE_RATE,
     cache: TrackRmsCache | None = None,
-    floor_db: float = DEFAULT_RMS_FLOOR_DB,
+    floor_db: float = DIGITAL_SILENCE_DB,
 ) -> float | None:
     if cache is not None:
         return cache.rms_db(start_sec, end_sec, floor_db=floor_db)
@@ -736,7 +693,7 @@ def _rms_for_track_at_timeline(
     t_end: float,
     *,
     caches: TrackRmsCacheSet | None = None,
-    floor_db: float = DEFAULT_RMS_FLOOR_DB,
+    floor_db: float = DIGITAL_SILENCE_DB,
 ) -> float | None:
     cache = caches.get(track_id) if caches else None
     if cache is not None:
@@ -783,7 +740,7 @@ def measure_timeline_rms_db(
     t_end: float,
     *,
     caches: TrackRmsCacheSet | None = None,
-    floor_db: float = DEFAULT_RMS_FLOOR_DB,
+    floor_db: float = DIGITAL_SILENCE_DB,
 ) -> float | None:
     """Public RMS (dB) for a timeline window on one dialogue track.
 
@@ -820,8 +777,8 @@ def _classify_word_audibility(
     if own_rms is None:
         return "inaudible", None
 
-    dominant_tid = max(track_rms, key=lambda tid: track_rms.get(tid, -80.0))
-    dominant_rms = track_rms.get(dominant_tid, -80.0)
+    dominant_tid = max(track_rms, key=lambda tid: track_rms.get(tid, -math.inf))
+    dominant_rms = track_rms.get(dominant_tid, -math.inf)
 
     if dominant_tid != own_track_id and dominant_tid in bleed_sources:
         own_val = track_rms.get(own_track_id, own_rms)
@@ -841,7 +798,7 @@ def _voice_floors(
 ) -> dict[str, float]:
     """Each decoded track's audibility floor in the units its word levels are read in."""
     return {
-        tid: cache.audibility_floor_db + _recorded_gain_db(project, tid)
+        tid: cache.profile.audibility_floor_db + _recorded_gain_db(project, tid)
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -1109,7 +1066,7 @@ def list_low_audibility_words(
             tid, tr = lane.track_id, lane.transcript
             proc_cache = caches.get(tid)
             floor_db: float | None = (
-                proc_cache.audibility_floor_db if proc_cache is not None else None
+                proc_cache.profile.audibility_floor_db if proc_cache is not None else None
             )
             for i, w in enumerate(tr.words):
                 if w.suppressed:
@@ -1126,9 +1083,9 @@ def list_low_audibility_words(
                         path = track_audio_path(project, tid)
                         rms = measure_window_rms_db(path, w.start, w.end)
                         if floor_db is None:
-                            from podcast_mcp.edits.audio_cache import track_audibility_floor_db
-
-                            floor_db = track_audibility_floor_db(project, tid)
+                            floor_db = file_level_profile(
+                                path, sample_rate=_RMS_SAMPLE_RATE
+                            ).audibility_floor_db
                     except Exception:
                         done += 1
                         _tick()
@@ -1397,6 +1354,8 @@ def _transcript_gate_overreach(
     timeline = SessionTimeline(project)
     issues: list[dict[str, Any]] = []
     words = [(index, word) for index, word in enumerate(transcript.words) if not word.suppressed]
+    judged_db = raw.profile.voice_db - _GATE_JUDGED_UNDER_VOICE_DB
+    lost_db = raw.profile.voice_db - _GATE_LOST_UNDER_VOICE_DB
     with resolve_progress_task(
         "gate-overreach",
         f"Comparing transcript gate on {track_id}",
@@ -1415,10 +1374,10 @@ def _transcript_gate_overreach(
             )
             raw_body = raw.rms_db(body_start, body_end)
             final_body = final.rms_db(body_start, body_end)
-            if raw_body is None or final_body is None or raw_body < -60:
+            if raw_body is None or final_body is None or raw_body < judged_db:
                 continue
             result["analyzed_words"] += 1
-            if final_body <= -80 and raw_body - final_body >= policy.gate_onset_drop_db:
+            if final_body <= lost_db and raw_body - final_body >= policy.gate_onset_drop_db:
                 issues.append(
                     {
                         "word_index": word_index,
@@ -1437,7 +1396,7 @@ def _transcript_gate_overreach(
             ):
                 raw_edge = raw.rms_db(lo, hi)
                 final_edge = final.rms_db(lo, hi)
-                if raw_edge is None or final_edge is None or raw_edge < -60:
+                if raw_edge is None or final_edge is None or raw_edge < judged_db:
                     continue
                 loss = body_gain - (final_edge - raw_edge)
                 if loss >= policy.gate_onset_drop_db:
@@ -1670,6 +1629,8 @@ def analyze_cleanup(
             if proc_path is not None:
                 stats: dict[str, Any] = dict(measure_astats(proc_path))
                 stats["hum"] = detect_mains_hum(proc_path)
+                voice = file_level_profile(proc_path).voice_db
+                stats["voice_db"] = round(voice, 2) if math.isfinite(voice) else None
                 health = stats
 
             track_row: dict[str, Any] = {

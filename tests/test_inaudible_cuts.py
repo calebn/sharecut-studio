@@ -20,6 +20,7 @@ from podcast_mcp.edits.inaudible_cuts import (
 )
 from podcast_mcp.edits.strip_silence import strip_silence
 from podcast_mcp.edits.transcript_cuts import cut_time_range
+from podcast_mcp.engines.level_profile import SILENT
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -406,7 +407,9 @@ def test_strip_silence_ignores_inaudible_opt_flag(tmp_path):
     """Strip keeps speech islands as-is; use_inaudible_opt is API-compat only."""
     p = _project(tmp_path)
     with (
-        patch("podcast_mcp.edits.strip_silence.detect_silence", return_value=[]),
+        patch("podcast_mcp.edits.strip_silence.quiet_intervals", return_value=[]),
+        patch("podcast_mcp.edits.strip_silence.load_mono_full", return_value=np.zeros(1600)),
+        patch("podcast_mcp.edits.strip_silence.file_level_profile", return_value=SILENT),
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
     ):
         eng_cls.return_value.probe.return_value = type("Probe", (), {"duration_sec": 2.0})()

@@ -10,19 +10,15 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.audio_cache import (
-    DIGITAL_SILENCE_DB,
-    LEVEL_FRAME_SEC,
-    LevelProfile,
-    TrackAudioCache,
-    level_profile,
-)
+from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.room_model import BREATH_BELOW_SPEECH_DB
 from podcast_mcp.edits.session_air import PauseAirSkip, SessionAir, SessionSound
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC, LevelProfile, level_profile
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_DB,
     bool_runs,
     db_to_amplitude,
     frame_rms_db,
@@ -625,7 +621,7 @@ def detect_adjacent_breath(
         keep_out: Sequence[tuple[float, float]],
         search_sec: tuple[float, float],
     ) -> BreathSpan | None:
-        noise_floor_rms, speech_rms = profile.noise_floor_rms, profile.speech_rms
+        noise_floor_rms, speech_rms = profile.room_rms, profile.speech_rms
         return classify_breath_samples(
             samples,
             window_start,
@@ -743,7 +739,7 @@ def _edge_evidence(
     cfg: dict,
     keep_out: Sequence[tuple[float, float]],
 ) -> _ClearEdge | _CompleteEdgeBreath | _UncertainEdge:
-    band = breath_level_band(profile.noise_floor_rms, profile.speech_rms)
+    band = breath_level_band(profile.room_rms, profile.speech_rms)
     if band is None or not samples.size or not np.all(np.isfinite(samples)):
         return _UncertainEdge("missing_evidence")
     frame_size = max(1, round(sample_rate * LEVEL_FRAME_SEC))
@@ -751,7 +747,7 @@ def _edge_evidence(
     levels = _frame_levels(samples, frame_size, samples.size // frame_size)
     if not origin < edge < origin + levels.size * dt:
         return _UncertainEdge("missing_evidence")
-    floor = min(profile[0], band.lo) * (1.0 + 1e-6)
+    floor = min(profile.room_rms, band.lo) * (1.0 + 1e-6)
     max_duration = cfg["max_duration_ms"] / 1000.0
     for start, end in _connected_activity(levels, floor):
         lo = (round(origin * sample_rate) + start * frame_size) / sample_rate
@@ -767,8 +763,8 @@ def _edge_evidence(
             vad_backend=cfg["vad_backend"],
             min_duration_sec=cfg["min_duration_ms"] / 1000.0,
             max_duration_sec=max_duration,
-            speech_reference_rms=profile[1],
-            noise_floor_rms=profile[0],
+            speech_reference_rms=profile.speech_rms,
+            noise_floor_rms=profile.room_rms,
             cut_edge="start",
             keep_out=keep_out,
             search_sec=(edge - max_duration, edge + max_duration),
@@ -1068,8 +1064,8 @@ def _mostly_breath(
             vad_backend=cfg["vad_backend"],
             min_duration_sec=cfg["min_duration_ms"] / 1000.0,
             max_duration_sec=cfg["max_duration_ms"] / 1000.0,
-            speech_reference_rms=profile[1],
-            noise_floor_rms=profile[0],
+            speech_reference_rms=profile.speech_rms,
+            noise_floor_rms=profile.room_rms,
             keep_out=keep_out,
             search_sec=(start, end),
         )
