@@ -129,3 +129,14 @@ def test_malformed_report_is_unavailable_instead_of_zero_passed(tmp_path: Path) 
         "| Vitest | N/A | N/A | unavailable: report malformed or has an unknown shape |" in output
     )
     assert "passed: 0" not in output
+
+
+def test_junit_with_unsupported_root_is_unavailable_instead_of_zero_passed(
+    tmp_path: Path,
+) -> None:
+    output = _run_summary(tmp_path, "junit", "python", "<not-a-test-report />")
+
+    assert (
+        "| Python | N/A | N/A | unavailable: report malformed or has an unknown shape |" in output
+    )
+    assert "passed: 0" not in output

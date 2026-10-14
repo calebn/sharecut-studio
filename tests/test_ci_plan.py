@@ -341,3 +341,13 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
         "schedule",
         "workflow_dispatch",
     }
+
+
+def test_playwright_summary_reads_the_report_configured_for_its_matrix_job() -> None:
+    job = load_github_yaml(WORKFLOW)["jobs"]["frontend-e2e-suites"]
+    summary = next(
+        step for step in job["steps"] if step.get("name") == "Summarize Playwright tests"
+    )
+
+    assert '--report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"' in summary["run"]
+    assert "--report gui/web/playwright-report/main.json" not in summary["run"]
