@@ -77,6 +77,7 @@ def test_audibility_uses_timeline_not_source(monkeypatch, tmp_path):
         t_end,
         *,
         caches=None,
+        recorded_gain=True,
     ):
         seen.append((t_start, t_end))
         return -30.0

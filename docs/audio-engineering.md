@@ -128,6 +128,11 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   speaker 12 dB hotter than that speaker's own quiet mic), and a balance gain
   (`Track.gain_db`) is a listening choice. The offset is a constant of the recording, not a
   gain on the audio, and it moves with the file's gain.
+  Level cannot say who is speaking where two mics hear one sound at a fixed ratio (a call
+  recording and the host's room mic on the same pair), so a mic is a bleed source for a
+  track's words only on its leak direction: when the reverse path rests on at least
+  `ONE_WAY_RATIO` (10) times its consistent frames (`TrackRmsCacheSet.leak_paths`), the
+  quiet side's path is only the echo of the same moments and judges no word.
 - Digital silence (`util.dsp.DIGITAL_SILENCE_DB`) reads the same at any gain.
 
 The bleed path's offsets were dBFS levels set on the lab tape, whose tracks' median voice
