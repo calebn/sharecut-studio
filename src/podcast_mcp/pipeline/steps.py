@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
+from podcast_mcp.edits.room_tone import ensure_room_tone_pools
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.mastering import (
     MasterQcLimits,
@@ -99,6 +100,7 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
     ensure_dialogue_clips(project)
     # After clips exist, so each track's clip sources get their pyramids too.
     waveforms = ensure_project_waveforms(project)
+    ensure_room_tone_pools(project, [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE])
     dialogue = sum(1 for t in project.tracks if t.role == TrackRole.DIALOGUE)
     return f"{probed} tracks probed, {waveforms} waveforms, {dialogue} dialogue"
 

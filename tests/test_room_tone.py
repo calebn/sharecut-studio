@@ -614,3 +614,55 @@ def test_the_pool_digest_changes_once_a_pool_is_recorded(tmp_path: Path) -> None
 
     assert before == ""
     assert room_tone.room_tone_pool_digest(project) != before
+
+
+def test_a_long_recording_gets_an_anchor_about_every_minute(tmp_path: Path) -> None:
+    from podcast_mcp.edits import room_tone
+
+    assert room_tone.POOL_ANCHORS_MIN <= room_tone.POOL_ANCHORS_MAX
+    project = _project(tmp_path, host=_host_audio())
+    pool = room_tone.record_room_tone_pool(project, "host")
+    assert pool is not None and len(pool) <= room_tone.POOL_ANCHORS_MIN
+
+
+def test_the_in_memory_pools_are_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    from podcast_mcp.edits import room_tone
+
+    monkeypatch.setattr(room_tone, "_POOLS_KEPT", 3)
+    monkeypatch.setattr(room_tone, "_POOLS", {})
+    for index in range(6):
+        room_tone._remember_pool((f"/f{index}", (1, 1, 1, index)), ())
+    assert [path for path, _ in room_tone._POOLS] == ["/f3", "/f4", "/f5"]
+
+
+def test_ensure_pools_records_once_and_skips_unreadable_tracks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    room_tone.ensure_room_tone_pools(project, ["host", "missing", "host"])
+    pool = room_tone.read_room_tone_pool(project, "host")
+    assert pool is not None
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("a recorded pool must not be picked again")
+
+    monkeypatch.setattr(room_tone, "track_floor", refuse)
+    room_tone.ensure_room_tone_pools(project, ["host"])
+    assert room_tone.read_room_tone_pool(project, "host") == pool
+
+
+def test_scheduling_a_pool_records_it_in_the_background_once(tmp_path: Path) -> None:
+    import threading
+
+    from podcast_mcp.edits import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    assert room_tone.schedule_room_tone_pool(project, "host") is True
+    for thread in threading.enumerate():
+        if thread.name == "room-tone-pool-host":
+            thread.join(60)
+    assert room_tone.read_room_tone_pool(project, "host") is not None
+    assert room_tone.schedule_room_tone_pool(project, "host") is False
+    assert room_tone.schedule_room_tone_pool(project, "missing") is False

@@ -243,11 +243,15 @@ def room_tone_span(
     return selected
 
 
-# Pool: one pick per recording, at this many evenly spaced points along the track.
-POOL_ANCHORS = 12
+# Pool: one pick per recording, at evenly spaced points along the track: one a minute of
+# quiet-run span, within these bounds, so a long recording's fill is never far from its cut.
+POOL_ANCHORS_MIN = 12
+POOL_ANCHORS_MAX = 64
+POOL_ANCHOR_SPACING_SEC = 60.0
 # Each pooled sample is up to this long; a request takes the piece it needs.
 POOL_SAMPLE_SEC = 2.0
-_POOL_REV = 1
+_POOL_REV = 2
+_POOLS_KEPT = 64
 _POOL_RECORDS_KEPT = 64
 _POOLS: dict[tuple[str, FileRevision], tuple[Sample, ...]] = {}
 _POOLS_LOCK = threading.Lock()
@@ -259,6 +263,14 @@ def _pool_key(path: Path) -> tuple[str, FileRevision] | None:
         return str(resolved), file_revision(resolved)
     except OSError:
         return None
+
+
+def _remember_pool(key: tuple[str, FileRevision], pool: tuple[Sample, ...]) -> None:
+    with _POOLS_LOCK:
+        _POOLS.pop(key, None)
+        _POOLS[key] = pool
+        while len(_POOLS) > _POOLS_KEPT:
+            del _POOLS[next(iter(_POOLS))]
 
 
 def _pool_record_path(project: EpisodeProject, key: tuple[str, FileRevision]) -> Path:
@@ -300,8 +312,7 @@ def read_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample,
         return None
     if not all(math.isfinite(x.rms_db) and x.end > x.start >= 0 for x in pool):
         return None
-    with _POOLS_LOCK:
-        _POOLS[key] = pool
+    _remember_pool(key, pool)
     return pool
 
 
@@ -327,8 +338,12 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
     pool: list[Sample] = []
     if isinstance(read, LiveFloor) and not read.gated and read.floor.runs:
         low, high = read.floor.runs[0][0], read.floor.runs[-1][1]
-        for index in range(POOL_ANCHORS):
-            anchor = low + (high - low) * (index + 0.5) / POOL_ANCHORS
+        anchors = min(
+            POOL_ANCHORS_MAX,
+            max(POOL_ANCHORS_MIN, round((high - low) / POOL_ANCHOR_SPACING_SEC)),
+        )
+        for index in range(anchors):
+            anchor = low + (high - low) * (index + 0.5) / anchors
             picked = _pick_sample(read.floor, near_sec=anchor, duration_sec=POOL_SAMPLE_SEC)
             if isinstance(picked, OwnQuietSample) and all(
                 picked.sample.start != kept.start for kept in pool
@@ -352,9 +367,60 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
             old.unlink(missing_ok=True)
     except OSError:
         log.debug("room tone pool not recorded to %s", record, exc_info=True)
-    with _POOLS_LOCK:
-        _POOLS[key] = result
+    _remember_pool(key, result)
     return result
+
+
+_PENDING_POOLS: set[tuple[str, FileRevision]] = set()
+
+
+def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) -> None:
+    """Record the pool of each track that has none, now, on the caller's thread.
+
+    For a real approve (never a preview or a plan): the first one on a recording pays the
+    pick once, and every later one reads the record. A track that cannot be read is skipped.
+    """
+    for track_id in dict.fromkeys(track_ids):
+        try:
+            record_room_tone_pool(project, track_id)
+        except (OSError, ValueError, KeyError):
+            log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
+
+
+def schedule_room_tone_pool(project: EpisodeProject, track_id: str) -> bool:
+    """Record the track's pool in a background thread at low priority, once per recording.
+
+    For ingest (a track just added or its media replaced): the pick happens while the user
+    is still reviewing, not at their first Approve or Play around. True when queued.
+    """
+    track = project.track_by_id(track_id)
+    if track is None or track.media is None:
+        return False
+    try:
+        key = _pool_key(track_audio_path(project, track_id))
+    except (OSError, ValueError):
+        return False
+    if key is None:
+        return False
+    with _POOLS_LOCK:
+        if key in _POOLS or key in _PENDING_POOLS:
+            return False
+        _PENDING_POOLS.add(key)
+
+    def run() -> None:
+        from podcast_mcp.util.process import low_priority
+
+        try:
+            with low_priority():
+                record_room_tone_pool(project, track_id)
+        except Exception:
+            log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
+        finally:
+            with _POOLS_LOCK:
+                _PENDING_POOLS.discard(key)
+
+    threading.Thread(target=run, name=f"room-tone-pool-{track_id}", daemon=True).start()
+    return True
 
 
 def room_tone_pool_digest(project: EpisodeProject) -> str:
