@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { beginDocumentSend } from "../state/documentSendOrder";
+import { recordVolatileOutcome } from "../state/offlineAttention";
 import { minimalProject, offlineConflict } from "../test/fixtures";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
@@ -11,6 +13,8 @@ const offlineStore = vi.hoisted(() => {
   const state = {
     clearConflicts: vi.fn(),
     clearHostConflicts: vi.fn(),
+    dismissConflicts: vi.fn(),
+    dismissHostConflicts: vi.fn(),
     loadConflicts: vi.fn(),
     loadCommandQueue: vi.fn(),
     loadHostCommandCount: vi.fn(),
@@ -66,6 +70,14 @@ describe("SaveStateDot", () => {
     }
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     offlineStore.loadHostConflicts.mockResolvedValue([]);
+    offlineStore.dismissConflicts.mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
+    offlineStore.dismissHostConflicts.mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
     offlineStore.loadConflicts.mockResolvedValue([]);
     offlineStore.loadCommandQueue.mockResolvedValue([]);
     drain.requestHostDrain.mockResolvedValue(undefined);
@@ -237,6 +249,249 @@ describe("SaveStateDot", () => {
     expect(banner).toHaveTextContent("The clip moved");
     fireEvent.click(dot);
     expect(banner).toHaveFocus();
+  });
+
+  it("reveals a dismissed refusal from the failed dot and focuses its explanation", async () => {
+    const refused = offlineConflict({ reason: "The clip moved." });
+    const dismissed = { ...refused, dismissed: true };
+    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    offlineStore.loadHostConflicts.mockResolvedValue([refused]);
+    offlineStore.dismissHostConflicts.mockResolvedValue({
+      pending: 0,
+      conflicts: [dismissed],
+    });
+    const rendered = render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    await settle();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    rendered.unmount();
+    offlineStore.loadHostConflicts.mockResolvedValue([dismissed]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(0);
+    render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const dot = screen.getByRole("button", {
+      name: "Save failed · The clip moved. Edit and submit again.",
+    });
+    fireEvent.click(dot);
+
+    const banner = screen.getByRole("alert");
+    expect(banner).toHaveTextContent("The clip moved.");
+    expect(banner).toHaveFocus();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    expect(offlineStore.dismissHostConflicts).toHaveBeenCalledTimes(1);
+    expect(drain.requestHostDrain).not.toHaveBeenCalled();
+  });
+
+  it("reveals a dismissed refusal when Save failed is activated with Enter", async () => {
+    const refused = offlineConflict({
+      reason: "The server rejected this edit.",
+    });
+    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    offlineStore.loadHostConflicts.mockResolvedValue([refused]);
+    offlineStore.dismissHostConflicts.mockResolvedValue({
+      pending: 0,
+      conflicts: [{ ...refused, dismissed: true }],
+    });
+    render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    await settle();
+
+    const dot = screen.getByRole("button", {
+      name: "Save failed · The server rejected this edit. Edit and submit again.",
+    });
+    dot.focus();
+    vi.useRealTimers();
+    await userEvent.setup().keyboard("{Enter}");
+
+    const banner = screen.getByRole("alert");
+    expect(banner).toHaveTextContent("The server rejected this edit.");
+    expect(banner).toHaveFocus();
+  });
+
+  it("reveals dismissed History as inspect-only and keeps its queue reservation", async () => {
+    const history = offlineConflict({
+      kind: "unknown",
+      reason: "Undo may have been applied.",
+      recovery: "inspect-history",
+      command: { command_id: "undo-1", type: "UndoHistory" },
+    });
+    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    offlineStore.loadHostConflicts.mockResolvedValue([history]);
+    offlineStore.dismissHostConflicts.mockResolvedValue({
+      pending: 1,
+      conflicts: [{ ...history, dismissed: true }],
+    });
+    const rendered = render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    await settle();
+    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    rendered.unmount();
+    offlineStore.loadHostConflicts.mockResolvedValue([
+      { ...history, dismissed: true },
+    ]);
+    render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Outcome unknown .* Inspect History before trying again/,
+      }),
+    );
+
+    const banner = screen.getByRole("alert");
+    expect(banner).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "Inspect History" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Inspect History" }));
+    expect(useDawStore.getState().moreDestination).toBe("history");
+    expect(drain.requestHostDrain).not.toHaveBeenCalled();
+  });
+
+  it("publishes the exact pending count from dismissal while unrelated work remains", async () => {
+    const refused = offlineConflict({ reason: "The clip moved." });
+    offlineStore.loadHostCommandCount.mockResolvedValue(2);
+    offlineStore.loadHostConflicts.mockResolvedValue([refused]);
+    offlineStore.dismissHostConflicts.mockResolvedValue({
+      pending: 1,
+      conflicts: [{ ...refused, dismissed: true }],
+    });
+    render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    await settle();
+
+    expect(screen.getByText("1 pending")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Send now" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a newer same-ID outcome when dismissal resolves", async () => {
+    const racePath = "/tmp/save-state-dismiss-race.json";
+    const old = offlineConflict({
+      command: { command_id: "same-command", client_seq: 1 },
+      reason: "Earlier refusal.",
+    });
+    const newer = offlineConflict({
+      command: { command_id: "same-command", client_seq: 2 },
+      reason: "Newer refusal.",
+    });
+    const dismissal = deferred<{
+      pending: number;
+      conflicts: ReturnType<typeof offlineConflict>[];
+    }>();
+    offlineStore.loadHostConflicts.mockResolvedValue([old]);
+    offlineStore.dismissHostConflicts.mockReturnValueOnce(dismissal.promise);
+    useDawStore.getState().hydrate(racePath, minimalProject(), null);
+    render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    act(() => recordVolatileOutcome(racePath, newer));
+    await act(async () => {
+      dismissal.resolve({
+        pending: 0,
+        conflicts: [{ ...old, dismissed: true }],
+      });
+      await dismissal.promise;
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Newer refusal.");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Earlier refusal.");
+    expect(screen.queryByText("0 pending")).not.toBeInTheDocument();
+  });
+
+  it("refreshes after activity begins and ends while dismissal is pending", async () => {
+    const refused = offlineConflict({ reason: "The clip moved." });
+    const dismissed = { ...refused, dismissed: true };
+    const dismissal = deferred<{
+      pending: number;
+      conflicts: ReturnType<typeof offlineConflict>[];
+    }>();
+    offlineStore.loadHostAttention
+      .mockResolvedValueOnce({ pending: 1, conflicts: [refused] })
+      .mockResolvedValue({ pending: 0, conflicts: [dismissed] });
+    offlineStore.dismissHostConflicts.mockReturnValueOnce(dismissal.promise);
+    render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    let send!: ReturnType<typeof beginDocumentSend>;
+    act(() => {
+      send = beginDocumentSend(PATH, "dismissed-while-busy");
+    });
+    act(() => send.finish());
+    expect(
+      screen.getByRole("img", { name: "Saving to project…" }),
+    ).toBeInTheDocument();
+
+    await act(async () =>
+      dismissal.resolve({ pending: 0, conflicts: [dismissed] }),
+    );
+    await settle();
+
+    expect(offlineStore.loadHostAttention).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByRole("button", {
+        name: "Save failed · The clip moved. Edit and submit again.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Saving to project…" }),
+    ).not.toBeInTheDocument();
   });
 
   it("fails on unreadable saved edits and the banner offers Retry", async () => {
