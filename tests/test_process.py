@@ -132,13 +132,17 @@ def test_kill_detached_children_kills_a_child_another_thread_is_waiting_on() -> 
     assert child.returncode != 0
 
 
-@pytest.mark.skipif(not hasattr(os, "setpriority"), reason="no setpriority")
+@pytest.mark.skipif(os.name != "posix", reason="no nice")
 def test_a_child_started_in_low_priority_runs_nicer_and_one_outside_does_not():
     base = os.getpriority(os.PRIO_PROCESS, 0)
     with low_priority(5):
         proc = popen(_SLEEP)
     try:
-        assert os.getpriority(os.PRIO_PROCESS, proc.pid) == min(19, max(base, 5))
+        # ``nice`` lowers the priority just before it execs the program.
+        deadline = time.monotonic() + 5
+        while os.getpriority(os.PRIO_PROCESS, proc.pid) == base and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert os.getpriority(os.PRIO_PROCESS, proc.pid) == min(19, base + 5)
     finally:
         proc.kill()
         proc.wait()
