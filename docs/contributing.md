@@ -460,3 +460,14 @@ publisher in `util/registry_backup.py`; do not add adapter-level SQLite copying 
 overwrite backups. The destination directory must already meet the platform trust
 policy. Native Windows backup tests run in `registry-backup-windows`; POSIX tests
 cannot validate NTFS security descriptors or native rename behavior.
+
+## Agent model guard
+
+Claude Code sessions in this repo run `.claude/hooks/agent-model-guard.sh` as a
+`PreToolUse` hook on the `Agent` tool (wired in `.claude/settings.json`). It
+denies a subagent launch that names no `model`, denies `opus` unless the
+description says verify, review, audit, judgment or design, and denies `fable`
+unless the description says hardest or escalation. `Explore`, `Plan`,
+`claude-code-guide` and `statusline-setup` are exempt. Without `jq` it allows
+the launch and prints a warning. The hook cannot tell a Sonnet lane from an
+Opus lane that happens to say "review", so pick the tier per role.
