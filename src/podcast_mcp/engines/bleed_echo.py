@@ -3,7 +3,7 @@
 Two people in one room each reach the other's mic a few milliseconds late and
 some decibels down. Per-word bleed classification (``audio_audit``) says which
 *words* are on the wrong mic; this module measures the *acoustic path*: in frames
-where speaker A dominates and mic B is open but quieter, is B's audio a delayed
+where speaker A is in voice and mic B is open on its own scale, is B's audio a delayed
 copy of A, at one consistent lag, and far more often than chance? For the audition
 context it runs on fresh timeline stems (the audio the listener hears, on one clock
 for every track) over a bounded span around the audition window, cached in-process
@@ -61,9 +61,11 @@ class EchoConfig:
     max_lag_sec: float = 0.04
     # Levels are dB re each track's own voice level: callers pass samples read through
     # ``LevelProfile.voice_gain``. A frame counts when the source speaker is no further
-    # than ``source_under_voice_db`` under its voice level, the other mic is open (within
-    # ``open_under_voice_db`` of its own: not gated or digital silence) and at least
-    # ``dominance_db`` quieter, so what it carries is likely bleed, not its own voice.
+    # than ``source_under_voice_db`` under its voice level and the bleed mic is open
+    # (within ``open_under_voice_db`` of its own: not gated or digital silence). When
+    # enough co-open frames have the source at least ``dominance_db`` over the bleed on
+    # those normalized levels, only those frames score; otherwise every co-open frame
+    # scores (no as-recorded reference gap).
     source_under_voice_db: float = 25.0
     open_under_voice_db: float = OPEN_UNDER_VOICE_DB
     dominance_db: float = 6.0
@@ -196,6 +198,24 @@ def binomial_tail(k: int, n: int, p: float) -> float:
     return min(1.0, total)
 
 
+def echo_dominated_frames(
+    src_db: np.ndarray,
+    bld_db: np.ndarray,
+    partner_index: np.ndarray,
+    *,
+    cfg: EchoConfig,
+) -> np.ndarray:
+    n = min(src_db.size, bld_db.size)
+    idx = np.arange(n)
+    open_frames = (src_db[:n] > -cfg.source_under_voice_db) & (
+        bld_db[partner_index] > -cfg.open_under_voice_db
+    )
+    dominated = open_frames & (src_db[:n] - bld_db[partner_index] >= cfg.dominance_db)
+    if int(dominated.sum()) < cfg.null_min_dominated:
+        return idx[open_frames]
+    return idx[dominated]
+
+
 def _copy_rows(
     source: np.ndarray,
     bleed: np.ndarray,
@@ -207,23 +227,16 @@ def _copy_rows(
     shift_frames: int,
     cfg: EchoConfig,
     limit: int | None,
-    gap_db: float,
 ) -> tuple[int, list[tuple[int, float, float]]]:
     """Dominated frame count and ``(frame, lag_ms, ncc)`` copy rows.
 
     ``shift_frames`` pairs source frame ``i`` with bleed frame ``i + shift`` (wrapped),
     so a non-zero shift measures two independent stretches of the same two mics.
-    ``gap_db`` is the bleed mic's voice level less the source's: dominance compares the
-    two as recorded.
     """
     n = min(src_db.size, bld_db.size)
     idx = np.arange(n)
     partner = (idx + shift_frames) % n if n else idx
-    selected = idx[
-        (src_db[:n] > -cfg.source_under_voice_db)
-        & (bld_db[partner] > -cfg.open_under_voice_db)
-        & (src_db[:n] - bld_db[partner] - gap_db >= cfg.dominance_db)
-    ]
+    selected = echo_dominated_frames(src_db, bld_db, partner, cfg=cfg)
     dominated = int(selected.size)
     if limit is not None and selected.size > limit:
         selected = selected[np.linspace(0, selected.size - 1, limit).astype(int)]
@@ -267,7 +280,6 @@ def _null_rates(
     sample_rate: int,
     frame: int,
     cfg: EchoConfig,
-    gap_db: float,
 ) -> tuple[int, float | None, float | None]:
     """``(runs, pooled copy rate, pooled consistent rate)`` over the time-shifted null pairs.
 
@@ -295,7 +307,6 @@ def _null_rates(
             shift_frames=shift,
             cfg=cfg,
             limit=cfg.null_max_frames,
-            gap_db=gap_db,
         )
         if dominated < cfg.null_min_dominated:
             continue
@@ -321,9 +332,8 @@ def echo_pair_profile(
 ) -> EchoPairProfile:
     """Profile one direction of one mic pair from timeline-aligned samples starting at ``t0``.
 
-    Each track is read at its own voice level (``LevelProfile.voice_gain``); ``gap_db`` is the
-    bleed mic's voice level less the source's, so dominance and the copy's level compare
-    the two as recorded.
+    Each track is read at its own voice level (``LevelProfile.voice_gain``). ``gap_db`` is the
+    bleed mic's voice level less the source's; it is added back only for reported ``level_db``.
     """
     cfg = config or EchoConfig()
     frame = max(1, round(cfg.frame_sec * sample_rate))
@@ -340,10 +350,9 @@ def echo_pair_profile(
         shift_frames=0,
         cfg=cfg,
         limit=None,
-        gap_db=gap_db,
     )
     null_runs, null_copy, null_consistent = _null_rates(
-        source, bleed, src_db, bld_db, sample_rate=sample_rate, frame=frame, cfg=cfg, gap_db=gap_db
+        source, bleed, src_db, bld_db, sample_rate=sample_rate, frame=frame, cfg=cfg
     )
     span_end = t0 + n / sample_rate
     long_regions = (
