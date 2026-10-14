@@ -360,6 +360,15 @@ function TimingEditor({
     draft.end <= duration &&
     draft.end - draft.start >= step - 1e-12;
   const disabled = state.kind === "saving" || duration == null;
+  const busyReason = state.kind === "saving" ? "Saving the timing." : undefined;
+  const readyReason =
+    busyReason ??
+    (duration == null
+      ? "Wait for the recording waveform, then reload timing."
+      : undefined);
+  const boundsReason = !validBounds
+    ? "Choose a positive span within the recording."
+    : undefined;
   const changed =
     draft.start !== context.word.start || draft.end !== context.word.end;
   const window = context.window;
@@ -529,7 +538,7 @@ function TimingEditor({
       <div className="wordbar-actions">
         <Button
           onKeyDown={cancelOnEscape}
-          disabled={disabled || !validBounds}
+          disabledReason={readyReason ?? boundsReason}
           onClick={() => preview()}
         >
           Play draft
@@ -539,14 +548,18 @@ function TimingEditor({
         </Button>
         <Button
           onKeyDown={cancelOnEscape}
-          disabled={disabled || !validBounds || !changed}
+          disabledReason={
+            readyReason ??
+            boundsReason ??
+            (!changed ? "Change a boundary to apply timing." : undefined)
+          }
           onClick={() => void apply()}
         >
           Apply timing
         </Button>
         <Button
           onKeyDown={cancelOnEscape}
-          disabled={state.kind === "saving"}
+          disabledReason={busyReason}
           onClick={cancel}
         >
           Cancel draft
@@ -554,8 +567,10 @@ function TimingEditor({
         {saved && (
           <CommandButton
             commandId="history.undo"
-            disabled={
+            disabledReason={
               project !== saved.project || currentDocumentSeq() !== saved.seq
+                ? "The transcript changed since this timing. Use History to review newer changes."
+                : undefined
             }
             onKeyDown={cancelOnEscape}
             onClick={(event) => {
@@ -577,7 +592,7 @@ function TimingEditor({
         )}
         <Button
           onKeyDown={cancelOnEscape}
-          disabled={state.kind === "saving"}
+          disabledReason={busyReason}
           onClick={() => {
             stopPreview();
             void reload(word);
@@ -587,7 +602,7 @@ function TimingEditor({
         </Button>
         <Button
           onKeyDown={cancelOnEscape}
-          disabled={state.kind === "saving"}
+          disabledReason={busyReason}
           onClick={() => {
             stopPreview();
             useDawStore.getState().setTranscriptTimingRequest(null);

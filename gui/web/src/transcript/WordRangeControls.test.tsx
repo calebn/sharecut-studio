@@ -136,7 +136,13 @@ describe("WordRangeControls", () => {
     });
     expect(useDawStore.getState().selection).toEqual(range(2, 7));
     expect(button("Add word after")).toBeDisabled();
-    expect(screen.getByText("There is no later word to add.")).toBeVisible();
+    expect(button("Add word after")).toHaveAttribute(
+      "title",
+      "There is no later word to add.",
+    );
+    expect(document.querySelector(".range-words-reason")).toHaveTextContent(
+      "There is no later word to add.",
+    );
   });
 
   it("disables the drops on a one-word range and says why", () => {
@@ -145,9 +151,10 @@ describe("WordRangeControls", () => {
     expect(button("Drop first word")).toBeDisabled();
     expect(button("Drop last word")).toBeDisabled();
     expect(button("Add word before")).toBeEnabled();
-    expect(
-      screen.getByText("The range is one word. Clear it to start over."),
-    ).toBeVisible();
+    expect(document.querySelector(".range-words-reason")).toBeVisible();
+    expect(document.querySelector(".range-words-reason")).toHaveTextContent(
+      "The range is one word. Clear it to start over.",
+    );
     expect(button("Drop last word")).toHaveAccessibleDescription(
       "The range is one word. Clear it to start over.",
     );
