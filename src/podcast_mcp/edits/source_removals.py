@@ -581,8 +581,8 @@ def _consume_source_remove(
     """Prove and consume the actual ordinary source removal against current playback.
 
     A stored peer-speech review retains its confirmation path; fresh bleed or unavailable
-    scope still holds. A hold changes no geometry. No downstream kernel re-optimizes the
-    final proven window, and archived parameters name the consumed source and pad.
+    scope still holds. A hold changes no geometry. Generic witnessed cuts keep their
+    proven window through consumption; pause trims re-prove their optimized window.
     """
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
@@ -601,6 +601,8 @@ def _consume_source_remove(
     prepared_pause = None
     actual = edit
     pause = (edit.reason or "").startswith("pause:")
+    witnessed = edit.source_timeline_span is not None
+    consumed_inaudible_opt = use_inaudible_opt if pause or not witnessed else False
     if pause:
         from podcast_mcp.edits.fillers import (
             _CutRejected,
@@ -663,21 +665,39 @@ def _consume_source_remove(
         tl_start, tl_end = float(final_span[0]), float(final_span[1])
         removal = RippleRemoval.of([TrackExtent(edit.track_id, tl_start, tl_end)])
     elif scope == "track":
-        opt = optimize_timeline_cut_range(
-            project, edit.track_id, tl_start, tl_end, force_enabled=use_inaudible_opt
-        )
-        tl_start, tl_end = opt.start, opt.end
+        if not witnessed:
+            opt = optimize_timeline_cut_range(
+                project, edit.track_id, tl_start, tl_end, force_enabled=use_inaudible_opt
+            )
+            tl_start, tl_end = opt.start, opt.end
     else:
-        removal = plan_ripple_delete(
-            project,
-            tl_start,
-            tl_end,
-            edited_track_ids=[edit.track_id],
-            use_inaudible_opt=use_inaudible_opt,
-        )
+        if witnessed:
+            from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
+
+            removal = RippleRemoval.of(
+                [TrackExtent(edit.track_id, tl_start, tl_end)],
+                unselected=[(tl_start, tl_end)],
+            )
+        else:
+            removal = plan_ripple_delete(
+                project,
+                tl_start,
+                tl_end,
+                edited_track_ids=[edit.track_id],
+                use_inaudible_opt=consumed_inaudible_opt,
+            )
         if len(removal.spans) != 1:
             return CutScopeHold(edit.id, (), "source_geometry")
         tl_start, tl_end = removal.spans[0]
+    if (
+        witnessed
+        and not pause
+        and (
+            abs(tl_start - float(seed[0])) > _SOURCE_GEOMETRY_TOLERANCE_SEC
+            or abs(tl_end - float(seed[1])) > _SOURCE_GEOMETRY_TOLERANCE_SEC
+        )
+    ):
+        return CutScopeHold(edit.id, (), "source_geometry")
     source = (
         (SourceSec(actual.start), SourceSec(actual.end))
         if edit.source_timeline_span is not None
@@ -792,6 +812,7 @@ def _consume_source_remove(
                 "per_track_source": report["per_track_source"],
                 "replace_gap_sec": None,
                 "scope": scope,
+                "use_inaudible_opt": consumed_inaudible_opt,
                 "source_start": actual.start,
                 "source_end": actual.end,
                 **({"source_id": edit.source_id} if edit.source_timeline_span is not None else {}),
@@ -807,6 +828,17 @@ def _consume_source_remove(
     )
     if isinstance(clearance, CutSpeechConfirmation):
         return clearance
+    if (
+        witnessed
+        and not pause
+        and (
+            clearance.removal is None
+            or len(clearance.removal.spans) != 1
+            or abs(clearance.removal.spans[0][0] - float(seed[0])) > _SOURCE_GEOMETRY_TOLERANCE_SEC
+            or abs(clearance.removal.spans[0][1] - float(seed[1])) > _SOURCE_GEOMETRY_TOLERANCE_SEC
+        )
+    ):
+        return CutScopeHold(edit.id, (), "source_geometry")
     proof.close()  # the proof ends where the first mutation starts
     if working is not project:
         project.clips.extend(implicit)
@@ -814,7 +846,7 @@ def _consume_source_remove(
         project,
         clearance,
         record_log=record_log,
-        params={"use_inaudible_opt": use_inaudible_opt},
+        params={"use_inaudible_opt": consumed_inaudible_opt},
     )
     tl_start, tl_end = report["timeline_start"], report["timeline_end"]
     per_track = report["per_track_source"]
@@ -875,6 +907,7 @@ def _consume_source_remove(
             "per_track_source": per_track,
             "replace_gap_sec": actual.replace_gap_sec,
             "scope": scope,
+            "use_inaudible_opt": consumed_inaudible_opt,
             "source_start": actual.start,
             "source_end": actual.end,
             **({"source_id": edit.source_id} if edit.source_timeline_span is not None else {}),
