@@ -51,11 +51,12 @@ class _LaneWord:
 
 def _lane_words(project: EpisodeProject, track_id: str) -> list[_LaneWord]:
     """Every placed recording's words on a lane, each start on the session clock."""
-    return [
-        _LaneWord(transcript_word_key(lane.transcript, i), w, lane.session_span(w.start, w.end)[0])
-        for lane in lane_transcripts(project, track_id)
-        for i, w in enumerate(lane.transcript.words)
-    ]
+    out: list[_LaneWord] = []
+    for lane in lane_transcripts(project, track_id):
+        for i, w in enumerate(lane.transcript.words):
+            if (span := lane.session_span(w.start, w.end)) is not None:
+                out.append(_LaneWord(transcript_word_key(lane.transcript, i), w, span[0]))
+    return out
 
 
 def _twin_deltas(source_words: list[_LaneWord], bleed_words: list[_LaneWord]) -> list[float]:
