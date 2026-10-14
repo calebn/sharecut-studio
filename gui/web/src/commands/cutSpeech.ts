@@ -3,12 +3,16 @@ import { useDawStore } from "../state/dawStore";
 import { errorMessage } from "../utils/apiError";
 import {
   finishPendingReview,
+  type PendingReviewCapture,
   requireCurrentPendingReview,
 } from "../utils/pendingReviewPass";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
 type Choice = "cutAnyway" | "leaveGap";
+
+/** Pending-review Cut anyway cleared the dialog; cancel drops late batch feedback. */
+let pendingReviewCutInFlight: PendingReviewCapture | null = null;
 
 /** Resubmit the refused ripple the way the person chose; the prompt stays open with the error on failure. */
 async function choose(choice: Choice): Promise<ExecuteResult> {
@@ -23,8 +27,13 @@ async function choose(choice: Choice): Promise<ExecuteResult> {
   try {
     if (prompt.kind === "pending-review") {
       requireCurrentPendingReview(prompt.review);
+      pendingReviewCutInFlight = prompt.review;
       s.setCutSpeechPrompt(null);
       const outcome = await prompt.cutAnyway();
+      const live = useDawStore.getState();
+      if (pendingReviewCutInFlight !== prompt.review) return { status: "ok" };
+      pendingReviewCutInFlight = null;
+      if (!outcome.asked) live.setCutSpeechPrompt(null);
       finishPendingReview(prompt.review, outcome);
       return { status: "ok" };
     }
@@ -40,6 +49,14 @@ async function choose(choice: Choice): Promise<ExecuteResult> {
   } catch (error) {
     const reason = errorMessage(error);
     const live = useDawStore.getState();
+    if (prompt.kind === "pending-review") {
+      if (pendingReviewCutInFlight === prompt.review) {
+        pendingReviewCutInFlight = null;
+        live.setCutSpeechPrompt(prompt);
+      }
+      live.announceStatus(`Cut failed: ${reason}`);
+      return { status: "disabled", reason };
+    }
     if (
       live.cutSpeechPrompt === prompt &&
       live.projectPath === prompt.projectPath
@@ -53,6 +70,7 @@ export function registerCutSpeechCommands(): void {
   registerCommand("edit.cutSpeech.cutAnyway", () => choose("cutAnyway"));
   registerCommand("edit.cutSpeech.leaveGap", () => choose("leaveGap"));
   registerCommand("edit.cutSpeech.cancel", () => {
+    pendingReviewCutInFlight = null;
     useDawStore.getState().setCutSpeechPrompt(null);
     return { status: "ok" };
   });
