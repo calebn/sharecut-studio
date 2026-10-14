@@ -15,10 +15,9 @@ from collections.abc import Callable, Sequence
 
 import numpy as np
 
-from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, bridge_short_dips, frame_rms_db
 
 FRAME_SEC = 0.02
-SILENCE_DB = -200.0
 QUIET_SHARE = 0.5
 FLOOR_PERCENTILE = 10
 MIN_RANGE_DB = 6.0
@@ -35,8 +34,8 @@ OwnScores = Callable[[int, int], np.ndarray]
 
 
 def frame_levels(samples: np.ndarray, hop: int) -> np.ndarray:
-    """dB level of each whole ``hop``-sample frame; digital silence reads ``SILENCE_DB``."""
-    return frame_rms_db(samples[: samples.size // hop * hop], hop, hop, floor_db=SILENCE_DB)
+    """dB level of each whole ``hop``-sample frame; digital silence reads ``DIGITAL_SILENCE_DB``."""
+    return frame_rms_db(samples[: samples.size // hop * hop], hop, hop, floor_db=DIGITAL_SILENCE_DB)
 
 
 def voice_runs(levels: np.ndarray, labels: np.ndarray, detected: np.ndarray | None) -> list[Run]:
@@ -44,7 +43,7 @@ def voice_runs(levels: np.ndarray, labels: np.ndarray, detected: np.ndarray | No
 
     All arrays share the frame shape. ``None`` means the detector is unavailable.
     """
-    sound = levels > SILENCE_DB
+    sound = levels > DIGITAL_SILENCE_DB
     if not sound.any():
         return []
     least = max(1, round(MIN_RUN_SEC / FRAME_SEC))

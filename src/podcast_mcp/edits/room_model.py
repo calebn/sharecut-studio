@@ -30,8 +30,9 @@ from typing import NamedTuple
 
 import numpy as np
 
-from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB, LEVEL_FRAME_SEC
+from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC
 from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_DB,
     SPEECH_BAND,
     BandShape,
     bool_runs,

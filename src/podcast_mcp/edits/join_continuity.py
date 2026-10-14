@@ -31,9 +31,7 @@ from podcast_mcp.edits.audio_cache import (
     WAVEFORM_SAMPLE_RATE,
     TrackAudioCache,
     build_track_audio_caches,
-    level_profile,
-    track_voice_floor_db,
-    voice_floor_from_profile,
+    track_level_profile,
 )
 from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
@@ -62,7 +60,12 @@ _DEFAULT_EDGE_TOLERANCE_MS = 3.0
 _CALIBRATE_N = 24
 _CALIBRATE_MARGIN = 1.15
 # Digital-silence level for splice-side measurements (matches 20*log10(1e-20)).
-_SILENT_DB = -400.0
+# A splice's right side collides with an onset when its first 10 ms sit over the track's
+# voice floor less this; the score ramps over the 20 dB from 5 dB above that level (-50
+# and -45 dBFS on the lab tape, whose voice floor is -42 dBFS).
+_ONSET_UNDER_VOICE_FLOOR_DB = 8.0
+_ONSET_RAMP_START_DB = 5.0
+_ONSET_RAMP_DB = 20.0
 # Speech F0 search range for the f0_jump detector.
 _F0_MIN_HZ = 70.0
 _F0_MAX_HZ = 400.0
@@ -103,19 +106,22 @@ class JoinContinuityConfig:
     weight_wavlm: float = 1.4
     # Both splice sides this far under the track's voice floor cannot be heard: room tone
     # against gated digital silence passes as "inaudible splice" instead of scoring a level
-    # jump. :meth:`at_voice_floor` resolves it to ``inaudible_floor_db`` (dBFS) for a track.
+    # jump. :meth:`at_voice_floor` sets the track's voice floor (dBFS); unset, every splice
+    # counts as heard.
     inaudible_under_voice_floor_db: float = 18.0
-    inaudible_floor_db: float = -math.inf
+    voice_floor_db: float = -math.inf
     # Spectral-shape detectors compare level-normalised spectra, which read as a
     # mismatch between any two windows of quiet air. Their weight ramps from 0 at
     # inaudible_floor_db to full this many dB above it (louder side); 0 disables.
     spectral_audibility_db: float = 30.0
 
+    @property
+    def inaudible_floor_db(self) -> float:
+        return self.voice_floor_db - self.inaudible_under_voice_floor_db
+
     def at_voice_floor(self, voice_floor_db: float) -> JoinContinuityConfig:
-        """This config with ``inaudible_floor_db`` set for a track whose voice floor is given."""
-        return replace(
-            self, inaudible_floor_db=voice_floor_db - self.inaudible_under_voice_floor_db
-        )
+        """This config for a track whose voice floor is ``voice_floor_db``."""
+        return replace(self, voice_floor_db=voice_floor_db)
 
     @classmethod
     def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
@@ -287,8 +293,8 @@ def score_splice_samples(
             )
         )
 
-    pre_db = rms_db(left[-min(left.size, int(0.05 * sample_rate)) :], floor_db=_SILENT_DB)
-    post_db = rms_db(right[: min(right.size, int(0.05 * sample_rate))], floor_db=_SILENT_DB)
+    pre_db = rms_db(left[-min(left.size, int(0.05 * sample_rate)) :])
+    post_db = rms_db(right[: min(right.size, int(0.05 * sample_rate))])
     jump = abs(post_db - pre_db)
     hits.append(
         DetectorHit(
@@ -335,7 +341,7 @@ def score_splice_samples(
         hop = max(1, int(0.01 * sample_rate))
         vals = [_rms(x[i : i + hop]) for i in range(0, max(0, x.size - hop), hop)]
         if not vals:  # pragma: no cover
-            return rms_db(x, floor_db=_SILENT_DB)
+            return rms_db(x)
         return 20.0 * float(np.log10(float(np.percentile(vals, 10)) + 1e-20))
 
     nf = abs(floor_db(left) - floor_db(right))
@@ -372,8 +378,13 @@ def score_splice_samples(
 
     edge = right[: min(right.size, int(0.03 * sample_rate))]
     if edge.size >= 8:
-        early_db = rms_db(edge[: max(1, edge.size // 3)], floor_db=_SILENT_DB)
-        onset_score = _clamp01((early_db + 45.0) / 20.0) if early_db > -50 else 0.0
+        early_db = rms_db(edge[: max(1, edge.size // 3)])
+        onset_db = config.voice_floor_db - _ONSET_UNDER_VOICE_FLOOR_DB
+        onset_score = (
+            _clamp01((early_db - onset_db - _ONSET_RAMP_START_DB) / _ONSET_RAMP_DB)
+            if math.isfinite(onset_db) and early_db > onset_db
+            else 0.0
+        )
         hits.append(
             DetectorHit(
                 "onset_collision",
@@ -431,7 +442,7 @@ _SHAPE_DETECTORS = frozenset(
 def _spectral_audibility(left: np.ndarray, right: np.ndarray, cfg: JoinContinuityConfig) -> float:
     if cfg.spectral_audibility_db <= 0:
         return 1.0
-    loud = max(rms_db(left, floor_db=_SILENT_DB), rms_db(right, floor_db=_SILENT_DB))
+    loud = max(rms_db(left), rms_db(right))
     return _clamp01((loud - cfg.inaudible_floor_db) / cfg.spectral_audibility_db)
 
 
@@ -439,8 +450,8 @@ def _inaudible_splice(
     left: np.ndarray, right: np.ndarray, cfg: JoinContinuityConfig
 ) -> DetectorHit | None:
     """The one hit for a splice whose two sides are both below ``inaudible_floor_db``."""
-    left_db = rms_db(left, floor_db=_SILENT_DB)
-    right_db = rms_db(right, floor_db=_SILENT_DB)
+    left_db = rms_db(left)
+    right_db = rms_db(right)
     if left_db >= cfg.inaudible_floor_db or right_db >= cfg.inaudible_floor_db:
         return None
     return DetectorHit(
@@ -448,8 +459,8 @@ def _inaudible_splice(
         0.0,
         1.0,
         {
-            "left_db": round(max(left_db, -200.0), 1),
-            "right_db": round(max(right_db, -200.0), 1),
+            "left_db": round(left_db, 1),
+            "right_db": round(right_db, 1),
             "floor_db": cfg.inaudible_floor_db,
         },
     )
@@ -941,7 +952,7 @@ def _assess_existing_join(
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     if samples is None:
         samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
-        cfg = cfg.at_voice_floor(track_voice_floor_db(project, track_id))
+        cfg = cfg.at_voice_floor(track_level_profile(project, track_id).voice_floor_db)
     if points is None:
         points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
     left_i, right_i = _splice_indices(points, cfg.sample_rate)
@@ -1017,7 +1028,7 @@ def assess_proposed_cut(
         raise ValueError("cut_end must be > cut_start")
     samples = _resolve_source_samples(project, track_id, cfg.sample_rate, audio_caches=audio_caches)
     cfg = cfg.at_voice_floor(
-        track_voice_floor_db(project, track_id, (audio_caches or {}).get(track_id))
+        track_level_profile(project, track_id, (audio_caches or {}).get(track_id)).voice_floor_db
     )
     st = SessionTimeline(project)
     if timebase == "timeline":
@@ -1066,9 +1077,7 @@ def assess_project_joins(
         if not joins:
             continue
         samples = _resolve_source_samples(project, tid, cfg.sample_rate)
-        voice_floor_db = voice_floor_from_profile(
-            level_profile(samples, cfg.sample_rate, whole_track=True)
-        )
+        voice_floor_db = track_level_profile(project, tid).voice_floor_db
         track_cfg = cfg.at_voice_floor(voice_floor_db)
         natural_p95 = (
             _natural_baseline_p95(samples, cfg.sample_rate, track_cfg) if cfg.calibrate else None

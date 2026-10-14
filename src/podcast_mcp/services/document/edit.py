@@ -644,7 +644,7 @@ class EditService:
         *,
         track_id: str | None = None,
         speaker: str | None = None,
-        threshold_db: float = -40.0,
+        over_voice_floor_db: float = 0.0,
         min_duration_sec: float = 0.5,
         use_inaudible_opt: bool | None = None,
     ) -> dict:
@@ -655,7 +655,7 @@ class EditService:
             return strip_silence(
                 p,
                 tid,
-                threshold_db=threshold_db,
+                over_voice_floor_db=over_voice_floor_db,
                 min_duration_sec=min_duration_sec,
                 use_inaudible_opt=use_inaudible_opt,
             )
@@ -667,7 +667,7 @@ class EditService:
             operation="strip_silence",
             params={
                 "track_id": tid,
-                "threshold_db": threshold_db,
+                "over_voice_floor_db": over_voice_floor_db,
                 "min_duration_sec": min_duration_sec,
                 "use_inaudible_opt": use_inaudible_opt,
             },

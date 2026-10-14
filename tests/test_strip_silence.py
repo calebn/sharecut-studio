@@ -64,6 +64,6 @@ def test_strip_silence_splits_clips(tmp_path, sample_wav) -> None:
             timeline_start=0.0,
         )
     ]
-    result = strip_silence(p, "host", threshold_db=-50, min_duration_sec=0.1)
+    result = strip_silence(p, "host", min_duration_sec=0.1)
     assert result["clips_created"] >= 1
     assert len([c for c in p.clips if c.track_id == "host"]) >= 1

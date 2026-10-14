@@ -119,7 +119,9 @@ def trim_implausible_words(
         if word.timing_edited or not caps.is_implausible(word):
             continue
         search_end = _search_end(words, i, caps.end_slack_sec)
-        runs = voiced_runs(audio, word.start, search_end, floor_db=audio.audibility_floor_db)
+        runs = voiced_runs(
+            audio, word.start, search_end, floor_db=audio.profile.audibility_floor_db
+        )
         span = plausible_span(word.start, word.end, search_end, caps.cap_for(word), runs)
         if span is None:
             word.overlong = True

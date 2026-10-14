@@ -16,11 +16,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from podcast_mcp.edits.audio_cache import (
-    level_profile,
-    track_voice_floor_db,
-    voice_floor_from_profile,
-)
+from podcast_mcp.edits.audio_cache import track_level_profile
 from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
 from podcast_mcp.models import Clip, EpisodeProject, TranscriptWord
@@ -142,7 +138,7 @@ def speech_crossing_at_edge(
     """Voiced speech that continues past a clip edge into the audio the cut removed.
 
     ``samples`` is source audio around the edge; ``edge_index`` is the clip edge inside it.
-    ``voice_floor_db`` is the track's (``TrackAudioCache.voice_floor_db``).
+    ``voice_floor_db`` is the track's (``LevelProfile.voice_floor_db``).
     ``side`` is ``onset`` for a clip start (removed audio lies before the edge) or ``tail``
     for a clip end (removed audio lies after it). Returns ``(voice_edge_index, kept_db,
     removed_db)``: where the voice actually starts or ends and the mean level of the run
@@ -319,7 +315,7 @@ def find_speech_crossings(
     Pass ``samples`` (the whole track decoded at ``sample_rate``) to reuse a decode the
     caller already holds, as the join sweep does; otherwise each edge reads one short
     source window. A track whose media cannot be read yields no crossings. The track's
-    voice floor comes from ``voice_floor_db``, else ``samples``, else the track's audio.
+    voice floor comes from ``voice_floor_db``, else the track's level profile.
     """
     cfg = config or JoinSpeechConfig()
     rate = sample_rate or cfg.sample_rate
@@ -328,12 +324,11 @@ def find_speech_crossings(
     except ValueError:
         return []
     words = _words_for_track(project, track_id)
-    if voice_floor_db is not None:
-        floor = voice_floor_db
-    elif samples is not None:
-        floor = voice_floor_from_profile(level_profile(samples, rate, whole_track=True))
-    else:
-        floor = track_voice_floor_db(project, track_id)
+    floor = (
+        voice_floor_db
+        if voice_floor_db is not None
+        else track_level_profile(project, track_id).voice_floor_db
+    )
     out: list[SpeechCrossing] = []
     for prev, cur in joins:
         join_t = float(cur.timeline_start)

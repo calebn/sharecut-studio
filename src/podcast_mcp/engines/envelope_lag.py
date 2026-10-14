@@ -15,7 +15,16 @@ import numpy as np
 
 from podcast_mcp.util.dsp import frame_db_stream, frame_peak_db, frame_rms_db, frame_rms_db_stream
 
-LEVEL_FLOOR_DB = -90.0
+# Levels on the bleed path are dB re each track's own voice level: every track is read
+# through ``LevelProfile.voice_gain``, so its voice sits at 0 dB at any recording gain.
+# LEVEL_FLOOR_DB holds digital silence and the faintest room at one value; PEER_OPEN_DB
+# is where a track is open rather than gated or silent. Both were dBFS levels set on the
+# lab tape (-90 and -60), whose median voice level is -15.3 dBFS, so each offset is that
+# level's distance under it, to the dB (docs/audio-engineering.md § Detection levels).
+FLOOR_UNDER_VOICE_DB = 75.0
+OPEN_UNDER_VOICE_DB = 45.0
+LEVEL_FLOOR_DB = -FLOOR_UNDER_VOICE_DB
+PEER_OPEN_DB = -OPEN_UNDER_VOICE_DB
 NULL_SHIFTS_SEC = (-2.0, -1.0, 1.0, 2.0)
 MIN_CORRELATION = 0.4
 MIN_NULL_MARGIN = 0.15
@@ -28,7 +37,6 @@ MAX_COPY_LAG_SEC = 0.3
 MIN_COPY_SEC = 20.0
 FULL_COPY_SEC = 30.0
 CONTOUR_SEC = 0.5
-PEER_OPEN_DB = -60.0
 _BLOCK_ELEMENTS = 1 << 18
 
 

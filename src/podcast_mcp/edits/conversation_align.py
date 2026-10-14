@@ -31,6 +31,7 @@ from podcast_mcp.engines.envelope_lag import (
     stream_level_and_peak_db,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.engines.play_audit import probe_wav_duration_sec
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -57,6 +58,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.wer import normalize_token
@@ -1763,11 +1765,17 @@ def _bleed_latency_stage(
     moves = _planned_moves(project, units, offsets, ref_clips)
     sources: dict[Path, np.ndarray] = {}
     levels: dict[str, np.ndarray] = {}
+    references: dict[str, float] = {}
     measured: dict[str, float] = {}
     try:
         for track_id, move in moves.items():
+            samples = raw_timeline_samples(
+                project, track_id, sources=sources, sample_rate=LATENCY_RATE
+            )
+            profile = track_profile(samples, LATENCY_RATE)
+            references[track_id] = profile.path_reference_db
             envelope = level_envelope_db(
-                raw_timeline_samples(project, track_id, sources=sources, sample_rate=LATENCY_RATE),
+                samples * np.float32(profile.voice_gain),
                 sample_rate=LATENCY_RATE,
                 frame_sec=bleed_latency.FRAME_SEC,
                 hop_sec=bleed_latency.HOP_SEC,
@@ -1782,8 +1790,10 @@ def _bleed_latency_stage(
     except (OSError, ValueError, wave.Error, subprocess.CalledProcessError) as exc:
         log.debug("align_tracks: bleed latency skipped: %s", exc)
         return None, {}
-    solution = bleed_latency.measure_bleed_latency(levels, ref_track_id, settings, measured)
-    lanes = _stepped_lanes(project, solution, levels, measured, sources, settings)
+    solution = bleed_latency.measure_bleed_latency(
+        levels, ref_track_id, settings, measured, references=references
+    )
+    lanes = _stepped_lanes(project, solution, levels, references, measured, sources, settings)
     stepped: dict[str, bleed_lag_segments.LagSteps] = {}
     for track, clip, _tokens, _dur in units:
         found = solution.track(track.id)
@@ -1848,22 +1858,24 @@ class _LaneMedia:
 
 
 def _lane_media(
-    project: EpisodeProject, track: Track, sources: dict[Path, np.ndarray]
+    project: EpisodeProject, track: Track, sources: dict[Path, np.ndarray], reference_db: float
 ) -> _LaneMedia | None:
-    """Envelopes of a lane whose clips all read one media file."""
+    """Envelopes of a lane whose clips all read one media file, at the lane's voice level
+    (``reference_db``, as its timeline envelope is read)."""
     clips = clips_for_track(project, track.id)
     paths = {resolve_clip_audio_path(project, track, clip) for clip in clips}
     if len(paths) != 1 or (path := next(iter(paths))) not in sources:
         return None
     grid = {"frame_sec": bleed_latency.FRAME_SEC, "hop_sec": bleed_latency.HOP_SEC}
+    gain = np.float32(db_to_amplitude(-reference_db))
     heard, heard_peak = stream_level_and_peak_db(
-        FFmpegEngine().stream_mono_f32(path, sample_rate=SILENCE_RATE),
+        (chunk * gain for chunk in FFmpegEngine().stream_mono_f32(path, sample_rate=SILENCE_RATE)),
         sample_rate=SILENCE_RATE,
         **grid,
     )
     lengths = [clip.source_end - clip.source_start for clip in clips]
     return _LaneMedia(
-        source=level_envelope_db(sources[path], sample_rate=LATENCY_RATE, **grid),
+        source=level_envelope_db(sources[path] * gain, sample_rate=LATENCY_RATE, **grid),
         heard=heard,
         heard_peak=heard_peak,
         shift_sec=float(
@@ -1920,6 +1932,7 @@ def _stepped_lanes(
     project: EpisodeProject,
     solution: bleed_latency.LatencySolution,
     levels: dict[str, np.ndarray],
+    references: dict[str, float],
     measured: dict[str, float],
     sources: dict[Path, np.ndarray],
     settings: bleed_latency.LatencySettings,
@@ -1945,7 +1958,7 @@ def _stepped_lanes(
         if found.reason not in ("latency", "aligned"):
             continue
         try:
-            lanes[track.id] = _lane_media(project, track, sources)
+            lanes[track.id] = _lane_media(project, track, sources, references[track.id])
         except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
             log.debug("align_tracks: bleed lag steps skipped for %s: %s", track.id, exc)
             lanes[track.id] = None
@@ -1963,9 +1976,14 @@ def _stepped_lanes(
                 lane_talks=lane_talks,
                 near_sec=(found.latency_sec or 0.0) + path - media.shift_sec,
                 settings=settings,
+                other_over_lane_db=references[other] - references[track_id],
             )
             if lag is not None:
-                pairs.append(bleed_lag_segments.BleedPair(clock[other], lane_talks, lag))
+                pairs.append(
+                    bleed_lag_segments.BleedPair(
+                        clock[other], lane_talks, lag, references[other] - references[track_id]
+                    )
+                )
         return bleed_lag_segments.lag_segments(
             media.source,
             pairs,

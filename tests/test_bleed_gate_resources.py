@@ -66,7 +66,7 @@ def test_unavailable_evidence_is_retried_without_changing_project_or_media(tmp_p
     assert failed.attenuation_spans == ()
     assert failed.reasons == ("unavailable_peer_source",)
     monkeypatch.setattr(bleed_gate, "raw_timeline_samples", original)
-    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ((1.71, 2.74),)
+    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ((1.7, 2.75),)
 
 
 @pytest.mark.parametrize("replaced_track", ["host", "guest"])

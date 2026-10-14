@@ -16,6 +16,7 @@ from podcast_mcp.edits.join_speech import (
     speech_crossing_at_edge,
     speech_crossings_in_window,
 )
+from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -260,6 +261,7 @@ def test_caller_samples_are_reused_instead_of_reading_media(tmp_path: Path) -> N
         splice_joins(clips_for_track(project, "host")),
         samples=audio,
         sample_rate=RATE,
+        voice_floor_db=track_profile(audio, RATE).voice_floor_db,
     )
     assert [h.direction for h in hits] == ["clipped_onset"]
     assert hits[0].removed_ms == pytest.approx(340.0, abs=20.0)

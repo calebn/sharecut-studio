@@ -6,7 +6,6 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.edits import cut_quality
-from podcast_mcp.edits.audio_cache import LevelProfile
 from podcast_mcp.edits.cut_quality import (
     _measure_join_jump_cached,
     assess_cut_risk,
@@ -14,6 +13,7 @@ from podcast_mcp.edits.cut_quality import (
     optimize_and_assess,
     recommend_cut_fade_ms,
 )
+from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.models import (
     EpisodeProject,
     MediaAsset,
@@ -30,9 +30,8 @@ ROOM_DB = -90.0
 def _track_levels(monkeypatch):
     """The tests' project has no audio: the track speaks at -15 dBFS over a -90 dBFS room,
     so its voice floor is -42 dBFS and a hot onset is -22 dBFS."""
-    profile = LevelProfile(10 ** (ROOM_DB / 20), 10 ** (SPEECH_DB / 20), 10 ** (SPEECH_DB / 20))
+    profile = LevelProfile(room_db=ROOM_DB, speech_db=SPEECH_DB, loud_db=SPEECH_DB)
     monkeypatch.setattr(cut_quality, "track_level_profile", lambda *_a, **_k: profile)
-    monkeypatch.setattr(cut_quality, "track_voice_floor_db", lambda *_a, **_k: SPEECH_DB - 27.0)
 
 
 def _minimal_project() -> EpisodeProject:

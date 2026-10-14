@@ -55,6 +55,7 @@ import numpy as np
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.level_profile import file_level_profile, track_profile
 from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db, frame_rms_db_stream
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.pcm_stream import SequentialWindowReader
@@ -198,8 +199,9 @@ def _segments_from_levels(
     *,
     gap_sec: float,
     max_sec: float,
-    floor_db: float = -40.0,
+    floor_db: float,
 ) -> list[tuple[float, float]]:
+    """Runs of frames over ``floor_db`` (the track's voice floor), merged and split."""
     if db.size == 0:
         return []
     runs = bool_runs(db > floor_db)
@@ -223,12 +225,15 @@ def _segments_from_energy(
     *,
     gap_sec: float,
     max_sec: float,
-    floor_db: float = -40.0,
 ) -> list[tuple[float, float]]:
     frame, hop = _energy_frame(sr)
     db = frame_rms_db(samples, frame, hop)
     return _segments_from_levels(
-        db, hop / float(sr), gap_sec=gap_sec, max_sec=max_sec, floor_db=floor_db
+        db,
+        hop / float(sr),
+        gap_sec=gap_sec,
+        max_sec=max_sec,
+        floor_db=track_profile(samples, sr).voice_floor_db,
     )
 
 
@@ -245,12 +250,17 @@ def _energy_bounds_stream(
     chunks: Iterable[np.ndarray],
     sr: int,
     params: ProsodyParams,
+    floor_db: float,
     cancel_check: Callable[[], bool] | None = None,
 ) -> list[tuple[float, float]]:
     frame, hop = _energy_frame(sr)
     db = frame_rms_db_stream(_cancellable(chunks, cancel_check), frame, hop)
     return _segments_from_levels(
-        db, hop / float(sr), gap_sec=params.segment_gap_sec, max_sec=params.max_segment_sec
+        db,
+        hop / float(sr),
+        gap_sec=params.segment_gap_sec,
+        max_sec=params.max_segment_sec,
+        floor_db=floor_db,
     )
 
 
@@ -739,7 +749,9 @@ def analyze_prosody_file(
         bounds = segment_bounds(words, total_dur=0.0, params=params)
     else:
         with contextlib.closing(open_stream()) as chunks:
-            bounds = _energy_bounds_stream(chunks, SAMPLE_RATE, params, cancel_check)
+            bounds = _energy_bounds_stream(
+                chunks, SAMPLE_RATE, params, file_level_profile(path).voice_floor_db, cancel_check
+            )
         raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
     if not bounds:
         return _empty_result()

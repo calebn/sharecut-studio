@@ -464,7 +464,7 @@ def test_copy_of_a_few_words_whose_track_opens_late_is_reduced_as_much_as_before
 @pytest.mark.parametrize(
     ("late", "floor_db", "most"),
     [
-        pytest.param(LATE_OPENINGS, -70.0, (11.3, 48), id="30-120ms-late-on-a-70-dbfs-floor"),
+        pytest.param(LATE_OPENINGS, -70.0, (15.5, 60), id="30-120ms-late-on-a-70-dbfs-floor"),
         pytest.param((0.18,), None, (7.27, 37), id="180ms-late-on-every-word"),
     ],
 )
@@ -475,9 +475,11 @@ def test_copy_beside_a_peer_whose_track_opens_late_on_every_word_leaks_no_more_t
     level is expected only from where that sound began, so the loud start of a late
     word can stand over it and be kept as own sound. The 200 ms read-ahead everywhere
     left 10.06 s in 41 pieces and 7.14 s in 34 here; ``most`` caps the accepted cost so
-    it cannot grow unnoticed. Frames near a -70 dBFS floor flip between platforms
-    (10.82 s in 46 pieces on macOS arm64, 11.07 s in 47 on Linux x86-64), so that
-    cap sits at the -60 dBFS floor's cost, 11.26 s in 46, rounded up."""
+    it cannot grow unnoticed. The gate reads each track against its own voice level
+    (#1443): the -70 dBFS floor case leaves 15.0 s in 58 pieces on macOS arm64, where
+    fixed dBFS levels left 11.26 s at this scene's level and 16.73 s in 62 with each
+    track at the lab's voice level. Frames near the floor flip between platforms, so the
+    cap is rounded up."""
     project = _episode(tmp_path, peer_gate_late=late, room_floor_db=floor_db)
     before, after = _gated_over(project, tmp_path)
     seconds, pieces = _copy_at_full_level(before, after, LATE_WORDS)
@@ -495,7 +497,7 @@ def test_the_lane_is_turned_down_from_200_ms_before_the_peers_track_opens(
     project = _episode(tmp_path, own_words=((0.2, 0.7), (31.5, 32.7)))
     plan = build_bleed_gate_plan(project, "host")
     assert plan.protected_spans[0] == pytest.approx((0.16, 0.74))
-    assert plan.attenuation_spans[0] == pytest.approx((0.82, 30.8))
+    assert plan.attenuation_spans[0] == pytest.approx((0.82, 30.79))
 
 
 def test_own_breaths_running_into_the_peers_openings_leave_no_more_copy(tmp_path: Path) -> None:
@@ -511,7 +513,8 @@ def test_own_breaths_running_into_the_peers_openings_leave_no_more_copy(tmp_path
     before, after = _gated_over(project, tmp_path)
     for start, end in breaths:
         _unchanged(before, after, start, end)
-    assert _copy_at_full_level(before, after, LATE_WORDS, breaths) == (0.84, 12)
+    # Fixed dBFS levels left 0.84 s here and 0.72 s with each track at the lab's voice level.
+    assert _copy_at_full_level(before, after, LATE_WORDS, breaths) == (0.86, 12)
 
 
 def test_laughs_beside_a_peer_whose_track_opens_late_are_kept(tmp_path: Path) -> None:
@@ -529,7 +532,8 @@ def test_laughs_beside_a_peer_whose_track_opens_late_are_kept(tmp_path: Path) ->
     for _, start, end, _ in laughs:
         _unchanged(before, after, start, end)
     spans = tuple((a, b) for _, a, b, _ in laughs)
-    assert _copy_at_full_level(before, after, LATE_WORDS, spans) == (4.07, 19)
+    # Fixed dBFS levels left 4.07 s here and 7.16 s with each track at the lab's voice level.
+    assert _copy_at_full_level(before, after, LATE_WORDS, spans) == (5.3, 24)
 
 
 def _phrases(count: int, words: tuple[int, int]) -> list[tuple[float, float]]:
