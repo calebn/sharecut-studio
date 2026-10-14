@@ -9,7 +9,7 @@ import pytest
 
 from podcast_mcp.engines import ungated_audio
 from podcast_mcp.engines.ungated_audio import load_mono_full
-from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.batch_scope import batch_scope, scoped_by_file
 
 
 @pytest.fixture
@@ -109,3 +109,29 @@ def test_an_escaping_path_is_refused_inside_the_scope_too(tmp_path: Path) -> Non
 
     with batch_scope(), pytest.raises(ValueError, match="escapes"):
         resolve_within(tmp_path, "../outside.wav")
+
+
+def test_resolve_within_key_includes_root_and_base(tmp_path: Path) -> None:
+    from podcast_mcp.util.workspace_paths import resolve_within
+
+    (tmp_path / "x").mkdir()
+    (tmp_path / "y").mkdir()
+    with batch_scope():
+        a = resolve_within(tmp_path, "f.wav", base=tmp_path / "x")
+        b = resolve_within(tmp_path, "f.wav", base=tmp_path / "y")
+        assert a != b
+        with pytest.raises(ValueError, match="escapes"):
+            resolve_within(tmp_path, "../o.wav")
+        with pytest.raises(ValueError, match="escapes"):
+            resolve_within(tmp_path, "../o.wav")
+
+
+def test_scoped_by_file_key_includes_extra(tmp_path: Path) -> None:
+    f = tmp_path / "a.wav"
+    f.write_bytes(b"x")
+    with batch_scope():
+        one = scoped_by_file("k", f, (16000, "ffmpeg", ("mono",)), lambda: object())
+        two = scoped_by_file("k", f, (48000, "ffmpeg", ("mono",)), lambda: object())
+        again = scoped_by_file("k", f, (16000, "ffmpeg", ("mono",)), lambda: object())
+    assert one is again
+    assert one is not two
