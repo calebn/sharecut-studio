@@ -1411,7 +1411,7 @@ it("recovers the same review subtree after compact chrome is detached and replac
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(replacement.contains(reason)).toBe(true));
     expect(reason).toHaveValue("Reviewed audio before resize");
-    expect(document.body).toHaveFocus();
+    expect(reason).toHaveFocus();
     expect(onReviewAction).toHaveBeenCalledTimes(1);
     view.unmount();
     expect(document.querySelector(".pending-actionbar-host")).toBeNull();

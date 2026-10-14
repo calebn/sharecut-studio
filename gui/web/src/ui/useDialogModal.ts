@@ -116,6 +116,15 @@ export function useDialogModal({
         return;
       }
       if (mode === "sheet" && focusHeld(panel.ownerDocument)) return;
+      const active = panel.ownerDocument.activeElement;
+      if (
+        mode === "sheet" &&
+        active instanceof HTMLElement &&
+        panel.contains(active) &&
+        isValidFocusTarget(active)
+      ) {
+        return;
+      }
       const preferred = initialFocusRef?.current;
       if (preferred) {
         preferred.focus();
@@ -197,13 +206,21 @@ export function useDialogModal({
         active !== previous &&
         active.isConnected &&
         !openedPanel?.contains(active);
-      if (!movedOutsideSheet) {
+      if (movedOutsideSheet) {
+        restoreFocusRef.current = null;
+        return;
+      }
+      const keepActive =
+        !escaped &&
+        returnTarget == null &&
+        isValidFocusTarget(activeEl) &&
+        activeEl !== document.body;
+      if (!keepActive) {
         if (isValidFocusTarget(restore)) restore.focus();
         else if (
           !activeEl ||
           activeEl === document.body ||
-          !isValidFocusTarget(activeEl) ||
-          Boolean(openedPanel?.contains(activeEl))
+          !isValidFocusTarget(activeEl)
         ) {
           focusInnermostOverlay();
         }

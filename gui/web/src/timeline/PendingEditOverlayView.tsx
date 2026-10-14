@@ -234,6 +234,7 @@ function PendingEditRegion({
 }) {
   const regionRef = useRef<HTMLDivElement>(null);
   const actionbarRef = useRef<HTMLDivElement>(null);
+  const actionbarFocusRef = useRef<HTMLElement | null>(null);
   const scheduleResizeUpdateRef = useRef<(() => void) | null>(null);
   const currentGesture = useRef<Gesture>(IDLE);
   const commitPendingRef = useRef(false);
@@ -610,6 +611,30 @@ function PendingEditRegion({
 
   useLayoutEffect(() => {
     if (!actionbarHost) return;
+    const remember = (event: FocusEvent) => {
+      if (
+        event.target instanceof HTMLElement &&
+        actionbarHost.contains(event.target)
+      ) {
+        actionbarFocusRef.current = event.target;
+      }
+    };
+    const forget = (event: FocusEvent) => {
+      if (!actionbarHost.isConnected) return;
+      if (!actionbarHost.contains(event.relatedTarget as Node | null)) {
+        actionbarFocusRef.current = null;
+      }
+    };
+    actionbarHost.addEventListener("focusin", remember);
+    actionbarHost.addEventListener("focusout", forget);
+    return () => {
+      actionbarHost.removeEventListener("focusin", remember);
+      actionbarHost.removeEventListener("focusout", forget);
+    };
+  }, [actionbarHost]);
+
+  useLayoutEffect(() => {
+    if (!actionbarHost) return;
     if (!actionbarRef.current) {
       actionbarHost.remove();
       return;
@@ -621,12 +646,19 @@ function PendingEditRegion({
       : document.body;
     if (actionbarHost.parentElement === destination) return;
     const active = document.activeElement;
-    const focused =
+    const focusedInHost =
       active instanceof HTMLElement && actionbarHost.contains(active)
         ? active
         : null;
+    const remembered =
+      actionbarFocusRef.current &&
+      actionbarHost.contains(actionbarFocusRef.current)
+        ? actionbarFocusRef.current
+        : null;
+    const restore =
+      focusedInHost ?? (destination !== document.body ? remembered : null);
     destination.append(actionbarHost);
-    if (focused?.isConnected) focused.focus({ preventScroll: true });
+    if (restore?.isConnected) restore.focus({ preventScroll: true });
   });
 
   useLayoutEffect(() => () => actionbarHost?.remove(), [actionbarHost]);
