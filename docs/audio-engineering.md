@@ -176,8 +176,12 @@ gate, Analyze, the ASR silence filter, the speaker split and long-delay bleed ev
 
 Known limits:
 
-- Comparisons between two tracks read them as recorded, so one mic recorded far quieter
-  than another still moves which side of a pair is louder (#1376 builds on this profile).
+- Comparisons between two tracks still add back `path_reference_db` for reported copy
+  level (`level_db`) and word-level loudness. Pair discovery does not: `echo_risk_pairs`
+  selects frames from per-track voice floors, and a voice-normalized dominance mask when
+  enough co-open frames pass it, so unequal per-track gain no longer drops or flips the
+  directed pair (#1376).
+
 - A 16-bit recording made quieter loses the frames under one quantization step to digital
   silence, so its room reads differently and pause trims that cut only air can move. That
   is the recording, not the levels: the same audio scaled in floating point decides the
