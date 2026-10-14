@@ -480,6 +480,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Mute range",
     tooltip: "Mute range",
   },
+  "daw.range.moveSpeakerLaneSpan": {
+    label: "Move speaker lane span",
+    tooltip: "Move range to another speaker lane",
+  },
   "daw.range.comment": {
     label: "Comment on range",
     tooltip: "Comment on range",
@@ -567,6 +571,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.join.badge": "daw.edit.setClipJoin",
   "transcript.findReplace": "daw.transcript.findReplace",
   RangeActions: "daw.range.bounce",
+  SpeakerLaneMoveActions: "daw.range.moveSpeakerLaneSpan",
   EditingToolRail: "daw.range.arm",
 };
 

@@ -125,6 +125,28 @@ def speaker_compare_pair_tool(
     )
 
 
+def speaker_move_lane_span_tool(
+    project_path: str,
+    from_lane: str,
+    to_lane: str,
+    source_start: float,
+    source_end: float,
+) -> str:
+    """Move a source span from one speaker-split lane to a sibling lane (one undo step).
+
+    TOOL_TIMEBASE: source.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        SpeakerService(ws).move_lane_span(
+            from_lane,
+            to_lane,
+            source_start=source_start,
+            source_end=source_end,
+        )
+    )
+
+
 def speaker_split_tool(
     project_path: str,
     track_id: str,
@@ -179,3 +201,4 @@ def register(mcp: MCPServer) -> None:
     mcp.tool()(speaker_attribute_tool)
     mcp.tool()(speaker_gate_track_tool)
     mcp.tool()(speaker_split_tool)
+    mcp.tool()(speaker_move_lane_span_tool)

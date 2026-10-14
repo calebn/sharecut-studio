@@ -91,6 +91,7 @@ Bleed mute uses enrolled profiles to keep owner speech open across short inter-w
 - `speaker_set_count_tool`
 - `speaker_attribute_tool`
 - `speaker_split_tool` (`track_id`, `speaker_count`, optional `names`, `enrollment` `{name: [[start, end], …]}` source seconds for some or all speakers, `crosstalk_mode` `owner` (default)/`both`/`lane`, `room_tone_fill`, `dry_run`; on apply returns `crosstalk_sec`, `low_confidence_sec` and `history_head_id`)
+- `speaker_move_lane_span_tool` (`from_lane`, `to_lane`, `source_start`, `source_end` source seconds on sibling split lanes; one undo; returns `history_head_id`)
 
 `audition_context` (`detail=full` or `visual`) adds `speaker_roles` when profiles exist (uses the real speaker backend when installed).
 

@@ -411,6 +411,63 @@ def test_the_speaker_doctor_route_is_host_only_and_uses_the_service_report(
     assert guest.json() == {"detail": HOST_ROLE_RELAYED_REASON}
 
 
+def test_move_lane_span_route_moves_timeline_range_on_split_lanes(room: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
+    from test_speaker_split import SCRIPTED, _split_track
+
+    ws = ProjectWorkspace.open(room)
+    ws.project.transcripts.append(
+        Transcript(
+            track_id="room",
+            words=[TranscriptWord(text="hello", start=1.0, end=1.4)],
+        )
+    )
+    _split_track(ws.project, "room", SCRIPTED, names=["Ana", "Ben"])
+    ws.save()
+    client = TestClient(create_app())
+    guest = client.post(
+        "/api/speaker/move-lane-span",
+        json={
+            "path": str(room),
+            "from_lane": "room",
+            "to_lane": "room_ben",
+            "timeline_start": 1.0,
+            "timeline_end": 1.4,
+        },
+        headers={"X-Sharecut-Relayed": "1"},
+    )
+    assert guest.status_code == 403
+    assert guest.json() == {"detail": HOST_ROLE_RELAYED_REASON}
+    res = client.post(
+        "/api/speaker/move-lane-span",
+        json={
+            "path": str(room),
+            "from_lane": "room",
+            "to_lane": "room_ben",
+            "timeline_start": 1.0,
+            "timeline_end": 1.4,
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["words_moved"] == 1
+    bad = client.post(
+        "/api/speaker/move-lane-span",
+        json={
+            "path": str(room),
+            "from_lane": "room",
+            "to_lane": "room",
+            "timeline_start": 1.0,
+            "timeline_end": 1.4,
+        },
+    )
+    assert bad.status_code == 400
+    assert bad.headers["X-Sharecut-Error-Code"] == "speaker_move_lane_span_same_lane"
+
+
 def test_the_route_conflicts_while_another_slot_job_runs(room: Path) -> None:
     from podcast_mcp.gui.server import create_app
 

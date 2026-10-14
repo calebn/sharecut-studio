@@ -102,6 +102,17 @@ class SpeakerSplitRequest(BaseModel):
     names: list[Annotated[str, Field(max_length=80)]] | None = Field(default=None, max_length=8)
 
 
+class SpeakerMoveLaneSpanRequest(BaseModel):
+    """Move a timeline range from one speaker-split lane to a sibling (``SpeakerService``)."""
+
+    model_config = {"extra": "forbid"}
+    path: str
+    from_lane: str
+    to_lane: str
+    timeline_start: float
+    timeline_end: float
+
+
 class ExportDeliverablesRequest(BaseModel):
     path: str
     formats: list[dict] | None = None

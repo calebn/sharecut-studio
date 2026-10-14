@@ -1,5 +1,10 @@
 import { joinNames } from "../edit/cutSpeech";
-import type { HistoryEntryId, TrackView } from "../types/project";
+import type {
+  ExactRangeTarget,
+  HistoryEntryId,
+  ProjectView,
+  TrackView,
+} from "../types/project";
 import { formatTimeShort } from "./time";
 
 /** Bounds the host's speaker count (the server enforces the same range). */
@@ -24,6 +29,35 @@ export function splitSpeakersBlocker(
     return "Import this track's audio first";
   }
   return null;
+}
+
+/** Sibling speaker-split tracks of `trackId`, or none when it is not a split lane. */
+export function siblingSplitLanes(
+  tracks: readonly TrackView[],
+  trackId: string,
+): TrackView[] {
+  const track = tracks.find((candidate) => candidate.id === trackId);
+  if (!track?.speaker_split_id) {
+    return [];
+  }
+  return tracks.filter(
+    (candidate) =>
+      candidate.speaker_split_id === track.speaker_split_id &&
+      candidate.id !== trackId,
+  );
+}
+
+export function speakerLaneMoveTarget(
+  project: ProjectView | null,
+  target: ExactRangeTarget | null,
+): { fromLaneId: string; interval: { start: number; end: number } } | null {
+  if (!project || !target || target.track_ids.length !== 1) return null;
+  if (target.intervals.length !== 1) return null;
+  const fromLaneId = target.track_ids[0]!;
+  if (!siblingSplitLanes(project.tracks, fromLaneId).length) return null;
+  const interval = target.intervals[0]!;
+  if (!(interval.end > interval.start)) return null;
+  return { fromLaneId, interval };
 }
 
 export type SplitSpeakersLane = {
