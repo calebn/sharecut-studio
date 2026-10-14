@@ -315,6 +315,30 @@ html[data-shell="tablet"] {
   padding-block: var(--space-3);
 }
 
+/* Outside Listen the light alone adds no row height: it sits in the corner of
+   the mode body and its 44pt target reaches down and right from there. */
+.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip)) {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-shell-status);
+  block-size: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip)) .save-dot {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+}
+
+.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip))
+  .save-dot::after {
+  inset: 0 auto auto 0;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+}
+
 /* The phone's two Solo on chips: the status row and the Mix sheet. */
 :is(.mobile-status-row, .track-mix) .solo-chip {
   min-block-size: var(--touch-min);
