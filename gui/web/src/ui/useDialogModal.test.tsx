@@ -747,7 +747,9 @@ describe("useDialogModal unfocusable return target", () => {
       }
       render(<App />);
       await settle();
-      const badge = screen.getByRole("button", { name: "Join badge" });
+      const badge = screen.getByRole("button", {
+        name: "Join badge",
+      }) as HTMLButtonElement;
       if (invalid === "disabled") badge.disabled = true;
       if (invalid === "inert") badge.setAttribute("inert", "");
       if (invalid === "hidden") badge.hidden = true;
