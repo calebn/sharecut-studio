@@ -25,7 +25,7 @@ def main() -> None:
         )
         gates = {"main 0.015": 0.015}
         gates["voice_reach"] = db_to_amplitude(prof.voice_reach_db)
-        for k in (18, 21, 24, 27, 30):
+        for k in (3, 6, 9, 12, 15, 18, 21):
             gates[f"speech-{k}"] = db_to_amplitude(prof.speech_db - k)
         for label, gate in gates.items():
             iv = vad_speech_intervals(path, start_sec=start, duration_sec=dur, rms_threshold=gate)
