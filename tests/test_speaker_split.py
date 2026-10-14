@@ -95,7 +95,7 @@ def _play_gain_at(regions: Sequence[ClipMuteRegion], t: float) -> float:
             if fade_out > 0 and t < region.start_s + fade_out:
                 return 1.0 - (t - region.start_s) / fade_out
             if fade_in > 0 and t >= region.end_s - fade_in:
-                return (region.end_s - t) / fade_in
+                return (t - (region.end_s - fade_in)) / fade_in
             return 0.0
     return 1.0
 
@@ -680,9 +680,8 @@ def test_move_lane_span_mutes_source_and_reopens_target(scripted_ws: ProjectWork
     right = _mute_region((1.4, 6.0), 10.0, SPLIT_FADE_MS)
     assert [_mute_tuple(r) for r in ben.mute_regions] == [_mute_tuple(left), _mute_tuple(right)]
     for t in (0.99, 1.00, 1.20, 1.40, 1.409, 1.41, 6.0):
-        assert _play_gain_at(ana.mute_regions, t) + _play_gain_at(
-            ben.mute_regions, t
-        ) == pytest.approx(1.0)
+        summed = _play_gain_at(ana.mute_regions, t) + _play_gain_at(ben.mute_regions, t)
+        assert summed == pytest.approx(1.0), t
     words = {tr.track_id: [w.text for w in tr.words] for tr in project.transcripts}
     assert words == {"room": [], "room_ben": ["hello", "there"]}
 
