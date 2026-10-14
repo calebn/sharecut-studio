@@ -160,7 +160,9 @@ class _RemovedCells:
             sample_rate=self.rate,
             timeline_offset_sec=self.seconds(first),
             recording_profile=(
-                peer.profile if peer is not None else track_level_profile(project, peer_track_id)
+                peer.profile
+                if peer is not None
+                else track_level_profile(project, peer_track_id, sample_rate=_RMS_SAMPLE_RATE)
             ),
         )
         return TrackRmsCacheSet(caches={**(caches.caches if caches else {}), peer_track_id: only})
@@ -553,7 +555,9 @@ def _voice_reach_db(
     """The level the mean of a stretch must reach to hold ``track_id``'s voice, in recorded dB."""
     cache = caches.get(track_id) if caches else None
     reach = (
-        cache.profile if cache is not None else track_level_profile(project, track_id)
+        cache.profile
+        if cache is not None
+        else track_level_profile(project, track_id, sample_rate=_RMS_SAMPLE_RATE)
     ).voice_reach_db
     track = project.track_by_id(track_id)
     return reach + (track.gain_db if track else 0.0)
