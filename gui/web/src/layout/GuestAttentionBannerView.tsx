@@ -5,6 +5,9 @@ import { overflowLabel, plural } from "../utils/format";
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
 export const ATTENTION_LISTED_CONFLICTS = 5;
 
+/** The banner's id, so the save state's "See why" can move focus to it. */
+export const ATTENTION_BANNER_ID = "needs-attention";
+
 export interface GuestAttentionBannerViewProps {
   /** Count of host edits queued but not yet applied. */
   pending: number;
@@ -38,7 +41,12 @@ export function GuestAttentionBannerView({
   );
 
   return (
-    <div className="guest-attention" role="alert">
+    <div
+      id={ATTENTION_BANNER_ID}
+      className="guest-attention"
+      role="alert"
+      tabIndex={-1}
+    >
       <div className="guest-attention-head">
         <strong>Needs attention</strong>
         <span>

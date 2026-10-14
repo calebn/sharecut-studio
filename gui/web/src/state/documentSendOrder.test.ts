@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   activeDocumentDrain,
   beginDocumentSend,
+  documentActivityBusy,
   documentSendDone,
   documentSendsFinished,
+  subscribeDocumentActivity,
   trackDocumentDrain,
+  trackEditSave,
 } from "./documentSendOrder";
 
 describe("documentSendOrder", () => {
@@ -108,5 +111,49 @@ describe("documentSendOrder", () => {
     send.finish();
     expect(documentSendsFinished("/count")).toBe(before + 1);
     expect(documentSendsFinished("/other-count")).toBe(0);
+  });
+});
+
+describe("document activity", () => {
+  it("is busy per project while a send, an edit save or a drain is open, and tells subscribers", async () => {
+    const heard = vi.fn();
+    const stop = subscribeDocumentActivity(heard);
+    expect(documentActivityBusy("/act")).toBe(false);
+
+    const send = beginDocumentSend("/act", "a");
+    expect(documentActivityBusy("/act")).toBe(true);
+    expect(documentActivityBusy("/other")).toBe(false);
+    send.finish();
+    expect(documentActivityBusy("/act")).toBe(false);
+
+    let endSave!: () => void;
+    const save = trackEditSave(
+      "/act",
+      new Promise<void>((resolve) => {
+        endSave = resolve;
+      }),
+    );
+    expect(documentActivityBusy("/act")).toBe(true);
+    endSave();
+    await save;
+    await Promise.resolve();
+    expect(documentActivityBusy("/act")).toBe(false);
+
+    let endDrain!: () => void;
+    trackDocumentDrain(
+      "/act",
+      new Promise<void>((resolve) => {
+        endDrain = resolve;
+      }),
+    );
+    expect(documentActivityBusy("/act")).toBe(true);
+    endDrain();
+    await vi.waitFor(() => expect(documentActivityBusy("/act")).toBe(false));
+
+    expect(heard.mock.calls.length).toBeGreaterThanOrEqual(6);
+    stop();
+    const calls = heard.mock.calls.length;
+    beginDocumentSend("/act", "b").finish();
+    expect(heard).toHaveBeenCalledTimes(calls);
   });
 });

@@ -288,10 +288,20 @@ html[data-shell="tablet"] {
   flex-direction: column;
 }
 
-.mobile-status-row:has(.record-rec-chip, .solo-chip) {
+/* The status row sticks while it carries a live recording, Solo on, or a save
+   that needs the host (waiting or failed); a quiet saved line scrolls away. */
+.mobile-status-row:has(
+  .record-rec-chip,
+  .solo-chip,
+  .save-state[data-save-state="waiting"],
+  .save-state[data-save-state="failed"]
+) {
   position: sticky;
   top: 0;
   z-index: var(--z-shell-status);
+}
+
+.mobile-status-row:has(.record-rec-chip, .solo-chip, .save-state) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

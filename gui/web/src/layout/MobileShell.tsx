@@ -67,6 +67,7 @@ import {
 } from "./MobileShellView";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
+import { SaveStatePill } from "./SaveStatePill";
 import { TransportBar } from "./TransportBar";
 import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
@@ -624,6 +625,7 @@ function MobileShellAdapter({
         status: (
           <>
             <RecordTransportChip />
+            <SaveStatePill />
             <SoloChip />
           </>
         ),
