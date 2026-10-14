@@ -168,7 +168,7 @@ describe("TranscriptPanel", () => {
     ).toHaveClass("utterance-word", "active", "selected");
   });
 
-  it("uses the loading string as Correct aria-label while words are not hydrated", () => {
+  it("disables Correct with the loading reason while words are not hydrated", () => {
     const base = project();
     useDawStore.setState({
       project: {
@@ -181,10 +181,8 @@ describe("TranscriptPanel", () => {
     });
     const { container } = render(<TranscriptPanel />);
     expect(
-      within(container).getByRole("button", {
-        name: "Loading transcript words…",
-      }),
-    ).toBeDisabled();
+      within(container).getByRole("button", { name: /^Correct/ }),
+    ).toHaveAttribute("title", "Wait for the transcript words to load.");
   });
 
   it("docks word editor in text focus when Correct selects a word", () => {

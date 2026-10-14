@@ -15,6 +15,7 @@ import {
   SegmentedControl,
   ToggleButton,
 } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import {
@@ -79,7 +80,6 @@ export function TightenPanel() {
   const harshId = useId();
   const avoidHarshId = useId();
   const statusId = useId();
-  const applyAllHintId = useId();
   const proposeErrorId = useId();
   const [classFilter, setClassFilter] = useState<"all" | TightenClass>("all");
   const [trackFilter, setTrackFilter] = useState("");
@@ -102,7 +102,15 @@ export function TightenPanel() {
     proposing ||
     intensityCfg.saving ||
     pipelineBusy;
-  const findDisabled = intensityDisabled || !intensity;
+  const findReason = !canApply
+    ? "Only the host or an Editor can find hits."
+    : proposing || intensityCfg.saving || pipelineBusy
+      ? BUSY_REASON
+      : !pipelineCfg
+        ? "Wait for the tighten settings to load."
+        : !intensity
+          ? "Choose an intensity to find hits."
+          : undefined;
   const currentRun = findRun?.path === projectPath ? findRun : null;
   const runError =
     currentRun?.error ??
@@ -171,7 +179,11 @@ export function TightenPanel() {
   }, [avoidHarsh, filtered]);
   const eligibleIds = eligibleApplyAllIds(filtered, avoidHarsh);
   const summary = applyAllSummary(filtered.length, eligibleIds.length);
-  const applyAllDisabled = !canApply || eligibleIds.length === 0;
+  const applyAllReason = !canApply
+    ? "Only the host or an Editor can apply edits."
+    : eligibleIds.length === 0
+      ? "Nothing is eligible to apply with the current filters."
+      : undefined;
   const selectedId = selection?.kind === "pending" ? selection.id : null;
 
   if (!project) {
@@ -258,7 +270,7 @@ export function TightenPanel() {
         </Field>
         <Button
           onClick={() => void onFindHits()}
-          disabled={findDisabled}
+          disabledReason={findReason}
           aria-describedby={toolbarError ? proposeErrorId : undefined}
         >
           {proposing ? "Starting…" : "Find hits"}
@@ -297,18 +309,10 @@ export function TightenPanel() {
           commandId="tighten.applyAllSafe"
           variant="primary"
           args={{ avoidHarsh, ids: filtered.map((h) => h.id) }}
-          disabled={applyAllDisabled}
-          aria-describedby={applyAllDisabled ? applyAllHintId : undefined}
+          disabledReason={applyAllReason}
         >
           Apply eligible ({eligibleIds.length})
         </CommandButton>
-        {applyAllDisabled ? (
-          <span id={applyAllHintId} className="sr-only">
-            {eligibleIds.length === 0
-              ? "Nothing is eligible to apply with the current filters."
-              : "Apply is not allowed in this share."}
-          </span>
-        ) : null}
       </div>
 
       <p id={statusId} className="tighten-status" aria-live="polite">
@@ -416,7 +420,11 @@ export function TightenPanel() {
                           commandId="tighten.previewHit"
                           args={{ id: hit.id }}
                           variant="link"
-                          disabled={!canPreview}
+                          disabledReason={
+                            canPreview
+                              ? undefined
+                              : "This hit is not on the timeline, so it cannot be previewed."
+                          }
                           aria-label={`Preview ${rowLabel}`}
                         >
                           Preview
@@ -425,7 +433,11 @@ export function TightenPanel() {
                           commandId="tighten.goToHit"
                           args={{ id: hit.id }}
                           variant="link"
-                          disabled={!canGoTo}
+                          disabledReason={
+                            canGoTo
+                              ? undefined
+                              : "This hit is not on the timeline, so there is nothing to go to."
+                          }
                           aria-label={`Go to ${rowLabel}`}
                         >
                           Go to

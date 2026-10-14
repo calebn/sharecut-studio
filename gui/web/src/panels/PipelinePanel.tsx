@@ -31,6 +31,7 @@ import type {
   PipelineStepMeta,
 } from "../types/pipeline";
 import { Button, Dialog, EmptyState, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { getByPath, setByPath } from "../utils/configPath";
 import {
@@ -257,6 +258,8 @@ function pipelineRunOptions(
     overwriteEdited: fromTranscribe && overwriteEdited,
   };
 }
+
+const PIPELINE_LOADING_REASON = "Wait for the pipeline settings to load.";
 
 export function PipelinePanel() {
   const {
@@ -857,7 +860,11 @@ export function PipelinePanel() {
                         status={cfg.components[WORD_ALIGNER_COMPONENT]}
                         alignment={alignment}
                         reasonId={alignerReasonId}
-                        disabled={running || starting || retiming}
+                        disabledReason={
+                          running || starting || retiming
+                            ? BUSY_REASON
+                            : undefined
+                        }
                         retiming={retiming}
                         onDownloaded={() =>
                           void refreshConfig().catch((e: unknown) =>
@@ -901,7 +908,13 @@ export function PipelinePanel() {
         <div className="pipeline-toolbar-actions">
           <Button
             className="pipeline-secondary-btn"
-            disabled={running || starting || analyzing || !cfg}
+            disabledReason={
+              running || starting || analyzing
+                ? BUSY_REASON
+                : !cfg
+                  ? PIPELINE_LOADING_REASON
+                  : undefined
+            }
             aria-busy={analyzing || undefined}
             onClick={() => void onAnalyze()}
           >
@@ -909,7 +922,13 @@ export function PipelinePanel() {
           </Button>
           <Button
             className="pipeline-secondary-btn"
-            disabled={running || starting || !cfg}
+            disabledReason={
+              running || starting
+                ? BUSY_REASON
+                : !cfg
+                  ? PIPELINE_LOADING_REASON
+                  : undefined
+            }
             onClick={() => void onReset()}
           >
             Reset
@@ -943,7 +962,13 @@ export function PipelinePanel() {
         <Button
           variant="primary"
           className="pipeline-run-btn"
-          disabled={running || starting || !cfg}
+          disabledReason={
+            running || starting
+              ? BUSY_REASON
+              : !cfg
+                ? PIPELINE_LOADING_REASON
+                : undefined
+          }
           aria-busy={starting || pipelineRunning || undefined}
           onClick={() => void onRun()}
         >
@@ -1030,7 +1055,13 @@ export function PipelinePanel() {
                           key={stepId}
                           variant="link"
                           className="pipeline-reason-skip"
-                          disabled={running || starting || !cfg}
+                          disabledReason={
+                            running || starting
+                              ? BUSY_REASON
+                              : !cfg
+                                ? PIPELINE_LOADING_REASON
+                                : undefined
+                          }
                           onClick={() => void uncheckSuggestedStep(stepId)}
                         >
                           Uncheck{" "}
