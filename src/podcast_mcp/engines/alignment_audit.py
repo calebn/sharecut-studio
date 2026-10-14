@@ -9,7 +9,6 @@ import numpy as np
 from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
 from podcast_mcp.engines.audio import At, MixAudio, SourceAudio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.level_profile import window_voice_reach_rms
 from podcast_mcp.engines.session_clock import file_time_for_session
 from podcast_mcp.engines.transcript_align import (
     offset_turn_taking_score,
@@ -70,28 +69,15 @@ def vad_speech_intervals(
     start_sec: float = 0.0,
     duration_sec: float = 120.0,
     chunk_sec: float = 0.25,
-    rms_threshold: float | None = None,
+    rms_threshold: float = 0.015,
     min_run_sec: float = 0.2,
     sample_rate: int = 8000,
     rms_cache: VADWindowRMSCache | None = None,
     ffmpeg: str | None = None,
 ) -> list[tuple[float, float]]:
-    """Energy-based speech intervals relative to ``start_sec`` on the file.
-
-    A chunk is speech when its RMS reaches ``rms_threshold``: by default the voice reach
-    of the window (``window_voice_reach_rms``), so the same recording at any gain gets the
-    same intervals.
-    """
+    """Energy-based speech intervals relative to ``start_sec`` on the file."""
     if duration_sec <= 0:
         return []
-    if rms_threshold is None:
-        rms_threshold = window_voice_reach_rms(
-            path,
-            start_sec=start_sec,
-            duration_sec=duration_sec,
-            sample_rate=sample_rate,
-            ffmpeg=ffmpeg,
-        )
     n_chunks = max(1, int(duration_sec / chunk_sec))
     loud: list[bool] = []
     file_identity = rms_cache.file_identity(path) if rms_cache is not None else None

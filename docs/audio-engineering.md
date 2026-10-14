@@ -142,16 +142,16 @@ linear amplitude between `1e-6` and `1` that is compared or bound to a level nam
 to (`*_over_floor_db`, `*_under_voice_db`, `*_power_ratio`) passes, and that is by design:
 the lint reads names, so a relative name over an absolute number is a review matter. The
 allowlist holds physical constants only: the clipping ceiling (`CLIPPING_PEAK_LEVEL_DB`,
-`CLIPPING_MIN_PEAK_DB`). "Is this silent" guards read `DIGITAL_SILENCE_RMS`
-(`util/dsp.py`), the level below which a signal holds no audio at all. The ingest detectors
-(`first_speech_onset_sec`, `estimate_session_start_in_file`, `vad_speech_intervals`, the
-acoustic-offset window gate) have no track profile yet, so they default to the window's
-own `window_voice_reach_rms`; long-delay bleed evidence compares a peer stretch to the
-window it is matched to (`LongDelayConfig.min_power_ratio`). The ffmpeg filter graph and the
+`CLIPPING_MIN_PEAK_DB`). "Is this silent" guards read `DIGITAL_SILENCE_RMS` (`util/dsp.py`), the level below which a
+signal holds no audio at all. Long-delay bleed evidence compares a peer stretch to the window
+it is matched to (`LongDelayConfig.min_power_ratio`). The ingest gates (`first_speech_onset_sec`,
+`estimate_session_start_in_file`, `vad_speech_intervals`, the acoustic-window `min_rms`) keep
+fixed thresholds and are listed in `ALLOWED` until #1533: a per-window voice reach moved the
+session start of aligned lab tracks by 36 to 48 s, so they need a whole-file reference.
+The ffmpeg filter graph and the
 delivery loudness targets set render levels, not detection thresholds, and are not scanned.
 `tests/test_tighten_gain_invariance.py` is the one contract: tighten, reconcile, the bleed
-gate, Analyze, the ASR silence filter, the speaker split, the ingest onset and speech
-intervals, and long-delay bleed evidence each decide the same at 0, -12 and -24 dB, and
+gate, Analyze, the ASR silence filter, the speaker split and long-delay bleed evidence each decide the same at 0, -12 and -24 dB, and
 (for the project-level detectors) with one track alone 24 dB down.
 
 Known limits:
