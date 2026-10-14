@@ -51,27 +51,14 @@ def _timeline_span_for_source(
     src_start: float,
     src_end: float,
 ) -> tuple[float | None, float | None]:
-    """Map a source-clock span through only the selected recording's placements."""
     timeline = SessionTimeline(project)
     lane_clips = [c for c in project.clips if clip_plays_lane(project, c, track_id)]
-    if not lane_clips and source_id is None:
+    selected_source_ids = project.equivalent_source_ids(track_id, source_id)
+    if not lane_clips and None in selected_source_ids:
         spans = timeline.map_source_span(track_id, SourceSec(src_start), SourceSec(src_end))
     else:
-        placements = {
-            clip.source_id
-            for clip in lane_clips
-            if (
-                project.transcript_for_source(track_id, clip.source_id)
-                is project.transcript_for_source(track_id, source_id)
-                or (
-                    project.transcript_for_source(track_id, source_id) is None
-                    and source_id is None
-                    and clip.source_id is None
-                )
-            )
-        }
         spans = timeline.map_placements_source_span(
-            track_id, placements, SourceSec(src_start), SourceSec(src_end)
+            track_id, selected_source_ids, SourceSec(src_start), SourceSec(src_end)
         )
     return (float(spans[0][0]), float(spans[-1][1])) if spans else (None, None)
 
@@ -205,16 +192,7 @@ def time_range_from_utterance(
 def _cut_transcript_for_source(
     project: EpisodeProject, track_id: str, source_id: str | None
 ) -> Transcript | None:
-    if source_id is None:
-        return project.transcript_for_source(track_id, None)
-    return next(
-        (
-            transcript
-            for transcript in project.transcripts
-            if transcript.track_id == track_id and transcript.source_id == source_id
-        ),
-        None,
-    )
+    return project.transcript_for_source(track_id, source_id)
 
 
 def append_remove_decision(
@@ -330,17 +308,20 @@ def add_remove_decision(
     transcript = _cut_transcript_for_source(project, track_id, source_id) if source_aware else None
     if source_aware and transcript is None and source_id is not None:
         raise ValueError(f"No transcript for track {track_id} source {source_id}")
+    selected_source_ids = project.equivalent_source_ids(track_id, source_id)
     selected_clips = any(
-        clip_plays_lane(project, clip, track_id) and clip.source_id == source_id
+        clip_plays_lane(project, clip, track_id) and clip.source_id in selected_source_ids
         for clip in project.clips
     )
     has_lane_clips = any(clip_plays_lane(project, clip, track_id) for clip in project.clips)
     timeline = SessionTimeline(project)
     initial_spans = (
-        timeline.map_placements_source_span(track_id, {source_id}, SourceSec(start), SourceSec(end))
+        timeline.map_placements_source_span(
+            track_id, selected_source_ids, SourceSec(start), SourceSec(end)
+        )
         if source_aware and selected_clips
         else timeline.map_source_span(track_id, SourceSec(start), SourceSec(end))
-        if source_aware and source_id is None and not has_lane_clips
+        if source_aware and None in selected_source_ids and not has_lane_clips
         else []
     )
     if source_aware and (
@@ -405,11 +386,11 @@ def add_remove_decision(
 
     if source_aware:
         final_timeline = SessionTimeline(project)
-        if source_id is not None or selected_clips:
+        if selected_clips:
             final_spans = final_timeline.map_placements_source_span(
-                track_id, {source_id}, SourceSec(cut_start), SourceSec(cut_end)
+                track_id, selected_source_ids, SourceSec(cut_start), SourceSec(cut_end)
             )
-        elif not has_lane_clips:
+        elif None in selected_source_ids and not has_lane_clips:
             final_spans = final_timeline.map_source_span(
                 track_id, SourceSec(cut_start), SourceSec(cut_end)
             )
@@ -620,14 +601,17 @@ def coalesce_edits(
                 has_lane_clips = any(
                     clip_plays_lane(project, clip, survivor.track_id) for clip in project.clips
                 )
-                if survivor.source_id is None and not has_lane_clips:
+                selected_source_ids = project.equivalent_source_ids(
+                    survivor.track_id, survivor.source_id
+                )
+                if None in selected_source_ids and not has_lane_clips:
                     merged_spans = timeline.map_source_span(
                         survivor.track_id, SourceSec(survivor.start), SourceSec(survivor.end)
                     )
-                elif survivor.source_id is not None or has_lane_clips:
+                elif has_lane_clips:
                     merged_spans = timeline.map_placements_source_span(
                         survivor.track_id,
-                        {survivor.source_id},
+                        selected_source_ids,
                         SourceSec(survivor.start),
                         SourceSec(survivor.end),
                     )

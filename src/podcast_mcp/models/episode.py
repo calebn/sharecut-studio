@@ -998,11 +998,44 @@ class EpisodeProject(BaseModel):
     def transcripts(self, value: list[Transcript]) -> None:
         self.transcript_data.per_track = value
 
-    def transcript_for_source(self, track_id: str, source_id: str | None) -> Transcript | None:
-        """This recording's transcript; track-level words apply only to primary media."""
+    def equivalent_source_ids(self, track_id: str, source_id: str | None) -> frozenset[str | None]:
         from podcast_mcp.util.media_identity import same_recording
         from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
+        selected_source = self.source_by_id(source_id) if source_id is not None else None
+        if source_id is not None and selected_source is None:
+            return frozenset()
+        selected_path = selected_source.path if selected_source is not None else None
+        track = self.track_by_id(track_id)
+        if source_id is None and track is not None and track.media is not None:
+            selected_path = track.media.path
+        if selected_path is None:
+            return frozenset({source_id})
+
+        try:
+            selected_media = resolve_under_workspace(self, selected_path)
+        except (OSError, ValueError):
+            return frozenset()
+
+        def names_selected_recording(path: str) -> bool:
+            try:
+                return same_recording(selected_media, resolve_under_workspace(self, path))
+            except (OSError, ValueError):
+                return False
+
+        source_ids: set[str | None] = {source_id}
+        if (
+            track is not None
+            and track.media is not None
+            and names_selected_recording(track.media.path)
+        ):
+            source_ids.add(None)
+        for source in self.sources:
+            if names_selected_recording(source.path):
+                source_ids.add(source.id)
+        return frozenset(source_ids)
+
+    def transcript_for_source(self, track_id: str, source_id: str | None) -> Transcript | None:
         fallback: Transcript | None = None
         for tr in self.transcripts:
             if tr.track_id != track_id:
@@ -1014,19 +1047,7 @@ class EpisodeProject(BaseModel):
                 fallback = tr
         if source_id is None or fallback is None:
             return fallback
-        track = self.track_by_id(track_id)
-        source = self.source_by_id(source_id)
-        if track is None or track.media is None or source is None:
-            return None
-        try:
-            if same_recording(
-                resolve_under_workspace(self, source.path),
-                resolve_under_workspace(self, track.media.path),
-            ):
-                return fallback
-        except (OSError, ValueError):
-            pass
-        return None
+        return fallback if None in self.equivalent_source_ids(track_id, source_id) else None
 
     def selected_source_transcripts(self, track_id: str) -> list[tuple[str | None, Transcript]]:
         """Transcribed recordings selected on a lane, including implicit primary media."""
