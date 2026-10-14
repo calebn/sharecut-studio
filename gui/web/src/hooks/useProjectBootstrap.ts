@@ -64,6 +64,7 @@ export function useProjectBootstrap(
     const ac = new AbortController();
     let cancelled = false;
     const scope = activateDocumentScope(projectPath);
+    const hadProjectAtStart = useDawStore.getState().project != null;
     setError(null);
     setRecovering(false);
     void (async () => {
@@ -83,6 +84,7 @@ export function useProjectBootstrap(
           if (cancelled || isAbortError(e)) return;
           const live = useDawStore.getState();
           const warm =
+            hadProjectAtStart &&
             live.projectPath === projectPath &&
             live.project != null &&
             isServerTimeoutError(e);
