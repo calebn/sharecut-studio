@@ -22,11 +22,21 @@ export interface CutSpeechDialogViewProps {
   onClose: () => void;
 }
 
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : noun.endsWith("ch") ? "es" : "s"}`;
+}
+
 function quoted(track: CutSpeechTrack): string {
-  if (track.words.length === 0) return "speech not in the transcript";
+  const sounds = track.sound_spans.length;
+  if (track.words.length === 0)
+    return sounds > 1
+      ? `${plural(sounds, "stretch")} of speech-level sound with no transcript words`
+      : "speech not in the transcript";
   const words = track.words.slice(0, QUOTED_WORDS_MAX).map((w) => w.text);
   const more = track.words.length > QUOTED_WORDS_MAX ? "…" : "";
-  return `“${words.join(" ")}${more}”`;
+  const extra =
+    sounds > 0 ? ` and ${plural(sounds, "sound-only stretch")}` : "";
+  return `“${words.join(" ")}${more}”${extra}`;
 }
 
 /** Store-free confirm for a ripple the host refused because it would cut other speech. */
@@ -78,7 +88,11 @@ export function CutSpeechDialogView({
         </div>
       }
     >
-      <p>Ripple edits keep speakers in sync, so this also cuts:</p>
+      <p>
+        {speech && speech.spans.length > 1
+          ? `Ripple edits keep speakers in sync, so these ${speech.spans.length} cuts also cut:`
+          : "Ripple edits keep speakers in sync, so this also cuts:"}
+      </p>
       <ul className="cut-speech-dialog-list">
         {tracks.map((track) => (
           <li key={track.track_id}>

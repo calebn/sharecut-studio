@@ -436,4 +436,43 @@ describe("CutSpeechDialogView", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     await expectNoA11yViolations(document.body);
   });
+  it("says how many cuts it covers and which speech has no transcript words", () => {
+    render(
+      <CutSpeechDialogView
+        speech={{
+          spans: [
+            { start: 1, end: 2 },
+            { start: 5, end: 6 },
+            { start: 9, end: 10 },
+          ],
+          tracks: [
+            {
+              track_id: "vicky",
+              speaker: "Vicky",
+              words: [],
+              sound_spans: [
+                { start: 1, end: 1.5 },
+                { start: 5, end: 5.4 },
+              ],
+            },
+          ],
+        }}
+        canLeaveGap={false}
+        busy={false}
+        error={null}
+        onCutAnyway={vi.fn()}
+        onLeaveGap={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Ripple edits keep speakers in sync, so these 3 cuts also cut:",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("listitem").textContent).toBe(
+      "Vicky at 0:01.0: 2 stretches of speech-level sound with no transcript words",
+    );
+  });
 });
