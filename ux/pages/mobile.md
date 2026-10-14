@@ -145,7 +145,7 @@ The phone layout groups controls by task so they fit a smaller screen.
 
 - **Listen mode** is the fastest way to review. Play through and open **More → Comments** to use the comment tools.
 - **Text mode** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
-- **Undo and Redo** sit at the right end of the Timeline tool row. On a phone held upright, + Track and Import are in the Menu (under Media) and More instead, to keep that row to one line. A **two-finger tap** also undoes your last action, and History is under More.
+- **Undo and Redo** sit at the right end of the Timeline tool row. On a phone held upright, + Track and Import are in the Menu (under Media) and More instead, to keep that row to one line. A **two-finger tap** also undoes your last action, and History is under More. **Open all** above the Listen comments is a full 44px button.
 
 ### Full screen on iPhone
 
