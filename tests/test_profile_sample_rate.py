@@ -19,8 +19,13 @@ from podcast_mcp.edits.audio_cache import (
     track_level_profile,
 )
 from podcast_mcp.edits.speech_energy_guard import _voice_reach_db
-from podcast_mcp.engines.audio_audit import build_track_rms_caches
+from podcast_mcp.engines.audio_audit import (
+    TrackRmsCache,
+    build_track_rms_caches,
+    measure_window_rms_db,
+)
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
+from podcast_mcp.util.tracks import track_audio_path
 
 RATE = 48000
 DURATION = 20.0
@@ -80,3 +85,16 @@ def test_guard_voice_reach_agrees_cached_and_uncached(tmp_path: Path) -> None:
     assert _voice_reach_db(project, "host", caches) == pytest.approx(
         _voice_reach_db(project, "host", None), abs=0.01
     )
+
+
+@pytest.mark.parametrize("start", [0.0, 0.3, 5.5, 12.0, DURATION - 0.02])
+def test_uncached_window_rms_matches_the_decoded_track_on_broadband_noise(
+    tmp_path: Path, start: float
+) -> None:
+    """#1542: the window reader low-passes before it resamples, as the whole-file decode does."""
+    project = _white_room_project(tmp_path)
+    path = track_audio_path(project, "host")
+    cache = TrackRmsCache.from_timeline_stem(path)
+    uncached = measure_window_rms_db(path, start, start + 0.02)
+    cached = cache.rms_db(start, start + 0.02)
+    assert uncached == pytest.approx(cached, abs=1.0)

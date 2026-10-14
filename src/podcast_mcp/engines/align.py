@@ -147,25 +147,44 @@ def read_wav_mono_window(
     start_sec: float = 0.0,
     duration_sec: float,
     out_rate: int,
+    antialias: bool = False,
 ) -> tuple[np.ndarray, int]:
     """Read a bounded PCM window via ``wave`` (never the whole file).
 
     Returns ``(float64 mono samples at out_rate, PCM bytes read)``. The reader
     accepts 8-, 16-, 24-, and 32-bit integer PCM. Keepers remain 16-bit PCM.
+    ``antialias`` low-passes before downsampling, for level reads (see
+    :func:`read_open_wav_mono_window`).
     """
     try:
         with open_wav(path) as wf:
             return read_open_wav_mono_window(
-                wf, start_sec=start_sec, duration_sec=duration_sec, out_rate=out_rate
+                wf,
+                start_sec=start_sec,
+                duration_sec=duration_sec,
+                out_rate=out_rate,
+                antialias=antialias,
             )
     except (OSError, wave.Error):
         return np.zeros(0, dtype=np.float64), 0
 
 
 def read_open_wav_mono_window(
-    wf: wave.Wave_read, *, start_sec: float = 0.0, duration_sec: float, out_rate: int
+    wf: wave.Wave_read,
+    *,
+    start_sec: float = 0.0,
+    duration_sec: float,
+    out_rate: int,
+    antialias: bool = False,
 ) -> tuple[np.ndarray, int]:
-    """Read one bounded window from an already open ``wave.Wave_read``."""
+    """Read one bounded window from an already open ``wave.Wave_read``.
+
+    ``antialias`` low-passes to ``out_rate``'s Nyquist before downsampling, reading a
+    margin of frames either side so the filter has no edge. Unfiltered, content above the
+    new Nyquist folds into the band (white room tone read about 7 dB hot at 8 kHz), where
+    the whole-file decode filters it (#1542). Level reads ask for it; the correlation and
+    speaker readers keep the plain resample.
+    """
     start_sec = max(0.0, start_sec)
     duration_sec = max(0.0, duration_sec)
     if duration_sec <= 0 or out_rate <= 0:
@@ -192,19 +211,54 @@ def read_open_wav_mono_window(
     count = min(count, _MAX_WAV_WINDOW_BYTES // frame_bytes)
     if count <= 0:
         return np.zeros(0, dtype=np.float64), 0
-    wf.setpos(start)
-    raw = wf.readframes(count)
+    filtered = antialias and in_rate > out_rate
+    margin = _antialias_margin(in_rate, out_rate) if filtered else 0
+    lead = min(margin, start)
+    tail = min(margin, nframes - start - count)
+    wf.setpos(start - lead)
+    raw = wf.readframes(lead + count + tail)
     bytes_read = len(raw)
     from podcast_mcp.util.wav_pcm import decode_integer_pcm
 
     pcm = decode_integer_pcm(raw, width=width, channels=channels, dtype="float64")
     samples = pcm.mean(axis=1)
+    if filtered and samples.size:
+        core = slice(lead, samples.size - tail)
+        # Digital silence stays exactly silent: the filter would carry a neighbour's
+        # sound a hair into the window.
+        samples = (
+            _lowpass(samples, in_rate, out_rate, margin)[core]
+            if samples[core].any()
+            else np.zeros_like(samples[core])
+        )
     if in_rate != out_rate and samples.size:
         n_out = max(1, round(samples.size * out_rate / in_rate))
         x = np.linspace(0.0, 1.0, samples.size, endpoint=False)
         xi = np.linspace(0.0, 1.0, n_out, endpoint=False)
         samples = np.interp(xi, x, samples)
     return samples, bytes_read
+
+
+_ANTIALIAS_CUTOFF = 0.97
+_ANTIALIAS_LOBES = 8
+
+
+def _antialias_margin(in_rate: int, out_rate: int) -> int:
+    """Input frames the anti-alias filter reaches either side of a sample."""
+    return int(np.ceil(_ANTIALIAS_LOBES * in_rate / out_rate))
+
+
+def _lowpass(samples: np.ndarray, in_rate: int, out_rate: int, margin: int) -> np.ndarray:
+    """``samples`` low-passed to ``out_rate``'s Nyquist (a Blackman-windowed sinc)."""
+    cutoff = _ANTIALIAS_CUTOFF * 0.5 * out_rate / in_rate
+    offsets = np.arange(-margin, margin + 1)
+    kernel = 2 * cutoff * np.sinc(2 * cutoff * offsets) * np.blackman(offsets.size)
+    kernel /= kernel.sum()
+    if samples.size * kernel.size < 20_000_000:
+        return np.convolve(samples, kernel, mode="same")
+    size = 1 << int(np.ceil(np.log2(samples.size + kernel.size)))
+    full = np.fft.irfft(np.fft.rfft(samples, size) * np.fft.rfft(kernel, size), size)
+    return full[margin : margin + samples.size]
 
 
 def load_mono_window(
@@ -214,6 +268,7 @@ def load_mono_window(
     duration_sec: float = 60.0,
     sample_rate: int = 8000,
     ffmpeg: str | None = None,
+    antialias: bool = False,
 ) -> np.ndarray:
     """Decode a short mono PCM window for correlation (audio only, no DAW metadata).
 
@@ -226,6 +281,7 @@ def load_mono_window(
             start_sec=start_sec,
             duration_sec=duration_sec,
             out_rate=sample_rate,
+            antialias=antialias,
         )
     except (OSError, ValueError):
         samples = np.zeros(0, dtype=np.float64)

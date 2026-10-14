@@ -594,7 +594,7 @@ def measure_window_rms_db(
         return None
     try:
         window = load_mono_window(
-            path, start_sec=start_sec, duration_sec=dur, sample_rate=sample_rate
+            path, start_sec=start_sec, duration_sec=dur, sample_rate=sample_rate, antialias=True
         )
     except (ValueError, CalledProcessError):
         return None

@@ -3471,12 +3471,18 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
     from podcast_mcp.edits.decisions import approve_edits
 
     rate = 48_000
-    # "she": the high band climbs about 4 dB per 10 ms from the room, then holds.
+
+    # "she": the band climbs about 4 dB per 10 ms from the room, then holds. It sits under
+    # the 8 kHz level reads' Nyquist: they low-pass first (#1542), and a sound only above
+    # 4 kHz does not reach them.
+    def in_band(noise):
+        return np.convolve(noise, np.ones(8) / 8, mode="same") * np.sqrt(8)
+
     ramp_n = round(0.15 * rate)
-    ramp = np.random.default_rng(5).standard_normal(ramp_n) * np.power(
+    ramp = in_band(np.random.default_rng(5).standard_normal(ramp_n)) * np.power(
         10.0, np.linspace(-90.0, -30.0, ramp_n) / 20.0
     )
-    hold = np.random.default_rng(6).standard_normal(round(0.2 * rate)) * 10 ** (-28 / 20)
+    hold = in_band(np.random.default_rng(6).standard_normal(round(0.2 * rate))) * 10 ** (-28 / 20)
     project = _audio_project(
         tmp_path,
         [
