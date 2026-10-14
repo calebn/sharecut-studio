@@ -376,6 +376,14 @@ normal row, initials chip, and compact fader widths. M/S/range targets use
 `--touch-min`. The named `track-mix` container moves Volume below the controls
 when available width shrinks under text scaling. Rows grow rather than clip.
 
+### Save-state light
+
+`--save-dot-size` (the painted dot), `--save-dot-stroke` (ring and hollow
+outline) and `--save-dot-box` (the layout box) size the save-state light. Its
+44 pt target is the box plus an `::after` that reaches `--touch-min`, so the
+dot adds no row height. Colours are `--color-success`, `--color-warning`,
+`--color-danger` and `--color-text-secondary`; shape carries the state too.
+
 ### Top layer
 
 One model orders floating UI. Fixed layers (sheets, dialogs, the command
