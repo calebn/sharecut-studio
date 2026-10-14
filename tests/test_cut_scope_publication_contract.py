@@ -292,9 +292,11 @@ def test_an_unknown_conflict_policy_is_rejected_at_load(policy):
     assert repr(policy) in str(err.value)
 
 
-def test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied(
+def test_a_guard_blocked_filler_waits_for_auto_apply_but_applies_with_suggested_actions(
     tmp_path, monkeypatch
 ):
+    from podcast_mcp.edits.apply_non_speech_suggestions import apply_non_speech_suggested_actions
+
     result, cfg = _filler(tmp_path, monkeypatch, guest="quiet")
     del cfg["tighten"]["speech_energy_guard"]["on_conflict"]
     configure(monkeypatch, cfg)
@@ -309,7 +311,10 @@ def test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied(
     assert "other_speaking:guest" in decision.reason
     assert apply_tighten_decisions(result) == 0
     assert decision.applied is False
-    assert [(d.type, d.scope, d.review_required) for d in result.edit_decisions if d.applied] == []
+    out = apply_non_speech_suggested_actions(result, confirm_cut_speech=True)
+    assert out["applied_cuts"] == 1
+    assert out["cuts_over_peer"] >= 1
+    assert decision.id not in [d.id for d in result.edit_decisions]
 
 
 def test_mute_mode_ignores_peer_speech_and_needs_no_review(tmp_path, monkeypatch):

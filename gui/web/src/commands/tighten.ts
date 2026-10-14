@@ -1,10 +1,18 @@
-import { approveEdits, rejectEdits } from "../api";
+import {
+  applySuggestedNonSpeechActions,
+  approveEdits,
+  rejectEdits,
+} from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import { askConfirm } from "../feedback/ask";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
+import {
+  applySuggestedSummary,
+  suggestedActionIds,
+} from "../utils/nonSpeechSuggestions";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import {
   applyAllSummary,
@@ -178,6 +186,72 @@ export function registerTightenCommands(): void {
       return { status: "disabled", reason: "No tighten hit selected" };
     }
     return runReject(edit.id);
+  });
+
+  registerCommand("tighten.applySuggestedActions", async (args) => {
+    const s = useDawStore.getState();
+    if (!s.project) {
+      return { status: "disabled", reason: "No project" };
+    }
+    const listedIds = Array.isArray(args.ids)
+      ? args.ids.filter((id): id is string => typeof id === "string")
+      : s.tightenApplyScope.ids.length
+        ? [...s.tightenApplyScope.ids]
+        : null;
+    const ids = suggestedActionIds(s.project.pending_edits, listedIds);
+    if (ids.length === 0) {
+      return { status: "disabled", reason: "No suggested actions to apply" };
+    }
+    const summary = applySuggestedSummary(ids.length);
+    if (!(await askConfirm(summary.question))) {
+      return { status: "disabled", reason: "Cancelled" };
+    }
+    const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
+      const state = useDawStore.getState();
+      if (
+        !canApplyPass12(
+          state.projectPath,
+          state.guestMode,
+          state.shareCapabilities,
+        )
+      ) {
+        return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
+      }
+      try {
+        const freshIds = suggestedActionIds(
+          useDawStore.getState().project?.pending_edits ?? [],
+          listedIds,
+        );
+        if (freshIds.length === 0) {
+          return {
+            status: "disabled",
+            reason: "No suggested actions to apply",
+          };
+        }
+        const { queued, asked, historyHead } =
+          await applySuggestedNonSpeechActions(state.projectPath, freshIds);
+        if (asked) return { status: "ok" };
+        const next = useDawStore.getState();
+        if (queued) {
+          next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+          return { status: "ok" };
+        }
+        next.announceStatus(
+          freshIds.length === 1
+            ? "Applied suggested action"
+            : `Applied suggested actions for ${freshIds.length} hits`,
+          { undo: historyHead },
+        );
+        return { status: "ok" };
+      } catch (e) {
+        const msg = errorMessage(e);
+        useDawStore.getState().announceStatus(`Apply failed: ${msg}`);
+        return { status: "disabled", reason: msg };
+      }
+    });
+    return result.ran
+      ? result.value
+      : { status: "disabled", reason: "Tighten action in progress" };
   });
 
   registerCommand("tighten.applyAllSafe", async (args) => {

@@ -198,7 +198,7 @@ evidence:
 enforced-by:
 - tests/test_cut_scope_publication_contract.py::test_an_unknown_conflict_policy_is_rejected_at_load
 - tests/test_cut_scope_publication_contract.py::test_the_shipped_and_the_unset_conflict_policy_is_review
-- tests/test_cut_scope_publication_contract.py::test_a_guard_blocked_filler_in_ripple_waits_for_review_and_is_never_applied
+- tests/test_cut_scope_publication_contract.py::test_a_guard_blocked_filler_waits_for_auto_apply_but_applies_with_suggested_actions
 - tests/test_cut_scope_publication_contract.py::test_mute_mode_ignores_peer_speech_and_needs_no_review
 - tests/test_cut_scope_publication_contract.py::test_known_peer_generated_controls_preserve_conflict_policy
 - tests/test_speech_energy_guard.py::test_add_remove_decision_over_peer_speech_waits_for_review
@@ -718,7 +718,8 @@ enforced-by:
 - tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
 - tests/test_non_speech_action_defaults.py::test_default_action_table_matches_product_table
-enforcement: pending #1434
+- tests/test_apply_non_speech_suggestions.py::test_apply_suggested_actions_cuts_and_leaves
+- tests/test_cut_scope_publication_contract.py::test_a_guard_blocked_filler_waits_for_auto_apply_but_applies_with_suggested_actions
 -->
 
 Each non-speech sound or disfluency a detector finds is a pending proposal with

@@ -441,7 +441,30 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
     ) as prog:
         prog.set_phase("apply", "Applying tighten cuts…")
         applied = apply_tighten_decisions(project)
-    return f"{applied} tighten cuts applied"
+        suggested_summary = ""
+        tighten_cfg = defaults.get("tighten") or {}
+        if tighten_cfg.get("apply_non_speech_suggestions", True):
+            from podcast_mcp.edits.apply_non_speech_suggestions import (
+                apply_non_speech_suggested_actions,
+            )
+
+            result = apply_non_speech_suggested_actions(
+                project,
+                confirm_cut_speech=True,
+                defaults=defaults,
+            )
+            if result.get("needs_confirmation"):
+                suggested_summary = ", non-speech suggestions held (cut speech needs confirm)"
+            else:
+                cuts = int(result.get("applied_cuts") or 0)
+                left = int(result.get("left") or 0)
+                lowered = int(result.get("lowered") or 0)
+                over = int(result.get("cuts_over_peer") or 0)
+                suggested_summary = f", {cuts} non-speech cuts, {left} left, {lowered} lowered" + (
+                    f", {over} over another speaker" if over else ""
+                )
+    base = f"{applied} tighten cuts applied"
+    return base + suggested_summary if suggested_summary else base
 
 
 def fill_gate_holes(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

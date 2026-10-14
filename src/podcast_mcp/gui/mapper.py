@@ -110,7 +110,7 @@ def map_pending_edits_to_timeline(
             "harsh": is_harsh_tighten_hit(decision),
             "listen_one_by_one": is_listen_one_by_one_hit(decision),
         }
-        non_speech = non_speech_view_for_decision(decision)
+        non_speech = non_speech_view_for_decision(project, decision)
         if non_speech:
             row.update(non_speech)
         rows.append(row)

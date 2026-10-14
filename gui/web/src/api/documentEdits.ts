@@ -252,6 +252,50 @@ export async function rejectEdits(
   return reviewOutcome(projectPath, result);
 }
 
+export type SuggestedActionsOutcome = {
+  queued: boolean;
+  asked: boolean;
+  historyHead: HistoryEntryId | null;
+  result: Record<string, unknown> | null;
+};
+
+export async function applySuggestedNonSpeechActions(
+  projectPath: string,
+  ids: string[] | null,
+  confirmCutSpeech = false,
+): Promise<SuggestedActionsOutcome> {
+  const payload: Record<string, unknown> = {
+    ...confirmed(confirmCutSpeech),
+  };
+  if (ids !== null) payload.ids = ids;
+  const result = await submitDocumentCommand(
+    projectPath,
+    "ApplySuggestedNonSpeechActions",
+    payload,
+  );
+  const ripple = rippleOutcome(projectPath, result, {
+    kind: "ripple",
+    cutAnyway: () =>
+      submitDocumentCommand(projectPath, "ApplySuggestedNonSpeechActions", {
+        ...(ids !== null ? { ids } : {}),
+        confirm_cut_speech: true,
+      }),
+    leaveGap: null,
+  });
+  if (ripple.asked) {
+    return { queued: false, asked: true, historyHead: null, result: null };
+  }
+  if (ripple.queued) {
+    return { queued: true, asked: false, historyHead: null, result: null };
+  }
+  return {
+    queued: false,
+    asked: false,
+    historyHead: replyHistoryHead(result),
+    result,
+  };
+}
+
 export type SourceRange = Readonly<{ start: number; end: number }>;
 
 export type PendingEditBaseline = Readonly<

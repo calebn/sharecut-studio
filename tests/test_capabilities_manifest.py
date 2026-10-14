@@ -118,6 +118,7 @@ def test_manifest_shares_one_mcp_tool_across_capabilities() -> None:
     rows = {c["id"]: c["surfaces"].get("mcp") for c in data["capabilities"]}
     assert "approve_edits_tool" in rows["daw.tighten.applyHit"]
     assert "approve_edits_tool" in rows["daw.tighten.applyAllSafe"]
+    assert "apply_suggested_non_speech_actions_tool" in rows["daw.tighten.applySuggestedActions"]
 
 
 def test_agent_reason_beside_an_agent_surface_is_an_error() -> None:

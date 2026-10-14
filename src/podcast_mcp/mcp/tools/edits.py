@@ -374,6 +374,21 @@ def approve_edits_tool(
     return to_json(result)
 
 
+def apply_suggested_non_speech_actions_tool(
+    project_path: str,
+    ids: list[str] | None = None,
+    confirm_cut_speech: bool = False,
+) -> str:
+    """Apply every pending non-speech suggestion by its table action (Studio bulk apply)."""
+    ws = ProjectWorkspace.open(project_path)
+    result = EditService(ws).apply_suggested_non_speech_actions(
+        ids, confirm_cut_speech=confirm_cut_speech
+    )
+    if "needs_confirmation" not in result:
+        agent_mutated(ws)
+    return to_json(result)
+
+
 def reject_edits_tool(project_path: str, ids: list[str]) -> str:
     """Reject pending edits by id, discarding them without applying."""
     ws = ProjectWorkspace.open(project_path)
@@ -469,6 +484,7 @@ def register(mcp: MCPServer) -> None:
         join_label_tool,
         list_edit_decisions_tool,
         approve_edits_tool,
+        apply_suggested_non_speech_actions_tool,
         reject_edits_tool,
         update_pending_edit_tool,
         revert_applied_edit_tool,

@@ -161,6 +161,31 @@ def edit_approve_cmd(
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
 
 
+@edit_app.command("apply-suggested-actions")
+def edit_apply_suggested_actions_cmd(
+    project: Path = typer.Option(..., "--project"),
+    ids: str | None = typer.Option(
+        None, "--ids", help="Comma-separated non-speech hit ids (default: all pending)"
+    ),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
+) -> None:
+    ws = ProjectWorkspace.open(project)
+    id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
+    result = with_cut_speech_confirmation(
+        lambda confirm: EditService(ws).apply_suggested_non_speech_actions(
+            id_list, confirm_cut_speech=confirm
+        ),
+        yes=yes,
+    )
+    typer.echo(
+        "Applied suggested actions: "
+        f"{result.get('applied_cuts', 0)} cut(s), "
+        f"{result.get('shortened', 0)} shortened, "
+        f"{result.get('lowered', 0)} lowered, "
+        f"{result.get('left', 0)} left."
+    )
+
+
 @edit_app.command("reject")
 def edit_reject_cmd(
     project: Path = typer.Option(..., "--project"),

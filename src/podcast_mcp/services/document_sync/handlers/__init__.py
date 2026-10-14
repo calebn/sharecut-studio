@@ -24,6 +24,7 @@ HANDLERS: dict[str, Handler] = {
     "RedoHistory": history.redo_history,
     "EditSelectedRange": edits.edit_selected_range,
     "ApproveEdits": edits.approve_edits,
+    "ApplySuggestedNonSpeechActions": edits.apply_suggested_non_speech_actions,
     "RejectEdits": edits.reject_edits,
     "UpdatePendingEdit": edits.update_pending_edit,
     "RestoreAppliedEdit": edits.restore_applied_edit,

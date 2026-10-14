@@ -11,7 +11,7 @@ from podcast_mcp.edits.non_speech_suggestions import (
     default_action_table,
     non_speech_view_for_decision,
 )
-from podcast_mcp.models import EditDecision
+from podcast_mcp.models import EditDecision, EpisodeProject
 
 
 def test_default_action_table_matches_product_table() -> None:
@@ -52,7 +52,8 @@ def test_classify_reason(
         review_required=True,
         applied=False,
     )
-    view = non_speech_view_for_decision(decision)
+    project = EpisodeProject.create("t", "/tmp")
+    view = non_speech_view_for_decision(project, decision)
     assert view is not None
     assert view["non_speech_kind"] == kind.value
     assert view["suggested_action"] == action.value

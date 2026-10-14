@@ -533,6 +533,34 @@ class EditService:
             return {**approved.result("approve_edits"), **batch}
         return {"operation": "approve_edits", "approved_count": approved, **batch}
 
+    def apply_suggested_non_speech_actions(
+        self,
+        ids: list[str] | None = None,
+        *,
+        confirm_cut_speech: bool = False,
+        defaults: dict | None = None,
+    ) -> dict[str, Any]:
+        """Studio Apply suggested actions: each pending non-speech hit by its table action."""
+        from podcast_mcp.edits.apply_non_speech_suggestions import (
+            apply_non_speech_suggested_actions,
+        )
+
+        def mutate(p) -> dict[str, Any]:
+            return apply_non_speech_suggested_actions(
+                p,
+                ids=ids,
+                confirm_cut_speech=confirm_cut_speech,
+                defaults=defaults,
+            )
+
+        return self.ws.mutate(
+            "before apply suggested non-speech actions",
+            "after apply suggested non-speech actions",
+            mutate,
+            operation="apply_suggested_non_speech_actions",
+            params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
+        )
+
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:
             if not allow_exact and any(

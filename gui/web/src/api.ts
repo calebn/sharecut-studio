@@ -41,6 +41,7 @@ export {
   addSocialClip,
   addTrackCommand,
   applyFadeRecommendations,
+  applySuggestedNonSpeechActions,
   approveEdits,
   correctTranscriptPhrase,
   correctTranscriptWord,

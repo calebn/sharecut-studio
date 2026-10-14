@@ -12,7 +12,37 @@ from typing import NamedTuple
 
 from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason, is_likely_laugh_reason
 from podcast_mcp.edits.tighten_hits import is_tighten_reason
-from podcast_mcp.models import EditDecision
+from podcast_mcp.edits.speech_energy_guard import speech_words_in
+from podcast_mcp.edits.timeline_span import map_source_span_fields
+from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.models import EditDecision, EpisodeProject
+from podcast_mcp.util.tracks import dialogue_track_ids
+
+BREATH_SHORTEN_MIN_SEC = 0.5
+_PEER_OVERLAP_SEC = 0.02
+
+
+def peer_speaks_during_decision(project: EpisodeProject, decision: EditDecision) -> bool:
+    """True when another dialogue track has speech overlapping this decision on the timeline."""
+    _mappable, _spans, tl_start, tl_end = map_source_span_fields(
+        SessionTimeline(project), decision.track_id, decision.start, decision.end
+    )
+    if tl_start is None or tl_end is None or tl_end <= tl_start:
+        return False
+    window = (float(tl_start), float(tl_end))
+    for track_id in dialogue_track_ids(project):
+        if track_id == decision.track_id:
+            continue
+        if speech_words_in(
+            project,
+            track_id,
+            [window],
+            _PEER_OVERLAP_SEC,
+            voiced=True,
+        ):
+            return True
+    return False
+
 
 NON_SPEECH_ACTION_VALUES = ("cut", "shorten", "lower", "leave")
 
@@ -113,21 +143,42 @@ def classify_non_speech_kind(reason: str | None) -> NonSpeechKind | None:
     return None
 
 
-def non_speech_view_for_decision(decision: EditDecision) -> dict[str, str] | None:
+def resolve_suggested_action(
+    project: EpisodeProject,
+    decision: EditDecision,
+) -> NonSpeechAction | None:
+    """Default action from the table, with breath shorten and peer-overlap lower."""
+    kind = classify_non_speech_kind(decision.reason)
+    if kind is None:
+        return None
+    action = _KIND_DEFAULTS[kind].action
+    if kind == NonSpeechKind.BREATH and (decision.end - decision.start) >= BREATH_SHORTEN_MIN_SEC:
+        action = NonSpeechAction.SHORTEN
+    if kind in (NonSpeechKind.LAUGH, NonSpeechKind.BACKCHANNEL) and action == NonSpeechAction.LEAVE:
+        if peer_speaks_during_decision(project, decision):
+            action = NonSpeechAction.LOWER
+    return action
+
+
+def non_speech_view_for_decision(
+    project: EpisodeProject,
+    decision: EditDecision,
+) -> dict[str, str] | None:
     """Plain label and suggested action for a pending decision, when applicable."""
     kind = classify_non_speech_kind(decision.reason)
     if kind is None:
         return None
     row = _KIND_DEFAULTS[kind]
+    action = resolve_suggested_action(project, decision) or row.action
     return {
         "non_speech_kind": row.kind.value,
         "non_speech_label": row.label,
-        "suggested_action": row.action.value,
+        "suggested_action": action.value,
     }
 
 
 def is_non_speech_suggestion(decision: EditDecision) -> bool:
-    return non_speech_view_for_decision(decision) is not None
+    return classify_non_speech_kind(decision.reason) is not None
 
 
 def pending_non_speech_suggestions(

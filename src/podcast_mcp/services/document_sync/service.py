@@ -749,7 +749,13 @@ class DocumentSyncService:
 
         # History moves must name the head they saw; a payload without it is refused here
         # (ValueError), never applied as an unguarded "undo the latest".
-        if command.type in {"ApproveEdits", "RejectEdits", "UndoHistory", "RedoHistory"}:
+        if command.type in {
+            "ApproveEdits",
+            "ApplySuggestedNonSpeechActions",
+            "RejectEdits",
+            "UndoHistory",
+            "RedoHistory",
+        }:
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
             command = replace(command, payload=validate_payload(command.type, command.payload))

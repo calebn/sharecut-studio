@@ -157,6 +157,10 @@ export interface PendingEditView {
   harsh: boolean;
   /** Server-computed (`edits/tighten_hits.is_listen_one_by_one_hit`): Apply eligible never batches it. */
   listen_one_by_one?: boolean;
+  /** Non-speech registry kind when this pending hit has a table action (#1434). */
+  non_speech_kind?: string | null;
+  non_speech_label?: string | null;
+  suggested_action?: string | null;
 }
 
 export interface AppliedEditRecord {

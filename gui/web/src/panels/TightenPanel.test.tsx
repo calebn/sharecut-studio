@@ -121,6 +121,9 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
     listen_one_by_one: false,
     applied: false,
     suggest_reason: null,
+    suggested_action: "cut",
+    non_speech_kind: "hard_filler",
+    non_speech_label: "Hard filler",
     ...overrides,
     source_start_timeline:
       overrides.source_start_timeline === undefined
@@ -169,6 +172,9 @@ function projectWithHits() {
         id: "e2",
         reason: "pause:0.9s",
         track_id: "guest",
+        suggested_action: null,
+        non_speech_kind: null,
+        non_speech_label: null,
         review_required: true,
         join_risk: {
           verdict: "review",
@@ -341,7 +347,7 @@ describe("TightenPanel", () => {
     expect(labels).toEqual(["Apply", "Skip", "Preview", "Go to"]);
   });
 
-  it("makes Apply eligible the one primary action in the panel", () => {
+  it("makes Apply suggested actions the one primary action in the panel", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
         <TightenPanel />
@@ -349,7 +355,7 @@ describe("TightenPanel", () => {
     );
     const primary = document.querySelectorAll(".ui-control.primary");
     expect([...primary].map((b) => b.textContent)).toEqual([
-      expect.stringMatching(/^Apply eligible/),
+      expect.stringMatching(/^Apply suggested actions/),
     ]);
   });
 

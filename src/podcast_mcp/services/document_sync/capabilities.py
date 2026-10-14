@@ -26,6 +26,7 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
     {
         "EditSelectedRange",
         "ApproveEdits",
+        "ApplySuggestedNonSpeechActions",
         "RejectEdits",
         "UpdatePendingEdit",
         "RestoreAppliedEdit",

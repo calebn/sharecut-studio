@@ -366,6 +366,35 @@
       }
     },
     {
+      "id": "daw.tighten.applySuggestedActions",
+      "label": "Apply suggested actions",
+      "effect": "project",
+      "service": "Sharecut Studio command bus \u2192 ApplySuggestedNonSpeechActions",
+      "industry_standard_key": false,
+      "gates": [
+        "tightenPanelOpen"
+      ],
+      "surfaces": {
+        "command": "tighten.applySuggestedActions",
+        "gui": [
+          "tightenPanel"
+        ],
+        "mcp": [
+          "apply_suggested_non_speech_actions_tool"
+        ],
+        "cli": "podcast edit apply-suggested-actions",
+        "skill": "podcast-tighten-dialogue"
+      },
+      "omit": {
+        "keyboard_reason": "Bulk non-speech apply is panel-only until a shortcut is assigned"
+      },
+      "tooltip": "Apply each listed non-speech hit by its table action",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.tighten.applyAllSafe",
       "label": "Apply eligible tighten hits",
       "effect": "project",

@@ -101,6 +101,9 @@ def test_tools_for_capabilities_matrix() -> None:
     assert tools_for_capabilities([]) == frozenset()
     assert tools_for_capabilities(["mcp"]) == frozenset()
     assert "ApproveEdits" in document_command_types_for_caps(capabilities_for_role("editor"))
+    assert "ApplySuggestedNonSpeechActions" in document_command_types_for_caps(
+        capabilities_for_role("editor")
+    )
     assert "SuggestPendingEdit" in document_command_types_for_caps(
         capabilities_for_role("commenter")
     )

@@ -17,6 +17,11 @@ import {
 } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
+import {
+  applySuggestedSummary,
+  formatSuggestedAction,
+  suggestedActionIds,
+} from "../utils/nonSpeechSuggestions";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import {
   applyAllSummary,
@@ -178,7 +183,17 @@ export function TightenPanel() {
     });
   }, [avoidHarsh, filtered]);
   const eligibleIds = eligibleApplyAllIds(filtered, avoidHarsh);
+  const suggestedIds = suggestedActionIds(
+    project.pending_edits,
+    filtered.map((h) => h.id),
+  );
+  const suggestedSummary = applySuggestedSummary(suggestedIds.length);
   const summary = applyAllSummary(filtered.length, eligibleIds.length);
+  const applySuggestedReason = !canApply
+    ? "Only the host or an Editor can apply edits."
+    : suggestedIds.length === 0
+      ? "No listed hits have a suggested action."
+      : undefined;
   const applyAllReason = !canApply
     ? "Only the host or an Editor can apply edits."
     : eligibleIds.length === 0
@@ -306,8 +321,15 @@ export function TightenPanel() {
           Avoid harsh cuts
         </label>
         <CommandButton
-          commandId="tighten.applyAllSafe"
+          commandId="tighten.applySuggestedActions"
           variant="primary"
+          args={{ ids: filtered.map((h) => h.id) }}
+          disabledReason={applySuggestedReason}
+        >
+          {suggestedSummary.button}
+        </CommandButton>
+        <CommandButton
+          commandId="tighten.applyAllSafe"
           args={{ avoidHarsh, ids: filtered.map((h) => h.id) }}
           disabledReason={applyAllReason}
         >
@@ -338,6 +360,7 @@ export function TightenPanel() {
                 <th scope="col">Track</th>
                 <th scope="col">Class</th>
                 <th scope="col">Snippet</th>
+                <th scope="col">Suggested</th>
                 <th scope="col">Risk</th>
                 <th scope="col">Status</th>
                 <th scope="col">Actions</th>
@@ -386,6 +409,7 @@ export function TightenPanel() {
                     <td className="tighten-snippet">
                       {hit.snippet || "No snippet"}
                     </td>
+                    <td>{formatSuggestedAction(hit.suggested_action)}</td>
                     <td>
                       <span
                         className={`tighten-badge tighten-badge--${hit.riskBadge}`}

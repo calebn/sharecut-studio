@@ -84,6 +84,9 @@ tighten:
   # (discourse "like" over-cut + broken splice flow). Manual propose/apply still works.
   # See docs/filler-cut-quality.md § Default pipeline status.
   enabled: false
+  # After auto-approved filler/pause trims, apply pending non-speech suggestions
+  # (cut / shorten / lower / leave) in one undo step (#1434).
+  apply_non_speech_suggestions: true
   # ripple = session/track REMOVE (default). mute = mute the filler window in
   # place (Clip.mute_regions) over filler_pad_mode's fill; each edge fades on one
   # track, so a mute gets the padded-cut checks below, not the splice checks or
