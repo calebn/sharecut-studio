@@ -25,7 +25,7 @@ import podcast_mcp.edits.transcript_cuts as transcript_cuts
 import podcast_mcp.gui.jobs as gui_jobs
 import podcast_mcp.services.collaboration as collaboration
 from podcast_mcp.edits.review_versions import get_version, version_audio_path
-from podcast_mcp.gui.routes import record_share, remote_mcp, review_share, share_common
+from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
 from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import EpisodeProject, load_project, save_project
@@ -213,13 +213,13 @@ def _review(name: str) -> Site:
     return Site(review_share, name)
 
 
-TOKEN_LOOKUP = Site(share_common, "lookup_share", not_found="invalid or revoked share token")
+SHARE_PAGE = Site(collaboration, "lookup_share", not_found="not found")
 MCP_PREFLIGHT = Site(remote_mcp, "share_allows_mcp", not_found="share not found")
 RANGE = {"intervals": [{"start": 0, "end": 1}], "track_ids": ["t"], "clips": [], "media_seals": {}}
 UPLOAD = "/api/rec/{token}/upload"
 PROBES: dict[tuple[str, str], Probe] = {
-    ("GET", "/r/{token}"): Probe(TOKEN_LOOKUP),
-    ("GET", "/rec/{token}"): Probe(TOKEN_LOOKUP),
+    ("GET", "/r/{token}"): Probe(SHARE_PAGE),
+    ("GET", "/rec/{token}"): Probe(SHARE_PAGE),
     ("GET", "/api/review/{token}/project"): Probe(_review("share_project_view")),
     ("GET", "/api/review/{token}/features"): Probe(_review("share_features_manifest")),
     ("GET", "/api/review/{token}/audio"): Probe(_review("share_audio_path")),
