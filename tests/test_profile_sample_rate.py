@@ -22,6 +22,7 @@ from podcast_mcp.edits.speech_energy_guard import _voice_reach_db
 from podcast_mcp.engines.audio_audit import (
     TrackRmsCache,
     build_track_rms_caches,
+    measure_timeline_rms_db,
     measure_window_rms_db,
 )
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
@@ -109,3 +110,16 @@ def test_lowpass_of_a_signal_shorter_than_its_kernel_is_not_shifted() -> None:
     padded = _lowpass(np.concatenate([np.zeros(500), noise, np.zeros(500)]), 48_000, 8_000, margin)
     assert short.shape == noise.shape
     np.testing.assert_allclose(short, padded[500:540], atol=1e-12)
+
+
+@pytest.mark.parametrize("start", [2.6, 6.7, 14.6])
+def test_uncached_timeline_rms_matches_the_decoded_track_on_room_tone(
+    tmp_path: Path, start: float
+) -> None:
+    """#1547: the timeline window readers low-pass too, so room tone reads the same either way."""
+    project = _white_room_project(tmp_path)
+    caches = build_track_rms_caches(project)
+    uncached = measure_timeline_rms_db(project, "host", start, start + 0.5)
+    cached = measure_timeline_rms_db(project, "host", start, start + 0.5, caches=caches)
+    assert uncached is not None and cached is not None
+    assert uncached == pytest.approx(cached, abs=0.5)

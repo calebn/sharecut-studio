@@ -577,7 +577,7 @@ def _fake_windows(
     (-31.7 dBFS) sit inside the level band the fixture track yields (-55 to -22 dBFS).
     """
 
-    def fake_window(path, start_sec, duration_sec, sample_rate=16000):
+    def fake_window(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         signal = _track_signal(gap_floor, sample_rate)
 
         def place(blob: np.ndarray, at: float) -> None:
@@ -1200,7 +1200,7 @@ def _air(cut, *, placed=(), gap_floor=_FLOOR_RMS, guest=None, words=None, guest_
                 )
             )
 
-    def windows(path, start_sec, duration_sec, sample_rate=16000):
+    def windows(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         reader = guest if guest is not None and "guest" in str(path) else host
         return reader(path, start_sec, duration_sec, sample_rate)
 
@@ -1453,7 +1453,7 @@ def test_a_peers_quiet_sound_over_the_whole_trim_leaves_no_air() -> None:
 
 
 def test_a_silent_peer_track_never_blocks_a_pause_trim() -> None:
-    def silent(path, start_sec, duration_sec, sample_rate=16000):
+    def silent(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         return np.zeros(
             round(max(0.0, min(duration_sec, 30.0 - start_sec)) * sample_rate), dtype=np.float32
         )
@@ -1527,7 +1527,7 @@ def test_a_track_that_sounds_all_through_the_window_has_no_room_to_read() -> Non
 def test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim() -> None:
     # An ungated second mic that carries -70 dBFS room tone and never speaks nearby:
     # its room tone is its air.
-    def room_only(path, start_sec, duration_sec, sample_rate=16000):
+    def room_only(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         left = max(0.0, min(duration_sec, 30.0 - start_sec))
         return _shaped_noise(round(left * sample_rate), _FLOOR_RMS, sample_rate)
 
@@ -1778,7 +1778,7 @@ def test_percussion_in_the_pause_splits_the_air() -> None:
 def _reader_of(signal: np.ndarray):
     """A ``load_mono_window`` stand-in over one fixed signal."""
 
-    def read(path, start_sec, duration_sec, sample_rate=16000):
+    def read(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         i = round(start_sec * sample_rate)
         return signal[i : i + round(duration_sec * sample_rate)]
 
@@ -1896,7 +1896,7 @@ def test_a_steady_bed_further_down_is_the_room_and_the_limit_the_decision_names(
 
 
 def test_disabled_breath_handling_returns_the_trim_without_reading_audio() -> None:
-    def unreadable(path, start_sec, duration_sec, sample_rate=16000):
+    def unreadable(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         raise AssertionError("audio was read")
 
     off = {"tighten": {"breath_handling": {"enabled": False}}}
@@ -1916,7 +1916,7 @@ def _failing_for(name: str):
     fixture track for any other."""
     fixture = _fake_windows()
 
-    def read(path, start_sec, duration_sec, sample_rate=16000):
+    def read(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         if name in str(path):
             raise OSError("no such file")
         return fixture(path, start_sec, duration_sec, sample_rate)
