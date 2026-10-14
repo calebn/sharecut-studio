@@ -102,18 +102,6 @@ ALLOWED: dict[tuple[str, str], str] = {
     # 36-48 s on aligned lab tracks), so these keep the fixed gates until a whole-file
     # reference exists.
     (
-        "src/podcast_mcp/engines/session_clock.py",
-        "rms_threshold",
-    ): "ingest gate kept fixed until #1533",
-    (
-        "src/podcast_mcp/engines/session_clock.py",
-        "ref_rms_threshold",
-    ): "ingest gate kept fixed until #1533",
-    (
-        "src/podcast_mcp/engines/session_clock.py",
-        "source_rms_threshold",
-    ): "ingest gate kept fixed until #1533",
-    (
         "src/podcast_mcp/engines/alignment_audit.py",
         "rms_threshold",
     ): "ingest gate kept fixed until #1533",

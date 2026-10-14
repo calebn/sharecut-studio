@@ -2,79 +2,23 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.engines.session_clock import (
-    estimate_session_start_in_file,
-    file_time_for_session,
-    first_speech_onset_sec,
-)
+from podcast_mcp.engines.session_clock import file_time_for_session
 from podcast_mcp.ingest.consolidate import consolidate_speakers
 from podcast_mcp.ingest.manifest import IngestManifest
-
-
-def _tone(path: Path, duration: float = 2.0) -> None:
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            f"sine=frequency=440:duration={duration}",
-            "-ac",
-            "1",
-            str(path),
-        ],
-        check=True,
-        capture_output=True,
-    )
 
 
 def test_file_time_for_session() -> None:
     assert file_time_for_session(10.0, 960.0, 4.0) == 966.0
 
 
-def test_estimate_session_start_late_recorder(tmp_path: Path) -> None:
-    ref = tmp_path / "ref.wav"
-    late = tmp_path / "late.wav"
-    _tone(ref)
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "anullsrc=duration=5",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=880:duration=2",
-            "-filter_complex",
-            "[0:a][1:a]concat=n=2:v=0:a=1[out]",
-            "-map",
-            "[out]",
-            str(late),
-        ],
-        check=True,
-        capture_output=True,
-    )
-    onset_ref = first_speech_onset_sec(ref, search_start_sec=0, search_end_sec=10)
-    onset_late = first_speech_onset_sec(late, search_start_sec=0, search_end_sec=10)
-    assert onset_ref is not None and onset_late is not None
-    delay = estimate_session_start_in_file(ref, late, session_hint_sec=0)
-    assert delay >= 4.0
-
-
-def test_consolidate_uses_session_start_in_file(sample_wav: Path, tmp_path: Path) -> None:
+def _consolidate(sample_wav: Path, tmp_path: Path, guest_start: str):
+    """Host plus a guest whose file opens with 3 s of silence."""
     audio_dir = tmp_path / "audio"
     audio_dir.mkdir()
-    ref = audio_dir / "host.wav"
-    guest = audio_dir / "guest.wav"
-    ref.write_bytes(sample_wav.read_bytes())
+    (audio_dir / "host.wav").write_bytes(sample_wav.read_bytes())
     subprocess.run(
         [
             "ffmpeg",
@@ -89,48 +33,42 @@ def test_consolidate_uses_session_start_in_file(sample_wav: Path, tmp_path: Path
             "[0:a][1:a]concat=n=2:v=0:a=1[out]",
             "-map",
             "[out]",
-            str(guest),
+            str(audio_dir / "guest.wav"),
         ],
         check=True,
         capture_output=True,
     )
     manifest_path = tmp_path / "ingest.yaml"
     manifest_path.write_text(
-        """
+        f"""
 session:
   reference_speaker: Host
-  hint_sec: 0
 speakers:
   - name: Host
     sources: [host.wav]
   - name: Guest
     sources: [guest.wav]
-""",
+{guest_start}""",
         encoding="utf-8",
     )
-    manifest = IngestManifest.load(manifest_path)
-    result = consolidate_speakers(
-        manifest,
+    return consolidate_speakers(
+        IngestManifest.load(manifest_path),
         audio_dir,
         tmp_path / "raw",
         extract_start_sec=0.0,
         extract_duration_sec=1.0,
         align_mode="audio",
     )
-    assert result.session_start_in_file_sec["Guest"] >= 2.0
 
 
-def test_first_speech_onset_past_eof_returns_none(tmp_path: Path) -> None:
-    clip = tmp_path / "short.wav"
-    _tone(clip, duration=1.0)
-    assert first_speech_onset_sec(clip, search_start_sec=60.0, search_end_sec=120.0) is None
+def test_consolidate_uses_the_manifest_session_start(sample_wav: Path, tmp_path: Path) -> None:
+    result = _consolidate(sample_wav, tmp_path, "    session_start_in_file_sec: 3.0\n")
+    assert result.session_start_in_file_sec["Guest"] == pytest.approx(3.0)
 
 
-def test_first_speech_onset_propagates_other_value_errors(tmp_path: Path) -> None:
-    clip = tmp_path / "a.wav"
-    _tone(clip, duration=1.0)
-    with (
-        patch("podcast_mcp.engines.session_clock.load_mono_window", side_effect=ValueError("boom")),
-        pytest.raises(ValueError, match="boom"),
-    ):
-        first_speech_onset_sec(clip, search_start_sec=0.0, search_end_sec=1.0)
+def test_consolidate_guesses_no_session_start_from_speech_onsets(
+    sample_wav: Path, tmp_path: Path
+) -> None:
+    """Two speakers' first words are not one event: an omitted start is 0, never an estimate."""
+    result = _consolidate(sample_wav, tmp_path, "")
+    assert result.session_start_in_file_sec == {"Host": 0.0, "Guest": 0.0}

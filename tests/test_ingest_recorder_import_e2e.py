@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
@@ -72,6 +73,15 @@ def test_recorder_folder_import_places_tracks_on_session_clock(tmp_path: Path) -
         "guest_ann.wav=Guest Ann",
     )
     assert sorted(p.name for p in audio.iterdir()) == ["guest_ann.wav", "host_maya.wav"]
+
+    # No session start is guessed from speech onsets (#1533): the manifest carries it,
+    # from `ingest suggest` or a listen, here the known 4 s the guest recorder ran early.
+    data = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    for speaker in data["speakers"]:
+        speaker["session_start_in_file_sec"] = (
+            GUEST_LEAD_SEC if "guest" in speaker["sources"][0] else 0.0
+        )
+    manifest.write_text(yaml.safe_dump(data), encoding="utf-8")
 
     project_dir = tmp_path / "episode"
     _invoke("episode", "init", "--dir", str(project_dir), "--name", "us3")

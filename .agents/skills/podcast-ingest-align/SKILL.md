@@ -43,7 +43,6 @@ Do **not** use the same file timestamp on every recorder without `session_start_
 ```yaml
 session:
   reference_speaker: Rehana
-  hint_sec: 960
 
 speakers:
   - name: Rehana
@@ -51,7 +50,7 @@ speakers:
     session_start_in_file_sec: 0
   - name: Speaker 2
     sources: ["Untitled#04.wav"]
-    # session_start_in_file_sec auto-detected if omitted
+    # session_start_in_file_sec: 0 if omitted; take the value from `ingest suggest`
 
 align_anchors:
   - reference_speaker: Rehana
