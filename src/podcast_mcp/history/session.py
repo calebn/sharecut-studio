@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
+from podcast_mcp.edits.decisions import retire_unplayed_pending
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
@@ -143,6 +144,7 @@ def _record_audio_changes(
     hashes_after = dialogue_render_hashes(project)
     if audio_state_fingerprint(project, hashes_after) == fingerprint_before:
         return
+    retire_unplayed_pending(project)
     mark_reconciliation_stale(project)
     changed_tracks = changed_render_hashes(track_hashes_before, hashes_after)
     record_after_audio_mutation(

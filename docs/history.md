@@ -339,6 +339,8 @@ batch. Undo restores all affected clips and pending proposals, including empty
 lanes and retained duration. Applied exact records direct users to History Undo
 instead of offering a partial source-span Restore.
 
+A mutation that changes the audio also retires every pending remove or mute proposal whose source span no clip plays any more (`edits/decisions.retire_unplayed_pending`, run once from `history/session.py`), so a cut never leaves a proposal that maps to the wrong timeline place (#1487). Undo restores them with the clips.
+
 Cut and boundary-adjustment snapshots include the active word list and its source-scoped archive. Undoing a cut restores its original active words. Undoing a boundary expansion restores the prior archive; redo restores the expanded word metadata. Normal `ProjectWorkspace.mutate()` history owns these changes. Archived previews are not active word correction targets.
 
 ## Transcript replacement pass

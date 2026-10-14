@@ -21,11 +21,12 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
-from podcast_mcp.edits.decisions import _edit_to_timeline_range, approve_edits
+from podcast_mcp.edits.decisions import approve_edits, edit_timeline_range
 from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     Clip,
+    EditDecision,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -63,6 +64,13 @@ class TightenBenchmarkResult:
             "rebuild_combined_calls": self.rebuild_combined_calls,
             "clip_counts": self.clip_counts,
         }
+
+
+def _played_range(project: EpisodeProject, edit: EditDecision) -> tuple[float, float]:
+    """The timeline range a benchmark proposal plays at; every synthetic proposal is played."""
+    played = edit_timeline_range(project, edit)
+    assert played is not None
+    return played
 
 
 def _trim_project(project: EpisodeProject, max_sec: float) -> EpisodeProject:
@@ -206,7 +214,7 @@ def run_tighten_benchmark(
         ranges: list[tuple[float, float]] = []
         for e in project.edit_decisions:
             if (e.reason or "").startswith(("filler:", "pause:")):
-                ranges.append(_edit_to_timeline_range(project, e))
+                ranges.append(_played_range(project, e))
         result.merged_ranges = len(merge_timeline_ranges(ranges))
 
         t1 = time.perf_counter()
@@ -275,7 +283,7 @@ def run_tighten_apply_word_only_benchmark(project: EpisodeProject) -> TightenBen
             ]
         )
         ranges = [
-            _edit_to_timeline_range(project, e)
+            _played_range(project, e)
             for e in project.edit_decisions
             if (e.reason or "").startswith(("filler:", "pause:"))
         ]
@@ -305,7 +313,7 @@ def run_tighten_apply_full_mode_warm_benchmark(project: EpisodeProject) -> tuple
     """Return (window reads on the first batch, seconds for a second batch on a warm cache)."""
     propose_tighten_edits(project, load_defaults(), replace_existing=True)
     ranges = [
-        _edit_to_timeline_range(project, e)
+        _played_range(project, e)
         for e in project.edit_decisions
         if (e.reason or "").startswith(("filler:", "pause:"))
     ]

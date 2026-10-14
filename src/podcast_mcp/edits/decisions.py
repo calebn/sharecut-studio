@@ -46,7 +46,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
 )
-from podcast_mcp.util.coded_error import CodedError, CodedKeyError
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.review import reject_by_id
 
 
@@ -59,17 +59,41 @@ def _tighten_cfg() -> dict:
     return dict(load_defaults().get("tighten", {}) or {})
 
 
-def _mapped_edit_to_timeline_range(
-    project: EpisodeProject, edit: EditDecision
+def edit_timeline_range(
+    project: EpisodeProject, edit: EditDecision, timeline: SessionTimeline | None = None
 ) -> tuple[float, float] | None:
+    """The timeline range a clip plays ``edit``'s source span at; ``None`` when none does."""
     start, end = source_span_timeline_bounds(
-        SessionTimeline(project), edit.track_id, edit.start, edit.end
+        timeline or SessionTimeline(project), edit.track_id, edit.start, edit.end
     )
     return (start, end) if start is not None and end is not None else None
 
 
-def _edit_to_timeline_range(project: EpisodeProject, edit: EditDecision) -> tuple[float, float]:
-    return _mapped_edit_to_timeline_range(project, edit) or (edit.start, edit.end)
+def _plays_source_span(edit: EditDecision) -> bool:
+    """Whether ``edit`` names source seconds that a clip has to play for it to apply."""
+    return (
+        edit.timebase == "source"
+        and edit.exact_range is None
+        and edit.type in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
+    )
+
+
+def unplayed_pending_ids(project: EpisodeProject) -> list[str]:
+    """Ids of pending remove/mute proposals whose source span no clip plays any more."""
+    candidates = [e for e in project.edit_decisions if _plays_source_span(e)]
+    if not candidates:
+        return []
+    timeline = SessionTimeline(project)
+    return [e.id for e in candidates if edit_timeline_range(project, e, timeline) is None]
+
+
+def retire_unplayed_pending(project: EpisodeProject) -> int:
+    """Drop pending proposals whose audio was cut away, so none is offered for approval (#1487)."""
+    stale = set(unplayed_pending_ids(project))
+    if not stale:
+        return 0
+    project.edit_decisions = [e for e in project.edit_decisions if e.id not in stale]
+    return len(stale)
 
 
 def apply_join_fades_from_decisions(
@@ -154,7 +178,10 @@ def _apply_mute_edit(
     fades out into it as a padded cut fades into its pad, and back in after it over
     the post-pad fade-in, which ends before ``edit.next_burst_sec``. Clips do not move.
     """
-    tl_start, tl_end = _edit_to_timeline_range(project, edit)
+    mapped = edit_timeline_range(project, edit)
+    if mapped is None:
+        return 0.0, 0.0, [], {}
+    tl_start, tl_end = mapped
     room_tone = filler_pad_mode() == "room_tone"
     fade_out = _pre_pad_fade_out_ms()
     fade_in = (
@@ -215,6 +242,13 @@ def approve_edits(
     id_set = set(ids)
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]
+    unplayed = sorted(set(unplayed_pending_ids(project)) & id_set)
+    if unplayed:
+        raise CodedValueError(
+            f"{len(unplayed)} proposal(s) point at audio that was cut away and no longer plays "
+            f"({', '.join(unplayed)}); reject them or run propose_edits again",
+            code="edit_span_not_played",
+        )
     exact = [e for e in to_apply if e.exact_range is not None]
     if exact:
         apply_ranges(project, exact)
@@ -494,8 +528,8 @@ def apply_prefix_edits(
         reason = e.reason or ""
         if not reason.startswith(prefixes):
             continue
-        tl_start, tl_end = _edit_to_timeline_range(project, e)
-        if tl_end <= tl_start:
+        mapped = edit_timeline_range(project, e)
+        if mapped is None or mapped[1] <= mapped[0]:
             continue
         applied_decisions.append(e)
 
