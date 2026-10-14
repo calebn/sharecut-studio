@@ -191,7 +191,7 @@ class IngestService:
             )
             labels = _apply_speaker_overrides(scan, speakers_override)
             manifest = _manifest_from_scan(scan, labels)
-            warnings = _import_warnings(scan, labels, dest, dry_run=dry_run)
+            warnings = _import_warnings(scan, dest, dry_run=dry_run)
             written = False
             prog.set_phase("writing", "Writing ingest.yaml…" if not dry_run else "Dry run")
             if not dry_run:
@@ -752,12 +752,25 @@ def import_folder_report_to_dict(result: ImportFolderReport) -> dict:
 def _apply_speaker_overrides(
     scan: FolderScan, speakers_override: dict[str, str] | None
 ) -> dict[str, str]:
+    """Label every scanned file.
+
+    Files given the same explicit label share one speaker (a host who restarted
+    a recording has two takes on one mic). Scan-derived labels that collide, or
+    that collide with an explicit label, still get a unique suffix.
+    """
+    explicit = {
+        row.filename: _override_label(row.filename, speakers_override) for row in scan.files
+    }
+    used = {label for label in explicit.values() if label}
     labels: dict[str, str] = {}
-    used: set[str] = set()
     for index, row in enumerate(scan.files, start=1):
-        override = _override_label(row.filename, speakers_override)
-        raw = override or row.speaker_label
-        labels[row.filename] = _unique_speaker_name(raw, used, fallback_index=index)
+        override = explicit[row.filename]
+        if override:
+            labels[row.filename] = override
+        else:
+            labels[row.filename] = _unique_speaker_name(
+                row.speaker_label, used, fallback_index=index
+            )
     return labels
 
 
@@ -786,12 +799,11 @@ def _unique_speaker_name(name: str, used: set[str], *, fallback_index: int) -> s
 
 
 def _manifest_from_scan(scan: FolderScan, labels: dict[str, str]) -> IngestManifest:
+    sources_by_label: dict[str, list[str]] = {}
+    for row in scan.files:
+        sources_by_label.setdefault(labels[row.filename], []).append(row.filename)
     speakers = [
-        SpeakerGroup(
-            name=labels[row.filename],
-            sources=[row.filename],
-        )
-        for row in scan.files
+        SpeakerGroup(name=name, sources=sources) for name, sources in sources_by_label.items()
     ]
     reference = _pick_reference_speaker(speakers)
     return IngestManifest(
@@ -850,20 +862,13 @@ def _normalize_speakers_override(
 
 def _import_warnings(
     scan: FolderScan,
-    labels: dict[str, str],
     dest: Path,
     *,
     dry_run: bool,
 ) -> list[str]:
-    warnings = list(scan.warnings)
-    seen: set[str] = set()
-    dupes: set[str] = set()
-    for label in labels.values():
-        if label in seen:
-            dupes.add(label)
-        seen.add(label)
-    if not dupes:
-        warnings = [w for w in warnings if not w.startswith("duplicate speaker labels")]
+    # Colliding scan labels are suffixed and same-label overrides merge takes, so
+    # the scan's duplicate-label warning never describes the written manifest.
+    warnings = [w for w in scan.warnings if not w.startswith("duplicate speaker labels")]
     resolved_dest = dest.expanduser()
     if not dry_run and resolved_dest.is_file():
         warnings.append(f"overwriting existing manifest at {resolved_dest}")

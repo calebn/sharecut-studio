@@ -267,6 +267,42 @@ def test_import_uniquifies_duplicate_labels(tmp_path: Path) -> None:
     assert {sp.name for sp in manifest.speakers} == {"Host", "Host 2"}
 
 
+def test_import_same_explicit_label_merges_takes_in_file_order(tmp_path: Path) -> None:
+    audio = tmp_path / "rec"
+    _write_wav(audio / "A.wav")
+    _write_wav(audio / "B.wav")
+    _write_wav(audio / "guest.wav")
+    dest = tmp_path / "ingest.yaml"
+    report = IngestService.import_recorder_folder(
+        audio,
+        out_manifest=dest,
+        speakers_override={"A.wav": "Vicky", "B.wav": "Vicky"},
+    )
+    by_file = {row["filename"]: row["speaker_label"] for row in report.files}
+    assert by_file["A.wav"] == "Vicky"
+    assert by_file["B.wav"] == "Vicky"
+    manifest = IngestManifest.load(dest)
+    vicky = [sp for sp in manifest.speakers if sp.name == "Vicky"]
+    assert len(vicky) == 1
+    assert vicky[0].sources == ["A.wav", "B.wav"]
+    assert not any(sp.name == "Vicky 2" for sp in manifest.speakers)
+
+
+def test_import_scan_label_colliding_with_explicit_label_is_suffixed(tmp_path: Path) -> None:
+    audio = tmp_path / "rec"
+    _write_wav(audio / "host.wav")
+    _write_wav(audio / "take2.wav")
+    dest = tmp_path / "ingest.yaml"
+    IngestService.import_recorder_folder(
+        audio, out_manifest=dest, speakers_override={"take2.wav": "Host"}
+    )
+    manifest = IngestManifest.load(dest)
+    assert {sp.name: sp.sources for sp in manifest.speakers} == {
+        "Host": ["take2.wav"],
+        "Host 2": ["host.wav"],
+    }
+
+
 def test_import_speaker_override_by_stem(tmp_path: Path) -> None:
     audio = tmp_path / "rec"
     _write_wav(audio / "host-caleb.wav")
