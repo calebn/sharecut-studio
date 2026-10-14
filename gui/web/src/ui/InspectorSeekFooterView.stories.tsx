@@ -103,7 +103,6 @@ export const SkipUnavailable: Story = {
   args: {
     previewMode: "current",
     onPreviewModeChange: fn(),
-    suggestDisabled: true,
     suggestDisabledReason:
       "A split does not change the mix until you delete a side.",
   },

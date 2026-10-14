@@ -87,8 +87,15 @@ export function Lobby({
   const localStorageCopy =
     localStorageError ??
     (!localStorageReady ? LOCAL_KEEPER_PENDING_COPY : null);
-  const canAccept =
-    headphonesOk && micReady && roomToneReady && localStorageReady;
+  const acceptDisabledReason = !micReady
+    ? "Allow the microphone to accept."
+    : !headphonesOk
+      ? "Confirm you are wearing headphones to accept."
+      : !localStorageReady
+        ? (localStorageCopy ?? LOCAL_KEEPER_PENDING_COPY)
+        : !roomToneReady
+          ? ROOM_TONE_GATE_COPY
+          : undefined;
   const acceptDescribedBy = [
     !micReady ? grantHintId : null,
     !headphonesOk ? headphonesHintId : null,
@@ -176,9 +183,9 @@ export function Lobby({
               <ConsentGate
                 onAccept={onAccept}
                 onDecline={onDecline}
-                canAccept={canAccept}
+                acceptDisabledReason={acceptDisabledReason}
                 acceptDescribedBy={
-                  !canAccept && acceptDescribedBy
+                  acceptDisabledReason && acceptDescribedBy
                     ? acceptDescribedBy
                     : undefined
                 }

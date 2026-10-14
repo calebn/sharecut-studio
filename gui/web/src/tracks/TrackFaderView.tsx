@@ -103,7 +103,9 @@ export function TrackFaderView({
         {editable ? (
           <Button
             aria-label="Reset volume to 0 dB"
-            disabled={value === 0}
+            disabledReason={
+              value === 0 ? "Volume is already at 0 dB." : undefined
+            }
             onClick={() => {
               reset();
               range.input?.focus();

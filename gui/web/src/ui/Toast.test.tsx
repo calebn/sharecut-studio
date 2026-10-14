@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { BUSY_REASON } from "./disabledReason";
 import { TOAST_MS, Toast } from "./Toast";
 
 describe("Toast", () => {
@@ -273,16 +274,18 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
-  it("disables Undo when undoDisabled is set", () => {
+  it("disables Undo when undoDisabledReason is set", () => {
     render(
       <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
-        undoDisabled
+        undoDisabledReason={BUSY_REASON}
       />,
     );
-    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("title", BUSY_REASON);
   });
 
   it("pauses the timer while Undo is disabled and restarts it after", () => {
@@ -293,7 +296,7 @@ describe("Toast", () => {
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
-        undoDisabled
+        undoDisabledReason={BUSY_REASON}
       />,
     );
     act(() => {
@@ -430,7 +433,7 @@ describe("Toast", () => {
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
-        undoDisabled
+        undoDisabledReason={BUSY_REASON}
         returnFocusRef={returnFocusRef}
       />,
     );

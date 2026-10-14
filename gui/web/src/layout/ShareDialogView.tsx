@@ -480,7 +480,7 @@ function ReviewLinkRow({
           prompt={`Stop sharing this ${role} link? Anyone using it loses access.`}
           keepLabel="Keep link"
           actionLabel="Stop sharing"
-          disabled={busy}
+          disabledReason={busy ? BUSY_REASON : undefined}
           onKeep={onKeep}
           onConfirm={onConfirm}
         />
@@ -582,7 +582,7 @@ function RecordRoomCard({
           prompt="End this record room? Both guest and producer links will stop working."
           keepLabel="Keep room"
           actionLabel="End room"
-          disabled={busy}
+          disabledReason={busy ? BUSY_REASON : undefined}
           onKeep={onKeep}
           onConfirm={onConfirm}
         />

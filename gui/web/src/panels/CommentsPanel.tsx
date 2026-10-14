@@ -21,6 +21,7 @@ import {
   type ToastState,
   ToggleButton,
 } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { saveCommentAuthor, sessionDisplayName } from "../utils/commentAuthor";
 
 type Filter = "open" | "resolved" | "actions" | "all";
@@ -296,7 +297,7 @@ export function CommentsPanel({
       {guestShare ? null : (
         <Toast
           toast={undoToast}
-          undoDisabled={busy}
+          undoDisabledReason={busy ? BUSY_REASON : undefined}
           onUndo={() => void onUndoResolve()}
           onDismiss={dismissUndo}
           returnFocusRef={panelRef}

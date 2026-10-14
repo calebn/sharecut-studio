@@ -1,4 +1,3 @@
-import { useId } from "react";
 import type { PreviewMode } from "../utils/playRange";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -11,10 +10,9 @@ export interface InspectorSeekFooterViewProps {
   showPlay?: boolean;
   previewMode?: PreviewMode;
   onPreviewModeChange?: (mode: PreviewMode) => void;
-  suggestDisabled?: boolean;
+  /** Why Suggested and A/B are unavailable; null or undefined leaves them enabled. */
   suggestDisabledReason?: string | null;
-  /** Disables the play action (e.g. guests hear Full mix only); the reason becomes its tooltip. */
-  playDisabled?: boolean;
+  /** Why the play action is unavailable (e.g. guests hear Full mix only); undefined leaves it enabled. */
   playDisabledReason?: string;
   /** Seek action; the live adapter moves the DAW playhead. */
   onSeek: () => void;
@@ -39,14 +37,11 @@ export function InspectorSeekFooterView({
   showPlay = true,
   previewMode,
   onPreviewModeChange,
-  suggestDisabled = false,
   suggestDisabledReason,
-  playDisabled,
   playDisabledReason,
   onSeek,
   onPlay,
 }: InspectorSeekFooterViewProps) {
-  const reasonId = useId();
   return (
     <div className="modifier-footer-actions">
       <Button onClick={onSeek}>
@@ -54,35 +49,22 @@ export function InspectorSeekFooterView({
         {seekLabel}
       </Button>
       {showPlay ? (
-        <Button
-          onClick={onPlay}
-          disabled={playDisabled}
-          title={playDisabled ? playDisabledReason : undefined}
-        >
+        <Button onClick={onPlay} disabledReason={playDisabledReason}>
           <Icon name="play" />
           {playLabel}
         </Button>
       ) : null}
-      {onPreviewModeChange && suggestDisabled && suggestDisabledReason ? (
-        <span id={reasonId} className="sr-only">
-          {suggestDisabledReason}
-        </span>
-      ) : null}
       {onPreviewModeChange ? (
         <SegmentedControl label="Preview mode" className="preview-modes">
           {PREVIEW_MODES.map((m) => {
-            const blocked = m.id !== "current" && suggestDisabled;
+            const blocked = m.id !== "current" && !!suggestDisabledReason;
             return (
               <ToggleButton
                 key={m.id}
                 quiet
                 pressed={previewMode === m.id}
-                disabled={blocked}
-                title={
+                disabledReason={
                   blocked ? (suggestDisabledReason ?? undefined) : undefined
-                }
-                aria-describedby={
-                  blocked && suggestDisabledReason ? reasonId : undefined
                 }
                 onClick={() => onPreviewModeChange(m.id)}
               >

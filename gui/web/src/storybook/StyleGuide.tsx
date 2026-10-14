@@ -178,7 +178,9 @@ export function StyleGuide() {
           >
             Select example
           </ToggleButton>
-          <Button disabled>Unavailable</Button>
+          <Button disabledReason="Finish the example above to unlock this action.">
+            Unavailable
+          </Button>
           <ToggleButton
             quiet
             pressed={quietSelected}

@@ -34,8 +34,8 @@ type Props = {
   onDismiss: () => void;
   /** Shows Undo; leave it out when there is nothing to undo. */
   onUndo?: () => void;
-  /** Disables Undo and pauses auto-dismiss (Undo must never expire while it cannot be clicked). */
-  undoDisabled?: boolean;
+  /** Why Undo is unavailable. Disables Undo and pauses auto-dismiss (Undo must never expire while it cannot be clicked). */
+  undoDisabledReason?: string;
   timeoutMs?: number;
   visibility?: "visible" | "clipped";
   /** Receives focus when the toast closes while focus is inside it, or after focus fell from it to `<body>` (e.g. a focused Undo becoming disabled). */
@@ -95,7 +95,7 @@ function ToastCard({
   toast,
   onUndo,
   onDismiss,
-  undoDisabled = false,
+  undoDisabledReason,
   timeoutMs = TOAST_MS,
   visibility = "visible",
   returnFocusRef,
@@ -117,7 +117,7 @@ function ToastCard({
   const paused =
     hovered ||
     focused ||
-    (onUndo != null && undoDisabled) ||
+    (onUndo != null && undoDisabledReason !== undefined) ||
     visibility === "clipped";
   const toastId = toast.id;
   const dismiss = useEffectEvent(onDismiss);
@@ -183,7 +183,7 @@ function ToastCard({
       </span>
       {onUndo ? (
         <Button
-          disabled={undoDisabled}
+          disabledReason={undoDisabledReason}
           aria-describedby={messageId}
           onClick={onUndo}
         >

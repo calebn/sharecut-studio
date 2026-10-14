@@ -11,7 +11,8 @@ type Props = {
   actionLabel: string;
   onKeep: () => void;
   onConfirm: () => void;
-  disabled?: boolean;
+  /** Why Keep and the danger action are unavailable; undefined leaves them enabled. */
+  disabledReason?: string;
 };
 
 /**
@@ -26,8 +27,9 @@ export function InlineConfirm({
   actionLabel,
   onKeep,
   onConfirm,
-  disabled = false,
+  disabledReason,
 }: Props) {
+  const disabled = disabledReason !== undefined;
   const promptId = useId();
   const keepRef = useRef<HTMLButtonElement>(null);
 
@@ -51,10 +53,14 @@ export function InlineConfirm({
         {prompt}
       </p>
       <div className="ui-inline-confirm-actions">
-        <Button ref={keepRef} disabled={disabled} onClick={onKeep}>
+        <Button ref={keepRef} disabledReason={disabledReason} onClick={onKeep}>
           {keepLabel}
         </Button>
-        <Button variant="danger" disabled={disabled} onClick={onConfirm}>
+        <Button
+          variant="danger"
+          disabledReason={disabledReason}
+          onClick={onConfirm}
+        >
           {actionLabel}
         </Button>
       </div>

@@ -11,7 +11,6 @@ type Props = Omit<
   | "onPlay"
   | "previewMode"
   | "onPreviewModeChange"
-  | "suggestDisabled"
   | "suggestDisabledReason"
 > & {
   seekSec: number;
