@@ -132,6 +132,37 @@ describe("approving a filler a peer speaks over", () => {
     expect(submit).toHaveBeenCalledTimes(2);
   });
 
+  it("closes the dialog as soon as Cut anyway is chosen, before the confirmed approve returns", async () => {
+    const user = userEvent.setup();
+    let releaseSecond: (value: object) => void = () => {};
+    const secondHeld = new Promise<object>((resolve) => {
+      releaseSecond = resolve;
+    });
+    submit.mockReset();
+    submit
+      .mockResolvedValueOnce(ASKED)
+      .mockImplementationOnce(() => secondHeld);
+
+    render(
+      <>
+        <PendingEditInspector edit={guardBlockedFiller} />
+        <CutSpeechDialog />
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.click(await screen.findByRole("button", { name: "Cut anyway" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(useDawStore.getState().cutSpeechPrompt).toBeNull();
+
+    releaseSecond({
+      ok: true,
+      command: { payload: { result: { count: 1 } } },
+    });
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
+  });
+
   it("Cancel leaves the filler pending and sends nothing more", async () => {
     const user = userEvent.setup();
     render(

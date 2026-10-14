@@ -23,10 +23,8 @@ async function choose(choice: Choice): Promise<ExecuteResult> {
   try {
     if (prompt.kind === "pending-review") {
       requireCurrentPendingReview(prompt.review);
+      s.setCutSpeechPrompt(null);
       const outcome = await prompt.cutAnyway();
-      const live = useDawStore.getState();
-      if (live.cutSpeechPrompt !== prompt) return { status: "ok" };
-      if (!outcome.asked) live.setCutSpeechPrompt(null);
       finishPendingReview(prompt.review, outcome);
       return { status: "ok" };
     }
