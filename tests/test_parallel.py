@@ -106,9 +106,17 @@ def test_run_parallel_matches_serial_output_for_pure_function():
     assert serial == parallel == [i * i for i in items]
 
 
-def test_run_parallel_tasks_see_the_callers_context():
+def test_run_parallel_tasks_keep_the_callers_niceness_and_nothing_else():
     import contextvars
+
+    from podcast_mcp.util.process import current_niceness, low_priority
 
     marker: contextvars.ContextVar[str] = contextvars.ContextVar("marker", default="unset")
     marker.set("caller")
-    assert run_parallel([1, 2, 3], lambda _i: marker.get(), max_workers=3) == ["caller"] * 3
+
+    def probe(_item: int) -> tuple[int, str]:
+        return current_niceness(), marker.get()
+
+    with low_priority(7):
+        assert run_parallel([1, 2, 3], probe, max_workers=3) == [(7, "unset")] * 3
+    assert run_parallel([1, 2], probe, max_workers=2) == [(0, "unset")] * 2

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import contextvars
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from typing import TypeVar
+
+from podcast_mcp.util.process import current_niceness, low_priority
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -48,7 +50,13 @@ def run_parallel(
     if workers <= 1:
         return [fn(item) for item in items]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        # Each task runs in a copy of the caller's context, so a context-scoped setting
-        # (a lower process priority) reaches the pool's threads.
-        futures = [pool.submit(contextvars.copy_context().run, fn, item) for item in items]
+        # A lower process priority reaches the pool's threads; the rest of the caller's
+        # context (a job's progress reporter) stays with the caller.
+        niceness = current_niceness()
+        futures = [pool.submit(_at_niceness, niceness, fn, item) for item in items]
         return [f.result() for f in futures]
+
+
+def _at_niceness(niceness: int, fn: Callable[[T], R], item: T) -> R:
+    with low_priority(niceness) if niceness else nullcontext():
+        return fn(item)
