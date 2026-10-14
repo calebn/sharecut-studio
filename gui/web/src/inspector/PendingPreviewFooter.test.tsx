@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hostFetch } from "../api/documentTransport";
+import { warmPendingPreview } from "../audio/pendingPreview";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -22,6 +23,10 @@ import type { PreviewMode } from "../utils/playRange";
 import { PendingPreviewFooter } from "./PendingPreviewFooter";
 
 vi.mock("../api/documentTransport", () => ({ hostFetch: vi.fn() }));
+vi.mock("../audio/pendingPreview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../audio/pendingPreview")>()),
+  warmPendingPreview: vi.fn(),
+}));
 
 const SPLIT_REASON = "A split does not change the mix until you delete a side.";
 
@@ -141,7 +146,10 @@ function setup({
   return { project, edit, onError, ...rendered };
 }
 
-const playButton = () => screen.getByRole("button", { name: "Play around" });
+const playButton = () =>
+  screen.getByRole("button", {
+    name: /^(Play around|Preparing preview… \d+s)$/,
+  });
 
 async function settle() {
   await waitFor(() =>
@@ -182,6 +190,59 @@ describe("pending preview footer", () => {
       startSec: 0,
       endSec: 1.918,
     });
+  });
+
+  it("warms the host for the edit it shows, again once the mix changes", async () => {
+    setup({ edit: () => ordinaryEdit() });
+    await waitFor(
+      () =>
+        expect(warmPendingPreview).toHaveBeenCalledWith("/tmp/p.json", "cut"),
+      { timeout: 3000 },
+    );
+    vi.mocked(warmPendingPreview).mockClear();
+    act(() => {
+      const project = useDawStore.getState().project!;
+      useDawStore.getState().hydrate("/tmp/p.json", {
+        ...project,
+        tracks: project.tracks.map((track) => ({ ...track, fader_db: -6 })),
+      });
+    });
+    await waitFor(() => expect(warmPendingPreview).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+  });
+
+  it("does not show the busy label for a click that returns at once", async () => {
+    setup({ edit: () => ordinaryEdit() });
+    fireEvent.click(playButton());
+    expect(screen.queryByRole("button", { name: /Preparing/ })).toBeNull();
+    await settle();
+  });
+
+  it("shows the elapsed seconds on the button while the render is pending", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let finish: (response: Response) => void = () => {};
+      vi.mocked(hostFetch).mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+      );
+      setup({ edit: () => ordinaryEdit() });
+      fireEvent.click(playButton());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3100);
+      });
+      expect(
+        screen.getByRole("button", { name: "Preparing preview… 3s" }),
+      ).toHaveAttribute("aria-busy", "true");
+      await act(async () => {
+        finish(wavResponse(1.25));
+      });
+      await waitFor(() => expect(playButton()).toBeEnabled());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each(["current", "suggested", "ab"] as const)(

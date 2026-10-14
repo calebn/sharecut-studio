@@ -112,6 +112,36 @@ export function releasePendingPreview(editId: string): void {
   if (active?.ownerId === pendingPreviewOwnerId(editId)) stopActive();
 }
 
+/** The mix each edit was last warmed (or is being warmed) for. */
+const warmed = new Map<string, string>();
+
+/**
+ * Ask the host to do a pending edit's slow work (mix headroom, track levels and
+ * the Current / Suggested / A/B renders) before the first Play around, once per
+ * edit and mix. Best effort: a
+ * failure leaves the click to pay for them.
+ */
+export function warmPendingPreview(projectPath: string, editId: string): void {
+  const state = useDawStore.getState();
+  if (isShareProjectKey(projectPath) || state.guestMode !== null) return;
+  if (state.projectPath !== projectPath || !state.project) return;
+  const key = `${projectPath}|${editId}`;
+  const mix = mixKey(state.project);
+  if (warmed.get(key) === mix) return;
+  warmed.set(key, mix);
+  const query = new URLSearchParams({ path: projectPath, edit_id: editId });
+  void (async () => {
+    try {
+      const response = await hostFetch(`/api/pending-preview/warm?${query}`, {
+        method: "POST",
+      });
+      if (!response.ok && warmed.get(key) === mix) warmed.delete(key);
+    } catch {
+      if (warmed.get(key) === mix) warmed.delete(key);
+    }
+  })();
+}
+
 /**
  * Fetch the server's Current / Suggested / A/B render around a pending edit
  * and play it as a source preview. Suggested is the edit approved on a

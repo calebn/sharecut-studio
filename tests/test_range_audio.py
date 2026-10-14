@@ -344,3 +344,34 @@ def test_host_pending_preview_http_requires_host(minimal_project, monkeypatch):
         headers={"x-sharecut-relayed": "1"},
     )
     assert response.status_code in {401, 403}
+
+
+def test_host_pending_preview_warm_measures_the_mix_trim_ahead(minimal_project, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.document import PlayService
+
+    seed(minimal_project)
+    monkeypatch.setattr(PlayService, "mix_trim_db", lambda self: -4.0)
+    monkeypatch.setattr(PlayService, "play_pending_preview", lambda self, *_a, **_k: None)
+    response = TestClient(create_app()).post(
+        "/api/pending-preview/warm",
+        params={"path": str(minimal_project), "edit_id": "proposal"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == {"trim_db": -4.0}
+
+
+def test_host_pending_preview_warm_requires_host(minimal_project, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
+    response = TestClient(create_app()).post(
+        "/api/pending-preview/warm",
+        params={"path": str(minimal_project)},
+        headers={"x-sharecut-relayed": "1"},
+    )
+    assert response.status_code in (401, 403)

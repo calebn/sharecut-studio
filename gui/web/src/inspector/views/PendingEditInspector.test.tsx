@@ -50,6 +50,10 @@ vi.mock("../../state/offlineStore", async (importOriginal) => ({
 }));
 
 vi.mock("../../api/documentTransport", () => ({ hostFetch: vi.fn() }));
+vi.mock("../../audio/pendingPreview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../audio/pendingPreview")>()),
+  warmPendingPreview: vi.fn(),
+}));
 
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),

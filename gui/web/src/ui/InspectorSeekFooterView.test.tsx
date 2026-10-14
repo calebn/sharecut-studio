@@ -20,6 +20,21 @@ describe("InspectorSeekFooterView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("shows a pulse and the seconds elapsed while play is preparing", async () => {
+    const { container } = render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        playBusySec={7}
+        playDisabledReason="Preparing full mix preview"
+      />,
+    );
+    const play = screen.getByRole("button", { name: "Preparing preview… 7s" });
+    expect(play).toHaveAttribute("aria-busy", "true");
+    expect(container.querySelector(".pipeline-pulse")).not.toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
   it("hides play when showPlay is false and uses custom labels", () => {
     render(
       <InspectorSeekFooterView

@@ -14,6 +14,8 @@ export interface InspectorSeekFooterViewProps {
   suggestDisabledReason?: string | null;
   /** Why the play action is unavailable (e.g. guests hear Full mix only); undefined leaves it enabled. */
   playDisabledReason?: string;
+  /** Seconds the play action has been preparing; null or undefined when it is not. */
+  playBusySec?: number | null;
   /** Seek action; the live adapter moves the DAW playhead. */
   onSeek: () => void;
   /** Play action; the live adapter auditions the range in the chosen preview mode. */
@@ -39,6 +41,7 @@ export function InspectorSeekFooterView({
   onPreviewModeChange,
   suggestDisabledReason,
   playDisabledReason,
+  playBusySec,
   onSeek,
   onPlay,
 }: InspectorSeekFooterViewProps) {
@@ -49,9 +52,19 @@ export function InspectorSeekFooterView({
         {seekLabel}
       </Button>
       {showPlay ? (
-        <Button onClick={onPlay} disabledReason={playDisabledReason}>
-          <Icon name="play" />
-          {playLabel}
+        <Button
+          onClick={onPlay}
+          disabledReason={playDisabledReason}
+          aria-busy={playBusySec != null || undefined}
+        >
+          {playBusySec != null ? (
+            <span className="pipeline-pulse" aria-hidden="true" />
+          ) : (
+            <Icon name="play" />
+          )}
+          {playBusySec != null
+            ? `Preparing preview… ${playBusySec}s`
+            : playLabel}
         </Button>
       ) : null}
       {onPreviewModeChange ? (

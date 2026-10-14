@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import json
 import math
 import wave
 
@@ -355,3 +356,174 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
     assert trim != trim_before
     _assert_same_audio(current.wav_path, fresh_current)
     _assert_same_audio(suggested.wav_path, fresh_suggested)
+
+
+def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
+    minimal_project, monkeypatch
+) -> None:
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.services.document import play as play_module
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    measured: list[float] = []
+
+    def measure(stems, ceiling):
+        measured.append(sum(gain for _path, gain, _hash in stems))
+        return -3.5
+
+    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", measure)
+
+    assert PlayService(ws).warm_pending_preview() == -3.5
+    restarted = ProjectWorkspace.open(minimal_project)
+    assert PlayService(restarted).mix_trim_db() == -3.5
+    assert len(measured) == 1
+
+    guest = restarted.project.track_by_id("guest")
+    assert guest is not None
+    guest.fader_db = 6.0
+    restarted.save()
+    assert PlayService(ProjectWorkspace.open(minimal_project)).mix_trim_db() == -3.5
+    assert measured == [0.0, 6.0]
+
+
+def test_a_damaged_trim_record_is_measured_again(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.services.document import play as play_module
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args: -2.0)
+    PlayService(ws).mix_trim_db()
+    (record,) = (ws.project.artifacts_dir() / "play_cache").glob("mix_trim_*.json")
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args: -2.5)
+    for damaged in ("{", '{"trim_db": "loud"}', '{"trim_db": 4.0}', "[]"):
+        record.write_text(damaged, encoding="utf-8")
+        assert PlayService(ws).mix_trim_db() == -2.5
+        assert json.loads(record.read_text(encoding="utf-8")) == {"trim_db": -2.5}
+
+
+def test_a_track_level_profile_is_measured_once_per_file_and_survives_a_restart(
+    minimal_project, monkeypatch
+) -> None:
+    from podcast_mcp.edits import audio_cache
+    from podcast_mcp.engines import level_profile
+    from podcast_mcp.services.app import ProjectWorkspace
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    measures: list[int] = []
+    real = level_profile.frame_levels_db
+
+    def measure(samples, rate):
+        measures.append(rate)
+        return real(samples, rate)
+
+    monkeypatch.setattr(level_profile, "frame_levels_db", measure)
+    records = ws.project.artifacts_dir() / "level_profiles"
+    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    assert audio_cache.track_level_profile(ws.project, "host") is not None
+    assert not list(records.glob("*.json"))
+    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    measured = audio_cache.track_level_profile(ws.project, "host", record=True)
+    assert len(measures) == 2
+    assert list(records.glob("*.json"))
+
+    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    reopened = ProjectWorkspace.open(minimal_project)
+    assert audio_cache.track_level_profile(reopened.project, "host") == measured
+    assert len(measures) == 2
+
+    raw = reopened.project.workspace_path() / "raw" / "host.wav"
+    raw.write_bytes(raw.read_bytes() + b"\0\0")
+    monkeypatch.setattr(level_profile, "_FILE_PROFILES", {})
+    audio_cache.track_level_profile(reopened.project, "host", record=True)
+    assert len(measures) == 3
+
+
+def test_warming_an_edit_leaves_every_mode_cached_for_the_click(minimal_project) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    play = PlayService(ws)
+    assert play.pending_preview_cached_wav("cut", mode="ab") is None
+    play.warm_pending_preview("cut")
+    for mode in ("current", "suggested", "ab"):
+        assert play.pending_preview_cached_wav("cut", mode=mode) is not None
+    play.warm_pending_preview("missing")  # an unknown edit warms the mix only
+
+
+def test_a_transcript_change_does_not_reuse_a_cached_pending_render(minimal_project) -> None:
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    play = PlayService(ws)
+    play.warm_pending_preview("cut")
+    assert play.pending_preview_cached_wav("cut", mode="suggested") is not None
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host", words=[TranscriptWord(text="so", start=2.0, end=2.2, confidence=0.9)]
+        )
+    ]
+    assert play.pending_preview_cached_wav("cut", mode="suggested") is None
