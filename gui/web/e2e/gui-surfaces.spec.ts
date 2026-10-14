@@ -242,6 +242,54 @@ test("phone save light outside Listen takes no tap meant for the control under i
   await expect(page.locator(".mobile-more-list")).toBeVisible();
 });
 
+test("tablet status bar on a touch pointer holds the failed save light's whole 44pt target", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 834, height: 1194 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    const page = await context.newPage();
+    // An unreadable offline queue is the Failed save state.
+    await page.addInitScript(() => {
+      indexedDB.open = () => {
+        throw new Error("queue unreadable");
+      };
+    });
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    const bar = page.locator("footer.status-bar");
+    const dot = bar.locator('[data-save-state="failed"]');
+    await expect(dot).toBeVisible();
+    const barBox = await bar.boundingBox();
+    const dotBox = await dot.boundingBox();
+    expect(barBox).not.toBeNull();
+    expect(dotBox).not.toBeNull();
+    expect(barBox!.height).toBeGreaterThanOrEqual(44);
+    expect(dotBox!.height).toBeGreaterThanOrEqual(44);
+    expect(dotBox!.y).toBeGreaterThanOrEqual(barBox!.y - 0.5);
+    expect(dotBox!.y + dotBox!.height).toBeLessThanOrEqual(
+      barBox!.y + barBox!.height + 0.5,
+    );
+    const centreX = dotBox!.x + dotBox!.width / 2;
+    const centreY = dotBox!.y + dotBox!.height / 2;
+    for (const offset of [-20, 0, 20]) {
+      const hitsDot = await page.evaluate(
+        ({ x, y }) =>
+          document.elementFromPoint(x, y)?.closest("[data-save-state]") !==
+          null,
+        { x: centreX, y: centreY + offset },
+      );
+      expect(hitsDot, `tap ${offset}px from centre reaches the light`).toBe(
+        true,
+      );
+    }
+  } finally {
+    await context.close();
+  }
+});
+
 test("phone pipeline step parameters trap focus, close on Escape, and restore the trigger", async ({
   page,
 }) => {
