@@ -24,6 +24,7 @@ from starlette.websockets import WebSocketDisconnect
 import podcast_mcp.edits.transcript_cuts as transcript_cuts
 import podcast_mcp.gui.jobs as gui_jobs
 import podcast_mcp.services.collaboration as collaboration
+import podcast_mcp.services.record.service as record_service
 from podcast_mcp.edits.review_versions import get_version, version_audio_path
 from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
 from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
@@ -689,7 +690,8 @@ def test_each_live_socket_route_has_a_post_admission_probe() -> None:
     assert set(REVIEW_FRAME_PAYLOADS) == set(review_share.GUEST_PRESENCE_FRAME_TYPES)
 
 
-RECORD_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
+RECORD_WS_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
+    "Signal": {},
     "Join": {"display_name": "Guest"},
     "Leave": {},
     "Consent": {"accepted": True},
@@ -706,17 +708,77 @@ RECORD_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
 }
 
 
-def test_record_guest_command_contract_tracks_the_live_command_catalog() -> None:
-    assert set(RECORD_COMMAND_PAYLOADS) == set(COMMAND_TYPES) | {"Signal"}
+def test_record_guest_wire_contract_tracks_the_live_command_catalog() -> None:
+    assert set(RECORD_WS_COMMAND_PAYLOADS) == set(record_service.RECORD_WS_COMMAND_TYPES)
+    assert record_service.RECORD_WS_COMMAND_TYPES - {"Signal"} == COMMAND_TYPES
     for command_type in sorted(COMMAND_TYPES):
         RecordCommand.parse(
             command_type=command_type,
-            payload=RECORD_COMMAND_PAYLOADS[command_type],
+            payload=RECORD_WS_COMMAND_PAYLOADS[command_type],
             client_id="host",
             role="host",
             participant_id="p1",
             client_seq=1,
         )
+
+
+def test_record_signal_fault_crosses_the_registered_socket_boundary(
+    minimal_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    repository = Path(__file__).resolve().parents[1]
+    assert Path(record_share.__file__).resolve().is_relative_to(repository)
+    assert Path(record_service.__file__).resolve().is_relative_to(repository)
+    workspace = ProjectWorkspace.open(minimal_project)
+    token = "record-token-for-signal-fault"
+    secret = f"private Signal service path {PLANTED_SECRET}"
+    row = {
+        "token": token,
+        "kind": "record",
+        "role": "guest",
+        "session_id": "session-signal-fault",
+        "capabilities": ["join", "monitor"],
+    }
+    hits: list[int] = []
+
+    async def share_row(_websocket: object, _token: str, *, kind: str) -> dict[str, object]:
+        assert kind == "record"
+        return row
+
+    def fail_signal(*_args: object, **_kwargs: object) -> dict[str, object]:
+        hits.append(1)
+        raise ValueError(secret)
+
+    monkeypatch.setattr(record_share, "guest_ws_share_row", share_row)
+    monkeypatch.setattr(
+        record_share, "open_share_workspace", lambda *_args, **_kwargs: (row, workspace)
+    )
+    monkeypatch.setattr(record_share, "_record_still_valid", lambda _token: True)
+    monkeypatch.setattr(RecordSessionService, "signal", fail_signal)
+    since = len(caplog.records)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+
+    with pytest.raises(WebSocketDisconnect) as closed:
+        with client.websocket_connect(f"/api/rec/{token}/ws") as socket:
+            socket.send_json(
+                {"type": "Record", "command_type": "Join", "payload": {}, "client_seq": 1}
+            )
+            _drain = socket.receive_json()
+            _snapshot = socket.receive_json()
+            socket.send_json(
+                {"type": "Record", "command_type": "Signal", "payload": {}, "client_seq": 2}
+            )
+            while True:
+                frame = socket.receive_json()
+                assert token not in str(frame) and secret not in str(frame)
+
+    assert hits == [1]
+    assert closed.value.code == 1011
+    assert closed.value.reason == "internal error"
+    assert secret in str(
+        [record.exc_info[1] for record in caplog.records[since:] if record.exc_info]
+    )
 
 
 def _socket_after(client: TestClient, url: str, first: str | None) -> list[object]:
