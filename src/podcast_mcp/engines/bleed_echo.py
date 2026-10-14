@@ -498,6 +498,49 @@ def _profile_pairs(
     )
 
 
+def _uses_open(
+    source: np.ndarray,
+    bleed: np.ndarray,
+    *,
+    sample_rate: int,
+    cfg: EchoConfig,
+) -> bool:
+    frame = max(1, round(cfg.frame_sec * sample_rate))
+    n = min(source.size, bleed.size)
+    src_db = frame_rms_db(source[:n], frame, frame)
+    bld_db = frame_rms_db(bleed[:n], frame, frame)
+    n_frames = min(src_db.size, bld_db.size)
+    return echo_open_fallback(src_db, bld_db, np.arange(n_frames), cfg=cfg)
+
+
+def _drop_open_reverse(
+    risks: list[EchoPairProfile],
+    audio: Mapping[str, np.ndarray],
+    *,
+    sample_rate: int,
+    cfg: EchoConfig,
+) -> list[EchoPairProfile]:
+    flagged = {(p.source_track_id, p.bleed_track_id) for p in risks}
+    uses_open = {
+        (p.source_track_id, p.bleed_track_id): _uses_open(
+            audio[p.source_track_id],
+            audio[p.bleed_track_id],
+            sample_rate=sample_rate,
+            cfg=cfg,
+        )
+        for p in risks
+    }
+    return [
+        p
+        for p in risks
+        if not (
+            uses_open[(p.source_track_id, p.bleed_track_id)]
+            and (p.bleed_track_id, p.source_track_id) in flagged
+            and not uses_open.get((p.bleed_track_id, p.source_track_id), False)
+        )
+    ]
+
+
 def echo_risk_pairs(
     audio: Mapping[str, np.ndarray],
     voices: Mapping[str, float],
@@ -513,11 +556,12 @@ def echo_risk_pairs(
     null shifts wrap inside it as in :func:`echo_profiles`.
     """
     cfg = config or EchoConfig()
-    return [
+    risks = [
         p
         for p in _profile_pairs(audio, voices, sample_rate=sample_rate, t0=0.0, cfg=cfg)
         if p.echo_risk(cfg)
     ]
+    return _drop_open_reverse(risks, audio, sample_rate=sample_rate, cfg=cfg)
 
 
 def echo_profiles(
