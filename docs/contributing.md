@@ -263,8 +263,9 @@ The [Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md)
 requires exact-head CI, unresolved-review checks, an independent native Shipping
 verdict, and applicable owner listening or product approval before an authorized merge.
 For an issue-backed PR, `scripts/poteto_issue_gate.py` adds a manual, read-only,
-fail-closed repository predicate. Its success does not replace native Shipping or
-grant permission to merge. Do not invent an issue for a contributor PR to call it.
+fail-closed repository predicate over GitHub REST (no GraphQL). Its success does not
+replace native Shipping or grant permission to merge. Do not invent an issue for a
+contributor PR to call it.
 
 Run that immediate predicate as a separate tool action and capture its exit
 status and JSON. Before the separate merge action, require exit `0`,

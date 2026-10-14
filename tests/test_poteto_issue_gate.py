@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -158,32 +158,49 @@ def test_claim_gate_requires_stage_labels() -> None:
 
 
 def test_review_threads_follows_every_page(monkeypatch: Any) -> None:
-    queries: list[str] = []
-    pages = [
-        {"nodes": [{"isResolved": True}], "pageInfo": {"hasNextPage": True, "endCursor": "next"}},
-        {"nodes": [{"isResolved": False}], "pageInfo": {"hasNextPage": False, "endCursor": None}},
+    calls: list[tuple[str, ...]] = []
+    review_pages = [
+        [{"id": 1, "in_reply_to_id": None}],
+        [{"id": 2, "in_reply_to_id": None}],
     ]
 
-    def fake_gh_json(*args: str) -> dict[str, Any]:
-        queries.append(args[-1])
-        return {"data": {"repository": {"pullRequest": {"reviewThreads": pages.pop(0)}}}}
+    def fake_gh_json(*args: str) -> Any:
+        calls.append(args)
+        if args[1].endswith("/pulls/252/comments?per_page=100"):
+            return review_pages
+        raise AssertionError(f"unexpected gh_json call: {args}")
 
     monkeypatch.setattr(gate, "gh_json", fake_gh_json)
-    threads = gate.review_threads("calebn/sharecut-studio", 252)
-    assert threads == [{"isResolved": True}, {"isResolved": False}]
-    assert "after:null" in queries[0]
-    assert 'after:"next"' in queries[1]
+    pages = gate.rest_fetch_review_comment_pages("calebn/sharecut-studio", 252)
+    threads = gate.adapt_review_comment_pages(pages)
+    assert pages == review_pages
+    assert threads == [{"isResolved": False}, {"isResolved": False}]
+    assert calls[0][:2] == ("api", "repos/calebn/sharecut-studio/pulls/252/comments?per_page=100")
+    assert "--paginate" in calls[0]
+    assert "--slurp" in calls[0]
 
 
 def test_gate_collection_rechecks_head_after_network_reads(monkeypatch: Any) -> None:
-    responses: list[Any] = [_pr(), _checks(), _issue(), _pr(NEXT_SHA)]
+    pr_reads = [_rest_pr(), _rest_pr(sha=NEXT_SHA)]
+    check_pages = _rest_check_pages([_rest_check_run(name) for name in gate.REQUIRED_CHECKS])
 
-    def fake_gh_json(*_args: str) -> Any:
-        return responses.pop(0)
+    def fake_gh_json(*args: str) -> Any:
+        if not args or args[0] != "api" or args[1:2] == ("graphql",):
+            raise RuntimeError(GRAPHQL_403)
+        path = args[1]
+        if path == "repos/calebn/sharecut-studio/pulls/252":
+            return pr_reads.pop(0)
+        if path.startswith("repos/calebn/sharecut-studio/commits/") and "/check-runs" in path:
+            return check_pages
+        if path.startswith("repos/calebn/sharecut-studio/pulls/252/comments"):
+            return [[]]
+        if path == "repos/calebn/sharecut-studio/issues/200":
+            return _rest_issue()
+        if path.startswith("repos/calebn/sharecut-studio/issues/200/comments"):
+            return [[_claim()]]
+        raise RuntimeError(GRAPHQL_403)
 
     monkeypatch.setattr(gate, "gh_json", fake_gh_json)
-    monkeypatch.setattr(gate, "review_threads", lambda *_args: [])
-    monkeypatch.setattr(gate, "issue_comments", lambda *_args: [_claim()])
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 200, TOKEN, 0, 6)
     assert not verdict["mergeable"]
     assert "head moved during gate collection" in verdict["blockers"]
@@ -235,7 +252,9 @@ def _graphql_forbidden_rest(
     )
     review_pages = [[]] if review_pages is None else review_pages
     issue = _rest_issue() if issue is None else issue
-    comments = [[_claim()]] if comments is None else comments
+    if comments is None:
+        fresh = (datetime.now(UTC) - timedelta(hours=1)).replace(microsecond=0)
+        comments = [[_claim(heartbeat=fresh.isoformat().replace("+00:00", "Z"))]]
     pr_reads = [pr, after_pr]
 
     def fake_gh_json(*args: str) -> Any:
