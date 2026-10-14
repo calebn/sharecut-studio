@@ -60,7 +60,8 @@ type Dismissal = {
 
 function openDetails() {
   const details = screen.getByText("Details");
-  if (!details.parentElement?.hasAttribute("open")) fireEvent.click(details);
+  if (!details.closest("details")?.hasAttribute("open"))
+    fireEvent.click(details);
 }
 
 function getActionButton(name: string) {

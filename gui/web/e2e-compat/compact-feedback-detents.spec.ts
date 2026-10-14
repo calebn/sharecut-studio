@@ -48,6 +48,8 @@ for (const {
   test.describe(`feedback detents ${inspector} ${viewport.width}x${viewport.height} root${rootPx} ${theme}`, () => {
     test("feedback preserves selected half and full geometry and permitted ruler and lane room", async ({
       page,
+      context,
+      browserName,
     }, info) => {
       await page.setViewportSize({ width: 1280, height: 720 });
       await page.addInitScript(
@@ -69,6 +71,27 @@ for (const {
             value: undefined,
             configurable: true,
           });
+        });
+      }
+      const safeAreaProbe =
+        browserName === "chromium" &&
+        rootPx === 32 &&
+        theme === "dark" &&
+        ((viewport.width === 390 && inspector === "Pending") ||
+          (viewport.width === 844 && inspector === "Envelope"));
+      const safeAreaSession = safeAreaProbe
+        ? await context.newCDPSession(page)
+        : null;
+      if (safeAreaSession) {
+        await safeAreaSession.send("Emulation.setDeviceMetricsOverride", {
+          ...viewport,
+          deviceScaleFactor: 1,
+          mobile: true,
+          screenWidth: viewport.width,
+          screenHeight: viewport.height,
+        });
+        await safeAreaSession.send("Emulation.setSafeAreaInsetsOverride", {
+          insets: { top: 59, bottom: 34, left: 47, right: 47 },
         });
       }
       await rememberInspectorDetent(page, "half");
@@ -254,78 +277,59 @@ for (const {
       await expect(summary).toHaveAccessibleName(
         "View attention details and recovery actions",
       );
+      await page
+        .getByRole("button", { name: "Expand to full height", exact: true })
+        .click();
+      for (const button of await panel
+        .locator(".bottom-sheet-header-actions button")
+        .all()) {
+        const geometry = await controlGeometry(button);
+        expect(geometry.fullyVisible, JSON.stringify(geometry)).toBe(true);
+        expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
+      }
+      await summary.scrollIntoViewIfNeeded();
       await summary.focus();
       await page.keyboard.press("Enter");
       await expect(details).toHaveAttribute("open", "");
-      await expect(summary).toBeInViewport();
       const reason = details.locator(".guest-attention-list > li").first();
       await expect(reason).toContainText("Project changed");
       await expect(reason).toContainText(
         "Edit the change and submit it again.",
       );
-      await expect(
-        attention.getByRole("button", { name: "Dismiss all", exact: true }),
-      ).toBeVisible();
-      const disclosureGeometry = await details.evaluate((element) => {
-        const rect = (target: Element) => {
-          const box = target.getBoundingClientRect();
-          return {
-            left: box.left,
-            right: box.right,
-            top: box.top,
-            bottom: box.bottom,
-            width: box.width,
-            height: box.height,
-          };
-        };
-        const summary = element.querySelector("summary");
-        const content = element.querySelector(
-          ".guest-attention-details-content",
-        );
-        const reason = element.querySelector(".guest-attention-list > li");
-        const dismiss = element.querySelector(".guest-attention-dismiss");
-        if (!summary || !content || !reason || !dismiss) {
-          throw new Error("expanded attention disclosure is incomplete");
-        }
-        const reasonRect = reason.getBoundingClientRect();
-        const reasonHit = document.elementFromPoint(
-          reasonRect.left + reasonRect.width / 2,
-          reasonRect.top + reasonRect.height / 2,
-        );
-        const dismissRect = dismiss.getBoundingClientRect();
-        const dismissHit = document.elementFromPoint(
-          dismissRect.left + dismissRect.width / 2,
-          dismissRect.top + dismissRect.height / 2,
-        );
-        return {
-          viewport: { width: innerWidth, height: innerHeight },
-          summary: rect(summary),
-          content: rect(content),
-          reason: rect(reason),
-          dismiss: rect(dismiss),
-          reasonHit: reason === reasonHit || reason.contains(reasonHit),
-          dismissHit: dismiss === dismissHit || dismiss.contains(dismissHit),
-          summaryFocused: document.activeElement === summary,
-        };
+      const dismiss = attention.getByRole("button", {
+        name: "Dismiss all",
+        exact: true,
       });
-      for (const target of [
-        disclosureGeometry.summary,
-        disclosureGeometry.content,
-        disclosureGeometry.reason,
-        disclosureGeometry.dismiss,
-      ]) {
-        expect(target.left).toBeGreaterThanOrEqual(0);
-        expect(target.right).toBeLessThanOrEqual(
-          disclosureGeometry.viewport.width,
-        );
-        expect(target.top).toBeGreaterThanOrEqual(0);
-        expect(target.bottom).toBeLessThanOrEqual(
-          disclosureGeometry.viewport.height,
-        );
+      const body = panel.locator(".bottom-sheet-body");
+      for (const [name, target] of [
+        ["summary", summary],
+        ["reason", reason],
+        ["dismiss", dismiss],
+      ] as const) {
+        await target.scrollIntoViewIfNeeded();
+        const geometry = await controlGeometry(target);
+        json(info, `attention-${name}-body-scroll`, {
+          geometry,
+          scroll: await body.evaluate((element) => ({
+            top: element.scrollTop,
+            clientHeight: element.clientHeight,
+            scrollHeight: element.scrollHeight,
+          })),
+        });
+        expect(geometry.fullyVisible, JSON.stringify(geometry)).toBe(true);
+        expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
+        if (safeAreaProbe) {
+          expect(geometry.rect.left).toBeGreaterThanOrEqual(47);
+          expect(geometry.rect.right).toBeLessThanOrEqual(viewport.width - 47);
+          expect(geometry.rect.top).toBeGreaterThanOrEqual(59);
+          expect(geometry.rect.bottom).toBeLessThanOrEqual(
+            viewport.height - 34,
+          );
+        }
       }
-      expect(disclosureGeometry.reasonHit).toBe(true);
-      expect(disclosureGeometry.dismissHit).toBe(true);
-      expect(disclosureGeometry.summaryFocused).toBe(true);
+      await expect(attention).toHaveClass(/guest-attention--inspector-flow/);
+      await summary.scrollIntoViewIfNeeded();
+      await summary.focus();
       await summary.press("Enter");
       await expect(details).not.toHaveAttribute("open", "");
       await expect(
@@ -338,6 +342,12 @@ for (const {
       ).toBeVisible();
       await summary.click();
       await expect(details).not.toHaveAttribute("open", "");
+      await page
+        .getByRole("button", { name: "Collapse to strip", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Expand to half height", exact: true })
+        .click();
       const withFeedback: Record<string, number> = {};
       for (const detent of ["half", "full"] as const) {
         if (detent === "full")
@@ -382,20 +392,20 @@ for (const {
         }
       }
       expect(withFeedback.half).toBeLessThan(withFeedback.full);
+      await page
+        .getByRole("button", { name: "Collapse to strip", exact: true })
+        .click();
+      await page
+        .getByRole("button", {
+          name: "Expand to half height",
+          exact: true,
+        })
+        .click();
+      expect((await panel.boundingBox())!.height).toBeCloseTo(
+        withFeedback.half,
+        0,
+      );
       if (halfRulerPermitted) {
-        await page
-          .getByRole("button", { name: "Collapse to strip", exact: true })
-          .click();
-        await page
-          .getByRole("button", {
-            name: "Expand to half height",
-            exact: true,
-          })
-          .click();
-        expect((await panel.boundingBox())!.height).toBeCloseTo(
-          withFeedback.half,
-          0,
-        );
         const slider = page.getByRole("slider", {
           name: "Timeline position",
         });
@@ -416,6 +426,10 @@ for (const {
             .locator(".pending-actionbar")
             .count(),
         });
+      }
+      if (await panel.isVisible()) {
+        await panel.getByRole("button", { name: "Close", exact: true }).click();
+        await expect(panel).not.toBeVisible();
       }
     });
   });

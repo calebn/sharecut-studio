@@ -382,10 +382,12 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
 function MobileShellAdapter({
   guestShare = false,
   feedbackHostRef,
+  attentionHost,
   loadFailure,
 }: {
   guestShare?: boolean;
   feedbackHostRef?: RefCallback<HTMLDivElement>;
+  attentionHost?: HTMLElement | null;
   loadFailure?: LoadFailure | null;
 }) {
   const {
@@ -573,7 +575,7 @@ function MobileShellAdapter({
                   </div>
                 ) : null}
               </Slot>
-              <GuestAttentionBanner />
+              <GuestAttentionBanner host={attentionHost} />
               <HomeScreenHint />
             </>
           ),

@@ -333,6 +333,14 @@ describe("SaveStateDot", () => {
     const banner = screen.getByRole("alert");
     expect(banner).toHaveTextContent("The clip moved.");
     expect(banner).toHaveFocus();
+    const summary = banner.querySelector("summary")!;
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(summary);
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    await user.click(dot);
+    expect(banner).toHaveFocus();
+    expect(summary.closest("details")).toHaveAttribute("open");
     expect(
       screen.queryByRole("button", { name: "Dismiss all" }),
     ).not.toBeInTheDocument();

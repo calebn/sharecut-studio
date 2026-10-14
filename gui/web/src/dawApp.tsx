@@ -203,6 +203,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
               : null
           }
           feedbackHostRef={setFeedbackHost}
+          attentionHost={feedbackHost}
         />
       </div>
       <CheatsheetDialogs />

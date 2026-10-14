@@ -37,7 +37,7 @@ describe("GuestAttentionBannerView", () => {
     );
     const summary = screen.getByText("Details");
     await userEvent.click(summary);
-    expect(summary.parentElement).toHaveAttribute("open");
+    expect(summary.closest("details")).toHaveAttribute("open");
     expect(
       screen.getByRole("button", { name: "Inspect History" }),
     ).toBeVisible();
@@ -84,6 +84,79 @@ describe("GuestAttentionBannerView", () => {
     ).toEqual([first.container, second.container]);
   });
 
+  it("keeps one open disclosure and focused action across inspector host close and stow", async () => {
+    const host = document.createElement("div");
+    const header = document.createElement("button");
+    header.textContent = "Inspector close";
+    document.body.append(header, host);
+    const props = {
+      pending: 1,
+      conflicts: [],
+      onDismissAll: vi.fn(),
+      onSendNow: vi.fn(),
+    };
+    const { rerender, unmount, container } = render(
+      <StrictMode>
+        <GuestAttentionBannerView {...props} />
+      </StrictMode>,
+    );
+    const summary = screen.getByText("Details").closest("summary")!;
+    await userEvent.click(summary);
+    const details = summary.closest("details")!;
+    const action = screen.getByRole("button", { name: "Send now" });
+    action.focus();
+    rerender(
+      <StrictMode>
+        <GuestAttentionBannerView {...props} host={host} />
+      </StrictMode>,
+    );
+    expect(host).toContainElement(details);
+    expect(details).toHaveAttribute("open");
+    expect(action).toHaveFocus();
+    expect(
+      header.compareDocumentPosition(summary) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    host.remove();
+    rerender(
+      <StrictMode>
+        <GuestAttentionBannerView {...props} />
+      </StrictMode>,
+    );
+    expect(container).toContainElement(details);
+    expect(details).toHaveAttribute("open");
+    expect(action).toHaveFocus();
+    const nextHost = document.createElement("div");
+    document.body.append(nextHost);
+    rerender(
+      <StrictMode>
+        <GuestAttentionBannerView {...props} host={nextHost} />
+      </StrictMode>,
+    );
+    expect(nextHost).toContainElement(details);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    unmount();
+    expect(nextHost).toBeEmptyDOMElement();
+    nextHost.remove();
+    header.remove();
+  });
+
+  it("does not carry open state or focus into another project", async () => {
+    const props = { pending: 1, conflicts: [], onDismissAll: vi.fn() };
+    const { rerender } = render(
+      <GuestAttentionBannerView key="first-project" {...props} />,
+    );
+    const summary = screen.getByText("Details").closest("summary")!;
+    await userEvent.click(summary);
+    summary.focus();
+    rerender(<GuestAttentionBannerView key="second-project" {...props} />);
+    expect(screen.getByText("Details").closest("details")).not.toHaveAttribute(
+      "open",
+    );
+    expect(summary).not.toBeInTheDocument();
+    expect(screen.getByText("Details").closest("summary")).not.toHaveFocus();
+  });
+
   it("removes an open disclosure when attention disappears and starts closed next time", () => {
     const { rerender } = render(
       <GuestAttentionBannerView
@@ -93,7 +166,9 @@ describe("GuestAttentionBannerView", () => {
       />,
     );
     expandDetails();
-    expect(screen.getByText("Details").parentElement).toHaveAttribute("open");
+    expect(screen.getByText("Details").closest("details")).toHaveAttribute(
+      "open",
+    );
     rerender(
       <GuestAttentionBannerView
         pending={0}
@@ -109,7 +184,7 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.getByText("Details").parentElement).not.toHaveAttribute(
+    expect(screen.getByText("Details").closest("details")).not.toHaveAttribute(
       "open",
     );
   });

@@ -58,16 +58,4 @@ describe("shell grid areas", () => {
     }
     expect(rule(responsiveCss, ".daw-shell--phone")).toContain('"nav"');
   });
-
-  it("keeps the fixed attention panel inside all four safe-area insets", () => {
-    const panel = rule(layoutCss, ".guest-attention-details-content");
-    expect(panel).toMatch(/left:\s*env\(safe-area-inset-left\)/);
-    expect(panel).toMatch(/right:\s*env\(safe-area-inset-right\)/);
-    expect(panel).toMatch(/inset-block-start:\s*var\(--attention-panel-top\)/);
-    const maxBlockSize =
-      /max-block-size:\s*calc\(([^;]+)\)/.exec(panel)?.[1] ?? "";
-    expect(maxBlockSize).toContain("var(--attention-panel-top)");
-    expect(panel).toMatch(/margin:\s*0/);
-    expect(maxBlockSize).toContain("env(safe-area-inset-bottom)");
-  });
 });

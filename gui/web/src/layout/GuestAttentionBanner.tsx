@@ -9,7 +9,11 @@ import {
 import { useDaw } from "../state/useDaw";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
-export function GuestAttentionBanner() {
+export function GuestAttentionBanner({
+  host = null,
+}: {
+  host?: HTMLElement | null;
+}) {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const {
     pending,
@@ -26,6 +30,8 @@ export function GuestAttentionBanner() {
   const guest = isShareProjectKey(projectPath);
   return (
     <GuestAttentionBannerView
+      key={projectPath}
+      host={host}
       pending={pending}
       conflicts={conflicts}
       canDismiss={activeConflicts.length > 0}
