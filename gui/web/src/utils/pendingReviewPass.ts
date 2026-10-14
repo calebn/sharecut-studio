@@ -92,21 +92,21 @@ export type ReviewOutcome = Readonly<
       asked: false;
       count: null;
       historyHead: null;
-      held: readonly HeldCut[];
+      held?: readonly HeldCut[];
     }
   | {
       queued: false;
       asked: true;
       count: null;
       historyHead: null;
-      held: readonly HeldCut[];
+      held?: readonly HeldCut[];
     }
   | {
       queued: false;
       asked: false;
       count: number;
       historyHead: HistoryEntryId | null;
-      held: readonly HeldCut[];
+      held?: readonly HeldCut[];
     }
 >;
 
