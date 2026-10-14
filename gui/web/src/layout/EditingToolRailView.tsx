@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import type { ToolMode } from "../state/types";
 import { BottomSheet, Button, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { formatTime } from "../utils/time";
 import { HistoryControls } from "./HistoryControls";
 import type { HistoryAvailability } from "./useHistoryControls";
@@ -85,7 +86,7 @@ export function EditingToolRailView({
         ) : null}
         {bladeAllowed && toolMode === "blade" && !commentMode ? (
           <Button
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             onClick={onCutAtPlayhead}
             title="Cut selected tracks at playhead"
           >
@@ -116,10 +117,16 @@ export function EditingToolRailView({
               </p>
               <InlineError message={error} />
               <div className="blade-confirm-actions">
-                <Button disabled={busy} onClick={onCancelCut}>
+                <Button
+                  disabledReason={busy ? BUSY_REASON : undefined}
+                  onClick={onCancelCut}
+                >
                   Cancel
                 </Button>
-                <Button disabled={busy} onClick={onConfirmCut}>
+                <Button
+                  disabledReason={busy ? BUSY_REASON : undefined}
+                  onClick={onConfirmCut}
+                >
                   {busy ? "Cutting…" : "Cut"}
                 </Button>
               </div>

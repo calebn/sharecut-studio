@@ -7,6 +7,7 @@ import {
   waitForBootstrapJob,
 } from "../api";
 import { Button, Field } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 
 export type BootstrapWizardProps = {
@@ -203,11 +204,19 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
         </p>
       ) : null}
       <div className="cluster">
-        <Button variant="primary" onClick={() => void start()} disabled={busy}>
+        <Button
+          variant="primary"
+          onClick={() => void start()}
+          disabledReason={busy ? BUSY_REASON : undefined}
+        >
           {busy ? "Downloading…" : "Continue"}
         </Button>
         {onSkip ? (
-          <Button onClick={onSkip} disabled={busy} variant="link">
+          <Button
+            onClick={onSkip}
+            disabledReason={busy ? BUSY_REASON : undefined}
+            variant="link"
+          >
             Skip for now
           </Button>
         ) : null}

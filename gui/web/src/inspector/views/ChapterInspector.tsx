@@ -10,6 +10,7 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { formatTime } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
 
@@ -112,7 +113,10 @@ export function ChapterInspector({
                 disabled={busy}
                 onChange={(e) => setTimeStr(e.target.value)}
               />
-              <Button disabled={busy} onClick={() => void apply()}>
+              <Button
+                disabledReason={busy ? BUSY_REASON : undefined}
+                onClick={() => void apply()}
+              >
                 Apply
               </Button>
             </FieldRow>

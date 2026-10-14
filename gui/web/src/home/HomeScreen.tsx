@@ -7,6 +7,7 @@ import {
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { Button, Field } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { projectUrl } from "../utils/projectUrl";
 import { readLocal, writeLocal } from "../utils/storage";
@@ -194,7 +195,7 @@ export function HomeScreen() {
               </Button>
               <Button
                 type="button"
-                disabled={busy}
+                disabledReason={busy ? BUSY_REASON : undefined}
                 onClick={() => setMode("idle")}
               >
                 Cancel
@@ -226,7 +227,7 @@ export function HomeScreen() {
             <div className="cluster">
               <Button
                 type="button"
-                disabled={busy}
+                disabledReason={busy ? BUSY_REASON : undefined}
                 onClick={() => void onBrowse()}
               >
                 {busyAction === "browse" ? "Browsing…" : "Browse…"}
@@ -240,7 +241,7 @@ export function HomeScreen() {
               </Button>
               <Button
                 type="button"
-                disabled={busy}
+                disabledReason={busy ? BUSY_REASON : undefined}
                 onClick={() => setMode("idle")}
               >
                 Cancel

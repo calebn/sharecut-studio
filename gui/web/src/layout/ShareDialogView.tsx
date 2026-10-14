@@ -6,6 +6,7 @@ import {
 } from "../types/shares";
 import type { TunnelStatus } from "../types/tunnel";
 import { Button, Dialog, EmptyState, InlineConfirm, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import {
   type ShareCopiedKey,
   type ShareCopyKind,
@@ -184,7 +185,11 @@ function ShareDialogFooter({
       {createRecovery.kind === "needs_refresh" ? (
         <div className="share-dialog-recovery">
           <p role="alert">{createRecovery.message}</p>
-          <Button type="button" disabled={busy} onClick={onRefreshMix}>
+          <Button
+            type="button"
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={onRefreshMix}
+          >
             Refresh mix
           </Button>
           {createRecovery.refreshError ? (
@@ -211,7 +216,7 @@ function ShareDialogFooter({
           {reCopy ? (
             <Button
               type="button"
-              disabled={busy}
+              disabledReason={busy ? BUSY_REASON : undefined}
               onClick={() =>
                 onCopy(
                   "link",
@@ -229,7 +234,7 @@ function ShareDialogFooter({
           <Button
             variant="primary"
             type="button"
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             onClick={onCreate}
           >
             Create review link
@@ -424,7 +429,11 @@ function ShareDialogBody(props: ShareDialogViewProps) {
           </ul>
         )}
         <div className="share-dialog-section-actions">
-          <Button type="button" disabled={busy} onClick={onCreateRecord}>
+          <Button
+            type="button"
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={onCreateRecord}
+          >
             Create record links
           </Button>
         </div>
@@ -490,7 +499,7 @@ function ReviewLinkRow({
           {row.mcp_url ? (
             <Button
               type="button"
-              disabled={busy}
+              disabledReason={busy ? BUSY_REASON : undefined}
               aria-describedby={labelId}
               onClick={() => onCopy("mcp", row.token, "MCP URL", row.mcp_url)}
             >
@@ -504,7 +513,7 @@ function ReviewLinkRow({
             variant="danger"
             type="button"
             className="share-dialog-danger"
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             aria-describedby={labelId}
             onClick={onAskStop}
           >
@@ -581,7 +590,7 @@ function RecordRoomCard({
         <div className="share-dialog-row-actions share-dialog-room-actions">
           <Button
             type="button"
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             aria-describedby={labelId}
             onClick={onOpenRoomPanel}
           >
@@ -592,7 +601,7 @@ function RecordRoomCard({
             variant="danger"
             type="button"
             className="share-dialog-danger"
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             aria-describedby={labelId}
             onClick={onAskEnd}
           >
@@ -666,7 +675,7 @@ function RoomLink({
         {link?.invite_closed ? (
           <Button
             type="button"
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             onClick={() => onReplaceRecordInvite(link.token)}
           >
             {copy.replace}

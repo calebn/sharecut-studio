@@ -40,6 +40,7 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { ApiError } from "../../utils/apiError";
 import {
   findTranscriptWord,
@@ -435,7 +436,10 @@ export function TranscriptWordInspector({
                   onChange={(e) => changeEndIndex(e.target.value)}
                   title="Same as start for a single-word correct; higher for phrase"
                 />
-                <Button disabled={busy} onClick={() => void applyText()}>
+                <Button
+                  disabledReason={busy ? BUSY_REASON : undefined}
+                  onClick={() => void applyText()}
+                >
                   Apply
                 </Button>
               </FieldRow>
@@ -455,7 +459,7 @@ export function TranscriptWordInspector({
           <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>
           {editable ? (
             <Button
-              disabled={busy}
+              disabledReason={busy ? BUSY_REASON : undefined}
               onClick={() => void returnToAutomatic()}
               title={TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP}
             >

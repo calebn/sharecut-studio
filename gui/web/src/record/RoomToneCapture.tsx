@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Button } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import type { RoomToneStatus } from "./roomTone";
 import {
   ROOM_TONE_CAPTURING_COPY,
@@ -67,7 +68,11 @@ export function RoomToneCapture({
           Skip
         </Button>
         {showRetry ? (
-          <Button type="button" onClick={onRetry} disabled={busy}>
+          <Button
+            type="button"
+            onClick={onRetry}
+            disabledReason={busy ? BUSY_REASON : undefined}
+          >
             Retry
           </Button>
         ) : null}

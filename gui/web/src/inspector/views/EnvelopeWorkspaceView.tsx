@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { focusAndReveal } from "../../ui/focusAndReveal";
 import { focusHeld } from "../../ui/focusHold";
 import { isValidFocusTarget } from "../../ui/focusTarget";
@@ -182,16 +183,27 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
         )}
         {editable && !form && (
           <div className="envelope-workspace-actions">
-            <Button ref={add} disabled={busy} onClick={props.onAdd}>
+            <Button
+              ref={add}
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={props.onAdd}
+            >
               Add point
             </Button>
             {selected && (
-              <Button disabled={busy} onClick={props.onEdit}>
+              <Button
+                disabledReason={busy ? BUSY_REASON : undefined}
+                onClick={props.onEdit}
+              >
                 Edit point
               </Button>
             )}
             {selected && (
-              <Button variant="danger" disabled={busy} onClick={props.onDelete}>
+              <Button
+                variant="danger"
+                disabledReason={busy ? BUSY_REASON : undefined}
+                onClick={props.onDelete}
+              >
                 {points.length === 1
                   ? "Remove volume envelope"
                   : "Delete point"}
@@ -270,13 +282,13 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               <Button
                 type="submit"
                 variant="primary"
-                disabled={busy}
+                disabledReason={busy ? BUSY_REASON : undefined}
                 onKeyDown={cancelOnEscape}
               >
                 Save point
               </Button>
               <Button
-                disabled={busy}
+                disabledReason={busy ? BUSY_REASON : undefined}
                 onClick={props.onCancel}
                 onKeyDown={cancelOnEscape}
               >

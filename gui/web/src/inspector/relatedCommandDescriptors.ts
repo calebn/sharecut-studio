@@ -5,6 +5,8 @@ import type { ProjectView, Selection } from "../types/project";
 export type RelatedCommandDescriptor = {
   /** Related actions always honor the command catalog's availability gate. */
   respectWhen: true;
+  /** What the person reads when that gate holds the action back. */
+  whenReason: string;
 } & (
   | { commandId: "edit.copy"; args: Record<string, never> }
   | { commandId: "edit.cut"; args: { clipId: string } }
@@ -18,6 +20,7 @@ const COPY_SELECTION: RelatedCommandDescriptor = {
   commandId: "edit.copy",
   args: {},
   respectWhen: true,
+  whenReason: "Select a clip or word to copy.",
 };
 
 /**
@@ -76,6 +79,7 @@ export function moreCommandsFor(
         commandId: "edit.cut",
         args: { clipId: selection.id },
         respectWhen: true,
+        whenReason: "Select a clip to cut.",
       },
     ];
   }
@@ -89,6 +93,10 @@ export function moreCommandsFor(
         commandId,
         args: { trackId: selection.trackId },
         respectWhen: true as const,
+        whenReason:
+          commandId === "track.moveUp"
+            ? "This track is already first."
+            : "This track is already last.",
       }));
   }
   return [];

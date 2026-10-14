@@ -11,6 +11,7 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { formatTime } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
 
@@ -107,7 +108,10 @@ export function SocialClipInspector({
                 aria-label="Social clip end"
                 onChange={(e) => setEndStr(e.target.value)}
               />
-              <Button disabled={busy} onClick={() => void apply()}>
+              <Button
+                disabledReason={busy ? BUSY_REASON : undefined}
+                onClick={() => void apply()}
+              >
                 Apply
               </Button>
             </FieldRow>
