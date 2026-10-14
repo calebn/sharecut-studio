@@ -27,7 +27,11 @@ function Modes({ disabled }: { disabled?: string }) {
           key={m.id}
           quiet
           pressed={mode === m.id}
-          disabled={disabled === m.id}
+          disabledReason={
+            disabled === m.id
+              ? `${m.label} is unavailable in this example.`
+              : undefined
+          }
           onClick={() => setMode(m.id)}
         >
           {m.label}

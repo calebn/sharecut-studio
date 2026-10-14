@@ -98,7 +98,6 @@ export function RecordPanel({
 }: Props) {
   const micHintId = useId();
   const blockersId = useId();
-  const landReasonId = useId();
   const {
     recordPanelOpen,
     setRecordPanelOpen,
@@ -488,7 +487,13 @@ export function RecordPanel({
                 <Button
                   type="button"
                   onClick={onRetryKeeper}
-                  disabled={!recording}
+                  disabledReason={
+                    recording
+                      ? undefined
+                      : paused
+                        ? "Resume the take to retry full-quality recording."
+                        : "Start a new take to retry full-quality recording."
+                  }
                 >
                   Retry full-quality recording
                 </Button>
@@ -589,7 +594,11 @@ export function RecordPanel({
                 variant={
                   control.commandId === "record.pause" ? "default" : "primary"
                 }
-                disabled={startBlocked}
+                disabledReason={
+                  startBlocked
+                    ? "Resolve the items listed below to start."
+                    : undefined
+                }
                 aria-disabled={transportBusy || undefined}
                 aria-describedby={startBlocked ? blockersId : undefined}
                 onClick={() => runCommand(control.commandId)}
@@ -598,9 +607,8 @@ export function RecordPanel({
               </Button>
               {land ? (
                 <Button
-                  disabled={!land.enabled}
+                  disabledReason={land.enabled ? undefined : land.reason}
                   aria-disabled={transportBusy || undefined}
-                  aria-describedby={land.enabled ? undefined : landReasonId}
                   onClick={() => runCommand("record.land")}
                 >
                   {land.label}
@@ -626,9 +634,7 @@ export function RecordPanel({
             ) : null}
             {doneNotice ? <p className="record-hint">{doneNotice}</p> : null}
             {land && !land.enabled ? (
-              <p id={landReasonId} className="record-hint">
-                {land.reason}
-              </p>
+              <p className="record-hint">{land.reason}</p>
             ) : null}
             {control.stop ? (
               <StopTakeControl

@@ -133,7 +133,13 @@ export function Room({
               <Button
                 type="button"
                 onClick={onRetryKeeper}
-                disabled={snapshot.state !== "recording"}
+                disabledReason={
+                  snapshot.state === "recording"
+                    ? undefined
+                    : snapshot.state === "paused"
+                      ? "Ask the host to resume the take to retry full-quality recording."
+                      : "Ask the host to start a new take to retry full-quality recording."
+                }
               >
                 Retry full-quality recording
               </Button>
@@ -191,7 +197,11 @@ export function Room({
       <Button
         type="button"
         onClick={onLeave}
-        disabled={leaveHeld}
+        disabledReason={
+          leaveHeld
+            ? "Keep this tab open until your recording is saved."
+            : undefined
+        }
         aria-describedby={leaveHeld ? UPLOAD_STATUS_ID : undefined}
       >
         Leave

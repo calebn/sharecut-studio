@@ -189,7 +189,13 @@ export function HomeScreen() {
               <Button
                 type="submit"
                 variant="primary"
-                disabled={busy || !dir.trim()}
+                disabledReason={
+                  busy
+                    ? BUSY_REASON
+                    : !dir.trim()
+                      ? "Enter a workspace directory to create."
+                      : undefined
+                }
               >
                 {busyAction === "create" ? "Creating…" : "Create"}
               </Button>
@@ -235,7 +241,13 @@ export function HomeScreen() {
               <Button
                 type="submit"
                 variant="primary"
-                disabled={busy || !path.trim()}
+                disabledReason={
+                  busy
+                    ? BUSY_REASON
+                    : !path.trim()
+                      ? "Enter a project file path to open."
+                      : undefined
+                }
               >
                 {busyAction === "open" ? "Opening…" : "Open"}
               </Button>

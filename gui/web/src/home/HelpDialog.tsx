@@ -208,11 +208,16 @@ export function HelpDialog({ open, onClose }: Props) {
             {reportAvailable ? (
               <Button
                 type="button"
-                disabled={
-                  busy ||
-                  !!submitted ||
-                  !consent ||
-                  description.trim().length < 10
+                disabledReason={
+                  busy
+                    ? BUSY_REASON
+                    : submitted
+                      ? "This report is already submitted."
+                      : description.trim().length < 10
+                        ? "Describe the problem in at least 10 characters to submit."
+                        : !consent
+                          ? "Agree to the upload to submit."
+                          : undefined
                 }
                 onClick={() => void onSubmit()}
               >

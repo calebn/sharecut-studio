@@ -64,7 +64,6 @@ describe("InspectorSeekFooterView", () => {
         onPlay={vi.fn()}
         previewMode="current"
         onPreviewModeChange={vi.fn()}
-        suggestDisabled
         suggestDisabledReason={reason}
       />,
     );
@@ -72,10 +71,8 @@ describe("InspectorSeekFooterView", () => {
     const ab = screen.getByRole("button", { name: "A/B" });
     expect(suggested).toBeDisabled();
     expect(ab).toBeDisabled();
-    const reasonEl = screen.getByText(reason);
-    expect(reasonEl.id).not.toBe("");
-    expect(suggested).toHaveAttribute("aria-describedby", reasonEl.id);
-    expect(ab).toHaveAttribute("aria-describedby", reasonEl.id);
+    expect(suggested).toHaveAccessibleDescription(reason);
+    expect(ab).toHaveAccessibleDescription(reason);
     expect(suggested).toHaveAttribute("title", reason);
     expect(ab).toHaveAttribute("title", reason);
     expect(screen.getByRole("button", { name: "Current" })).toBeEnabled();
@@ -88,7 +85,6 @@ describe("InspectorSeekFooterView", () => {
       onPlay: vi.fn(),
       previewMode: "current",
       onPreviewModeChange: vi.fn(),
-      suggestDisabled: true,
       suggestDisabledReason: reason,
     };
     const { container } = render(
@@ -97,11 +93,12 @@ describe("InspectorSeekFooterView", () => {
         <InspectorSeekFooterView {...props} />
       </>,
     );
-    const [first, second] = screen.getAllByText(reason);
-    expect(first.id).not.toBe(second.id);
     const suggested = screen.getAllByRole("button", { name: "Suggested" });
-    expect(suggested[0]).toHaveAttribute("aria-describedby", first.id);
-    expect(suggested[1]).toHaveAttribute("aria-describedby", second.id);
+    const firstId = suggested[0].getAttribute("aria-describedby");
+    const secondId = suggested[1].getAttribute("aria-describedby");
+    expect(firstId).not.toBe(secondId);
+    expect(suggested[0]).toHaveAccessibleDescription(reason);
+    expect(suggested[1]).toHaveAccessibleDescription(reason);
     await expectNoA11yViolations(container);
   });
 
@@ -110,7 +107,6 @@ describe("InspectorSeekFooterView", () => {
       <InspectorSeekFooterView
         onSeek={vi.fn()}
         onPlay={vi.fn()}
-        suggestDisabled
         suggestDisabledReason="A split does not change the mix until you delete a side."
       />,
     );
@@ -143,7 +139,6 @@ describe("InspectorSeekFooterView", () => {
       <InspectorSeekFooterView
         onSeek={vi.fn()}
         onPlay={vi.fn()}
-        playDisabled
         playDisabledReason="Guests listen in Mix"
       />,
     );

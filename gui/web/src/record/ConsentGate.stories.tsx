@@ -31,7 +31,7 @@ const meta: Meta<typeof ConsentGate> = {
   ],
   render: (args) => (
     <>
-      {args.canAccept === false
+      {args.acceptDisabledReason
         ? (args.acceptDescribedBy ?? "")
             .split(" ")
             .filter((id) => id in BLOCKER_COPY)
@@ -53,7 +53,9 @@ const expectBlocked: Story["play"] = async ({ canvasElement, args }) => {
   const accept = within(canvasElement).getByRole("button", { name: "Accept" });
   const ids = (args.acceptDescribedBy ?? "").split(" ");
   await expect(accept).toBeDisabled();
-  await expect(accept).toHaveAttribute("aria-describedby", ids.join(" "));
+  await expect(accept.getAttribute("aria-describedby")).toContain(
+    ids.join(" "),
+  );
   for (const id of ids) {
     await expect(canvasElement.querySelector(`[id="${id}"]`)).toHaveTextContent(
       BLOCKER_COPY[id],
@@ -65,7 +67,7 @@ export const Default: Story = {};
 
 export const CannotAccept: Story = {
   args: {
-    canAccept: false,
+    acceptDisabledReason: ROOM_TONE_GATE_COPY,
     acceptDescribedBy: "consent-blocker-room-tone",
   },
   play: expectBlocked,
@@ -81,7 +83,7 @@ export const CannotAccept: Story = {
 
 export const MultipleBlockers: Story = {
   args: {
-    canAccept: false,
+    acceptDisabledReason: "Allow the microphone to accept.",
     acceptDescribedBy: "consent-blockers-mic consent-blockers-room-tone",
   },
   play: expectBlocked,

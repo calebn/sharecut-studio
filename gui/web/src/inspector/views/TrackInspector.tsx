@@ -133,8 +133,7 @@ export function TrackInspector({
         <InspectorSeekFooterView
           seekLabel="Go to start"
           playLabel="Preview effects at track start"
-          playDisabled={mixOnly}
-          playDisabledReason={GUESTS_HEAR_FULL_MIX}
+          playDisabledReason={mixOnly ? GUESTS_HEAR_FULL_MIX : undefined}
           onSeek={() => setPlayheadSec(0)}
           onPlay={playFxAround}
         />

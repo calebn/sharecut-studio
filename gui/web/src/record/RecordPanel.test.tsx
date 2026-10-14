@@ -170,7 +170,7 @@ describe("RecordPanel", () => {
     expect(start).toBeDisabled();
     await waitFor(() =>
       expect(start).toHaveAccessibleDescription(
-        "No guest has joined yet. Send them the guest link. Copy guest link",
+        "No guest has joined yet. Send them the guest link. Copy guest link Resolve the items listed below to start.",
       ),
     );
     expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
@@ -197,7 +197,9 @@ describe("RecordPanel", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Start" }),
-      ).toHaveAccessibleDescription("Waiting for Ava to accept recording."),
+      ).toHaveAccessibleDescription(
+        "Waiting for Ava to accept recording. Resolve the items listed below to start.",
+      ),
     );
     expect(
       screen.queryByRole("button", { name: "Copy guest link" }),
@@ -651,7 +653,7 @@ describe("RecordPanel", () => {
     expect(start).toBeDisabled();
     await waitFor(() =>
       expect(start).toHaveAccessibleDescription(
-        "Recording room tone. Start is available when it finishes.",
+        "Recording room tone. Start is available when it finishes. Resolve the items listed below to start.",
       ),
     );
   });

@@ -25,13 +25,17 @@ describe("ConsentGate", () => {
       <ConsentGate
         onAccept={() => undefined}
         onDecline={() => undefined}
-        canAccept={false}
+        acceptDisabledReason="Allow the microphone to accept."
         acceptDescribedBy="grant-hint"
       />,
     );
     const accept = screen.getByRole("button", { name: "Accept" });
     expect(accept).toBeDisabled();
-    expect(accept).toHaveAttribute("aria-describedby", "grant-hint");
+    expect(accept).toHaveAttribute("title", "Allow the microphone to accept.");
+    expect(accept).toHaveAccessibleDescription(
+      /Allow the microphone to accept\./,
+    );
+    expect(accept.getAttribute("aria-describedby")).toMatch(/^grant-hint /);
   });
 
   it("labels each instance by its own heading", () => {

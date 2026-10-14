@@ -83,9 +83,7 @@ describe("RoomToneCapture", () => {
     );
     const record = screen.getByRole("button", { name: "Record room tone" });
     expect(record).toBeDisabled();
-    const described = record.getAttribute("aria-describedby");
-    expect(described).toBeTruthy();
-    expect(container.querySelector(`#${described}`)).toHaveTextContent(
+    expect(record).toHaveAccessibleDescription(
       "Allow the microphone before recording room tone.",
     );
     await expectNoA11yViolations(container);
@@ -103,7 +101,9 @@ describe("RoomToneCapture", () => {
         onRetry={() => undefined}
       />,
     );
-    expect(screen.getByText(ROOM_TONE_NOT_READY_COPY)).toBeInTheDocument();
+    expect(
+      screen.getAllByText(ROOM_TONE_NOT_READY_COPY)[0],
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Record room tone" }),
     ).toBeDisabled();

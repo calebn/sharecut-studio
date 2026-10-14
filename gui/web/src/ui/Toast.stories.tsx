@@ -3,6 +3,7 @@ import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { Button } from "./Button";
+import { BUSY_REASON } from "./disabledReason";
 import { Toast, type ToastState } from "./Toast";
 
 const MESSAGE = "Resolved comment at 00:12";
@@ -13,7 +14,7 @@ function ToastPreview({
 }: {
   onUndo?: () => void;
   onDismiss: () => void;
-  undoDisabled?: boolean;
+  undoDisabledReason?: string;
   message?: string;
 }) {
   const [toast, setToast] = useState<ToastState | null>({ id: 1, message });
@@ -86,7 +87,7 @@ export const UndoAndDismiss: Story = {
 };
 
 export const UndoUnavailable: Story = {
-  args: { undoDisabled: true },
+  args: { undoDisabledReason: BUSY_REASON },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const status = canvas.getByRole("status");
