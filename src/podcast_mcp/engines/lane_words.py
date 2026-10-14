@@ -73,7 +73,8 @@ class LaneTranscript:
 
         One offset for the whole word: a word ending at a cut keeps its length instead
         of reading its end through the next clip. The clip is the longest one playing
-        the word's start, else the longest one overlapping the word. A word no clip
+        the word's start, else the longest one overlapping the word, and only the part
+        of the word that clip plays counts. A word no clip
         plays has no session time (``None``); a lane with no clips reads the source
         clock as the session clock.
         """
@@ -84,8 +85,8 @@ class LaneTranscript:
         ]
         if not playing:
             return None
-        offset = max(playing, key=lambda p: p.length).offset
-        return start + offset, end + offset
+        clip = max(playing, key=lambda p: p.length)
+        return max(start, clip.source_start) + clip.offset, min(end, clip.source_end) + clip.offset
 
 
 def lane_transcripts(project: EpisodeProject, track_id: str) -> list[LaneTranscript]:
