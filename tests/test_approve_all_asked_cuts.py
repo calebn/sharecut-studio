@@ -71,3 +71,26 @@ def test_a_cut_beside_the_asked_one_keeps_the_whole_batch_asking(tmp_path, monke
     assert reply["unchanged"] is True
     assert "count" not in reply
     assert ws.project.model_dump(mode="json") == before
+
+
+def test_a_cut_overlapping_the_asked_one_on_the_timeline_keeps_the_batch_asking(
+    tmp_path, monkeypatch
+):
+    # Different tracks can shift source time, so closeness is judged on the timeline too.
+    from podcast_mcp.edits import decisions
+
+    result, asked = _with_plain_cut(tmp_path, monkeypatch)
+    monkeypatch.setattr(decisions, "_near", lambda *_a, **_k: False)
+    real = decisions.edit_timeline_range
+    monkeypatch.setattr(
+        decisions,
+        "edit_timeline_range",
+        lambda project, edit, *a, **k: (
+            (1.0, 1.4) if edit.id == "plain" else real(project, edit, *a, **k)
+        ),
+    )
+    ws = workspace(result)
+
+    reply = approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
+
+    assert reply["unchanged"] is True

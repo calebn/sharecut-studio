@@ -171,6 +171,15 @@ def _near(a: SourceExtent, b: SourceExtent, gap: float = 0.5) -> bool:
     return a.start - gap <= b.end and b.start - gap <= a.end
 
 
+def _near_on_timeline(
+    a: tuple[float, float] | None, b: tuple[float, float] | None, gap: float = 0.5
+) -> bool:
+    """Whether two timeline spans overlap or sit within ``gap`` seconds; unmapped counts as near."""
+    if a is None or b is None:
+        return True
+    return a[0] - gap <= b[1] and b[0] - gap <= a[1]
+
+
 def _source_extents(removes: list[EditDecision]) -> tuple[SourceExtent, ...]:
     return tuple(SourceExtent(e.track_id, e.start, e.end) for e in removes)
 
@@ -296,6 +305,9 @@ def approve_edits(
     partial = held_out is not None
     # Named before any ripple moves anything, so a held cut reads as the list shows it.
     labels = {e.id: cut_label(project, e) for e in removes}
+    # Where each cut sits on the timeline before anything ripples: another track's clip can
+    # shift its source time, so two cuts that overlap there need not be near in source time.
+    on_timeline = {e.id: edit_timeline_range(project, e) for e in removes}
     asked: list[CutSpeechConfirmation] = []
     asked_ids: list[str] = []
     held: list[CutScopeHold] = []
@@ -337,10 +349,11 @@ def approve_edits(
         applied_removes.append(edit.id)
     # An applied cut beside a left-pending one may have cleared speech on the assumption
     # that the other removes it: then nothing applies on a guess, as before.
+    left_pending = (*asked_ids, *(h.edit_id for h in held))
     leaned_on = any(
-        _near(extents[a], extents[x])
+        _near(extents[a], extents[x]) or _near_on_timeline(on_timeline[a], on_timeline[x])
         for a in applied_removes
-        for x in (*asked_ids, *(h.edit_id for h in held))
+        for x in left_pending
     )
     if asked:
         confirmation = confirmation_for(merge_cut_speech([a.speech for a in asked]))
