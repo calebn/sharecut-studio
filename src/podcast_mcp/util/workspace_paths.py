@@ -15,9 +15,10 @@ def resolve_within(root: Path, stored: str, *, base: Path | None = None) -> Path
     followed before the check, so a link that points outside *root* is rejected.
     *root* itself is resolved too, so a symlinked root directory still works.
     Raises ``ValueError`` when the resolved path escapes *root*. Inside a
-    :func:`~podcast_mcp.util.batch_scope.batch_scope` a repeat call returns the first result. The message
-    includes *stored* (possibly an absolute host path); guest-facing callers must
-    catch it and raise a scrubbed message (see ``edits/review_versions._resolve_review_media``).
+    :func:`~podcast_mcp.util.batch_scope.batch_scope` a repeat call returns the
+    first result. The message includes *stored* (possibly an absolute host
+    path); guest-facing callers must catch it and raise a scrubbed message (see
+    ``edits/review_versions._resolve_review_media``).
     """
     return scoped(
         ("resolve_within", root, stored, base), lambda: _resolve_within(root, stored, base)
