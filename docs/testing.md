@@ -32,7 +32,7 @@ browser matrix dimension by the distinct failure it can catch. Keep broad
 exploratory sweeps and deliberate faults in PR evidence unless a case protects
 a distinct important regression.
 
-`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in parallel with a `frontend` job for Sharecut Studio (`gui/web`).
+`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in parallel with a `frontend-suite` job for Sharecut Studio (`gui/web`).
 
 Hang protection: `pytest-timeout` (`--timeout=60` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server — Starlette `TestClient` nested sockets can deadlock.
 
@@ -186,7 +186,7 @@ lockfile location needs a new `updates` entry in the same change. Workflow and
 Dependabot YAML contract tests load files through `tests/github_yaml.py`
 (`load_github_yaml`), which restores the `on:` key PyYAML 1.1 parses as `True`.
 
-The `frontend` job in `.github/workflows/test.yml` runs `npm audit --omit=dev
+The `frontend-suite` job in `.github/workflows/test.yml` runs `npm audit --omit=dev
 --audit-level=high` right after `npm ci`. It is advisory only (`continue-on-error:
 true`) — the required `frontend` check does not block on upstream advisory timing,
 and Dependabot opens the fix PRs. When the audit fails, the next step writes a
@@ -220,7 +220,7 @@ GitHub Actions runs the required checks on every pull request and the full suite
 
 `scripts/ci_plan.py` decides, and `test.yml` reads only its output:
 
-| Run | `pytest` | `frontend` (Vitest) | Browser suites (`frontend-e2e-suites`) |
+| Run | `pytest` | Frontend workload (`frontend-suite`) | Browser suites (`frontend-e2e-suites`) |
 |---|---|---|---|
 | PR with no GUI-facing change | full suite, 95% floor | skipped | skipped |
 | PR with a GUI-facing change | full suite, 95% floor | runs | `main-1of4` … `main-4of4`, then every WebKit compat spec as `compat-webkit-1of2` and `compat-webkit-2of2` |
@@ -235,8 +235,20 @@ A web-only or docs-only diff cannot move Python coverage, so every PR that chang
 The required checks report on every PR:
 
 - `pytest` plans its own scope in a step, so it never skips.
-- `frontend` and the browser matrix skip at job level from the `changes` job, and a skipped job counts as passing.
-- The required `frontend-e2e` aggregate fails unless `changes` succeeded and the browser suites either succeeded or were skipped by the plan. A failed `changes` job therefore blocks the PR instead of leaving `frontend` skipped and green.
+- `frontend-suite` and the browser matrix skip at job level only when the `changes` job does not request GUI work.
+- The required `frontend` and `frontend-e2e` aggregates always run. Both use the same fail-closed contract over the planner result, its exact `gui` output, and the corresponding workload result:
+
+| Planner result | `gui` output | Workload result | Required aggregate result |
+|---|---|---|---|
+| `success` | `true` | `success` | `success` |
+| `success` | `false` | `skipped` | `success` |
+| Any other combination | | | `failure` |
+
+Missing, failed, cancelled, or skipped planners, malformed GUI flags, failed or
+cancelled workloads, and unexpected skips therefore block the required aggregate.
+The repository merge helper still requires literal `SUCCESS` from `pytest`,
+`frontend`, `frontend-e2e`, and `gitleaks-history` on the exact PR head. It rejects
+missing contexts, arbitrary `SKIPPED` checks, API errors, and moved heads.
 - `gitleaks-history` runs on every PR in `secret-scan.yml`.
 
 Regressions in skipped areas surface on the next `main` push or nightly run. Check the nightly `test` run before trusting `main`.
@@ -1410,10 +1422,10 @@ pushes to `main`, nightly and on `workflow_dispatch`. On pull requests the
 
 | Job | What |
 |-----|------|
-| `changes` | Not a required check. Runs `scripts/ci_plan.py plan` and hands `frontend` and the browser matrix their plan; `frontend-e2e` fails when it does not succeed. |
+| `changes` | Not a required check. Runs `scripts/ci_plan.py plan` and hands `frontend-suite` and the browser matrix their plan; both required frontend aggregates fail when it does not succeed. |
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate). On a PR that changes only `gui/web/`, or only docs, it runs only the test files that read those paths, without coverage. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The full `pytest` job stays on 3.12; a local 3.11 venv reproduces the gap. |
-| `frontend` | In `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
+| `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
 | `frontend-e2e-suites` → `frontend-e2e` | On `main`, nightly and dispatch, six matrix jobs build Sharecut Studio and install only their declared browser engine with Playwright `--with-deps`: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest follow banner (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs the four main shards and `compat-webkit-1of2` / `compat-webkit-2of2` instead of the two compat engines. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `compat-webkit-1of2` or `compat-webkit-2of2` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Both artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home load `/?home=1`. |
 
 First-attempt PR runs of `test.yml` share a concurrency group by workflow and

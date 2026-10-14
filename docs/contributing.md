@@ -226,7 +226,10 @@ and decides:
 
 `main`, the nightly schedule and `workflow_dispatch` run everything, with the
 95% coverage floor and both compat engines. The required checks still report
-on every PR, and a skipped job counts as passing. See
+on every PR. The required `frontend` and `frontend-e2e` aggregates succeed only
+when the planner succeeded and each workload either succeeded for `gui=true` or
+was skipped for `gui=false`. The merge helper requires all four literal required
+checks to report `SUCCESS` on the exact head. See
 [testing.md § Which jobs a run needs](testing.md#which-jobs-a-run-needs).
 
 - **New directory.** A new top-level directory, or a new `src/podcast_mcp`
