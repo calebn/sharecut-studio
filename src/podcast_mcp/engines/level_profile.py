@@ -8,8 +8,8 @@ gain. Thresholds are offsets from those, so the same recording at any level gets
 answers. ``scripts/check_level_literals.py`` keeps absolute levels out of the detectors.
 See docs/audio-engineering.md § Detection levels.
 
-A track's profile is measured once per audio file revision (:func:`file_level_profile`)
-and passed to every stage that reads the file.
+A track's profile is measured once per audio file revision and sample rate
+(:func:`file_level_profile`) and passed to every stage that reads the file at that rate.
 """
 
 from __future__ import annotations
@@ -225,26 +225,36 @@ def track_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
     return level_profile(samples, sample_rate, whole_track=True) or SILENT
 
 
-_FILE_PROFILES: dict[tuple[str, FileRevision], LevelProfile] = {}
+_FILE_PROFILES: dict[tuple[str, FileRevision, int], LevelProfile] = {}
 _FILE_PROFILES_LOCK = threading.Lock()
 
 
-def file_level_profile(path: Path, samples: np.ndarray | None = None) -> LevelProfile:
-    """The whole-track profile of the audio file at ``path``, measured once per file revision.
+def file_level_profile(
+    path: Path,
+    samples: np.ndarray | None = None,
+    *,
+    sample_rate: int = PROFILE_SAMPLE_RATE,
+    levels: np.ndarray | None = None,
+) -> LevelProfile:
+    """The whole-track profile of the audio file at ``path``, measured once per file revision and rate.
 
-    Read from its mono audio at ``PROFILE_SAMPLE_RATE``; ``samples`` are that audio when
-    the caller has already decoded it. Every stage that reads the file reads this one
-    profile, whatever rate it decodes at itself.
+    Read from its mono audio at ``sample_rate``: a floor is measured at the rate of the
+    frames it is compared with, since band-limiting a track lowers its room tone (white
+    room tone reads about 3.5 dB lower at 8 kHz than at 16 kHz) more than its voice.
+    ``samples`` are that audio, or ``levels`` its :func:`frame_levels_db`, when the caller
+    has already decoded it.
     """
     resolved = path.resolve()
-    key = (str(resolved), file_revision(resolved))
+    key = (str(resolved), file_revision(resolved), int(sample_rate))
     with _FILE_PROFILES_LOCK:
         known = _FILE_PROFILES.get(key)
     if known is not None:
         return known
-    if samples is None:
-        samples = load_mono_full(resolved, sample_rate=PROFILE_SAMPLE_RATE)
-    profile = track_profile(samples, PROFILE_SAMPLE_RATE)
+    if levels is None:
+        if samples is None:
+            samples = load_mono_full(resolved, sample_rate=sample_rate)
+        levels = frame_levels_db(samples, sample_rate)
+    profile = profile_from_levels(levels, whole_track=True) or SILENT
     with _FILE_PROFILES_LOCK:
         _FILE_PROFILES[key] = profile
     return profile

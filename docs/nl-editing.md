@@ -32,7 +32,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `delete_clips_tool` | Delete whole clips by id (`clip_ids`). `mode="gap"` (default) leaves a gap; `mode="ripple"` closes the clips' span on every dialogue track, and speech outside the deleted clips (another track's, or an unselected clip's) returns `needs_confirmation` until `confirm_cut_speech=true`. Same `DeleteClip` as the Studio clip Delete / Ripple delete |
 | `roll_clip_join_tool` | Roll the join between two neighbouring clips that abut (touch within the join tolerance, `clips_abut`; across a gap the call is refused with `roll_needs_abutting_clips` and nothing changes) by `delta_sec` source seconds (positive is later); the pair keeps its length so later clips stay put. Reads the boundary token, then submits `RollClipJoin` like the Studio roll seam; a join that changed meanwhile is a conflict |
 | `insert_gap_tool` | Open space on the timeline (splits straddling clips, then shifts later media) |
-| `strip_silence_tool` | Per-track silence stripping: silence is audio under the track's own voice floor plus `over_voice_floor_db` (default 0) |
+| `strip_silence_tool` | Per-track silence stripping: silence is a run of 10 ms frames (16 kHz) under the track's own voice floor plus `over_voice_floor_db` (default 0); a track with no live audio is silence end to end |
 | `shorten_gaps_tool` | Tighten inter-word pauses on every dialogue track; another speaker talking in a pause asks first (`confirm_cut_speech`) |
 | `fade_joins_tool` | Declick butt-splice fades at clip joins (default dialogue mode) |
 | `crossfade_joins_tool` | Opt-in overlapping crossfade at joins (music / explicit blend) |
