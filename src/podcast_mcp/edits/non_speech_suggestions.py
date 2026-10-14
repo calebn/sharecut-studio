@@ -10,9 +10,9 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import NamedTuple
 
-from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason, is_likely_laugh_reason
-from podcast_mcp.edits.tighten_hits import is_tighten_reason
 from podcast_mcp.edits.speech_energy_guard import speech_words_in
+from podcast_mcp.edits.tighten_hits import is_tighten_reason
+from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason, is_likely_laugh_reason
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EditDecision, EpisodeProject
@@ -154,9 +154,12 @@ def resolve_suggested_action(
     action = _KIND_DEFAULTS[kind].action
     if kind == NonSpeechKind.BREATH and (decision.end - decision.start) >= BREATH_SHORTEN_MIN_SEC:
         action = NonSpeechAction.SHORTEN
-    if kind in (NonSpeechKind.LAUGH, NonSpeechKind.BACKCHANNEL) and action == NonSpeechAction.LEAVE:
-        if peer_speaks_during_decision(project, decision):
-            action = NonSpeechAction.LOWER
+    if (
+        kind in (NonSpeechKind.LAUGH, NonSpeechKind.BACKCHANNEL)
+        and action == NonSpeechAction.LEAVE
+        and peer_speaks_during_decision(project, decision)
+    ):
+        action = NonSpeechAction.LOWER
     return action
 
 

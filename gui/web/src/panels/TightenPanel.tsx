@@ -182,6 +182,11 @@ export function TightenPanel() {
       ids: filtered.map((h) => h.id),
     });
   }, [avoidHarsh, filtered]);
+
+  if (!project) {
+    return null;
+  }
+
   const eligibleIds = eligibleApplyAllIds(filtered, avoidHarsh);
   const suggestedIds = suggestedActionIds(
     project.pending_edits,
@@ -200,10 +205,6 @@ export function TightenPanel() {
       ? "Nothing is eligible to apply with the current filters."
       : undefined;
   const selectedId = selection?.kind === "pending" ? selection.id : null;
-
-  if (!project) {
-    return null;
-  }
 
   const trackLabel = (id: string) =>
     project.tracks.find((t) => t.id === id)?.label ||

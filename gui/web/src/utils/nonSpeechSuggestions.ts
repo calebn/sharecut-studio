@@ -1,3 +1,4 @@
+import type { ConfirmQuestion } from "../feedback/ask";
 import type { PendingEditView } from "../types/project";
 
 export function hasSuggestedAction(edit: PendingEditView): boolean {
@@ -24,18 +25,26 @@ const ACTION_LABEL: Record<string, string> = {
   leave: "Leave",
 };
 
-export function formatSuggestedAction(action: string | undefined): string {
+export function formatSuggestedAction(
+  action: string | null | undefined,
+): string {
   if (!action) return "—";
   return ACTION_LABEL[action] ?? action;
 }
 
 export function applySuggestedSummary(count: number): {
-  question: string;
+  question: Omit<ConfirmQuestion, "kind">;
   button: string;
 } {
   const noun = count === 1 ? "hit" : "hits";
   return {
-    question: `Apply suggested actions for ${count} ${noun}?`,
+    question: {
+      title: `Apply suggested actions for ${count} ${noun}?`,
+      message: "Their cuts, shortens, or level changes go into the timeline.",
+      keepLabel: "Keep reviewing",
+      actionLabel: `Apply suggested (${count})`,
+      danger: false,
+    },
     button: `Apply suggested actions (${count})`,
   };
 }
