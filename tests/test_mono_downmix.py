@@ -12,6 +12,19 @@ from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
 
 
+def _ffmpeg_pair_available() -> bool:
+    try:
+        resolve_ffmpeg_pair()
+        return True
+    except FFmpegPairResolutionError:
+        return False
+
+
+needs_ffmpeg_pair = pytest.mark.skipif(
+    not _ffmpeg_pair_available(), reason="ffmpeg pair not available"
+)
+
+
 def test_channel_mean_pan_filter_stereo() -> None:
     assert channel_mean_pan_filter(2) == "pan=mono|c0=0.5*c0+0.5*c1"
 
@@ -21,8 +34,7 @@ def test_channel_mean_pan_filter_mono() -> None:
 
 
 def _write_dual_mono_wav(path: Path, rate: int = 8000) -> None:
-    n = rate
-    t = np.linspace(0, 1, n, endpoint=False)
+    t = np.linspace(0, 1, rate, endpoint=False)
     sig = (0.25 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
     stereo = np.column_stack([sig, sig])
     with wave.open(str(path), "w") as w:
@@ -39,11 +51,8 @@ def test_ffmpeg_mono_mean_layout_stereo_wav(tmp_path: Path) -> None:
     assert ffmpeg_mono_mean_layout(path) == ["-af", "pan=mono|c0=0.5*c0+0.5*c1"]
 
 
+@needs_ffmpeg_pair
 def test_dual_mono_cached_decode_matches_wav_window(tmp_path: Path) -> None:
-    try:
-        resolve_ffmpeg_pair()
-    except FFmpegPairResolutionError:
-        pytest.skip("ffmpeg pair not available")
     path = tmp_path / "dual.wav"
     _write_dual_mono_wav(path)
     rate = 8000
@@ -52,7 +61,6 @@ def test_dual_mono_cached_decode_matches_wav_window(tmp_path: Path) -> None:
     s0, s1 = int(0.1 * rate), int(0.3 * rate)
     w_rms = float(np.sqrt(np.mean(window**2)))
     c_rms = float(np.sqrt(np.mean(full[s0:s1] ** 2)))
-    if w_rms == 0:
-        pytest.fail("empty window")
+    assert w_rms > 0
     diff_db = 20 * np.log10(c_rms / w_rms)
     assert abs(diff_db) < 0.05

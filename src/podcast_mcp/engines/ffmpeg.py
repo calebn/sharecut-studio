@@ -524,11 +524,8 @@ class FFmpegEngine:
         ]
         seek = MediaSeek.at(start_sec or 0.0)
         argv += [*seek.input_args(), "-i", str(path), *seek.output_args(duration_sec)]
-        argv += ["-f", "f32le"]
-        if channels == 1:
-            argv += [*ffmpeg_mono_mean_layout(path), "-ar", str(sample_rate), "pipe:1"]
-        else:
-            argv += ["-ac", str(channels), "-ar", str(sample_rate), "pipe:1"]
+        layout = ffmpeg_mono_mean_layout(path) if channels == 1 else ["-ac", str(channels)]
+        argv += ["-f", "f32le", *layout, "-ar", str(sample_rate), "pipe:1"]
         return argv
 
     @staticmethod

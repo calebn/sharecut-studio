@@ -23,6 +23,7 @@ def channel_mean_pan_filter(channels: int) -> str:
 
 
 def _input_channels(path: Path) -> int:
+    # media_probe → ffmpeg imports this module; keep the probe import local.
     from podcast_mcp.engines.media_probe import probe_media
 
     probe = probe_media(path)
