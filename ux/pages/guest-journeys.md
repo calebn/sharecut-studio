@@ -51,6 +51,10 @@ host or an Editor selects the pending overlay and approves it. An Editor sees **
 History Undo restores the whole action. Disabled actions explain permissions;
 Bounce is host-only. Changed selected audio requires reselection.
 
+On a lane with multiple takes, transcript selection starts from the take shown.
+Two takes can both have word zero. A session-scoped cut can still ripple across
+matching timeline clips under the existing session policy.
+
 Phone users open Timeline and arm **Select range** on its tool rail for a touch
 drag, or use numeric In/Out and lanes (on a phone or tablet the fields sit at
 the top of the selection sheet, with **Cancel range selection** in that same
