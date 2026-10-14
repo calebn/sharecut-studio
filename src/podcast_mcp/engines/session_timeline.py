@@ -731,15 +731,25 @@ class SessionTimeline:
         return [self._map_source_span(index, start, end) for start, end in spans]
 
     def _selected_index(self, track_id: str, source_id: str | None) -> _TrackIndex | None:
-        return self._placements_index(track_id, (source_id,))
+        keys = tuple(
+            (clip.timeline_start, clip.source_start, clip.source_end)
+            for clip in self._project.clips
+            if clip.track_id == track_id and clip.source_id == source_id
+        )
+        return _build_index(keys) if keys else None
 
     def _placements_index(
         self, track_id: str, source_ids: Collection[str | None]
     ) -> _TrackIndex | None:
+        """Clips that play ``track_id``'s media (as :meth:`_index` does) under ``source_ids``.
+
+        A clip moved to another lane keeps playing its origin lane's recording.
+        """
         keys = tuple(
             (clip.timeline_start, clip.source_start, clip.source_end)
             for clip in self._project.clips
-            if clip.track_id == track_id and clip.source_id in source_ids
+            if clip.source_id in source_ids
+            and origin_track_id_for_clip(self._project, clip) == track_id
         )
         return _build_index(keys) if keys else None
 
