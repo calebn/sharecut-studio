@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, fix/issue-1441-required-frontend]
   # Nightly full run: every browser suite on both engines and the coverage floor,
   # whatever the day's PRs skipped.
   schedule:
