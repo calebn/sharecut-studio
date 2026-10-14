@@ -50,7 +50,7 @@ def rest_fetch_pull(repo: str, pr_number: int) -> dict[str, Any]:
 
 
 def rest_fetch_check_run_pages(repo: str, head_sha: str) -> list[dict[str, Any]]:
-    """GET commit check-runs with paginate and slurp."""
+    """GET /repos/{owner}/{repo}/commits/{sha}/check-runs."""
     pages = gh_json(
         "api",
         _api_path(repo, f"commits/{head_sha}/check-runs?per_page={_CHECK_RUNS_PER_PAGE}"),
@@ -63,7 +63,7 @@ def rest_fetch_check_run_pages(repo: str, head_sha: str) -> list[dict[str, Any]]
 
 
 def rest_fetch_review_comment_pages(repo: str, pr_number: int) -> list[list[dict[str, Any]]]:
-    """GET pull review comments with paginate and slurp."""
+    """GET /repos/{owner}/{repo}/pulls/{number}/comments."""
     pages = gh_json(
         "api",
         _api_path(repo, f"pulls/{pr_number}/comments?per_page={_REVIEW_COMMENTS_PER_PAGE}"),
@@ -84,7 +84,6 @@ def rest_fetch_issue(repo: str, issue_number: int) -> dict[str, Any]:
 
 
 def adapt_rest_pull(wire: dict[str, Any]) -> dict[str, Any]:
-    """Map REST pull fields to keys evaluate_gate expects."""
     head = wire.get("head")
     if not isinstance(head, dict) or not isinstance(head.get("sha"), str):
         raise RuntimeError("pull request head.sha missing")
@@ -113,7 +112,6 @@ def adapt_rest_pull(wire: dict[str, Any]) -> dict[str, Any]:
 
 
 def adapt_check_run_to_gate_row(run: dict[str, Any]) -> dict[str, str]:
-    """Map a REST check run to gate check row state."""
     name = run.get("name")
     if not isinstance(name, str):
         raise RuntimeError("check run name missing")
@@ -124,7 +122,6 @@ def adapt_check_run_to_gate_row(run: dict[str, Any]) -> dict[str, str]:
 
 
 def flatten_check_run_pages(pages: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Flatten slurped check-run pages into gate check rows."""
     rows: list[dict[str, str]] = []
     for page in pages:
         check_runs = page.get("check_runs")
