@@ -268,7 +268,7 @@ def test_source_witness_geometry_matches_with_and_without_proof_caches(
                         "applied",
                         applied,
                         _clip_geometry(project),
-                        project.edit_decisions[0].applied,
+                        len(project.edit_decisions),
                     )
 
             outcomes[(overlap, caches_enabled)] = result
@@ -277,7 +277,7 @@ def test_source_witness_geometry_matches_with_and_without_proof_caches(
             else:
                 assert result[0] == "applied"
                 assert result[1] == 1
-                assert result[3] is True
+                assert result[3] == 0
                 assert [
                     (row[3], row[4], row[5]) for row in result[2] if row[2] == "A"
                 ] == pytest.approx([(0.0, 0.1, 10.0), (0.4, 2.0, 10.1)])
