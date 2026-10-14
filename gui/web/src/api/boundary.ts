@@ -6,7 +6,7 @@ import {
   shareTokenFromKey,
 } from "../shareMode";
 import { withAbortTimeout } from "../utils/abortTimeout";
-import { readApiError } from "../utils/apiError";
+import { ApiError, readApiError, readApiFailure } from "../utils/apiError";
 import { DOCUMENT_COMMAND_TIMEOUT_MS, hostFetch } from "./documentTransport";
 
 export type BoundaryTarget =
@@ -243,21 +243,30 @@ export async function loadBoundaryContext(
     DOCUMENT_COMMAND_TIMEOUT_MS,
     timeoutMessage,
     async (requestSignal) => {
-      const response = await (guestToken ? fetch : hostFetch)(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(guestToken ? {} : { path }),
-          target,
-          expected_geometry: expectedGeometry,
-        }),
-        signal: requestSignal,
-      });
-      if (!response.ok) {
-        const message = await readApiError(response);
-        throw new Error(`${response.status} ${message}`);
+      let body: unknown;
+      try {
+        const response = await (guestToken ? fetch : hostFetch)(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(guestToken ? {} : { path }),
+            target,
+            expected_geometry: expectedGeometry,
+          }),
+          signal: requestSignal,
+        });
+        if (!response.ok) throw await readApiFailure(response);
+        body = await response.json();
+      } catch (error) {
+        if (error instanceof TypeError && !requestSignal.aborted) {
+          throw new ApiError(
+            "The boundary couldn't load. Check your connection and try again.",
+            "network_error",
+          );
+        }
+        throw error;
       }
-      const context = parseContext((await response.json()) as unknown);
+      const context = parseContext(body);
       if (!sameTarget(context.target, target))
         throw new Error("Invalid boundary response: target mismatch");
       return context;
