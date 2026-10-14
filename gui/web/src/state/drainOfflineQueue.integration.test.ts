@@ -196,6 +196,26 @@ describe("host drain against the real submit layer", () => {
       expect(ids(hostQueues.get(PATH))).toEqual(["held", "c"]);
     },
   );
+
+  it("records orphaned history as inspect-only uncertainty before later work", async () => {
+    hostQueues.set(PATH, [
+      { ...rec("undo", 1), type: "UndoHistory" },
+      rec("next", 2),
+    ]);
+    const posted = stubServer({});
+
+    await drain();
+
+    expect(posted).toEqual(["next"]);
+    expect(hostConflicts).toMatchObject([
+      {
+        command: { command_id: "undo", type: "UndoHistory" },
+        kind: "unknown",
+        recovery: "inspect-history",
+      },
+    ]);
+    expect(ids(hostQueues.get(PATH))).toEqual([]);
+  });
 });
 
 describe("guest drain against the real submit layer", () => {
@@ -270,6 +290,26 @@ describe("guest drain against the real submit layer", () => {
       expect(ids(guestQueues.get(TOKEN))).toEqual(["held", "c"]);
     },
   );
+
+  it("records orphaned history as inspect-only uncertainty before later work", async () => {
+    guestQueues.set(TOKEN, [
+      { ...rec("undo", 1), type: "UndoHistory" },
+      rec("next", 2),
+    ]);
+    const posted = stubServer({});
+
+    await drain();
+
+    expect(posted).toEqual(["next"]);
+    expect(guestConflicts).toMatchObject([
+      {
+        command: { command_id: "undo", type: "UndoHistory" },
+        kind: "unknown",
+        recovery: "inspect-history",
+      },
+    ]);
+    expect(ids(guestQueues.get(TOKEN))).toEqual([]);
+  });
 
   describe("a live edit made while older rows are queued", () => {
     it("stays queued behind a held replay, is not POSTed, and replays after it", async () => {
