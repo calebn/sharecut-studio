@@ -251,6 +251,40 @@ describe("SaveStateDot", () => {
     expect(banner).toHaveFocus();
   });
 
+  it("uses a newer volatile outcome as the latest Save failed reason", async () => {
+    const path = "/tmp/save-state-newest-volatile.json";
+    const earlier = offlineConflict({
+      kind: "unknown",
+      reason: "The earlier result was uncertain.",
+      recovery: "retry-same-command",
+      command: { command_id: "command-a" },
+    });
+    const later = offlineConflict({
+      reason: "A separate command was refused.",
+      command: { command_id: "command-b" },
+    });
+    const replacement = offlineConflict({
+      reason: "The newer result was refused.",
+      command: {
+        command_id: earlier.command.command_id,
+        client_id: earlier.command.client_id,
+        client_seq: earlier.command.client_seq,
+      },
+    });
+    offlineStore.loadHostConflicts.mockResolvedValue([earlier, later]);
+    useDawStore.getState().hydrate(path, minimalProject(), null);
+    render(<SaveStateDot />);
+    await settle();
+
+    act(() => recordVolatileOutcome(path, replacement));
+
+    expect(
+      screen.getByRole("button", {
+        name: "Save failed · The newer result was refused. Edit and submit again.",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("reveals a dismissed refusal from the failed dot and focuses its explanation", async () => {
     const refused = offlineConflict({ reason: "The clip moved." });
     const dismissed = { ...refused, dismissed: true };
