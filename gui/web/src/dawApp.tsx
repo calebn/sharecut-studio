@@ -36,7 +36,7 @@ import { selectPublishKey } from "./state/publishKey";
 import type { DawState } from "./state/types";
 import { pickDaw, useDaw } from "./state/useDaw";
 import { FollowEngine, TransportEngine } from "./TransportEngine";
-import { ErrorScreen, usePressedControl } from "./ui";
+import { usePressedControl } from "./ui";
 
 let commandsRegistered = false;
 
@@ -187,15 +187,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     </>
   );
 
-  if (bootstrapError && !hasProject) {
-    return (
-      <>
-        {engines}
-        <ErrorScreen message={bootstrapError} />
-      </>
-    );
-  }
-
   return (
     <>
       {engines}
@@ -209,7 +200,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                   onRetry: retryBootstrap,
                   recovering: true,
                 }
-              : bootstrapError && hasProject
+              : bootstrapError
                 ? { message: bootstrapError, onRetry: retryBootstrap }
                 : null
           }

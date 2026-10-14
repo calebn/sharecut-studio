@@ -125,6 +125,19 @@ describe("sequenced project bootstrap", () => {
     );
     expect(loadDocumentState).toHaveBeenCalledTimes(3);
   });
+  it("does not warm-retry when the episode was empty at bootstrap start", async () => {
+    let shellLoads = 0;
+    vi.mocked(loadDocumentState).mockImplementation(async () => {
+      shellLoads += 1;
+      throw new DOMException("The server didn't answer.", "TimeoutError");
+    });
+    const hook = renderHook(() => useProjectBootstrap("/tmp/p.json"));
+    await waitFor(() => expect(hook.result.current.error).not.toBeNull());
+    expect(hook.result.current.error).toContain("The server didn't answer.");
+    expect(shellLoads).toBe(1);
+    expect(hook.result.current.recovering).toBe(false);
+  });
+
   it("retries a warm shell load when the server is slow but the episode is open", async () => {
     const project = shell();
     useDawStore.getState().hydrate("/tmp/p.json", project);
