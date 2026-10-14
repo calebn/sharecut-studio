@@ -27,7 +27,7 @@ from podcast_mcp.gui.routes.deps import host_setup_exception_handler
 from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import load_project
-from podcast_mcp.services.remote_mcp.protocol import _is_capability_denial, _tool_failure
+from podcast_mcp.services.remote_mcp.protocol import _capability_denial, _tool_failure
 from podcast_mcp.util.coded_error import CodedError, HostSetupError
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 from podcast_mcp.util.review_privacy_error import (
@@ -251,7 +251,7 @@ def test_gui_handler_gives_a_relayed_guest_the_fixed_line(tmp_path: Path) -> Non
 
 
 def test_remote_mcp_does_not_treat_it_as_a_capability_denial(tmp_path: Path) -> None:
-    assert not _is_capability_denial(_error(tmp_path / "review"))
+    assert _capability_denial(_error(tmp_path / "review")) is None
 
 
 def _surface_tool_refusal(error: ReviewPrivacyError) -> str:
