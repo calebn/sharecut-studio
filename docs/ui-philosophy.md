@@ -34,7 +34,7 @@ mutation, and retain removed material in non-destructive history.
 
 The beta must support a local, offline project path. Failed sync and conflicts
 need visible status and a recovery action; neither may silently discard edits.
-The host's project save state ships (Saving, Saved, waiting to send, Save failed;
+The host's project save state ships as a status light (Saving, Saved, waiting to send, Save failed;
 [gui-integration.md § Project save state](gui-integration.md#project-save-state)).
 The rest are requirements for implementation, not assertions about the current
 save or conflict UI.

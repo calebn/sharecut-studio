@@ -240,36 +240,38 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(alert);
   });
 
-  it("shows Saved in Listen, and in Timeline only once a save needs the host", async () => {
+  it("shows the save light in every phone mode", async () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <MobileShell />
       </DawProvider>,
     );
-    const pill = await screen.findByText("Saved to project");
-    expect(pill.closest(".mobile-status-row")).not.toBeNull();
-    act(() => useDawStore.getState().setMobileMode("timeline"));
-    expect(container.querySelector("[data-save-state]")).toBeNull();
-    expect(
-      container.querySelector(".mobile-status-row")?.childElementCount,
-    ).toBe(0);
+    const dot = await screen.findByRole("img", { name: "Saved to project" });
+    expect(dot.closest(".mobile-status-row")).not.toBeNull();
+    for (const mode of ["timeline", "text", "more", "listen"] as const) {
+      act(() => useDawStore.getState().setMobileMode(mode));
+      expect(
+        container.querySelector(".mobile-status-row [data-save-state='saved']"),
+      ).not.toBeNull();
+    }
   });
 
-  it("says edits are not saved yet and offers Send now when they wait offline", async () => {
+  it("goes to Needs attention from the waiting light in any mode", async () => {
     offlineStore.loadHostCommandCount.mockResolvedValue(2);
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <MobileShell />
       </DawProvider>,
     );
-    const pill = await screen.findByRole("button", {
+    const dot = await screen.findByRole("button", {
       name: "Not saved yet · 2 waiting to send",
     });
-    expect(pill.closest(".mobile-status-row")).not.toBeNull();
+    expect(dot.closest(".mobile-status-row")).not.toBeNull();
     act(() => useDawStore.getState().setMobileMode("timeline"));
-    expect(
+    fireEvent.click(
       screen.getByRole("button", { name: "Not saved yet · 2 waiting to send" }),
-    ).toBeInTheDocument();
+    );
+    expect(screen.getByRole("alert")).toHaveFocus();
   });
 
   it("provides exactly one project heading in every phone mode", async () => {

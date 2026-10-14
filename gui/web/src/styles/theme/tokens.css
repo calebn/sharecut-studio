@@ -137,6 +137,11 @@
   --status-chip-height: 1.5rem;
   /* 44pt touch floor at 16px root; phone/tablet follow chrome via @container */
   --touch-min: 2.75rem;
+  /* Save-state status light: the painted dot, and the box that holds it. The
+     44pt target is the box plus padding, never the painted dot. */
+  --save-dot-size: 0.5rem;
+  --save-dot-stroke: 0.125rem;
+  --save-dot-box: 1.25rem;
   --mix-row-height: 3.5rem;
   --mix-identity-size: 1.5rem;
   --mix-volume-width: 6rem;

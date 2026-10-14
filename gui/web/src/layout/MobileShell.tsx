@@ -67,7 +67,7 @@ import {
 } from "./MobileShellView";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
-import { SaveStatePill } from "./SaveStatePill";
+import { SaveStateDot } from "./SaveStateDot";
 import { TransportBar } from "./TransportBar";
 import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
@@ -625,7 +625,7 @@ function MobileShellAdapter({
         status: (
           <>
             <RecordTransportChip />
-            <SaveStatePill quietWhenRoutine={mobileMode !== "listen"} />
+            <SaveStateDot />
             <SoloChip />
           </>
         ),

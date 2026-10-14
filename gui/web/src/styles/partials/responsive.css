@@ -288,27 +288,31 @@ html[data-shell="tablet"] {
   flex-direction: column;
 }
 
-/* The status row sticks while it carries a live recording, Solo on, or a save
-   that needs the host (waiting or failed). The pill is not drawn outside Listen
-   while saved or saving, so the row adds no height there. */
+/* The status row holds the save light, so it is always drawn. It sticks while
+   it also carries a live recording, Solo on, or a save that needs the host
+   (waiting or failed). */
 .mobile-status-row:has(
   .record-rec-chip,
   .solo-chip,
-  .save-state[data-save-state="waiting"],
-  .save-state[data-save-state="failed"]
+  .save-dot[data-save-state="waiting"],
+  .save-dot[data-save-state="failed"]
 ) {
   position: sticky;
   top: 0;
   z-index: var(--z-shell-status);
 }
 
-.mobile-status-row:has(.record-rec-chip, .solo-chip, .save-state) {
+.mobile-status-row:has(.record-rec-chip, .solo-chip, .save-dot) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: 0 var(--space-4);
   background: var(--color-bg-base);
+}
+
+.mobile-status-row:has(.record-rec-chip, .solo-chip) {
+  padding-block: var(--space-3);
 }
 
 /* The phone's two Solo on chips: the status row and the Mix sheet. */

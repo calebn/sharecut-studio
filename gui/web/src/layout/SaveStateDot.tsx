@@ -4,30 +4,18 @@ import {
   documentActivityBusy,
   subscribeDocumentActivity,
 } from "../state/documentSendOrder";
-import { requestHostDrain } from "../state/drainOfflineQueue";
-import {
-  refreshOfflineAttention,
-  useOfflineAttention,
-} from "../state/offlineAttention";
+import { useOfflineAttention } from "../state/offlineAttention";
 import { useDaw } from "../state/useDaw";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
-import { SaveStatePillView } from "./SaveStatePillView";
-import { type SaveState, saveStateOf } from "./saveState";
-
-const isRoutine = (state: SaveState) =>
-  state.kind === "saving" || state.kind === "saved";
+import { SaveStateDotView } from "./SaveStateDotView";
+import { saveStateOf } from "./saveState";
 
 /**
- * The host's project save state, from the sends this tab has in flight and the
+ * The host's project save state as a status light, from the sends this tab has in flight and the
  * offline queue and conflicts the Needs attention banner lists. Share guests
  * see none: their edits go through the review link.
  */
-export function SaveStatePill({
-  quietWhenRoutine = false,
-}: {
-  /** Show only a save that needs the host, so the row adds no height while all is well. */
-  quietWhenRoutine?: boolean;
-}) {
+export function SaveStateDot() {
   const projectPath = useDaw((s) => s.projectPath);
   const guest = isShareProjectKey(projectPath);
   const busy = useSyncExternalStore(subscribeDocumentActivity, () =>
@@ -50,15 +38,13 @@ export function SaveStatePill({
           settling: attention.settling,
         });
 
-  if (!state || (quietWhenRoutine && isRoutine(state))) return null;
+  if (!state) return null;
   return (
-    <SaveStatePillView
+    <SaveStateDotView
       state={state}
-      onSendNow={() => {
-        void requestHostDrain(projectPath);
-      }}
-      onSeeWhy={() => document.getElementById(ATTENTION_BANNER_ID)?.focus()}
-      onRetry={() => refreshOfflineAttention(projectPath)}
+      onShowAttention={() =>
+        document.getElementById(ATTENTION_BANNER_ID)?.focus()
+      }
     />
   );
 }

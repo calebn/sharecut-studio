@@ -44,29 +44,23 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
   return { kind: "saved" };
 }
 
-export const SAVE_PILL_COPY = {
+export const SAVE_DOT_COPY = {
   saving: SAVE_STATE_COPY.saving,
   saved: SAVE_STATE_COPY.saved,
   waiting: (count: number) => `Not saved yet · ${count} waiting to send`,
-  waitingTitle: "Kept on this device until it sends. Press to send now.",
-  refused: "Save failed · See why",
-  unreadable: "Save failed · Retry",
-  unreadableTitle:
-    "Saved edits could not be read on this device. Press to try again.",
+  failed: "Save failed",
 } as const;
 
-/** The pill's visible line. */
+/** The dot's accessible name and tooltip. */
 export function saveStateText(state: SaveState): string {
   switch (state.kind) {
     case "saving":
-      return SAVE_PILL_COPY.saving;
+      return SAVE_DOT_COPY.saving;
     case "saved":
-      return SAVE_PILL_COPY.saved;
+      return SAVE_DOT_COPY.saved;
     case "waiting":
-      return SAVE_PILL_COPY.waiting(state.count);
+      return SAVE_DOT_COPY.waiting(state.count);
     case "failed":
-      return state.cause === "refused"
-        ? SAVE_PILL_COPY.refused
-        : SAVE_PILL_COPY.unreadable;
+      return SAVE_DOT_COPY.failed;
   }
 }

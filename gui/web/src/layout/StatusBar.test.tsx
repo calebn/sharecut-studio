@@ -871,8 +871,10 @@ describe("StatusBar cut chip", () => {
     for (const shell of ["desktop", "tablet"] as const) {
       useDawStore.getState().setShellBreakpoint(shell);
       const view = render(<StatusBar />);
-      const pill = await screen.findByText("Saved to project");
-      expect(pill.closest("footer.status-bar")).not.toBeNull();
+      const dot = await screen.findByRole("img", {
+        name: "Saved to project",
+      });
+      expect(dot.closest("footer.status-bar")).not.toBeNull();
       view.unmount();
     }
   });
