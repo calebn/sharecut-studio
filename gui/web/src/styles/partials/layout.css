@@ -719,7 +719,15 @@ button.save-dot {
   }
 }
 
+/* The desktop/tablet status bar is --status-height tall. On a touch pointer the
+   row grows to the touch floor so the save light's 44pt target sits inside it,
+   unclipped; the sheets and toasts that anchor to the row follow the token. The
+   phone shell has no such row and keeps its own. */
 @media (pointer: coarse) {
+  html:not([data-shell="phone"]) {
+    --status-height: var(--touch-min);
+  }
+
   .status-bar .save-dot {
     block-size: var(--touch-min);
   }
