@@ -1396,6 +1396,38 @@ def test_a_missing_model_counts_only_the_acoustic_proposals_of_a_mixed_run(
     ]
 
 
+def test_a_missing_model_on_first_decode_fails_the_probe_child_short_of_total(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def transcriber(defaults: dict) -> object:
+        def transcribe(samples: np.ndarray, language: str | None) -> str:
+            raise WhisperWeightsMissingError("large-v3-turbo")
+
+        return transcribe
+
+    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+    rec = RecordingProgress()
+    decisions = _mixed_run()
+    skip_counts: dict[str, int] = {}
+
+    with bind_progress(rec), progress_task("propose-edits", "Propose", reporter=rec):
+        _flag_possible_words(
+            EpisodeProject.model_construct(),
+            {},
+            decisions,
+            {"host": _FlatCache()},
+            skip_counts,
+        )
+
+    assert skip_counts == {"word_probe:unavailable": 2}
+    child = [e for e in rec.events if e.task_id == "word-probe"]
+    assert any(e.kind == "start" and e.current == 0 and e.total == 2 for e in child)
+    assert any(e.kind == "fail" for e in child)
+    assert not any(e.kind == "end" for e in child)
+    assert not any(e.kind == "update" and e.current is not None and e.current >= 2 for e in child)
+    assert not any(e.task_id == "propose-edits" and e.kind == "fail" for e in rec.events)
+
+
 def test_a_decode_error_on_one_span_keeps_earlier_flags_and_counts_the_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
