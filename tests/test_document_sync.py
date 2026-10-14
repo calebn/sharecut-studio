@@ -3287,3 +3287,42 @@ def test_a_split_where_no_clip_plays_is_a_bad_request_not_a_conflict(minimal_pro
 
     assert not isinstance(caught.value, DocumentConflictError)
     assert caught.value.code == "no_clip_at_time"
+
+
+def test_a_retry_of_a_command_that_asked_to_confirm_carries_the_ask_again(minimal_project):
+    # A long Approve all can time out on the client; its replay is answered from the
+    # journal, which must still hold the confirmation the lost reply carried.
+    svc = DocumentSyncService.open(minimal_project)
+    ask = {"speech": {"spans": [[1.0, 2.0]], "tracks": [{"speaker": "Vicky"}]}}
+    cmd = DocumentCommand(
+        type="AddComment",
+        payload={"body": "asks", "author": "viewer", "timeline_start": 1.0},
+        client_id="c-ask",
+        role="viewer",
+        client_seq=1,
+    )
+    real = svc._apply_saving_command
+
+    def asking(*args, **kwargs):
+        return {**real(*args, **kwargs), "needs_confirmation": ask}
+
+    with patch.object(svc, "_apply_saving_command", asking):
+        first = svc.submit(cmd)
+    again = svc.submit(cmd)
+
+    assert first["needs_confirmation"] == ask
+    assert again["idempotent"] is True
+    assert again["needs_confirmation"] == ask
+
+
+def test_a_retry_of_an_ordinary_command_carries_no_ask(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    cmd = DocumentCommand(
+        type="AddComment",
+        payload={"body": "plain", "author": "viewer", "timeline_start": 1.0},
+        client_id="c-plain",
+        role="viewer",
+        client_seq=1,
+    )
+    svc.submit(cmd)
+    assert "needs_confirmation" not in svc.submit(cmd)

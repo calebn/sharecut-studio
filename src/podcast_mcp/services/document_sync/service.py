@@ -191,6 +191,17 @@ def existing_document_command(store: SyncStore, command: DocumentCommand) -> dic
     return row
 
 
+def _stored_asks(row: dict[str, Any]) -> dict[str, Any]:
+    """The confirmation a journaled command asked for, so a retry shows it again.
+
+    A command that asked to confirm changed nothing; its first reply carried the ask
+    beside the event, and a retry that lost that reply (a timeout) must get it too.
+    """
+    result = (row.get("payload") or {}).get("result")
+    ask = result.get("needs_confirmation") if isinstance(result, dict) else None
+    return {"needs_confirmation": ask} if ask is not None else {}
+
+
 def _journal_server_seq(store: SyncStore) -> int:
     return int((store.get_snapshot() or {}).get("server_seq") or 0)
 
@@ -553,6 +564,7 @@ class DocumentSyncService:
                     "snapshot": retry_snap,
                     "server_seq": existing["server_seq"],
                     "idempotent": True,
+                    **_stored_asks(existing),
                 }
                 if audience == "guest":
                     from podcast_mcp.services.collaboration import sanitize_guest_document_event

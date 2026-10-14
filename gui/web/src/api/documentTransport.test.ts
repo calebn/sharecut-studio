@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DOCUMENT_COMMAND_TIMEOUT_MS,
+  LONG_DOCUMENT_COMMAND_TIMEOUT_MS,
   postGuestDocumentCommand,
   postHostDocumentCommand,
 } from "./documentTransport";
@@ -125,5 +126,40 @@ describe("postHostDocumentCommand", () => {
     await expect(
       postHostDocumentCommand("/tmp/episode.project.json", {}),
     ).resolves.toEqual({ ok: true, data: { ok: true, server_seq: 3 } });
+  });
+});
+
+describe("long document commands", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("lets Approve all run past the ordinary minute before giving up", async () => {
+    vi.useFakeTimers();
+    const aborted = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              aborted();
+              reject(init.signal?.reason);
+            });
+          }),
+      ),
+    );
+    const pending = postHostDocumentCommand("/tmp/episode.project.json", {
+      type: "ApproveEdits",
+    });
+    const assertion = expect(pending).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    await vi.advanceTimersByTimeAsync(DOCUMENT_COMMAND_TIMEOUT_MS * 2);
+    expect(aborted).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(LONG_DOCUMENT_COMMAND_TIMEOUT_MS);
+    await assertion;
+    expect(aborted).toHaveBeenCalledTimes(1);
   });
 });
