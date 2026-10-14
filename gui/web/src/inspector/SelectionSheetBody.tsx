@@ -19,7 +19,7 @@ export function SelectionSheetBody() {
   return (
     <>
       {rangeFields ? <RangeActions sheet /> : null}
-      {rangeFields && selection == null ? null : <Inspector />}
+      {selection != null ? <Inspector /> : null}
       {rangeArmed ? null : <RelatedCommands selection={selection} />}
     </>
   );
