@@ -269,6 +269,10 @@ test.describe("Pending inspector layout", () => {
       recovery.getByRole("button", { name: "Waive with reason" }),
     ).toBeAttached();
 
+    // The refused approval lists itself in Needs attention at once, which
+    // shrinks the stage and docks the bar. Dismiss it to measure the floating bar.
+    await page.getByRole("button", { name: "Dismiss all" }).click();
+    await expect(page.getByText("Needs attention")).toHaveCount(0);
     await page.setViewportSize({ width: 1280, height: 480 });
     await expect
       .poll(() =>
