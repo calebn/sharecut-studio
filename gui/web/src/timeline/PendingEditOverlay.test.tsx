@@ -1286,7 +1286,9 @@ function mount() {
     "bottom-sheet bottom-sheet--inspector bottom-sheet--compact bottom-sheet--peek";
   const chrome = document.createElement("div");
   chrome.className = "bottom-sheet-chrome";
-  panel.append(chrome);
+  const body = document.createElement("div");
+  body.className = "bottom-sheet-body";
+  panel.append(chrome, body);
   root.append(panel);
   document.body.append(root);
   useDawStore
@@ -1315,7 +1317,7 @@ function mount() {
     />,
     { wrapper: StrictMode },
   );
-  return { root, panel, chrome, view, onReviewAction };
+  return { root, panel, chrome, body, view, onReviewAction };
 }
 async function undock(panel: HTMLElement) {
   panel.classList.remove("bottom-sheet--inspector", "bottom-sheet--compact");
@@ -1324,6 +1326,61 @@ async function undock(panel: HTMLElement) {
     expect(document.querySelector(".pending-actionbar--docked")).toBeNull(),
   );
 }
+it("keeps the same review draft and focus in body flow for compact half and full, then returns it to peek chrome", async () => {
+  const { root, panel, chrome, body, view, onReviewAction } = mount();
+  const fields = document.createElement("button");
+  fields.textContent = "Inspector field";
+  body.append(fields);
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const reason = await screen.findByRole("textbox", {
+      name: "Waiver reason",
+    });
+    await userEvent.type(reason, "Reviewed the selected source audio");
+    const host = reason.closest(".pending-actionbar-host");
+    for (const detent of ["half", "full"] as const) {
+      panel.classList.remove(
+        "bottom-sheet--peek",
+        "bottom-sheet--half",
+        "bottom-sheet--full",
+      );
+      panel.classList.add(`bottom-sheet--${detent}`);
+      await act(() => window.dispatchEvent(new Event("resize")));
+      await waitFor(() => expect(body).toContainElement(reason));
+      expect(body.firstElementChild).toBe(host);
+      expect(chrome).not.toContainElement(reason);
+      expect(reason).toHaveFocus();
+      expect(reason).toHaveValue("Reviewed the selected source audio");
+      expect(document.querySelectorAll(".pending-actionbar-host")).toHaveLength(
+        1,
+      );
+    }
+    body.remove();
+    const replacement = document.createElement("div");
+    replacement.className = "bottom-sheet-body";
+    panel.append(replacement);
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(replacement).toContainElement(reason));
+    expect(replacement.firstElementChild).toBe(host);
+    expect(reason).toHaveFocus();
+    expect(reason).toHaveValue("Reviewed the selected source audio");
+    panel.classList.replace("bottom-sheet--full", "bottom-sheet--peek");
+    await act(() => window.dispatchEvent(new Event("resize")));
+    await waitFor(() => expect(chrome).toContainElement(reason));
+    expect(reason).toHaveFocus();
+    expect(reason).toHaveValue("Reviewed the selected source audio");
+    expect(onReviewAction).toHaveBeenCalledTimes(1);
+    view.unmount();
+    expect(document.querySelector(".pending-actionbar-host")).toBeNull();
+  } finally {
+    view.unmount();
+    root.remove();
+  }
+});
+
 it("retains a waiver draft and textarea focus when the portal destination changes", async () => {
   const { root, panel, chrome, view } = mount();
   try {

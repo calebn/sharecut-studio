@@ -639,11 +639,14 @@ function PendingEditRegion({
       actionbarHost.remove();
       return;
     }
-    const destination = docked
-      ? (inspectorSheetPanel()?.querySelector<HTMLElement>(
-          ".bottom-sheet-chrome",
-        ) ?? document.body)
-      : document.body;
+    const sheet = docked ? inspectorSheetPanel() : null;
+    const inBody = sheet?.matches(
+      ".bottom-sheet--compact:is(.bottom-sheet--half, .bottom-sheet--full)",
+    );
+    const destination =
+      sheet?.querySelector<HTMLElement>(
+        inBody ? ".bottom-sheet-body" : ".bottom-sheet-chrome",
+      ) ?? document.body;
     if (actionbarHost.parentElement === destination) return;
     const active = document.activeElement;
     const focusedInHost =
@@ -657,7 +660,9 @@ function PendingEditRegion({
         : null;
     const restore =
       focusedInHost ?? (destination !== document.body ? remembered : null);
-    destination.append(actionbarHost);
+    if (inBody && destination !== document.body)
+      destination.prepend(actionbarHost);
+    else destination.append(actionbarHost);
     if (restore?.isConnected) restore.focus({ preventScroll: true });
   });
 
