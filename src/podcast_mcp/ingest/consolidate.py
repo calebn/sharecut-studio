@@ -15,7 +15,6 @@ from podcast_mcp.engines.alignment_audit import (
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.session_clock import (
-    estimate_session_start_in_file,
     file_time_for_session,
 )
 from podcast_mcp.engines.transcript_align import (
@@ -137,34 +136,18 @@ def _resolve_cross_speaker_offsets(
 def _resolve_session_starts(
     groups: list[tuple[str, list[Path]]],
     manifest: IngestManifest,
-    *,
-    session_hint_sec: float,
 ) -> dict[str, float]:
-    """Map each speaker to file timestamp where session t=0 begins."""
+    """Map each speaker to the file timestamp where session t=0 begins.
+
+    The manifest's ``session_start_in_file_sec`` when given, else 0.0. Speech onsets
+    of two different speakers are not the same event, so nothing is guessed from
+    them; ``podcast ingest suggest`` sweeps candidates and anchors fine-tune.
+    """
     ref_name = manifest.reference_speaker_name()
-    ref_path: Path | None = None
-    starts: dict[str, float] = {}
+    if not any(name == ref_name and paths for name, paths in groups):
+        return {}
     manual = {g.name: g.session_start_in_file_sec for g in manifest.speakers}
-    for name, paths in groups:
-        if name == ref_name and paths:
-            ref_path = paths[0]
-            break
-    if ref_path is None:
-        return starts
-    starts[ref_name] = manual.get(ref_name) or 0.0
-    for name, paths in groups:
-        if not paths or name == ref_name:
-            continue
-        manual_start = manual.get(name)
-        if manual_start is not None:
-            starts[name] = manual_start
-            continue
-        starts[name] = estimate_session_start_in_file(
-            ref_path,
-            paths[0],
-            session_hint_sec=session_hint_sec,
-        )
-    return starts
+    return {name: manual.get(name) or 0.0 for name, paths in groups if paths}
 
 
 def consolidate_speakers(
@@ -190,8 +173,7 @@ def consolidate_speakers(
     session_analysis_start = (
         extract_start_sec if extract_start_sec is not None else analysis_start_sec
     )
-    hint = manifest.session_hint_sec(extract_start_sec)
-    session_starts = _resolve_session_starts(groups, manifest, session_hint_sec=hint)
+    session_starts = _resolve_session_starts(groups, manifest)
     cross_offsets, align_methods, overlap_sec, _corr_peaks = _resolve_cross_speaker_offsets(
         groups,
         manifest,
@@ -288,8 +270,7 @@ def alignment_report(
     transcript_path: Path | None = None,
 ) -> list[dict]:
     groups = list(manifest.resolve_sources(audio_dir))
-    hint = manifest.session_hint_sec(analysis_start_sec)
-    session_starts = _resolve_session_starts(groups, manifest, session_hint_sec=hint)
+    session_starts = _resolve_session_starts(groups, manifest)
     offsets, methods, overlaps, corr_peaks = _resolve_cross_speaker_offsets(
         groups,
         manifest,

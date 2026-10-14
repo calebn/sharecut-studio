@@ -13,10 +13,6 @@ class SessionConfig(BaseModel):
         default=None,
         description="Speaker whose file clock anchors session t=0 (default: first in list)",
     )
-    hint_sec: float | None = Field(
-        default=None,
-        description="Session time (on reference file) near expected dialogue for auto-detect",
-    )
 
 
 class SpeakerGroup(BaseModel):
@@ -24,7 +20,7 @@ class SpeakerGroup(BaseModel):
     sources: list[str] = Field(min_length=1)
     session_start_in_file_sec: float | None = Field(
         default=None,
-        description="File timestamp for session t=0; auto-detected vs reference if omitted",
+        description="File timestamp for session t=0; 0 if omitted (see `podcast ingest suggest`)",
     )
     session_offset_sec: float | None = Field(
         default=None,
@@ -58,13 +54,6 @@ class IngestManifest(BaseModel):
         if self.session and self.session.reference_speaker:
             return self.session.reference_speaker
         return self.speakers[0].name
-
-    def session_hint_sec(self, extract_start_sec: float | None) -> float:
-        if self.session and self.session.hint_sec is not None:
-            return self.session.hint_sec
-        if extract_start_sec is not None:
-            return extract_start_sec
-        return 0.0
 
     @classmethod
     def load(cls, path: Path) -> IngestManifest:

@@ -144,10 +144,11 @@ the lint reads names, so a relative name over an absolute number is a review mat
 allowlist holds physical constants only: the clipping ceiling (`CLIPPING_PEAK_LEVEL_DB`,
 `CLIPPING_MIN_PEAK_DB`). "Is this silent" guards read `DIGITAL_SILENCE_RMS` (`util/dsp.py`), the level below which a
 signal holds no audio at all. Long-delay bleed evidence compares a peer stretch to the window
-it is matched to (`LongDelayConfig.min_power_ratio`). The ingest gates (`first_speech_onset_sec`,
-`estimate_session_start_in_file`, `vad_speech_intervals`, the acoustic-window `min_rms`) keep
-fixed thresholds and are listed in `ALLOWED` until #1533: a per-window voice reach moved the
-session start of aligned lab tracks by 36 to 48 s, so they need a whole-file reference.
+it is matched to (`LongDelayConfig.min_power_ratio`). The ingest gates (`vad_speech_intervals`, the
+acoustic-window `min_rms`) keep fixed thresholds and are listed in `ALLOWED` until #1533 finishes
+them. Ingest no longer estimates the session start from speech onsets (#1533): two speakers'
+first words are not one event, and a level that follows the audio read a later speaker as a
+late recorder (+36 to +48 s on aligned lab tracks).
 The ffmpeg filter graph and the delivery loudness targets set render levels, not detection thresholds, and are not scanned.
 `tests/test_tighten_gain_invariance.py` is the one contract: tighten, reconcile, the bleed
 gate, Analyze, the ASR silence filter, the speaker split and long-delay bleed evidence each decide the same at 0, -12 and -24 dB, and
