@@ -1856,11 +1856,11 @@ def _caches_with_paths(*pairs: EchoPairProfile) -> TrackRmsCacheSet:
     ("guest_into_host", "host_into_guest", "host_sources", "guest_sources"),
     [
         (30, 30, {"guest"}, {"host"}),
-        (400, 30, {"guest"}, set()),
-        (400, 41, {"guest"}, {"host"}),
-        (400, 0, {"guest"}, set()),
+        (1500, 30, {"guest"}, set()),
+        (1500, 31, {"guest"}, {"host"}),
+        (1500, 0, {"guest"}, set()),
     ],
-    ids=["even", "one-way-by-more-than-ten", "just-under-ten", "no-reverse-path"],
+    ids=["even", "one-way-by-more-than-fifty", "just-under-fifty", "no-reverse-path"],
 )
 def test_a_path_the_reverse_path_dwarfs_is_not_a_source(
     guest_into_host: int, host_into_guest: int, host_sources: set[str], guest_sources: set[str]

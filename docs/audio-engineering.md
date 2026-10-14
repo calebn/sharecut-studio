@@ -131,7 +131,7 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   Level cannot say who is speaking where two mics hear one sound at a fixed ratio (a call
   recording and the host's room mic on the same pair), so a mic is a bleed source for a
   track's words only on its leak direction: when the reverse path rests on at least
-  `ONE_WAY_RATIO` (10) times its consistent frames (`TrackRmsCacheSet.leak_paths`), the
+  `ONE_WAY_RATIO` (50) times its consistent frames (frames count talk time as well as leak strength, so the ratio is set above any plausible split of the talking) (`TrackRmsCacheSet.leak_paths`), the
   quiet side's path is only the echo of the same moments and judges no word.
 - Digital silence (`util.dsp.DIGITAL_SILENCE_DB`) reads the same at any gain.
 
@@ -193,7 +193,7 @@ multi-mic bleed rather than isolated crosstalk — transcript suppression (`reco
 only fixes text attribution, the wrong-mic audio is still audible in the mix. See
 [podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md) to gate it out
 acoustically. If flagged bleed words are *louder* on the off-mic track than the direct
-mic (compare `own_rms_db` against the dominant track's RMS from `audibility_map_tool`),
+mic (compare the as-recorded levels of the two tracks; `audibility_map_tool` rows are on the voice scale, so `own_rms_db` and `track_rms_db` read dB over each track's own voice level, not dBFS),
 that also points at a mic gain-staging or placement problem worth flagging for future
 recordings — no amount of post-processing removes that at the source.
 
