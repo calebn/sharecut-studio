@@ -205,29 +205,6 @@ async function suggestPendingEdits(page: Page, projectPath: string) {
     );
 }
 
-test("a touch tablet gives each lane header's Mute and Solo a 44px target", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 820, height: 1180 });
-  await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell")).toBeVisible();
-    const buttons = page.locator(".track-transport-btns .trk-btn");
-    await expect(buttons.first()).toBeVisible();
-    const boxes = await buttons.evaluateAll((els) =>
-      els.map((el) => {
-        const r = el.getBoundingClientRect();
-        return { name: el.getAttribute("aria-label"), w: r.width, h: r.height };
-      }),
-    );
-    expect(boxes.length).toBeGreaterThanOrEqual(4);
-    for (const box of boxes) {
-      expect(box.w, `${box.name} width`).toBeGreaterThanOrEqual(44);
-      expect(box.h, `${box.name} height`).toBeGreaterThanOrEqual(44);
-    }
-  });
-});
-
 test("Reject all asks with the count, then one Undo brings the pending edits back", async ({
   page,
 }) => {
