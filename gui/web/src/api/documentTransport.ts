@@ -27,6 +27,20 @@ export async function hostFetch(
  */
 export const DOCUMENT_COMMAND_TIMEOUT_MS = 60_000;
 
+/**
+ * Commands that legitimately run for minutes (Approve all re-checks speech and
+ * pauses across the whole batch, 175 s on a real episode) get longer, so a long
+ * but healthy batch is not cut off at one minute and shown as "Still sending".
+ */
+export const LONG_DOCUMENT_COMMAND_TIMEOUT_MS = 15 * 60_000;
+const LONG_DOCUMENT_COMMANDS = new Set(["ApproveEdits"]);
+
+function commandTimeoutMs(body: Record<string, unknown>): number {
+  return typeof body.type === "string" && LONG_DOCUMENT_COMMANDS.has(body.type)
+    ? LONG_DOCUMENT_COMMAND_TIMEOUT_MS
+    : DOCUMENT_COMMAND_TIMEOUT_MS;
+}
+
 /** A document-command response, read in full within the timeout. */
 export type DocumentCommandReply =
   | { ok: true; data: Record<string, unknown> }
@@ -34,10 +48,11 @@ export type DocumentCommandReply =
 
 async function postDocumentCommand(
   send: (signal: AbortSignal) => Promise<Response>,
+  timeoutMs: number,
 ): Promise<DocumentCommandReply> {
   // Read the body inside the timeout: a stalled body must not hang.
   return withAbortTimeout(
-    DOCUMENT_COMMAND_TIMEOUT_MS,
+    timeoutMs,
     "Document command timed out",
     async (signal): Promise<DocumentCommandReply> => {
       const res = await send(signal);
@@ -57,13 +72,15 @@ export function postGuestDocumentCommand(
   token: string,
   body: Record<string, unknown>,
 ): Promise<DocumentCommandReply> {
-  return postDocumentCommand((signal) =>
-    fetch(`${reviewApiBase(token)}/daw/document/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    }),
+  return postDocumentCommand(
+    (signal) =>
+      fetch(`${reviewApiBase(token)}/daw/document/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      }),
+    commandTimeoutMs(body),
   );
 }
 
@@ -71,12 +88,17 @@ export function postHostDocumentCommand(
   projectPath: string,
   body: Record<string, unknown>,
 ): Promise<DocumentCommandReply> {
-  return postDocumentCommand((signal) =>
-    hostFetch(`/api/document/command?path=${encodeURIComponent(projectPath)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    }),
+  return postDocumentCommand(
+    (signal) =>
+      hostFetch(
+        `/api/document/command?path=${encodeURIComponent(projectPath)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal,
+        },
+      ),
+    commandTimeoutMs(body),
   );
 }
