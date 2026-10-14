@@ -41,12 +41,10 @@ function StepButton({
   label,
   step,
   reason,
-  reasonId,
 }: {
   label: string;
   step: RangeStep;
   reason: string | null;
-  reasonId: string;
 }) {
   const hold = useHoldRepeat(() => {
     if (!canStepNow(step)) return false;
@@ -56,8 +54,7 @@ function StepButton({
   return (
     <Button
       type="button"
-      disabled={reason !== null}
-      aria-describedby={reason ? reasonId : undefined}
+      disabledReason={reason ?? undefined}
       {...hold}
       className={`ui-control--compact range-word-step ${hold.className}`}
     >
@@ -114,7 +111,6 @@ export function WordRangeControls({
             label={row.label}
             step={row.step}
             reason={row.reason}
-            reasonId={reasonId}
           />
         ))}
       </div>
@@ -122,7 +118,11 @@ export function WordRangeControls({
         <CommandButton
           commandId="transcript.ignoreWords"
           className="ui-control--compact range-word-ignore"
-          disabled={project.meta.hydration?.transcript_words === false}
+          disabledReason={
+            project.meta.hydration?.transcript_words === false
+              ? "Wait for the transcript to finish loading."
+              : undefined
+          }
         >
           {ignored ? "Restore" : "Ignore"}
         </CommandButton>
