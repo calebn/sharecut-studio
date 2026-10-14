@@ -38,6 +38,7 @@ from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
 from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.edits.join_speech import find_speech_crossings
 from podcast_mcp.engines.align import read_open_wav_mono_window
+from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
@@ -61,9 +62,10 @@ _CALIBRATE_N = 24
 _CALIBRATE_MARGIN = 1.15
 # Digital-silence level for splice-side measurements (matches 20*log10(1e-20)).
 # A splice's right side collides with an onset when its first 10 ms sit over the track's
-# voice floor less this; the score ramps over the 20 dB from 5 dB above that level (-50
-# and -45 dBFS on the lab tape, whose voice floor is -42 dBFS).
-_ONSET_UNDER_VOICE_FLOOR_DB = 8.0
+# voice level less this; the score ramps over the 20 dB from 5 dB above that level (-50
+# and -45 dBFS on the lab tape, whose voice level is -15 dBFS). Read from the voice level,
+# not the voice floor, so a track whose room reaches its voice still hears an onset.
+_ONSET_UNDER_VOICE_DB = 35.0
 _ONSET_RAMP_START_DB = 5.0
 _ONSET_RAMP_DB = 20.0
 # Speech F0 search range for the f0_jump detector.
@@ -106,10 +108,11 @@ class JoinContinuityConfig:
     weight_wavlm: float = 1.4
     # Both splice sides this far under the track's voice floor cannot be heard: room tone
     # against gated digital silence passes as "inaudible splice" instead of scoring a level
-    # jump. :meth:`at_voice_floor` sets the track's voice floor (dBFS); unset, every splice
-    # counts as heard.
+    # jump. :meth:`at_levels` sets the track's voice floor and voice level (dBFS); unset,
+    # every splice counts as heard and no edge as an onset.
     inaudible_under_voice_floor_db: float = 18.0
     voice_floor_db: float = -math.inf
+    voice_db: float = -math.inf
     # Spectral-shape detectors compare level-normalised spectra, which read as a
     # mismatch between any two windows of quiet air. Their weight ramps from 0 at
     # inaudible_floor_db to full this many dB above it (louder side); 0 disables.
@@ -119,9 +122,9 @@ class JoinContinuityConfig:
     def inaudible_floor_db(self) -> float:
         return self.voice_floor_db - self.inaudible_under_voice_floor_db
 
-    def at_voice_floor(self, voice_floor_db: float) -> JoinContinuityConfig:
-        """This config for a track whose voice floor is ``voice_floor_db``."""
-        return replace(self, voice_floor_db=voice_floor_db)
+    def at_levels(self, profile: LevelProfile) -> JoinContinuityConfig:
+        """This config for a track whose level profile is ``profile``."""
+        return replace(self, voice_floor_db=profile.voice_floor_db, voice_db=profile.voice_db)
 
     @classmethod
     def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
@@ -379,7 +382,7 @@ def score_splice_samples(
     edge = right[: min(right.size, int(0.03 * sample_rate))]
     if edge.size >= 8:
         early_db = rms_db(edge[: max(1, edge.size // 3)])
-        onset_db = config.voice_floor_db - _ONSET_UNDER_VOICE_FLOOR_DB
+        onset_db = config.voice_db - _ONSET_UNDER_VOICE_DB
         onset_score = (
             _clamp01((early_db - onset_db - _ONSET_RAMP_START_DB) / _ONSET_RAMP_DB)
             if math.isfinite(onset_db) and early_db > onset_db
@@ -952,7 +955,7 @@ def _assess_existing_join(
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     if samples is None:
         samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
-        cfg = cfg.at_voice_floor(track_level_profile(project, track_id).voice_floor_db)
+        cfg = cfg.at_levels(track_level_profile(project, track_id))
     if points is None:
         points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
     left_i, right_i = _splice_indices(points, cfg.sample_rate)
@@ -1027,9 +1030,7 @@ def assess_proposed_cut(
     if cut_end <= cut_start:
         raise ValueError("cut_end must be > cut_start")
     samples = _resolve_source_samples(project, track_id, cfg.sample_rate, audio_caches=audio_caches)
-    cfg = cfg.at_voice_floor(
-        track_level_profile(project, track_id, (audio_caches or {}).get(track_id)).voice_floor_db
-    )
+    cfg = cfg.at_levels(track_level_profile(project, track_id, (audio_caches or {}).get(track_id)))
     st = SessionTimeline(project)
     if timebase == "timeline":
         mapped0 = st.timeline_to_source(track_id, TimelineSec(cut_start))
@@ -1077,8 +1078,7 @@ def assess_project_joins(
         if not joins:
             continue
         samples = _resolve_source_samples(project, tid, cfg.sample_rate)
-        voice_floor_db = track_level_profile(project, tid).voice_floor_db
-        track_cfg = cfg.at_voice_floor(voice_floor_db)
+        track_cfg = cfg.at_levels(track_level_profile(project, tid))
         natural_p95 = (
             _natural_baseline_p95(samples, cfg.sample_rate, track_cfg) if cfg.calibrate else None
         )
@@ -1091,7 +1091,7 @@ def assess_project_joins(
             joins,
             samples=samples,
             sample_rate=cfg.sample_rate,
-            voice_floor_db=voice_floor_db,
+            voice_floor_db=track_cfg.voice_floor_db,
         )
         with _highrate_click_scorer(
             track_audio_path(project, tid), source_joins=source_joins
