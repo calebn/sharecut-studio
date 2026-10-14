@@ -176,9 +176,12 @@ def pending_preview_warm(
         # The edit's renders read the sources and write content-addressed files atomically,
         # so a render or approve the user starts meanwhile is not queued behind them; only
         # each stale stem's own render takes the lock.
-        return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
-            edit_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
-        )
+        # Niced like the background warm: the user is editing while it runs, and a Play around
+        # on the same edit shares its render rather than racing it.
+        with low_priority():
+            return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
+                edit_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+            )
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     except Timeout as exc:

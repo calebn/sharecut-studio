@@ -396,7 +396,7 @@ def test_a_preview_the_warm_rendered_is_served_without_a_render_or_the_lock(
     assert response.headers["content-type"] == "audio/wav"
 
 
-def test_warms_do_not_hold_the_render_lock_and_the_background_one_runs_at_low_priority(
+def test_warms_do_not_hold_the_render_lock_and_run_at_low_priority(
     minimal_project, monkeypatch
 ):
     from fastapi.testclient import TestClient
@@ -424,7 +424,7 @@ def test_warms_do_not_hold_the_render_lock_and_the_background_one_runs_at_low_pr
     background = {**params, "background": "true"}
     assert client.post("/api/pending-preview/warm", params=background).status_code == 200
     assert seen == [
-        (0, False, REQUEST_RENDER_LOCK_TIMEOUT_SEC),
+        (10, False, REQUEST_RENDER_LOCK_TIMEOUT_SEC),
         (10, False, BACKGROUND_RENDER_LOCK_TIMEOUT_SEC),
     ]
 
