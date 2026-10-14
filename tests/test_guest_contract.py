@@ -1,13 +1,3 @@
-"""One contract over every guest surface: no host path or secret leaves, a crash reads the same.
-
-Every route the app serves under a share ``{token}``, both guest sockets (at admission and once
-admitted) and every remote MCP tool is probed. Each probe names the call inside its own handler where a fault is planted, so a
-leak in that handler's own error path fails here. The sweep also breaks a real share two ways
-(the frozen review mix is gone, the project file is gone) under one folder path containing all
-six historical names with apostrophes, quotes, ``?``, spaces and non-ASCII, and reads every
-answer for any old folder name or word fragment (#1327).
-"""
-
 from __future__ import annotations
 
 import json
