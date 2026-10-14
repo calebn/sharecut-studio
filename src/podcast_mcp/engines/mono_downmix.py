@@ -36,7 +36,7 @@ def _input_channels(path: Path) -> int:
         try:
             with open_wav(path) as wf:
                 return max(1, int(wf.getnchannels() or 1))
-        except (OSError, wave.Error):
+        except (OSError, EOFError, wave.Error):
             pass
     return 1
 
