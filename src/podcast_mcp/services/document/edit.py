@@ -369,6 +369,7 @@ class EditService:
         start_word_index: int,
         end_word_index: int,
         *,
+        source_id: str | None = None,
         review_required: bool = True,
         use_inaudible_opt: bool | None = None,
     ) -> None:
@@ -381,6 +382,7 @@ class EditService:
                 track_id,
                 start_word_index,
                 end_word_index,
+                source_id=source_id,
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
             ),

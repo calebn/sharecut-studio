@@ -19,6 +19,7 @@ export function isLowConfidenceWord(
 /** One stop of the low-confidence walkthrough (#634). */
 export interface LowConfidenceStop {
   trackId: string;
+  sourceId?: string | null;
   wordIndex: number;
   text: string;
   /** Timeline seek; null for a cut-away word (scroll only). */
@@ -51,6 +52,9 @@ export function lowConfidenceStops(
       if (!listed || !isLowConfidenceWord(w)) continue;
       stops.push({
         trackId: u.track_id,
+        ...((w.timing_target?.source_id ?? u.source_id) != null
+          ? { sourceId: w.timing_target?.source_id ?? u.source_id }
+          : {}),
         wordIndex: w.word_index,
         text: w.text,
         seekSec: wordSeekSec(w),
@@ -70,7 +74,10 @@ export function reviewCursorIndex(
 ): number {
   if (!cursor) return -1;
   return stops.findIndex(
-    (s) => s.trackId === cursor.trackId && s.wordIndex === cursor.wordIndex,
+    (s) =>
+      s.trackId === cursor.trackId &&
+      (s.sourceId ?? null) === (cursor.sourceId ?? null) &&
+      s.wordIndex === cursor.wordIndex,
   );
 }
 

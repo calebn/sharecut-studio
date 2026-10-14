@@ -33,6 +33,10 @@ export function registerTranscriptIgnoreCommands(): void {
       }
       const target = ignoreTarget(s.project, s.selection, {
         trackId: typeof args.trackId === "string" ? args.trackId : undefined,
+        sourceId:
+          typeof args.sourceId === "string" || args.sourceId === null
+            ? args.sourceId
+            : undefined,
         startWordIndex:
           typeof args.startWordIndex === "number"
             ? args.startWordIndex
@@ -52,18 +56,30 @@ export function registerTranscriptIgnoreCommands(): void {
         target.trackId,
         target.startWordIndex,
         target.endWordIndex,
+        target.sourceId,
       );
       const result = await ignoreFlight.run(
         async (): Promise<ExecuteResult> => {
           try {
-            const historyHead = await setTranscriptWordsIgnored(
-              s.projectPath,
-              target.trackId,
-              target.startWordIndex,
-              target.endWordIndex,
-              target.ignored,
-              expectedText,
-            );
+            const historyHead =
+              target.sourceId == null
+                ? await setTranscriptWordsIgnored(
+                    s.projectPath,
+                    target.trackId,
+                    target.startWordIndex,
+                    target.endWordIndex,
+                    target.ignored,
+                    expectedText,
+                  )
+                : await setTranscriptWordsIgnored(
+                    s.projectPath,
+                    target.trackId,
+                    target.startWordIndex,
+                    target.endWordIndex,
+                    target.ignored,
+                    expectedText,
+                    target.sourceId,
+                  );
             const suffix =
               expectedText == null ? TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX : "";
             useDawStore

@@ -1,4 +1,4 @@
-import { presenceAnchor } from "../presence/anchors";
+import { transcriptWordPresenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import {
   type ReviewDirection,
@@ -24,12 +24,17 @@ function stepReview(direction: ReviewDirection): ExecuteResult {
   if (!s.transcriptAnnotate) s.setTranscriptAnnotate(true);
   s.setTranscriptReviewCursor({
     trackId: stop.trackId,
+    ...(stop.sourceId != null ? { sourceId: stop.sourceId } : {}),
     wordIndex: stop.wordIndex,
     order: stop.order,
   });
   if (stop.seekSec != null) s.setPlayheadSec(stop.seekSec);
   s.setTranscriptScrollRequest(
-    presenceAnchor("transcript", "word", stop.trackId, stop.wordIndex),
+    transcriptWordPresenceAnchor(
+      stop.trackId,
+      stop.sourceId ?? null,
+      stop.wordIndex,
+    ),
   );
   s.announceStatus(
     `Low-confidence word ${index + 1} of ${stops.length}: ${stop.text}`,

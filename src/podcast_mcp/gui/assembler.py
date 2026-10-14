@@ -24,7 +24,6 @@ from podcast_mcp.services.document_sync import (
     ViewProjection,
     parse_view_projection,
 )
-from podcast_mcp.services.media import TranscriptService
 from podcast_mcp.util.batch_scope import batch_scope
 
 __all__ = [
@@ -67,15 +66,15 @@ def _hydration(*, transcript_words: bool, history_groups: bool) -> dict[str, boo
 
 def _raw_transcript(ws: ProjectWorkspace) -> dict[str, Any] | None:
     project = ws.project
-    if project.combined_transcript is not None:
-        return project.combined_transcript.model_dump()
     if project.transcripts:
         try:
-            import json
+            from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 
-            return json.loads(TranscriptService(ws).get(combined=True))
+            return ensure_combined_transcript(project).model_dump()
         except (ValueError, TypeError):
             return None
+    if project.combined_transcript is not None:
+        return project.combined_transcript.model_dump()
     return None
 
 

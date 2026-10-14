@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { presenceAnchor } from "../presence/anchors";
+import {
+  presenceAnchor,
+  transcriptWordPresenceAnchor,
+} from "../presence/anchors";
 import type {
   CombinedUtterance,
   ProjectView,
@@ -336,13 +339,13 @@ describe("turn identity and lookup", () => {
     expect(
       transcriptAnchorTurnIndex(
         turns,
-        presenceAnchor("transcript", "word", "Host Room", 12),
+        transcriptWordPresenceAnchor("Host Room", null, 12),
       ),
     ).toBe(3);
     expect(
       transcriptAnchorTurnIndex(
         turns,
-        transcriptWordAnchor(2, "a", undefined, 0),
+        transcriptWordAnchor(2, "a", null, undefined, 0),
       ),
     ).toBe(2);
     expect(
@@ -365,9 +368,16 @@ describe("turn identity and lookup", () => {
         words: [{ text: "b", start: 1, end: 2, word_index: 12 }],
       }),
     ]);
-    const anchor = presenceAnchor("transcript", "word", longTrack, 12);
-    expect(anchor).toHaveLength(96);
+    const anchor = transcriptWordPresenceAnchor(longTrack, null, 12);
+    expect(anchor.length).toBeLessThanOrEqual(96);
     expect(transcriptAnchorTurnIndex(turns, anchor)).toBe(1);
+  });
+
+  it("keeps presence anchors distinct for the same word index on two takes", () => {
+    const first = transcriptWordPresenceAnchor("host", "take-a", 0);
+    const second = transcriptWordPresenceAnchor("host", "take-b", 0);
+
+    expect(first).not.toBe(second);
   });
 });
 
@@ -428,6 +438,32 @@ describe("indexed transcript word lookup", () => {
     expect(findTranscriptWordIn(utterances, "host", 2)?.text).toBe("first");
     expect(findTranscriptWordIn(utterances, "host", 99)).toBeNull();
     expect(findTranscriptWordIn([], "host", 2)).toBeNull();
+  });
+
+  it("resolves equal track-local indexes by recording source", () => {
+    const takes = {
+      transcript: {
+        utterances: [
+          u({
+            source_id: "take-a",
+            start: 1,
+            end: 2,
+            text: "alpha",
+            words: [{ text: "alpha", word_index: 0, start: 1, end: 2 }],
+          }),
+          u({
+            source_id: "take-b",
+            start: 1,
+            end: 2,
+            text: "beta",
+            words: [{ text: "beta", word_index: 0, start: 1, end: 2 }],
+          }),
+        ],
+      },
+    } as ProjectView;
+    expect(findTranscriptWord(takes, "host", 0, "take-a")?.text).toBe("alpha");
+    expect(findTranscriptWord(takes, "host", 0, "take-b")?.text).toBe("beta");
+    expect(transcriptSpanText(takes, "host", 0, 0, "take-b")).toBe("beta");
   });
 
   it("combines reversed indexed ranges across utterances using timeline fallback", () => {

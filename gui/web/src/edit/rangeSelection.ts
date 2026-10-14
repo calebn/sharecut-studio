@@ -164,7 +164,12 @@ export function resolveSelectionRange(
     index <= selection.endWordIndex;
     index++
   ) {
-    const word = findTranscriptWord(project, selection.trackId, index);
+    const word = findTranscriptWord(
+      project,
+      selection.trackId,
+      index,
+      selection.sourceId,
+    );
     if (word && !word.ignored && !word.suppressed && word.mappable !== false)
       words.push(word);
   }

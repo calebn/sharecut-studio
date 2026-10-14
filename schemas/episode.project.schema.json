@@ -431,6 +431,7 @@
       "required": ["track_id", "speaker", "start", "end", "text"],
       "properties": {
         "track_id": { "type": "string" },
+        "source_id": { "type": ["string", "null"] },
         "speaker": { "type": "string" },
         "start": { "type": "number" },
         "end": { "type": "number" },

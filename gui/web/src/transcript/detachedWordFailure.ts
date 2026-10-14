@@ -18,6 +18,7 @@ export type DetachedWordSnapshot = Pick<
 export interface DetachedWordFailureInput {
   projectPath: string;
   trackId: string;
+  sourceId?: string | null;
   wordIndex: number;
   /** The word as it was when the action was submitted. */
   word: DetachedWordSnapshot;
@@ -29,6 +30,7 @@ export interface DetachedWordFailureInput {
 export function detachedWordFailure({
   projectPath,
   trackId,
+  sourceId,
   wordIndex,
   word,
   action,
@@ -38,6 +40,7 @@ export function detachedWordFailure({
   return {
     projectPath,
     trackId,
+    sourceId: sourceId ?? null,
     wordIndex,
     originalText: word.text,
     ...(action === "fix"

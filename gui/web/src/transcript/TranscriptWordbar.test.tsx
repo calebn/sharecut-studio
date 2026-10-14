@@ -90,6 +90,7 @@ beforeEach(() => {
     transcriptTimingRequest: {
       projectPath: "/tmp/timing",
       trackId: "host",
+      sourceId: "extra",
       wordIndex: 1,
     },
     sourcePreview: null,
@@ -319,6 +320,14 @@ it("a no-op Stop invalidates pending listen feedback before any player starts", 
 });
 
 it("remounts when null source identity changes to a recording literally named primary", async () => {
+  useDawStore.setState({
+    transcriptTimingRequest: {
+      projectPath: "/tmp/timing",
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 1,
+    },
+  });
   const primary = { ...word, timing_target: { ...target, source_id: null } };
   const view = render(
     <TranscriptWordbar word={primary} trackId="host" wordIndex={1} />,
@@ -332,6 +341,16 @@ it("remounts when null source identity changes to a recording literally named pr
       wordIndex={1}
     />,
   );
+  act(() => {
+    useDawStore.setState({
+      transcriptTimingRequest: {
+        projectPath: "/tmp/timing",
+        trackId: "host",
+        sourceId: "primary",
+        wordIndex: 1,
+      },
+    });
+  });
   await waitFor(() => expect(loadWordTimingContext).toHaveBeenCalledTimes(2));
   expect(
     vi.mocked(loadWordTimingContext).mock.calls.at(-1)?.[1].source_id,

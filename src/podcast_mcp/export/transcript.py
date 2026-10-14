@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
-from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.engines.utterance_runs import transcript_word_runs
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import EpisodeProject
@@ -167,7 +167,23 @@ def _timeline_word_runs(project: EpisodeProject) -> list[tuple[str, list[_CueWor
     st = SessionTimeline(project)
     out: list[tuple[float, str, list[_CueWord]]] = []
     for run in transcript_word_runs(project):
-        mapped = st.map_word_spans(run.track_id, [(w.start, w.end) for w in run.words])
+        transcript = project.transcript_for_source(run.track_id, run.source_id)
+        placements = {
+            clip.source_id
+            for clip in project.clips
+            if transcript is not None
+            and clip_plays_lane(project, clip, run.track_id)
+            and project.transcript_for_source(run.track_id, clip.source_id) is transcript
+        }
+        word_bounds = [(w.start, w.end) for w in run.words]
+        if (
+            not placements
+            and run.source_id is None
+            and not any(clip_plays_lane(project, clip, run.track_id) for clip in project.clips)
+        ):
+            mapped = st.map_word_spans(run.track_id, word_bounds)
+        else:
+            mapped = st.map_placements_word_spans(run.track_id, placements, word_bounds)
         words = [
             _CueWord(text=w.text, start=float(spans[0][0]), end=float(spans[-1][1]))
             for w, spans in zip(run.words, mapped, strict=True)

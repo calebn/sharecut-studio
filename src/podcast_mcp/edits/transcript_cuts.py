@@ -17,7 +17,7 @@ from podcast_mcp.edits.filler_pacing import paced_pad_for_span
 from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
 from podcast_mcp.edits.tighten_reasons import is_review_only_reason
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
-from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.models import (
     CombinedTranscript,
     EditDecision,
@@ -25,6 +25,7 @@ from podcast_mcp.models import (
     EpisodeProject,
     Transcript,
 )
+from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.util.text import normalize_text
 
 
@@ -62,7 +63,14 @@ def _with_timeline_spans(project: EpisodeProject, match: TranscriptMatch) -> Tra
 
 
 def ensure_combined_transcript(project: EpisodeProject) -> CombinedTranscript:
-    if project.combined_transcript and project.combined_transcript.utterances:
+    # Per-source transcripts are authoritative; combined utterances are a projection.
+    # Rebuild at this boundary so source identity cannot be lost in an old cache.
+    if project.transcripts:
+        from podcast_mcp.engines import TranscriptionEngine
+
+        project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+        return project.combined_transcript
+    if project.combined_transcript is not None:
         return project.combined_transcript
     from podcast_mcp.engines import TranscriptionEngine
 
@@ -162,11 +170,11 @@ def time_range_from_words(
 def time_range_from_utterance(
     combined: CombinedTranscript,
     utterance_index: int,
-) -> tuple[str, float, float, str]:
+) -> tuple[str, str | None, float, float, str]:
     if utterance_index < 0 or utterance_index >= len(combined.utterances):
         raise ValueError(f"Utterance index out of range: {utterance_index}")
     utt = combined.utterances[utterance_index]
-    return utt.track_id, utt.start, utt.end, utt.text
+    return utt.track_id, utt.source_id, utt.start, utt.end, utt.text
 
 
 def append_remove_decision(
@@ -631,15 +639,15 @@ def cut_utterance(
     use_inaudible_opt: bool | None = None,
 ) -> EditDecision:
     combined = ensure_combined_transcript(project)
-    tid, start, end, text = time_range_from_utterance(combined, utterance_index)
-    return cut_time_range(
+    tid, source_id, start, end, text = time_range_from_utterance(combined, utterance_index)
+    return _cut_transcript_source_range(
         project,
         tid,
+        source_id,
         start,
         end,
         reason=f"{NL_UTTERANCE_REASON_PREFIX}{text[:40]}",
         review_required=review_required,
-        use_inaudible_opt=use_inaudible_opt,
     )
 
 
@@ -649,22 +657,80 @@ def cut_words(
     start_word_index: int,
     end_word_index: int,
     *,
+    source_id: str | None = None,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> EditDecision:
-    transcript = project.transcript_for_track(track_id)
+    transcript = project.transcript_for_source(track_id, source_id)
     if not transcript:
-        raise ValueError(f"No transcript for track {track_id}")
+        raise ValueError(f"No transcript for track {track_id} source {source_id}")
     start, end = time_range_from_words(transcript, start_word_index, end_word_index)
-    return cut_time_range(
+    return _cut_transcript_source_range(
         project,
         track_id,
+        source_id,
         start,
         end,
         reason=NL_WORDS_REASON,
         review_required=review_required,
-        use_inaudible_opt=use_inaudible_opt,
     )
+
+
+def _cut_transcript_source_range(
+    project: EpisodeProject,
+    track_id: str,
+    source_id: str | None,
+    start: float,
+    end: float,
+    *,
+    reason: str,
+    review_required: bool,
+) -> EditDecision:
+    """Stage a transcript cut against only placements of its source recording."""
+    transcript = project.transcript_for_source(track_id, source_id)
+    if transcript is None:
+        raise ValueError(f"No transcript for track {track_id} source {source_id}")
+    timeline = SessionTimeline(project)
+    placements = {
+        clip.source_id
+        for clip in project.clips
+        if clip_plays_lane(project, clip, track_id)
+        and project.transcript_for_source(track_id, clip.source_id) is transcript
+    }
+    if placements:
+        spans = timeline.map_placements_source_span(track_id, placements, start, end)
+    elif source_id is None and not any(
+        clip_plays_lane(project, clip, track_id) for clip in project.clips
+    ):
+        # Native primary media with no explicit clip list uses the timeline's
+        # established implicit source clock. A deleted secondary take has no such fallback.
+        spans = timeline.map_source_span(track_id, start, end)
+    else:
+        spans = []
+    if not spans:
+        raise ValueError("Transcript selection has no audible placement")
+    intervals = [RangeInterval(start=float(a), end=float(b)) for a, b in spans]
+    from podcast_mcp.edits.range_edits import build_range_target
+
+    target = build_range_target(project, intervals, [track_id])
+    if not target.clips:
+        raise ValueError("Transcript selection has no audible placement")
+    decision = EditDecision(
+        id=f"cut_{uuid.uuid4().hex[:8]}",
+        track_id=track_id,
+        type=EditDecisionType.REMOVE,
+        start=float(intervals[0].start),
+        end=float(intervals[-1].end),
+        reason=reason,
+        review_required=review_required,
+        applied=False,
+        timebase="timeline",
+        track_ids=[track_id],
+        scope="track",
+        exact_range=target,
+    )
+    project.edit_decisions.append(decision)
+    return decision
 
 
 def apply_edit_plan(

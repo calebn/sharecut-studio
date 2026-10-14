@@ -31,25 +31,45 @@ export async function submitWordCorrection(
   endWordIndex: number,
   text: string,
   expectedText?: string | null,
+  sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
   const next = text.trim();
   if (endWordIndex === startWordIndex) {
-    return correctTranscriptWord(
-      projectPath,
-      trackId,
-      startWordIndex,
-      next,
-      expectedText,
-    );
+    return sourceId == null
+      ? correctTranscriptWord(
+          projectPath,
+          trackId,
+          startWordIndex,
+          next,
+          expectedText,
+        )
+      : correctTranscriptWord(
+          projectPath,
+          trackId,
+          startWordIndex,
+          next,
+          expectedText,
+          sourceId,
+        );
   }
-  return correctTranscriptPhrase(
-    projectPath,
-    trackId,
-    startWordIndex,
-    endWordIndex,
-    next,
-    expectedText,
-  );
+  return sourceId == null
+    ? correctTranscriptPhrase(
+        projectPath,
+        trackId,
+        startWordIndex,
+        endWordIndex,
+        next,
+        expectedText,
+      )
+    : correctTranscriptPhrase(
+        projectPath,
+        trackId,
+        startWordIndex,
+        endWordIndex,
+        next,
+        expectedText,
+        sourceId,
+      );
 }
 
 /** A word-index span on one track, from a fixed start: its end and the text it held (#746). */

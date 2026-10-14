@@ -453,6 +453,7 @@ class Transcript(BaseModel):
 
 class CombinedUtterance(BaseModel):
     track_id: str
+    source_id: str | None = None
     speaker: str
     start: float
     end: float

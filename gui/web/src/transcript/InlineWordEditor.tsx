@@ -8,6 +8,7 @@ import { submitWordCorrection, wordCorrectionError } from "./wordCorrection";
 
 interface Props {
   trackId: string;
+  sourceId?: string | null;
   wordIndex: number;
   initialText: string;
   onClose: (restoreFocus: boolean) => void;
@@ -24,6 +25,7 @@ interface Props {
 /** In-place word text fix: Enter commits (one undo step), Esc / blur cancel. */
 export function InlineWordEditor({
   trackId,
+  sourceId = null,
   wordIndex,
   initialText,
   onClose,
@@ -67,6 +69,7 @@ export function InlineWordEditor({
           wordIndex,
           text,
           expectedText,
+          sourceId,
         );
         useDawStore
           .getState()
@@ -86,6 +89,7 @@ export function InlineWordEditor({
         reportDetachedWordFailure({
           projectPath,
           trackId,
+          sourceId,
           wordIndex,
           word: { text: initialText },
           action: "fix",

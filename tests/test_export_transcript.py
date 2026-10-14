@@ -16,6 +16,7 @@ from podcast_mcp.models import (
     CombinedUtterance,
     EpisodeProject,
     MediaAsset,
+    SourceRecording,
     Track,
     Transcript,
     TranscriptWord,
@@ -96,6 +97,48 @@ def test_utterances_to_vtt():
     assert vtt.startswith("WEBVTT")
     assert "00:00:00.000 --> 00:00:01.500" in vtt
     assert "Thanks for listening" in vtt
+
+
+def test_captions_map_words_only_through_their_take_placements() -> None:
+    project = EpisodeProject.create("two-takes", "/tmp/ws")
+    project.tracks = [
+        Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=20.0))
+    ]
+    project.sources = [
+        SourceRecording(id="A", path="raw/a.wav"),
+        SourceRecording(id="B", path="raw/b.wav"),
+    ]
+    project.clips = [
+        Clip(
+            id="take-a",
+            track_id="host",
+            source_id="A",
+            source_start=0,
+            source_end=10,
+            timeline_start=0,
+        ),
+        Clip(
+            id="take-b",
+            track_id="host",
+            source_id="B",
+            source_start=0,
+            source_end=10,
+            timeline_start=10,
+        ),
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host", source_id="A", words=[TranscriptWord(text="Alpha", start=1, end=2)]
+        ),
+        Transcript(
+            track_id="host", source_id="B", words=[TranscriptWord(text="Beta", start=1, end=2)]
+        ),
+    ]
+
+    srt = utterances_to_srt(project, limits=CaptionLimits(min_duration_sec=0.1))
+    assert "00:00:01,000 --> 00:00:02,000\nAlpha" in srt
+    assert "00:00:11,000 --> 00:00:12,000\nBeta" in srt
+    assert "00:00:01,000 --> 00:00:02,000\nBeta" not in srt
 
 
 def _compressed_project(tmp_path) -> EpisodeProject:
