@@ -7,9 +7,6 @@
  * `confirm()` did: the Daw keymap runs nothing behind it (no Mod+Z undoing an
  * edit behind "Remove the guest track?"), except the shortcuts the innermost
  * modal hands on, such as M for a marker in the Record room.
- *
- * Non-modals order by `stackRank`, not last mount. A peek sheet that remounts
- * reuses the rank for its `stackKey`, so a later JoinPopover stays innermost.
  */
 type Layer = {
   readonly modal: boolean;
@@ -43,10 +40,7 @@ function stackRankFor(modal: boolean, stackKey: string | undefined): number {
 }
 
 /**
- * Register an overlay as it opens; pass the result to `closeOverlay`. A
- * non-modal layer goes below every open overlay with a higher rank (modals
- * are highest): a sheet that remounts or renders beneath a popover or modal
- * belongs under it.
+ * Register an overlay as it opens; pass the result to `closeOverlay`.
  */
 export function openOverlay(
   modal: boolean,
@@ -75,7 +69,6 @@ export function isInnermostOverlay(layer: Layer): boolean {
   return layers.at(-1) === layer;
 }
 
-/** True while any overlay is registered. The keymap must not run Escape then. */
 export function hasOpenOverlay(): boolean {
   return layers.length > 0;
 }
