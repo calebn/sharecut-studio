@@ -31,7 +31,7 @@ from podcast_mcp.engines.envelope_lag import (
     stream_level_and_peak_db,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.level_profile import track_profile
+from podcast_mcp.engines.level_profile import samples_voice_reach_rms, track_profile
 from podcast_mcp.engines.play_audit import probe_wav_duration_sec
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -739,6 +739,12 @@ def _acoustic_window_and_starts(
     return win, uniq
 
 
+def _holds_voice(window: np.ndarray, sample_rate: int) -> bool:
+    """Whether the window's mean level reaches its own voice reach (live, not silent)."""
+    level = float(np.sqrt(np.mean(window**2)))
+    return level > 0.0 and level >= samples_voice_reach_rms(window, sample_rate)
+
+
 def acoustic_clip_offset(
     reference: Path,
     source: Path,
@@ -750,7 +756,6 @@ def acoustic_clip_offset(
     min_peak: float = ACOUSTIC_MIN_PEAK,
     source_shift_sec: float = 0.0,
     sample_rate: int = 8000,
-    min_rms: float = 0.01,
     cancel_check: Callable[[], bool] | None = None,
 ) -> AcousticOffset | None:
     """Median multi-window lag in clip-geometry sign (not estimate_offset_sec's mix delay).
@@ -761,8 +766,6 @@ def acoustic_clip_offset(
     Source windows start at ``ref_start - source_shift_sec`` (confirm a candidate plan
     offset; the residual lag is returned).
     """
-    import numpy as np
-
     from podcast_mcp.engines.align import estimate_offset_from_arrays, load_mono_window
 
     if starts is not None and source_starts is not None and len(source_starts) != len(starts):
@@ -817,7 +820,7 @@ def acoustic_clip_offset(
         except (OSError, ValueError, subprocess.CalledProcessError):
             n_decode_error += 1
             continue
-        if float(np.sqrt(np.mean(ref**2))) < min_rms or float(np.sqrt(np.mean(src**2))) < min_rms:
+        if not all(_holds_voice(w, sample_rate) for w in (ref, src)):
             continue
         try:
             result = estimate_offset_from_arrays(

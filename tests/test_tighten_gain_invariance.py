@@ -855,3 +855,37 @@ def test_a_peer_with_nothing_to_read_it_against(
         return audio
 
     assert _guard_fallback(_guard_scene(tmp_path, lane(host, 3), lane(guest, 4))) == expected
+
+
+def _ingest_file(tmp_path: Path, gain_db: float) -> Path:
+    """A quiet room, then a voice from 6 s: the ingest detectors read it at any gain."""
+    audio = _room(5, gated=False)
+    _voice(audio, 6.0, 12.0)
+    path = tmp_path / f"ingest_{gain_db:g}.wav"
+    _write(path, audio * 10 ** (gain_db / 20), RATE)
+    return path
+
+
+@pytest.mark.parametrize("gain_db", [0.0, -12.0, -24.0])
+def test_ingest_onset_and_speech_intervals_are_the_same_at_any_recording_level(
+    tmp_path: Path, gain_db: float
+) -> None:
+    from podcast_mcp.engines.alignment_audit import vad_speech_intervals
+    from podcast_mcp.engines.session_clock import first_speech_onset_sec
+
+    path = _ingest_file(tmp_path, gain_db)
+    onset = first_speech_onset_sec(path, search_end_sec=SECONDS)
+    spans = vad_speech_intervals(path, start_sec=0.0, duration_sec=SECONDS)
+    assert onset is not None and onset == pytest.approx(6.0, abs=2.0)
+    assert spans[0][0] == pytest.approx(6.0, abs=0.5)
+    assert spans[-1][1] == pytest.approx(12.0, abs=0.5)
+
+
+@pytest.mark.parametrize("gain_db", [0.0, -12.0, -24.0])
+def test_long_delay_evidence_is_the_same_at_any_recording_level(gain_db: float) -> None:
+    from test_bleed_delay_evidence import _copy, _measure, _voice
+
+    source = _voice(11) * 10 ** (gain_db / 20)
+    rows = [row for row in _measure(source, _copy(source, 150.0, 0.15)) if row.supported]
+    assert len(rows) >= 10
+    assert np.median([row.lag_ms for row in rows]) == pytest.approx(150.0, abs=0.5)
