@@ -59,13 +59,6 @@ class EchoConfig:
     sample_rate: int = 8000
     frame_sec: float = 0.05
     max_lag_sec: float = 0.04
-    # Levels are dB re each track's own voice level: callers pass samples read through
-    # ``LevelProfile.voice_gain``. A frame counts when the source speaker is no further
-    # than ``source_under_voice_db`` under its voice level and the bleed mic is open
-    # (within ``open_under_voice_db`` of its own: not gated or digital silence). When
-    # enough co-open frames have the source at least ``dominance_db`` over the bleed on
-    # those normalized levels, only those frames score; otherwise every co-open frame
-    # scores (no as-recorded reference gap).
     source_under_voice_db: float = 25.0
     open_under_voice_db: float = OPEN_UNDER_VOICE_DB
     dominance_db: float = 6.0
@@ -330,11 +323,7 @@ def echo_pair_profile(
     gap_db: float,
     config: EchoConfig | None = None,
 ) -> EchoPairProfile:
-    """Profile one direction of one mic pair from timeline-aligned samples starting at ``t0``.
-
-    Each track is read at its own voice level (``LevelProfile.voice_gain``). ``gap_db`` is the
-    bleed mic's voice level less the source's; it is added back only for reported ``level_db``.
-    """
+    """Profile one direction of one mic pair from timeline-aligned samples starting at ``t0``."""
     cfg = config or EchoConfig()
     frame = max(1, round(cfg.frame_sec * sample_rate))
     n = min(source.size, bleed.size)
