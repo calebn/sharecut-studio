@@ -54,10 +54,12 @@ an ambiguous issue link, a missing or lost live claim, missing merging stage lab
 holds, unresolved review threads, won't-do items, or an unmergeable PR.
 Its JSON result is an additional predicate, not the native independent verdict.
 
-Collection uses GitHub REST (`gh api` only) so integration tokens that return 403 on
-GraphQL still produce a verdict. Unresolved review threads come from
-`GET .../pulls/{n}/comments`. Comments are grouped by walking `in_reply_to_id` to a
-thread root. Each group counts as unresolved because REST exposes no `isResolved`.
+Collection uses GitHub REST for the pull request, check runs, issue, and issue
+comments. Review threads prefer GraphQL `reviewThreads` when GraphQL returns HTTP
+200. When GraphQL returns 403 (`Resource not accessible by integration`), threads
+fall back to `GET .../pulls/{n}/comments` grouped by walking `in_reply_to_id` to a
+thread root. That REST path is fail-closed: each group counts as unresolved because
+REST exposes no `isResolved`.
 
 Run the helper as its own tool action. Capture the process exit status and
 retain the JSON receipt. Before a separate merge action, require all of these:
