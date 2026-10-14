@@ -367,7 +367,10 @@ describe("ImpactPanel bulk review", () => {
       ["e1", "e2", "e3"],
       false,
       true,
-      expect.objectContaining({ action: "approve", projectPath: "/tmp/p.json" }),
+      expect.objectContaining({
+        action: "approve",
+        projectPath: "/tmp/p.json",
+      }),
     ]);
     expect(vi.mocked(approveEdits).mock.calls[0]?.[5]).toBe(true);
     expect(asked).toEqual([

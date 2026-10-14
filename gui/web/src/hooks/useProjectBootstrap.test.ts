@@ -141,10 +141,9 @@ describe("sequenced project bootstrap", () => {
     });
     const hook = renderHook(() => useProjectBootstrap("/tmp/p.json"));
     await waitFor(() => expect(hook.result.current.recovering).toBe(true));
-    await waitFor(
-      () => expect(hook.result.current.recovering).toBe(false),
-      { timeout: 5_000 },
-    );
+    await waitFor(() => expect(hook.result.current.recovering).toBe(false), {
+      timeout: 5_000,
+    });
     expect(shellLoads).toBe(2);
     expect(hook.result.current.error).toBeNull();
   });
