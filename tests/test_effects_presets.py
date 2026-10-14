@@ -79,7 +79,7 @@ def test_unsupported_effects_are_refused_before_creating_a_chain() -> None:
     from podcast_mcp.effects.presets import add_effect, apply_specs_to_chain
 
     project = EpisodeProject.create("unsupported_fx", "/tmp")
-    with pytest.raises(ValueError, match="supported effects:.*highpass"):
+    with pytest.raises(ValueError, match=r"supported effects:.*highpass"):
         add_effect(project, "host", "volume")
     with pytest.raises(ValueError, match="unsupported effect 'volume'"):
         apply_specs_to_chain(
