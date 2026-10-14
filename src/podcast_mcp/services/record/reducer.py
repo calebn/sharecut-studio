@@ -21,7 +21,7 @@ from podcast_mcp.services.record.state import (
     start_blockers,
     take_consented_participant_ids,
 )
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
 
 class RecordStateError(CodedError, ValueError):
@@ -299,4 +299,4 @@ def apply_record_command(
         target.removed = True
         _note_take_consent_if_live(out, target, accepted=False)
         return out
-    raise ValueError(f"unknown record command type: {ctype}")
+    raise CodedValueError(f"unknown record command type: {ctype}", code="record_command_unknown")

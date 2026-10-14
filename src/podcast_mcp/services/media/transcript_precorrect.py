@@ -24,6 +24,7 @@ from podcast_mcp.transcript_context import (
     load_transcript_context,
     new_vocabulary_revision,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress
 from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
@@ -194,9 +195,10 @@ def _clean_vocabulary(values: list[str]) -> list[str]:
     if len(cleaned) > VOCABULARY_MAX_ENTRIES or any(
         not value or len(value) > VOCABULARY_MAX_ENTRY_CHARS for value in cleaned
     ):
-        raise ValueError(
+        raise CodedValueError(
             f"Vocabulary allows up to {VOCABULARY_MAX_ENTRIES} non-empty entries of "
-            f"{VOCABULARY_MAX_ENTRY_CHARS} characters each"
+            f"{VOCABULARY_MAX_ENTRY_CHARS} characters each",
+            code="vocabulary_empty",
         )
     return list(dict.fromkeys(cleaned))
 
@@ -217,10 +219,11 @@ def _ensure_prompt_covers_vocabulary(ctx: TranscriptContext) -> None:
         return
     used = len(ctx.primed_prompt_text())
     limit = ctx.initial_prompt_limit()
-    raise ValueError(
+    raise CodedValueError(
         f"Vocabulary needs {used} Whisper prompt characters but the prompt limit is "
         f"{limit}; remove terms or guest names, or raise "
-        "transcribe.initial_prompt_max_chars"
+        "transcribe.initial_prompt_max_chars",
+        code="vocabulary_prompt_too_long",
     )
 
 

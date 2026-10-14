@@ -18,6 +18,7 @@ from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.range_audio import append_range_gap
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 from podcast_mcp.util.project_state import snapshot_project
@@ -107,22 +108,29 @@ class BounceService:
         req = req or BounceRequest()
         project = self.ws.project
         if req.start_s is not None and req.end_s is not None and req.end_s <= req.start_s:
-            raise ValueError("end_s must be greater than start_s")
+            raise CodedValueError("end_s must be greater than start_s", code="bounce_range_invalid")
 
         if req.exact_range is not None:
             if req.track_ids is not None or req.start_s is not None or req.end_s is not None:
-                raise ValueError("Exact range cannot be combined with track_ids or start/end")
+                raise CodedValueError(
+                    "Exact range cannot be combined with track_ids or start/end",
+                    code="bounce_range_conflict",
+                )
             resolve_range(project, req.exact_range)
         ids = req.exact_range.track_ids if req.exact_range is not None else req.track_ids
         wanted = set(ids) if ids is not None else None
         if wanted is not None:
             unknown = wanted - {t.id for t in project.tracks}
             if unknown:
-                raise ValueError(f"unknown track_ids: {sorted(unknown)}")
+                raise CodedValueError(
+                    f"unknown track_ids: {sorted(unknown)}", code="bounce_tracks_unknown"
+                )
 
         tracks = _bounceable_tracks(project, wanted)
         if not tracks:
-            raise ValueError("no bounceable tracks (missing media or empty selection)")
+            raise CodedValueError(
+                "no bounceable tracks (missing media or empty selection)", code="bounce_no_tracks"
+            )
         return tracks
 
     def bounce(
@@ -176,7 +184,10 @@ class BounceService:
                     ),
                 )
                 if not mix_inputs:
-                    raise ValueError("no bounceable tracks (missing media or empty selection)")
+                    raise CodedValueError(
+                        "no bounceable tracks (missing media or empty selection)",
+                        code="bounce_no_tracks",
+                    )
                 raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
 
                 prog.set_phase("mix", "Mixing bounce…")
@@ -207,7 +218,9 @@ class BounceService:
                     needs_trim = start > 1e-3 or end < mixed_dur - 1e-3
                     if needs_trim:
                         if end <= start:
-                            raise ValueError("end_s must be greater than start_s")
+                            raise CodedValueError(
+                                "end_s must be greater than start_s", code="bounce_range_invalid"
+                            )
                         prog.set_phase("trim", "Trimming bounce range…")
                         trimmed = out_dir / f".{stem_label}.trim.wav"
                         eng.extract_segment(mixed, trimmed, start, end)

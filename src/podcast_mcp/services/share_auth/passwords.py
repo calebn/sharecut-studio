@@ -6,11 +6,13 @@ import hashlib
 import hmac
 import secrets
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 
 def hash_password(password: str, *, salt: bytes | None = None) -> str:
     """Return ``scrypt$<salt_hex>$<hash_hex>``."""
     if not password:
-        raise ValueError("password must be non-empty")
+        raise CodedValueError("password must be non-empty", code="password_empty")
     salt_b = salt or secrets.token_bytes(16)
     digest = hashlib.scrypt(
         password.encode("utf-8"),

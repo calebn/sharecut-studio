@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 __all__ = ["VIEW_PROJECTION_QUERY_DESCRIPTION", "ViewProjection", "parse_view_projection"]
 
 
@@ -40,4 +42,6 @@ def parse_view_projection(
     try:
         return ViewProjection(str(raw).strip().lower())
     except ValueError as exc:
-        raise ValueError(f"unknown project projection: {raw}") from exc
+        raise CodedValueError(
+            f"unknown project projection: {raw}", code="projection_unknown"
+        ) from exc

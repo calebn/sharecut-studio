@@ -193,6 +193,7 @@ from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.change_summary import change_summary
+from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
 from podcast_mcp.util.timeline_zoom import snap_tick_decimals
@@ -467,8 +468,9 @@ class EditService:
             if not allow_exact and any(
                 e.id in ids and e.exact_range is not None for e in p.edit_decisions
             ):
-                raise PermissionError(
-                    "Only the interactive host or an Editor can approve exact range proposals"
+                raise CodedPermissionError(
+                    "Only the interactive host or an Editor can approve exact range proposals",
+                    code="exact_range_needs_editor",
                 )
             return approve_edits(
                 p, ids, confirm_cut_speech=confirm_cut_speech, allow_review=allow_review
@@ -536,8 +538,9 @@ class EditService:
             if not allow_exact and any(
                 e.id in ids and e.exact_range is not None for e in p.edit_decisions
             ):
-                raise PermissionError(
-                    "Only the interactive host or an Editor can reject exact range proposals"
+                raise CodedPermissionError(
+                    "Only the interactive host or an Editor can reject exact range proposals",
+                    code="exact_range_needs_editor",
                 )
             return reject_edits(p, ids)
 
@@ -866,7 +869,9 @@ class EditService:
                 audio_caches=audio_caches,
             ).to_dict()
         if join_sec is None:
-            raise ValueError("provide join_sec, or cut_start and cut_end")
+            raise CodedValueError(
+                "provide join_sec, or cut_start and cut_end", code="join_target_required"
+            )
         return assess_existing_join(
             self.ws.project,
             tid,
@@ -894,7 +899,7 @@ class EditService:
 
         tid = self._resolve(track_id, speaker)
         if verdict not in ("pass", "fail"):
-            raise ValueError("verdict must be pass or fail")
+            raise CodedValueError("verdict must be pass or fail", code="join_verdict_invalid")
         label_verdict: Literal["pass", "fail"] = "pass" if verdict == "pass" else "fail"
         features = self.join_quality(
             track_id=tid,
@@ -1131,7 +1136,7 @@ class EditService:
     ) -> dict:
         """Move one clip edge; a ripple keeps every track in sync and guards their speech."""
         if not math.isfinite(source_sec):
-            raise ValueError("source_sec must be finite")
+            raise CodedValueError("source_sec must be finite", code="source_sec_not_finite")
         target = TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge, "mode": mode})
         with self.ws.transaction() as project:
             assert_boundary_token(project, target, expected_token)
@@ -1161,7 +1166,7 @@ class EditService:
         expected_token: str,
     ) -> dict:
         if not math.isfinite(delta_sec):
-            raise ValueError("delta_sec must be finite")
+            raise CodedValueError("delta_sec must be finite", code="delta_sec_not_finite")
         target = RollBoundaryTarget(left_clip_id=left_clip_id, right_clip_id=right_clip_id)
 
         def apply(p: EpisodeProject) -> dict:
@@ -1282,7 +1287,7 @@ class EditService:
         def mutate(p) -> dict:
             tids = list(track_ids) if track_ids else dialogue_track_ids(p)
             if not tids:
-                raise ValueError("no tracks to split")
+                raise CodedValueError("no tracks to split", code="no_tracks_to_split")
             if propose:
                 decision = append_split_decision(
                     p,
@@ -1701,7 +1706,7 @@ class EditService:
 
         raw = str(edit_type or "remove").strip().lower()
         if raw not in ("remove", "mute"):
-            raise ValueError("edit_type must be remove or mute")
+            raise CodedValueError("edit_type must be remove or mute", code="edit_type_invalid")
         decision_type = EditDecisionType.MUTE if raw == "mute" else EditDecisionType.REMOVE
 
         def mutate(p) -> dict:
@@ -1805,7 +1810,7 @@ class EditService:
             elif effect:
                 chain = add_effect(p, tid, effect, params)
             else:
-                raise ValueError("preset or effect is required")
+                raise CodedValueError("preset or effect is required", code="effect_required")
             return {"track_id": tid, "effects": [e.model_dump() for e in chain.effects]}
 
         return self.ws.mutate("before add effect", "after add effect", mutate)

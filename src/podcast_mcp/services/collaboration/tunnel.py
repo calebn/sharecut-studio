@@ -35,6 +35,7 @@ from podcast_mcp.services.collaboration.tunnel_status import (
     tunnel_status_path,
 )
 from podcast_mcp.util.body_limits import relay_ws_max_size
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.proxy_paths import (
     RELAYED_REQUEST_HEADER,
     UnsafeProxyPath,
@@ -238,12 +239,16 @@ class TunnelClient:
             if not isinstance(raw_headers, dict) or any(
                 not isinstance(k, str) or not isinstance(v, str) for k, v in raw_headers.items()
             ):
-                raise ValueError("invalid relay request headers")
+                raise CodedValueError(
+                    "invalid relay request headers", code="relay_request_headers_invalid"
+                )
             headers = {k: v for k, v in raw_headers.items() if k.lower() not in _HOP_BY_HOP}
             headers[RELAYED_REQUEST_HEADER] = "1"
             body_b64 = request_data.get("body_b64", "")
             if not isinstance(body_b64, str):
-                raise ValueError("invalid relay request body")
+                raise CodedValueError(
+                    "invalid relay request body", code="relay_request_body_invalid"
+                )
             body = base64.b64decode(body_b64, validate=True) if body_b64 else None
         except (ValueError, binascii.Error) as exc:
             log.warning("Rejected malformed relay HTTP request: %s", self._tracker.redact(str(exc)))

@@ -14,6 +14,7 @@ from podcast_mcp.services.document_sync.handlers import (
     markers,
     transcript,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 
@@ -64,5 +65,7 @@ def apply_command(
 ) -> dict[str, Any]:
     handler = HANDLERS.get(command_type)
     if handler is None:
-        raise ValueError(f"unknown document command: {command_type}")
+        raise CodedValueError(
+            f"unknown document command: {command_type}", code="document_command_unknown"
+        )
     return handler(ws, payload)

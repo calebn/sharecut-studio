@@ -30,7 +30,7 @@ from podcast_mcp.services.document_sync import (
 )
 from podcast_mcp.services.remote_mcp.allowlist import tool_allowed
 from podcast_mcp.services.remote_mcp.context import get_remote_mcp_context
-from podcast_mcp.util.coded_error import CodedError, CodedKeyError
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedPermissionError
 from podcast_mcp.util.progress import install_guest_tool_progress
 from podcast_mcp.util.tool_refusal import guest_failure_detail
 
@@ -45,10 +45,20 @@ class InvalidToolArgumentsError(CodedError, ValueError):
     code = "invalid_arguments"
 
 
+def _argument_problems(exc: ValidationError) -> str:
+    """Which arguments do not fit and why: the field path and rule, never the submitted value."""
+    return "; ".join(
+        f"{'.'.join(str(part) for part in err['loc']) or 'arguments'}: {err['msg']}"
+        for err in exc.errors(include_input=False, include_url=False, include_context=False)
+    )
+
+
 def _require_tool(name: str) -> None:
     ctx = get_remote_mcp_context()
     if not tool_allowed(ctx.capabilities, name):
-        raise PermissionError(f"share capabilities do not allow tool: {name}")
+        raise CodedPermissionError(
+            f"share capabilities do not allow tool: {name}", code="share_capability_required"
+        )
 
 
 def guest_get_review_summary() -> dict[str, Any]:
@@ -70,7 +80,7 @@ def guest_get_session_presence() -> dict[str, Any]:
     _require_tool("guest_get_session_presence")
     ctx = get_remote_mcp_context()
     if not has_capability(ctx.capabilities, CAP_VIEW):
-        raise PermissionError("share does not allow view")
+        raise CodedPermissionError("share does not allow view", code="share_capability_required")
     from podcast_mcp.services.collaboration import (
         SessionControlService,
         sanitize_guest_session_event,
@@ -108,7 +118,7 @@ def guest_search_transcript(query: str, limit: int = 20) -> list[dict[str, Any]]
     _require_tool("guest_search_transcript")
     ctx = get_remote_mcp_context()
     if not has_capability(ctx.capabilities, CAP_VIEW):
-        raise PermissionError("share does not allow view")
+        raise CodedPermissionError("share does not allow view", code="share_capability_required")
     from podcast_mcp.edits.transcript_cuts import search_transcript
 
     hits = search_transcript(ctx.workspace.project, query=query)
@@ -164,7 +174,9 @@ def guest_pending_preview(
     if not has_capability(ctx.capabilities, CAP_PLAY) or not has_capability(
         ctx.capabilities, CAP_VIEW
     ):
-        raise PermissionError("share does not allow play and view")
+        raise CodedPermissionError(
+            "share does not allow play and view", code="share_capability_required"
+        )
     return share_pending_preview_info(
         ctx.token,
         edit_id=edit_id,
@@ -184,7 +196,9 @@ def guest_audition_context(
     if not has_capability(ctx.capabilities, CAP_PLAY) or not has_capability(
         ctx.capabilities, CAP_VIEW
     ):
-        raise PermissionError("share does not allow play and view")
+        raise CodedPermissionError(
+            "share does not allow play and view", code="share_capability_required"
+        )
     return share_audition_context_info(
         ctx.token,
         start=start,
@@ -280,7 +294,7 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
     try:
         cmd = parse_document_command(data)
     except ValidationError as exc:
-        raise InvalidToolArgumentsError(str(exc)) from exc
+        raise InvalidToolArgumentsError(_argument_problems(exc)) from exc
     cmd.role = "guest"
     svc = DocumentSyncService(ctx.workspace)
     result = svc.submit(
@@ -518,7 +532,7 @@ def _validated_arguments(handler: Callable[..., Any], arguments: dict[str, Any])
     try:
         parsed = model.model_validate(arguments)
     except ValidationError as exc:
-        raise InvalidToolArgumentsError(str(exc)) from exc
+        raise InvalidToolArgumentsError(_argument_problems(exc)) from exc
     return {name: getattr(parsed, name) for name in type(parsed).model_fields}
 
 

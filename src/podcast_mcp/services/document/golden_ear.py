@@ -30,6 +30,7 @@ from podcast_mcp.project_io import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.wav import open_wav
@@ -66,17 +67,25 @@ def parse_classes(raw: str | tuple[str, ...] | list[str] | None) -> tuple[str, .
     else:
         parts = tuple(str(p).strip().lower() for p in raw if str(p).strip())
     if not parts:
-        raise ValueError("classes must include at least one of filler, pause, repetition, restart")
+        raise CodedValueError(
+            "classes must include at least one of filler, pause, repetition, restart",
+            code="golden_ear_classes_required",
+        )
     unknown = [p for p in parts if p not in ALLOWED_CLASSES]
     if unknown:
-        raise ValueError(f"unsupported classes {unknown!r}; use filler,pause,repetition,restart")
+        raise CodedValueError(
+            f"unsupported classes {unknown!r}; use filler,pause,repetition,restart",
+            code="golden_ear_classes_unsupported",
+        )
     return parts
 
 
 def bound_limit(limit: int) -> int:
     value = int(limit)
     if value < 1 or value > MAX_LIMIT:
-        raise ValueError(f"limit must be between 1 and {MAX_LIMIT}")
+        raise CodedValueError(
+            f"limit must be between 1 and {MAX_LIMIT}", code="golden_ear_limit_out_of_range"
+        )
     return value
 
 
@@ -110,11 +119,18 @@ def copy_relocated_project(src_project: Path, dest_workspace: Path) -> Path:
     dest_ws = dest_workspace.expanduser().resolve()
     dest_file = dest_ws / EPISODE_PROJECT_FILENAME
     if dest_ws.exists() and dest_ws.samefile(src_ws):
-        raise ValueError("output workspace must not be the source project")
+        raise CodedValueError(
+            "output workspace must not be the source project", code="golden_ear_output_is_source"
+        )
     if dest_file.is_file() and dest_file.samefile(src_file):
-        raise ValueError("output workspace must not be the source project")
+        raise CodedValueError(
+            "output workspace must not be the source project", code="golden_ear_output_is_source"
+        )
     if dest_ws == src_ws or src_ws in dest_ws.parents:
-        raise ValueError("output workspace must not be inside the source project")
+        raise CodedValueError(
+            "output workspace must not be inside the source project",
+            code="golden_ear_output_inside_source",
+        )
     fp = source_fingerprint(src_file)
     marker = dest_ws / SOURCE_FP_NAME
     if dest_file.is_file():

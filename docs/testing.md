@@ -77,7 +77,7 @@ or savings.
 Local mirrors of the CI `pytest` job’s static checks (config in `pyproject.toml`):
 
 ```bash
-make lint-py          # ruff check + bandit -ll + vulture + deptry
+make lint-py          # ruff check + bandit -ll + vulture + deptry + scripts/check_coded_errors.py (no bare PermissionError/ValueError in services/)
 make format-py        # ruff format (write)
 make format-py-check  # ruff format --check
 make capabilities-check

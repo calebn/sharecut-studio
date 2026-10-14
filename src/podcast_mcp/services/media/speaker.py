@@ -28,6 +28,7 @@ from podcast_mcp.engines.waveform_media import schedule_track_waveforms
 from podcast_mcp.models import SpeakerSplitCrosstalk
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.transcript_context import context_lock, load_transcript_context
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import (
     ProgressReporter,
     raise_if_cancel_requested,
@@ -289,8 +290,9 @@ class SpeakerService:
             else None
         )
         if not count:
-            raise ValueError(
-                "a speaker split needs the speaker count: pass it, or set it with set-speaker-count"
+            raise CodedValueError(
+                "a speaker split needs the speaker count: pass it, or set it with set-speaker-count",
+                code="speaker_split_count_required",
             )
         speakers = _speaker_names(count, names, list(enrolled))
         backend = resolve_speaker_backend()
@@ -381,15 +383,26 @@ class SpeakerService:
 def _speaker_names(count: int, names: Sequence[str] | None, enrolled: list[str]) -> list[str]:
     if names:
         if len(names) != count:
-            raise ValueError(f"expected {count} speaker names, got {len(names)}")
+            raise CodedValueError(
+                f"expected {count} speaker names, got {len(names)}",
+                code="speaker_names_count_mismatch",
+            )
         if len(set(names)) != len(names) or not all(name.strip() for name in names):
-            raise ValueError("speaker names must be different and not blank")
+            raise CodedValueError(
+                "speaker names must be different and not blank", code="speaker_names_invalid"
+            )
         missing = [name for name in enrolled if name not in names]
         if missing:
-            raise ValueError(f"enrolled speaker {missing[0]!r} is not one of the names")
+            raise CodedValueError(
+                f"enrolled speaker {missing[0]!r} is not one of the names",
+                code="speaker_enrolled_name_unknown",
+            )
         return list(names)
     if len(enrolled) > count:
-        raise ValueError(f"{len(enrolled)} speakers enrolled but the speaker count is {count}")
+        raise CodedValueError(
+            f"{len(enrolled)} speakers enrolled but the speaker count is {count}",
+            code="speaker_enrolled_count_mismatch",
+        )
     return enrolled + [f"Speaker {i + 1}" for i in range(len(enrolled), count)]
 
 

@@ -42,6 +42,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.waveform import schedule_track_waveforms
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
 
@@ -241,7 +242,10 @@ class IngestService:
     ) -> VerifyResult:
         dialogue = [t for t in self.ws.project.tracks if t.role == TrackRole.DIALOGUE and t.media]
         if len(dialogue) < 2:
-            raise ValueError("verify requires at least two dialogue tracks")
+            raise CodedValueError(
+                "verify requires at least two dialogue tracks",
+                code="ingest_verify_needs_two_tracks",
+            )
 
         duration = window_end_sec - window_start_sec
         intervals: dict[str, list[tuple[float, float]]] = {}
@@ -378,7 +382,10 @@ class IngestService:
                 try:
                     wav = resolve_within(ws_path, str(wav))
                 except ValueError:
-                    raise ValueError(f"consolidated track must be under workspace: {wav}") from None
+                    raise CodedValueError(
+                        f"consolidated track must be under workspace: {wav}",
+                        code="ingest_track_outside_workspace",
+                    ) from None
                 rel = str(wav.relative_to(ws_path)).replace("\\", "/")
                 track = Track(
                     id=tid,
@@ -457,7 +464,10 @@ def suggest_alignment_for_manifest(
     ref_path = next(p[0] for n, p in groups if n == ref_name)
     guests = [(n, p[0]) for n, p in groups if n != ref_name]
     if not guests:
-        raise ValueError("ingest suggest requires at least one non-reference speaker")
+        raise CodedValueError(
+            "ingest suggest requires at least one non-reference speaker",
+            code="ingest_suggest_needs_speaker",
+        )
 
     ref_start = _manual_session_start(manifest, ref_name)
     candidates_raw = _frange(sweep_start_min, sweep_start_max, sweep_step)
@@ -574,7 +584,7 @@ def _manual_session_start(manifest: IngestManifest, name: str) -> float:
 
 def _frange(start: float, stop: float, step: float) -> list[float]:
     if step <= 0:
-        raise ValueError("sweep step must be positive")
+        raise CodedValueError("sweep step must be positive", code="ingest_sweep_step_invalid")
     out: list[float] = []
     v = start
     while v <= stop + 1e-9:
@@ -715,7 +725,9 @@ def _write_ingest_manifest(path: Path, manifest: IngestManifest) -> None:
     _assert_manifest_writable(path)
     dest = path.expanduser()
     if dest.is_symlink():
-        raise ValueError(f"refusing to write manifest through symlink: {path}")
+        raise CodedValueError(
+            f"refusing to write manifest through symlink: {path}", code="ingest_manifest_symlink"
+        )
     data = manifest.model_dump(exclude_none=True)
     if not data.get("align_anchors"):
         data.pop("align_anchors", None)
@@ -738,7 +750,10 @@ def _normalize_speakers_override(
         label_key = key.strip()
         label_value = value.strip()
         if not label_key or not label_value:
-            raise ValueError("speakers_override keys and values must be non-empty")
+            raise CodedValueError(
+                "speakers_override keys and values must be non-empty",
+                code="ingest_speakers_override_blank",
+            )
         out[label_key] = label_value
     return out
 
@@ -769,7 +784,10 @@ def _assert_manifest_writable(path: Path) -> None:
     resolved = path.expanduser().resolve()
     for parent in [resolved, *resolved.parents]:
         if parent.name == "fixtures" and parent.parent.name == "tests":
-            raise ValueError("refusing to write ingest.yaml under tests/fixtures/")
+            raise CodedValueError(
+                "refusing to write ingest.yaml under tests/fixtures/",
+                code="ingest_manifest_fixture_path",
+            )
 
 
 def _file_row(row: ScannedFile, speaker_label: str) -> dict:

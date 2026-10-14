@@ -13,6 +13,7 @@ from podcast_mcp.runtime_config import (
     load_host_runtime_config,
 )
 from podcast_mcp.services.support.doctor import DoctorCheck, DoctorReport
+from podcast_mcp.util.coded_error import CodedValueError
 
 ConfigMode = Literal["local", "self-hosted", "distributor"]
 
@@ -112,4 +113,4 @@ def run_config_checks(
             report.checks.append(DoctorCheck("ok", "bootstrap CDN configured"))
         return report
 
-    raise ValueError(f"unsupported config mode: {mode}")
+    raise CodedValueError(f"unsupported config mode: {mode}", code="config_mode_unsupported")

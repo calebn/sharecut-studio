@@ -14,6 +14,7 @@ import json
 from dataclasses import dataclass
 
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 @dataclass(frozen=True)
@@ -99,7 +100,9 @@ def prior_from_json(raw: str) -> PriorRegistration:
             media=MediaAsset.model_validate(media) if media is not None else None,
         )
     except (KeyError, TypeError, AttributeError) as exc:
-        raise ValueError(f"unreadable prior registration: {exc}") from exc
+        raise CodedValueError(
+            "unreadable prior registration", code="landing_registration_unreadable"
+        ) from exc
 
 
 def registration_present(project: EpisodeProject, prior: PriorRegistration) -> bool:

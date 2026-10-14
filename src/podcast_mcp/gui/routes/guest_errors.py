@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from fastapi import HTTPException
@@ -53,6 +55,17 @@ def guest_http_error(
     else:
         status = 400
     return HTTPException(status_code=status, detail=refusal.message, headers=headers)
+
+
+@contextmanager
+def guest_boundary(logger: logging.Logger, operation: str) -> Iterator[None]:
+    """Run a guest route's service call; anything it raises leaves as ``guest_http_error``."""
+    try:
+        yield
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise guest_http_error(exc, logger=logger, operation=operation) from exc
 
 
 @dataclass(frozen=True)

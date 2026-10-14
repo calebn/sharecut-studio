@@ -48,7 +48,7 @@ from podcast_mcp.engines.play_audit import (
     track_render_hash,
 )
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
-from podcast_mcp.engines.timemap import TimelineMapError, timeline_range_to_source
+from podcast_mcp.engines.timemap import timeline_range_to_source
 from podcast_mcp.engines.transcript_gated_play import (
     dialogue_tracks_for_play,
     transcript_gate_fingerprint,
@@ -315,12 +315,16 @@ class PlayService:
     ) -> tuple[float, float]:
         track_clips = [c for c in project.clips if c.track_id == track_id]
         if not track_clips:
-            raise ValueError("boundary track has no clips to audition")
+            raise CodedValueError(
+                "boundary track has no clips to audition", code="boundary_track_empty"
+            )
         track_end = max(c.timeline_end for c in track_clips)
         start = max(0.0, seam_sec - pad_sec)
         end = min(track_end, seam_sec + pad_sec)
         if end - start < 0.02:
-            raise ValueError("boundary has too little audio to audition")
+            raise CodedValueError(
+                "boundary has too little audio to audition", code="boundary_audio_too_short"
+            )
         return start, end
 
     def _boundary_render(
@@ -389,18 +393,24 @@ class PlayService:
     ) -> BoundaryAudition:
         """Hear saved and proposed affected-track windows without publishing a project."""
         if not math.isfinite(pad_sec) or not 0.1 <= pad_sec <= 2.0:
-            raise ValueError("pad_sec must be between 0.1 and 2 seconds")
+            raise CodedValueError(
+                "pad_sec must be between 0.1 and 2 seconds", code="boundary_pad_out_of_range"
+            )
         if isinstance(target, TrimBoundaryTarget):
             if not isinstance(edit, TrimBoundaryEdit) or (
                 target.clip_id != edit.clip_id
                 or target.edge != edit.edge
                 or target.mode != edit.mode
             ):
-                raise ValueError("edit does not match boundary target")
+                raise CodedValueError(
+                    "edit does not match boundary target", code="boundary_edit_mismatch"
+                )
         elif not isinstance(edit, RollBoundaryEdit) or (
             target.left_clip_id != edit.left_clip_id or target.right_clip_id != edit.right_clip_id
         ):
-            raise ValueError("edit does not match boundary target")
+            raise CodedValueError(
+                "edit does not match boundary target", code="boundary_edit_mismatch"
+            )
 
         with self.ws.transaction() as saved:
             current_context = assert_boundary_token(saved, target, expected_token)
@@ -479,7 +489,7 @@ class PlayService:
     def boundary_audio_path(self, opaque_id: str, side: str, expected_token: str) -> Path:
         """Resolve one issued, unexpired cache file after host and token checks."""
         if side not in {"current", "proposed"}:
-            raise ValueError("unknown boundary audition side")
+            raise CodedValueError("unknown boundary audition side", code="boundary_side_unknown")
         with _boundary_catalog_lock:
             entry = _boundary_catalog.get(opaque_id)
             if entry is None or entry.expires_at < time.monotonic():
@@ -517,7 +527,10 @@ class PlayService:
         """
         normalized = kind.strip().lower()
         if source_id is not None and normalized not in ("raw", "track"):
-            raise ValueError("source_id is only supported for raw/track transport")
+            raise CodedValueError(
+                "source_id is only supported for raw/track transport",
+                code="transport_source_id_unsupported",
+            )
         if normalized == "premix":
             # Transport streaming must not rebuild on every GET; use rerender=True
             # (CLI --rerender / ?rerender=1) when a rebuild is intentional.
@@ -547,9 +560,10 @@ class PlayService:
                     self.project.review.active_version_id or ""
                 )
             if not version_id:
-                raise ValueError(
+                raise CodedValueError(
                     "review version id required (kind=review:<id>, track_id=, "
-                    "or set review.active_version_id)"
+                    "or set review.active_version_id)",
+                    code="review_version_required",
                 )
             path = version_audio_path(self.project, version_id)
             return TransportPath(
@@ -560,7 +574,10 @@ class PlayService:
 
         if normalized in ("stem", "processed", "fx"):
             if not track_id:
-                raise ValueError("track_id required for stem/processed transport")
+                raise CodedValueError(
+                    "track_id required for stem/processed transport",
+                    code="transport_track_required",
+                )
             if self.project.track_by_id(track_id) is None:
                 raise CodedKeyError(f"unknown track {track_id!r}", code="track_not_found")
             busy = False
@@ -592,7 +609,9 @@ class PlayService:
 
         if normalized in ("raw", "track"):
             if not track_id:
-                raise ValueError("track_id required for raw/track transport")
+                raise CodedValueError(
+                    "track_id required for raw/track transport", code="transport_track_required"
+                )
             path = recording_audio_path(self.project, track_id, source_id)
             if not path.is_file():
                 raise CodedFileNotFoundError(
@@ -604,9 +623,10 @@ class PlayService:
                 tier="raw",
             )
 
-        raise ValueError(
+        raise CodedValueError(
             f"unknown transport kind {kind!r}; "
-            "use premix, review[:id], stem/processed, or raw/track"
+            "use premix, review[:id], stem/processed, or raw/track",
+            code="transport_kind_unknown",
         )
 
     def play(
@@ -691,13 +711,15 @@ class PlayService:
                     f"no transcript match for {req.query!r}", code="no_transcript_match"
                 )
             if req.match_index < 0 or req.match_index >= len(matches):
-                raise ValueError(
-                    f"match index {req.match_index} out of range (0..{len(matches) - 1})"
+                raise CodedValueError(
+                    f"match index {req.match_index} out of range (0..{len(matches) - 1})",
+                    code="transcript_match_out_of_range",
                 )
             m = matches[req.match_index]
             if m.timeline_start is None or m.timeline_end is None:
-                raise ValueError(
-                    f"transcript match for {req.query!r} falls in removed timeline material"
+                raise CodedValueError(
+                    f"transcript match for {req.query!r} falls in removed timeline material",
+                    code="transcript_match_removed",
                 )
             start = max(0.0, m.timeline_start - req.padding_sec)
             end = m.timeline_end + req.padding_sec
@@ -708,7 +730,7 @@ class PlayService:
             return f"processed:{m.track_id}", start, end
 
         if req.end_sec <= req.start_sec:
-            raise ValueError("end must be after start")
+            raise CodedValueError("end must be after start", code="range_end_before_start")
         return req.source, req.start_sec, req.end_sec
 
     def _resolve_audio(
@@ -728,12 +750,9 @@ class PlayService:
             return path, tier, ext_start, ext_end, False
         if source.startswith("track:"):
             tid = source.split(":", 1)[1]
-            try:
-                media, ext_start, ext_end = timeline_range_to_source(
-                    self.project, tid, timeline_start, timeline_end
-                )
-            except TimelineMapError as exc:
-                raise ValueError(str(exc)) from exc
+            media, ext_start, ext_end = timeline_range_to_source(
+                self.project, tid, timeline_start, timeline_end
+            )
             out = self._cache_path(f"raw_{tid}", timeline_start, timeline_end, media)
             if not out.is_file():
                 FFmpegEngine().extract_segment(media, out, ext_start, ext_end)
@@ -750,8 +769,9 @@ class PlayService:
             if not out.is_file():
                 FFmpegEngine().extract_segment(path, out, timeline_start, timeline_end)
             return out, "export", timeline_start, timeline_end, False
-        raise ValueError(
-            f"unknown source {source!r}; use processed:<id>, track:<id>, premix, or export"
+        raise CodedValueError(
+            f"unknown source {source!r}; use processed:<id>, track:<id>, premix, or export",
+            code="play_source_unknown",
         )
 
     def _processed_audio(
@@ -959,7 +979,7 @@ class PlayService:
     ) -> PlayResult:
         source, start, end = self._resolve_source_and_times(req)
         if end <= start:
-            raise ValueError("end must be after start")
+            raise CodedValueError("end must be after start", code="range_end_before_start")
 
         single_tid: str | None = None
         if source.startswith("processed:") or source.startswith("track:"):
@@ -1085,7 +1105,10 @@ class PlayService:
     ) -> PlayResult:
         track_ids = dialogue_tracks_for_play(self.project)
         if not track_ids:
-            raise ValueError("follow-transcript mix requires dialogue tracks")
+            raise CodedValueError(
+                "follow-transcript mix requires dialogue tracks",
+                code="follow_transcript_needs_dialogue",
+            )
 
         segments: list[tuple[str, Path]] = []
         gains_db: dict[str, float] = {}
@@ -1157,7 +1180,10 @@ class PlayService:
     ) -> PlayResult:
         track_ids = dialogue_tracks_for_play(self.project)
         if not track_ids:
-            raise ValueError("follow-transcript compare requires dialogue tracks")
+            raise CodedValueError(
+                "follow-transcript compare requires dialogue tracks",
+                code="follow_transcript_needs_dialogue",
+            )
 
         segments: list[dict] = []
         last_wav: Path | None = None
@@ -1216,14 +1242,14 @@ class PlayService:
         publish_audition: bool = True,
     ) -> PlayResult:
         if req.end_sec <= req.start_sec:
-            raise ValueError("end must be after start")
+            raise CodedValueError("end must be after start", code="range_end_before_start")
         dialogue = [
             t
             for t in self.project.tracks
             if t.role == TrackRole.DIALOGUE and t.media and not t.muted
         ]
         if not dialogue:
-            raise ValueError("compare requires dialogue tracks")
+            raise CodedValueError("compare requires dialogue tracks", code="compare_needs_dialogue")
 
         segments: list[dict] = []
         last_wav: Path | None = None
@@ -1319,13 +1345,13 @@ class PlayService:
     ) -> PlayResult:
         """Mix selected tracks for a timeline window into play_cache (no project mutation)."""
         if end_sec <= start_sec:
-            raise ValueError("end must be after start")
+            raise CodedValueError("end must be after start", code="range_end_before_start")
         kind = (tier or "processed").strip().lower()
         if kind not in {"processed", "raw"}:
-            raise ValueError("tier must be processed or raw")
+            raise CodedValueError("tier must be processed or raw", code="tier_invalid")
         ids = [tid.strip() for tid in track_ids if tid and str(tid).strip()]
         if not ids:
-            raise ValueError("track_ids must not be empty")
+            raise CodedValueError("track_ids must not be empty", code="track_ids_empty")
         known = {t.id for t in self.project.tracks}
         unknown = [tid for tid in ids if tid not in known]
         if unknown:
@@ -1450,7 +1476,9 @@ class PlayService:
         from .history import HistoryService
 
         if before_index == after_index:
-            raise ValueError("before_index and after_index must differ")
+            raise CodedValueError(
+                "before_index and after_index must differ", code="history_indexes_equal"
+            )
 
         hist = HistoryService(self.ws)
         out_dir = self._play_cache_dir()
@@ -1534,7 +1562,9 @@ class PlayService:
         """
         kind = (mode or "suggested").strip().lower()
         if kind not in _PENDING_SIDES:
-            raise ValueError("mode must be current, suggested, or ab")
+            raise CodedValueError(
+                "mode must be current, suggested, or ab", code="compare_mode_invalid"
+            )
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
             raise CodedValueError(window.suggest_reason, code="pending_preview_unavailable")
@@ -1576,7 +1606,9 @@ class PlayService:
         """Return the pending-preview WAV if it already exists (no FFmpeg)."""
         kind = (mode or "suggested").strip().lower()
         if kind not in _PENDING_SIDES:
-            raise ValueError("mode must be current, suggested, or ab")
+            raise CodedValueError(
+                "mode must be current, suggested, or ab", code="compare_mode_invalid"
+            )
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
             raise CodedValueError(window.suggest_reason, code="pending_preview_unavailable")

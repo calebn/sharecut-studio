@@ -16,6 +16,7 @@ from podcast_mcp.util.binaries import (
     FFmpegPairResolutionError,
     resolve_ffmpeg_pair,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_assets import bootstrap_rnnoise_model, rnnoise_model_path
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.whisper_models import (
@@ -188,8 +189,9 @@ def run_bootstrap(
     wanted = list(components) if components else list(DEFAULT_FIRST_RUN_COMPONENTS)
     unknown = [c for c in wanted if c not in ALL_GUI_COMPONENTS]
     if unknown:
-        raise ValueError(
-            f"unsupported bootstrap components {unknown!r}; GUI allows {list(ALL_GUI_COMPONENTS)}"
+        raise CodedValueError(
+            f"unsupported bootstrap components {unknown!r}; GUI allows {list(ALL_GUI_COMPONENTS)}",
+            code="bootstrap_components_unsupported",
         )
 
     results: dict[str, Any] = {}
