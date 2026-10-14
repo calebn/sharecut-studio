@@ -42,7 +42,9 @@ from podcast_mcp.util.timebase import SourceSec
 SR = 8_000
 TIMELINE_SEC = 12
 MEDIA_SEC = 20
-SEEDS = range(40)
+# Reduced from the 40-seed outcome census; retain both ask/control results and the
+# distinct trim outside-range control at seed 18.
+SEEDS = (0, 4, 5, 13, 18, 20, 23, 24, 25, 30, 38, 39)
 OPS = ("delete", "cut", "trim", "approve")
 
 

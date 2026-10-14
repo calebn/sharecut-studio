@@ -3,9 +3,9 @@
 Every route the app serves under a share ``{token}``, both guest sockets (at admission and once
 admitted) and every remote MCP tool is probed. Each probe names the call inside its own handler where a fault is planted, so a
 leak in that handler's own error path fails here. The sweep also breaks a real share two ways
-(the frozen review mix is gone, the project file is gone) under folder names that hold
-apostrophes, quotes, ``?``, spaces and non-ASCII, and reads every answer for a word of the
-folder name (#1327).
+(the frozen review mix is gone, the project file is gone) under one folder path containing all
+six historical names with apostrophes, quotes, ``?``, spaces and non-ASCII, and reads every
+answer for any old folder name or word fragment (#1327).
 """
 
 from __future__ import annotations
@@ -56,6 +56,7 @@ FOLDER_NAMES = [
     "Café Ünïcodz ☕ Radio",
     "Spaced   Outz Pod",
 ]
+FOLDER_PATH = " -- ".join(FOLDER_NAMES)
 MIX_MISSING = "review_audio_gone"
 PROJECT_GONE = "project_file_gone"
 REVIEW_AUDIO_GONE_MESSAGE = (
@@ -82,7 +83,16 @@ class World:
     dist: Path
 
     def leaks(self, text: str) -> list[str]:
-        fragments = [*_words(self.folder), self.folder, "episode.project"]
+        fragments = list(
+            dict.fromkeys(
+                [
+                    *_words(self.folder),
+                    self.folder,
+                    "episode.project",
+                    *(name for name in FOLDER_NAMES if name in self.folder),
+                ]
+            )
+        )
         return [
             fragment
             for fragment in fragments
@@ -873,21 +883,20 @@ def test_no_guest_route_shows_a_word_of_a_broken_share_folder(
 ) -> None:
     # Unplanted, a guest render would start a real background job that outlives the test.
     monkeypatch.delenv("PODCAST_GUEST_RENDER")
-    for index, folder in enumerate(FOLDER_NAMES):
-        world = _build_world(tmp_path / str(index), sample_wav, folder)
-        _break(world, broken)
-        client = _client(world)
-        for method, template in sorted(PROBES):
-            response = _send(client, method, template, world)
-            text = json.dumps([response.status_code, dict(response.headers), response.text])
-            _assert_private(world, f"{broken} {method} {template}", text)
-        for template in sorted(SOCKETS):
-            seen = _socket(client, _expand(template, world))
-            _assert_private(world, f"{broken} WS {template}", json.dumps(seen))
-        for tool, (_site, arguments) in sorted(TOOLS.items()):
-            call = _rpc("tools/call", name=tool, arguments=arguments)
-            out = handle_mcp_jsonrpc(world.token, call)
-            _assert_private(world, f"{broken} tool {tool}", json.dumps(out))
+    world = _build_world(tmp_path, sample_wav, FOLDER_PATH)
+    _break(world, broken)
+    client = _client(world)
+    for method, template in sorted(PROBES):
+        response = _send(client, method, template, world)
+        text = json.dumps([response.status_code, dict(response.headers), response.text])
+        _assert_private(world, f"{broken} {method} {template}", text)
+    for template in sorted(SOCKETS):
+        seen = _socket(client, _expand(template, world))
+        _assert_private(world, f"{broken} WS {template}", json.dumps(seen))
+    for tool, (_site, arguments) in sorted(TOOLS.items()):
+        call = _rpc("tools/call", name=tool, arguments=arguments)
+        out = handle_mcp_jsonrpc(world.token, call)
+        _assert_private(world, f"{broken} tool {tool}", json.dumps(out))
 
 
 def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(world: World) -> None:

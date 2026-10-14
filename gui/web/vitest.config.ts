@@ -18,6 +18,8 @@ const nodeTestFiles = [
   "src/utils/snap.test.ts",
   "src/utils/timelinePointer.test.ts",
   "src/utils/timelineViewport.test.ts",
+  "src/audio/proxyMath.test.ts",
+  "src/audio/wavHeader.encode.test.ts",
 ];
 
 export default defineConfig({

@@ -767,7 +767,9 @@ DETECTORS = {
 }
 
 # Every track recorded this many dB louder (+) or quieter (-) than the 0 dB scene.
-ALL_TRACK_GAINS = (6.0, 12.0, -12.0, -24.0, -34.0, -36.0, -40.0)
+# Keep both detector limits and representative interior levels.  -34 dB duplicated
+# the same broad within-range check as -24 dB without covering another boundary.
+ALL_TRACK_GAINS = (6.0, 12.0, -12.0, -24.0, -36.0, -40.0)
 
 
 def _scalings() -> dict[str, tuple[float | None, Callable[[str], dict[str, float]]]]:
