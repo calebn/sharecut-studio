@@ -61,6 +61,7 @@ function StudioShellAdapter({
   const {
     project,
     selection,
+    rangeArmed,
     activeTab,
     pipelineJob,
     activityJob,
@@ -74,6 +75,7 @@ function StudioShellAdapter({
   } = useDaw((s) => ({
     project: s.project,
     selection: s.selection,
+    rangeArmed: s.rangeArmed,
     activeTab: s.activeTab,
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
@@ -168,6 +170,8 @@ function StudioShellAdapter({
 
   const showInspector =
     shell === "desktop" && selection != null && !isRangeSelection(selection);
+  const rangeActionsInSheet =
+    selectionSheet.open && (rangeArmed || isRangeSelection(selection));
   // Only the ingest drop target keeps headers outside the timeline; any drawn
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;
@@ -249,7 +253,7 @@ function StudioShellAdapter({
         transport: (
           <>
             <TransportBar compact={shell === "tablet"} showLayout />
-            {selectionSheet.open ? null : <RangeActions />}
+            {rangeActionsInSheet ? null : <RangeActions />}
           </>
         ),
         footer: <StatusBar guestShare={guestShare} />,

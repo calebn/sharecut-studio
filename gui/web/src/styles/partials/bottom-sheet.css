@@ -304,6 +304,13 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   overflow: auto;
 }
 
+/* The related and more zones sit beside the inspector, so they take its
+   gutter instead of running to the sheet's edge. */
+.bottom-sheet-body > .related-commands {
+  padding-inline: var(--space-5);
+  padding-block-end: var(--space-5);
+}
+
 .bottom-sheet-body .modifier-inspector {
   width: 100%;
   max-width: none;
