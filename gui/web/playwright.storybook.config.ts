@@ -7,7 +7,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   timeout: 30_000,
-  reporter: process.env.CI ? "github" : "list",
+  reporter: process.env.CI
+    ? [["github"], ["json", { outputFile: "playwright-report/stories.json" }]]
+    : "list",
   use: {
     ...devices["Desktop Chrome"],
     baseURL: "http://127.0.0.1:6010",

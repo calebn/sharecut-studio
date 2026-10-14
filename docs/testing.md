@@ -21,9 +21,12 @@ The thread pool keeps file isolation and bounded parallelism after fork workers
 stalled on a macOS host with endpoint scanning. Keep a separate Playwright
 browser run for real-browser checks.
 
-When adding tests, name the regression risk and use the cheapest layer that
-faithfully exercises it. Pure edit and timeline utility calculations can use Node
-only when their imports and tested paths require no DOM or shared browser setup.
+Before adding a test, check existing coverage and state the behavior that the
+new test covers and existing tests do not. Prefer one focused test per
+invariant. Extend an existing test when it already covers that behavior. Use
+the cheapest layer that faithfully exercises the behavior. Pure edit and
+timeline utility calculations can use Node only when their imports and tested
+paths require no DOM or shared browser setup.
 Component behavior stays in jsdom, and browser behavior stays in Playwright. Before changing the
 Node list, compare test discovery and results across both projects and the
 full suite. Record evidence that every test runs once and retains its assertions.
@@ -71,6 +74,14 @@ entries, so phases below the 0.1-second cutoff and remaining phases beyond the
 subprocess, or prove that a change saves time. Inspect the relevant test and
 dependencies, then isolate a candidate with bounded runs before claiming a cause
 or savings.
+
+Test jobs also add a per-area summary to the GitHub job summary. Python uses
+JUnit testcase records, Vitest uses its JSON reporter, and the main, compatibility,
+and Storybook browser jobs use Playwright JSON reports. Browser matrix jobs show
+their own shard row. Counts represent logical tests, so a Playwright retry does
+not add another test. Durations sum testcase or attempt times and can overlap
+when tests run in parallel. They are not job wall time. A missing or unreadable
+report appears as unavailable, and the summary does not change the test result.
 
 ## Python quality tooling
 
