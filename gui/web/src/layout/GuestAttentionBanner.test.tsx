@@ -1,6 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import {
+  recordVolatileOutcome,
+  volatileOutcomeFor,
+} from "../state/offlineAttention";
 import { minimalProject, offlineConflict } from "../test/fixtures";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 
@@ -11,6 +15,8 @@ const offlineStore = vi.hoisted(() => {
   const state = {
     clearConflicts: vi.fn(),
     clearHostConflicts: vi.fn(),
+    dismissConflicts: vi.fn(),
+    dismissHostConflicts: vi.fn(),
     loadConflicts: vi.fn(),
     loadCommandQueue: vi.fn(),
     loadHostCommandCount: vi.fn(),
@@ -55,6 +61,8 @@ describe("GuestAttentionBanner", () => {
     }
     offlineStore.clearConflicts.mockResolvedValue(undefined);
     offlineStore.clearHostConflicts.mockResolvedValue(undefined);
+    offlineStore.dismissConflicts.mockResolvedValue(undefined);
+    offlineStore.dismissHostConflicts.mockResolvedValue(undefined);
     offlineStore.loadConflicts.mockResolvedValue([]);
     offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
@@ -84,7 +92,10 @@ describe("GuestAttentionBanner", () => {
       fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(offlineStore.clearHostConflicts).toHaveBeenCalledWith("/tmp/p.json");
+    expect(offlineStore.dismissHostConflicts).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      [expect.objectContaining({ command: expect.any(Object) })],
+    );
     expect(screen.getByText("1 pending")).toBeInTheDocument();
   });
 
@@ -103,8 +114,43 @@ describe("GuestAttentionBanner", () => {
       fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(offlineStore.clearConflicts).toHaveBeenCalledWith("tok-sample");
+    expect(offlineStore.dismissConflicts).toHaveBeenCalledWith("tok-sample", [
+      expect.objectContaining({ command: expect.any(Object) }),
+    ]);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps a newer same-command outcome visible and fenced while dismissal is pending", async () => {
+    const path = "/tmp/1478-dismiss-race.json";
+    const observed = offlineConflict({
+      command: { command_id: "same-command" },
+      reason: "Earlier refusal.",
+    });
+    const newer = offlineConflict({
+      command: { command_id: "same-command" },
+      reason: "Earlier refusal.",
+    });
+    const dismissal = deferred<void>();
+    offlineStore.loadHostConflicts.mockResolvedValue([observed]);
+    offlineStore.dismissHostConflicts.mockReturnValueOnce(dismissal.promise);
+    useDawStore.getState().hydrate(path, minimalProject());
+    render(<GuestAttentionBanner />);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+      recordVolatileOutcome(path, newer);
+    });
+    await act(async () => dismissal.resolve());
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Earlier refusal.");
+    expect(volatileOutcomeFor(path, "same-command")).toMatchObject({
+      reason: "Earlier refusal.",
+    });
+    expect(volatileOutcomeFor(path, "same-command")).not.toHaveProperty(
+      "dismissed",
+      true,
+    );
   });
 
   it("picks up a new count after the 2s poll", async () => {
@@ -239,7 +285,7 @@ describe("GuestAttentionBanner", () => {
     const read = () =>
       host ? offlineStore.loadHostConflicts : offlineStore.loadConflicts;
     const clear = () =>
-      host ? offlineStore.clearHostConflicts : offlineStore.clearConflicts;
+      host ? offlineStore.dismissHostConflicts : offlineStore.dismissConflicts;
     const verified = offlineConflict({ reason: "Verified retained conflict" });
     const newer = offlineConflict({ reason: "Newer admitted conflict" });
 
@@ -481,7 +527,7 @@ describe("GuestAttentionBanner", () => {
         "Verified retained conflict",
       );
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Your saved edits have been kept.",
+        "Dismissal failed. Your saved outcomes have been kept.",
       );
       expect(
         screen.getByRole("button", { name: "Dismiss all" }),

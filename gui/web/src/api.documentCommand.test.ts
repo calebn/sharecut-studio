@@ -511,8 +511,12 @@ describe("host document command queue", () => {
 
   describe("guest queue outcomes", () => {
     const fader = { track_id: "host", fader_db: -3 };
-    const queuedId = () =>
-      (enqueueCommand.mock.calls[0]?.[1] as { command_id: string }).command_id;
+    const queuedId = () => {
+      expect(enqueueCommand).toHaveBeenCalled();
+      const command = enqueueCommand.mock.calls[0]?.[1];
+      if (!command) throw new Error("Expected an admitted guest command");
+      return command.command_id;
+    };
 
     it("applies a committed guest reply even when local queue cleanup fails", async () => {
       const { useDawStore } = await import("./state/dawStore");

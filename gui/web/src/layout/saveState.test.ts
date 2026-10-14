@@ -67,6 +67,34 @@ describe("saveStateOf", () => {
     ).toEqual({ kind: "failed", cause: "refused", reason: "The clip moved" });
   });
 
+  it("keeps a dismissed refusal as terminal save truth", () => {
+    expect(
+      saveStateOf({
+        ...quiet,
+        conflicts: [
+          {
+            command: {
+              command_id: "dismissed",
+              client_id: "client",
+              client_seq: 1,
+              type: "SetTrackMeta",
+              payload: {},
+              created_at: 0,
+            },
+            kind: "refused",
+            reason: "The server refused this edit.",
+            recovery: "edit-and-resubmit",
+            dismissed: true,
+          },
+        ],
+      }),
+    ).toEqual({
+      kind: "failed",
+      cause: "refused",
+      reason: "The server refused this edit.",
+    });
+  });
+
   it("keeps unknown delivery distinct from a known refusal", () => {
     expect(
       saveStateOf({
@@ -110,7 +138,7 @@ describe("saveStateText", () => {
     [{ kind: "waiting", count: 1 }, "Not saved yet · 1 waiting to send"],
     [{ kind: "waiting", count: 4 }, "Not saved yet · 4 waiting to send"],
     [
-      { kind: "failed", cause: "refused", reason: "x" },
+      { kind: "failed", cause: "refused", reason: "x." },
       "Save failed · x. Edit and submit again.",
     ],
     [

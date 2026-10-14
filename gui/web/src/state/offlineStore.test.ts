@@ -4,6 +4,7 @@ import {
   addHostConflict,
   clearConflicts,
   clearHostConflicts,
+  dismissHostConflicts,
   enqueueCommand,
   enqueueHostCommand,
   loadCommandQueue,
@@ -16,6 +17,7 @@ import {
   removeHostConflictsWhere,
   removeHostQueuedCommands,
   saveCommandQueue,
+  settleHostCommandOutcome,
 } from "./offlineStore";
 
 const command: QueuedCommand = {
@@ -461,6 +463,68 @@ describe("conflict clearing admission", () => {
       expect(closed).toBe(0);
     },
   );
+});
+
+describe("dismissal transaction", () => {
+  it("atomically retires a refused queue row while keeping terminal truth", async () => {
+    rows.set("host-queue:bucket", [command]);
+    rows.set("host-conflicts:bucket", [conflict]);
+
+    await dismissHostConflicts("bucket", [conflict]);
+
+    expect(rows.get("host-queue:bucket")).toEqual([]);
+    expect(rows.get("host-conflicts:bucket")).toEqual([
+      { ...conflict, dismissed: true },
+    ]);
+    await expect(loadHostAttention("bucket")).resolves.toEqual({
+      pending: 0,
+      conflicts: [{ ...conflict, dismissed: true }],
+    });
+  });
+
+  it("keeps the queue and refusal when either write in dismissal fails", async () => {
+    rows.set("host-queue:bucket", [command]);
+    rows.set("host-conflicts:bucket", [conflict]);
+    const failure = new Error("dismiss write failed");
+    putFailure = { value: failure };
+
+    await expect(dismissHostConflicts("bucket", [conflict])).rejects.toBe(
+      failure,
+    );
+
+    expect(rows.get("host-queue:bucket")).toEqual([command]);
+    expect(rows.get("host-conflicts:bucket")).toEqual([conflict]);
+  });
+
+  it("retains hidden History state when replay reconciliation updates it", async () => {
+    const history = {
+      command: { ...command, type: "UndoHistory", payload: {} },
+      kind: "unknown" as const,
+      reason: "Undo may have applied",
+      recovery: "inspect-history" as const,
+      dismissed: true,
+    };
+    rows.set("host-queue:bucket", [history.command]);
+    rows.set("host-conflicts:bucket", [history]);
+
+    await settleHostCommandOutcome(
+      "bucket",
+      command.command_id,
+      {
+        ...history,
+        reason: "Undo or Redo may have been applied. Check History.",
+      },
+      true,
+    );
+
+    expect(rows.get("host-queue:bucket")).toEqual([]);
+    expect(rows.get("host-conflicts:bucket")).toEqual([
+      {
+        ...history,
+        reason: "Undo or Redo may have been applied. Check History.",
+      },
+    ]);
+  });
 });
 
 describe("canonical new write admission", () => {

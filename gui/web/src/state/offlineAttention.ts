@@ -5,8 +5,8 @@ import {
   subscribeDocumentActivity,
 } from "./documentSendOrder";
 import {
-  clearConflicts,
-  clearHostConflicts,
+  dismissConflicts,
+  dismissHostConflicts,
   loadGuestAttention,
   loadHostAttention,
   type OfflineConflict,
@@ -17,7 +17,8 @@ export type AttentionStatus =
   | "ready"
   | "unreadable"
   | "retrying"
-  | "dismissing";
+  | "dismissing"
+  | "dismiss-failed";
 
 /** What the project's persisted offline queue and conflict list hold, as last read. */
 export type AttentionSnapshot = {
@@ -50,6 +51,7 @@ type Source = {
 
 const sources = new Map<string, Source>();
 const volatileOutcomes = new Map<string, OfflineConflict[]>();
+const volatileOutcomeInstances = new WeakSet<OfflineConflict>();
 
 export function volatileOutcomeFor(
   projectPath: string,
@@ -66,13 +68,10 @@ function read(projectPath: string): Promise<[number, OfflineConflict[]]> {
     ? loadGuestAttention(token)
     : loadHostAttention(projectPath);
   return stored.then(({ pending, conflicts }) => {
-    const byCommand = new Map(
-      conflicts.map((conflict) => [conflict.command.command_id, conflict]),
-    );
-    for (const conflict of volatileOutcomes.get(projectPath) ?? []) {
-      byCommand.set(conflict.command.command_id, conflict);
-    }
-    return [pending, [...byCommand.values()]] as [number, OfflineConflict[]];
+    return [pending, withVolatileOutcomes(projectPath, conflicts)] as [
+      number,
+      OfflineConflict[],
+    ];
   });
 }
 
@@ -84,15 +83,35 @@ function withVolatileOutcomes(
     conflicts.map((conflict) => [conflict.command.command_id, conflict]),
   );
   for (const conflict of volatileOutcomes.get(projectPath) ?? []) {
-    byCommand.set(conflict.command.command_id, conflict);
+    const persisted = byCommand.get(conflict.command.command_id);
+    byCommand.set(
+      conflict.command.command_id,
+      volatileOutcomeInstances.has(conflict)
+        ? conflict
+        : persisted && sameOutcome(persisted, conflict) && persisted.dismissed
+          ? { ...conflict, dismissed: true }
+          : conflict,
+    );
   }
   return [...byCommand.values()];
+}
+
+function sameOutcome(left: OfflineConflict, right: OfflineConflict): boolean {
+  return (
+    left.command.command_id === right.command.command_id &&
+    left.command.client_id === right.command.client_id &&
+    left.command.client_seq === right.command.client_seq &&
+    left.kind === right.kind &&
+    left.reason === right.reason &&
+    left.recovery === right.recovery
+  );
 }
 
 export function recordVolatileOutcome(
   projectPath: string,
   conflict: OfflineConflict,
 ): void {
+  volatileOutcomeInstances.add(conflict);
   const current = volatileOutcomes.get(projectPath) ?? [];
   volatileOutcomes.set(projectPath, [
     ...current.filter(
@@ -227,17 +246,51 @@ export function dismissAllConflicts(projectPath: string): void {
   const source = sources.get(projectPath);
   if (!source || source.snapshot.status !== "ready") return;
   const clearing = ++source.generation;
+  const captured = source.snapshot.conflicts.filter(
+    (conflict) => !conflict.dismissed,
+  );
   set(source, { status: "dismissing" });
   const token = shareTokenFromKey(projectPath);
-  (token ? clearConflicts(token) : clearHostConflicts(projectPath))
+  (token
+    ? dismissConflicts(token, captured)
+    : dismissHostConflicts(projectPath, captured)
+  )
     .then(() => {
       if (clearing === source.generation) {
-        volatileOutcomes.delete(projectPath);
-        set(source, { conflicts: [], status: "ready" });
+        const currentVolatile = volatileOutcomes.get(projectPath) ?? [];
+        const dismissedVolatile = currentVolatile.map((conflict) => {
+          if (!captured.includes(conflict)) return conflict;
+          const dismissed = { ...conflict, dismissed: true };
+          volatileOutcomeInstances.add(dismissed);
+          return dismissed;
+        });
+        if (dismissedVolatile.length) {
+          volatileOutcomes.set(projectPath, dismissedVolatile);
+        }
+        set(source, {
+          conflicts: source.snapshot.conflicts.map((conflict) => {
+            const current = volatileOutcomes
+              .get(projectPath)
+              ?.find(
+                (item) =>
+                  item.command.command_id === conflict.command.command_id,
+              );
+            if (current && volatileOutcomeInstances.has(current)) {
+              return captured.includes(conflict) || captured.includes(current)
+                ? { ...current, dismissed: true }
+                : current;
+            }
+            return captured.some((item) => sameOutcome(item, conflict))
+              ? { ...conflict, dismissed: true }
+              : conflict;
+          }),
+          status: "ready",
+        });
       }
     })
     .catch(() => {
-      if (clearing === source.generation) set(source, { status: "unreadable" });
+      if (clearing === source.generation)
+        set(source, { status: "dismiss-failed" });
     });
 }
 
