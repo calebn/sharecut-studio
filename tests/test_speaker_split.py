@@ -10,7 +10,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.speaker_split import owned_spans, split_track_by_speaker
+from podcast_mcp.edits.speaker_split import (
+    SplitMediaIdentity,
+    owned_spans,
+    split_track_by_speaker,
+)
 from podcast_mcp.engines.session_timeline import same_source_timeline_overlaps
 from podcast_mcp.engines.speaker_split import (
     FRAME_SEC,
@@ -48,6 +52,23 @@ VOICES = (
     (160.0, (850.0, 1600.0)),
     (300.0, (500.0, 3000.0)),
 )
+
+
+def _split_track(project, track_id, attribution, **kwargs):
+    track = project.track_by_id(track_id)
+    assert track is not None
+    identity = (
+        SplitMediaIdentity.capture(track.media)
+        if track.media is not None
+        else SplitMediaIdentity(path="", duration_sec=None)
+    )
+    return split_track_by_speaker(
+        project,
+        track_id,
+        attribution,
+        media_identity=identity,
+        **kwargs,
+    )
 
 
 class SpectralBackend:
@@ -490,7 +511,7 @@ def test_flagged_crosstalk_plays_once_on_its_likeliest_speaker_by_default(
     scripted_ws: ProjectWorkspace,
 ) -> None:
     project = scripted_ws.project
-    summary = split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    summary = _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     split = project.editorial.speaker_splits[0]
     assert split.lanes == ["room", "room_ben"]
     assert summary["split_id"] == split.id
@@ -533,7 +554,7 @@ def test_review_spans_follow_nonzero_and_repeated_timeline_placements(
             }
         )
     )
-    summary = split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    summary = _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     [span] = summary["review_spans"]
     assert span["timeline_spans"] == [
         {"start_s": 11.0, "end_s": 12.0},
@@ -556,7 +577,7 @@ def test_the_result_reports_the_stretches_the_attribution_is_unsure_of(
         backend="spectral-test",
         method="cluster",
     )
-    summary = split_track_by_speaker(scripted_ws.project, "room", unsure, names=["Ana", "Ben"])
+    summary = _split_track(scripted_ws.project, "room", unsure, names=["Ana", "Ben"])
     assert (summary["low_confidence_sec"], summary["low_confidence_regions"]) == (2.0, 1)
 
 
@@ -564,7 +585,7 @@ def test_both_plays_crosstalk_twice_and_the_stacked_copy_check_reports_it(
     scripted_ws: ProjectWorkspace,
 ) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="both")
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="both")
     split = project.editorial.speaker_splits[0]
     assert owned_spans(split) == {"room": [(0.0, 6.0)], "room_ben": [(4.0, 10.0)]}
     [stack] = same_source_timeline_overlaps(project)
@@ -582,7 +603,7 @@ def test_a_crosstalk_lane_exists_exactly_in_lane_mode() -> None:
 
 def test_crosstalk_lane_takes_the_overlap_from_both_speakers(scripted_ws: ProjectWorkspace) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="lane")
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="lane")
     split = project.editorial.speaker_splits[0]
     assert split.crosstalk_lane == "room_crosstalk"
     assert owned_spans(split) == {
@@ -596,7 +617,7 @@ def test_crosstalk_lane_takes_the_overlap_from_both_speakers(scripted_ws: Projec
 def test_lanes_play_the_same_media_without_copying_it(scripted_ws: ProjectWorkspace) -> None:
     project = scripted_ws.project
     raw_before = sorted(p.name for p in (project.workspace_path() / "raw").iterdir())
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="lane")
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="lane")
     assert {t.media.path for t in project.tracks if t.media} == {"raw/room.wav"}
     assert {
         (c.source_start, c.source_end, c.timeline_start, c.source_id) for c in project.clips
@@ -606,7 +627,7 @@ def test_lanes_play_the_same_media_without_copying_it(scripted_ws: ProjectWorksp
 
 def test_words_follow_their_speaker(scripted_ws: ProjectWorkspace) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     words = {tr.track_id: [w.text for w in tr.words] for tr in project.transcripts}
     assert words == {"room": ["hello"], "room_ben": ["there"]}
 
@@ -616,7 +637,7 @@ def test_lanes_sum_back_to_the_recording(
     scripted_ws: ProjectWorkspace, tmp_path: Path, mode: SpeakerSplitCrosstalk
 ) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode=mode)
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode=mode)
     original = load_mono_full(project.workspace_path() / "raw" / "room.wav", sample_rate=RATE)
     total = np.zeros_like(original)
     for track in project.tracks:
@@ -633,7 +654,7 @@ def test_split_record_matches_the_project_schema_and_reloads(
     import jsonschema
 
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     scripted_ws.save()
     schema = json.loads(
         (
@@ -656,7 +677,7 @@ def test_each_lane_keeps_the_original_fx_and_volume(scripted_ws: ProjectWorkspac
     project.automation_envelopes.append(
         AutomationEnvelope(track_id="room", points=[AutomationPoint(id="p1", time=1.0, value=0.5)])
     )
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     assert sorted(c.track_id for c in project.processing_chains) == ["room", "room_ben"]
     assert sorted(e.track_id for e in project.automation_envelopes) == ["room", "room_ben"]
 
@@ -664,7 +685,7 @@ def test_each_lane_keeps_the_original_fx_and_volume(scripted_ws: ProjectWorkspac
 def test_a_lane_id_already_taken_gets_a_suffix(scripted_ws: ProjectWorkspace) -> None:
     project = scripted_ws.project
     project.tracks.append(Track(id="room_ben", label="Other"))
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     assert project.editorial.speaker_splits[0].lanes == ["room", "room_ben_2"]
 
 
@@ -672,7 +693,7 @@ def test_room_tone_fill_lays_the_tracks_own_air_under_each_mute(
     scripted_ws: ProjectWorkspace,
 ) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], room_tone_fill=True)
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"], room_tone_fill=True)
     regions = [r for c in project.clips for r in c.mute_regions]
     assert regions
     assert all(r.fill is not None and r.fill.source_id is None for r in regions)
@@ -692,12 +713,12 @@ def test_split_refuses_a_lane_it_cannot_split(
     project = scripted_ws.project
     change(project)
     with pytest.raises(ValueError, match=message):
-        split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+        _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
 
 
 def test_split_refuses_an_unknown_crosstalk_mode(scripted_ws: ProjectWorkspace) -> None:
     with pytest.raises(ValueError, match="crosstalk_mode"):
-        split_track_by_speaker(
+        _split_track(
             scripted_ws.project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="mute"
         )
 
@@ -705,20 +726,20 @@ def test_split_refuses_an_unknown_crosstalk_mode(scripted_ws: ProjectWorkspace) 
 def test_a_lane_without_a_transcript_still_splits(scripted_ws: ProjectWorkspace) -> None:
     project = scripted_ws.project
     project.transcripts.clear()
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     assert project.transcripts == []
 
 
 def test_split_needs_one_name_per_speaker(scripted_ws: ProjectWorkspace) -> None:
     with pytest.raises(ValueError, match="expected 2 speaker names"):
-        split_track_by_speaker(scripted_ws.project, "room", SCRIPTED, names=["Ana"])
+        _split_track(scripted_ws.project, "room", SCRIPTED, names=["Ana"])
 
 
 def test_a_lane_cannot_be_split_twice(scripted_ws: ProjectWorkspace) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     with pytest.raises(ValueError, match="already split"):
-        split_track_by_speaker(project, "room_ben", SCRIPTED, names=["Ana", "Ben"])
+        _split_track(project, "room_ben", SCRIPTED, names=["Ana", "Ben"])
 
 
 # --- service, history and adapters -------------------------------------------------
@@ -875,6 +896,7 @@ def test_split_names_must_fit_the_count_and_enrollment(
 
 def test_split_refuses_the_ci_mock_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from podcast_mcp.engines.speaker_id import MockSpeakerBackend
+    from podcast_mcp.util.coded_error import CodedValueError
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.speaker.resolve_speaker_backend",
@@ -882,8 +904,12 @@ def test_split_refuses_the_ci_mock_backend(tmp_path: Path, monkeypatch: pytest.M
     )
     audio, _ = _mix(2, 20.0, seed=2)
     ws = _room_workspace(tmp_path, audio, [])
-    with pytest.raises(ImportError, match=r"\[speaker\]"):
+    with pytest.raises(
+        CodedValueError,
+        match="Speaker recognition isn't available on this computer",
+    ) as caught:
         SpeakerService(ws).split_speakers("room", speaker_count=2, dry_run=True)
+    assert caught.value.code == "speaker_backend_unavailable"
 
 
 def test_mcp_tool_splits_with_crosstalk_lane(mixed_ws: ProjectWorkspace) -> None:

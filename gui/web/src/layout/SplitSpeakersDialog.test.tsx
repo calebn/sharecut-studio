@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelPipelineRun,
   followJobToOk,
+  getSpeakerDoctor,
   JobCancelledError,
   startSplitSpeakersJob,
 } from "../api";
@@ -23,6 +24,7 @@ import { SplitSpeakersDialog } from "./SplitSpeakersDialog";
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   startSplitSpeakersJob: vi.fn(),
+  getSpeakerDoctor: vi.fn(),
   followJobToOk: vi.fn(),
   cancelPipelineRun: vi.fn(),
 }));
@@ -161,9 +163,9 @@ async function openWithFocusSettled() {
 
 async function splitTwo(user: ReturnType<typeof userEvent.setup>) {
   openFor("room");
-  await user.click(
-    await screen.findByRole("button", { name: "Split speakers" }),
-  );
+  const button = await screen.findByRole("button", { name: "Split speakers" });
+  await waitFor(() => expect(button).toBeEnabled());
+  await user.click(button);
 }
 
 describe("SplitSpeakersDialog", () => {
@@ -184,6 +186,12 @@ describe("SplitSpeakersDialog", () => {
     clearRegisteredCommands();
     registerSpeakerSplitCommands();
     vi.mocked(startSplitSpeakersJob).mockReset().mockResolvedValue(started);
+    vi.mocked(getSpeakerDoctor)
+      .mockReset()
+      .mockResolvedValue({
+        available_backends: ["speechbrain-ecapa"],
+        recommended: "speechbrain-ecapa",
+      });
     vi.mocked(followJobToOk).mockReset();
     vi.mocked(cancelPipelineRun).mockReset().mockResolvedValue(started);
     vi.mocked(runPointerCommand).mockReset();
@@ -220,6 +228,32 @@ describe("SplitSpeakersDialog", () => {
     expect(screen.queryByRole("textbox", { name: "Speaker 3" })).toBeNull();
     expect(startSplitSpeakersJob).not.toHaveBeenCalled();
     await expectNoA11yViolations(baseElement);
+  });
+
+  it("blocks splitting and links to setup when speaker recognition is unavailable", async () => {
+    vi.mocked(getSpeakerDoctor).mockResolvedValue({
+      available_backends: ["mock"],
+      recommended: "mock",
+    });
+    render(<SplitSpeakersDialog />);
+    openFor("room");
+
+    expect(
+      await screen.findByText(
+        "Speaker recognition isn't available on this computer.",
+      ),
+    ).toBeTruthy();
+    const setup = screen.getByRole("link", {
+      name: "Read the speaker setup instructions",
+    });
+    expect(setup.getAttribute("href")).toBe(
+      "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#optional-downloads-and-extras",
+    );
+    expect(
+      screen.getByRole("button", { name: "Split speakers" }),
+    ).toBeDisabled();
+    expect(getSpeakerDoctor).toHaveBeenCalledTimes(1);
+    expect(startSplitSpeakersJob).not.toHaveBeenCalled();
   });
 
   it("grows the name fields with the count and refuses a count out of range", async () => {

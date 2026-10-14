@@ -94,6 +94,7 @@ const meta: Meta<typeof SplitSpeakersDialogView> = {
       names: [],
       blocker: null,
       countError: null,
+      speakerReadiness: "available",
     },
     onCountChange: fn(),
     onNameChange: fn(),
@@ -140,6 +141,7 @@ export const CountOutOfRange: Story = {
       names: [],
       blocker: "Enter 2 to 8 speakers.",
       countError: "Enter 2 to 8 speakers.",
+      speakerReadiness: "available",
     },
   },
   play: async ({ canvasElement, viewMode }) => {
