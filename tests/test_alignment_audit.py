@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -346,3 +347,26 @@ def test_vad_speech_intervals_propagates_other_value_errors(sample_wav: Path) ->
         pytest.raises(ValueError, match="boom"),
     ):
         vad_speech_intervals(sample_wav, duration_sec=1.0)
+
+
+def test_vad_intervals_do_not_depend_on_the_wav_reader_clamping_a_wide_window(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A WAV read is capped in bytes; a clamped block must read on, not look like the end."""
+    rate = 8000
+    rng = np.random.default_rng(7)
+    on = np.repeat(rng.random(40) < 0.5, rate)
+    samples = (rng.standard_normal(40 * rate) * 0.2 * on).astype("float32")
+    path = tmp_path / "wide.wav"
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes((samples * 32767).astype("<i2").tobytes())
+    whole = vad_speech_intervals(path, duration_sec=40.0)
+    assert whole
+    # A cap of 3 s of audio per read: a 30 s block is clamped, and a window past the end
+    # still stops at the end of the file.
+    monkeypatch.setattr("podcast_mcp.engines.align._MAX_WAV_WINDOW_BYTES", 3 * rate * 2)
+    assert vad_speech_intervals(path, duration_sec=40.0) == whole
+    assert vad_speech_intervals(path, duration_sec=90.0) == whole
