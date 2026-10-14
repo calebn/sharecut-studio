@@ -131,7 +131,7 @@ unreadable file, or residue is read as recorded along with the tracks it is comp
 a scale on one side only moves the verdict.
 `asr_silence.SpeechLevels.has_speech` compares the recordings without the gains but not yet
 against each mic's voice.
-The mean fallback (#1306, #1373) holds a peer's whole-span mean to
+The mean fallback (#1306, #1373) holds a peer's whole-span level to
 `LevelProfile.voice_reach_db` (read through `TrackRmsCache.profile` or `track_level_profile`, `edits/speech_energy_guard.py`): the peer's
 audibility floor, no lower than 27 dB (`VOICE_FLOOR_UNDER_SPEECH_DB`) under its loudest frames, so
 a sparse speaker whose 90th percentile is room tone does not put the floor under the room. A peer
@@ -143,7 +143,12 @@ silent owner is one). There is no fixed dBFS level and no
 `tighten.speech_energy_guard.min_other_rms_db` setting; the same recording at any level names the
 same speaking peers (the detectors' one gain contract, `tests/test_tighten_gain_invariance.py`,
 runs it at 0, -12 and -24 dB and with one track 24 dB down, with a sparse guest 20 dB under the
-host; two voices of one pitch are told apart by level)
+host; two voices of one pitch are told apart by level).
+A peer that has a voice level of its own is read at its loudest 100 ms window in the span
+(never below its span mean), not at the span mean, and the owner is read the same way, so a
+short peer word inside a long cut is not diluted by the silence around it; noise under the
+voice reach still never reads as a voice (#1419). A dialogue lane with no readable file is
+skipped, not an error, when the session median reach is built.
 
 Whole-span RMS values remain diagnostics. If fine frames cannot be read or the
 local reference has no speech/room contrast, the existing mean threshold and
