@@ -13,12 +13,12 @@ import { BounceDialog } from "./BounceDialog";
 import { MobileShell } from "./MobileShell";
 
 const offlineStore = vi.hoisted(() => ({
-  clearConflicts: vi.fn(),
-  clearHostConflicts: vi.fn(),
   loadConflicts: vi.fn(),
   loadCommandQueue: vi.fn(),
   loadHostCommandCount: vi.fn(),
   loadHostConflicts: vi.fn(),
+  loadHostAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
+  loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));
 
 vi.mock("../state/offlineStore", () => offlineStore);
@@ -53,6 +53,14 @@ const dialogFlags = [
 
 describe("MobileShell Mix", () => {
   beforeEach(() => {
+    offlineStore.loadHostAttention.mockReset().mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
+    offlineStore.loadGuestAttention.mockReset().mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
     offlineStore.loadConflicts.mockResolvedValue([]);
     offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostConflicts.mockResolvedValue([]);

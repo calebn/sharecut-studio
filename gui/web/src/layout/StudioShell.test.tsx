@@ -11,12 +11,12 @@ import { MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import { StudioShell } from "./StudioShell";
 
 const offlineStore = vi.hoisted(() => ({
-  clearConflicts: vi.fn(),
-  clearHostConflicts: vi.fn(),
   loadConflicts: vi.fn(),
   loadCommandQueue: vi.fn(),
   loadHostCommandCount: vi.fn(),
   loadHostConflicts: vi.fn(),
+  loadHostAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
+  loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));
 
 vi.mock("../state/offlineStore", () => offlineStore);
@@ -70,6 +70,14 @@ const tabletProject = () =>
 
 describe("StudioShell tablet peek", () => {
   beforeEach(() => {
+    offlineStore.loadHostAttention.mockReset().mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
+    offlineStore.loadGuestAttention.mockReset().mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
     offlineStore.loadConflicts.mockResolvedValue([]);
     offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostConflicts.mockResolvedValue([]);
@@ -377,7 +385,10 @@ describe("StudioShell tablet peek", () => {
   });
 
   it("shows queued host commands in the attention banner", async () => {
-    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    offlineStore.loadHostAttention.mockResolvedValue({
+      pending: 1,
+      conflicts: [],
+    });
     const project = tabletProject();
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>

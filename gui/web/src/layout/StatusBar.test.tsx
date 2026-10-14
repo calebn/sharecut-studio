@@ -46,6 +46,12 @@ vi.mock("../hooks/useStaleRenderBreakdown", async (importOriginal) => {
   };
 });
 
+vi.mock("../state/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/offlineStore")>()),
+  loadHostAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
+  loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
+}));
+
 describe("StatusBar chips", () => {
   it("reveal their tab, restoring any layout that does not show it", async () => {
     const user = userEvent.setup();
