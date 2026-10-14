@@ -37,7 +37,12 @@ export function useAutoRefreshMix(enabled: boolean): void {
     enabled && canRefreshMix(projectPath, guestMode, shareCapabilities);
 
   useEffect(() => {
-    if (!allowed || key == null || renderBusy || slotBusy) {
+    if (key == null) {
+      // A fresh mix forgets the tried state: the same kind of change can come again.
+      attempted.current = null;
+      return;
+    }
+    if (!allowed || renderBusy || slotBusy) {
       return;
     }
     const last = attempted.current;
