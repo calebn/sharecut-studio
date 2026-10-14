@@ -144,7 +144,10 @@ is the fix, enforced in copy review.
 - **Gated actions are disabled with the reason in place.** Never a dead
   click, never a surprise error after the round trip. Copy the
   ConsentGate pattern: disabled control + `aria-describedby` reason
-  next to it. Applies to Land mid-take, Start with blockers, and
+  next to it. `Button`, `ToggleButton` and `CommandButton` omit the
+  native `disabled` prop: pass `disabledReason="..."` (what is missing
+  and what to do), and the control is disabled, titled and described
+  with it; a dead control without a reason does not type-check. Applies to Land mid-take, Start with blockers, and
   Leave while uploads pend. (Surface 1.)
 - **Mutually exclusive states get one contextual control.** Pause and
   Resume are one button that flips; never two buttons with one
@@ -603,3 +606,6 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   the panel's one primary action. Word fixes, Suppress, Ignore and Restore, and
   a range Cut or Mute answer with a toast Undo.
 - 2026-10-13 Comment time hints (#1430) and Select range in the tablet sheet (#1429). A comment time the chip refuses says why in one line, and the chip names the selection when the comment time differs from it. Arming Select range over another selection puts In and Out in the sheet, not behind its scrim.
+- 2026-10-14 — Shared buttons disable only with a reason (#1444): `Button`,
+  `ToggleButton` and `CommandButton` drop the native `disabled` prop for
+  `disabledReason`.
