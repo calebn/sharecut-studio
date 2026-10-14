@@ -155,6 +155,7 @@ def test_text_match_overlap_names_loser_without_writing(tmp_path: Path) -> None:
     assert losers == [
         {
             "track_id": "guest",
+            "source_id": None,
             "word_index": 0,
             "text": "world",
             "start": 1.0,
@@ -185,12 +186,12 @@ def test_text_match_loser_follows_the_callers_suppression_verdict(tmp_path: Path
     ):
         stored = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
         by_verdict = overlap_text_match_losers(
-            project, policy=pol, is_suppressed=lambda tid, i: False, echo_pairs=_ROOM_PAIR
+            project, policy=pol, is_suppressed=lambda key: False, echo_pairs=_ROOM_PAIR
         )
         host_gone = overlap_text_match_losers(
             project,
             policy=pol,
-            is_suppressed=lambda tid, i: tid == "host",
+            is_suppressed=lambda key: key[0] == "host",
             echo_pairs=_ROOM_PAIR,
         )
 
@@ -447,6 +448,7 @@ def test_echo_pair_copy_loses_to_the_source_whatever_its_loudness(tmp_path: Path
     assert by_path == [
         {
             "track_id": "host",
+            "source_id": None,
             "word_index": i,
             "text": text,
             "start": start,
@@ -529,7 +531,7 @@ def test_echo_pair_copy_of_a_suppressed_source_word_is_kept(tmp_path: Path) -> N
             project,
             policy=pol,
             echo_pairs=[_echo_profile("guest", "host")],
-            is_suppressed=lambda tid, i: tid == "guest" and i == 6,
+            is_suppressed=lambda key: key[0] == "guest" and key[2] == 6,
         )
     assert [(e["track_id"], e["word_index"], e["text"]) for e in losers] == [
         ("host", i, text) for i, (text, _s, _d, _c) in enumerate(_HOST_COPIES)
