@@ -134,8 +134,8 @@ describe("approving a filler a peer speaks over", () => {
 
   it("closes the dialog as soon as Cut anyway is chosen, before the confirmed approve returns", async () => {
     const user = userEvent.setup();
-    let releaseSecond: (value: object) => void = () => {};
-    const secondHeld = new Promise<object>((resolve) => {
+    let releaseSecond: (value: Record<string, unknown>) => void = () => {};
+    const secondHeld = new Promise<Record<string, unknown>>((resolve) => {
       releaseSecond = resolve;
     });
     submit.mockReset();
