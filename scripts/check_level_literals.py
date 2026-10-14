@@ -20,10 +20,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCANNED = ("src/podcast_mcp/edits", "src/podcast_mcp/engines")
-# The ffmpeg filter graph (effect presets the user picks) and delivery loudness targets.
+# The ffmpeg filter graph (effect formatters and presets the user picks) and delivery loudness targets.
 RENDER = frozenset(
     {
         "src/podcast_mcp/engines/ffmpeg.py",
+        "src/podcast_mcp/engines/effect_filters.py",
         "src/podcast_mcp/engines/mastering.py",
         "src/podcast_mcp/edits/loudness.py",
     }
