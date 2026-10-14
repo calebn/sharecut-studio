@@ -70,7 +70,9 @@ from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
     RENDER_LOCK_TIMEOUT_SEC,
+    FileRevision,
     RenderBusyError,
+    file_revision,
     project_commit_lock,
     render_lock,
     snapshot_project,
@@ -161,6 +163,13 @@ def _read_mix_trim_record(path: Path) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not -120 <= value <= 0:
         return None
     return float(value)
+
+
+def _stem_revisions(stems: tuple[tuple[Path, float, str], ...]) -> list[FileRevision] | None:
+    try:
+        return [file_revision(path) for path, _gain, _hash in stems]
+    except OSError:
+        return None
 
 
 def _write_mix_trim_record(path: Path, trim_db: float) -> None:
@@ -1671,13 +1680,16 @@ class PlayService:
             sort_keys=True,
         )
 
-    def mix_trim_db(self) -> float:
+    def mix_trim_db(self, *, lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC) -> float:
         """The headroom trim ``premix.hash`` would record for the current mix, without mixing.
 
         A fresh premix already records it. Otherwise the trim is read from the on-disk record
         of an earlier measurement of the same stems, gains and ceiling. Only a mix never
         measured renders its stale stems and measures their true peak over the whole episode,
         a pass that scales with episode length; it is recorded for the next preview.
+
+        ``lock_timeout`` bounds the render-lock wait of each stem render. The true-peak pass
+        only reads the stems, which are replaced atomically, so it runs without the lock.
         """
         gains = mix_gains(self.project)
         if not gains:
@@ -1695,18 +1707,22 @@ class PlayService:
             return cached
         for track_id in gains:
             if not stem_is_fresh(self.project, track_id):
-                self.ensure_stem(track_id)
-        trim = _stem_mix_trim_db(
-            tuple(
-                (stem_path(self.project, track_id), gain, track_render_hash(self.project, track_id))
-                for track_id, gain in gains.items()
-            ),
-            ceiling,
+                self.ensure_stem(track_id, lock_timeout=lock_timeout)
+        stems = tuple(
+            (stem_path(self.project, track_id), gain, track_render_hash(self.project, track_id))
+            for track_id, gain in gains.items()
         )
-        _write_mix_trim_record(record, trim)
+        before = _stem_revisions(stems)
+        trim = _stem_mix_trim_db(stems, ceiling)
+        if before is not None and _stem_revisions(stems) == before:
+            # A stem replaced mid-pass (a render started meanwhile) leaves a mix of old and
+            # new audio in the measurement: use it for this preview, but do not record it.
+            _write_mix_trim_record(record, trim)
         return trim
 
-    def warm_pending_preview(self, edit_id: str | None = None) -> dict[str, Any]:
+    def warm_pending_preview(
+        self, edit_id: str | None = None, *, lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC
+    ) -> dict[str, Any]:
         """Do a pending preview's slow work now, so the first Play around is a cached file.
 
         That is the mix trim and each track's whole-track level profile (which approving
@@ -1715,7 +1731,8 @@ class PlayService:
 
         Returns the trim and each pre-rendered side's status (``ready``, ``unavailable`` for an
         edit that cannot be previewed that way, ``failed`` for a render that errored), so the
-        caller can retry a failure instead of taking it for done.
+        caller can retry a failure instead of taking it for done. ``lock_timeout`` is the
+        render-lock wait of each stem render (the caller holds the lock for the edit renders).
         """
         from podcast_mcp.edits.audio_cache import (
             JUMP_SAMPLE_RATE,
@@ -1723,7 +1740,7 @@ class PlayService:
             track_level_profile,
         )
 
-        trim = self.mix_trim_db()
+        trim = self.mix_trim_db(lock_timeout=lock_timeout)
         for track in self.project.tracks:
             if track.media is None:
                 continue
