@@ -523,14 +523,22 @@ class TrackRmsCacheSet:
         return CopyPath() if likeness is None else CopyPath(lag * COPY_HOP_SEC, likeness)
 
 
-def build_reconciliation_caches(project: EpisodeProject) -> TrackRmsCacheSet:
+def build_reconciliation_caches(
+    project: EpisodeProject, *, private_copy: bool = False
+) -> TrackRmsCacheSet:
     """The decodes reconcile and tighten read to tell whose voice a stretch of audio is.
 
     A gated track is read before its transcript gate, so tighten measures the copy lags of
     the stems reconcile made its audibility verdicts on.
+
+    ``private_copy`` says ``project`` is a copy only the caller holds (``snapshot_project``),
+    so the build takes no project lock: a pool worker inside a mutation, whose thread
+    does not own the lock, can run it (#1471).
     """
     if any(track.transcript_gate for track in project.tracks):
-        return build_track_rms_caches(project, before_transcript_gate=True)
+        return build_track_rms_caches(
+            project, before_transcript_gate=True, private_copy=private_copy
+        )
     return build_track_rms_caches(project)
 
 
@@ -539,6 +547,7 @@ def build_track_rms_caches(
     *,
     before_transcript_gate: bool = False,
     track_ids: Collection[str] | None = None,
+    private_copy: bool = False,
 ) -> TrackRmsCacheSet:
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
@@ -552,6 +561,8 @@ def build_track_rms_caches(
             proc = _fresh_stem_path(project, tid)
             if not track.transcript_gate and proc is not None:
                 caches[tid] = TrackRmsCache.from_timeline_stem(proc)
+            elif private_copy:
+                caches[tid] = _ungated_cache(project.model_copy(deep=True), tid)
             else:
                 caches[tid] = _pre_transcript_gate_cache(project, tid)
             continue
@@ -591,10 +602,15 @@ def build_track_rms_caches(
 
 
 def _pre_transcript_gate_cache(project: EpisodeProject, track_id: str) -> TrackRmsCache:
-    from podcast_mcp.engines.timeline_render import render_track_from_timeline
     from podcast_mcp.util.project_state import snapshot_project
 
-    snapshot = snapshot_project(project)
+    return _ungated_cache(snapshot_project(project), track_id)
+
+
+def _ungated_cache(snapshot: EpisodeProject, track_id: str) -> TrackRmsCache:
+    """``track_id`` rendered with its transcript gate off, from a private copy it may change."""
+    from podcast_mcp.engines.timeline_render import render_track_from_timeline
+
     track = snapshot.track_by_id(track_id)
     if track is None:
         raise ValueError(f"track {track_id!r} is unavailable")

@@ -15,6 +15,8 @@ shorter than the lag, so at the same instant one track is silent where the other
 
 from __future__ import annotations
 
+import shutil
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from unittest.mock import patch
@@ -38,6 +40,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util.project_state import project_state_lock
 
 QUIET = (99.0, 131.0)
 EDGE_WORDS = ((97.0, 98.0), (131.0, 132.0), (132.1, 133.1), (133.2, 134.2))
@@ -318,4 +321,27 @@ def test_a_gated_track_is_measured_before_its_transcript_gate(tmp_path: Path) ->
     with patch("podcast_mcp.engines.audio_audit.build_track_rms_caches") as build:
         build_reconciliation_caches(project)
 
-    build.assert_called_once_with(project, before_transcript_gate=True)
+    build.assert_called_once_with(project, before_transcript_gate=True, private_copy=False)
+
+
+def test_a_worker_inside_a_mutation_measures_a_gated_track_without_the_project_lock(
+    tmp_path: Path,
+) -> None:
+    """Tighten gathers candidates on pool threads while the mutating thread holds the project
+    lock; a gated track's pre-gate render must not wait for that lock (#1471)."""
+    project = _project(tmp_path, Scene(), owner="audra")
+    project.tracks[0].transcript_gate = True
+
+    def render_raw(snapshot, track, path, _defaults):
+        shutil.copy(tmp_path / "raw" / f"{track.id}.wav", path)
+
+    with (
+        patch("podcast_mcp.engines.timeline_render.render_track_from_timeline", render_raw),
+        patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]),
+        ThreadPoolExecutor(max_workers=1) as pool,
+        project_state_lock(project),
+    ):
+        lags = PeerCopyLags(project)
+        lag = pool.submit(lags.sec, "audra", "caleb").result(timeout=30)
+
+    assert lag == pytest.approx(0.25, abs=0.02)
