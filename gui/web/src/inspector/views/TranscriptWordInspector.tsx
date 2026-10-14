@@ -99,17 +99,6 @@ export function TranscriptWordInspector({
   const mountedRef = useMountedRef();
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  // Seed the draft once, when the word first loads: on mount, or on
-  // hydration if the words were not loaded yet. Never on a text change, so a
-  // peer's edit to the anchor word, or our own successful Apply, cannot
-  // clobber a draft in progress (#746). Both parents key this inspector by
-  // `${trackId}:${wordIndex}` (`inspector/Inspector.tsx`,
-  // `panels/TranscriptPanel.tsx`), so a different word remounts it rather
-  // than re-seeding here. Unlike the other inspector views, which re-seed in
-  // an effect, this seeds during render (React's "adjust state while
-  // rendering" pattern), so the first frame with the word loaded already
-  // shows its text and guards Apply with its span text instead of committing
-  // an empty draft and a null baseline.
   const [text, setText] = useState(() => word?.text ?? "");
   const [endIndexStr, setEndIndexStr] = useState(() => String(wordIndex));
   // Span text the user saw when the draft was seeded or End index last

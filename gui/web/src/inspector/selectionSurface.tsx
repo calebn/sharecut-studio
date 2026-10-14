@@ -147,10 +147,9 @@ export const SELECTION_SURFACES: {
   },
   transcriptWord: {
     phoneScreens: WITH_TEXT,
-    // Keyed per word: an in-flight action keeps its own busy/error state (#634).
     body: (sel) => (
       <TranscriptWordInspector
-        key={`${sel.trackId}:${sel.sourceId ?? "primary"}:${sel.wordIndex}`}
+        key={JSON.stringify([sel.trackId, sel.sourceId ?? null, sel.wordIndex])}
         trackId={sel.trackId}
         sourceId={sel.sourceId}
         wordIndex={sel.wordIndex}
