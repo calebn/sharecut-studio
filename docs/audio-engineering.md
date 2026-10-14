@@ -922,11 +922,13 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   two tracks' source clocks at the window mid); that alone is not desync, because
   tracks aligned with different offsets differ by design and a track-local punch
   keeps later clips in place. Each track's shift at mid (timeline minus source) is
-  now compared with its own first clip's shift (its alignment); a session ripple
-  moves every track alike and a punch moves none, so a pair whose shifts moved apart
-  by more than `skew_warn_sec` (50 ms) was rippled on one track only. Such a pair is
-  `skewed`, with `skew_sec`, a `clip_skew.warnings[]` line and a `clip_skew`
-  hypothesis (`history_undo`, or a `trim_clip_edge_tool` ripple trim of the join).
+  compared with the first clip of the **recording playing at mid** (that take's
+  alignment), not the first clip on the lane. A later take on the same lane is not a
+  ripple. A session ripple moves every track alike and a punch moves none, so a pair
+  whose shifts moved apart by more than `skew_warn_sec` (50 ms) was rippled on one
+  track only. Such a pair is `skewed`, with `skew_sec`, a `clip_skew.warnings[]` line
+  and a `clip_skew` hypothesis (`history_undo`, or a `trim_clip_edge_tool` ripple
+  trim of the join).
 
 `util.dsp.autocorr_peak(..., interior=True)` counts only a lag where the correlation is a
 true local maximum. Low-frequency room noise has a correlation that only falls, so its

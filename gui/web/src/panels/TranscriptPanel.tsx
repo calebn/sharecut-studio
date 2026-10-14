@@ -1406,6 +1406,7 @@ export function TranscriptPanel() {
                               pendingCorrectionRef.current = {
                                 trackId: u.track_id,
                                 wordIndex,
+                                sourceId: w.timing_target?.source_id ?? null,
                               };
                             }
                           },
@@ -1458,6 +1459,7 @@ export function TranscriptPanel() {
                                 kind: "transcriptWord",
                                 trackId: u.track_id,
                                 wordIndex,
+                                sourceId: w.timing_target?.source_id ?? null,
                               });
                               return;
                             }

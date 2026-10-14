@@ -430,6 +430,55 @@ describe("indexed transcript word lookup", () => {
     expect(findTranscriptWordIn([], "host", 2)).toBeNull();
   });
 
+  it("disambiguates the same word_index on two takes", () => {
+    const twoTakes = {
+      transcript: {
+        utterances: [
+          u({
+            track_id: "vicky",
+            start: 1,
+            end: 1.4,
+            text: "a0",
+            words: [
+              {
+                text: "a0",
+                start: 1,
+                end: 1.4,
+                word_index: 0,
+                timing_target: {
+                  track_id: "vicky",
+                  source_id: "take2",
+                  word_index: 0,
+                },
+              },
+            ],
+          }),
+          u({
+            track_id: "vicky",
+            start: 1,
+            end: 1.4,
+            text: "b0",
+            words: [
+              {
+                text: "b0",
+                start: 1,
+                end: 1.4,
+                word_index: 0,
+                timing_target: {
+                  track_id: "vicky",
+                  source_id: "take3",
+                  word_index: 0,
+                },
+              },
+            ],
+          }),
+        ],
+      },
+    } as ProjectView;
+    expect(findTranscriptWord(twoTakes, "vicky", 0, "take3")?.text).toBe("b0");
+    expect(findTranscriptWord(twoTakes, "vicky", 0, "take2")?.text).toBe("a0");
+  });
+
   it("combines reversed indexed ranges across utterances using timeline fallback", () => {
     expect(transcriptWordRange(project, "host", 4, 2)).toEqual({
       start: 1,

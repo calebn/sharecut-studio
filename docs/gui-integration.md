@@ -823,9 +823,11 @@ The host Transcript toolbar and command palette open a form to review literal re
 ### Exact-source word timing adapters
 
 Host transcript word views include `timing_target` with the stored transcript's
-`track_id`, nullable `source_id`, and `word_index`. This target identifies the
-transcript that supplied the word, including suppressed-only rows. It does not
-infer a recording from clip placement or word time.
+`track_id`, nullable `source_id`, and `word_index`, and they emit top-level
+`word_index` on every take. Studio word commands send that word's
+`timing_target.source_id` (not the first indexed take on the lane). This target
+identifies the transcript that supplied the word, including suppressed-only rows.
+It does not infer a recording from clip placement or word time.
 
 `POST /api/transcript/word-timing-context` accepts `{path, target, expected_word}`.
 `expected_word` contains the displayed `text`, `start`, and `end`. The host-only

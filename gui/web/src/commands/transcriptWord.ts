@@ -54,6 +54,7 @@ export function registerTranscriptWordCommands(): void {
     }
     const trackId = chip.dataset.trackId;
     const rawIndex = chip.dataset.wordIndex;
+    const sourceId = chip.dataset.sourceId ?? null;
     const wordIndex = Number(rawIndex);
     if (
       !trackId ||
@@ -65,7 +66,7 @@ export function registerTranscriptWordCommands(): void {
     ) {
       return { status: "disabled", reason: "Word correction unavailable" };
     }
-    const word = findTranscriptWord(s.project, trackId, wordIndex);
+    const word = findTranscriptWord(s.project, trackId, wordIndex, sourceId);
     if (!word || wordSeekSec(word) == null)
       return { status: "disabled", reason: "Word is not timed" };
     s.setTranscriptInlineEditRequest({

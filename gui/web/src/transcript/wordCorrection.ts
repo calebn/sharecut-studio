@@ -34,6 +34,7 @@ export async function submitWordCorrection(
   sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
   const next = text.trim();
+  const take = sourceId != null ? [sourceId] : [];
   if (endWordIndex === startWordIndex) {
     return correctTranscriptWord(
       projectPath,
@@ -41,7 +42,7 @@ export async function submitWordCorrection(
       startWordIndex,
       next,
       expectedText,
-      sourceId,
+      ...take,
     );
   }
   return correctTranscriptPhrase(
@@ -51,7 +52,7 @@ export async function submitWordCorrection(
     endWordIndex,
     next,
     expectedText,
-    sourceId,
+    ...take,
   );
 }
 

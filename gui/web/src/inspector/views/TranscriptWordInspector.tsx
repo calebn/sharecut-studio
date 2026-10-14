@@ -220,7 +220,7 @@ export function TranscriptWordInspector({
           endIndex,
           text,
           expectedText,
-          recordingSourceId,
+          ...(recordingSourceId != null ? [recordingSourceId] : []),
         ),
       endIndex === wordIndex ? "Word text fixed" : "Phrase text fixed",
     );
@@ -285,7 +285,7 @@ export function TranscriptWordInspector({
           wordIndex,
           !suppressed,
           wordSpanText,
-          recordingSourceId,
+          ...(recordingSourceId != null ? [recordingSourceId] : []),
         ),
       suppressed
         ? "Word put back in the transcript text"
@@ -302,7 +302,7 @@ export function TranscriptWordInspector({
           trackId,
           wordIndex,
           wordSpanText,
-          recordingSourceId,
+          ...(recordingSourceId != null ? [recordingSourceId] : []),
         ),
       "Word back to automatic",
     );
@@ -322,7 +322,7 @@ export function TranscriptWordInspector({
           wordIndex,
           !ignored,
           wordSpanText,
-          recordingSourceId,
+          ...(recordingSourceId != null ? [recordingSourceId] : []),
         ),
       ignored ? "Restored word" : "Ignored word",
     );
