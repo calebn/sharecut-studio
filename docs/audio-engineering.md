@@ -65,6 +65,86 @@ values for fields FFmpeg only prints once, e.g. `Crest factor`):
   -68.7 dBFS reported `flat_factor` 6.0 and is not clipped (#775). `peak_count` is how
   many times the file hit *its own* peak, not 0 dBFS.
 - `noise_floor_db` / `dynamic_range_db` — how much room is between noise and peaks.
+  Analyze reads the health row's `voice_db` (the processed stem's voice level, below)
+  too, and warns about an elevated noise floor when `noise_floor_db` sits within
+  `NOISE_FLOOR_UNDER_VOICE_DB` (35 dB) of it, so a quieter recording of the same room
+  gets the same warning.
+
+## Detection levels
+
+### Decision: Detection levels are offsets from each track's level profile
+
+<!-- decision
+id: D-relative-detection-levels
+status: accepted
+date: 2026-10-13
+decided-by: calebn
+evidence:
+- #1443 beta plan D1, approved by the owner 2026-10-13
+- #1374: the bleed gate planned 196 spans at 0 dB and none at -24 dB on the lab tape
+- #1401: tighten proposals moved on the lab tape scaled -12 and -24 dB
+- #1376: one mic much quieter than the other lost or inverted the echo pair
+enforced-by:
+- tests/test_level_literals.py::test_the_detectors_hold_no_absolute_level
+- tests/test_tighten_gain_invariance.py::test_a_detector_decides_the_same_at_any_recording_level
+-->
+
+A recording's gain moves every dBFS level in it, so no detector compares a level with a
+fixed dBFS value. Each track has one `LevelProfile` (`engines/level_profile.py`): its
+room (the 10th percentile of its 10 ms frames), its speech level (the 90th percentile of
+the live frames) and its loud level (the 99th). `file_level_profile` measures it once per
+audio file revision, and every stage that reads the file reads that one profile
+(`TrackRmsCache.profile`, `TrackAudioCache.profile`, the ASR evidence gate's
+`TrackEnergy.profile`). Every threshold is an offset from it:
+
+- The voice floor, `max(S - 27 dB, R + 6 dB)`, and the audibility floor and voice reach
+  read from it. Tighten, reconcile, the ASR silence filter and its aligner evidence gate,
+  word spans, joins, prosody segments and strip-silence all read these.
+- The voice level, `max(S, L - 6 dB)`: the speech level, or for a speaker who talks under
+  a tenth of the time (whose speech level is room tone) 6 dB under the loud level. A
+  speaker's loudest frames sit 5.3 to 6.3 dB over their speech level on the lab tape.
+  The bleed path (reconcile's echo pairs and copy lag, the bleed gate, bleed-latency
+  alignment and clipped onsets) reads every track through `LevelProfile.voice_gain`, so its
+  open and floor levels are dB re that track's own voice. A track whose loudest frames show
+  no voice over its room (a lane that talks for a second in four minutes) is read as
+  recorded. The bleed gate and alignment read the voice level of the lane audio they decode.
+  Comparisons between two tracks (which side of a pair is louder, a copy's level against its
+  source) add back the difference of the two references (`LevelProfile.path_reference_db`),
+  so they compare the tracks as recorded, as before.
+- Digital silence (`util.dsp.DIGITAL_SILENCE_DB`) reads the same at any gain.
+
+The bleed path's offsets were dBFS levels set on the lab tape, whose tracks' median voice
+level is -15.3 dBFS. Each offset is that level's distance under it, to the dB, so the lab
+tape reads as before:
+
+| Level | Was (dBFS) | Now (dB under the track's voice) |
+| --- | --- | --- |
+| Envelope floor (`envelope_lag.LEVEL_FLOOR_DB`) | -90 | 75 |
+| Track open (`PEER_OPEN_DB`, was also `bleed_latency.OPEN_DB`) | -60 | 45 |
+| Gate owner floor (`bleed_gate._OWNER_FLOOR_UNDER_VOICE_DB`) | -80 | 65 |
+| Echo source speaking (`EchoConfig.source_under_voice_db`) | -40 | 25 |
+| Echo mic open (`EchoConfig.open_under_voice_db`) | -60 | 45 |
+| Gate overreach, word judged / lost | -60 / -80 | 45 / 65 |
+| Analyze noise floor warning | -50 | 35 |
+
+`scripts/check_level_literals.py` (run by `make lint-py` and `tests/test_level_literals.py`)
+fails on a negative dB literal in `edits/` or `engines/`. A name that says what the level is
+relative to (`*_over_floor_db`, `*_under_voice_db`) passes. The allowlist holds physical
+constants only: the clipping ceiling (`CLIPPING_PEAK_LEVEL_DB`, `CLIPPING_MIN_PEAK_DB`).
+The ffmpeg filter graph and the delivery loudness targets set render levels, not detection
+thresholds, and are not scanned. `tests/test_tighten_gain_invariance.py` is the one
+contract: tighten, reconcile, the bleed gate, Analyze, the ASR silence filter and the
+speaker split each decide the same at 0, -12 and -24 dB, and with one track alone 24 dB
+down.
+
+Known limits:
+
+- Comparisons between two tracks read them as recorded, so one mic recorded far quieter
+  than another still moves which side of a pair is louder (#1376 builds on this profile).
+- A 16-bit recording made quieter loses the frames under one quantization step to digital
+  silence, so its room reads differently and pause trims that cut only air can move. That
+  is the recording, not the levels: the same audio scaled in floating point decides the
+  same.
 
 ## High-bleed warning
 
@@ -72,7 +152,7 @@ The full cleanup report shares decoded processed-stem RMS caches across its
 audibility, gate, and boundary analyses; each standalone analysis can still
 build its own cache.
 
-The audibility and low-audibility scans judge a word against its own track's voice floor (`TrackRmsCache.voice_floor_db`, the figure tighten reads), so a quieter copy of a recording gets the same verdicts; the report's `threshold_db` is that track's floor ([transcript-reconcile.md](transcript-reconcile.md), #1324).
+The audibility and low-audibility scans judge a word against its own track's voice floor (`LevelProfile.voice_floor_db`, the figure tighten reads; [§ Detection levels](#detection-levels)), so a quieter copy of a recording gets the same verdicts; the report's `threshold_db` is that track's floor ([transcript-reconcile.md](transcript-reconcile.md), #1324).
 
 `analyze_cleanup` computes `bleed_ratio` (bleed word count / total words) per track. When
 it meets or exceeds `analysis.heuristics.bleed_ratio_warn_threshold` (default `0.2`, i.e.

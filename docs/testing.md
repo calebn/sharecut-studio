@@ -77,7 +77,7 @@ or savings.
 Local mirrors of the CI `pytest` job’s static checks (config in `pyproject.toml`):
 
 ```bash
-make lint-py          # ruff check + bandit -ll + vulture + deptry + scripts/check_coded_errors.py (no bare PermissionError/ValueError in services/)
+make lint-py          # ruff check + absolute-level lint + bandit -ll + vulture + deptry + scripts/check_coded_errors.py (no bare PermissionError/ValueError in services/)
 make format-py        # ruff format (write)
 make format-py-check  # ruff format --check
 make capabilities-check
@@ -89,6 +89,13 @@ make typecheck        # mypy (strict on timebase modules)
 ```
 
 Do not silence findings with `# noqa` / `# nosec` without explicit approval — fix code or tighten tool config.
+
+`scripts/check_level_literals.py` fails on a negative dB literal in `edits/` or `engines/`: every
+detection level is an offset from the track's `LevelProfile`. `tests/test_level_literals.py` runs
+it in the pytest job. Its partner is the one gain contract, `tests/test_tighten_gain_invariance.py`:
+each detector entry point decides the same at 0, -12 and -24 dB and with one track alone 24 dB
+down. Add a new detector there, not a per-detector gain test ([audio-engineering.md § Detection
+levels](audio-engineering.md#detection-levels)).
 
 ### Relay proxy path invariant
 
