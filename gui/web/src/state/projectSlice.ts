@@ -317,6 +317,7 @@ export const createProjectSlice: StateCreator<
             bounceRangeTarget: null,
             bounceDialogOpen: false,
             exportDialogOpen: false,
+            splitSpeakersReview: null,
             splitSpeakersTrackId: null,
             selection: null,
             // Job-result announcement bookkeeping (#704) is per project: a

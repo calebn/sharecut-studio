@@ -7,9 +7,12 @@ import {
   JobCancelledError,
   startSplitSpeakersJob,
 } from "../api";
-import { executePointerCommand } from "../commands/pointer";
+import { clearRegisteredCommands } from "../commands/execute";
+import { executePointerCommand, runPointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
+import { registerSpeakerSplitCommands } from "../commands/speakerSplit";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
+import { TrackInspector } from "../inspector/views/TrackInspector";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -23,7 +26,10 @@ vi.mock("../api", async (importOriginal) => ({
   followJobToOk: vi.fn(),
   cancelPipelineRun: vi.fn(),
 }));
-vi.mock("../commands/pointer", () => ({ executePointerCommand: vi.fn() }));
+vi.mock("../commands/pointer", () => ({
+  executePointerCommand: vi.fn(),
+  runPointerCommand: vi.fn(),
+}));
 vi.mock("../commands/seek", () => ({ seekTransport: vi.fn() }));
 vi.mock("../document/applyDocumentUpdate", () => ({
   refreshDocumentProject: vi.fn(),
@@ -168,15 +174,19 @@ describe("SplitSpeakersDialog", () => {
         tracks: [sampleTrack({ id: "room", label: "Room", duration_sec: 60 })],
       }),
       splitSpeakersTrackId: null,
+      splitSpeakersReview: null,
       activityJob: null,
       pipelineJob: null,
       pendingJobResults: {},
       spokenJobResultIds: [],
       feedbackToast: null,
     });
+    clearRegisteredCommands();
+    registerSpeakerSplitCommands();
     vi.mocked(startSplitSpeakersJob).mockReset().mockResolvedValue(started);
     vi.mocked(followJobToOk).mockReset();
     vi.mocked(cancelPipelineRun).mockReset().mockResolvedValue(started);
+    vi.mocked(runPointerCommand).mockReset();
     vi.mocked(executePointerCommand).mockReset();
     vi.mocked(seekTransport).mockReset();
     vi.mocked(refreshDocumentProject)
@@ -344,9 +354,71 @@ describe("SplitSpeakersDialog", () => {
     act(() => useDawStore.setState({ project: newer }));
 
     expect(
-      await screen.findByText(/Something else changed since the split/),
+      await screen.findByRole("button", { name: "Split speakers" }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Undo split" })).toBeNull();
+    expect(screen.queryByText("Review these stretches")).toBeNull();
+  });
+
+  it("keeps the review list available after closing to listen and reopening", async () => {
+    const user = userEvent.setup();
+    const settle = heldFollow();
+    render(
+      <>
+        <TrackInspector
+          track={sampleTrack({
+            id: "room",
+            label: "Room",
+            media_path: "raw/room.wav",
+            speaker_split_id: "split_1",
+          })}
+          effects={[]}
+        />
+        <SplitSpeakersDialog />
+      </>,
+    );
+    await splitTwo(user);
+    await act(async () => settle().ok(finished));
+
+    await user.click(screen.getAllByRole("button", { name: "Go to" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    expect(useDawStore.getState().splitSpeakersReview).toEqual({
+      trackId: "room",
+      splitId: "split_1",
+      historyHeadId: HEAD,
+    });
+    const historyHead = useDawStore.getState().project?.history?.head_id;
+    await user.click(screen.getByRole("button", { name: "Solo room" }));
+    expect(runPointerCommand).toHaveBeenCalledWith("track.soloToggle", {
+      trackId: "room",
+    });
+    expect(useDawStore.getState().project?.history?.head_id).toBe(historyHead);
+    await user.click(screen.getByRole("button", { name: "Review split…" }));
+    expect(await screen.findByText("Review these stretches")).toBeTruthy();
+    await user.click(screen.getAllByRole("button", { name: "Go to" })[1]!);
+    expect(seekTransport).toHaveBeenNthCalledWith(2, 12);
+  });
+
+  it("drops result spans if the project changes while the job finishes", async () => {
+    const user = userEvent.setup();
+    const settle = heldFollow();
+    vi.mocked(refreshDocumentProject).mockImplementation(async () => {
+      const newer = splitProject();
+      newer.history = {
+        ...newer.history!,
+        head_id: "newer-head" as HistoryEntryId,
+      };
+      useDawStore.setState({ project: newer });
+      return newer;
+    });
+    render(<SplitSpeakersDialog />);
+    await splitTwo(user);
+    await act(async () => settle().ok(finished));
+
+    expect(screen.queryByText("Review these stretches")).toBeNull();
+    expect(screen.getByRole("button", { name: "Split speakers" })).toBeTruthy();
   });
 
   it("cancels the running job and says nothing changed", async () => {

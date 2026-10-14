@@ -13,8 +13,22 @@ export function registerSpeakerSplitCommands(): void {
         : s.selection?.kind === "track"
           ? s.selection.trackId
           : null;
+    const track = s.project?.tracks.find(
+      (candidate) => candidate.id === trackId,
+    );
+    const review = s.splitSpeakersReview;
+    if (
+      trackId != null &&
+      track != null &&
+      review?.trackId === trackId &&
+      review.splitId === track.speaker_split_id &&
+      review.historyHeadId === s.project?.history?.head_id
+    ) {
+      s.setSplitSpeakersTrackId(trackId);
+      return { status: "ok" };
+    }
     const blocker = splitSpeakersBlocker(
-      s.project?.tracks.find((track) => track.id === trackId),
+      track,
       canManageProjects(s.projectPath),
     );
     if (blocker || trackId == null) {
