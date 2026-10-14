@@ -222,6 +222,7 @@ describe("CutSpeechDialog", () => {
       asked: true,
       count: null,
       historyHead: null,
+      held: [],
     });
     expect(
       await screen.findByRole("button", { name: "Cancel" }),
@@ -249,6 +250,7 @@ describe("CutSpeechDialog", () => {
           asked: true,
           count: null,
           historyHead: null,
+          held: [],
         },
       );
       expect(sent(0)).toEqual({
