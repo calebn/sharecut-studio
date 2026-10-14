@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import atexit
 import contextlib
-import contextvars
 import functools
 import hashlib
 import logging
@@ -37,7 +36,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import IO
+from typing import IO, Any
 
 import numpy as np
 
@@ -46,6 +45,7 @@ from podcast_mcp.engines.ffmpeg import PCM_STREAM_CHUNK_FRAMES, FFmpegEngine
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import short_digest
+from podcast_mcp.util.process import current_niceness, low_priority
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.timeline_zoom import (
     base_samples_per_bin,
@@ -843,6 +843,11 @@ def _pyramid_pool() -> ThreadPoolExecutor:
         return _POOL
 
 
+def _run_at_niceness(niceness: int, *job_args: Any) -> Any:
+    with low_priority(niceness) if niceness else contextlib.nullcontext():
+        return _run_pyramid_job(*job_args)
+
+
 def wait_pyramid_jobs() -> None:
     """Block until scheduled pyramid builds finish (tests and process exit)."""
     with _JOBS_LOCK:
@@ -961,10 +966,11 @@ def schedule_pyramid_build(
             return False
         _PENDING.add(job)
     try:
-        # The job keeps the caller's context: a background warm's lower priority reaches its decodes.
+        # A background warm's lower priority reaches its decodes; nothing else of the
+        # caller's context does (a pipeline job's progress reporter is not the build's).
         fut = _pyramid_pool().submit(
-            contextvars.copy_context().run,
-            _run_pyramid_job,
+            _run_at_niceness,
+            current_niceness(),
             ref,
             slug,
             key,

@@ -153,8 +153,8 @@ def pending_preview_warm(
     """Run a pending preview's whole-episode passes ahead of the first Play around.
 
     ``background`` is the idle pre-measure: the passes run at a lower CPU priority and give
-    up after a short wait for the render lock, so a render the user starts is never queued
-    behind it for long (the client asks again later).
+    up after a short wait for the render lock (the client asks again later). Once it has the
+    lock it holds it for the whole pass, so a render the user starts meanwhile waits for it.
     """
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace

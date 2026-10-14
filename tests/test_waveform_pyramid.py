@@ -1722,3 +1722,31 @@ def test_pyramid_peak_reads_the_coarsest_level_within_max_spp(tmp_path):
     assert wp.pyramid_peak(out, meta, 10.0, 12.5, max_spp=300) == brute(1, 10.0, 12.5)
     assert wp.pyramid_peak(out, meta, 10.0, 12.5, max_spp=10) == brute(0, 10.0, 12.5)
     assert wp.pyramid_peak(out, meta, 61.0, 62.0, max_spp=3000) is None
+
+
+def test_a_pyramid_job_keeps_the_callers_niceness_but_not_its_context():
+    from contextvars import ContextVar
+
+    from podcast_mcp.engines import waveform_pyramid
+    from podcast_mcp.util.process import current_niceness, low_priority
+
+    marker: ContextVar[str] = ContextVar("marker", default="unset")
+    seen: list[tuple[int, str]] = []
+
+    def job(*_args):
+        seen.append((current_niceness(), marker.get()))
+
+    original = waveform_pyramid._run_pyramid_job
+    waveform_pyramid._run_pyramid_job = job  # type: ignore[assignment]
+    try:
+        marker.set("caller")
+        with low_priority(7):
+            waveform_pyramid._pyramid_pool().submit(
+                waveform_pyramid._run_at_niceness, current_niceness(), 1
+            ).result()
+        waveform_pyramid._pyramid_pool().submit(
+            waveform_pyramid._run_at_niceness, current_niceness(), 1
+        ).result()
+    finally:
+        waveform_pyramid._run_pyramid_job = original  # type: ignore[assignment]
+    assert seen == [(7, "unset"), (0, "unset")]

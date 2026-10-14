@@ -54,6 +54,11 @@ def low_priority(niceness: int = 10) -> Iterator[None]:
         _niceness.reset(token)
 
 
+def current_niceness() -> int:
+    """The niceness :func:`low_priority` set in this context (0 outside it)."""
+    return _niceness.get()
+
+
 @contextmanager
 def detached_children() -> Iterator[None]:
     """Start children in their own session (process group) while inside this block.
