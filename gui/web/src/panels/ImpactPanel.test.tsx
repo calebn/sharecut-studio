@@ -147,7 +147,9 @@ describe("ImpactPanel transcript refine recovery", () => {
       </DawProvider>,
     );
     expect(
-      screen.getByRole("button", { name: /filler:um · host/ }),
+      screen.getByRole("button", {
+        name: /host's cut at 0:01.0 · Filler word "um"/i,
+      }),
     ).toHaveAttribute("data-pending-id", "e1");
   });
 
@@ -173,10 +175,12 @@ describe("ImpactPanel transcript refine recovery", () => {
       </DawProvider>,
     );
     expect(
-      screen.getByRole("button", { name: /filler:um · host/ }),
+      screen.getByRole("button", {
+        name: /host's cut at 0:01.0 · Filler word "um"/i,
+      }),
     ).toBeInTheDocument();
     const tinyEdit = screen.getByRole("button", {
-      name: "manual:short · host",
+      name: /host's cut at 0:00.1 · manual:short/i,
     });
     expect(tinyEdit).toHaveAttribute("data-pending-id", "tiny-manual");
     await user.click(tinyEdit);

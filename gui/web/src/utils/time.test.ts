@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampToSession,
+  clockLabel,
   formatDurationLabel,
   formatRulerTime,
   formatTime,
@@ -67,6 +68,18 @@ describe("transportTimecode", () => {
       total: "01:00:00.000",
       title: "00:00:05.000 / 01:00:00.000",
     });
+  });
+});
+
+describe("clockLabel", () => {
+  it("matches server cut toasts (m:ss.s)", () => {
+    expect(clockLabel(1.2)).toBe("0:01.2");
+    expect(clockLabel(72.1)).toBe("1:12.1");
+    expect(clockLabel(null)).toBe("?");
+  });
+
+  it("uses h:mm:ss.s past an hour", () => {
+    expect(clockLabel(3661.2)).toBe("1:01:01.2");
   });
 });
 
