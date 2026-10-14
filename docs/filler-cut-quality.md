@@ -1108,6 +1108,13 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   Cost: one Whisper decode per surviving acoustic proposal. Measured on a machine at load
   27 to 57 and `nice` 10, `large-v3-turbo` took a median 8 to 10 s per span (71 spans in 11 to 15
   minutes) and `base` 0.7 s; an idle machine is not measured, so treat these as an upper bound.
+  Model choice (2026-10-14, lab tape rebuilt on a 4-core cloud machine at load 2 to 3, `nice` 10,
+  oracle rebuilt on the same spans, four variants): `large-v3-turbo` flagged 15 of 23 oracle words
+  and 13 of 107 non-words (12 backchannels); `base` flagged 11 of 23 and 6 of 107 (3
+  backchannels). A propose with the probe cost about 8 to 9 s per span with `large-v3-turbo` and
+  1.5 s with `base`. The default stays the project's `transcribe.model`: the label exists to
+  catch a dropped word, a false flag on a backchannel costs nothing (the default is Leave), and a
+  second probe-only model would need its own download and docs.
   A peer run is not peer speech when it is the cut track's own voice bleeding
   onto the peer's mic (#994). The run's RMS is compared with the cut track's RMS
   over the same frames, and a peer at least `analysis.heuristics.bleed_dominance_db`
