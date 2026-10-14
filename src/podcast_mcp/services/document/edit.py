@@ -179,12 +179,14 @@ from podcast_mcp.edits.transcript_timing import (
 )
 from podcast_mcp.effects.presets import (
     add_effect,
-    apply_preset_to_chain,
+    apply_specs_to_chain,
+    get_preset,
     list_presets,
     list_track_effects,
     remove_effect,
     set_effect_bypass,
 )
+from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.ungated_audio import decode_scope
 from podcast_mcp.history.manager import apply_snapshot_to_project, snapshot_from_project
@@ -1824,10 +1826,24 @@ class EditService:
         params: dict[str, Any] | None = None,
     ) -> dict:
         tid = self._resolve(track_id, speaker)
+        specs = get_preset(preset) if preset else None
+        requested = (
+            [spec["effect"] for spec in specs]
+            if specs is not None
+            else ([effect] if effect else [])
+        )
+        unsupported = [name for name in requested if not is_supported_effect(name)]
+        if unsupported:
+            supported = ", ".join(supported_effect_names())
+            names = ", ".join(f"'{name}'" for name in unsupported)
+            raise CodedValueError(
+                f"unsupported effect {names}; supported effects: {supported}",
+                code="unsupported_effect",
+            )
 
         def mutate(p) -> dict:
-            if preset:
-                chain = apply_preset_to_chain(p, tid, preset)
+            if preset and specs is not None:
+                chain = apply_specs_to_chain(p, tid, specs)
             elif effect:
                 chain = add_effect(p, tid, effect, params)
             else:
@@ -1880,8 +1896,12 @@ class EditService:
     ) -> dict:
         tid = self._resolve(track_id, speaker) if (track_id or speaker) else None
         if tid:
-            return {"track_id": tid, "effects": list_track_effects(self.ws.project, tid)}
-        return {"presets": list_presets()}
+            return {
+                "track_id": tid,
+                "effects": list_track_effects(self.ws.project, tid),
+                "supported_effects": list(supported_effect_names()),
+            }
+        return {"presets": list_presets(), "supported_effects": list(supported_effect_names())}
 
     def analyze_cleanup(
         self,

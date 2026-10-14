@@ -246,3 +246,24 @@ describe("TrackInspector", () => {
     expect(screen.queryByRole("button", { name: "Track actions" })).toBeNull();
   });
 });
+
+it("warns when a saved chain contains an unsupported effect", () => {
+  render(
+    <TrackInspector
+      track={hostTrack}
+      effects={[
+        {
+          effect: "volume",
+          params: {},
+          supported: false,
+          warning:
+            "Unsupported effect 'volume' will not be rendered. Remove it from this chain before export.",
+        },
+      ]}
+    />,
+  );
+
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Unsupported effect 'volume' will not be rendered",
+  );
+});

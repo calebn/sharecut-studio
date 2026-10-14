@@ -749,7 +749,7 @@ def test_build_track_filter_arnndn_resolves_model_when_unset(tmp_path: Path):
     model.write_bytes(b"fake")
     eng = FFmpegEngine()
     chain = ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="arnndn", params={})])
-    with patch("podcast_mcp.engines.ffmpeg.resolve_rnnoise_model", return_value=model):
+    with patch("podcast_mcp.engines.effect_filters.resolve_rnnoise_model", return_value=model):
         filt = eng.build_track_filter(chain, None)
     assert filt == f"arnndn=m={model}"
 
