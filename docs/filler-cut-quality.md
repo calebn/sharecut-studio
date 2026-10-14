@@ -1095,7 +1095,10 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   cannot do this job: on the lab tape a drawn-out "Then" (0.98 s) moves less than several
   "umm", and backchannels move as much as words. `tighten.acoustic_gap_filler.word_probe:
   false` turns the listening off; a Whisper model that is not installed leaves the proposals
-  unlabelled and counts `word_probe:unavailable`. Lab (2026-10-13, #1062; oracle: the #1024
+  unlabelled and counts `word_probe:unavailable`. A span whose Whisper decode fails counts
+  `word_probe:failed` and Propose still returns the rest; the human summary names both
+  (`N word probe unavailable`, `N word probe failed`). Listening reports a named
+  `word-probe` progress child once per heard span. Lab (2026-10-13, #1062; oracle: the #1024
   classification, Whisper `base.en` on each span with the disfluency prompt, so the probe model
   and the oracle differ): proposal counts are identical before and after in all four variants
   (mute 58 and 91, ripple 27 and 54, Whisper and forced-aligner word times); of 17 oracle
