@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   cancelPipelineRun,
   followJobToOk,
+  getSpeakerDoctor,
   JobCancelledError,
   startSplitSpeakersJob,
 } from "../api";
@@ -27,6 +28,11 @@ import {
 } from "./SplitSpeakersDialogView";
 
 type Settings = { count: string; names: string[] };
+type SpeakerReadiness =
+  | "checking"
+  | "available"
+  | "unavailable"
+  | "check_failed";
 const DEFAULT_SETTINGS: Settings = { count: "2", names: [] };
 
 /** What the split is doing; the live job snapshot comes from the store. */
@@ -73,7 +79,30 @@ export function SplitSpeakersDialog() {
   }));
   const [flow, setFlow] = useState<Flow>({ kind: "configure" });
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [speakerReadiness, setSpeakerReadiness] =
+    useState<SpeakerReadiness>("checking");
   const open = trackId != null && project != null;
+  useEffect(() => {
+    if (!open) return;
+    let current = true;
+    setSpeakerReadiness("checking");
+    void getSpeakerDoctor().then(
+      (report) => {
+        if (!current) return;
+        setSpeakerReadiness(
+          report.available_backends.some((backend) => backend !== "mock")
+            ? "available"
+            : "unavailable",
+        );
+      },
+      () => {
+        if (current) setSpeakerReadiness("check_failed");
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [open]);
   const [wasOpen, setWasOpen] = useState(false);
   const doneMatchesProject =
     flow.kind === "done" &&
@@ -272,6 +301,7 @@ export function SplitSpeakersDialog() {
           names: settings.names,
           blocker: splitSpeakersRequestBlocker(count, names),
           countError: splitSpeakersRequestBlocker(count, null),
+          speakerReadiness,
         }
       : flow.kind === "running"
         ? {
@@ -325,6 +355,17 @@ export function SplitSpeakersDialog() {
               undoError: flow.undoError,
             }
           : flow;
+
+  if (stage.kind === "configure") {
+    stage.blocker ??=
+      stage.speakerReadiness === "checking"
+        ? "Checking speaker recognition"
+        : stage.speakerReadiness === "unavailable"
+          ? "Speaker recognition isn't available on this computer."
+          : stage.speakerReadiness === "check_failed"
+            ? "Couldn't check speaker recognition. Close and reopen this dialog to try again."
+            : null;
+  }
 
   return (
     <SplitSpeakersDialogView

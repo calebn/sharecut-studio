@@ -21,6 +21,11 @@ export type SplitSpeakersStage =
       names: readonly string[];
       blocker: string | null;
       countError: string | null;
+      speakerReadiness:
+        | "checking"
+        | "available"
+        | "unavailable"
+        | "check_failed";
     }
   | {
       kind: "running";
@@ -133,6 +138,25 @@ function SplitSpeakersForm({
     : MIN_SPLIT_SPEAKERS;
   return (
     <>
+      {stage.speakerReadiness === "unavailable" ? (
+        <p className="export-dialog-note" role="status">
+          <span>Speaker recognition isn't available on this computer.</span>{" "}
+          <a href="https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#optional-downloads-and-extras">
+            Read the speaker setup instructions
+          </a>
+        </p>
+      ) : null}
+      {stage.speakerReadiness === "checking" ? (
+        <p className="export-dialog-note" role="status">
+          Checking speaker recognition on this computer…
+        </p>
+      ) : null}
+      {stage.speakerReadiness === "check_failed" ? (
+        <p className="export-dialog-note" role="status">
+          Couldn't check speaker recognition. Close and reopen this dialog to
+          try again.
+        </p>
+      ) : null}
       <p className="export-dialog-lead">
         Splits {trackLabel} into one track per speaker. You can undo it.
       </p>
@@ -317,7 +341,10 @@ function SplitSpeakersFooter({
 }: SplitSpeakersDialogViewProps) {
   return (
     <div className="bounce-dialog-footer">
-      {stage.kind === "configure" && stage.blocker && !stage.countError ? (
+      {stage.kind === "configure" &&
+      stage.blocker &&
+      !stage.countError &&
+      stage.speakerReadiness === "available" ? (
         <p className="export-dialog-note">{stage.blocker}</p>
       ) : null}
       <div className="bounce-dialog-actions split-speakers-actions">
