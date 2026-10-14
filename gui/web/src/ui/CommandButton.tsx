@@ -4,7 +4,7 @@ import {
   type ReactNode,
 } from "react";
 import { Button, type ButtonVariant } from "./Button";
-import { type DisabledReasonProps, useDisabledReason } from "./disabledReason";
+import { type DisabledReasonProps, disabledAttrs } from "./disabledReason";
 import { useCommand } from "./useCommand";
 
 type WhenGate =
@@ -50,7 +50,7 @@ export function CommandButton({
   const reason =
     disabledReason || (respectWhen && !enabled ? whenReason : undefined);
   const isDisabled = Boolean(reason);
-  const { attrs, note } = useDisabledReason(reason, rest["aria-describedby"]);
+  const attrs = disabledAttrs(reason);
 
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     onClick?.(e);
@@ -65,18 +65,15 @@ export function CommandButton({
   if (bare) {
     const bareClass = className ? `ui-control ${className}` : "ui-control";
     return (
-      <>
-        <button
-          type="button"
-          {...rest}
-          {...attrs}
-          className={bareClass}
-          onClick={handleClick}
-        >
-          {content}
-        </button>
-        {note}
-      </>
+      <button
+        type="button"
+        {...rest}
+        {...attrs}
+        className={bareClass}
+        onClick={handleClick}
+      >
+        {content}
+      </button>
     );
   }
 

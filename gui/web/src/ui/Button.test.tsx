@@ -33,4 +33,12 @@ describe("Button", () => {
     expect(button).toHaveAccessibleDescription("Name the episode to save.");
     expect(button).toHaveAttribute("title", "Name the episode to save.");
   });
+
+  it("has no native disabled prop, so a dead control needs a reason", () => {
+    render(
+      // @ts-expect-error `disabled` is omitted; pass `disabledReason`.
+      <Button disabled>Save</Button>,
+    );
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
 });

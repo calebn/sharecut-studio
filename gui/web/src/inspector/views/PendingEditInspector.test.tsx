@@ -246,7 +246,9 @@ describe("PendingEditInspector", () => {
     );
     expect(screen.getByRole("button", { name: "Suggested" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "A/B" })).toBeDisabled();
-    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Suggested" }),
+    ).toHaveAccessibleDescription(reason);
     await expectNoA11yViolations(container);
   });
 

@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { type DisabledReasonProps, useDisabledReason } from "./disabledReason";
+import { type DisabledReasonProps, disabledAttrs } from "./disabledReason";
 
 type Props = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -22,10 +22,7 @@ export function ToggleButton({
   children,
   ...rest
 }: Props) {
-  const { attrs, note } = useDisabledReason(
-    disabledReason,
-    rest["aria-describedby"],
-  );
+  const attrs = disabledAttrs(disabledReason);
   const menuitemRadio = rest.role === "menuitemradio";
   const stateProps = menuitemRadio
     ? { "aria-checked": pressed }
@@ -39,17 +36,14 @@ export function ToggleButton({
     .filter(Boolean)
     .join(" ");
   return (
-    <>
-      <button
-        type={type}
-        className={classes}
-        {...rest}
-        {...attrs}
-        {...stateProps}
-      >
-        {children}
-      </button>
-      {note}
-    </>
+    <button
+      type={type}
+      className={classes}
+      {...rest}
+      {...attrs}
+      {...stateProps}
+    >
+      {children}
+    </button>
   );
 }

@@ -316,7 +316,7 @@ describe("TightenPanel", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("disables apply-all with aria-describedby when nothing is eligible", () => {
+  it("disables apply-all with its reason when nothing is eligible", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
         <TightenPanel />
@@ -325,11 +325,7 @@ describe("TightenPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     const apply = screen.getByRole("button", { name: /Apply eligible/ });
     expect(apply).toBeDisabled();
-    const described = apply.getAttribute("aria-describedby");
-    expect(described).toBeTruthy();
-    expect(document.getElementById(described ?? "")?.textContent).toMatch(
-      /eligible/i,
-    );
+    expect(apply).toHaveAccessibleDescription(/eligible/i);
   });
 
   it("leads each row's actions with the decisions, Apply then Skip, before Preview and Go to", () => {

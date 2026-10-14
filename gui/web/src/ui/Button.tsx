@@ -1,5 +1,5 @@
 import { type ButtonHTMLAttributes, forwardRef, type ReactNode } from "react";
-import { type DisabledReasonProps, useDisabledReason } from "./disabledReason";
+import { type DisabledReasonProps, disabledAttrs } from "./disabledReason";
 
 export type ButtonVariant = "default" | "primary" | "danger" | "link";
 
@@ -34,22 +34,16 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
   ref,
 ) {
   const base = classForVariant(variant);
-  const { attrs, note } = useDisabledReason(
-    disabledReason,
-    rest["aria-describedby"],
-  );
+  const attrs = disabledAttrs(disabledReason);
   return (
-    <>
-      <button
-        ref={ref}
-        type={type}
-        className={className ? `${base} ${className}` : base}
-        {...rest}
-        {...attrs}
-      >
-        {children}
-      </button>
-      {note}
-    </>
+    <button
+      ref={ref}
+      type={type}
+      className={className ? `${base} ${className}` : base}
+      {...rest}
+      {...attrs}
+    >
+      {children}
+    </button>
   );
 });
