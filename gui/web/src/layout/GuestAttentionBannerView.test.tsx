@@ -9,7 +9,9 @@ import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 afterEach(() => vi.useRealTimers());
 
 function expandDetails() {
-  fireEvent.click(screen.getByText("Details"));
+  fireEvent.click(
+    screen.getByLabelText("View attention details and recovery actions"),
+  );
 }
 
 describe("GuestAttentionBannerView", () => {
@@ -35,7 +37,9 @@ describe("GuestAttentionBannerView", () => {
         onInspectHistory={vi.fn()}
       />,
     );
-    const summary = screen.getByText("Details");
+    const summary = screen.getByLabelText(
+      "View attention details and recovery actions",
+    );
     await userEvent.click(summary);
     expect(summary.closest("details")).toHaveAttribute("open");
     expect(
@@ -66,7 +70,9 @@ describe("GuestAttentionBannerView", () => {
       </StrictMode>,
     );
     expect(screen.getAllByRole("alert")).toHaveLength(2);
-    const summary = screen.getAllByText("Details")[0];
+    const summary = screen.getAllByLabelText(
+      "View attention details and recovery actions",
+    )[0];
     expect(
       summary.compareDocumentPosition(
         screen.getByRole("button", { name: "Transport" }),
@@ -100,7 +106,9 @@ describe("GuestAttentionBannerView", () => {
         <GuestAttentionBannerView {...props} />
       </StrictMode>,
     );
-    const summary = screen.getByText("Details").closest("summary")!;
+    const summary = screen.getByLabelText(
+      "View attention details and recovery actions",
+    );
     await userEvent.click(summary);
     const details = summary.closest("details")!;
     const action = screen.getByRole("button", { name: "Send now" });
@@ -146,15 +154,21 @@ describe("GuestAttentionBannerView", () => {
     const { rerender } = render(
       <GuestAttentionBannerView key="first-project" {...props} />,
     );
-    const summary = screen.getByText("Details").closest("summary")!;
+    const summary = screen.getByLabelText(
+      "View attention details and recovery actions",
+    );
     await userEvent.click(summary);
     summary.focus();
     rerender(<GuestAttentionBannerView key="second-project" {...props} />);
-    expect(screen.getByText("Details").closest("details")).not.toHaveAttribute(
-      "open",
-    );
+    expect(
+      screen
+        .getByLabelText("View attention details and recovery actions")
+        .closest("details"),
+    ).not.toHaveAttribute("open");
     expect(summary).not.toBeInTheDocument();
-    expect(screen.getByText("Details").closest("summary")).not.toHaveFocus();
+    expect(
+      screen.getByLabelText("View attention details and recovery actions"),
+    ).not.toHaveFocus();
   });
 
   it("removes an open disclosure when attention disappears and starts closed next time", () => {
@@ -166,9 +180,11 @@ describe("GuestAttentionBannerView", () => {
       />,
     );
     expandDetails();
-    expect(screen.getByText("Details").closest("details")).toHaveAttribute(
-      "open",
-    );
+    expect(
+      screen
+        .getByLabelText("View attention details and recovery actions")
+        .closest("details"),
+    ).toHaveAttribute("open");
     rerender(
       <GuestAttentionBannerView
         pending={0}
@@ -176,7 +192,9 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.queryByText("Details")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("View attention details and recovery actions"),
+    ).not.toBeInTheDocument();
     rerender(
       <GuestAttentionBannerView
         pending={1}
@@ -184,9 +202,11 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.getByText("Details").closest("details")).not.toHaveAttribute(
-      "open",
-    );
+    expect(
+      screen
+        .getByLabelText("View attention details and recovery actions")
+        .closest("details"),
+    ).not.toHaveAttribute("open");
   });
 
   it("shows pending-only state with no dismiss button", async () => {

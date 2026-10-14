@@ -60,8 +60,11 @@ async function settle(ms = 0) {
 }
 
 function openDetails() {
-  const details = screen.getByText("Details");
-  if (!details.parentElement?.hasAttribute("open")) fireEvent.click(details);
+  const details = screen.getByLabelText(
+    "View attention details and recovery actions",
+  );
+  if (!details.closest("details")?.hasAttribute("open"))
+    fireEvent.click(details);
 }
 
 function getActionButton(name: string) {

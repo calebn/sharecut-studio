@@ -57,7 +57,9 @@ export const Conflicts: Story = {
         name: "Needs attention. 2 conflicts",
       }),
     );
-    await userEvent.click(canvas.getByText("Details"));
+    await userEvent.click(
+      canvas.getByLabelText("View attention details and recovery actions"),
+    );
     await userEvent.click(canvas.getByRole("button", { name: "Dismiss all" }));
     await expect(args.onDismissAll).toHaveBeenCalledTimes(1);
   },
@@ -95,7 +97,9 @@ export const PhoneManyConflicts: Story = {
         name: "Needs attention. 7 conflicts",
       }),
     );
-    await userEvent.click(canvas.getByText("Details"));
+    await userEvent.click(
+      canvas.getByLabelText("View attention details and recovery actions"),
+    );
     await expect(canvas.getAllByRole("listitem")).toHaveLength(6);
     await expect(canvas.getByText("+2 more")).toHaveClass(
       "guest-attention-more",
