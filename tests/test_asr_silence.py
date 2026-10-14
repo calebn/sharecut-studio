@@ -405,15 +405,19 @@ def test_speech_levels_gate_flags_bleed_and_silence_but_not_a_short_real_word(tm
     assert levels.has_speech("guest", 1.6, 1.9) is True
 
 
-@pytest.mark.parametrize("host_gain_db", [0.0, 15.0, -15.0])
+@pytest.mark.parametrize(
+    ("host_gain_db", "guest_gain_db"),
+    [(0.0, 0.0), (15.0, 0.0), (-15.0, 0.0), (0.0, -15.0), (0.0, 15.0)],
+)
 def test_speech_levels_compare_the_tracks_as_recorded_and_apply_the_bleed_margin(
-    tmp_workspace, host_gain_db
+    tmp_workspace, host_gain_db, guest_gain_db
 ):
     from podcast_mcp.engines.asr_silence import SpeechLevels
 
     # Host's -32 dBFS bleed sits 20 dB under the guest's -12 dBFS. Host's balance gain is a
     # listening choice: it moves no verdict (#1549). The margin decides.
     project = two_mic_project(tmp_workspace, host_gain_db=host_gain_db)
+    project.track_by_id("guest").gain_db = guest_gain_db
     strict = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
     assert strict.has_speech("host", 1.6, 1.9) is False
     lenient = SpeechLevels.for_project(
