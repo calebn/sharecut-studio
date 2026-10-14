@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from contextlib import ExitStack
 from dataclasses import dataclass
 from typing import Literal
 
@@ -34,6 +35,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
 )
+from podcast_mcp.util.batch_scope import frozen_state
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec, TimelineSec, clock_label
@@ -363,6 +365,36 @@ def consume_source_remove(
 ) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation | CutScopeHold:
     """Prove and consume the actual ordinary source removal against current playback.
 
+    The proof only reads the project, so its repeated reads (a track's render hash, once per
+    peer window) share the first result until the first mutation.
+    """
+    with ExitStack() as proof:
+        proof.enter_context(frozen_state())
+        return _consume_source_remove(
+            project,
+            edit,
+            proof=proof,
+            confirm_cut_speech=confirm_cut_speech,
+            allow_review=allow_review,
+            batch=batch,
+            use_inaudible_opt=use_inaudible_opt,
+            record_log=record_log,
+        )
+
+
+def _consume_source_remove(
+    project: EpisodeProject,
+    edit: EditDecision,
+    *,
+    proof: ExitStack,
+    confirm_cut_speech: bool,
+    allow_review: bool,
+    batch: Sequence[SourceExtent],
+    use_inaudible_opt: bool | None,
+    record_log: bool,
+) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation | CutScopeHold:
+    """Prove and consume the actual ordinary source removal against current playback.
+
     A stored peer-speech review retains its confirmation path; fresh bleed or unavailable
     scope still holds. A hold changes no geometry. No downstream kernel re-optimizes the
     final proven window, and archived parameters name the consumed source and pad.
@@ -532,6 +564,7 @@ def consume_source_remove(
     working = project.model_copy(deep=True) if implicit else project
     working.clips.extend(implicit)
     if scope == "track":
+        proof.close()  # the proof ends where the first mutation starts
         report = punch_delete(
             working, edit.track_id, tl_start, tl_end, use_inaudible_opt=False, record_log=record_log
         )
@@ -558,6 +591,7 @@ def consume_source_remove(
     )
     if isinstance(clearance, CutSpeechConfirmation):
         return clearance
+    proof.close()  # the proof ends where the first mutation starts
     if working is not project:
         project.clips.extend(implicit)
     report = ripple_delete(

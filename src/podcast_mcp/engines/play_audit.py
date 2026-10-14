@@ -16,6 +16,7 @@ from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -40,8 +41,18 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
     """Fingerprint selected media, edits, clips, and FX baked into a track render.
 
     Includes ``RENDER_SEMANTICS_REV`` so stems and play segments rendered under
-    older renderer rules are treated as stale after a semantics change.
+    older renderer rules are treated as stale after a semantics change. Inside a
+    :func:`~podcast_mcp.util.batch_scope.frozen_state` block (a cut's read-only proof) a
+    repeat call for the same project and track returns the first result.
     """
+    return frozen(
+        ("track_render_hash", id(project), track_id),
+        lambda: _track_render_hash(project, track_id),
+        keep=project,
+    )
+
+
+def _track_render_hash(project: EpisodeProject, track_id: str) -> str:
     track = project.track_by_id(track_id)
     chain = next((c for c in project.processing_chains if c.track_id == track_id), None)
     env = project.volume_envelope_for(track_id)

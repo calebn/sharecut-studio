@@ -48,3 +48,39 @@ def scoped_by_file(kind: str, path: Path, extra: Hashable, make: Callable[[], T]
         return make()
     stat = path.stat()
     return scoped((kind, str(path), stat.st_mtime_ns, stat.st_size, extra), make)
+
+
+_frozen: ContextVar[dict[Hashable, Any] | None] = ContextVar("frozen_state", default=None)
+
+
+@contextmanager
+def frozen_state() -> Iterator[None]:
+    """Reads of project state inside this block may be shared; the caller promises not to mutate it.
+
+    Proving one cut reads the same stems dozens of times before anything changes, and
+    each read fingerprints a track whose clips have not moved. A block that only reads the
+    project lets those repeats share the first result; leaving the block drops them, so the
+    next mutation is never read through a stale entry. A nested block shares the outer one.
+    """
+    if _frozen.get() is not None:
+        yield
+        return
+    token = _frozen.set({})
+    try:
+        yield
+    finally:
+        _frozen.reset(token)
+
+
+def frozen(key: Hashable, make: Callable[[], T], *, keep: object = None) -> T:
+    """``make()``, or this read-only block's earlier result for ``key``. Outside a block, ``make()``.
+
+    ``keep`` is held with the result so an object whose ``id`` is in ``key`` cannot be freed
+    and have its id reused while the entry lives.
+    """
+    block = _frozen.get()
+    if block is None:
+        return make()
+    if key not in block:
+        block[key] = (keep, make())
+    return block[key][1]
