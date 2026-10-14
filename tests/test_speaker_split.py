@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import json
 import wave
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +40,7 @@ from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
     Clip,
+    ClipMuteRegion,
     MediaAsset,
     ProcessingChain,
     ProcessingEffect,
@@ -78,6 +80,24 @@ def _split_track(project, track_id, attribution, **kwargs):
         media_identity=identity,
         **kwargs,
     )
+
+
+def _mute_tuple(region: ClipMuteRegion) -> tuple[float, float, int, int]:
+    return (region.start_s, region.end_s, region.fade_out_ms, region.fade_in_ms)
+
+
+def _play_gain_at(regions: Sequence[ClipMuteRegion], t: float) -> float:
+    """Linear MuteEnvelope gain: fall over the first fade-out, rise over the last fade-in."""
+    for region in regions:
+        if region.start_s <= t < region.end_s:
+            fade_out = region.fade_out_ms / 1000.0
+            fade_in = region.fade_in_ms / 1000.0
+            if fade_out > 0 and t < region.start_s + fade_out:
+                return 1.0 - (t - region.start_s) / fade_out
+            if fade_in > 0 and t >= region.end_s - fade_in:
+                return (region.end_s - t) / fade_in
+            return 0.0
+    return 1.0
 
 
 class SpectralBackend:
@@ -656,6 +676,13 @@ def test_move_lane_span_mutes_source_and_reopens_target(scripted_ws: ProjectWork
         for r in ana.mute_regions
     )
     assert not source_span_is_muted(ben.mute_regions, 1.0, 1.4)
+    left = _mute_region((0.0, 1.0), 10.0, SPLIT_FADE_MS)
+    right = _mute_region((1.4, 6.0), 10.0, SPLIT_FADE_MS)
+    assert [_mute_tuple(r) for r in ben.mute_regions] == [_mute_tuple(left), _mute_tuple(right)]
+    for t in (0.99, 1.00, 1.20, 1.40, 1.409, 1.41, 6.0):
+        assert _play_gain_at(ana.mute_regions, t) + _play_gain_at(
+            ben.mute_regions, t
+        ) == pytest.approx(1.0)
     words = {tr.track_id: [w.text for w in tr.words] for tr in project.transcripts}
     assert words == {"room": [], "room_ben": ["hello", "there"]}
 
