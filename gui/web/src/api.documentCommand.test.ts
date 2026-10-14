@@ -1179,6 +1179,53 @@ describe("host document command queue", () => {
     ).resolves.toEqual({ ok: true });
   });
 
+  it("records an unknown outcome when an unpersisted send loses its response", async () => {
+    enqueueHostCommand.mockImplementationOnce(
+      async (
+        _path: string,
+        _command: unknown,
+        onPersistenceFailure: () => void,
+      ) => {
+        onPersistenceFailure();
+        throw new Error("storage unavailable");
+      },
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("network down");
+      }),
+    );
+    const { submitDocumentCommand } = await import("./api");
+
+    await expect(
+      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+    ).rejects.toThrow("network down");
+    expect(addHostConflict).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      expect.objectContaining({
+        outcome: "unknown",
+        reason: expect.any(String),
+      }),
+    );
+  });
+
+  it("records a guest live refusal so its save state cannot return to Saved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("bad payload", { status: 422 })),
+    );
+    const { submitDocumentCommand } = await import("./api");
+
+    await expect(
+      submitDocumentCommand("share:guest-refusal", "SetTrackMeta"),
+    ).rejects.toThrow("bad payload");
+    expect(addConflict).toHaveBeenCalledWith(
+      "guest-refusal",
+      expect.objectContaining({ outcome: "refused", reason: "bad payload" }),
+    );
+  });
+
   it("records conflicts and removes them from retry", async () => {
     vi.stubGlobal(
       "fetch",
