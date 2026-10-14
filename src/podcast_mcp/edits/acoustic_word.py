@@ -96,7 +96,6 @@ def flag_possible_words(
         return 0
 
     flagged = 0
-    missing: WhisperWeightsMissingError | None = None
     with resolve_progress_task(
         "word-probe",
         "Listening for missed words",
@@ -107,9 +106,8 @@ def flag_possible_words(
             raise_if_cancel_requested(current_cancel_check())
             try:
                 heard = span_heard_a_word(samples, transcribe, languages.get(decision.track_id))
-            except WhisperWeightsMissingError as exc:
-                missing = exc
-                break
+            except WhisperWeightsMissingError:
+                raise
             except CancelledProgress:
                 raise
             except Exception:
@@ -119,8 +117,6 @@ def flag_possible_words(
                     decision.reason = f"{decision.reason}:{POSSIBLE_WORD_FLAG}"
                     flagged += 1
             task.advance(1)
-    if missing is not None:
-        raise missing
     return flagged
 
 
