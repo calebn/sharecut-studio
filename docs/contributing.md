@@ -464,7 +464,7 @@ cannot validate NTFS security descriptors or native rename behavior.
 ## Agent model guard
 
 Claude Code sessions in this repo run `.claude/hooks/agent-model-guard.sh` as a
-`PreToolUse` hook on the `Agent` tool (wired in `.claude/settings.json`). It
+`PreToolUse` hook on the `Agent` tool (it ignores any other tool name or payload shape, so other harnesses are unaffected; wired in `.claude/settings.json`). It
 denies a subagent launch that names no `model`, denies `opus` unless the
 description says verify, review, audit, judgment or design, and denies `fable`
 unless the description says hardest or escalation. `Explore`, `Plan`,

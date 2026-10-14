@@ -9,7 +9,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 input=$(cat)
-printf '%s' "$input" | jq -e '.tool_input | type == "object"' >/dev/null 2>&1 || exit 0
+printf '%s' "$input" | jq -e '.tool_name == "Agent" and (.tool_input | type == "object")' >/dev/null 2>&1 || exit 0
 model=$(printf '%s' "$input" | jq -r '.tool_input.model // ""' | tr '[:upper:]' '[:lower:]')
 desc=$(printf '%s' "$input" | jq -r '.tool_input.description // ""' | tr '[:upper:]' '[:lower:]')
 stype=$(printf '%s' "$input" | jq -r '.tool_input.subagent_type // ""')

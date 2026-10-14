@@ -18,7 +18,7 @@ needs_jq = pytest.mark.skipif(shutil.which("jq") is None, reason="jq not install
 def run_guard(tool_input: dict[str, str], env: dict[str, str] | None = None) -> str:
     result = subprocess.run(
         ["sh", str(GUARD)],
-        input=json.dumps({"tool_input": tool_input}),
+        input=json.dumps({"tool_name": "Agent", "tool_input": tool_input}),
         text=True,
         capture_output=True,
         check=True,
@@ -71,7 +71,17 @@ def test_guard_allows_with_warning_when_jq_missing(tmp_path: Path) -> None:
 
 
 @needs_jq
-@pytest.mark.parametrize("payload", ["", "not json{", "null", '{"tool_input":"x"}'])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "",
+        "not json{",
+        "null",
+        '{"tool_input":"x"}',
+        '{"tool_name":"Task","tool_input":{"description":"x"}}',
+        '{"tool_name":"Bash","tool_input":{"command":"ls"}}',
+    ],
+)
 def test_guard_fails_open_on_unexpected_payload(payload: str) -> None:
     result = subprocess.run(
         ["sh", str(GUARD)], input=payload, text=True, capture_output=True, check=True
