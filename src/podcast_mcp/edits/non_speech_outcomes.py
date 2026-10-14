@@ -61,7 +61,10 @@ def duck_volume_span(
     dipped = max(0.0, base * factor)
     eps = 0.001
     t0 = max(0.0, tl_start - eps)
-    t1 = min(project.timeline.duration_sec, tl_end + eps)
+    t1 = tl_end + eps
+    duration = project.timeline.duration_sec
+    if duration is not None:
+        t1 = min(duration, t1)
     new_points = [
         AutomationPoint(id=str(uuid4()), time=t0, value=base),
         AutomationPoint(id=str(uuid4()), time=tl_start, value=dipped),

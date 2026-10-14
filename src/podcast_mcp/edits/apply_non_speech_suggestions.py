@@ -132,7 +132,7 @@ def apply_non_speech_suggested_actions(
             "shortened": shortened,
             "outcomes": len(project.editorial.non_speech_outcomes),
         }
-        return {**asked.result("apply_suggested_non_speech_actions"), **batch}
+        return {**asked.confirmation.result("apply_suggested_non_speech_actions"), **batch}
 
     for decision in to_cut:
         record = _find_edit_log_for_decision(project, decision.id)
