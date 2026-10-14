@@ -543,7 +543,15 @@ class EditService:
         """Studio Apply suggested actions: each pending non-speech hit by its table action."""
         from podcast_mcp.edits.apply_non_speech_suggestions import (
             apply_non_speech_suggested_actions,
+            non_speech_apply_batch_meta,
         )
+
+        batch = non_speech_apply_batch_meta(self.ws.project, ids=ids)
+        restored = False
+
+        def on_failure(outcome: RollbackOutcome) -> None:
+            nonlocal restored
+            restored = outcome is RollbackOutcome.RESTORED
 
         def mutate(p) -> dict[str, Any]:
             return apply_non_speech_suggested_actions(
@@ -553,13 +561,26 @@ class EditService:
                 defaults=defaults,
             )
 
-        return self.ws.mutate(
-            "before apply suggested non-speech actions",
-            "after apply suggested non-speech actions",
-            mutate,
-            operation="apply_suggested_non_speech_actions",
-            params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
-        )
+        try:
+            return self.ws.mutate(
+                "before apply suggested non-speech actions",
+                "after apply suggested non-speech actions",
+                mutate,
+                operation="apply_suggested_non_speech_actions",
+                params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
+                on_failure=on_failure,
+            )
+        except UnconfirmedCutSpeech as asked:
+            if restored:
+                return {
+                    **asked.confirmation.result("apply_suggested_non_speech_actions"),
+                    **batch,
+                    "left": 0,
+                    "lowered": 0,
+                    "shortened": 0,
+                    "outcomes": 0,
+                }
+            raise
 
     def change_non_speech_action(
         self,

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from podcast_mcp.edits.cut_speech import UnconfirmedCutSpeech
 from podcast_mcp.edits.decisions import approve_edits, reject_edits
 from podcast_mcp.edits.non_speech_outcomes import (
     apply_lower_for_decision,
@@ -20,7 +19,7 @@ from podcast_mcp.edits.non_speech_suggestions import (
 )
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EditDecision, EpisodeProject
 
 
 def _find_edit_log_for_decision(project: EpisodeProject, decision_id: str):
@@ -28,6 +27,47 @@ def _find_edit_log_for_decision(project: EpisodeProject, decision_id: str):
         if decision_id in record.decision_ids:
             return record
     return None
+
+
+def _partition_non_speech_batch(
+    project: EpisodeProject,
+    pending: list[EditDecision],
+) -> tuple[list[EditDecision], list[EditDecision], list[EditDecision], list[EditDecision]]:
+    to_cut: list[EditDecision] = []
+    to_leave: list[EditDecision] = []
+    to_lower: list[EditDecision] = []
+    to_shorten: list[EditDecision] = []
+    for decision in pending:
+        action = resolve_suggested_action(project, decision)
+        if action is None:
+            continue
+        if action == NonSpeechAction.CUT:
+            to_cut.append(decision)
+        elif action == NonSpeechAction.LEAVE:
+            to_leave.append(decision)
+        elif action == NonSpeechAction.LOWER:
+            to_lower.append(decision)
+        elif action == NonSpeechAction.SHORTEN:
+            to_shorten.append(decision)
+    return to_cut, to_leave, to_lower, to_shorten
+
+
+def non_speech_apply_batch_meta(
+    project: EpisodeProject,
+    *,
+    ids: list[str] | None = None,
+) -> dict[str, Any]:
+    pending = pending_non_speech_suggestions(project.edit_decisions)
+    if ids is not None:
+        wanted = set(ids)
+        pending = [d for d in pending if d.id in wanted]
+    to_cut, _to_leave, _to_lower, to_shorten = _partition_non_speech_batch(project, pending)
+    for decision in to_shorten:
+        to_cut.append(decision)
+    cuts_over_peer = sum(
+        1 for d in to_cut if d.cut_speech is not None or ":other_speaking:" in (d.reason or "")
+    )
+    return {"ids": [d.id for d in to_cut], "cuts_over_peer": cuts_over_peer}
 
 
 def apply_non_speech_suggested_actions(
@@ -54,22 +94,35 @@ def apply_non_speech_suggested_actions(
         }
 
     batch_id = f"nsb_{uuid4().hex[:8]}"
-    to_cut: list = []
-    to_leave: list = []
-    to_lower: list = []
-    to_shorten: list = []
-    for decision in pending:
-        action = resolve_suggested_action(project, decision)
-        if action is None:
-            continue
-        if action == NonSpeechAction.CUT:
-            to_cut.append(decision)
-        elif action == NonSpeechAction.LEAVE:
-            to_leave.append(decision)
-        elif action == NonSpeechAction.LOWER:
-            to_lower.append(decision)
-        elif action == NonSpeechAction.SHORTEN:
-            to_shorten.append(decision)
+    to_cut, to_leave, to_lower, to_shorten = _partition_non_speech_batch(project, pending)
+
+    shorten_effective: dict[str, float] = {}
+    original_ends: dict[str, float] = {}
+    for decision in to_shorten:
+        original_ends[decision.id] = decision.end
+        effective_end = shorten_end(decision)
+        shorten_effective[decision.id] = effective_end
+        decision.end = effective_end
+        to_cut.append(decision)
+
+    cuts_over_peer = sum(
+        1 for d in to_cut if d.cut_speech is not None or ":other_speaking:" in (d.reason or "")
+    )
+
+    try:
+        applied_cuts = approve_edits(
+            project,
+            [d.id for d in to_cut],
+            confirm_cut_speech=confirm_cut_speech,
+            allow_review=True,
+        )
+    except Exception:
+        for did, end in original_ends.items():
+            for row in project.edit_decisions:
+                if row.id == did:
+                    row.end = end
+                    break
+        raise
 
     left = 0
     for decision in to_leave:
@@ -103,37 +156,6 @@ def apply_non_speech_suggested_actions(
         reject_edits(project, [decision.id])
         lowered += 1
 
-    shortened = 0
-    shorten_effective: dict[str, float] = {}
-    for decision in to_shorten:
-        effective_end = shorten_end(decision)
-        shorten_effective[decision.id] = effective_end
-        decision.end = effective_end
-        shortened += 1
-        to_cut.append(decision)
-
-    cuts_over_peer = sum(
-        1 for d in to_cut if d.cut_speech is not None or ":other_speaking:" in (d.reason or "")
-    )
-
-    try:
-        applied_cuts = approve_edits(
-            project,
-            [d.id for d in to_cut],
-            confirm_cut_speech=confirm_cut_speech,
-            allow_review=True,
-        )
-    except UnconfirmedCutSpeech as asked:
-        batch = {
-            "ids": [d.id for d in to_cut],
-            "cuts_over_peer": cuts_over_peer,
-            "left": left,
-            "lowered": lowered,
-            "shortened": shortened,
-            "outcomes": len(project.editorial.non_speech_outcomes),
-        }
-        return {**asked.confirmation.result("apply_suggested_non_speech_actions"), **batch}
-
     for decision in to_cut:
         record = _find_edit_log_for_decision(project, decision.id)
         action = (
@@ -156,7 +178,7 @@ def apply_non_speech_suggested_actions(
         "applied_cuts": applied_cuts,
         "left": left,
         "lowered": lowered,
-        "shortened": shortened,
+        "shortened": len(shorten_effective),
         "cuts_over_peer": cuts_over_peer,
         "outcomes": len(project.editorial.non_speech_outcomes),
         "batch_id": batch_id,

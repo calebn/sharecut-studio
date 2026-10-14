@@ -447,13 +447,15 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
             from podcast_mcp.edits.apply_non_speech_suggestions import (
                 apply_non_speech_suggested_actions,
             )
+            from podcast_mcp.edits.cut_speech import UnconfirmedCutSpeech
 
-            result = apply_non_speech_suggested_actions(
-                project,
-                confirm_cut_speech=True,
-                defaults=defaults,
-            )
-            if result.get("needs_confirmation"):
+            try:
+                result = apply_non_speech_suggested_actions(
+                    project,
+                    confirm_cut_speech=True,
+                    defaults=defaults,
+                )
+            except UnconfirmedCutSpeech:
                 suggested_summary = ", non-speech suggestions held (cut speech needs confirm)"
             else:
                 cuts = int(result.get("applied_cuts") or 0)

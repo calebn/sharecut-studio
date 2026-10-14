@@ -774,9 +774,13 @@ The rules that follow from it:
    table and to its one table-driven test. Owner verdicts on clips are evidence
    for the defaults, never targets to tune a threshold against.
 
-Shipped today: none of this table. Hard fillers, backchannels and acoustic gap
-runs behave as described elsewhere in this doc. #1434 builds the table and its
-checks; until it lands, this block records the target.
+Shipped today (#1434): the action table, default-by-kind resolution, bulk **Apply
+suggested actions** (MCP/CLI/document command), persisted `non_speech_outcomes`
+with per-hit **change action**, and pipeline auto-apply when
+`tighten.apply_non_speech_suggestions` is true (default). A bulk apply that hits
+`cuts_other_speech` changes nothing until the person confirms
+(`confirm_cut_speech`). Hard fillers, backchannels and acoustic gap runs still
+behave as described elsewhere in this doc when they are not non-speech kinds.
 
 ## Mute vs cut
 
