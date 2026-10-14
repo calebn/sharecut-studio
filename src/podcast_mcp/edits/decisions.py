@@ -20,6 +20,7 @@ from podcast_mcp.edits.edit_impact import ImpactKind, record_impact
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.inaudible_cuts import (
+    CutWordIndex,
     OptimizedCutRange,
     optimize_source_cut_range,
 )
@@ -31,6 +32,7 @@ from podcast_mcp.edits.source_removals import (
     consume_source_remove,
     cut_label,
     require_source_remove,
+    resize_source_remove,
 )
 from podcast_mcp.edits.timeline_ops import (
     mute_room_tone_fill,
@@ -533,16 +535,41 @@ def update_pending_edit(
         raise ValueError("end must be after start")
 
     original = edit
-    edit = edit.model_copy(deep=True)
-    require_source_remove(project, edit.model_copy(update={"start": start, "end": end}))
+    if (
+        edit.type == EditDecisionType.REMOVE
+        and edit.timebase == "source"
+        and edit.source_timeline_span is not None
+    ):
+        edit = resize_source_remove(project, edit, start=start, end=end)
+    else:
+        edit = edit.model_copy(deep=True)
+        edit.start = start
+        edit.end = end
+    require_source_remove(project, edit)
     if snap:
-        opt = optimize_source_cut_range(project, edit.track_id, start, end)
-        edit.start = opt.start
-        edit.end = opt.end
+        optimizer_kwargs: dict[str, CutWordIndex] = {}
+        if edit.source_id is not None:
+            selected_transcript = project.transcript_for_source(edit.track_id, edit.source_id)
+            optimizer_kwargs["word_index"] = CutWordIndex.from_transcript(
+                selected_transcript, edit.track_id
+            )
+        opt = optimize_source_cut_range(
+            project,
+            edit.track_id,
+            start,
+            end,
+            source_id=edit.source_id,
+            **optimizer_kwargs,
+        )
+        if edit.type == EditDecisionType.REMOVE and edit.source_timeline_span is not None:
+            edit = resize_source_remove(project, original, start=opt.start, end=opt.end)
+        else:
+            edit.start = opt.start
+            edit.end = opt.end
         edit.boundary_mode = opt.mode
         edit.cut_confidence = opt.confidence
     else:
-        if start != edit.start or end != edit.end:
+        if start != original.start or end != original.end:
             edit.boundary_mode = None
             edit.cut_confidence = None
         edit.start = start

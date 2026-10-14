@@ -40,6 +40,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
 )
+from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.util.batch_scope import frozen_state
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.media_identity import same_recording
@@ -176,6 +177,30 @@ def inspect_source_remove_placement(
     project: EpisodeProject, edit: EditDecision
 ) -> tuple[TimelineSec, TimelineSec] | CutScopeHold:
     """Check complete source placement and canonical operation membership."""
+    return _inspect_source_remove_placement(project, edit, check_witness=True)
+
+
+def resize_source_remove(
+    project: EpisodeProject, saved: EditDecision, *, start: float, end: float
+) -> EditDecision:
+    """Return a resized remove with a fresh witness only if its saved placement is current."""
+    current = inspect_source_remove_placement(project, saved)
+    if isinstance(current, CutScopeHold):
+        raise ScopeChangedAtApproval([current], {}, {saved.id: cut_label(project, saved)})
+    candidate = saved.model_copy(deep=True, update={"start": start, "end": end})
+    placement = _inspect_source_remove_placement(project, candidate, check_witness=False)
+    if isinstance(placement, CutScopeHold):
+        raise ScopeChangedAtApproval([placement], {}, {saved.id: cut_label(project, saved)})
+    candidate.source_timeline_span = RangeInterval(
+        start=float(placement[0]), end=float(placement[1])
+    )
+    return candidate
+
+
+def _inspect_source_remove_placement(
+    project: EpisodeProject, edit: EditDecision, *, check_witness: bool
+) -> tuple[TimelineSec, TimelineSec] | CutScopeHold:
+    """Map one complete placement, optionally checking its saved witness."""
     if (
         edit.type != EditDecisionType.REMOVE
         or edit.exact_range is not None
@@ -206,11 +231,21 @@ def inspect_source_remove_placement(
         if (
             len(spans) != 1
             or abs(float(spans[0][1] - spans[0][0]) - (edit.end - edit.start)) > 1e-6
-            or abs(float(spans[0][0]) - expected.start) > 1e-6
-            or abs(float(spans[0][1]) - expected.end) > 1e-6
+            or (
+                check_witness
+                and expected is not None
+                and (
+                    abs(float(spans[0][0]) - expected.start) > 1e-6
+                    or abs(float(spans[0][1]) - expected.end) > 1e-6
+                )
+            )
         ):
             return CutScopeHold(edit.id, (), "source_geometry")
-        span = (TimelineSec(expected.start), TimelineSec(expected.end))
+        span = (
+            (TimelineSec(expected.start), TimelineSec(expected.end))
+            if check_witness and expected is not None
+            else (spans[0][0], spans[0][1])
+        )
     else:
         if edit.source_id is not None:
             return CutScopeHold(edit.id, (), "source_geometry")
