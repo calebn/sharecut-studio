@@ -7,6 +7,7 @@ from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
+from podcast_mcp.edits.non_speech_suggestions import non_speech_view_for_decision
 from podcast_mcp.edits.tighten_hits import (
     is_harsh_tighten_hit,
     is_listen_one_by_one_hit,
@@ -79,38 +80,40 @@ def map_pending_edits_to_timeline(
             source_start_timeline = float(start_point) if start_point is not None else None
             source_end_timeline = float(end_point) if end_point is not None else None
         preview = preview_window_for_edit(project, decision)
-        rows.append(
-            {
-                "exact_range": decision.exact_range.model_dump(mode="json")
-                if decision.exact_range
-                else None,
-                "id": decision.id,
-                "author": decision.author,
-                "track_id": decision.track_id,
-                "track_ids": track_ids,
-                "type": type_val,
-                "reason": decision.reason,
-                "source_start": source_start,
-                "source_end": source_end,
-                "timeline_start": timeline_start,
-                "timeline_end": timeline_end,
-                "source_start_timeline": source_start_timeline,
-                "source_end_timeline": source_end_timeline,
-                "timeline_spans": timeline_spans,
-                "mappable": mappable,
-                "suggest_reason": preview.suggest_reason,
-                "crossfade_ms": decision.crossfade_ms,
-                "boundary_mode": decision.boundary_mode,
-                "cut_confidence": decision.cut_confidence,
-                "review_required": decision.review_required,
-                "applied": decision.applied,
-                "timebase": decision.timebase,
-                "scope": decision.scope,
-                "join_risk": join_risk_from_decision(decision),
-                "harsh": is_harsh_tighten_hit(decision),
-                "listen_one_by_one": is_listen_one_by_one_hit(decision),
-            }
-        )
+        row: dict[str, Any] = {
+            "exact_range": decision.exact_range.model_dump(mode="json")
+            if decision.exact_range
+            else None,
+            "id": decision.id,
+            "author": decision.author,
+            "track_id": decision.track_id,
+            "track_ids": track_ids,
+            "type": type_val,
+            "reason": decision.reason,
+            "source_start": source_start,
+            "source_end": source_end,
+            "timeline_start": timeline_start,
+            "timeline_end": timeline_end,
+            "source_start_timeline": source_start_timeline,
+            "source_end_timeline": source_end_timeline,
+            "timeline_spans": timeline_spans,
+            "mappable": mappable,
+            "suggest_reason": preview.suggest_reason,
+            "crossfade_ms": decision.crossfade_ms,
+            "boundary_mode": decision.boundary_mode,
+            "cut_confidence": decision.cut_confidence,
+            "review_required": decision.review_required,
+            "applied": decision.applied,
+            "timebase": decision.timebase,
+            "scope": decision.scope,
+            "join_risk": join_risk_from_decision(decision),
+            "harsh": is_harsh_tighten_hit(decision),
+            "listen_one_by_one": is_listen_one_by_one_hit(decision),
+        }
+        non_speech = non_speech_view_for_decision(decision)
+        if non_speech:
+            row.update(non_speech)
+        rows.append(row)
     return rows
 
 

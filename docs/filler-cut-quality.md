@@ -717,6 +717,7 @@ evidence:
 enforced-by:
 - tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
+- tests/test_non_speech_action_defaults.py::test_default_action_table_matches_product_table
 enforcement: pending #1434
 -->
 
