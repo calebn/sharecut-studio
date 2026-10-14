@@ -336,6 +336,7 @@ def read_samples(runs: Sequence[SampleRun], first: int, size: int, sample_rate: 
             start_sec=(run.first + k0 - run.dest) / sample_rate,
             duration_sec=(k1 - k0) / sample_rate,
             sample_rate=sample_rate,
+            antialias=True,
         )
         at = k0 - first
         out[at : at + chunk.size] += chunk[: out.size - at]
@@ -997,5 +998,5 @@ def _overlaps(placement: Placement, lo: float, hi: float) -> bool:
 
 def _file_reader(media: Path, sample_rate: int) -> Callable[[float, float], np.ndarray]:
     return lambda start, duration: load_mono_window(
-        media, start_sec=start, duration_sec=duration, sample_rate=sample_rate
+        media, start_sec=start, duration_sec=duration, sample_rate=sample_rate, antialias=True
     )

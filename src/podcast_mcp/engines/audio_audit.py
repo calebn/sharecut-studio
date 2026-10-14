@@ -739,6 +739,7 @@ def _played_window(
             start_sec=t_start,
             duration_sec=t_end - t_start,
             sample_rate=_RMS_SAMPLE_RATE,
+            antialias=True,
         )
     track = project.track_by_id(track_id)
     if track is None:

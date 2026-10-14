@@ -76,7 +76,7 @@ def _project(
 def _gated(*placed: tuple[np.ndarray, float]):
     """A gated second mic: digital silence with only ``placed`` blobs (``(samples, at)``)."""
 
-    def window(path, start_sec, duration_sec, sample_rate=16000):
+    def window(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         signal = np.zeros(round(40.0 * sample_rate), dtype=np.float32)
         for blob, at in placed:
             i = round(at * sample_rate)
@@ -90,7 +90,7 @@ def _gated(*placed: tuple[np.ndarray, float]):
 def _reader(**by_name):
     """A ``load_mono_window`` stand-in that serves each file the reader named in its file name."""
 
-    def window(path, start_sec, duration_sec, sample_rate=16000):
+    def window(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         name = next(n for n in by_name if n in str(path))
         return by_name[name](path, start_sec, duration_sec, sample_rate)
 
@@ -239,7 +239,7 @@ def _long_track(blip_at: float, blip_db: float = -58.0):
     blip = _shaped_noise(round(0.13 * rate), _dbfs(blip_db), rate)
     signal[round(blip_at * rate) : round(blip_at * rate) + blip.size] = blip
 
-    def window(path, start_sec, duration_sec, sample_rate=16000):
+    def window(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         i = round(start_sec * sample_rate)
         return signal[i : i + round(duration_sec * sample_rate)]
 
@@ -484,7 +484,7 @@ def test_the_same_decay_gets_the_same_air_whichever_pause_asks_about_it(seed) ->
     words, signal = _ringing_track(seed)
     project = _host_project(words)
 
-    def read(path, start_sec, duration_sec, sample_rate=16000):
+    def read(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         i = round(start_sec * sample_rate)
         return signal[i : i + round(duration_sec * sample_rate)]
 
@@ -547,7 +547,7 @@ def _conversation(*, murmur_db: float | None = -50.0):
     )
 
     def reader(signal):
-        def read(path, start_sec, duration_sec, sample_rate=16000):
+        def read(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
             i = round(start_sec * sample_rate)
             return signal[i : i + round(duration_sec * sample_rate)]
 
@@ -596,7 +596,7 @@ def test_a_track_that_speaks_seven_percent_of_the_time_has_a_speech_level_from_i
         )
     )
 
-    def guest(path, start_sec, duration_sec, sample_rate=16000):
+    def guest(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         return signal[
             round(start_sec * sample_rate) : round((start_sec + duration_sec) * sample_rate)
         ]

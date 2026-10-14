@@ -149,7 +149,7 @@ def test_a_quiet_sound_far_from_the_tracks_speech_is_still_removed_whole() -> No
     blip = _shaped_noise(round(0.13 * rate), _dbfs(-58.0), rate)
     signal[round(66.0 * rate) : round(66.0 * rate) + blip.size] = blip
 
-    def window(path, start_sec, duration_sec, sample_rate=16000):
+    def window(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         i = round(start_sec * sample_rate)
         return signal[i : i + round(duration_sec * sample_rate)]
 
@@ -207,7 +207,7 @@ def test_a_track_is_read_through_the_decode_the_run_already_holds() -> None:
     words = [(f"w{i}", 0.6 * i, 0.6 * i + 0.3) for i in range(4)]
     project = _host_project(words)
 
-    def unreadable(path, start_sec, duration_sec, sample_rate=16000):
+    def unreadable(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         raise AssertionError("a file was opened")
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=unreadable):
@@ -265,7 +265,7 @@ def test_a_lane_window_lays_each_placement_where_it_plays_and_is_silent_in_a_hol
     project = _project_with_lanes(host=[(0.0, 2.0, 0.0), (5.0, 6.0, 3.0)])
     host = project.track_by_id("host")
 
-    def constant_by_source(path, start_sec, duration_sec, sample_rate=16000):
+    def constant_by_source(path, start_sec, duration_sec, sample_rate=16000, antialias=False):
         return np.full(round(duration_sec * sample_rate), start_sec, dtype=np.float32)
 
     with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=constant_by_source):
