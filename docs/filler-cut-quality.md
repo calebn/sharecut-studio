@@ -120,9 +120,13 @@ Detection and own speech-level frames, whole-span means, and unread spans retain
 their existing meaning. Missing room reference uses the existing mean fallback.
 A qualifying frame also reaches the peer's own `LevelProfile.audibility_floor_db` (#1549): a peer who
 is quiet around the cut calibrates against its own room, and without this floor that room's
-flicker, 40 dB or more under its speech, read as a voice. Which mic is louder, for the
-dominance rule here and in `asr_silence.SpeechLevels`, is read on the recordings, without the
-balance gains: a gain is a listening choice and moves no verdict.
+flicker, 40 dB or more under its speech, read as a voice. Which mic is louder (the dominance
+rule here) is read on the recordings against each mic's own voice
+(`LevelProfile.path_reference_db`, the voice scale of [audio-engineering.md](audio-engineering.md)),
+with no balance gain: a call recording carries a guest hotter than the guest's own mic, so
+as recorded it always out-sounds them, and a gain is a listening choice that moves no verdict.
+`asr_silence.SpeechLevels.has_speech` compares the recordings without the gains but not yet
+against each mic's voice.
 The mean fallback (#1306, #1373) holds a peer's whole-span mean to
 `LevelProfile.voice_reach_db` (read through `TrackRmsCache.profile` or `track_level_profile`, `edits/speech_energy_guard.py`): the peer's
 audibility floor, no lower than 27 dB (`VOICE_FLOOR_UNDER_SPEECH_DB`) under its loudest frames, so
