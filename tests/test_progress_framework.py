@@ -229,7 +229,9 @@ async def test_mcp_notification_progress_parent_end_after_nested_fail_does_not_s
     reporter.start("word-probe", "Listening for missed words", total=4)
     reporter.fail("word-probe", message="whisper weights missing")
     reporter.end("propose-edits", message="done")
-    await asyncio.sleep(0)
+    pending = reporter._pending_task
+    assert pending is not None
+    await pending
     assert calls
     progress, total, message = calls[-1]
     assert progress != total
