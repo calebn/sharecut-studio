@@ -13,6 +13,8 @@ from podcast_mcp.edits.decisions import (
     edit_impact_report,
     format_edit_impact_markdown,
     reject_edits,
+    retire_unplayed_pending,
+    unplayed_pending_ids,
     update_pending_edit,
 )
 from podcast_mcp.edits.edit_log import revert_applied_edit
@@ -43,6 +45,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.util.coded_error import CodedValueError
 from ripple_helpers import ripple_cut, trim
 
 
@@ -100,7 +103,7 @@ def test_approve_applies_ripple_and_removes_decision():
     assert n == 1
 
 
-def test_approve_skips_stale_mute_and_preserves_pending_decision():
+def test_approve_refuses_a_batch_naming_a_stale_mute_and_applies_nothing():
     proj = _project_with_clip()
     proj.edit_decisions = [
         EditDecision(
@@ -121,12 +124,15 @@ def test_approve_skips_stale_mute_and_preserves_pending_decision():
         ),
     ]
 
-    assert approve_edits(proj, ["stale", "valid"]) == 1
-    assert [decision.id for decision in proj.edit_decisions] == ["stale"]
-    assert [record.decision_ids for record in proj.editorial.edit_log] == [["valid"]]
+    with pytest.raises(CodedValueError) as refused:
+        approve_edits(proj, ["stale", "valid"])
+    assert refused.value.code == "edit_span_not_played"
+    assert "stale" in str(refused.value) and "valid" not in str(refused.value).split("(")[1]
+    assert [decision.id for decision in proj.edit_decisions] == ["stale", "valid"]
+    assert proj.editorial.edit_log == []
 
 
-def test_approve_skips_unmapped_remove_without_archiving_it():
+def test_approve_refuses_unmapped_remove_without_archiving_it():
     proj = _project_with_clip()
     original_clips = [clip.model_dump() for clip in proj.clips]
     proj.edit_decisions = [
@@ -140,9 +146,9 @@ def test_approve_skips_unmapped_remove_without_archiving_it():
         )
     ]
 
-    with pytest.raises(ScopeChangedAtApproval) as held:
+    with pytest.raises(CodedValueError) as refused:
         approve_edits(proj, ["stale-remove"])
-    assert held.value.ids == ("stale-remove",)
+    assert refused.value.code == "edit_span_not_played"
     assert [clip.model_dump() for clip in proj.clips] == original_clips
     assert [decision.id for decision in proj.edit_decisions] == ["stale-remove"]
     assert proj.editorial.edit_log == []
@@ -1106,3 +1112,65 @@ def test_impact_drops_a_cut_after_guarded_history_undo(tmp_path):
     assert EditService(ws).approve(["a"]) == 1
     _refuse_restore_then_undo(ws, original)
     assert _impact(ws.project) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 1}
+
+
+def test_unplayed_pending_ids_flags_only_spans_no_clip_plays():
+    proj = _project_with_clip()
+    proj.timeline.clips[0].source_end = 6.0
+    proj.edit_decisions = [
+        _pending("played", EditDecisionType.REMOVE, 1.0, 2.0),
+        _pending("cut-remove", EditDecisionType.REMOVE, 7.0, 8.0),
+        _pending("cut-mute", EditDecisionType.MUTE, 7.2, 7.5),
+        _pending("split", EditDecisionType.SPLIT, 7.0, 7.0),
+    ]
+    assert unplayed_pending_ids(proj) == ["cut-remove", "cut-mute"]
+    assert retire_unplayed_pending(proj) == 2
+    assert [e.id for e in proj.edit_decisions] == ["played", "split"]
+
+
+def test_audio_mutation_retires_proposals_in_the_cut_range(tmp_path):
+    proj = _project_with_clip()
+    proj.edit_decisions = [
+        _pending("kept", EditDecisionType.REMOVE, 1.0, 2.0),
+        _pending("gone", EditDecisionType.REMOVE, 7.0, 8.0),
+    ]
+    ws = _saved_restore_workspace(proj, tmp_path)
+
+    ws.mutate(
+        "before cut",
+        "cut 6-9",
+        lambda p: ripple_cut(p, 6.0, 9.0, use_inaudible_opt=False),
+    )
+
+    assert [e.id for e in ws.project.edit_decisions] == ["kept"]
+
+
+def test_a_mutation_that_leaves_audio_alone_keeps_every_proposal(tmp_path):
+    proj = _project_with_clip()
+    proj.edit_decisions = [_pending("kept", EditDecisionType.REMOVE, 7.0, 8.0)]
+    ws = _saved_restore_workspace(proj, tmp_path)
+
+    ws.mutate(
+        "before", "after", lambda p: p.timeline.__setattr__("duration_sec", p.timeline.duration_sec)
+    )
+
+    assert [e.id for e in ws.project.edit_decisions] == ["kept"]
+
+
+def test_apply_prefix_edits_leaves_an_unplayed_proposal_alone():
+    proj = _project_with_clip()
+    proj.timeline.clips[0].source_end = 6.0
+    proj.edit_decisions = [
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=7.0,
+            end=8.0,
+            reason="filler:um",
+            review_required=False,
+        )
+    ]
+    assert apply_prefix_edits(proj, "filler:", config_key="tighten") == 0
+    assert proj.editorial.edit_log == []
+    assert proj.clips[0].mute_regions == []
