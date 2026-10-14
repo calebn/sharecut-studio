@@ -293,6 +293,71 @@ def test_an_owner_balance_gain_does_not_hide_a_dominant_peer(owner_gain_db: floa
     assert g.blocked
 
 
+@pytest.mark.parametrize(
+    ("peer_level", "owns"),
+    [(-35.0, True), (-60.0, False)],
+    ids=["peer_speaks", "owner_leak"],
+)
+def test_dominance_reads_each_mic_against_its_own_voice(
+    monkeypatch: pytest.MonkeyPatch, peer_level: float, owns: bool
+):
+    """#1495/#1549: a call recording carries the guest 12 dB hotter than the guest's own mic, so as
+    recorded the owner's track always out-sounds them. Read against each mic's own voice (host
+    -25, guest -35 dBFS), the guest speaking at its voice level owns the frame; a guest 25 dB under
+    its voice does not."""
+    from podcast_mcp.edits.speech_energy_guard import _owned_peer_frames
+
+    voices = {"host": -25.0, "guest": -35.0}
+    monkeypatch.setattr(
+        "podcast_mcp.edits.speech_energy_guard._peer_profile",
+        lambda _p, tid, _c: LevelProfile(room_db=-80.0, speech_db=voices[tid], loud_db=voices[tid]),
+    )
+    p = _two_track()
+
+    def frames(project, track_id, start, end, **kw):
+        # The host's track carries the guest at +12 dB over the guest's own mic.
+        return np.full(4, -23.0 if track_id == "host" else peer_level)
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=frames
+    ):
+        got = _owned_peer_frames(
+            p, "guest", 2.0, 2.2, owner_track_ids=["host"], dominance_db=3.0, caches=None
+        )
+    assert got is not None
+    assert bool(got.own.all()) is owns
+    assert bool(got.own.any()) is owns
+
+
+@pytest.mark.usefixtures("peer_floor")
+def test_span_mean_reads_each_mic_against_its_own_voice(monkeypatch: pytest.MonkeyPatch):
+    """#1495/#1549: with no frames to calibrate on, the guest speaking at its own voice level is
+    heard even though the host's call track carries them 12 dB hotter."""
+    voices = {"host": -25.0, "guest": -35.0}
+    monkeypatch.setattr(
+        "podcast_mcp.edits.speech_energy_guard._peer_profile",
+        lambda _p, tid, _c: LevelProfile(room_db=-80.0, speech_db=voices[tid], loud_db=voices[tid]),
+    )
+
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+        return -23.0 if track_id == "host" else -35.0
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.measure_timeline_rms_db", side_effect=fake_rms
+    ):
+        g = assess_cross_track_speech(
+            _two_track(),
+            "host",
+            2.0,
+            2.5,
+            defaults={
+                "tighten": {"speech_energy_guard": {"enabled": True, "dominance_db": 3.0}},
+                "analysis": {"heuristics": {}},
+            },
+        )
+    assert g.blocked
+
+
 @pytest.mark.usefixtures("peer_floor")
 def test_resolve_skip_retains_peer_evidence():
     p = _two_track()
@@ -839,6 +904,9 @@ def test_peer_frames_discount_only_concurrent_owner_bleed(
     peer[brief] = 0.02 * carrier[brief]
     if owner_case == "same_time":
         owner[brief] = 0.1 * carrier[brief]
+        # The peer's own voice, outside the checked span: against it the owner is far louder.
+        voice = (clock >= 7.0) & (clock < 7.5)
+        peer[voice] = 0.1 * carrier[voice]
     else:
         owner[elsewhere] = 0.6 * carrier[elsewhere]
         if owner_case == "loud_copy_elsewhere":

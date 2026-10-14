@@ -830,6 +830,8 @@ def test_a_same_pitch_peer_is_told_from_the_owner_by_level(
     for start, end in ((1.0, 5.5), (6.5, 7.5), (9.5, 14.0)):
         _voice(host, start, end, SPEECH_DB + 4.0)
     guest = np.random.default_rng(23).normal(0, 10 ** (-50.0 / 20), SECONDS * RATE)
+    # The guest's own voice elsewhere sets the level its pause sound is read against (#1549).
+    _voice(guest, 2.0, 3.0, SPEECH_DB + 4.0)
     _voice(guest, 6.5, 7.5, SPEECH_DB + 4.0 + under_host_db)
     assert _guard_fallback(_guard_scene(tmp_path, host, guest)) == expected
 
