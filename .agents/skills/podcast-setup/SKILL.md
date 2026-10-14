@@ -69,6 +69,7 @@ pip extras, bootstrap components, and npm.
 Pair selection reuses successful validation only while effective selectors and
 candidate binaries remain unchanged within the process; failed admission is
 not cached. See [the FFmpeg pair policy](../../../docs/setup.md#ffmpeg-version-and-pair-policy).
+Explicit health checks rerun bounded version probes even when admission is cached.
 
 3. MCP and agent config: clients load [.agents/mcp.json](../../mcp.json),
 [rules/engineering-standards.md](../../rules/engineering-standards.md),
