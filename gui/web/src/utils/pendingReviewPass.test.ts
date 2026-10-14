@@ -3,6 +3,7 @@ import { pendingEditView } from "../test/fixtures";
 import {
   bulkReviewDoneMessage,
   bulkReviewQuestion,
+  pendingReviewFeedback,
   reviewPassOf,
 } from "./pendingReviewPass";
 
@@ -101,6 +102,25 @@ describe("bulkReviewQuestion", () => {
     expect(
       bulkReviewQuestion("reject", { ...pass, riskyCount: 2 }).message,
     ).not.toContain("risky");
+  });
+});
+
+describe("pendingReviewFeedback", () => {
+  it("announces a partial approve before Cut anyway", () => {
+    const head = "abc" as import("../types/project").HistoryEntryId;
+    expect(
+      pendingReviewFeedback("approve", {
+        queued: false,
+        asked: true,
+        count: null,
+        historyHead: head,
+        applied: 2,
+        held: [],
+      }),
+    ).toEqual({
+      message: "Approved 2 pending edits",
+      undo: head,
+    });
   });
 });
 

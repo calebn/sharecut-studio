@@ -1,6 +1,11 @@
 import { Button } from "../ui/Button";
 
-export type LoadFailure = { message: string; onRetry: () => void };
+export type LoadFailure = {
+  message: string;
+  onRetry: () => void;
+  /** A warm reload is retrying while the episode stays open. */
+  recovering?: boolean;
+};
 
 /**
  * The first load of the transcript and history failed. It lives in the shell's
@@ -13,6 +18,13 @@ export function LoadFailureBanner({
   failure: LoadFailure | null | undefined;
 }) {
   if (!failure) return null;
+  if (failure.recovering) {
+    return (
+      <div className="guest-banner" role="status">
+        Still loading transcript and history. {failure.message}
+      </div>
+    );
+  }
   return (
     <div className="guest-banner" role="alert">
       Could not load transcript and history. {failure.message}{" "}

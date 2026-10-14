@@ -29,6 +29,15 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
+/** A load or command that hit `withAbortTimeout` and the server never answered. */
+export function isServerTimeoutError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return true;
+  }
+  const message = errorMessage(error);
+  return message.includes("The server didn't answer.");
+}
+
 /** A rate limit, timeout or server error: the same request may succeed later. */
 export function isRetryLater(error: unknown): boolean {
   if (!(error instanceof ApiError) || error.status === null) {

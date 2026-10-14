@@ -215,7 +215,19 @@ export function pendingReviewFeedback(
   action: BulkReviewAction,
   outcome: ReviewOutcome,
 ): { message: string; undo: HistoryEntryId | null } | null {
-  if (outcome.asked) return null;
+  if (outcome.asked) {
+    const applied =
+      "applied" in outcome && typeof outcome.applied === "number"
+        ? outcome.applied
+        : 0;
+    if (applied > 0) {
+      return {
+        message: bulkReviewAppliedBeforeAskMessage(applied, outcome.held ?? []),
+        undo: outcome.historyHead,
+      };
+    }
+    return null;
+  }
   if (outcome.queued)
     return { message: PENDING_REVIEW_QUEUED_MESSAGE, undo: null };
   return outcome.count === 0

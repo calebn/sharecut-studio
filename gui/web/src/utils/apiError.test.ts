@@ -4,6 +4,7 @@ import {
   errorMessage,
   isAbortError,
   isPermanentRejection,
+  isServerTimeoutError,
   readApiFailure,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "./apiError";
@@ -98,6 +99,20 @@ describe("isPermanentRejection", () => {
     }
     expect(isPermanentRejection(new ApiError("x", null, null))).toBe(false);
     expect(isPermanentRejection(new Error("offline"))).toBe(false);
+  });
+});
+
+describe("isServerTimeoutError", () => {
+  it("recognizes document load timeouts", () => {
+    expect(
+      isServerTimeoutError(
+        new DOMException("The server didn't answer.", "TimeoutError"),
+      ),
+    ).toBe(true);
+    expect(isServerTimeoutError(new Error("The server didn't answer."))).toBe(
+      true,
+    );
+    expect(isServerTimeoutError(new Error("network down"))).toBe(false);
   });
 });
 

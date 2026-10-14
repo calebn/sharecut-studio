@@ -89,8 +89,11 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const [feedbackHost, setFeedbackHost] = useState<HTMLDivElement | null>(null);
   const publishKey = useDawStore(selectPublishKey);
 
-  const { error: bootstrapError, retry: retryBootstrap } =
-    useProjectBootstrap(projectPath);
+  const {
+    error: bootstrapError,
+    recovering: bootstrapRecovering,
+    retry: retryBootstrap,
+  } = useProjectBootstrap(projectPath);
 
   const syncEnabled = !guestShare && !isShareProjectKey(projectPath);
   const guestSyncEnabled = guestShare || isShareProjectKey(projectPath);
@@ -200,9 +203,15 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
         <StudioShell
           guestShare={guestShare}
           loadFailure={
-            bootstrapError && hasProject
-              ? { message: bootstrapError, onRetry: retryBootstrap }
-              : null
+            bootstrapRecovering && hasProject
+              ? {
+                  message: "The server is still working. Retrying…",
+                  onRetry: retryBootstrap,
+                  recovering: true,
+                }
+              : bootstrapError && hasProject
+                ? { message: bootstrapError, onRetry: retryBootstrap }
+                : null
           }
           feedbackHostRef={setFeedbackHost}
           attentionHost={feedbackHost}
