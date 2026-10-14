@@ -150,11 +150,16 @@ test("desktop: a boundary load the server never answers says to try again and re
   await proveHungLoad(page, browserName, testInfo, "desktop");
 });
 
-for (const failure of ["network", "stale"] as const) {
-  test(`desktop: ${failure} boundary load keeps focus through recovery`, async ({
-    page,
-    browserName,
-  }, testInfo) => {
-    await proveHungLoad(page, browserName, testInfo, "desktop", failure);
-  });
-}
+test("desktop: network boundary load keeps focus through recovery", async ({
+  page,
+  browserName,
+}, testInfo) => {
+  await proveHungLoad(page, browserName, testInfo, "desktop", "network");
+});
+
+test("desktop: stale boundary load keeps focus through recovery", async ({
+  page,
+  browserName,
+}, testInfo) => {
+  await proveHungLoad(page, browserName, testInfo, "desktop", "stale");
+});
