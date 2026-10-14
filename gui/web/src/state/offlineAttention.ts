@@ -25,6 +25,7 @@ export type AttentionSnapshot = {
   /** Host edits queued but not yet applied (always 0 for a share guest). */
   pending: number;
   conflicts: readonly OfflineConflict[];
+  recoverySelection: OfflineConflict | null;
   status: AttentionStatus;
   /** True once a read of this project has succeeded. */
   loaded: boolean;
@@ -37,6 +38,7 @@ export const ATTENTION_POLL_MS = 2_000;
 const INITIAL: AttentionSnapshot = {
   pending: 0,
   conflicts: [],
+  recoverySelection: null,
   status: "checking",
   loaded: false,
   settling: false,
@@ -150,7 +152,17 @@ export function clearVolatileOutcome(
 }
 
 function set(source: Source, patch: Partial<AttentionSnapshot>): void {
-  source.snapshot = { ...source.snapshot, ...patch };
+  const next = { ...source.snapshot, ...patch };
+  const selection = next.recoverySelection;
+  if (
+    selection &&
+    !next.conflicts.some(
+      (conflict) => conflict.dismissed && sameOutcome(conflict, selection),
+    )
+  ) {
+    next.recoverySelection = null;
+  }
+  source.snapshot = next;
   for (const listener of [...source.listeners]) listener();
 }
 
@@ -241,6 +253,19 @@ export function refreshOfflineAttention(projectPath: string): void {
   if (source) refresh(projectPath, source);
 }
 
+export function selectRecoveryOutcome(
+  projectPath: string,
+  outcome: OfflineConflict,
+): boolean {
+  const source = sources.get(projectPath);
+  const current = source?.snapshot.conflicts.find(
+    (conflict) => conflict.dismissed && sameOutcome(conflict, outcome),
+  );
+  if (!source || !current) return false;
+  set(source, { recoverySelection: current });
+  return true;
+}
+
 /** Clear the project's conflict list. A no-op unless the last read succeeded. */
 export function dismissAllConflicts(projectPath: string): void {
   const source = sources.get(projectPath);
@@ -255,7 +280,7 @@ export function dismissAllConflicts(projectPath: string): void {
     ? dismissConflicts(token, captured)
     : dismissHostConflicts(projectPath, captured)
   )
-    .then(() => {
+    .then((result) => {
       if (clearing === source.generation) {
         const currentVolatile = volatileOutcomes.get(projectPath) ?? [];
         const dismissedVolatile = currentVolatile.map((conflict) => {
@@ -268,24 +293,13 @@ export function dismissAllConflicts(projectPath: string): void {
           volatileOutcomes.set(projectPath, dismissedVolatile);
         }
         set(source, {
-          conflicts: source.snapshot.conflicts.map((conflict) => {
-            const current = volatileOutcomes
-              .get(projectPath)
-              ?.find(
-                (item) =>
-                  item.command.command_id === conflict.command.command_id,
-              );
-            if (current && volatileOutcomeInstances.has(current)) {
-              return captured.includes(conflict) || captured.includes(current)
-                ? { ...current, dismissed: true }
-                : current;
-            }
-            return captured.some((item) => sameOutcome(item, conflict))
-              ? { ...conflict, dismissed: true }
-              : conflict;
-          }),
+          pending: result.pending,
+          conflicts: withVolatileOutcomes(projectPath, result.conflicts),
           status: "ready",
         });
+        if (source.snapshot.settling && !documentActivityBusy(projectPath)) {
+          refresh(projectPath, source);
+        }
       }
     })
     .catch(() => {

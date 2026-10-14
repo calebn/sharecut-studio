@@ -14,14 +14,21 @@ export function GuestAttentionBanner() {
   const {
     pending,
     conflicts: allConflicts,
+    recoverySelection,
     status,
   } = useOfflineAttention(projectPath);
-  const conflicts = allConflicts.filter((conflict) => !conflict.dismissed);
+  const activeConflicts = allConflicts.filter(
+    (conflict) => !conflict.dismissed,
+  );
+  const conflicts = recoverySelection
+    ? [...activeConflicts, recoverySelection]
+    : activeConflicts;
   const guest = isShareProjectKey(projectPath);
   return (
     <GuestAttentionBannerView
       pending={pending}
       conflicts={conflicts}
+      canDismiss={activeConflicts.length > 0}
       guest={guest}
       unreadable={status === "unreadable" || status === "retrying"}
       dismissFailed={status === "dismiss-failed"}
