@@ -383,6 +383,7 @@ def run_cross_track_sync(
                     loser_track,
                     words=[{"word_index": loser_idx, "text": source_text}],
                     keep_evidence=True,
+                    source_id=tr.source_id,
                 )
 
             if (idx + 1) % 50 == 0:

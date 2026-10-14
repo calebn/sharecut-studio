@@ -663,6 +663,7 @@ def test_transcript_suppress_word_cmd_automatic(minimal_project, monkeypatch):
     payload = json.loads(click.unstyle(automatic.output))
     assert payload == {
         "track_id": "host",
+        "source_id": None,
         "word_index": 0,
         "suppressed": True,
         "audibility_locked": False,
