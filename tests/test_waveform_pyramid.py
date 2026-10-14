@@ -25,6 +25,7 @@ from podcast_mcp.engines.ffmpeg import (
     AudioProbe,
     FFmpegEngine,
 )
+from podcast_mcp.engines.mono_downmix import channel_mean_pan_filter
 from podcast_mcp.engines.waveform_pyramid import (
     BIN_BYTES,
     HEADER_BYTES,
@@ -1069,6 +1070,47 @@ def test_stream_timer_kills_stuck_process(tmp_path):
         "1",
     ]
     assert argv[-7:] == ["-f", "f32le", "-ac", "1", "-ar", "8000", "pipe:1"]
+
+
+def _write_dual_mono_wav(path: Path, rate: int = 8000) -> None:
+    t = np.linspace(0, 1, rate, endpoint=False)
+    sig = (0.25 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    stereo = np.column_stack([sig, sig])
+    with wave.open(str(path), "w") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        pcm = (stereo * 32767).astype(np.int16)
+        w.writeframes(pcm.tobytes())
+
+
+def test_read_pcm_f32_chains_asetpts_onto_existing_af_filter(tmp_path):
+    eng = FFmpegEngine()
+    dual = tmp_path / "dual.wav"
+    _write_dual_mono_wav(dual)
+    argv = eng._pcm_f32_argv(dual, 8000, 1)
+    proc = _FakeProc(b"")
+
+    def spawn(captured_argv, *, stdout, stderr):
+        stderr.write(b"out_time_us=2000000\nprogress=end\n")
+        return proc
+
+    with patch("podcast_mcp.engines.ffmpeg.popen", side_effect=spawn) as popen:
+        list(
+            FFmpegEngine._read_pcm_f32(
+                argv,
+                1,
+                chunk_frames=100,
+                timeout_sec=30.0,
+                expected_duration_sec=2.0,
+            )
+        )
+
+    final = popen.call_args[0][0]
+    assert final.count("-af") == 1
+    pan = channel_mean_pan_filter(2)
+    assert final[final.index("-af") + 1] == f"{pan},asetpts=PTS-STARTPTS"
+    assert "-progress" in final
 
 
 def test_window_trims_by_timestamp_and_uses_short_timer(tmp_path):
