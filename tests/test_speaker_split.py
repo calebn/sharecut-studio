@@ -493,6 +493,17 @@ def test_flagged_crosstalk_plays_once_on_its_likeliest_speaker_by_default(
     summary = split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
     split = project.editorial.speaker_splits[0]
     assert split.lanes == ["room", "room_ben"]
+    assert summary["split_id"] == split.id
+    assert summary["review_spans"] == [
+        {
+            "start_s": 4.0,
+            "end_s": 6.0,
+            "speakers": ["room", "room_ben"],
+            "unsure": True,
+            "overlapping": True,
+            "timeline_spans": [{"start_s": 4.0, "end_s": 6.0}],
+        }
+    ]
     assert (split.crosstalk_mode, split.crosstalk_lane) == ("owner", None)
     assert split.crosstalk_spans() == [(4.0, 6.0)]
     assert summary["crosstalk_sec"] == 2.0
@@ -502,6 +513,32 @@ def test_flagged_crosstalk_plays_once_on_its_likeliest_speaker_by_default(
     assert [(r.start_s, r.end_s) for r in ana.mute_regions] == [(5.99, 10.0)]
     assert [(r.start_s, r.end_s) for r in ben.mute_regions] == [(0.0, 6.01)]
     assert same_source_timeline_overlaps(project) == []
+
+
+def test_review_spans_follow_nonzero_and_repeated_timeline_placements(
+    scripted_ws: ProjectWorkspace,
+) -> None:
+    project = scripted_ws.project
+    [first_clip] = project.clips
+    first_clip.timeline_start = 7.0
+    first_clip.source_end = 5.0
+    project.clips.append(
+        first_clip.model_copy(
+            update={
+                "id": "clip_room_second",
+                "source_start": 5.0,
+                "source_end": 10.0,
+                "timeline_start": 20.0,
+                "mute_regions": [],
+            }
+        )
+    )
+    summary = split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    [span] = summary["review_spans"]
+    assert span["timeline_spans"] == [
+        {"start_s": 11.0, "end_s": 12.0},
+        {"start_s": 20.0, "end_s": 21.0},
+    ]
 
 
 def test_the_result_reports_the_stretches_the_attribution_is_unsure_of(

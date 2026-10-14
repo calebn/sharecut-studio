@@ -469,6 +469,41 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   line-height: 1.5;
 }
 
+.split-speakers-review {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.split-speakers-review-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.split-speakers-review-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.split-speakers-review-detail {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.split-speakers-review-labels {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 .split-speakers-actions {
   gap: var(--space-3);
 }

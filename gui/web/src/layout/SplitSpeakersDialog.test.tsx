@@ -8,6 +8,7 @@ import {
   startSplitSpeakersJob,
 } from "../api";
 import { executePointerCommand } from "../commands/pointer";
+import { seekTransport } from "../commands/seek";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -23,6 +24,7 @@ vi.mock("../api", async (importOriginal) => ({
   cancelPipelineRun: vi.fn(),
 }));
 vi.mock("../commands/pointer", () => ({ executePointerCommand: vi.fn() }));
+vi.mock("../commands/seek", () => ({ seekTransport: vi.fn() }));
 vi.mock("../document/applyDocumentUpdate", () => ({
   refreshDocumentProject: vi.fn(),
 }));
@@ -53,6 +55,27 @@ const splitResult = {
   ],
   crosstalk_sec: 6,
   low_confidence_sec: 0,
+  review_spans: [
+    {
+      start_s: 1,
+      end_s: 3,
+      speakers: ["room_ben"],
+      unsure: true,
+      overlapping: false,
+      timeline_spans: [
+        { start_s: 9, end_s: 10 },
+        { start_s: 12, end_s: 13 },
+      ],
+    },
+    {
+      start_s: 5,
+      end_s: 7,
+      speakers: ["room_ben"],
+      unsure: false,
+      overlapping: true,
+      timeline_spans: [],
+    },
+  ],
   history_head_id: HEAD,
 };
 
@@ -61,6 +84,43 @@ const finished: PipelineJobSnapshot = {
   status: "ok",
   result: splitResult,
 };
+
+function splitProject() {
+  return minimalProject({
+    tracks: [
+      sampleTrack({ id: "room", speaker_split_id: "split_1" }),
+      sampleTrack({ id: "room_ben", speaker_split_id: "split_1" }),
+    ],
+    clips: {
+      tracks: {
+        room_ben: [
+          {
+            id: "ben_clip",
+            track_id: "room_ben",
+            source_start: 0,
+            source_end: 10,
+            timeline_start: 8,
+            timeline_end: 18,
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            join_in_mode: "fade",
+            source_id: null,
+            source_duration_sec: 10,
+            recording_key: null,
+          },
+        ],
+      },
+      clip_count: 1,
+    },
+    history: {
+      cursor: 2,
+      head_id: HEAD,
+      can_undo: true,
+      can_redo: false,
+      groups: [],
+    },
+  });
+}
 
 function heldFollow() {
   let settle!: {
@@ -118,9 +178,14 @@ describe("SplitSpeakersDialog", () => {
     vi.mocked(followJobToOk).mockReset();
     vi.mocked(cancelPipelineRun).mockReset().mockResolvedValue(started);
     vi.mocked(executePointerCommand).mockReset();
+    vi.mocked(seekTransport).mockReset();
     vi.mocked(refreshDocumentProject)
       .mockReset()
-      .mockResolvedValue(minimalProject());
+      .mockImplementation(async () => {
+        const next = splitProject();
+        useDawStore.setState({ project: next });
+        return next;
+      });
   });
 
   it("asks for the speaker count and names before anything starts", async () => {
@@ -190,6 +255,18 @@ describe("SplitSpeakersDialog", () => {
 
     await act(async () => settle().ok(finished));
     expect(await screen.findByText("Split Room into 2 tracks.")).toBeTruthy();
+    expect(screen.getAllByText("Unsure stretch")).toHaveLength(2);
+    expect(screen.getByText("Timeline 0:09 · 0:01")).toBeTruthy();
+    expect(screen.getByText("Timeline 0:12 · 0:01")).toBeTruthy();
+    expect(screen.getByText("Recording 0:05 · 0:02")).toBeTruthy();
+    expect(screen.getAllByText("Ben")).toHaveLength(4);
+    const goToButtons = screen.getAllByRole("button", { name: "Go to" });
+    expect(goToButtons).toHaveLength(3);
+    expect(goToButtons[2]).toBeDisabled();
+    await user.click(goToButtons[0]!);
+    await user.click(goToButtons[1]!);
+    expect(seekTransport).toHaveBeenNthCalledWith(1, 9);
+    expect(seekTransport).toHaveBeenNthCalledWith(2, 12);
     expect(refreshDocumentProject).toHaveBeenCalledWith(PATH);
     expect(screen.getByText("Plays 0:40 of 1:00")).toBeTruthy();
     expect(screen.getByText("Plays 0:20 of 1:00")).toBeTruthy();
@@ -199,20 +276,6 @@ describe("SplitSpeakersDialog", () => {
     expect(useDawStore.getState().feedbackToast).toBeNull();
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Split Room into 2 tracks: Ana and Ben.",
-    );
-    act(() =>
-      useDawStore.setState({
-        project: minimalProject({
-          tracks: [sampleTrack({ id: "room" })],
-          history: {
-            cursor: 2,
-            head_id: HEAD,
-            can_undo: true,
-            can_redo: false,
-            groups: [],
-          },
-        }),
-      }),
     );
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(useDawStore.getState().feedbackToast).toMatchObject({
@@ -228,9 +291,8 @@ describe("SplitSpeakersDialog", () => {
     const user = userEvent.setup();
     const settle = heldFollow();
     vi.mocked(refreshDocumentProject).mockImplementation(async () => {
-      const renamed = minimalProject({
-        tracks: [sampleTrack({ id: "room", label: "Ana" })],
-      });
+      const renamed = splitProject();
+      renamed.tracks[0]!.label = "Ana";
       useDawStore.setState({ project: renamed });
       return renamed;
     });
@@ -251,20 +313,7 @@ describe("SplitSpeakersDialog", () => {
     render(<SplitSpeakersDialog />);
     await splitTwo(user);
     await act(async () => settle().ok(finished));
-    act(() =>
-      useDawStore.setState({
-        project: minimalProject({
-          tracks: [sampleTrack({ id: "room", label: "Room" })],
-          history: {
-            cursor: 2,
-            head_id: HEAD,
-            can_undo: true,
-            can_redo: false,
-            groups: [],
-          },
-        }),
-      }),
-    );
+    act(() => useDawStore.setState({ project: splitProject() }));
 
     await user.click(await screen.findByRole("button", { name: "Undo split" }));
     expect(executePointerCommand).toHaveBeenCalledWith("history.undo", {
@@ -284,6 +333,15 @@ describe("SplitSpeakersDialog", () => {
     render(<SplitSpeakersDialog />);
     await splitTwo(user);
     await act(async () => settle().ok(finished));
+    const newer = splitProject();
+    newer.history = {
+      cursor: 3,
+      head_id: "h3" as HistoryEntryId,
+      can_undo: true,
+      can_redo: false,
+      groups: [],
+    };
+    act(() => useDawStore.setState({ project: newer }));
 
     expect(
       await screen.findByText(/Something else changed since the split/),

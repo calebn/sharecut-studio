@@ -27,6 +27,7 @@ from podcast_mcp.edits.timeline_ops import mute_room_tone_fill
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.render_invalidations import record_invalidation
+from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.speaker_split import SpeakerAttribution
 from podcast_mcp.models import (
     ClipMuteRegion,
@@ -39,6 +40,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
+from podcast_mcp.util.timebase import SourceSec
 
 CROSSTALK_MODES: tuple[SpeakerSplitCrosstalk, ...] = ("owner", "both", "lane")
 SPLIT_FADE_MS = 20
@@ -258,6 +260,7 @@ def split_track_by_speaker(
     record_invalidation(project, track_ids=[*lanes, *([crosstalk_lane] if crosstalk_lane else [])])
     crosstalk = split.crosstalk_spans()
     unsure = unsure_spans(split)
+    timeline = SessionTimeline(project)
     return {
         "split_id": split.id,
         "lanes": [
@@ -271,6 +274,23 @@ def split_track_by_speaker(
         "low_confidence_sec": round(sum(e - s for s, e in unsure), 3),
         "low_confidence_regions": len(unsure),
         "turns": len(split.turns),
+        "review_spans": [
+            {
+                "start_s": turn.start_s,
+                "end_s": turn.end_s,
+                "speakers": list(turn.speakers),
+                "unsure": turn.confidence < LOW_CONFIDENCE,
+                "overlapping": turn.crosstalk,
+                "timeline_spans": [
+                    {"start_s": float(start), "end_s": float(end)}
+                    for start, end in timeline.map_source_span(
+                        split.lanes[0], SourceSec(turn.start_s), SourceSec(turn.end_s)
+                    )
+                ],
+            }
+            for turn in split.turns
+            if turn.confidence < LOW_CONFIDENCE or turn.crosstalk
+        ],
         "backend": split.backend,
         "method": split.method,
     }
