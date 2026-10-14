@@ -5,6 +5,8 @@ const enqueueHostCommand = vi.fn();
 const enqueueCommand = vi.fn();
 const loadHostCommandQueue = vi.fn();
 const removeHostQueuedCommand = vi.fn();
+const settleHostCommandOutcome = vi.fn();
+const settleGuestCommandOutcome = vi.fn();
 let persistedHostCommands: { command_id: string; type: string }[] = [];
 
 vi.mock("../document/applyDocumentUpdate", () => ({
@@ -15,6 +17,8 @@ vi.mock("../state/offlineStore", () => ({
   loadHostCommandQueue,
   enqueueHostCommand,
   removeHostQueuedCommand,
+  settleHostCommandOutcome,
+  settleGuestCommandOutcome,
   enqueueCommand,
   removeQueuedCommand: vi.fn(),
 }));
@@ -55,6 +59,15 @@ describe("queued command identity and landed history", () => {
         );
       },
     );
+    settleHostCommandOutcome.mockImplementation(
+      async (_path, commandId, _outcome, remove) => {
+        if (remove)
+          persistedHostCommands = persistedHostCommands.filter(
+            (command) => command.command_id !== commandId,
+          );
+      },
+    );
+    settleGuestCommandOutcome.mockResolvedValue(undefined);
   });
   afterEach(() => {
     vi.unstubAllGlobals();

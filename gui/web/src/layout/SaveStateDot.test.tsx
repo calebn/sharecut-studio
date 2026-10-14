@@ -7,20 +7,47 @@ import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { SaveStateDot } from "./SaveStateDot";
 
-const offlineStore = vi.hoisted(() => ({
-  clearConflicts: vi.fn(),
-  clearHostConflicts: vi.fn(),
-  loadConflicts: vi.fn(),
-  loadCommandQueue: vi.fn(),
-  loadHostCommandCount: vi.fn(),
-  loadHostConflicts: vi.fn(),
-}));
+const offlineStore = vi.hoisted(() => {
+  const state = {
+    clearConflicts: vi.fn(),
+    clearHostConflicts: vi.fn(),
+    loadConflicts: vi.fn(),
+    loadCommandQueue: vi.fn(),
+    loadHostCommandCount: vi.fn(),
+    loadHostConflicts: vi.fn(),
+  };
+  return {
+    ...state,
+    loadHostAttention: vi.fn(async (path: string) => {
+      const [pending, conflicts] = await Promise.all([
+        state.loadHostCommandCount(path),
+        state.loadHostConflicts(path),
+      ]);
+      return { pending, conflicts };
+    }),
+    loadGuestAttention: vi.fn(async (token: string) => {
+      const [, conflicts] = await Promise.all([
+        state.loadCommandQueue(token),
+        state.loadConflicts(token),
+      ]);
+      return { pending: 0, conflicts };
+    }),
+  };
+});
 const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
 
 vi.mock("../state/offlineStore", () => offlineStore);
 vi.mock("../state/drainOfflineQueue", () => drain);
 
 const PATH = "/tmp/save-state-1448.json";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((yes) => {
+    resolve = yes;
+  });
+  return { promise, resolve };
+}
 
 async function settle(ms = 0) {
   await act(async () => {
@@ -111,6 +138,52 @@ describe("SaveStateDot", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("ignores an older attention read that resolves after the post-send read", async () => {
+    render(<SaveStateDot />);
+    await settle();
+    const older = deferred<{
+      pending: number;
+      conflicts: ReturnType<typeof offlineConflict>[];
+    }>();
+    offlineStore.loadHostAttention.mockReturnValueOnce(older.promise);
+    await settle(2_000);
+
+    let send!: ReturnType<typeof beginDocumentSend>;
+    act(() => {
+      send = beginDocumentSend(PATH, "cmd-out-of-order");
+    });
+    offlineStore.loadHostAttention.mockResolvedValueOnce({
+      pending: 0,
+      conflicts: [
+        offlineConflict({
+          kind: "unknown",
+          reason: "Undo may have been applied",
+          recovery: "inspect-history",
+          command: { type: "UndoHistory" },
+        }),
+      ],
+    });
+    act(() => send.finish());
+    await settle();
+    expect(
+      screen.getByRole("button", {
+        name: "Outcome unknown · Undo may have been applied. Inspect History before trying again.",
+      }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      older.resolve({ pending: 0, conflicts: [] });
+    });
+    expect(
+      screen.getByRole("button", {
+        name: "Outcome unknown · Undo may have been applied. Inspect History before trying again.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Saved to project" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("reads the queue as soon as a send ends, not at the next poll", async () => {
     render(<SaveStateDot />);
     await settle();
@@ -156,7 +229,9 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    const dot = screen.getByRole("button", { name: "Save failed" });
+    const dot = screen.getByRole("button", {
+      name: "Save failed · The clip moved. Edit and submit again.",
+    });
     expect(dot).toHaveAttribute("data-save-state", "failed");
     const banner = screen.getByRole("alert");
     expect(banner).toHaveTextContent("The clip moved");
@@ -173,10 +248,11 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    expect(screen.getByRole("button", { name: "Save failed" })).toHaveAttribute(
-      "data-save-state",
-      "failed",
-    );
+    expect(
+      screen.getByRole("button", {
+        name: "Saved edits could not be read · Retry to read them",
+      }),
+    ).toHaveAttribute("data-save-state", "failed");
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await settle();

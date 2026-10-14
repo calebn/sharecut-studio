@@ -407,7 +407,9 @@ describe("transcript correction clears superseded Needs attention entries (#746)
       payload,
       created_at: 0,
     },
+    kind: "refused",
     reason: "stale",
+    recovery: "edit-and-resubmit",
   });
 
   beforeEach(() => {

@@ -126,19 +126,36 @@ export function appliedEditRecord(
 
 /** Fictional offline queue conflict for guest-attention unit tests and stories. */
 export function offlineConflict(
-  overrides: { command?: Partial<QueuedCommand>; reason?: string } = {},
+  overrides: {
+    command?: Partial<QueuedCommand>;
+    kind?: OfflineConflict["kind"];
+    reason?: string;
+    recovery?: OfflineConflict["recovery"];
+  } = {},
 ): OfflineConflict {
+  const kind = overrides.kind ?? "refused";
+  const command: QueuedCommand = {
+    command_id: "sample-command",
+    client_id: "fixture-client",
+    client_seq: 1,
+    type: "SetEnvelope",
+    payload: {},
+    created_at: 0,
+    ...overrides.command,
+  };
+  const reason =
+    overrides.reason ?? "Envelope changed since this edit was queued";
+  if (kind === "refused") {
+    return { command, kind, reason, recovery: "edit-and-resubmit" };
+  }
   return {
-    command: {
-      command_id: "sample-command",
-      client_id: "fixture-client",
-      client_seq: 1,
-      type: "SetEnvelope",
-      payload: {},
-      created_at: 0,
-      ...overrides.command,
-    },
-    reason: overrides.reason ?? "Envelope changed since this edit was queued",
+    command,
+    kind,
+    reason,
+    recovery:
+      overrides.recovery === "retry-same-command"
+        ? "retry-same-command"
+        : "inspect-history",
   };
 }
 

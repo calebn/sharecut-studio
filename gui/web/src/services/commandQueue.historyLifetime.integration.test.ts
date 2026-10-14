@@ -9,6 +9,8 @@ const queue = vi.hoisted(() => ({
   loadHostCommandQueue: vi.fn(),
   removeHostQueuedCommand: vi.fn(),
   removeQueuedCommand: vi.fn(),
+  settleHostCommandOutcome: vi.fn(),
+  settleGuestCommandOutcome: vi.fn(),
 }));
 const drainRequests = vi.hoisted(() => ({
   host: vi.fn(),
@@ -44,6 +46,8 @@ describe("history command lifetime at queue admission", () => {
       persisted: true,
       hadPredecessor: false,
     });
+    queue.settleHostCommandOutcome.mockResolvedValue(undefined);
+    queue.settleGuestCommandOutcome.mockResolvedValue(undefined);
     drainRequests.host.mockReset();
     drainRequests.guest.mockReset();
   });
@@ -222,6 +226,16 @@ describe("history command lifetime at queue admission", () => {
       );
       queue.removeQueuedCommand.mockImplementation(async (key, commandId) =>
         remove(key, commandId),
+      );
+      queue.settleHostCommandOutcome.mockImplementation(
+        async (key, commandId, _outcome, removeFromQueue) => {
+          if (removeFromQueue) remove(key, commandId);
+        },
+      );
+      queue.settleGuestCommandOutcome.mockImplementation(
+        async (key, commandId, _outcome, removeFromQueue) => {
+          if (removeFromQueue) remove(key, commandId);
+        },
       );
 
       let releaseH1!: (response: Response) => void;

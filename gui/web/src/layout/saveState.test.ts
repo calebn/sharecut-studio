@@ -9,14 +9,14 @@ import {
 const quiet: SaveStateInput = {
   busy: false,
   pending: 0,
-  refusals: [],
+  conflicts: [],
   unreadable: false,
   loaded: true,
   settling: false,
 };
 
 describe("saveStateOf", () => {
-  it("is saved when nothing is sending, queued or refused", () => {
+  it("is saved when nothing is sending, queued or waiting for attention", () => {
     expect(saveStateOf(quiet)).toEqual({ kind: "saved" });
   });
 
@@ -48,9 +48,51 @@ describe("saveStateOf", () => {
       saveStateOf({
         ...quiet,
         pending: 1,
-        refusals: ["old", "The clip moved"],
+        conflicts: [
+          {
+            command: {
+              command_id: "old",
+              client_id: "client",
+              client_seq: 1,
+              type: "SetTrackMeta",
+              payload: {},
+              created_at: 0,
+            },
+            kind: "refused",
+            reason: "The clip moved",
+            recovery: "edit-and-resubmit",
+          },
+        ],
       }),
     ).toEqual({ kind: "failed", cause: "refused", reason: "The clip moved" });
+  });
+
+  it("keeps unknown delivery distinct from a known refusal", () => {
+    expect(
+      saveStateOf({
+        ...quiet,
+        pending: 1,
+        conflicts: [
+          {
+            command: {
+              command_id: "unknown",
+              client_id: "client",
+              client_seq: 1,
+              type: "UndoHistory",
+              payload: {},
+              created_at: 0,
+            },
+            kind: "unknown",
+            reason: "Undo may have been applied",
+            recovery: "inspect-history",
+          },
+        ],
+      }),
+    ).toEqual({
+      kind: "unknown",
+      reason: "Undo may have been applied",
+      recovery: "inspect-history",
+    });
   });
 
   it("fails when the saved edits cannot be read, even before a first read", () => {
@@ -67,8 +109,22 @@ describe("saveStateText", () => {
     [{ kind: "saved" }, "Saved to project"],
     [{ kind: "waiting", count: 1 }, "Not saved yet · 1 waiting to send"],
     [{ kind: "waiting", count: 4 }, "Not saved yet · 4 waiting to send"],
-    [{ kind: "failed", cause: "refused", reason: "x" }, "Save failed"],
-    [{ kind: "failed", cause: "unreadable" }, "Save failed"],
+    [
+      { kind: "failed", cause: "refused", reason: "x" },
+      "Save failed · x. Edit and submit again.",
+    ],
+    [
+      { kind: "failed", cause: "unreadable" },
+      "Saved edits could not be read · Retry to read them",
+    ],
+    [
+      {
+        kind: "unknown",
+        reason: "Undo may have been applied",
+        recovery: "inspect-history",
+      },
+      "Outcome unknown · Undo may have been applied. Inspect History before trying again.",
+    ],
   ];
   it.each(cases)("%j reads %s", (state, text) => {
     expect(saveStateText(state)).toBe(text);

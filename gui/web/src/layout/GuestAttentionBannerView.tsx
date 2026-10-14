@@ -20,6 +20,8 @@ export interface GuestAttentionBannerViewProps {
   onSendNow?: () => void;
   /** Read the saved edits again. Offered when they could not be read. */
   onRetry?: () => void;
+  /** Open the existing History surface for a command that may have applied. */
+  onInspectHistory?: () => void;
 }
 
 /** Props-only guest-attention rendering for live state and static catalog cases. */
@@ -29,6 +31,7 @@ export function GuestAttentionBannerView({
   onDismissAll,
   onSendNow,
   onRetry,
+  onInspectHistory,
   unreadable = false,
   checking = false,
 }: GuestAttentionBannerViewProps) {
@@ -98,9 +101,26 @@ export function GuestAttentionBannerView({
         )}
         {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => (
           <li key={c.command.command_id}>
-            <code>{c.command.type}</code>: {c.reason}
+            <code>{c.command.type}</code>: {c.reason}{" "}
+            {c.kind === "refused" ? (
+              <span>Edit the change and submit it again.</span>
+            ) : c.recovery === "inspect-history" ? (
+              <span>Inspect History before trying this action again.</span>
+            ) : (
+              <span>Send now retries this same command.</span>
+            )}
           </li>
         ))}
+        {onInspectHistory &&
+          conflicts.some(
+            (conflict) =>
+              conflict.kind === "unknown" &&
+              conflict.recovery === "inspect-history",
+          ) && (
+            <li>
+              <Button onClick={onInspectHistory}>Inspect History</Button>
+            </li>
+          )}
         {hiddenConflicts > 0 && (
           <li key="more" className="guest-attention-more">
             {overflowLabel(hiddenConflicts)}

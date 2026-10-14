@@ -706,6 +706,12 @@ button.save-dot {
   border-radius: var(--radius-sm);
 }
 
+.save-dot[data-save-state="unknown"]::before {
+  border: var(--save-dot-stroke) dashed var(--color-warning);
+  border-radius: var(--radius-xs);
+  transform: rotate(45deg);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .save-dot[data-save-state="saving"]::before {
     animation: save-dot-pulse var(--motion-loop-pipeline) var(--motion-ease-out)
@@ -737,13 +743,21 @@ button.save-dot {
 @media (pointer: coarse) {
   html:not([data-shell="phone"]):has(
     .status-bar
-      .save-dot:is([data-save-state="waiting"], [data-save-state="failed"])
+      .save-dot:is(
+        [data-save-state="waiting"],
+        [data-save-state="failed"],
+        [data-save-state="unknown"]
+      )
   ) {
     --status-height: calc(var(--touch-min) + 1px);
   }
 
   .status-bar
-    .save-dot:is([data-save-state="waiting"], [data-save-state="failed"]) {
+    .save-dot:is(
+      [data-save-state="waiting"],
+      [data-save-state="failed"],
+      [data-save-state="unknown"]
+    ) {
     block-size: var(--touch-min);
   }
 }

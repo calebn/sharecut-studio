@@ -8,6 +8,7 @@ import {
   enqueueHostCommand,
   loadCommandQueue,
   loadConflicts,
+  loadHostAttention,
   loadHostCommandCount,
   loadHostCommandQueue,
   loadHostConflicts,
@@ -25,12 +26,18 @@ const command: QueuedCommand = {
   payload: { value: "kept" },
   created_at: 12,
 };
-const conflict = { command, reason: "" };
+const conflict = {
+  command,
+  kind: "refused" as const,
+  reason: "",
+  recovery: "edit-and-resubmit" as const,
+};
 const rows = new Map<string, unknown>();
 let closed = 0;
 let abortedTransactions = 0;
 let putFailure: { value: unknown } | undefined;
 let constructionFailure: "transaction" | "get" | undefined;
+let transactionCount = 0;
 
 function database() {
   return {
@@ -38,6 +45,7 @@ function database() {
       closed++;
     },
     transaction() {
+      transactionCount++;
       if (constructionFailure === "transaction")
         throw new Error("transaction failed");
       let aborted = false;
@@ -96,6 +104,7 @@ beforeEach(() => {
   abortedTransactions = 0;
   putFailure = undefined;
   constructionFailure = undefined;
+  transactionCount = 0;
   vi.stubGlobal("indexedDB", {
     open() {
       const req = { result: database(), onsuccess: () => {} };
@@ -105,6 +114,17 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("reads host pending work and its outcome from one IndexedDB snapshot", async () => {
+  rows.set("host-queue:/project", [command]);
+  rows.set("host-conflicts:/project", [conflict]);
+
+  await expect(loadHostAttention("/project")).resolves.toEqual({
+    pending: 1,
+    conflicts: [conflict],
+  });
+  expect(transactionCount).toBe(1);
+});
 
 const loaders = [
   {
@@ -442,12 +462,22 @@ describe("canonical new write admission", () => {
     {
       key: "conflicts:bucket",
       save: (value: QueuedCommand) =>
-        addConflict("bucket", { command: value, reason: "" }),
+        addConflict("bucket", {
+          command: value,
+          kind: "refused",
+          reason: "",
+          recovery: "edit-and-resubmit",
+        }),
     },
     {
       key: "host-conflicts:bucket",
       save: (value: QueuedCommand) =>
-        addHostConflict("bucket", { command: value, reason: "" }),
+        addHostConflict("bucket", {
+          command: value,
+          kind: "refused",
+          reason: "",
+          recovery: "edit-and-resubmit",
+        }),
     },
   ])(
     "rejects invalid new records in $key without replacing old raw data",

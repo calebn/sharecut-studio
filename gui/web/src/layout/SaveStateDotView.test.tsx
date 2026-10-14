@@ -42,9 +42,20 @@ describe("SaveStateDotView", () => {
     [{ kind: "waiting", count: 3 }, "Not saved yet · 3 waiting to send"],
     [
       { kind: "failed", cause: "refused", reason: "The clip moved" },
-      "Save failed",
+      "Save failed · The clip moved. Edit and submit again.",
     ],
-    [{ kind: "failed", cause: "unreadable" }, "Save failed"],
+    [
+      { kind: "failed", cause: "unreadable" },
+      "Saved edits could not be read · Retry to read them",
+    ],
+    [
+      {
+        kind: "unknown",
+        reason: "Undo may have been applied",
+        recovery: "inspect-history",
+      },
+      "Outcome unknown · Undo may have been applied. Inspect History before trying again.",
+    ],
   ] as [SaveState, string][])(
     "makes %j a button that goes to Needs attention",
     async (state, name) => {

@@ -30,7 +30,7 @@ export function SaveStateDot() {
       : saveStateOf({
           busy,
           pending: attention.pending,
-          refusals: attention.conflicts.map((c) => c.reason),
+          conflicts: attention.conflicts,
           unreadable:
             attention.status === "unreadable" ||
             attention.status === "retrying",

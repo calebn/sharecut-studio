@@ -33,6 +33,22 @@ vi.mock("../state/offlineStore", () => ({
   removeQueuedCommands: async (_: string, ids: string[]) => {
     storage.rows = storage.rows.filter((c) => !ids.includes(c.command_id));
   },
+  settleHostCommandOutcome: async (
+    _: string,
+    id: string,
+    _outcome: unknown,
+    remove: boolean,
+  ) => {
+    if (remove) storage.rows = storage.rows.filter((c) => c.command_id !== id);
+  },
+  settleGuestCommandOutcome: async (
+    _: string,
+    id: string,
+    _outcome: unknown,
+    remove: boolean,
+  ) => {
+    if (remove) storage.rows = storage.rows.filter((c) => c.command_id !== id);
+  },
 }));
 vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentResult: vi.fn(),
