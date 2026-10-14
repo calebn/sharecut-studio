@@ -7,9 +7,11 @@ from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_cuts import add_remove_decision, coalesce_edits
 from podcast_mcp.models import (
+    Clip,
     CombinedTranscript,
     CombinedUtterance,
     EditDecisionType,
+    SourceRecording,
     Transcript,
     TranscriptWord,
     load_project,
@@ -96,6 +98,24 @@ def test_generator_preserves_every_unowned_row_before_coalescing(tmp_path, autho
     assert skips == ({"source_geometry": 2} if generated else {})
 
 
+def test_generic_coalescer_keeps_mixed_primary_witness_state_separate(tmp_path):
+    project = _project(tmp_path)
+    unwitnessed = _cut("ordinary", 0, 3)
+    witnessed = _cut(
+        "transcript",
+        1,
+        2,
+        source_timeline_span=RangeInterval(start=1, end=2),
+    )
+    project.edit_decisions = [unwitnessed, witnessed]
+
+    assert coalesce_edits(project) == 0
+    assert [(row.id, row.start, row.end) for row in project.edit_decisions] == [
+        ("ordinary", 0, 3),
+        ("transcript", 1, 2),
+    ]
+
+
 def test_find_hits_with_zero_owned_rows_preserves_manual_source_hole(tmp_path):
     project = _project(tmp_path)
     _hole(project)
@@ -112,14 +132,25 @@ def test_find_hits_with_zero_owned_rows_preserves_manual_source_hole(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "kind", ["mute", "applied", "speech", "timeline", "pause", "exact", "acoustic", "compatible"]
+    "kind",
+    [
+        "mute",
+        "applied",
+        "speech",
+        "timeline",
+        "pause",
+        "exact",
+        "acoustic",
+        "author",
+        "compatible",
+    ],
 )
 def test_saved_text_cut_returns_actual_ordinary_survivor(tmp_path, monkeypatch, kind):
     project = _project(tmp_path)
     project.transcripts = [
         Transcript(track_id="host", words=[TranscriptWord(text="coffee", start=1, end=2)])
     ]
-    existing = _cut("existing", 0, 3)
+    existing = None if kind == "compatible" else _cut("existing", 0, 3)
     if kind == "mute":
         existing.type = EditDecisionType.MUTE
     elif kind == "applied":
@@ -138,6 +169,8 @@ def test_saved_text_cut_returns_actual_ordinary_survivor(tmp_path, monkeypatch, 
     elif kind == "acoustic":
         existing.reason = "filler:acoustic"
         existing.review_required = True
+    elif kind == "author":
+        existing.author = "reviewer"
     elif kind == "exact":
         existing.exact_range = ExactRangeTarget(
             intervals=[RangeInterval(start=0, end=3)],
@@ -145,13 +178,21 @@ def test_saved_text_cut_returns_actual_ordinary_survivor(tmp_path, monkeypatch, 
             clips=project.clips,
             media_seals={},
         )
-    project.edit_decisions = [existing]
-    expected = existing.model_dump()
+    project.edit_decisions = [existing] if existing is not None else []
+    expected = existing.model_dump() if existing is not None else None
     ws = ProjectWorkspace.open(save_project(project))
     monkeypatch.setattr(
         "podcast_mcp.edits.transcript_cuts.optimize_source_cut_range", _exact_optimizer
     )
-    (returned,) = EditService(ws).cut_text_match("coffee", use_inaudible_opt=False)
+    service = EditService(ws)
+    if kind == "compatible":
+        service.cut_time_range("host", 0, 3, use_inaudible_opt=False)
+        existing = ws.project.edit_decisions[0]
+        existing_id = existing.id
+        assert existing.source_timeline_span is None
+    else:
+        existing_id = existing.id
+    (returned,) = service.cut_text_match("coffee", use_inaudible_opt=False)
     saved = load_project(ws.path)
     actual = next(e for e in ws.project.edit_decisions if e.id == returned.id)
     assert actual is returned
@@ -164,10 +205,133 @@ def test_saved_text_cut_returns_actual_ordinary_survivor(tmp_path, monkeypatch, 
     ) == (EditDecisionType.REMOVE, "source", False, None, None)
     assert (returned.start, returned.end) == ((0, 3) if kind == "compatible" else (1, 2))
     assert [e.id for e in saved.edit_decisions] == (
-        ["existing"] if kind == "compatible" else ["existing", returned.id]
+        [existing_id] if kind == "compatible" else [existing_id, returned.id]
     )
     if kind != "compatible":
         assert saved.edit_decisions[0].model_dump() == expected
+    else:
+        assert returned.id == existing_id
+        assert returned.source_timeline_span == RangeInterval(start=0, end=3)
+
+
+@pytest.mark.parametrize("producer", ["text", "words", "utterance"])
+def test_current_transcript_cut_producers_reuse_the_full_ordinary_range(
+    tmp_path, monkeypatch, producer
+):
+    project = _project(tmp_path)
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="coffee", start=1, end=2)])
+    ]
+    project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(track_id="host", speaker="Host", start=1, end=2, text="coffee")
+        ]
+    )
+    ws = ProjectWorkspace.open(save_project(project))
+    monkeypatch.setattr(
+        "podcast_mcp.edits.transcript_cuts.optimize_source_cut_range", _exact_optimizer
+    )
+    service = EditService(ws)
+
+    service.cut_time_range("host", 0, 3, use_inaudible_opt=False)
+    original_id = ws.project.edit_decisions[0].id
+    if producer == "text":
+        (returned,) = service.cut_text_match("coffee", use_inaudible_opt=False)
+    elif producer == "words":
+        service.cut_words("host", 0, 0, use_inaudible_opt=False)
+        returned = ws.project.edit_decisions[0]
+    else:
+        service.cut_utterance(0, use_inaudible_opt=False)
+        returned = ws.project.edit_decisions[0]
+
+    assert returned.id == original_id
+    assert (returned.start, returned.end) == (0, 3)
+    assert returned.source_id is None
+    assert returned.source_timeline_span == RangeInterval(start=0, end=3)
+    assert [decision.id for decision in load_project(ws.path).edit_decisions] == [original_id]
+
+
+def test_current_source_cut_does_not_merge_a_different_take(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    (project.workspace_path() / "raw" / "take-b.wav").write_bytes(b"take B")
+    project.sources = [SourceRecording(id="B", path="raw/take-b.wav")]
+    project.clips.append(
+        Clip(
+            id="take-b",
+            track_id="host",
+            source_id="B",
+            source_start=0,
+            source_end=6,
+            timeline_start=10,
+        )
+    )
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="coffee", start=1, end=2)]),
+        Transcript(
+            track_id="host",
+            source_id="B",
+            words=[TranscriptWord(text="coffee", start=1, end=2)],
+        ),
+    ]
+    ws = ProjectWorkspace.open(save_project(project))
+    monkeypatch.setattr(
+        "podcast_mcp.edits.transcript_cuts.optimize_source_cut_range", _exact_optimizer
+    )
+    service = EditService(ws)
+
+    service.cut_time_range("host", 0, 3, use_inaudible_opt=False)
+    primary_id = ws.project.edit_decisions[0].id
+    service.cut_words("host", 0, 0, source_id="B", use_inaudible_opt=False)
+
+    rows = ws.project.edit_decisions
+    assert [(row.source_id, row.start, row.end) for row in rows] == [(None, 0, 3), ("B", 1, 2)]
+    assert rows[0].id == primary_id
+    assert rows[1].source_timeline_span == RangeInterval(start=11, end=12)
+
+
+@pytest.mark.parametrize("geometry", ["moved", "deleted", "repeated"])
+def test_current_source_cut_does_not_merge_stale_witness_geometry(tmp_path, monkeypatch, geometry):
+    project = _project(tmp_path)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="coffee", start=1, end=2),
+                TranscriptWord(text="tea", start=2, end=2.5),
+            ],
+        )
+    ]
+    monkeypatch.setattr(
+        "podcast_mcp.edits.transcript_cuts.optimize_source_cut_range", _exact_optimizer
+    )
+    from podcast_mcp.edits.transcript_cuts import cut_text_match
+
+    existing = cut_text_match(project, "coffee", use_inaudible_opt=False)[0]
+    if geometry == "moved":
+        project.clips[0].timeline_start = 1
+    elif geometry == "deleted":
+        (project.workspace_path() / "raw" / "take-b.wav").write_bytes(b"take B")
+        project.sources = [SourceRecording(id="B", path="raw/take-b.wav")]
+        project.clips = [
+            Clip(
+                id="take-b",
+                track_id="host",
+                source_id="B",
+                source_start=0,
+                source_end=6,
+                timeline_start=10,
+            )
+        ]
+    else:
+        project.clips.append(
+            project.clips[0].model_copy(update={"id": "repeat", "timeline_start": 10})
+        )
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        cut_text_match(project, "tea", use_inaudible_opt=False)
+
+    assert held.value.held[0].reason == "source_geometry"
+    assert [row.id for row in project.edit_decisions] == [existing.id]
 
 
 @pytest.mark.parametrize("field", ["type", "timebase", "applied", "cut_speech", "bounds", "exact"])
