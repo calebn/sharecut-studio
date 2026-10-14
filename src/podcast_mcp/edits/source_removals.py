@@ -192,11 +192,11 @@ def inspect_source_remove_placement(
         if lane_clips:
             spans = timeline.map_placements_source_span(
                 edit.track_id,
-                {edit.source_id},
+                project.equivalent_source_ids(edit.track_id, edit.source_id),
                 SourceSec(edit.start),
                 SourceSec(edit.end),
             )
-        elif edit.source_id is None:
+        elif None in project.equivalent_source_ids(edit.track_id, edit.source_id):
             spans = timeline.map_source_span(
                 edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
             )

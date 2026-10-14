@@ -95,22 +95,13 @@ def _timeline_utterances(project: EpisodeProject) -> list[_TimelineUtterance]:
     st = SessionTimeline(project)
     out: list[_TimelineUtterance] = []
     for u in combined.utterances:
-        transcript = project.transcript_for_source(u.track_id, u.source_id)
         lane_clips = [clip for clip in project.clips if clip_plays_lane(project, clip, u.track_id)]
-        if not lane_clips and u.source_id is None:
+        source_ids = project.equivalent_source_ids(u.track_id, u.source_id)
+        if not lane_clips and None in source_ids:
             spans = st.map_source_span(u.track_id, SourceSec(u.start), SourceSec(u.end))
         else:
-            placements = {
-                clip.source_id
-                for clip in lane_clips
-                if transcript is not None
-                and (
-                    project.transcript_for_source(u.track_id, clip.source_id) is transcript
-                    or (transcript is None and u.source_id is None and clip.source_id is None)
-                )
-            }
             spans = st.map_placements_source_span(
-                u.track_id, placements, SourceSec(u.start), SourceSec(u.end)
+                u.track_id, source_ids, SourceSec(u.start), SourceSec(u.end)
             )
         if not spans:
             continue
@@ -177,23 +168,15 @@ def _timeline_word_runs(project: EpisodeProject) -> list[tuple[str, list[_CueWor
     st = SessionTimeline(project)
     out: list[tuple[float, str, list[_CueWord]]] = []
     for run in transcript_word_runs(project):
-        transcript = project.transcript_for_source(run.track_id, run.source_id)
-        placements = {
-            clip.source_id
-            for clip in project.clips
-            if transcript is not None
-            and clip_plays_lane(project, clip, run.track_id)
-            and project.transcript_for_source(run.track_id, clip.source_id) is transcript
-        }
+        lane_clips = [
+            clip for clip in project.clips if clip_plays_lane(project, clip, run.track_id)
+        ]
+        source_ids = project.equivalent_source_ids(run.track_id, run.source_id)
         word_bounds = [(w.start, w.end) for w in run.words]
-        if (
-            not placements
-            and run.source_id is None
-            and not any(clip_plays_lane(project, clip, run.track_id) for clip in project.clips)
-        ):
+        if not lane_clips and None in source_ids:
             mapped = st.map_word_spans(run.track_id, word_bounds)
         else:
-            mapped = st.map_placements_word_spans(run.track_id, placements, word_bounds)
+            mapped = st.map_placements_word_spans(run.track_id, source_ids, word_bounds)
         words = [
             _CueWord(text=w.text, start=float(spans[0][0]), end=float(spans[-1][1]))
             for w, spans in zip(run.words, mapped, strict=True)
