@@ -521,6 +521,29 @@ def test_track_too_short_to_measure_its_noise_is_left_alone(tmp_path: Path) -> N
     assert "no noise measured" in summary
 
 
+@pytest.mark.parametrize("remaining_frames", [0, 79])
+@pytest.mark.parametrize("channels", [1, 2])
+def test_unmeasurable_closure_keeps_the_measured_room_fill(
+    tmp_path: Path, remaining_frames: int, channels: int
+) -> None:
+    samples = _gated_track()
+    start, end = round(0.1 * SR), round(0.12 * SR)
+    samples[start:end] = 1.0 / 32767
+    samples[start : start + round(0.01 * SR) + remaining_frames] = 0.1
+    if channels == 2:
+        samples = np.column_stack((samples, samples))
+    project = _project(tmp_path, samples)
+    project.track_by_id("guest").media.channels = channels
+
+    summary = fill_gate_holes(project, _defaults())
+
+    fill = project.track_by_id("guest").gate_fill
+    assert fill is not None
+    assert fill.source == GateFillSource.COMFORT_NOISE
+    assert fill.noise_db == pytest.approx(ROOM_DB, abs=2.0)
+    assert "comfort noise" in summary
+
+
 def test_mode_off_clears_an_existing_fill(tmp_path: Path) -> None:
     project = _project(tmp_path, _gated_track())
     fill_gate_holes(project, _defaults())
