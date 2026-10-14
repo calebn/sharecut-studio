@@ -84,7 +84,9 @@ test("approving a pending cut a peer speaks over asks Cut anyway, then sends it 
     await dialog.getByRole("button", { name: "Cut anyway" }).click();
 
     await expect(dialog).toBeHidden();
-    expect(approvals).toHaveLength(2);
+    await expect
+      .poll(() => approvals.length, { message: "confirmed ApproveEdits" })
+      .toBe(2);
     expect(approvals[1]).toMatchObject({ confirm_cut_speech: true });
   } finally {
     await page.unroute("**/api/document/command**");
