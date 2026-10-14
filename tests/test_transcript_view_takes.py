@@ -91,6 +91,17 @@ def test_take_rows_carry_their_own_words(tmp_path: Path) -> None:
     assert by_text["b4"]["words"][0]["timeline_start"] == 28.0
 
 
+def test_only_the_first_take_words_are_addressable_by_index(tmp_path: Path) -> None:
+    """Word edits resolve (track, word_index) in the lane's first transcript, so a second
+    take's words carry no word_index and cannot be edited onto the wrong take."""
+    rows = _view(_two_take_project(tmp_path))
+    by_text = {row["text"]: row for row in rows}
+    assert by_text["a1"]["words"][0]["word_index"] == 1
+    word = by_text["b1"]["words"][0]
+    assert "word_index" not in word
+    assert word["timing_target"] == {"track_id": "vicky", "source_id": "take3", "word_index": 1}
+
+
 def test_rows_run_in_playback_order(tmp_path: Path) -> None:
     project = _two_take_project(tmp_path)
     for include_words in (True, False):
@@ -181,3 +192,84 @@ def test_stale_row_maps_through_the_whole_lane(tmp_path: Path) -> None:
     # Take 3's source 12 s: read through take 2's clips alone it would be cut away.
     assert row["mappable"] is True
     assert row["timeline_start"] == 22.0
+
+
+def test_clip_moved_off_a_multi_take_lane_keeps_its_row(tmp_path: Path) -> None:
+    """A moved clip still plays its origin lane's recording, so its row maps and follows."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(
+            id="vicky",
+            label="vicky",
+            role=TrackRole.DIALOGUE,
+            speaker="vicky",
+            media=MediaAsset(path="raw/vicky.wav", duration_sec=20.0),
+        ),
+        Track(id="dani", label="dani", role=TrackRole.DIALOGUE, speaker="dani"),
+    ]
+    project.sources = [
+        SourceRecording(id="V", path="raw/vicky.wav"),
+        SourceRecording(id="T2", path="raw/take2.wav"),
+    ]
+    project.clips = [
+        Clip(id="v1", track_id="vicky", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(
+            id="t2",
+            track_id="vicky",
+            source_id="T2",
+            source_start=0.0,
+            source_end=10.0,
+            timeline_start=10.0,
+        ),
+        # Moved to another lane: pinned to the recording it still plays.
+        Clip(
+            id="v2",
+            track_id="dani",
+            source_id="V",
+            source_start=10.0,
+            source_end=20.0,
+            timeline_start=30.0,
+        ),
+    ]
+    project.transcripts = [
+        Transcript(track_id="vicky", words=_words("v", [1.0, 12.0])),
+        Transcript(track_id="vicky", source_id="T2", words=_words("t", [1.0])),
+    ]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    rows = {row["text"]: row for row in _view(project)}
+    assert rows["v1"]["mappable"] is True
+    assert rows["v1"]["timeline_start"] == 32.0
+    assert rows["t0"]["timeline_start"] == 11.0
+
+
+def test_pasted_repeat_on_a_single_take_lane_keeps_source_order(tmp_path: Path) -> None:
+    """Only a take's rows sort by timeline; a repeat on one recording stays where it was."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="host", label="host", role=TrackRole.DIALOGUE, speaker="host")
+    ]
+    project.clips = [
+        Clip(id="cold", track_id="host", source_start=11.5, source_end=13.0, timeline_start=0.0),
+        Clip(id="body", track_id="host", source_start=0.0, source_end=20.0, timeline_start=5.0),
+    ]
+    project.transcripts = [Transcript(track_id="host", words=_words("w", [6.0, 12.0]))]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    assert [row["text"] for row in _view(project)] == ["w0", "w1"]
+
+
+def test_stale_row_does_not_duplicate_an_edge_suppressed_word(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+    words = _words("a", [1.0, 4.5, 8.0])
+    words[1] = words[1].model_copy(update={"suppressed": True})
+    project.transcripts[0] = Transcript(track_id="vicky", source_id="take2", words=words)
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    assert project.combined_transcript is not None
+    utterances = project.combined_transcript.utterances
+    position = next(i for i, u in enumerate(utterances) if u.text == "a0")
+    utterances[position] = utterances[position].model_copy(update={"text": "edited"})
+    owners = [
+        row["text"]
+        for row in _view(project)
+        if 1 in row.get("edge_suppressed_word_indices", []) and row["text"] in ("edited", "a2")
+    ]
+    assert len(owners) == 1
