@@ -7,12 +7,11 @@
  * matchMedia + visualViewport follow the CSS viewport the shell must use.
  */
 
+import type { ShellBreakpoint } from "../state/types";
 import {
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "./useMediaQueryStore";
-
-export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
 export const PHONE_MAX_PX = 767;
 export const TABLET_MAX_PX = 1100;
