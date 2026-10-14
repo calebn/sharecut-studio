@@ -598,9 +598,10 @@ of every run, so a grid keeps only the boundary cells:
   of the motion itself (transition duration, animation count) owns its pair.
 
 To add a cell, name the CSS branch or query band it reaches that no kept cell
-does. A new `for` loop over a theme, motion or text-size list fails
-`gui/web/e2e/gridBoundary.test.ts` unless the loop is the subject of the check
-and the file is listed there with the reason. Theme and axe checks for the
+does. A new `for` loop over a theme, motion or text-size list, written
+inline or as a named constant, or bound to a variable named for one of those
+axes, fails `gui/web/e2e/gridBoundary.test.ts` unless the loop is the subject
+of the check and the file, its loop count and the reason are listed there. Theme and axe checks for the
 shared `ui/` primitives belong in Vitest (`expectNoA11yViolations`), not in a
 browser grid.
 
