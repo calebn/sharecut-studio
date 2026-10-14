@@ -29,7 +29,9 @@ def strip_silence_tool(
 ) -> str:
     """Rebuild a track from speech islands between detected silences.
 
-    Silence is audio under the track's own voice floor plus ``over_voice_floor_db``.
+    Silence is audio under the track's own audibility floor (its voice floor) plus
+    ``over_voice_floor_db``. A track whose voice does not stand out of its room has no
+    silence to strip, whatever ``over_voice_floor_db`` is.
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored.
     """
