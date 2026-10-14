@@ -62,6 +62,7 @@ export const SAVE_DOT_COPY = {
 
 /** The dot's accessible name and tooltip. */
 export function saveStateText(state: SaveState): string {
+  const reason = (value: string) => value.replace(/[.!?]+$/, "");
   switch (state.kind) {
     case "saving":
       return SAVE_DOT_COPY.saving;
@@ -71,11 +72,11 @@ export function saveStateText(state: SaveState): string {
       return SAVE_DOT_COPY.waiting(state.count);
     case "failed":
       return state.cause === "refused"
-        ? `Save failed · ${state.reason}. Edit and submit again.`
+        ? `Save failed · ${reason(state.reason)}. Edit and submit again.`
         : "Saved edits could not be read · Retry to read them";
     case "unknown":
       return state.recovery === "inspect-history"
-        ? `Outcome unknown · ${state.reason}. Inspect History before trying again.`
-        : `Outcome unknown · ${state.reason}. Retry the same edit.`;
+        ? `Outcome unknown · ${reason(state.reason)}. Inspect History before trying again.`
+        : `Outcome unknown · ${reason(state.reason)}. Retry the same edit.`;
   }
 }

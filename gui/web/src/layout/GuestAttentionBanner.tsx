@@ -11,7 +11,12 @@ import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
 export function GuestAttentionBanner() {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
-  const { pending, conflicts, status } = useOfflineAttention(projectPath);
+  const {
+    pending,
+    conflicts: allConflicts,
+    status,
+  } = useOfflineAttention(projectPath);
+  const conflicts = allConflicts.filter((conflict) => !conflict.dismissed);
   const guest = isShareProjectKey(projectPath);
   return (
     <GuestAttentionBannerView
@@ -19,6 +24,7 @@ export function GuestAttentionBanner() {
       conflicts={conflicts}
       guest={guest}
       unreadable={status === "unreadable" || status === "retrying"}
+      dismissFailed={status === "dismiss-failed"}
       checking={
         status === "checking" ||
         status === "retrying" ||

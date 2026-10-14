@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addConflict,
   addHostConflict,
+  dismissConflicts,
+  dismissHostConflicts,
   enqueueCommand,
+  enqueueHostCommand,
   loadCommandQueue,
   loadConflicts,
+  loadHostCommandQueue,
   loadHostConflicts,
   type OfflineConflict,
   type QueuedCommand,
@@ -93,6 +97,102 @@ it("retains an admitted ordinary edit while completed guest history is removed",
   ]);
   expect(await loadCommandQueue("guest")).toEqual([edit]);
 });
+
+describe.each([
+  {
+    name: "guest",
+    enqueue: (row: QueuedCommand) => enqueueCommand("dismiss", row),
+    loadQueue: () => loadCommandQueue("dismiss"),
+    add: (outcome: OfflineConflict) => addConflict("dismiss", outcome),
+    load: () => loadConflicts("dismiss"),
+    dismiss: (outcomes: OfflineConflict[]) =>
+      dismissConflicts("dismiss", outcomes),
+  },
+  {
+    name: "host",
+    enqueue: (row: QueuedCommand) => enqueueHostCommand("dismiss", row),
+    loadQueue: () => loadHostCommandQueue("dismiss"),
+    add: (outcome: OfflineConflict) => addHostConflict("dismiss", outcome),
+    load: () => loadHostConflicts("dismiss"),
+    dismiss: (outcomes: OfflineConflict[]) =>
+      dismissHostConflicts("dismiss", outcomes),
+  },
+])(
+  "$name dismissal transition",
+  ({ enqueue, loadQueue, add, load, dismiss }) => {
+    it("retires only refused rows and persists dismissed outcomes", async () => {
+      stubSerializedIndexedDb();
+      const refusedRow = refused("refused-row").command;
+      const unknownRow = { ...refused("unknown-row").command, client_seq: 2 };
+      const unrelated = { ...refused("new-row").command, client_seq: 3 };
+      const unknown: OfflineConflict = {
+        command: unknownRow,
+        kind: "unknown",
+        reason: "May have applied",
+        recovery: "retry-same-command",
+      };
+      await Promise.all([
+        enqueue(refusedRow),
+        enqueue(unknownRow),
+        enqueue(unrelated),
+      ]);
+      await Promise.all([add(refused("refused-row")), add(unknown)]);
+
+      await dismiss([refused("refused-row"), unknown]);
+
+      expect((await loadQueue()).map((row) => row.command_id)).toEqual([
+        "unknown-row",
+        "new-row",
+      ]);
+      expect(await load()).toEqual([
+        { ...refused("refused-row"), dismissed: true },
+        { ...unknown, dismissed: true },
+      ]);
+    });
+
+    it("does not let a stale unknown capture dismiss a newer same-ID refusal", async () => {
+      stubSerializedIndexedDb();
+      const row = refused("same-id").command;
+      const unknown: OfflineConflict = {
+        command: row,
+        kind: "unknown",
+        reason: "May have applied",
+        recovery: "retry-same-command",
+      };
+      const newer = refused("same-id", "new refusal");
+      await enqueue(row);
+      await add(unknown);
+      await add(newer);
+
+      await dismiss([unknown]);
+
+      expect(await loadQueue()).toEqual([row]);
+      expect(await load()).toEqual([newer]);
+    });
+
+    it("keeps a dismissed History reservation inspect-only and queued", async () => {
+      stubSerializedIndexedDb();
+      const row = {
+        ...refused("history").command,
+        type: "UndoHistory",
+        payload: {},
+      };
+      const history: OfflineConflict = {
+        command: row,
+        kind: "unknown",
+        reason: "Undo may have applied",
+        recovery: "inspect-history",
+      };
+      await enqueue(row);
+      await add(history);
+
+      await dismiss([history]);
+
+      expect(await loadQueue()).toEqual([row]);
+      expect(await load()).toEqual([{ ...history, dismissed: true }]);
+    });
+  },
+);
 
 it("keeps a prior client's rows ahead of a new client's row admitted during their re-admission and cleanup", async () => {
   stubSerializedIndexedDb();

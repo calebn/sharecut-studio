@@ -15,6 +15,7 @@ export interface GuestAttentionBannerViewProps {
   conflicts: readonly OfflineConflict[];
   guest?: boolean;
   unreadable?: boolean;
+  dismissFailed?: boolean;
   checking?: boolean;
   onDismissAll: () => void;
   /** Send the queued host edits now. Offered beside a pending count. */
@@ -35,13 +36,16 @@ export function GuestAttentionBannerView({
   onRetry,
   onInspectHistory,
   unreadable = false,
+  dismissFailed = false,
   checking = false,
 }: GuestAttentionBannerViewProps) {
   const dismissReasonId = useId();
-  const dismissUnavailable = unreadable || checking;
+  const dismissUnavailable = unreadable || checking || dismissFailed;
   const dismissReason = unreadable
     ? "Saved edits could not be read. Dismissal is unavailable."
-    : "Checking saved edits. Dismissal is unavailable.";
+    : dismissFailed
+      ? "Dismissal failed. Your saved outcomes were kept."
+      : "Checking saved edits. Dismissal is unavailable.";
 
   if (!unreadable && conflicts.length === 0 && pending === 0) {
     return null;
@@ -68,12 +72,15 @@ export function GuestAttentionBannerView({
             ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
             : ""}
         </span>
-        {(pending > 0 && onSendNow) || (unreadable && onRetry) ? (
+        {(pending > 0 && onSendNow) ||
+        ((unreadable || dismissFailed) && onRetry) ? (
           <span className="guest-attention-actions">
             {pending > 0 && onSendNow && (
               <Button onClick={onSendNow}>Send now</Button>
             )}
-            {unreadable && onRetry && <Button onClick={onRetry}>Retry</Button>}
+            {(unreadable || dismissFailed) && onRetry && (
+              <Button onClick={onRetry}>Retry</Button>
+            )}
           </span>
         ) : null}
         {conflicts.length > 0 && (
@@ -100,6 +107,9 @@ export function GuestAttentionBannerView({
             Could not read saved edits on this device. Your saved edits have
             been kept.
           </li>
+        )}
+        {dismissFailed && (
+          <li>Dismissal failed. Your saved outcomes have been kept.</li>
         )}
         {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => (
           <li key={c.command.command_id}>
