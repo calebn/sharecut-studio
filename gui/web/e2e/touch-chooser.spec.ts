@@ -66,6 +66,18 @@ test.afterEach(async ({ page }) => {
 const buildFixture = (page: Page) =>
   buildTouchFixture(page, projectPath, CLIENT_ID);
 const projectJson = (page: Page) => readProject(page, projectPath);
+/**
+ * The project's content without `render`: the idle background pre-measure may
+ * re-render a stale stem, which clears its render-invalidation journal. That is
+ * cache bookkeeping, not an edit the gesture made.
+ */
+const editedProject = async (page: Page) => {
+  const { render: _render, ...content } = (await projectJson(page)) as Record<
+    string,
+    unknown
+  >;
+  return content;
+};
 const openTimeline = (page: Page, viewport: ViewportName, theme: Theme) =>
   openTouchTimeline(page, projectPath, viewport, theme);
 
@@ -336,7 +348,7 @@ test("cancel paths close with no change; an early move edits nothing", async ({
   await openTimeline(page, "phone", "dark");
   await setZoom(page, 0);
   const at = await clusterPoint(page, "edge");
-  const before = JSON.stringify(await projectJson(page));
+  const before = JSON.stringify(await editedProject(page));
   commands.length = 0;
   const results: Record<string, unknown> = {};
 
@@ -378,7 +390,8 @@ test("cancel paths close with no change; an early move edits nothing", async ({
   await page.waitForTimeout(600);
 
   results.commands = commands.map((c) => c.type);
-  results.projectUnchanged = JSON.stringify(await projectJson(page)) === before;
+  results.projectUnchanged =
+    JSON.stringify(await editedProject(page)) === before;
 
   json(info, "cancel", results);
   expect(results).toMatchObject({
