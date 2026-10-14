@@ -75,6 +75,53 @@ def test_set_effect_bypass_and_list() -> None:
         raise AssertionError("expected ValueError")
 
 
+def test_unsupported_effects_are_refused_before_creating_a_chain() -> None:
+    from podcast_mcp.effects.presets import add_effect, apply_specs_to_chain
+
+    project = EpisodeProject.create("unsupported_fx", "/tmp")
+    with pytest.raises(ValueError, match="supported effects:.*highpass"):
+        add_effect(project, "host", "volume")
+    with pytest.raises(ValueError, match="unsupported effect 'volume'"):
+        apply_specs_to_chain(
+            project,
+            "host",
+            [
+                {"effect": "highpass", "params": {}},
+                {"effect": "volume", "params": {}},
+            ],
+        )
+    assert project.processing_chains == []
+
+
+def test_legacy_effect_list_warns_and_presets_share_renderer_capabilities() -> None:
+    from podcast_mcp.effects.presets import list_track_effects
+    from podcast_mcp.engines.effect_filters import supported_effect_names
+    from podcast_mcp.models import ProcessingChain, ProcessingEffect
+
+    project = EpisodeProject.create("legacy_fx", "/tmp")
+    project.processing_chains.append(
+        ProcessingChain(
+            track_id="host",
+            effects=[ProcessingEffect(effect="volume", params={})],
+        )
+    )
+    row = list_track_effects(project, "host")[0]
+    assert row["supported"] is False
+    assert "will not be rendered" in row["warning"]
+    assert "remove it" in row["warning"].lower()
+    assert supported_effect_names() == (
+        "acompressor",
+        "afftdn",
+        "agate",
+        "arnndn",
+        "bandreject",
+        "deesser",
+        "equalizer",
+        "highpass",
+        "loudnorm",
+    )
+
+
 _YAML_SCAN_ROOTS = (".agents", "config", "deploy", "tests/fixtures")
 _PIPELINE_DEFAULTS_YAMLS = frozenset(
     {

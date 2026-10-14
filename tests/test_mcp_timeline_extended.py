@@ -197,6 +197,7 @@ def test_mcp_timeline_effects_and_chapters(tmp_path, sample_wav):
     listed = json.loads(mcp_timeline.list_effects_tool(path, track_id="host"))
     assert listed["track_id"] == "host"
     assert listed["effects"]
+    assert "highpass" in listed["supported_effects"]
     ch = json.loads(mcp_timeline.add_chapter_tool(path, 0.0, "Intro"))
     assert ch["title"] == "Intro"
     chapters = json.loads(mcp_timeline.list_chapters_tool(path))
@@ -204,6 +205,16 @@ def test_mcp_timeline_effects_and_chapters(tmp_path, sample_wav):
     removed = json.loads(mcp_timeline.remove_chapter_tool(path, "Intro"))
     assert removed["removed"] is True
     assert json.loads(mcp_timeline.list_chapters_tool(path)) == []
+
+
+def test_mcp_add_unsupported_effect_returns_coded_refusal(tmp_path, sample_wav):
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_project(path, sample_wav)
+    with pytest.raises(CodedValueError) as caught:
+        mcp_timeline.add_effect_tool(path, track_id="host", effect="volume")
+    assert caught.value.code == "unsupported_effect"
 
 
 def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):

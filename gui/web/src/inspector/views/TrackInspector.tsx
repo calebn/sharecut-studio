@@ -302,6 +302,11 @@ export function TrackInspector({
                       {formatEffectParams(e.params, e.effect) ||
                         "Default settings"}
                     </span>
+                    {e.warning ? (
+                      <span className="fx-chain-warning" role="status">
+                        {e.warning}
+                      </span>
+                    ) : null}
                   </div>
                   {editable ? (
                     <label className="fx-bypass-toggle">

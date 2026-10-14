@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.models import EpisodeProject, ProcessingChain, ProcessingEffect
 
 PresetSpec = list[dict[str, Any]]
@@ -106,6 +107,15 @@ def apply_preset_to_chain(
     preset: str,
 ) -> ProcessingChain:
     specs = get_preset(preset)
+    return apply_specs_to_chain(project, track_id, specs)
+
+
+def apply_specs_to_chain(
+    project: EpisodeProject,
+    track_id: str,
+    specs: PresetSpec,
+) -> ProcessingChain:
+    _require_supported_specs(specs)
     chain = _chain_for_track(project, track_id)
     for spec in specs:
         chain.effects.append(
@@ -120,6 +130,7 @@ def add_effect(
     effect: str,
     params: dict[str, Any] | None = None,
 ) -> ProcessingChain:
+    _require_supported_effect(effect)
     chain = _chain_for_track(project, track_id)
     chain.effects.append(ProcessingEffect(effect=effect, params=params or {}))
     return chain
@@ -174,4 +185,36 @@ def list_track_effects(project: EpisodeProject, track_id: str) -> list[dict[str,
     )
     if not chain:
         return []
-    return [{"effect": e.effect, "params": e.params, "bypass": e.bypass} for e in chain.effects]
+    supported = set(supported_effect_names())
+    return [
+        {
+            "effect": e.effect,
+            "params": e.params,
+            "bypass": e.bypass,
+            "supported": e.effect in supported,
+            **(
+                {"warning": unsupported_effect_warning(e.effect)}
+                if e.effect not in supported
+                else {}
+            ),
+        }
+        for e in chain.effects
+    ]
+
+
+def unsupported_effect_warning(effect: str) -> str:
+    return (
+        f"Unsupported effect '{effect}' will not be rendered. "
+        "Remove it from this chain before export."
+    )
+
+
+def _require_supported_effect(effect: str) -> None:
+    if not is_supported_effect(effect):
+        supported = ", ".join(supported_effect_names())
+        raise ValueError(f"unsupported effect '{effect}'; supported effects: {supported}")
+
+
+def _require_supported_specs(specs: list[dict[str, Any]]) -> None:
+    for spec in specs:
+        _require_supported_effect(spec["effect"])

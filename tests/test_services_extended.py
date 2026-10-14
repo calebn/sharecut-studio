@@ -1400,6 +1400,39 @@ def test_edit_add_effect_requires_arg(minimal_project, sample_wav) -> None:
         EditService(ws).add_effect(speaker="Host")
 
 
+def test_edit_add_unsupported_effect_refuses_before_mutation(minimal_project, sample_wav) -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    with patch.object(ws, "mutate", wraps=ws.mutate) as mutate:
+        with pytest.raises(CodedValueError) as caught:
+            EditService(ws).add_effect(track_id="host", effect="volume")
+    assert caught.value.code == "unsupported_effect"
+    assert "highpass" in str(caught.value)
+    assert "volume" in str(caught.value)
+    mutate.assert_not_called()
+
+
+def test_edit_add_unsupported_custom_preset_refuses_before_mutation(
+    minimal_project, sample_wav
+) -> None:
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    with (
+        patch(
+            "podcast_mcp.effects.presets.load_defaults",
+            return_value={"effects": {"legacy_custom": [{"effect": "alimiter", "params": {}}]}},
+        ),
+        patch.object(ws, "mutate", wraps=ws.mutate) as mutate,
+    ):
+        with pytest.raises(CodedValueError) as caught:
+            EditService(ws).add_effect(track_id="host", preset="legacy_custom")
+    assert caught.value.code == "unsupported_effect"
+    assert "alimiter" in str(caught.value)
+    mutate.assert_not_called()
+
+
 def test_edit_analyze_cleanup(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"tracks": ["host"], "issues": []}
@@ -1841,8 +1874,8 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
     with patch("podcast_mcp.services.document.edit.add_effect", return_value=chain):
         out = EditService(ws).add_effect(
             speaker="Host",
-            effect="eq",
-            params={"gain_db": 2},
+            effect="highpass",
+            params={"frequency": 300},
         )
     assert out["effects"][0]["effect"] == "eq"
 

@@ -28,6 +28,7 @@ from podcast_mcp.engines.audio import (
     postorder,
     sources,
 )
+from podcast_mcp.engines.effect_filters import format_effect
 from podcast_mcp.engines.mastering import (
     LIMITER_MARGIN_DB,
     LIMITER_MAX_RENDERS,
@@ -104,51 +105,9 @@ def _escape_filter_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
-def _compressor_filter(params: dict[str, Any]) -> str:
-    rendered = (
-        f"acompressor=threshold={params.get('threshold_db', -18)}dB"
-        f":ratio={params.get('ratio', 3)}"
-        f":attack={params.get('attack_ms', 15)}"
-        f":release={params.get('release_ms', 150)}"
-    )
-    makeup = float(params.get("makeup_db", 0))
-    return f"{rendered}:makeup={makeup}" if makeup != 0.0 else rendered
-
-
 def _effect_filter(fx: ProcessingEffect) -> str | None:
     """Format one supported processing effect; preserve order in the caller."""
-    p = fx.params
-    match fx.effect:
-        case "highpass":
-            return f"highpass=f={int(p.get('frequency', 80))}"
-        case "acompressor":
-            return _compressor_filter(p)
-        case "loudnorm":
-            return f"loudnorm=I={p.get('integrated_lufs', -16)}:TP={p.get('true_peak_db', -1.5)}:LRA=11"
-        case "afftdn":
-            return f"afftdn=nr={p.get('nr', 12)}:nf={p.get('nf', -25)}"
-        case "arnndn":
-            return (
-                f"arnndn=m={_escape_filter_value(p.get('model') or str(resolve_rnnoise_model()))}"
-            )
-        case "bandreject":
-            return f"bandreject=f={p.get('f', 6500)}:width_type=h:w={p.get('w', 3000)}"
-        case "deesser":
-            return f"deesser=i={p.get('intensity', 0.5)}:f={p.get('frequency', 0.5)}"
-        case "agate":
-            return (
-                f"agate=threshold={p.get('threshold_db', -30)}dB"
-                f":range={p.get('range_db', -20)}dB"
-                f":attack={p.get('attack_ms', 5)}"
-                f":release={p.get('release_ms', 50)}"
-            )
-        case "equalizer":
-            return (
-                f"equalizer=f={p.get('f', 1000)}:t={p.get('t', 'q')}"
-                f":w={p.get('w', 1.0)}:g={p.get('g', 0)}"
-            )
-        case _:
-            return None
+    return format_effect(fx.effect, fx.params)
 
 
 _PROGRESS_TIME_RE = re.compile(r"^out_time_(?:us|ms)=(\d+)$")  # both are microseconds

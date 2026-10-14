@@ -376,7 +376,13 @@ export interface ProjectView {
   applied_edits: { count: number; records: AppliedEditRecord[] };
   effects_by_track: Record<
     string,
-    { effect: string; params: Record<string, unknown>; bypass?: boolean }[]
+    {
+      effect: string;
+      params: Record<string, unknown>;
+      bypass?: boolean;
+      supported?: boolean;
+      warning?: string;
+    }[]
   >;
   envelopes: AutomationEnvelope[];
   social_clips: SocialClipView[];
