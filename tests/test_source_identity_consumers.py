@@ -285,12 +285,21 @@ def test_source_witness_geometry_matches_with_and_without_proof_caches(
                     for value in (row[3], row[4], row[5])
                 ]
                 assert source_a_windows == pytest.approx([0.0, 0.1, 10.0, 0.4, 2.0, 10.1])
-                b_after = [row[:5] for row in result[2] if row[2] == "B"]
-                b_before = [row[:5] for row in before if row[2] == "B"]
-                assert b_after == b_before
+                b_after = [(row[2], row[3], row[4], row[5]) for row in result[2] if row[2] == "B"]
+                assert b_after == [("B", 0.0, 2.0, 5.0), ("B", 4.0, 6.0, 19.7)]
 
     assert outcomes[(True, False)] == outcomes[(True, True)]
-    assert outcomes[(False, False)] == outcomes[(False, True)]
+    for cache_mode in (False, True):
+        applied = outcomes[(False, cache_mode)]
+        assert applied[:2] == ("applied", 1)
+        assert applied[3] == 0
+    applied_geometry = [
+        (row[1], row[2], row[3], row[4], row[5]) for row in outcomes[(False, False)][2]
+    ]
+    cached_geometry = [
+        (row[1], row[2], row[3], row[4], row[5]) for row in outcomes[(False, True)][2]
+    ]
+    assert applied_geometry == cached_geometry
 
 
 def _clip_geometry(
