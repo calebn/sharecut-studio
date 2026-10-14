@@ -1398,3 +1398,26 @@ def test_precorrect_queues_the_stretched_word_not_its_pairs(tmp_path) -> None:
             "duration_sec": 10.22,
         }
     ]
+
+
+def test_glossary_pass_fixes_the_take_that_holds_the_match() -> None:
+    p = EpisodeProject.create("precorrect", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            source_id="take1",
+            words=[TranscriptWord(text="hello", start=0.0, end=0.5)],
+        ),
+        Transcript(
+            track_id="host",
+            source_id="take2",
+            words=[
+                TranscriptWord(text="x", start=0.0, end=0.5),
+                TranscriptWord(text="teh", start=11.0, end=11.5),
+            ],
+        ),
+    ]
+    report = run_glossary_pass(p, _ctx(), dry_run=False)
+    assert report["count"] == 1
+    assert [w.text for w in p.transcripts[0].words] == ["hello"]
+    assert [w.text for w in p.transcripts[1].words] == ["x", "the"]

@@ -47,13 +47,13 @@ import { trackWordSourceId } from "../utils/transcript";
 import { loadBoundaryContext } from "./boundary";
 import { loadDocumentState } from "./project";
 
-/** Wire shape for a guarded transcript command's optional stale-text guard. */
 /** The take whose words the track's `word_index` counts; omitted when the track has one (#1476). */
 function withLaneSource(trackId: string): { source_id?: string } {
   const sourceId = trackWordSourceId(useDawStore.getState().project, trackId);
   return sourceId == null ? {} : { source_id: sourceId };
 }
 
+/** Wire shape for a guarded transcript command's optional stale-text guard. */
 function withExpectedText(expectedText?: string | null): {
   expected_text?: string;
 } {
