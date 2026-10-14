@@ -986,6 +986,7 @@ describe("MobileShell", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptWord",
       trackId: "host",
+      sourceId: null,
       wordIndex: 0,
     });
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
