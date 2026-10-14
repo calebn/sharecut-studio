@@ -67,7 +67,9 @@ full-screen path.**
 - **Safe areas.** `index.html` sets `viewport-fit=cover`. The shell pads all
   four sides with `env(safe-area-inset-*)`, so rows clear the notch or Dynamic
   Island side held sideways and the home indicator; the inset bands take
-  `--color-bg-base`. Other pages pad the body's left and right.
+  `--color-bg-base`. Viewport-fixed top-layer panels also set their edges from
+  the matching safe-area insets because they escape shell padding. Other pages
+  pad the body's left and right.
 - **Home Screen app.** `public/assets/app/manifest.webmanifest` declares
   `display: standalone`, the name "Sharecut Studio" (short "Sharecut"), the
   transport colour `#1b1815` as theme and background, and icons rendered from
