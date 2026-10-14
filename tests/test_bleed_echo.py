@@ -316,6 +316,24 @@ def test_two_mic_pairs_keep_direction_when_guest_gain_changes(guest_gain_db: flo
     assert pairs[("guest", "host")] == pytest.approx(8.0, abs=0.25)
 
 
+def _zoom_gain_copy(source: np.ndarray) -> np.ndarray:
+    copy = np.zeros_like(source)
+    copy[24:] = source[:-24]
+    half = source.size // 2
+    copy[:half] *= 10 ** (-18 / 20)
+    copy[half:] *= 10 ** (1 / 20)
+    return copy
+
+
+def test_zoom_gain_copy_flags_only_guest_into_host() -> None:
+    guest = _speech_like(20.0, seed=3, gaps=False)
+    host = _zoom_gain_copy(guest)
+    flagged = _risk_pairs({"guest": guest, "host": host})
+    pairs = {(p.source_track_id, p.bleed_track_id): p.lag_ms for p in flagged}
+    assert set(pairs) == {("guest", "host")}
+    assert pairs[("guest", "host")] == pytest.approx(3.0, abs=0.25)
+
+
 def test_echo_risk_pairs_flags_only_the_measured_direction() -> None:
     """Reconcile's whole-track measurement: the mic that carries a delayed copy is the
     bleed side of one directed pair, and independent voices produce no pair (#774)."""
