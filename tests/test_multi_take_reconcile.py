@@ -25,6 +25,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 # Take 2 plays at timeline 0-10 s from its own 0-10 s; take 3 plays at 10-30 s from its
 # own 0-20 s. Dani's mic is loud only at timeline 14-16 s, where it bleeds into Vicky's.
@@ -163,16 +164,40 @@ def test_lane_transcripts_read_each_take_at_its_placement(tmp_path: Path) -> Non
 
     lanes = lane_transcripts(project, "vicky")
 
-    assert [(lt.key, lt.session_offset) for lt in lanes] == [
-        (("vicky", "take2"), 0.0),
-        (("vicky", "take3"), 10.0),
+    assert [(lt.key, lt.session_time(4.5)) for lt in lanes] == [
+        (("vicky", "take2"), 4.5),
+        (("vicky", "take3"), 14.5),
     ]
+
+
+def test_a_teaser_clip_does_not_move_the_rest_of_its_lane(tmp_path: Path) -> None:
+    """A cold-open teaser replays source 600-610 s at 0 s; the take's main placement
+    still reads its words at source + 10 s, where the guest's twins sit."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id=tid, label=tid, role=TrackRole.DIALOGUE, speaker=tid) for tid in ("host", "guest")
+    ]
+    project.clips = [
+        Clip(id="t", track_id="host", source_start=600.0, source_end=610.0, timeline_start=0.0),
+        Clip(id="h", track_id="host", source_start=0.0, source_end=900.0, timeline_start=10.0),
+        Clip(id="g", track_id="guest", source_start=0.0, source_end=900.0, timeline_start=10.0),
+    ]
+    project.transcripts = [
+        Transcript(track_id="host", words=_words("hello", [100.0, 605.0])),
+        Transcript(track_id="guest", words=_words("hello", [100.0])),
+    ]
+
+    (host,) = lane_transcripts(project, "host")
+    report = overlap_duplicate_report(project, audibility=[])
+
+    assert [host.session_time(100.0), host.session_time(605.0)] == [110.0, 615.0]
+    assert [(p["word_index_a"], p["word_index_b"]) for p in report["pairs"]] == [(0, 0)]
 
 
 def test_a_bare_word_index_on_a_two_take_lane_names_no_word(tmp_path: Path) -> None:
     project = _two_take_project(tmp_path)
 
-    with pytest.raises(ValueError, match="give each word's source_id"):
+    with pytest.raises(CodedValueError, match="give each word's source_id"):
         requested_word_keys(project, [{"track_id": "vicky", "word_index": 1}])
     assert requested_word_keys(project, [{"track_id": "dani", "word_index": 0}]) == {
         ("dani", None, 0)
