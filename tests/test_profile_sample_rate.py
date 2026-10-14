@@ -98,3 +98,14 @@ def test_uncached_window_rms_matches_the_decoded_track_on_broadband_noise(
     uncached = measure_window_rms_db(path, start, start + 0.02)
     cached = cache.rms_db(start, start + 0.02)
     assert uncached == pytest.approx(cached, abs=1.0)
+
+
+def test_lowpass_of_a_signal_shorter_than_its_kernel_is_not_shifted() -> None:
+    from podcast_mcp.engines.align import _antialias_margin, _lowpass
+
+    margin = _antialias_margin(48_000, 8_000)
+    noise = np.random.default_rng(1).normal(size=40)
+    short = _lowpass(noise, 48_000, 8_000, margin)
+    padded = _lowpass(np.concatenate([np.zeros(500), noise, np.zeros(500)]), 48_000, 8_000, margin)
+    assert short.shape == noise.shape
+    np.testing.assert_allclose(short, padded[500:540], atol=1e-12)
