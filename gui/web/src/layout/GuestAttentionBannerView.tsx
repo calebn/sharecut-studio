@@ -125,7 +125,7 @@ export function GuestAttentionBannerView({
                   : "Inspect History before trying this action again."}
               </span>
             ) : (
-              <span>Send now retries this same command.</span>
+              <span>The app will retry this same command automatically.</span>
             )}
           </li>
         ))}
