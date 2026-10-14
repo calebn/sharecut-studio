@@ -648,7 +648,7 @@ enforced-by:
 - gui/web/e2e-compat/compact-feedback-detents.spec.ts::feedback preserves selected half and full geometry and permitted ruler and lane room
 -->
 
-Host offline command attention occupies its own shell row on phone, tablet, and desktop; queued host edits stay visible while reconnect/replay is pending, and conflict rows can be dismissed. Opening **Details** overlays a viewport-bounded panel below the compact row, so the explanation and recovery controls stay visible without resizing the shell or its inspector detents. The share-mode label remains guest-only.
+Host offline command attention occupies its own shell row on phone, tablet, and desktop; queued host edits stay visible while reconnect/replay is pending, and conflict rows can be dismissed. Opening **Details** overlays a viewport-bounded panel below the compact row, so the explanation and recovery controls stay visible without resizing the shell or its inspector detents. The complete alert and its native Details disclosure render in a body portal before the app chrome, preserving their keyboard order and keeping the trigger and recovery controls above the inspector on browsers without Popover support. A reserved shell slot keeps the row height; its measured bounds position the alert and set the panel start. The panel resets its margin and subtracts that measured start and the bottom safe-area inset from its height limit. Removing the attention or unmounting the view removes the portal host and cancels its position updates. The share-mode label remains guest-only.
 
 ## Testing
 

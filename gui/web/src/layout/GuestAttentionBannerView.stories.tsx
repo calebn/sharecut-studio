@@ -31,7 +31,9 @@ export const PendingHostEdits: Story = {
   args: { pending: 2 },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText("2 pending"),
+      within(canvasElement.ownerDocument.body).getByRole("alert", {
+        name: "Needs attention. 2 pending",
+      }),
     ).toBeInTheDocument();
   },
 };
@@ -50,7 +52,12 @@ export const Conflicts: Story = {
     ],
   },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
+    const canvas = within(
+      within(canvasElement.ownerDocument.body).getByRole("alert", {
+        name: "Needs attention. 2 conflicts",
+      }),
+    );
+    await userEvent.click(canvas.getByText("Details"));
     await userEvent.click(canvas.getByRole("button", { name: "Dismiss all" }));
     await expect(args.onDismissAll).toHaveBeenCalledTimes(1);
   },
@@ -67,7 +74,9 @@ export const PendingAndConflict: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText("1 pending, 1 conflict"),
+      within(canvasElement.ownerDocument.body).getByRole("alert", {
+        name: "Needs attention. 1 pending, 1 conflict",
+      }),
     ).toBeInTheDocument();
   },
 };
@@ -81,7 +90,12 @@ export const PhoneManyConflicts: Story = {
     ),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+    const canvas = within(
+      within(canvasElement.ownerDocument.body).getByRole("alert", {
+        name: "Needs attention. 7 conflicts",
+      }),
+    );
+    await userEvent.click(canvas.getByText("Details"));
     await expect(canvas.getAllByRole("listitem")).toHaveLength(6);
     await expect(canvas.getByText("+2 more")).toHaveClass(
       "guest-attention-more",

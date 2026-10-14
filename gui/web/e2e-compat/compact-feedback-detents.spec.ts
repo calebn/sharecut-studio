@@ -54,6 +54,23 @@ for (const {
         (value) => localStorage.setItem("daw_theme", value),
         theme,
       );
+      if (
+        viewport.width === 844 &&
+        rootPx === 32 &&
+        inspector === "Envelope" &&
+        theme === "dark"
+      ) {
+        await page.addInitScript(() => {
+          Object.defineProperty(HTMLElement.prototype, "showPopover", {
+            value: undefined,
+            configurable: true,
+          });
+          Object.defineProperty(HTMLElement.prototype, "hidePopover", {
+            value: undefined,
+            configurable: true,
+          });
+        });
+      }
       await rememberInspectorDetent(page, "half");
       await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       await buildFixture(page, projectPath, "e2e-feedback-detents");
@@ -311,31 +328,16 @@ for (const {
       expect(disclosureGeometry.summaryFocused).toBe(true);
       await summary.press("Enter");
       await expect(details).not.toHaveAttribute("open", "");
-      await expect
-        .poll(() =>
-          details
-            .locator(".guest-attention-details-content")
-            .evaluate((element) => element.matches(":popover-open")),
-        )
-        .toBe(false);
-      await summary.click();
+      await expect(
+        details.locator(".guest-attention-details-content"),
+      ).not.toBeVisible();
+      await summary.press("Space");
       await expect(details).toHaveAttribute("open", "");
-      await expect
-        .poll(() =>
-          details
-            .locator(".guest-attention-details-content")
-            .evaluate((element) => element.matches(":popover-open")),
-        )
-        .toBe(true);
+      await expect(
+        details.locator(".guest-attention-details-content"),
+      ).toBeVisible();
       await summary.click();
       await expect(details).not.toHaveAttribute("open", "");
-      await expect
-        .poll(() =>
-          details
-            .locator(".guest-attention-details-content")
-            .evaluate((element) => element.matches(":popover-open")),
-        )
-        .toBe(false);
       const withFeedback: Record<string, number> = {};
       for (const detent of ["half", "full"] as const) {
         if (detent === "full")
