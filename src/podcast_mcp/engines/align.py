@@ -254,7 +254,7 @@ def _lowpass(samples: np.ndarray, in_rate: int, out_rate: int, margin: int) -> n
     kernel = 2 * cutoff * np.sinc(2 * cutoff * offsets) * np.blackman(offsets.size)
     kernel /= kernel.sum()
     if samples.size * kernel.size < 20_000_000:
-        return np.convolve(samples, kernel, mode="same")
+        return np.convolve(samples, kernel)[margin : margin + samples.size]
     size = 1 << int(np.ceil(np.log2(samples.size + kernel.size)))
     full = np.fft.irfft(np.fft.rfft(samples, size) * np.fft.rfft(kernel, size), size)
     return full[margin : margin + samples.size]
