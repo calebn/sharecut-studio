@@ -187,8 +187,9 @@ html[data-shell] body {
 
 .guest-attention-details-content {
   position: fixed;
-  inset-inline: 0;
-  inset-block-start: var(--touch-min);
+  left: env(safe-area-inset-left);
+  right: env(safe-area-inset-right);
+  inset-block-start: calc(var(--touch-min) + env(safe-area-inset-top));
   z-index: var(--z-menu);
   box-sizing: border-box;
   max-block-size: calc(
