@@ -21,9 +21,9 @@ import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
 import { pendingListRowLabel } from "../utils/pendingEditLabels";
 import {
   type BulkReviewAction,
-  bulkReviewAppliedBeforeAskMessage,
-  bulkReviewDoneMessage,
   bulkReviewQuestion,
+  capturePendingReview,
+  finishPendingReview,
   reviewPassOf,
 } from "../utils/pendingReviewPass";
 
@@ -41,7 +41,8 @@ export function ImpactPanel() {
       setSelection: s.setSelection,
     }),
   );
-  const { busy, error, errorCode, setError, run } = useProjectMutation();
+  const { busy, error, errorCode, setError, run, refresh } =
+    useProjectMutation();
   const [working, setWorking] = useState<{
     action: BulkReviewAction;
     count: number;
@@ -70,7 +71,8 @@ export function ImpactPanel() {
   }
   const imp = project.edit_impact;
   const unmappable = selectUnmappedPending(project.pending_edits);
-  const reviewRequired = project.pending_edits.filter((e) => e.review_required);
+  const reviewPass = reviewPassOf(project.pending_edits);
+  const reviewCount = reviewPass.ids.length;
 
   const canReviewAll = canReviewPendingEdit(projectPath, shareCapabilities);
 
@@ -93,6 +95,7 @@ export function ImpactPanel() {
       return;
     }
     setQueued(false);
+    const review = capturePendingReview(action, projectPath);
     setWorking({
       action,
       count: ids.length,
@@ -101,32 +104,21 @@ export function ImpactPanel() {
     await run(async () => {
       const outcome =
         action === "approve"
-          ? await approveEdits(projectPath, ids, false, true, undefined, true)
-          : { ...(await rejectEdits(projectPath, ids)), asked: false };
-      const { queued, asked, historyHead } = outcome;
+          ? await approveEdits(
+              projectPath,
+              ids,
+              false,
+              true,
+              review,
+              true,
+            )
+          : await rejectEdits(projectPath, ids);
+      const { queued } = outcome;
       setQueued(queued);
       setSelection(null);
-      if (!queued && !asked) {
-        useDawStore
-          .getState()
-          .announceStatus(bulkReviewDoneMessage(action, ids.length, outcome), {
-            undo: historyHead,
-          });
-      } else if (
-        !queued &&
-        "applied" in outcome &&
-        (outcome.applied ?? 0) > 0
-      ) {
-        // Applied what it could; the cut-speech question covers only the rest.
-        useDawStore
-          .getState()
-          .announceStatus(
-            bulkReviewAppliedBeforeAskMessage(
-              outcome.applied ?? 0,
-              outcome.held ?? [],
-            ),
-            { undo: historyHead },
-          );
+      if (!queued) {
+        finishPendingReview(review, outcome);
+        await refresh();
       }
     });
     setWorking(null);
@@ -200,12 +192,12 @@ export function ImpactPanel() {
         </details>
       )}
 
-      {reviewRequired.length > 0 && (
+      {reviewCount > 0 && (
         <div className="impact-bulk">
           <p className="impact-bulk-lead">
-            {reviewRequired.length === 1
+            {reviewCount === 1
               ? "1 pending edit needs review."
-              : `${reviewRequired.length} pending edits need review.`}
+              : `${reviewCount} pending edits need review.`}
           </p>
           <div className="impact-bulk-actions">
             <Button
@@ -219,7 +211,7 @@ export function ImpactPanel() {
               }
               onClick={() => void runBulk("approve")}
             >
-              Approve all ({reviewRequired.length})
+              Approve all ({reviewCount})
             </Button>
             <Button
               disabledReason={
@@ -231,7 +223,7 @@ export function ImpactPanel() {
               }
               onClick={() => void runBulk("reject")}
             >
-              Reject all ({reviewRequired.length})
+              Reject all ({reviewCount})
             </Button>
           </div>
           {working ? (
@@ -278,7 +270,7 @@ export function ImpactPanel() {
       {queuedNotice}
       {!isShareProjectKey(projectPath) ? (
         <TranscriptRefineRecovery
-          key={reviewRequired.map((edit) => edit.id).join(",")}
+          key={reviewPass.ids.join(",")}
           projectPath={projectPath}
           error={error}
           errorCode={errorCode}

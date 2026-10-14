@@ -5,7 +5,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { HistoryEntryId } from "../types/project";
-import { Toast } from "../ui";
+import { TOAST_MS, TOAST_UNDO_MS, Toast } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { registerFocusHold } from "../ui/focusHold";
 import { isValidFocusTarget } from "../ui/focusTarget";
@@ -214,6 +214,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
           : undefined
       }
       undoDisabledReason={undoing ? BUSY_REASON : undefined}
+      timeoutMs={undoEntry ? TOAST_UNDO_MS : TOAST_MS}
       visibility={visibility}
     />,
     portal,

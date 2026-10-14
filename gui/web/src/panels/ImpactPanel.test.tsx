@@ -26,6 +26,11 @@ vi.mock("../state/offlineStore", async (importOriginal) => ({
   loadHostCommandCount,
 }));
 
+vi.mock("../document/applyDocumentUpdate", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../document/applyDocumentUpdate")>()),
+  refreshDocumentProject: vi.fn(async () => minimalProject()),
+}));
+
 vi.mock("../api", () => ({
   approveEdits: vi.fn(async () => ({
     queued: false,
@@ -356,16 +361,15 @@ describe("ImpactPanel bulk review", () => {
     renderPanel();
     expect(screen.getByText("3 pending edits need review.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
-    await waitFor(() =>
-      expect(approveEdits).toHaveBeenCalledWith(
-        "/tmp/p.json",
-        ["e1", "e2", "e3"],
-        false,
-        true,
-        undefined,
-        true,
-      ),
-    );
+    await waitFor(() => expect(approveEdits).toHaveBeenCalled());
+    expect(vi.mocked(approveEdits).mock.calls[0]?.slice(0, 5)).toEqual([
+      "/tmp/p.json",
+      ["e1", "e2", "e3"],
+      false,
+      true,
+      expect.objectContaining({ action: "approve", projectPath: "/tmp/p.json" }),
+    ]);
+    expect(vi.mocked(approveEdits).mock.calls[0]?.[5]).toBe(true);
     expect(asked).toEqual([
       {
         kind: "confirm",
@@ -515,16 +519,8 @@ describe("ImpactPanel bulk review", () => {
     });
     renderPanel();
     await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
-    await waitFor(() =>
-      expect(approveEdits).toHaveBeenCalledWith(
-        "/tmp/p.json",
-        ["e1", "e3"],
-        false,
-        true,
-        undefined,
-        true,
-      ),
-    );
+    await waitFor(() => expect(approveEdits).toHaveBeenCalled());
+    expect(vi.mocked(approveEdits).mock.calls[0]?.[1]).toEqual(["e1", "e3"]);
     expect(useDawStore.getState().feedbackToast?.message).toBe(
       "Approved 2 pending edits",
     );
