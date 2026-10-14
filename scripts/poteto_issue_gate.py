@@ -25,7 +25,6 @@ _REVIEW_COMMENTS_PER_PAGE: Final = "100"
 
 
 def gh_json(*args: str) -> Any:
-    """Run gh without a shell; accept nonzero check status only with valid JSON."""
     result = subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
     if result.returncode and args[:2] != ("pr", "checks"):
         raise RuntimeError(result.stderr.strip() or f"gh {' '.join(args)} failed")
@@ -42,7 +41,6 @@ def _api_path(repo: str, suffix: str) -> str:
 
 
 def rest_fetch_pull(repo: str, pr_number: int) -> dict[str, Any]:
-    """GET /repos/{owner}/{repo}/pulls/{number}."""
     wire = gh_json("api", _api_path(repo, f"pulls/{pr_number}"))
     if not isinstance(wire, dict):
         raise RuntimeError("pull request response was not an object")
@@ -50,7 +48,6 @@ def rest_fetch_pull(repo: str, pr_number: int) -> dict[str, Any]:
 
 
 def rest_fetch_check_run_pages(repo: str, head_sha: str) -> list[dict[str, Any]]:
-    """GET /repos/{owner}/{repo}/commits/{sha}/check-runs."""
     pages = gh_json(
         "api",
         _api_path(repo, f"commits/{head_sha}/check-runs?per_page={_CHECK_RUNS_PER_PAGE}"),
@@ -63,7 +60,6 @@ def rest_fetch_check_run_pages(repo: str, head_sha: str) -> list[dict[str, Any]]
 
 
 def rest_fetch_review_comment_pages(repo: str, pr_number: int) -> list[list[dict[str, Any]]]:
-    """GET /repos/{owner}/{repo}/pulls/{number}/comments."""
     pages = gh_json(
         "api",
         _api_path(repo, f"pulls/{pr_number}/comments?per_page={_REVIEW_COMMENTS_PER_PAGE}"),
@@ -76,7 +72,6 @@ def rest_fetch_review_comment_pages(repo: str, pr_number: int) -> list[list[dict
 
 
 def rest_fetch_issue(repo: str, issue_number: int) -> dict[str, Any]:
-    """GET /repos/{owner}/{repo}/issues/{number}."""
     wire = gh_json("api", _api_path(repo, f"issues/{issue_number}"))
     if not isinstance(wire, dict):
         raise RuntimeError("issue response was not an object")
@@ -134,7 +129,6 @@ def flatten_check_run_pages(pages: list[dict[str, Any]]) -> list[dict[str, str]]
 
 
 def _thread_root_id(comment_id: int, by_id: dict[int, dict[str, Any]]) -> int:
-    """Follow in_reply_to_id until root; cycle-safe."""
     current = comment_id
     seen: set[int] = set()
     while True:
@@ -153,7 +147,6 @@ def _thread_root_id(comment_id: int, by_id: dict[int, dict[str, Any]]) -> int:
 
 
 def adapt_review_comment_pages(pages: list[list[dict[str, Any]]]) -> list[dict[str, bool]]:
-    """Group review comments by thread root; REST has no resolution field."""
     comments = [comment for page in pages for comment in page if isinstance(comment, dict)]
     by_id: dict[int, dict[str, Any]] = {}
     for comment in comments:
@@ -167,7 +160,6 @@ def adapt_review_comment_pages(pages: list[list[dict[str, Any]]]) -> list[dict[s
 
 
 def issue_comments(repo: str, issue_number: int) -> list[dict[str, Any]]:
-    """Read every issue comment; GitHub returns one array per slurped page."""
     pages = gh_json(
         "api",
         _api_path(repo, f"issues/{issue_number}/comments?per_page=100"),
@@ -187,7 +179,6 @@ def claim_blockers(
     now: datetime,
     stale_hours: int,
 ) -> list[str]:
-    """Verify this run owns the oldest live claim at the merging stage."""
     blockers: list[str] = []
     issue_labels = {label.get("name") for label in issue.get("labels", [])}
     pr_labels = {label.get("name") for label in pr.get("labels", [])}
@@ -231,7 +222,6 @@ def evaluate_gate(
     now: datetime,
     stale_hours: int,
 ) -> dict[str, Any]:
-    """Derive the verdict from raw GitHub rows, never a model summary."""
     blockers: list[str] = []
     sha = before.get("headRefOid")
     if not isinstance(sha, str) or not HEAD_SHA.fullmatch(sha):
