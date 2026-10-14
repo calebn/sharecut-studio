@@ -702,6 +702,8 @@ def word_voice_sounds_in(
     track_id: str,
     word_span: tuple[float, float],
     span: tuple[float, float],
+    *,
+    caches: TrackRmsCacheSet | None = None,
 ) -> bool:
     """Whether a word's own voice on ``track_id`` sounds inside timeline ``span``.
 
@@ -718,7 +720,13 @@ def word_voice_sounds_in(
 
     def levels(start: float, end: float) -> np.ndarray | None:
         return timeline_frame_levels_db(
-            project, track_id, start, end, frame_sec=FRAME_SEC, hop_sec=HOP_SEC
+            project,
+            track_id,
+            start,
+            end,
+            frame_sec=FRAME_SEC,
+            hop_sec=HOP_SEC,
+            caches=caches,
         )
 
     word = levels(*word_span)
@@ -733,10 +741,12 @@ def _voiced_in_parts(
     track_id: str,
     word: CutSpeechWord,
     parts: Sequence[tuple[float, float]],
+    *,
+    caches: TrackRmsCacheSet | None = None,
 ) -> bool:
     span = (word.timeline_start, word.timeline_end)
     return any(
-        word_voice_sounds_in(project, track_id, span, (a, b))
+        word_voice_sounds_in(project, track_id, span, (a, b), caches=caches)
         for start, end in parts
         if (a := max(start, span[0])) < (b := min(end, span[1]))
     )
@@ -749,6 +759,7 @@ def speech_words_in(
     min_overlap: float,
     *,
     voiced: bool,
+    caches: TrackRmsCacheSet | None = None,
 ) -> list[CutSpeechWord]:
     """``track_id``'s unsuppressed, unignored words overlapping timeline ``parts``.
 
@@ -784,7 +795,7 @@ def speech_words_in(
                 )
             )
     if voiced:
-        words = [w for w in words if _voiced_in_parts(project, track_id, w, parts)]
+        words = [w for w in words if _voiced_in_parts(project, track_id, w, parts, caches=caches)]
     return sorted(words, key=lambda w: w.timeline_start)
 
 

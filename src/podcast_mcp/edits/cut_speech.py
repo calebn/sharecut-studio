@@ -35,7 +35,7 @@ from podcast_mcp.edits.speech_energy_guard import (
     speech_energy_guard_enabled,
     speech_words_in,
 )
-from podcast_mcp.engines.audio_audit import build_track_rms_caches
+from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, build_track_rms_caches
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     CutSpeech,
@@ -165,6 +165,8 @@ def _own_sound(
     unlabeled: list[tuple[str, list[tuple[float, float]]]],
     scope: list[str],
     cfg: dict[str, Any],
+    *,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> dict[str, list[RangeInterval]]:
     """Windows where a track without words there speaks with its own sound.
 
@@ -178,9 +180,9 @@ def _own_sound(
         for start, end in parts
         for window in _windows(start, end)
     ]
-    caches = (
-        build_track_rms_caches(project, track_ids=scope) if len(jobs) > _WINDOW_READS_MAX else None
-    )
+    caches = timeline_caches
+    if caches is None and len(jobs) > _WINDOW_READS_MAX:
+        caches = build_track_rms_caches(project, track_ids=scope)
     found: dict[str, list[tuple[float, float]]] = {}
     for window, owners, tid in jobs:
         levels = measure_peer_speech(
@@ -211,6 +213,7 @@ def assess_cut_speech(
     *,
     also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> CutSpeech | None:
     """Speech ``removal`` cuts outside what it selected, or ``None`` when it cuts none.
 
@@ -233,13 +236,15 @@ def assess_cut_speech(
             )
             if not parts:
                 continue
-            found = speech_words_in(project, tid, parts, min_overlap, voiced=guard_on)
+            found = speech_words_in(
+                project, tid, parts, min_overlap, voiced=guard_on, caches=timeline_caches
+            )
             if found:
                 words.setdefault(tid, []).extend(found)
             else:
                 unlabeled.append((tid, parts))
     if unlabeled and guard_on:
-        sound = _own_sound(project, removal, unlabeled, scope, cfg)
+        sound = _own_sound(project, removal, unlabeled, scope, cfg, timeline_caches=timeline_caches)
     tracks = [
         CutSpeechTrack(
             track_id=tid,
@@ -325,6 +330,7 @@ def clear_ripple(
     confirm_cut_speech: Literal[True],
     also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> SpeechClearance: ...
 
 
@@ -336,6 +342,7 @@ def clear_ripple(
     confirm_cut_speech: bool,
     also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> SpeechClearance | CutSpeechConfirmation: ...
 
 
@@ -346,6 +353,7 @@ def clear_ripple(
     confirm_cut_speech: bool,
     also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> SpeechClearance | CutSpeechConfirmation:
     """The one guard every rippling path calls before it removes time.
 
@@ -355,7 +363,13 @@ def clear_ripple(
     """
     if removal is None:
         return SpeechClearance(None)
-    speech = assess_cut_speech(project, removal, also_chosen=also_chosen, defaults=defaults)
+    speech = assess_cut_speech(
+        project,
+        removal,
+        also_chosen=also_chosen,
+        defaults=defaults,
+        timeline_caches=timeline_caches,
+    )
     if speech is None:
         return SpeechClearance(removal)
     if not confirm_cut_speech:
