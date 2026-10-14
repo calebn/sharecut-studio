@@ -42,6 +42,7 @@ from podcast_mcp.engines.play_audit import (
     publish_stem,
     read_premix_trim_db,
     stem_fingerprint,
+    stem_hash_matches,
     stem_is_fresh,
     stem_matches,
     stem_path,
@@ -1714,10 +1715,17 @@ class PlayService:
         )
         before = _stem_revisions(stems)
         trim = _stem_mix_trim_db(stems, ceiling)
-        if before is not None and _stem_revisions(stems) == before:
-            # A stem replaced mid-pass (a render started meanwhile) leaves a mix of old and
-            # new audio in the measurement: use it for this preview, but do not record it.
+        steady = before is not None and _stem_revisions(stems) == before
+        if steady and all(
+            stem_hash_matches(self.project, track_id, stem_hash)
+            for track_id, (_path, _gain, stem_hash) in zip(gains, stems, strict=True)
+        ):
             _write_mix_trim_record(record, trim)
+        else:
+            # A stem replaced mid-pass (a render started meanwhile) leaves a mix of old and
+            # new audio in the measurement, or the stems no longer match the key they were
+            # read under: use it for this preview, but neither record nor memoize it.
+            _stem_mix_trim_db.cache_clear()
         return trim
 
     def warm_pending_preview(
