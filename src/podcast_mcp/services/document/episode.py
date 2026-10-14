@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+from podcast_mcp.edits.room_tone import schedule_room_tone_pool
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.track_media import (
     apply_full_span_media,
@@ -59,6 +60,8 @@ class EpisodeService:
         track = self.ws.project.track_by_id(track_id)
         if track is not None:
             schedule_track_waveforms(self.ws.project, track)
+            if track.role == TrackRole.DIALOGUE:
+                schedule_room_tone_pool(self.ws.project, track_id)
         return f"Added track {track_id}"
 
     def add_empty_track(
@@ -120,6 +123,8 @@ class EpisodeService:
         track = self.ws.project.track_by_id(track_id)
         assert track is not None and track.media is not None
         schedule_track_waveforms(self.ws.project, track)
+        if track.role == TrackRole.DIALOGUE:
+            schedule_room_tone_pool(self.ws.project, track_id)
         return {
             "track_id": track_id,
             "media_path": track.media.path,

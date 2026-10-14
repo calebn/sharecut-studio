@@ -101,6 +101,7 @@ from podcast_mcp.edits.retained_bleed_alignment import (
     set_retained_bleed_alignment_mode,
 )
 from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim
+from podcast_mcp.edits.room_tone import ensure_room_tone_pools
 from podcast_mcp.edits.share_registry import get_share_registry
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
@@ -500,6 +501,11 @@ class EditService:
             nonlocal restored
             restored = outcome is RollbackOutcome.RESTORED
 
+        # The recording's room tone is picked once and stored with the project; the first
+        # approve on it pays that here, outside the transaction, and later ones read it.
+        ensure_room_tone_pools(
+            self.ws.project, [e.track_id for e in self.ws.project.edit_decisions if e.id in ids]
+        )
         try:
             with batch_scope():
                 return self.ws.mutate(
