@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OfflineConflict, QueuedCommand } from "./offlineStore";
 
-// Runs both drains through the real submit layer (services/commandQueue.ts)
-// over an in-memory queue and a stubbed fetch. The driver skips a permanent
-// rejection only because the submit layer already dequeued it; this pins that.
-
 const hostQueues = new Map<string, QueuedCommand[]>();
 const guestQueues = new Map<string, QueuedCommand[]>();
 const hostConflicts: OfflineConflict[] = [];
@@ -159,7 +155,7 @@ describe("host drain against the real submit layer", () => {
     expect(ids(hostQueues.get(PATH))).toEqual([]);
   });
 
-  it("keeps a refusal queued and stops when conflict admission fails", async () => {
+  it("does not resend a refusal while its durable settlement is retried", async () => {
     hostQueues.set(PATH, [rec("bad", 1), rec("next", 2)]);
     const posted = stubServer({ bad: 403 });
     conflictReadFailure = true;
@@ -167,9 +163,12 @@ describe("host drain against the real submit layer", () => {
     expect(posted).toEqual(["bad"]);
     expect(ids(hostQueues.get(PATH))).toEqual(["bad", "next"]);
     expect(hostConflicts).toEqual([]);
+    await drain();
+    expect(posted).toEqual(["bad"]);
+    expect(ids(hostQueues.get(PATH))).toEqual(["bad", "next"]);
     conflictReadFailure = false;
     await drain();
-    expect(posted).toEqual(["bad", "bad", "next"]);
+    expect(posted).toEqual(["bad", "next"]);
     expect(hostConflicts[0]).toMatchObject({
       kind: "refused",
       command: {
@@ -230,7 +229,7 @@ describe("guest drain against the real submit layer", () => {
     expect(ids(guestQueues.get(TOKEN))).toEqual([]);
   });
 
-  it("keeps a refusal queued and stops when conflict admission fails", async () => {
+  it("does not resend a refusal while its durable settlement is retried", async () => {
     guestQueues.set(TOKEN, [rec("bad", 1), rec("next", 2)]);
     const posted = stubServer({ bad: 403 });
     conflictReadFailure = true;
@@ -238,9 +237,12 @@ describe("guest drain against the real submit layer", () => {
     expect(posted).toEqual(["bad"]);
     expect(ids(guestQueues.get(TOKEN))).toEqual(["bad", "next"]);
     expect(guestConflicts).toEqual([]);
+    await drain();
+    expect(posted).toEqual(["bad"]);
+    expect(ids(guestQueues.get(TOKEN))).toEqual(["bad", "next"]);
     conflictReadFailure = false;
     await drain();
-    expect(posted).toEqual(["bad", "bad", "next"]);
+    expect(posted).toEqual(["bad", "next"]);
     expect(guestConflicts[0]).toMatchObject({
       kind: "refused",
       command: {
