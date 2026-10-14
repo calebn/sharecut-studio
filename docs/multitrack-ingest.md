@@ -342,6 +342,8 @@ session-clock sign and are applied unchanged.
 
 **Primary score:** `simultaneous_speech_sec` (VAD overlap). **Secondary:** correlation peak, anchor match, drift between two windows (`drift_warning` in suggest output).
 
+The VAD reads each window in one decode per 30 s block and frames it into 0.25 s chunks in numpy (`vad_speech_intervals`), not one ffmpeg process per chunk (#1546): a 90 s window of a compressed file takes seconds, not tens of seconds, and gives the same intervals, so a longer analysis window is affordable.
+
 **Do not** use transcript word overlap alone to confirm sync on bleed-heavy tracks.
 
 Waveform PNGs under `artifacts/alignment/` (`showwavespic` via ffmpeg) show whether energy peaks line up vertically.
