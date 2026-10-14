@@ -1107,13 +1107,13 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   agreement counts and the threshold-free design has nothing to tune against the tape.
   Cost: one Whisper decode per surviving acoustic proposal. Measured on a machine at load
   27 to 57 and `nice` 10, `large-v3-turbo` took a median 8 to 10 s per span (71 spans in 11 to 15
-  minutes) and `base` 0.7 s; an idle machine is not measured, so treat these as an upper bound.
+  minutes) and `base` 0.7 s per decode.
   Model choice (2026-10-14, lab tape rebuilt on a 4-core cloud machine at load 2 to 3, `nice` 10,
   oracle rebuilt on the same spans). The span sets differ from the run above (74 ripple proposals
   where it had 54), so these counts do not extend it. Over 131 acoustic spans in the four
   variants, `large-v3-turbo` flagged 16 of 24 oracle words and 13 of 107 non-words, and `base`
   flagged 11 of 24 and 6 of 107. Turbo's false flags were 6 "mm-hmm" and 3 "mmm" hums, plus 2
-  "umm", 1 "uh" and 1 "hmm", whose target action in the table is Cut; base's were 2 laughs, 2
+  "umm", 1 "uh" and 1 "hmm", where the table's target for um and uh is Cut; base's were 2 laughs, 2
   "umm", 1 "uhh" and 1 "mm-hmm". The oracle shares the probe's prompt and padding, the four
   variants reuse one recording and 24 words is a small sample, so this is agreement, not
   accuracy. Cost is the propose wall time with the probe minus without, per acoustic span, and
