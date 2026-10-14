@@ -228,6 +228,7 @@ def run_glossary_pass(
                     words=word_fixes,
                     phrases=phrases,
                     keep_evidence=True,
+                    source_id=tr.source_id,
                 )
                 for item in word_fixes:
                     applied.append(

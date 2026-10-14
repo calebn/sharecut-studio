@@ -375,8 +375,11 @@ def apply_transcript_corrections(
     words: list[dict] | None = None,
     phrases: list[dict] | None = None,
     keep_evidence: bool = False,
+    source_id: str | None = None,
 ) -> int:
     """Apply word and phrase fixes on one track in a single mutation.
+
+    ``source_id`` names the take whose indices these are (see ``lane_transcript``).
 
     Indices refer to the transcript **at batch start**. Words run first (highest
     ``word_index`` first), then phrases (highest ``start_word_index`` first).
@@ -395,7 +398,7 @@ def apply_transcript_corrections(
         reverse=True,
     ):
         correct_transcript_word(
-            _require_transcript(project, track_id),
+            _require_transcript(project, track_id, source_id),
             int(item["word_index"]),
             str(item["text"]),
             keep_evidence=keep_evidence,
@@ -407,7 +410,7 @@ def apply_transcript_corrections(
         reverse=True,
     ):
         correct_transcript_phrase(
-            _require_transcript(project, track_id),
+            _require_transcript(project, track_id, source_id),
             int(item["start_word_index"]),
             int(item["end_word_index"]),
             str(item["text"]),
