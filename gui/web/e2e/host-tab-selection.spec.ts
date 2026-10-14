@@ -93,6 +93,8 @@ test("a host tab keeps its own selection when another host tab selects, and an a
 
         await agentSelectsClip(tabA, projectPath, last);
         await expect(chosen(tabA, last.id)).toHaveCount(1);
+        await expect(chosen(tabA, first.id)).toHaveCount(0);
+        await expect(selected(tabA)).toHaveCount(1);
         await expect(chosen(tabB, last.id)).toHaveCount(1);
 
         await agentSelectsClip(tabA, projectPath, first);
