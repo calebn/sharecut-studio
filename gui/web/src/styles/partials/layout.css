@@ -142,6 +142,8 @@ html[data-shell] body {
 }
 
 .guest-attention {
+  --attention-panel-top: calc(var(--touch-min) + env(safe-area-inset-top));
+
   box-sizing: border-box;
   display: flex;
   align-items: center;
