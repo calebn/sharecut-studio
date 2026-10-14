@@ -263,7 +263,9 @@ it("warns when a saved chain contains an unsupported effect", () => {
     />,
   );
 
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "Unsupported effect 'volume' will not be rendered",
-  );
+  expect(
+    screen.getByText(
+      "Unsupported effect 'volume' will not be rendered. Remove it from this chain before export.",
+    ),
+  ).toHaveAttribute("role", "status");
 });
