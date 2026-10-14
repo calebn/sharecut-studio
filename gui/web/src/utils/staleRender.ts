@@ -5,6 +5,8 @@ import { projectHasSourceAudio } from "./projectMedia";
 /** Mix-freshness copy shared by the transport pill, status bar and phone chip. */
 export const MIX_STALE_LABEL = "Mix out of date";
 export const MIX_FRESH_LABEL = "Mix up to date";
+/** Shown until the project has loaded: freshness is unknown, so never claim it. */
+export const MIX_CHECKING_LABEL = "Checking mix…";
 /** Nothing is rendered, so Full mix plays nothing. Shown in place of the stale label. */
 export const MIX_MISSING_LABEL = "No mix yet";
 

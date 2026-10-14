@@ -52,7 +52,11 @@ import {
 } from "../utils/audioErrorLabel";
 import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { joinSentences } from "../utils/format";
-import { MIX_FRESH_LABEL, staleMixLabel } from "../utils/staleRender";
+import {
+  MIX_CHECKING_LABEL,
+  MIX_FRESH_LABEL,
+  staleMixLabel,
+} from "../utils/staleRender";
 import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
 import { HistoryControls } from "./HistoryControls";
@@ -255,9 +259,11 @@ export function TransportBar({
       : `Click or ${refreshShortcut} to refresh mix.`;
   const refreshBusyLabel = autoMix ? "Updating mix…" : "Refreshing…";
   const staleTitle = joinSentences([breakdown?.summary, refreshHint]);
-  const mixLabel = breakdown?.stale
-    ? staleMixLabel(breakdown)
-    : MIX_FRESH_LABEL;
+  const mixLabel = loading
+    ? MIX_CHECKING_LABEL
+    : breakdown?.stale
+      ? staleMixLabel(breakdown)
+      : MIX_FRESH_LABEL;
   const mixPillText =
     mayRefresh && !autoMix ? `${mixLabel} · Refresh` : mixLabel;
   const staleAria = renderPreviewBusy
@@ -692,7 +698,10 @@ export function TransportBar({
             {renderPreviewBusy ? refreshBusyLabel : mixPillText}
           </CommandButton>
         ) : null}
-        {!collapsed && !stale ? <Pill tone="ok">{MIX_FRESH_LABEL}</Pill> : null}
+        {!collapsed && loading ? <Pill>{MIX_CHECKING_LABEL}</Pill> : null}
+        {!collapsed && !loading && !stale ? (
+          <Pill tone="ok">{MIX_FRESH_LABEL}</Pill>
+        ) : null}
         {/* Like the stale pill, status moves into the Menu when collapsed
             (Mix status), where touch users can read the full message. */}
         {!collapsed && transportError && (

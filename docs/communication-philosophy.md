@@ -629,4 +629,5 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-13 — Save state is a status light (#1448): a small dot with its text in the name and tooltip, shape plus colour, shown in every phone mode. Send now and Retry live in the Needs attention banner.
 - 2026-10-14 — The mix rebuilds itself (#1468): the host no longer sees
   "· Refresh" after the mix status, and the pill reads "Updating mix…" while it
-  rebuilds. Mod+B stays as "update now".
+  rebuilds. Mod+B stays as "update now". Until the project loads the pill reads
+  "Checking mix…" instead of claiming "Mix up to date".
