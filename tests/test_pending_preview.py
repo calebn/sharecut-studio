@@ -554,6 +554,60 @@ def test_warming_an_edit_leaves_every_mode_cached_for_the_click(minimal_project)
     play.warm_pending_preview("missing")  # an unknown edit warms the mix only
 
 
+def test_a_play_during_the_edit_warm_reads_the_warms_render(
+    minimal_project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.services.document import play as play_module
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    real = play_module.render_track_segment
+    started = threading.Event()
+    release = threading.Event()
+    calls: list[str] = []
+
+    def slow(project, track_id, *args, **kwargs):
+        calls.append(track_id)
+        started.set()
+        release.wait(30)
+        return real(project, track_id, *args, **kwargs)
+
+    monkeypatch.setattr(play_module, "render_track_segment", slow)
+    warm = threading.Thread(target=lambda: PlayService(ws).warm_pending_preview("cut"))
+    warm.start()
+    assert started.wait(30)
+    clicked: list[object] = []
+    click = threading.Thread(
+        target=lambda: clicked.append(
+            PlayService(ws).play_pending_preview("cut", mode="current", dry_run=True)
+        )
+    )
+    click.start()
+    release.set()
+    warm.join(60)
+    click.join(60)
+
+    assert clicked
+    # The click's Current window was the warm's file: its tracks were rendered once.
+    tracks = [t for t in ws.project.tracks if not t.muted and t.media is not None]
+    # Current and Suggested, one render per track each: the click added none.
+    assert len(calls) == 2 * len(tracks)
+
+
 def test_a_transcript_change_does_not_reuse_a_cached_pending_render(minimal_project) -> None:
     from podcast_mcp.models import Transcript, TranscriptWord
     from podcast_mcp.services.document import PlayService

@@ -14,7 +14,8 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -275,6 +276,23 @@ def _cache_last_used(path: Path) -> float:
     Raises ``FileNotFoundError`` when the file is gone.
     """
     return path.stat().st_atime
+
+
+_WINDOW_LOCKS: dict[str, threading.Lock] = {}
+_WINDOW_LOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def _window_render_lock(path: Path) -> Iterator[None]:
+    """One render of a content-addressed preview window at a time in this process."""
+    with _WINDOW_LOCKS_GUARD:
+        lock = _WINDOW_LOCKS.setdefault(str(path), threading.Lock())
+    with lock:
+        try:
+            yield
+        finally:
+            with _WINDOW_LOCKS_GUARD:
+                _WINDOW_LOCKS.pop(str(path), None)
 
 
 class PlayService:
@@ -1830,6 +1848,22 @@ class PlayService:
         if out.is_file() and not rerender:
             self._mark_play_cache_used(out)
             return out
+        # The edit warm and the first Play around render the same content-addressed window
+        # at once; the second waits for the first and reads its file instead of rendering it.
+        with _window_render_lock(out):
+            if out.is_file() and not rerender:
+                self._mark_play_cache_used(out)
+                return out
+            return self._render_pending_window(window, side, out, lock_timeout=lock_timeout)
+
+    def _render_pending_window(
+        self,
+        window: PendingPreviewWindow,
+        side: str,
+        out: Path,
+        *,
+        lock_timeout: float,
+    ) -> Path:
         if side == "suggested":
             project = snapshot_project(self.project)
             play_end = apply_for_suggested(project, window)
