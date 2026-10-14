@@ -92,6 +92,17 @@ def test_equivalent_source_ids_includes_alias(tmp_path: Path):
     assert ids == frozenset({None, "guest-alias"})
 
 
+def test_equivalent_source_ids_on_track_without_media(tmp_path: Path):
+    """Clip-only lanes (no track.media) must not raise when batching cut-speech extents."""
+    root = tmp_path / "ep"
+    project = EpisodeProject.create("clip lane", str(root))
+    project.tracks = [Track(id="c", label="c", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="other", track_id="c", source_start=0, source_end=20, timeline_start=0),
+    ]
+    assert project.equivalent_source_ids("c", None) == frozenset({None})
+
+
 def test_chosen_on_timeline_maps_parked_alias_for_primary_extent(tmp_path: Path):
     project = _cross_lane_alias_project(tmp_path)
     chosen = [SourceExtent("guest", 5.0, 5.5, source_id=None)]
