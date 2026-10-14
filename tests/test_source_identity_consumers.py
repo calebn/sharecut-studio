@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from podcast_mcp.edits.decisions import approve_edits, update_pending_edit
+from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, update_pending_edit
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.pending_preview import _timeline_span
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
@@ -461,6 +461,74 @@ def test_source_witness_rejects_equivalent_clip_on_different_source_clock() -> N
         approve_edits(project, [decision.id], confirm_cut_speech=True)
 
     assert held.value.held[0].reason == "source_geometry"
+
+
+@pytest.mark.parametrize("scope", ["track", "session"])
+def test_auto_filler_keeps_witnessed_window_when_optimizer_would_enter_next_take(
+    scope: str, monkeypatch
+) -> None:
+    project = _two_take_project()
+    selected = next(clip for clip in project.clips if clip.id == "a")
+    next_take = next(clip for clip in project.clips if clip.id == "b1")
+    selected.source_end = 0.42
+    selected.timeline_start = 10.0
+    next_take.timeline_start = 5.0
+    decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+    decision = update_pending_edit(project, decision.id, start=0.12, end=0.42, snap=False)
+    assert decision.source_timeline_span is not None
+    decision.reason = "filler:um"
+    decision.review_required = False
+    decision.scope = scope
+    next_take.timeline_start = decision.source_timeline_span.end
+    project.timeline.duration_sec = max(clip.timeline_end for clip in project.clips)
+    assert decision.boundary_mode is None
+    assert decision.source_timeline_span is not None
+
+    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+
+    optimize_calls = []
+
+    def optimize(_project, _track_id, start, _end, **_kwargs):
+        optimize_calls.append((start, _end))
+        return OptimizedCutRange(
+            start=start,
+            end=start + 0.38,
+            mode="exact",
+            shifted_start_ms=0,
+            shifted_end_ms=80,
+            confidence=1,
+            details={},
+        )
+
+    def optimized_ripple(_project, start, _end, _use_inaudible_opt):
+        optimize_calls.append((start, _end))
+        return start, start + 0.38
+
+    monkeypatch.setattr("podcast_mcp.edits.source_removals.optimize_timeline_cut_range", optimize)
+    monkeypatch.setattr("podcast_mcp.edits.timeline_ops._optimized_ripple_span", optimized_ripple)
+    monkeypatch.setattr(
+        "podcast_mcp.edits.decisions.load_defaults",
+        lambda: {"tighten": {"inaudible_opt": True, "edit_mode": "ripple"}},
+    )
+
+    assert apply_auto_edits(project) == 1
+
+    remaining_b = sorted(
+        (clip.source_start, clip.source_end)
+        for clip in project.clips
+        if clip.id == "b1" or clip.id.startswith("b1")
+    )
+    assert remaining_b == [(0, 2)]
+    assert optimize_calls == []
+    record = project.editorial.edit_log[-1]
+    assert (record.timeline_start, record.timeline_end) == pytest.approx(
+        (
+            decision.source_timeline_span.start,
+            decision.source_timeline_span.end,
+        )
+    )
+    assert (record.source_start, record.source_end) == pytest.approx((0.12, 0.42))
+    assert record.params["use_inaudible_opt"] is False
 
 
 @pytest.mark.parametrize("stale_geometry", ["moved", "duplicate", "uncovered"])

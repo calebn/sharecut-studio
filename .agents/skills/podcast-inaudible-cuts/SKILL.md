@@ -30,6 +30,11 @@ Cuts are optimized by default. Read **`docs/inaudible-cuts.md`** for behavior, c
 - `join_label_tool` — record explicit A/B pass/fail labels for the join ranker
 - Cut tools: optional `use_inaudible_opt=false` to skip optimization once
 
+Automatic prefix application consumes a source-witnessed removal's current proved
+timeline window exactly, including after a manual nonsnap resize. Generic apply-time
+optimization is skipped for that window. Pause trims prepare and re-prove their own
+optimized final bounds; unwitnessed pending edits keep the configured apply-time path.
+
 ## CLI
 
 ```bash
