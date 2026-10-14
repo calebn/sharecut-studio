@@ -166,6 +166,11 @@ def list_edit_decisions(
     return out
 
 
+def _near(a: SourceExtent, b: SourceExtent, gap: float = 0.5) -> bool:
+    """Whether two source spans overlap or sit within ``gap`` seconds of each other."""
+    return a.start - gap <= b.end and b.start - gap <= a.end
+
+
 def _source_extents(removes: list[EditDecision]) -> tuple[SourceExtent, ...]:
     return tuple(SourceExtent(e.track_id, e.start, e.end) for e in removes)
 
@@ -283,6 +288,9 @@ def approve_edits(
         )
         applied_ids.add(edit.id)
     batch = _source_extents(removes)
+    extents = {e.id: SourceExtent(e.track_id, e.start, e.end) for e in removes}
+    applied_removes: list[str] = []
+    leaned_on = False
     # Named before any ripple moves anything, so a held cut reads as the list shows it.
     labels = {e.id: cut_label(project, e) for e in removes}
     asked: list[CutSpeechConfirmation] = []
@@ -302,6 +310,12 @@ def approve_edits(
             continue
         if isinstance(applied, CutScopeHold):
             held.append(applied)
+            if held_out is not None:
+                # Cuts assessed from here on must not count this one's span as chosen.
+                batch = tuple(x for x in batch if x != extents[edit.id])
+                if any(_near(extents[a], extents[edit.id]) for a in applied_removes):
+                    # An earlier cut may have leaned on it to clear speech: refuse as before.
+                    leaned_on = True
             continue
         tl_start, tl_end, track_ids, params = applied
         if not track_ids:
@@ -316,6 +330,7 @@ def approve_edits(
             params=params,
         )
         applied_ids.add(edit.id)
+        applied_removes.append(edit.id)
     if asked:
         raise UnconfirmedCutSpeech(confirmation_for(merge_cut_speech([a.speech for a in asked])))
     if held:
@@ -324,7 +339,7 @@ def approve_edits(
             {tid: _speaker_name(project, tid) for h in held for tid in h.peers},
             {h.edit_id: labels[h.edit_id] for h in held if h.edit_id in labels},
         )
-        if held_out is None:
+        if held_out is None or leaned_on:
             raise error
         held_out.extend(
             HeldEdit(h.edit_id, labels.get(h.edit_id, ""), error.reason_for(h)) for h in held

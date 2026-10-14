@@ -110,14 +110,18 @@ export type ReviewOutcome = Readonly<
     }
 >;
 
-/** "Applied 80, held 6" when some cuts were left pending, else the plain done line. */
+/** "Applied 80, held 6" with the first two held cuts named; the rest stay in the list. */
 export function bulkReviewHeldMessage(
   count: number,
   held: readonly HeldCut[],
 ): string {
-  return `Applied ${count}, held ${held.length}. ${held
+  const named = held
+    .slice(0, 2)
     .map((h) => `${h.label} is held: ${h.reason}.`)
-    .join(" ")}`;
+    .join(" ");
+  const more =
+    held.length > 2 ? ` ${held.length - 2} more are held in the list.` : "";
+  return `Applied ${count}, held ${held.length}. ${named}${more}`;
 }
 
 export type PendingReviewCapture = Readonly<{

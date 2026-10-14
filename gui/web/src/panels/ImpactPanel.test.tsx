@@ -403,6 +403,30 @@ describe("ImpactPanel bulk review", () => {
     );
   });
 
+  it("names only the first two held cuts when many are held", async () => {
+    const user = userEvent.setup();
+    answerQuestions(true);
+    const cut = (n: number) => ({
+      id: `h${n}`,
+      label: `Cut ${n}`,
+      reason: "r",
+    });
+    vi.mocked(approveEdits).mockResolvedValue({
+      queued: false,
+      asked: false,
+      count: 1,
+      historyHead: head,
+      held: [1, 2, 3, 4, 5].map(cut),
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Applied 1, held 5. Cut 1 is held: r. Cut 2 is held: r. 3 more are held in the list.",
+      ),
+    );
+  });
+
   it("asks before rejecting, names it as discarding, and offers one Undo", async () => {
     const user = userEvent.setup();
     const { asked } = answerQuestions(true);
