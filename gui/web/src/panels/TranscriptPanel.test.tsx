@@ -1801,6 +1801,42 @@ describe("TranscriptPanel virtualization", () => {
     expect(useDawStore.getState().transcriptFollowPlayhead).toBe(true);
   });
 
+  it("follows the first of two overlapping active turns", () => {
+    // Turn 5 runs 10-14 s; turn 6 talks over it at 12-13 s.
+    const base = largeProject();
+    const utterances = base.transcript.utterances.map((u, index) =>
+      index === 5
+        ? { ...u, end: 14, timeline_end: 14 }
+        : index === 6
+          ? {
+              ...u,
+              start: 12,
+              end: 13,
+              timeline_start: 12,
+              timeline_end: 13,
+              words: [
+                {
+                  ...u.words[0]!,
+                  start: 12,
+                  end: 13,
+                  timeline_start: 12,
+                  timeline_end: 13,
+                },
+              ],
+            }
+          : u,
+    );
+    useDawStore.setState({
+      project: { ...base, transcript: { utterances } },
+      transcriptFollowPlayhead: true,
+    });
+    render(<TranscriptPanel />);
+    act(() => {
+      useDawStore.getState().setPlayheadSec(12.5);
+    });
+    expect(lastScrolledTurn()).toBe("5");
+  });
+
   it("unlocks follow on a manual wheel scroll", () => {
     useDawStore.setState({ transcriptFollowPlayhead: true });
     const { container } = render(<TranscriptPanel />);

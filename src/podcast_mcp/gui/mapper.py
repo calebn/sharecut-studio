@@ -11,12 +11,17 @@ from podcast_mcp.edits.tighten_hits import (
     is_listen_one_by_one_hit,
     join_risk_from_decision,
 )
-from podcast_mcp.edits.timeline_span import map_source_span_fields
+from podcast_mcp.edits.timeline_span import map_source_span_fields, timeline_span_dicts
 from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
-from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
-from podcast_mcp.models import AppliedEditRecord, Clip, EditDecision, EpisodeProject
+from podcast_mcp.engines.utterance_runs import (
+    transcript_word_runs,
+    utterance_runs,
+    utterance_speaker,
+    utterance_text,
+)
+from podcast_mcp.models import AppliedEditRecord, Clip, EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
-from podcast_mcp.util.timebase import SourceSec
+from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
 
 def map_pending_edits_to_timeline(
@@ -119,12 +124,114 @@ def _raw_word_intervals(words: Sequence[Any]) -> HalfOpenIntervalIndex:
     return HalfOpenIntervalIndex.build(word_source_span(w.start, w.end) for w in words)
 
 
+@dataclass(frozen=True)
+class _Recording:
+    """The recording a combined row's words come from, and the clips that play it.
+
+    On a lane holding one recording, ``take`` is false and words map through every
+    clip of the track's media. On a lane holding several takes, each take's words map
+    only through that take's own clips (``placement_source_id``): mapped through the
+    whole lane, a take's source second also lands wherever another take plays the same
+    second, and the transcript lights up rows far from the playhead.
+    """
+
+    track_id: str
+    transcript: Transcript | None
+    placement_source_id: str | None = None
+    take: bool = False
+
+    @property
+    def key(self) -> tuple[str, str | None]:
+        return (self.track_id, self.transcript.source_id if self.transcript else None)
+
+    def map_span(
+        self, timeline: SessionTimeline, start: SourceSec, end: SourceSec
+    ) -> list[tuple[TimelineSec, TimelineSec]]:
+        if self.take:
+            return timeline.map_selected_source_span(
+                self.track_id, self.placement_source_id, start, end
+            )
+        return timeline.map_source_span(self.track_id, start, end)
+
+    def map_words(
+        self, timeline: SessionTimeline, words: Sequence[tuple[float, float]]
+    ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
+        if self.take:
+            return timeline.map_selected_word_spans(self.track_id, self.placement_source_id, words)
+        return timeline.map_word_spans(self.track_id, words)
+
+
+class _LaneRecordings:
+    """Resolves each combined row to the recording (take) its words come from.
+
+    A combined row names only its track; on a multi-take lane its take is the
+    transcript whose kept-word run has the row's start, end and text (the run
+    ``merge_transcripts`` built it from). A row no run matches (a stale combined
+    transcript) reads the lane's first take.
+    """
+
+    def __init__(self, project: EpisodeProject) -> None:
+        self._project = project
+        self._lanes: dict[str, list[_Recording]] = {}
+        self._run_sources: dict[tuple[str, float, float, str], str | None] | None = None
+
+    def lane(self, track_id: str) -> list[_Recording]:
+        cached = self._lanes.get(track_id)
+        if cached is None:
+            takes = self._project.selected_source_transcripts(track_id)
+            if len(takes) > 1:
+                cached = [
+                    _Recording(track_id, transcript, placement_source_id, take=True)
+                    for placement_source_id, transcript in takes
+                ]
+            else:
+                cached = [_Recording(track_id, self._project.transcript_for_track(track_id))]
+            self._lanes[track_id] = cached
+        return cached
+
+    def primary(self, track_id: str) -> _Recording:
+        return self.lane(track_id)[0]
+
+    def for_row(self, row: Mapping[str, Any]) -> _Recording:
+        track_id = str(row.get("track_id", ""))
+        lane = self.lane(track_id)
+        if len(lane) == 1:
+            return lane[0]
+        source_id = self._sources().get(
+            (
+                track_id,
+                float(row.get("start", 0.0)),
+                float(row.get("end", 0.0)),
+                str(row.get("text", "")),
+            ),
+            lane[0].key[1],
+        )
+        return next((r for r in lane if r.key[1] == source_id), lane[0])
+
+    def _sources(self) -> dict[tuple[str, float, float, str], str | None]:
+        if self._run_sources is None:
+            self._run_sources = {
+                (
+                    run.track_id,
+                    float(run.words[0].start),
+                    float(run.words[-1].end),
+                    utterance_text(run.words),
+                ): run.source_id
+                for run in transcript_word_runs(self._project)
+            }
+        return self._run_sources
+
+
 def _mapped_word_index(
-    project: EpisodeProject, timeline: SessionTimeline, track_id: str
+    project: EpisodeProject,
+    timeline: SessionTimeline,
+    track_id: str,
+    recording: _Recording | None = None,
 ) -> _MappedWordIndex:
-    tr = project.transcript_for_track(track_id)
+    recording = recording or _Recording(track_id, project.transcript_for_track(track_id))
+    tr = recording.transcript
     words = tr.words if tr is not None else []
-    mapped = timeline.map_word_spans(track_id, [(w.start, w.end) for w in words])
+    mapped = recording.map_words(timeline, [(w.start, w.end) for w in words])
     views = [
         _word_view(timeline, track_id, i, w, spans, source_id=tr.source_id if tr else None)
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
@@ -245,8 +352,10 @@ def _source_gap(word: Any, span: tuple[float, float]) -> float:
 
 def _edge_suppressed_word_indices(
     utterances: Sequence[dict[str, Any]],
-    words_by_track: Mapping[str, Sequence[Any]],
-    intervals_by_track: Mapping[str, HalfOpenIntervalIndex] | None = None,
+    words_by_track: Mapping[Any, Sequence[Any]],
+    intervals_by_track: Mapping[Any, HalfOpenIntervalIndex] | None = None,
+    *,
+    row_keys: Sequence[Any] | None = None,
 ) -> dict[int, list[int]]:
     """Attach edge-suppressed words to their nearest same-track utterance (#752).
 
@@ -274,13 +383,16 @@ def _edge_suppressed_word_indices(
     ``intervals_by_track`` reuses each track's ``_raw_word_intervals`` index
     when the caller already built it; it is built here otherwise.
 
+    ``row_keys`` names each row's word list in ``words_by_track`` when rows of
+    one track read different transcripts (takes); by default it is the row's track.
+
     Returns a mapping of utterance position (index into ``utterances``) to
     the ascending per-track word indices it owns.
     """
-    positions_by_track: dict[str, list[int]] = {}
+    positions_by_track: dict[Any, list[int]] = {}
     for position, utterance in enumerate(utterances):
-        track_id = str(utterance.get("track_id", ""))
-        positions_by_track.setdefault(track_id, []).append(position)
+        key = row_keys[position] if row_keys is not None else str(utterance.get("track_id", ""))
+        positions_by_track.setdefault(key, []).append(position)
 
     result: dict[int, list[int]] = {}
     for track_id, words in words_by_track.items():
@@ -319,7 +431,8 @@ def _suppressed_only_rows(
     project: EpisodeProject,
     timeline: SessionTimeline,
     tracks_with_rows: set[str],
-    word_indexes: dict[str, _MappedWordIndex],
+    word_indexes: dict[tuple[str, str | None], _MappedWordIndex],
+    recordings: _LaneRecordings,
     *,
     include_words: bool,
 ) -> list[dict[str, Any]]:
@@ -340,13 +453,14 @@ def _suppressed_only_rows(
     this function does not try to repair it. ``combined.json`` /
     ``merge_transcripts`` output is unchanged; these rows exist only in the
     GUI view. Rows come back in track order (each track's runs ascending);
-    the caller sorts them into the transcript by source start.
+    the caller sorts them into the transcript by timeline position.
     """
     rows: list[dict[str, Any]] = []
     for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
         if track_id in tracks_with_rows:
             continue
-        transcript = project.transcript_for_track(track_id)
+        recording = recordings.primary(track_id)
+        transcript = recording.transcript
         words = transcript.words if transcript is not None else []
         if not words or not all(bool(w.suppressed) for w in words):
             continue
@@ -355,6 +469,7 @@ def _suppressed_only_rows(
             run_words = words[run.start : run.stop]
             row = _mapped_row(
                 timeline,
+                recording,
                 {
                     "track_id": track_id,
                     "speaker": speaker,
@@ -365,9 +480,11 @@ def _suppressed_only_rows(
             )
             row["suppressed_only"] = True
             if include_words:
-                if track_id not in word_indexes:
-                    word_indexes[track_id] = _mapped_word_index(project, timeline, track_id)
-                views = word_indexes[track_id].views
+                if recording.key not in word_indexes:
+                    word_indexes[recording.key] = _mapped_word_index(
+                        project, timeline, track_id, recording
+                    )
+                views = word_indexes[recording.key].views
                 row["words"] = [views[i] for i in run]
             ignored = [i for i in run if bool(getattr(words[i], "ignored", False))]
             if ignored:
@@ -442,14 +559,19 @@ def guest_transcript(
     return {**transcript, "utterances": slim}
 
 
-def _mapped_row(timeline: SessionTimeline, utterance: Mapping[str, Any]) -> dict[str, Any]:
+def _mapped_row(
+    timeline: SessionTimeline, recording: _Recording, utterance: Mapping[str, Any]
+) -> dict[str, Any]:
     """Utterance row with timeline clocks, ``words`` dropped (padded like a zero-length word, #752)."""
     track_id = str(utterance.get("track_id", ""))
     source_start = float(utterance.get("start", 0.0))
     source_end = float(utterance.get("end", 0.0))
-    mappable, timeline_spans, timeline_start, timeline_end = map_source_span_fields(
-        timeline, track_id, *word_source_span(source_start, source_end)
+    timeline_spans = timeline_span_dicts(
+        recording.map_span(timeline, *word_source_span(source_start, source_end))
     )
+    mappable = bool(timeline_spans)
+    timeline_start = timeline_spans[0]["start"] if timeline_spans else None
+    timeline_end = timeline_spans[-1]["end"] if timeline_spans else None
     row: dict[str, Any] = {
         **utterance,
         "track_id": track_id,
@@ -477,48 +599,52 @@ def map_transcript_utterances_to_timeline(
     if not isinstance(utterances, list):
         return transcript
     timeline = SessionTimeline(project)
+    recordings = _LaneRecordings(project)
     rows: list[dict[str, Any]] = []
-    raw_words_by_track: dict[str, list[Any]] = {}
-    raw_intervals_by_track: dict[str, HalfOpenIntervalIndex] = {}
+    row_recordings: list[_Recording] = []
+    raw_words: dict[tuple[str, str | None], list[Any]] = {}
+    raw_intervals: dict[tuple[str, str | None], HalfOpenIntervalIndex] = {}
     for utterance in utterances:
         if not isinstance(utterance, dict):
             continue
-        row = _mapped_row(timeline, utterance)
-        track_id = row["track_id"]
-        if track_id not in raw_words_by_track:
-            tr = project.transcript_for_track(track_id)
-            raw_words_by_track[track_id] = list(tr.words) if tr is not None else []
-            raw_intervals_by_track[track_id] = _raw_word_intervals(raw_words_by_track[track_id])
+        recording = recordings.for_row(utterance)
+        row = _mapped_row(timeline, recording, utterance)
+        if recording.key not in raw_words:
+            tr = recording.transcript
+            raw_words[recording.key] = list(tr.words) if tr is not None else []
+            raw_intervals[recording.key] = _raw_word_intervals(raw_words[recording.key])
         rows.append(row)
+        row_recordings.append(recording)
 
     edge_suppressed = _edge_suppressed_word_indices(
-        rows, raw_words_by_track, raw_intervals_by_track
+        rows, raw_words, raw_intervals, row_keys=[r.key for r in row_recordings]
     )
 
     mapped: list[dict[str, Any]] = []
-    word_indexes: dict[str, _MappedWordIndex] = {}
-    for position, row in enumerate(rows):
+    word_indexes: dict[tuple[str, str | None], _MappedWordIndex] = {}
+    for position, (row, recording) in enumerate(zip(rows, row_recordings, strict=True)):
         track_id = row["track_id"]
+        key = recording.key
         source_start = row["start"]
         source_end = row["end"]
         extra_indices = edge_suppressed.get(position, [])
         if extra_indices:
             row["edge_suppressed_word_indices"] = sorted(extra_indices)
         if include_words:
-            if track_id not in word_indexes:
-                word_indexes[track_id] = _mapped_word_index(project, timeline, track_id)
+            if key not in word_indexes:
+                word_indexes[key] = _mapped_word_index(project, timeline, track_id, recording)
             row["words"] = _words_for_utterance(
                 project,
                 timeline,
                 track_id,
                 source_start,
                 source_end,
-                word_indexes[track_id],
+                word_indexes[key],
                 extra_indices=extra_indices,
             )
         ignored_word_indices = _ignored_word_indices_for_utterance(
-            raw_words_by_track[track_id],
-            raw_intervals_by_track[track_id],
+            raw_words[key],
+            raw_intervals[key],
             source_start,
             source_end,
             extra_indices=extra_indices,
@@ -526,8 +652,8 @@ def map_transcript_utterances_to_timeline(
         if ignored_word_indices:
             row["ignored_word_indices"] = ignored_word_indices
         locked_word_indices = _locked_word_indices_for_utterance(
-            raw_words_by_track[track_id],
-            raw_intervals_by_track[track_id],
+            raw_words[key],
+            raw_intervals[key],
             source_start,
             source_end,
             extra_indices=extra_indices,
@@ -541,13 +667,34 @@ def map_transcript_utterances_to_timeline(
         timeline,
         {row["track_id"] for row in rows},
         word_indexes,
+        recordings,
         include_words=include_words,
     )
     if synthetic:
         # Stable sort by source start: synthetic rows are ordered only within each
         # track, so a merge would not do. Input rows come first, so they win ties.
         mapped = sorted([*mapped, *synthetic], key=lambda row: row["start"])
-    return {**transcript, "utterances": mapped}
+    return {**transcript, "utterances": _in_playback_order(mapped)}
+
+
+def _in_playback_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rows in the order the timeline plays them.
+
+    The combined transcript is ordered by source start, which is not playback order
+    once a lane holds a later take (its source clock restarts at 0) or a clip moves.
+    Following the playhead walks this list, so it must run in timeline order. A row
+    that does not play (cut away) keeps its place after the row before it. The sort
+    is stable, so rows starting together keep their source order.
+    """
+    keys: list[float] = []
+    last = float("-inf")
+    for row in rows:
+        start = row.get("timeline_start")
+        if start is not None:
+            last = float(start)
+        keys.append(last)
+    order = sorted(range(len(rows)), key=keys.__getitem__)
+    return [rows[i] for i in order]
 
 
 def map_applied_edits_to_timeline(

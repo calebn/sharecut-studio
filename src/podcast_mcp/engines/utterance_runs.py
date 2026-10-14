@@ -50,6 +50,8 @@ class TranscriptWordRun:
     track_id: str
     speaker: str
     words: tuple[TranscriptWord, ...]
+    source_id: str | None = None
+    """The transcript's ``source_id``: which take on the lane the words come from."""
 
 
 def transcript_word_runs(project: EpisodeProject) -> list[TranscriptWordRun]:
@@ -72,6 +74,7 @@ def transcript_word_runs(project: EpisodeProject) -> list[TranscriptWordRun]:
                     track_id=transcript.track_id,
                     speaker=speaker,
                     words=tuple(kept[run.start : run.stop]),
+                    source_id=transcript.source_id,
                 )
             )
     out.sort(key=lambda r: r.words[0].start)
