@@ -77,24 +77,66 @@ def test_vad_and_overlap_metric(tmp_path: Path) -> None:
     assert overlap_shifted < overlap_aligned
 
 
+def _scripted_decoder(levels: list[float], calls: list[tuple[float, float]]):
+    """A ``load_mono_window`` stand-in: 0.25 s chunk ``k`` holds a constant ``levels[k]``.
+
+    The file ends after ``levels``; a window starting past the end is unavailable.
+    """
+
+    def load_window(_path, *, start_sec, duration_sec, sample_rate, **_kwargs):
+        calls.append((start_sec, duration_sec))
+        total = round(len(levels) * 0.25 * sample_rate)
+        first = round(start_sec * sample_rate)
+        if first >= total:
+            raise AudioWindowUnavailableError("no audio decoded")
+        last = min(total, round((start_sec + duration_sec) * sample_rate))
+        index = (np.arange(first, last) // round(0.25 * sample_rate)).astype(int)
+        return np.asarray(levels, dtype=np.float32)[index]
+
+    return load_window
+
+
+def test_vad_decodes_the_window_once_and_frames_it_into_chunks(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "source.aac"
+    source.write_bytes(b"fixture")
+    calls: list[tuple[float, float]] = []
+    levels = [0.03, 0.0, 0.0, 0.03, 0.03, 0.0, 0.0, 0.0]
+    monkeypatch.setattr(
+        "podcast_mcp.engines.alignment_audit.load_mono_window", _scripted_decoder(levels, calls)
+    )
+    assert vad_speech_intervals(source, duration_sec=2.0) == [(0.0, 0.25), (0.75, 1.25)]
+    assert calls == [(0.0, 2.0)]
+
+
+def test_vad_long_window_decodes_in_blocks_with_the_same_intervals(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "source.aac"
+    source.write_bytes(b"fixture")
+    calls: list[tuple[float, float]] = []
+    levels = [0.03 if k % 4 == 0 else 0.0 for k in range(400)]
+    monkeypatch.setattr(
+        "podcast_mcp.engines.alignment_audit.load_mono_window", _scripted_decoder(levels, calls)
+    )
+    intervals = vad_speech_intervals(source, duration_sec=100.0, min_run_sec=0.25)
+    assert len(calls) == 4
+    assert intervals == [(k, k + 0.25) for k in range(100)]
+
+
 def test_vad_window_rms_cache_reuses_only_identical_successful_windows(
     tmp_path: Path, monkeypatch
 ) -> None:
     source = tmp_path / "source.aac"
     source.write_bytes(b"fixture")
-    calls: list[tuple[float, float, int]] = []
-
-    def load_window(_path, *, start_sec, duration_sec, sample_rate, **_kwargs):
-        calls.append((start_sec, duration_sec, sample_rate))
-        chunk = round(start_sec / 0.25)
-        return np.full(4, 0.03 if chunk in {0, 3, 4} else 0.0, dtype=np.float32)
-
-    monkeypatch.setattr("podcast_mcp.engines.alignment_audit.load_mono_window", load_window)
+    calls: list[tuple[float, float]] = []
+    levels = [0.03, 0.0, 0.0, 0.03, 0.03, 0.0]
+    monkeypatch.setattr(
+        "podcast_mcp.engines.alignment_audit.load_mono_window", _scripted_decoder(levels, calls)
+    )
     cache = VADWindowRMSCache()
 
     first_uncached = vad_speech_intervals(source, start_sec=0.0, duration_sec=1.0)
     second_uncached = vad_speech_intervals(source, start_sec=0.5, duration_sec=1.0)
-    uncached_calls = len(calls)
     calls.clear()
 
     first_cached = vad_speech_intervals(source, start_sec=0.0, duration_sec=1.0, rms_cache=cache)
@@ -102,8 +144,13 @@ def test_vad_window_rms_cache_reuses_only_identical_successful_windows(
     assert first_cached == [(0.0, 0.25), (0.75, 1.0)]
     assert second_cached == [(0.75, 1.25)]
     assert (first_cached, second_cached) == (first_uncached, second_uncached)
-    assert uncached_calls == 8
-    assert len(calls) == 6
+    # The second window decodes only the chunks the first did not cover.
+    assert calls == [(0.0, 1.0), (1.0, 0.5)]
+    calls.clear()
+    assert vad_speech_intervals(source, start_sec=0.5, duration_sec=1.0, rms_cache=cache) == (
+        second_cached
+    )
+    assert calls == []
 
 
 def test_vad_rms_cache_does_not_cache_unavailable_and_preserves_empty_windows(
@@ -139,6 +186,36 @@ def test_vad_rms_cache_does_not_cache_unavailable_and_preserves_empty_windows(
         vad_speech_intervals(source, duration_sec=0.25, rms_threshold=-1.0, rms_cache=cache) == []
     )
     assert empty_calls == 1
+
+
+def test_vad_speech_intervals_stops_at_past_eof_and_keeps_prior_speech(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#146: past EOF stops decoding without losing earlier speech."""
+    source = tmp_path / "source.aac"
+    source.write_bytes(b"fixture")
+    calls: list[tuple[float, float]] = []
+    monkeypatch.setattr(
+        "podcast_mcp.engines.alignment_audit.load_mono_window",
+        _scripted_decoder([1.0, 1.0], calls),
+    )
+    assert vad_speech_intervals(source, duration_sec=90.0) == [(0.0, 0.5)]
+    # A later block that starts past the end keeps the earlier blocks' speech too.
+    calls.clear()
+    assert vad_speech_intervals(source, duration_sec=90.0, start_sec=0.0) == [(0.0, 0.5)]
+    assert vad_speech_intervals(source, start_sec=45.0, duration_sec=30.0) == []
+
+
+def test_vad_speech_intervals_bridges_one_quiet_chunk_only(tmp_path: Path, monkeypatch) -> None:
+    """A single quiet chunk joins runs; two quiet chunks split them."""
+    source = tmp_path / "source.aac"
+    source.write_bytes(b"fixture")
+    levels = [0.0] * 8 + [1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]
+    monkeypatch.setattr(
+        "podcast_mcp.engines.alignment_audit.load_mono_window", _scripted_decoder(levels, [])
+    )
+    intervals = vad_speech_intervals(source, start_sec=2.0, duration_sec=1.75, min_run_sec=0.2)
+    assert intervals == [(2.0, 2.75), (3.25, 3.5)]
 
 
 def test_sweep_session_start_recovers_delay(tmp_path: Path) -> None:
@@ -214,31 +291,6 @@ def test_vad_speech_intervals_edge_cases(sample_wav: Path):
         return_value=__import__("numpy").zeros(0),
     ):
         assert vad_speech_intervals(sample_wav, start_sec=0.0, duration_sec=1.0) == []
-
-
-def test_vad_speech_intervals_stops_at_past_eof_and_keeps_prior_speech(sample_wav: Path):
-    """#146: past EOF stops decoding without losing earlier speech."""
-    speech = np.ones(2000, dtype=np.float32)
-    with patch(
-        "podcast_mcp.engines.alignment_audit.load_mono_window",
-        side_effect=[speech, speech, AudioWindowUnavailableError("no audio decoded")],
-    ) as load_window:
-        intervals = vad_speech_intervals(sample_wav, duration_sec=90.0)
-
-    assert intervals == [(0.0, 0.5)]
-    assert load_window.call_count == 3
-
-
-def test_vad_speech_intervals_bridges_one_quiet_chunk_only(sample_wav: Path):
-    """A single quiet chunk joins runs; two quiet chunks split them."""
-    loud = np.ones(2000, dtype=np.float32)
-    quiet = np.zeros(2000, dtype=np.float32)
-    windows = [loud, quiet, loud, quiet, quiet, loud, quiet]
-    with patch("podcast_mcp.engines.alignment_audit.load_mono_window", side_effect=windows):
-        intervals = vad_speech_intervals(
-            sample_wav, start_sec=2.0, duration_sec=1.75, min_run_sec=0.2
-        )
-    assert intervals == [(2.0, 2.75), (3.25, 3.5)]
 
 
 def test_score_session_start_handles_estimate_failure(sample_wav: Path):

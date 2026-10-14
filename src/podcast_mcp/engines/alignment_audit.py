@@ -63,6 +63,61 @@ class VADWindowRMSCache:
         )
 
 
+_BLOCK_SEC = 30.0
+
+
+def _blocks(
+    todo: list[int], chunks: list[tuple[float, float]], block_sec: float
+) -> list[list[int]]:
+    """Group consecutive chunk indices so one decode covers at most ``block_sec``."""
+    blocks: list[list[int]] = []
+    for i in todo:
+        if (
+            blocks
+            and blocks[-1][-1] == i - 1
+            and chunks[i][0] - chunks[blocks[-1][0]][0] < block_sec
+        ):
+            blocks[-1].append(i)
+        else:
+            blocks.append([i])
+    return blocks
+
+
+def _block_rms(
+    path: Path,
+    block: list[int],
+    chunks: list[tuple[float, float]],
+    *,
+    sample_rate: int,
+    ffmpeg: str | None,
+) -> dict[int, float | None]:
+    """RMS of each chunk in ``block`` from one decode of the block's span.
+
+    Stops at the first chunk the file has no audio for (so a short file keeps its earlier
+    speech), returning only the chunks before it. A window or chunk that decodes empty reads None.
+    """
+    t0 = chunks[block[0]][0]
+    end = max(chunks[i][0] + chunks[i][1] for i in block)
+    try:
+        window = load_mono_window(
+            path, start_sec=t0, duration_sec=end - t0, sample_rate=sample_rate, ffmpeg=ffmpeg
+        )
+    except AudioWindowUnavailableError:
+        return {}
+    if not window.size:
+        return dict.fromkeys(block)
+    out: dict[int, float | None] = {}
+    for i in block:
+        t, dur = chunks[i]
+        first = round((t - t0) * sample_rate)
+        last = round((t - t0 + dur) * sample_rate)
+        if first >= window.size:
+            break
+        piece = window[first:last]
+        out[i] = float(np.sqrt(np.mean(piece**2))) if piece.size else None
+    return out
+
+
 def vad_speech_intervals(
     path: Path,
     *,
@@ -79,43 +134,37 @@ def vad_speech_intervals(
     if duration_sec <= 0:
         return []
     n_chunks = max(1, int(duration_sec / chunk_sec))
-    loud: list[bool] = []
     file_identity = rms_cache.file_identity(path) if rms_cache is not None else None
-    cacheable = rms_cache is not None and file_identity is not None
-    cache_values = rms_cache.values if cacheable and rms_cache is not None else None
-    for i in range(n_chunks):
-        t = start_sec + i * chunk_sec
-        chunk_duration = min(chunk_sec, start_sec + duration_sec - t)
-        cache_key = (
-            file_identity,
-            t,
-            chunk_duration,
-            sample_rate,
+    cache_values = rms_cache.values if rms_cache is not None and file_identity is not None else None
+    chunks = [
+        (
+            start_sec + i * chunk_sec,
+            min(chunk_sec, start_sec + duration_sec - (start_sec + i * chunk_sec)),
         )
-        if cache_values is not None and cache_key in cache_values:
-            rms = cache_values[cache_key]
-            loud.append(rms is not None and rms >= rms_threshold)
-            continue
-        try:
-            window = load_mono_window(
-                path,
-                start_sec=t,
-                duration_sec=chunk_duration,
-                sample_rate=sample_rate,
-                ffmpeg=ffmpeg,
-            )
-        except AudioWindowUnavailableError:
-            # Past EOF on short files: retain prior speech and stop decoding. (#146)
-            break
-        if not window.size:
+        for i in range(n_chunks)
+    ]
+    keys = [(file_identity, t, dur, sample_rate) for t, dur in chunks]
+    rms_values: list[float | None] = [None] * n_chunks
+    todo = list(range(n_chunks))
+    if cache_values is not None:
+        todo = []
+        for i, key in enumerate(keys):
+            if key in cache_values:
+                rms_values[i] = cache_values[key]
+            else:
+                todo.append(i)
+    reached = n_chunks
+    for block in _blocks(todo, chunks, _BLOCK_SEC):
+        decoded = _block_rms(path, block, chunks, sample_rate=sample_rate, ffmpeg=ffmpeg)
+        for i, rms in decoded.items():
+            rms_values[i] = rms
             if cache_values is not None:
-                cache_values[cache_key] = None
-            loud.append(False)
-            continue
-        rms = float(np.sqrt(np.mean(window**2)))
-        if cache_values is not None:
-            cache_values[cache_key] = rms
-        loud.append(rms >= rms_threshold)
+                cache_values[keys[i]] = rms
+        if len(decoded) < len(block):
+            # Past EOF on short files: retain prior speech and stop decoding. (#146)
+            reached = block[len(decoded)]
+            break
+    loud = [rms is not None and rms >= rms_threshold for rms in rms_values[:reached]]
 
     # The old merge joined loud chunks separated by exactly one quiet chunk.
     active = bridge_short_dips(np.asarray(loud, dtype=bool), 1)
