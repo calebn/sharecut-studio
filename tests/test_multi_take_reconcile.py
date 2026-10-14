@@ -7,7 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.edits.audio_quality import suppress_bleed_words
+from podcast_mcp.edits.audio_quality import suppress_bleed_words, suppress_low_audibility_words
+from podcast_mcp.edits.bleed_text_match import EchoTwinPath, _echo_twin_losers
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -20,6 +21,8 @@ from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
+    MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
     Transcript,
@@ -200,8 +203,9 @@ def test_a_teaser_clip_does_not_move_the_rest_of_its_lane(tmp_path: Path) -> Non
 def test_a_bare_word_index_on_a_two_take_lane_names_no_word(tmp_path: Path) -> None:
     project = _two_take_project(tmp_path)
 
-    with pytest.raises(CodedValueError, match="give each word's source_id"):
+    with pytest.raises(CodedValueError, match="give each word's source_id") as refusal:
         requested_word_keys(project, [{"track_id": "vicky", "word_index": 1}])
+    assert refusal.value.code == "word_source_required"
     assert requested_word_keys(project, [{"track_id": "dani", "word_index": 0}]) == {
         ("dani", None, 0)
     }
@@ -274,3 +278,103 @@ def test_a_gap_after_a_word_does_not_stretch_it_onto_a_later_peer_word(tmp_path:
     ]
 
     assert overlap_duplicate_report(project, audibility=[])["pairs"] == []
+
+
+def test_a_word_no_clip_plays_has_no_session_time(tmp_path: Path) -> None:
+    """Vicky's source 10-30 s is ripple-cut away; her 'yeah' at 20 s is never heard, so it
+    cannot twin Dani's 'yeah' that plays at 0.05 s."""
+    project = _cut_project(
+        tmp_path,
+        [
+            Clip(id="v1", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+            Clip(id="v2", track_id="host", source_start=30.0, source_end=60.0, timeline_start=10.0),
+        ],
+        [Clip(id="d1", track_id="guest", source_start=0.0, source_end=40.0, timeline_start=0.0)],
+    )
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="yeah", start=20.0, end=20.3)]),
+        Transcript(track_id="guest", words=[TranscriptWord(text="yeah", start=0.05, end=0.35)]),
+    ]
+
+    (host,) = lane_transcripts(project, "host")
+
+    assert host.session_span(20.0, 20.3) is None
+    assert overlap_duplicate_report(project, audibility=[])["pairs"] == []
+    losers = _echo_twin_losers(
+        project,
+        EchoTwinPath("host", "guest", 0.0),
+        policy=AnalysisPolicy(),
+        is_suppressed=None,
+        seen=set(),
+    )
+    assert losers == []
+
+
+def _same_recording_project(tmp_path: Path) -> EpisodeProject:
+    """Vicky's primary media and source S are one file: clip c1 plays it as implicit
+    primary media, clip c2 as source S."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    (tmp_path / "a.wav").write_bytes(b"x")
+    project.timeline.tracks = [
+        Track(
+            id="vicky",
+            label="vicky",
+            role=TrackRole.DIALOGUE,
+            speaker="vicky",
+            media=MediaAsset(path=str(tmp_path / "a.wav")),
+        ),
+        Track(id="dani", label="dani", role=TrackRole.DIALOGUE, speaker="dani"),
+    ]
+    project.sources = [SourceRecording(id="S", path=str(tmp_path / "a.wav"))]
+    project.clips = [
+        Clip(id="c1", track_id="vicky", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(
+            id="c2",
+            track_id="vicky",
+            source_id="S",
+            source_start=20.0,
+            source_end=30.0,
+            timeline_start=100.0,
+        ),
+        Clip(id="cd", track_id="dani", source_start=0.0, source_end=200.0, timeline_start=0.0),
+    ]
+    project.transcripts = [
+        Transcript(track_id="vicky", words=_words("hello", [25.0])),
+        Transcript(track_id="dani", words=_words("hello", [105.0])),
+    ]
+    return project
+
+
+def test_clips_naming_one_recording_two_ways_all_place_its_transcript(tmp_path: Path) -> None:
+    project = _same_recording_project(tmp_path)
+
+    (vicky,) = lane_transcripts(project, "vicky")
+    report = overlap_duplicate_report(project, audibility=[])
+
+    assert vicky.session_span(25.0, 25.4) == (105.0, 105.4)
+    assert [(p["word_index_a"], p["word_index_b"]) for p in report["pairs"]] == [(0, 0)]
+
+
+def test_a_source_id_naming_the_primary_recording_addresses_its_words(tmp_path: Path) -> None:
+    project = _same_recording_project(tmp_path)
+
+    assert requested_word_keys(
+        project, [{"track_id": "vicky", "source_id": "S", "word_index": 0}]
+    ) == {("vicky", None, 0)}
+    with pytest.raises(CodedValueError, match="no transcript for source"):
+        requested_word_keys(project, [{"track_id": "vicky", "source_id": "nope", "word_index": 0}])
+
+
+def test_an_explicit_low_audibility_list_touches_only_the_named_take(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+
+    suppress_low_audibility_words(
+        project,
+        word_keys=[{"track_id": "vicky", "source_id": "take2", "word_index": 0}],
+    )
+
+    take2 = project.transcript_by_key(("vicky", "take2"))
+    take3 = project.transcript_by_key(("vicky", "take3"))
+    assert take2 is not None and take3 is not None
+    assert [w.suppressed for w in take2.words] == [True, False]
+    assert not any(w.suppressed for w in take3.words)
