@@ -125,6 +125,10 @@ rule here) is read on the recordings against each mic's own voice
 (`LevelProfile.path_reference_db`, the voice scale of [audio-engineering.md](audio-engineering.md)),
 with no balance gain: a call recording carries a guest hotter than the guest's own mic, so
 as recorded it always out-sounds them, and a gain is a listening choice that moves no verdict.
+The scale applies only when every track compared has a recording of its own and a voice within
+40 dB of the session's loudest: a track with no media (parked clips read their sources), an
+unreadable file, or residue is read as recorded along with the tracks it is compared with, since
+a scale on one side only moves the verdict.
 `asr_silence.SpeechLevels.has_speech` compares the recordings without the gains but not yet
 against each mic's voice.
 The mean fallback (#1306, #1373) holds a peer's whole-span mean to

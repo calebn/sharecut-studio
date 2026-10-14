@@ -299,7 +299,8 @@ def _owned_peer_frames(
     peer = project.track_by_id(peer_track_id)
     gain = peer.gain_db if peer else 0.0
     own = levels > DIGITAL_SILENCE_DB + gain
-    peer_voice = gain + _voice_ref_db(project, peer_track_id, caches)
+    refs = _voice_refs(project, [peer_track_id, *owner_track_ids], caches)
+    peer_voice = gain + refs[peer_track_id]
     for tid in owner_track_ids:
         owner = timeline_frame_levels_db(
             project,
@@ -314,7 +315,7 @@ def _owned_peer_frames(
             continue
         track = project.track_by_id(tid)
         owner_gain = track.gain_db if track else 0.0
-        owner_voice = owner_gain + _voice_ref_db(project, tid, caches)
+        owner_voice = owner_gain + refs[tid]
         size = min(levels.size, owner.size)
         # Which mic is louder is read on the recordings against each one's own voice, with no
         # balance gain: a gain is a listening choice (#1549).
@@ -598,28 +599,37 @@ def _track_voice_db(
         return None
 
 
-def _voice_ref_db(project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None) -> float:
-    """The offset (dB) that puts ``track_id``'s own speaker at 0 on the common voice scale.
+def _voice_refs(
+    project: EpisodeProject, track_ids: Iterable[str], caches: TrackRmsCacheSet | None
+) -> dict[str, float]:
+    """The offset (dB) that puts each track's own speaker at 0 on the common voice scale.
 
     A call recording can carry another speaker hotter than that speaker's own mic, so levels
     cannot be compared across mics as recorded; each track is read against its own voice
-    (``LevelProfile.path_reference_db``), and 0 where it has none to read (#1495, #1549). A track
-    whose voice sits ``_RESIDUE_UNDER_LOUDEST_DB`` under the session's loudest carries residue,
-    not a mic, and is read as recorded: scaled up by its own residue level it would out-sound
-    every speaker.
+    (``LevelProfile.path_reference_db``), whenever the compared tracks all have a recording of
+    their own to read. Otherwise (a track with no media reads its clips' sources, which have
+    no voice level of their own; an unreadable file), all are read as recorded: a scale on one
+    side of a comparison only is not a scale (#1495, #1549). A track whose voice sits
+    ``_RESIDUE_UNDER_LOUDEST_DB`` under the session's loudest carries residue, not a mic, and
+    is read as recorded: scaled up by its own residue level it would out-sound every speaker.
     """
-    reference = _track_voice_db(project, track_id, caches)
-    if reference is None:
-        return 0.0
+    tracks = list(dict.fromkeys(track_ids))
+    references = {tid: _track_voice_db(project, tid, caches) for tid in tracks}
+    if any(reference is None for reference in references.values()):
+        return dict.fromkeys(tracks, 0.0)
     loudest = max(
         (
             v
             for t in project.timeline.tracks
             if (v := _track_voice_db(project, t.id, caches)) is not None
         ),
-        default=reference,
+        default=0.0,
     )
-    return reference if reference > loudest - _RESIDUE_UNDER_LOUDEST_DB else 0.0
+    return {
+        tid: reference if reference > loudest - _RESIDUE_UNDER_LOUDEST_DB else 0.0
+        for tid, reference in references.items()
+        if reference is not None
+    }
 
 
 def _voice_reach_db(
@@ -710,25 +720,6 @@ def measure_peer_speech(
         for s, e in checked
     ]
     owner_rms = max((r for r in span_owner_rms if r is not None), default=None)
-    # Which mic is louder is read on the recordings against each one's own voice, without the
-    # balance gains (#1549).
-    span_owner_raw = [
-        max(
-            (
-                r - _gain_db(project, tid) - _voice_ref_db(project, tid, caches)
-                for tid in owner_track_ids
-                if (
-                    r := measure_timeline_rms_db(
-                        project, tid, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
-                    )
-                )
-                is not None
-            ),
-            default=None,
-        )
-        for s, e in checked
-    ]
-
     peer_rms: dict[str, float] = {}
     speaking: list[str] = []
     unread: dict[str, list[tuple[float, float]]] = {}
@@ -736,7 +727,26 @@ def measure_peer_speech(
         if tid in owner_track_ids:
             continue
         speaks = False
-        peer_voice = _gain_db(project, tid) + _voice_ref_db(project, tid, caches)
+        refs = _voice_refs(project, [tid, *owner_track_ids], caches)
+        peer_voice = _gain_db(project, tid) + refs[tid]
+        # Which mic is louder is read on the recordings against each one's own voice, without
+        # the balance gains (#1549).
+        span_owner_raw = [
+            max(
+                (
+                    r - _gain_db(project, owner) - refs[owner]
+                    for owner in owner_track_ids
+                    if (
+                        r := measure_timeline_rms_db(
+                            project, owner, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
+                        )
+                    )
+                    is not None
+                ),
+                default=None,
+            )
+            for s, e in checked
+        ]
         for (tl_start, tl_end), span_owner in zip(checked, span_owner_raw, strict=True):
             rms = measure_timeline_rms_db(
                 project, tid, tl_start, tl_end, caches=caches, floor_db=DIGITAL_SILENCE_DB
