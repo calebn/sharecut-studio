@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -30,6 +31,7 @@ from podcast_mcp.edits.fillers import (
     analyze_fillers_and_pauses,
 )
 from podcast_mcp.edits.tighten import (
+    _flag_possible_words,
     apply_tighten_decisions,
     format_tighten_propose_summary,
     propose_tighten_edits,
@@ -1320,6 +1322,56 @@ def test_a_missing_model_leaves_the_proposal_unflagged_and_counts_it(
 
     assert [d.reason for d in proposal.decisions] == ["filler:acoustic"]
     assert proposal.skip_counts["word_probe:unavailable"] == 1
+
+
+class _FlatCache:
+    waveform = SimpleNamespace(sample_rate=RATE)
+
+    def window(self, start: float, end: float) -> np.ndarray:
+        return np.ones(round((end - start) * RATE))
+
+
+def _mixed_run() -> list[EditDecision]:
+    return [
+        _decision("a", 1.0, 1.5, "filler:acoustic", review=True),
+        _decision("b", 2.0, 2.4, "filler:um"),
+        _decision("c", 3.0, 3.3, "pause:trim"),
+        _decision("d", 4.0, 4.2, "filler:acoustic:risky", review=True),
+    ]
+
+
+@pytest.mark.parametrize("fails_at", ["load", "first decode"])
+def test_a_missing_model_counts_only_the_acoustic_proposals_of_a_mixed_run(
+    monkeypatch: pytest.MonkeyPatch, fails_at: str
+) -> None:
+    def transcriber(defaults: dict) -> object:
+        if fails_at == "load":
+            raise WhisperWeightsMissingError("large-v3-turbo")
+
+        def transcribe(samples: np.ndarray, language: str | None) -> str:
+            raise WhisperWeightsMissingError("large-v3-turbo")
+
+        return transcribe
+
+    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+    decisions = _mixed_run()
+    skip_counts: dict[str, int] = {}
+
+    _flag_possible_words(
+        EpisodeProject.model_construct(),
+        {},
+        decisions,
+        {"host": _FlatCache()},
+        skip_counts,
+    )
+
+    assert skip_counts == {"word_probe:unavailable": 2}
+    assert [d.reason for d in decisions] == [
+        "filler:acoustic",
+        "filler:um",
+        "pause:trim",
+        "filler:acoustic:risky",
+    ]
 
 
 def test_only_acoustic_decisions_are_heard_and_a_flagged_one_is_not_flagged_twice() -> None:
