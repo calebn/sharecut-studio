@@ -369,8 +369,11 @@ before its exact zero. Zoom's does this for 20 to 37 ms before every closure, an
 also dips to that residue while open. A sample within 2 steps of the media's
 quantization is residue. The step reads that step as the smallest nonzero sample in the
 media. Each closure starts at the last sample above the residue, and a frame or block of
-nothing but residue is skipped. Float and lossy media have no such step, so nothing in
-them counts as residue.
+nothing but residue is skipped. A closure with less than one complete 5 ms block
+above the residue contributes no measurement. Other measurable closures still
+contribute, and an unmeasurable hold falls through to the track's own room or the
+existing "no noise measured under its speech" reason. Float and lossy media have
+no such step, so nothing in them counts as residue.
 
 The hold is measured per track, never assumed. The step takes the median level of each
 5 ms block going back from every closure (up to 0.5 s, and only as far as 8 closures
