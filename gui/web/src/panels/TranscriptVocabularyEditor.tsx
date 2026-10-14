@@ -5,6 +5,7 @@ import {
   type TranscriptVocabulary,
 } from "../api";
 import { Button, Field, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { confirmReplaceEdited } from "./confirmReplaceEdited";
 
@@ -273,7 +274,7 @@ export function TranscriptVocabularyEditor({
                       <Button
                         className="ui-control--compact"
                         aria-label={`Remove ${value}`}
-                        disabled={saving}
+                        disabledReason={saving ? BUSY_REASON : undefined}
                         onClick={() => remove(field, value)}
                       >
                         Remove

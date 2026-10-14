@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useTrackMetaMutation } from "../hooks/useTrackMetaMutation";
 import type { TrackView } from "../types/project";
 import { Button, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 export function TranscriptSpeakerEditor({
   track,
@@ -87,10 +88,13 @@ export function TranscriptSpeakerEditor({
         ))}
       </datalist>
       <span id={id}>All turns on {track.label || track.id}.</span>
-      <Button type="submit" disabled={busy}>
+      <Button type="submit" disabledReason={busy ? BUSY_REASON : undefined}>
         {busy ? "Saving…" : "Save speaker"}
       </Button>
-      <Button disabled={busy} onClick={() => onClose(true)}>
+      <Button
+        disabledReason={busy ? BUSY_REASON : undefined}
+        onClick={() => onClose(true)}
+      >
         Cancel
       </Button>
       <InlineError inline message={error} />

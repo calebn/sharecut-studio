@@ -7,6 +7,7 @@ import {
   submitDiagnosticsReport,
 } from "../api";
 import { Button, Dialog, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 
 type Props = {
@@ -165,7 +166,7 @@ export function HelpDialog({ open, onClose }: Props) {
           <Button
             variant="primary"
             type="button"
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             aria-busy={busy || undefined}
             onClick={() => void onCreate()}
           >

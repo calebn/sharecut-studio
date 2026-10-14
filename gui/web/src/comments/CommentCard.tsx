@@ -8,6 +8,7 @@ import { useSwipeLeft } from "../hooks/useSwipeLeft";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import type { TimelineComment } from "../types/project";
 import { Button } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { commentTimeLabel } from "./commentTimeLabel";
 
 type Props = {
@@ -185,7 +186,10 @@ export function CommentCard({
             placeholder="Reply…"
             disabled={busy}
           />
-          <Button disabled={busy} onClick={() => onReply()}>
+          <Button
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={() => onReply()}
+          >
             Reply
           </Button>
         </div>
@@ -193,12 +197,18 @@ export function CommentCard({
       {canResolve ? (
         <div className="comment-card-footer">
           {c.resolved ? (
-            <Button disabled={busy} onClick={() => onResolve(false)}>
+            <Button
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={() => onResolve(false)}
+            >
               Reopen
               {c.resolved_by ? ` (was ${c.resolved_by})` : ""}
             </Button>
           ) : (
-            <Button disabled={busy} onClick={() => onResolve(true)}>
+            <Button
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={() => onResolve(true)}
+            >
               Resolve
             </Button>
           )}

@@ -25,6 +25,7 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { errorMessage } from "../../utils/apiError";
 import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
 import { ModifierInspector } from "../ModifierInspector";
@@ -562,14 +563,14 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
           <FieldRow>
             <Button
               variant="danger"
-              disabled={clipMutationBusy}
+              disabledReason={clipMutationBusy ? BUSY_REASON : undefined}
               onClick={() => void runDelete(false)}
             >
               Delete
             </Button>
             <Button
               variant="danger"
-              disabled={clipMutationBusy}
+              disabledReason={clipMutationBusy ? BUSY_REASON : undefined}
               onClick={() => void runDelete(true)}
             >
               Ripple delete

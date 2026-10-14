@@ -63,6 +63,7 @@ export function RelatedCommands({ selection }: Props) {
                   commandId={descriptor.commandId}
                   args={descriptor.args}
                   respectWhen={descriptor.respectWhen}
+                  whenReason={descriptor.whenReason}
                 >
                   {cmd.label}
                 </CommandButton>
@@ -86,6 +87,7 @@ export function RelatedCommands({ selection }: Props) {
                   commandId={descriptor.commandId}
                   args={descriptor.args}
                   respectWhen={descriptor.respectWhen}
+                  whenReason={descriptor.whenReason}
                 >
                   {cmd.label}
                 </CommandButton>
