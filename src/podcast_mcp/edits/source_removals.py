@@ -4,6 +4,7 @@ import math
 from collections.abc import Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Literal
 
 from podcast_mcp.config import load_defaults
@@ -31,8 +32,8 @@ from podcast_mcp.edits.timeline_ops import (
 )
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    clip_timeline_overlap_to_source,
     clip_plays_lane,
+    clip_timeline_overlap_to_source,
     origin_track_id_for_clip,
 )
 from podcast_mcp.models import (
@@ -186,7 +187,6 @@ def inspect_source_remove_placement(
 def resize_source_remove(
     project: EpisodeProject, saved: EditDecision, *, start: float, end: float
 ) -> EditDecision:
-    """Refresh a remove's witness only when resized bounds stay on the saved placement."""
     current = inspect_source_remove_placement(project, saved)
     if isinstance(current, CutScopeHold):
         raise ScopeChangedAtApproval([current], {}, {saved.id: cut_label(project, saved)})
@@ -211,7 +211,6 @@ def resize_source_remove(
 def _inspect_source_remove_placement(
     project: EpisodeProject, edit: EditDecision, *, check_witness: bool
 ) -> tuple[TimelineSec, TimelineSec] | CutScopeHold:
-    """Map one complete placement, optionally checking its saved witness."""
     if (
         edit.type != EditDecisionType.REMOVE
         or edit.exact_range is not None
@@ -349,7 +348,7 @@ def _witnessed_source_span_has_unsafe_overlap(
             *(hi for _, _, hi in selected_pieces),
         }
     )
-    for left, right in zip(boundaries, boundaries[1:]):
+    for left, right in pairwise(boundaries):
         if right <= left + _SOURCE_GEOMETRY_TOLERANCE_SEC:
             continue
         covering = [
