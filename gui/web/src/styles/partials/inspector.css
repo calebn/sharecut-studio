@@ -341,7 +341,7 @@ html[data-shell="phone"]
 
 .fx-chain-warning {
   display: block;
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
   color: var(--color-warning);
   font-size: var(--font-size-caption);
 }
