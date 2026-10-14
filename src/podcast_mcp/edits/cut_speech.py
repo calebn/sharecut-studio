@@ -28,6 +28,7 @@ from typing import Any, Final, Literal, overload
 from pydantic import BaseModel
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ripple import RippleRemoval, ripple_track_ids
 from podcast_mcp.edits.speech_energy_guard import (
     guard_min_overlap_sec,
@@ -77,13 +78,21 @@ class CutSpeechConfirmation(BaseModel):
 
 
 @dataclass(frozen=True)
-class SourceExtent:
-    """Source time on one track that another edit in the same approval cuts."""
-
+class LaneSourceExtent:
     track_id: str
     start: float
     end: float
-    source_id: str | None = None
+
+
+@dataclass(frozen=True)
+class RecordingSourceExtent:
+    track_id: str
+    start: float
+    end: float
+    source_id: str | None
+
+
+SourceExtent = LaneSourceExtent | RecordingSourceExtent
 
 
 @dataclass(frozen=True)
@@ -134,21 +143,28 @@ def _chosen_on_timeline(
     """Where ``track_id``'s ``chosen`` source spans sit inside timeline ``[start, end)`` now."""
     timeline = SessionTimeline(project)
     out: list[tuple[float, float]] = []
-    for extent in chosen:
-        if extent.track_id != track_id:
-            continue
-        source_ids = project.equivalent_source_ids(track_id, extent.source_id)
-        mapped = timeline.map_placements_source_span(
-            track_id,
-            source_ids,
-            SourceSec(extent.start),
-            SourceSec(extent.end),
-        )
+    for extent in (e for e in chosen if e.track_id == track_id):
+        if isinstance(extent, LaneSourceExtent):
+            source_ids = {clip.source_id for clip in clips_for_track(project, track_id)}
+            mapped = [
+                span
+                for source_id in source_ids
+                for span in timeline.map_selected_source_span(
+                    track_id, source_id, SourceSec(extent.start), SourceSec(extent.end)
+                )
+            ]
+        else:
+            mapped = timeline.map_placements_source_span(
+                track_id,
+                project.equivalent_source_ids(track_id, extent.source_id),
+                SourceSec(extent.start),
+                SourceSec(extent.end),
+            )
         for tl_start, tl_end in mapped:
-            lo = max(float(tl_start), start)
-            hi = min(float(tl_end), end)
-            if hi > lo:
-                out.append((lo, hi))
+            a = max(float(tl_start), start)
+            b = min(float(tl_end), end)
+            if b > a:
+                out.append((a, b))
     return merge_intervals(out, gap=1e-6)
 
 

@@ -11,6 +11,8 @@ from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_tr
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
+    LaneSourceExtent,
+    RecordingSourceExtent,
     SourceExtent,
     UnconfirmedCutSpeech,
     confirmation_for,
@@ -182,17 +184,15 @@ def _near_on_timeline(
     return a[0] - gap <= b[1] and b[0] - gap <= a[1]
 
 
-def _source_extents(removes: list[EditDecision]) -> tuple[SourceExtent, ...]:
-    return tuple(
-        SourceExtent(
-            e.track_id,
-            e.start,
-            e.end,
-            e.source_id,
-            source_scoped=e.source_timeline_span is not None,
+def _source_extents(removes: list[EditDecision]) -> dict[str, SourceExtent]:
+    return {
+        e.id: (
+            RecordingSourceExtent(e.track_id, e.start, e.end, e.source_id)
+            if e.source_timeline_span is not None
+            else LaneSourceExtent(e.track_id, e.start, e.end)
         )
         for e in removes
-    )
+    }
 
 
 def _pre_pad_fade_out_ms() -> int:
@@ -318,7 +318,7 @@ def approve_edits(
         )
         applied_ids.add(edit.id)
     batch = _source_extents(removes)
-    extents = {e.id: SourceExtent(e.track_id, e.start, e.end) for e in removes}
+    extents = batch.copy()
     applied_removes: list[str] = []
     partial = held_out is not None
     # Named before any ripple moves anything, so a held cut reads as the list shows it.
@@ -335,7 +335,7 @@ def approve_edits(
             edit,
             confirm_cut_speech=confirm_cut_speech,
             allow_review=allow_review,
-            batch=batch,
+            batch=tuple(batch.values()),
             use_inaudible_opt=False,
             record_log=False,
             override_peer_holds=override_peer_holds,
@@ -343,14 +343,11 @@ def approve_edits(
         if isinstance(applied, CutSpeechConfirmation):
             asked.append(applied)
             asked_ids.append(edit.id)
-            if partial:
-                batch = tuple(x for x in batch if x != extents[edit.id])
+            batch.pop(edit.id)
             continue
         if isinstance(applied, CutScopeHold):
             held.append(applied)
-            if partial:
-                # Cuts assessed from here on must not count this one's span as chosen.
-                batch = tuple(x for x in batch if x != extents[edit.id])
+            batch.pop(edit.id)
             continue
         tl_start, tl_end, track_ids, params = applied
         if not track_ids:
@@ -598,12 +595,13 @@ def _apply_auto_removes(
             edit,
             confirm_cut_speech=False,
             allow_review=False,
-            batch=batch,
+            batch=tuple(batch.values()),
             use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
             record_log=False,
         )
         if isinstance(applied, CutSpeechConfirmation | CutScopeHold):
             held.add(edit.id)
+            batch.pop(edit.id)
             continue
         tl_start, tl_end, track_ids, params = applied
         if not track_ids:

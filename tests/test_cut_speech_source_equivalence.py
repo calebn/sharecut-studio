@@ -6,7 +6,12 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline, assess_cut_speech
+from podcast_mcp.edits.cut_speech import (
+    LaneSourceExtent,
+    RecordingSourceExtent,
+    _chosen_on_timeline,
+    assess_cut_speech,
+)
 from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
 from podcast_mcp.models import (
     Clip,
@@ -104,9 +109,33 @@ def test_equivalent_source_ids_on_track_without_media(tmp_path: Path):
 
 def test_chosen_on_timeline_maps_parked_alias_for_primary_extent(tmp_path: Path):
     project = _cross_lane_alias_project(tmp_path)
-    chosen = [SourceExtent("guest", 5.0, 5.5, source_id=None)]
+    chosen = [RecordingSourceExtent("guest", 5.0, 5.5, source_id=None)]
     spans = _chosen_on_timeline(project, "guest", chosen, 24.0, 26.0)
     assert spans == [(25.0, 25.5)]
+
+
+def test_unwitnessed_lane_extent_covers_foreign_take_on_that_lane(tmp_path: Path):
+    project = _cross_lane_alias_project(tmp_path)
+    project.clips = [clip for clip in project.clips if clip.id != "guest-alias-clip"]
+    project.sources.append(SourceRecording(id="foreign", path="raw/host.wav", duration_sec=30))
+    project.clips.append(
+        Clip(
+            id="foreign-on-guest",
+            track_id="guest",
+            source_id="foreign",
+            source_start=5,
+            source_end=6,
+            timeline_start=25,
+        )
+    )
+
+    lane = _chosen_on_timeline(project, "guest", [LaneSourceExtent("guest", 5, 5.5)], 24, 26)
+    primary = _chosen_on_timeline(
+        project, "guest", [RecordingSourceExtent("guest", 5, 5.5, source_id=None)], 24, 26
+    )
+
+    assert lane == [(25, 25.5)]
+    assert primary == []
 
 
 def test_assess_cut_speech_ignores_words_covered_by_equivalent_batch_extent(
@@ -132,6 +161,6 @@ def test_assess_cut_speech_ignores_words_covered_by_equivalent_batch_extent(
     with_batch = assess_cut_speech(
         project,
         removal,
-        also_chosen=[SourceExtent("guest", 5.0, 5.5, source_id=None)],
+        also_chosen=[RecordingSourceExtent("guest", 5.0, 5.5, source_id=None)],
     )
     assert with_batch is None
