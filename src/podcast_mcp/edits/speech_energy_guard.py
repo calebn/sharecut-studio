@@ -314,7 +314,7 @@ def _owned_peer_frames(
         size = min(levels.size, owner.size)
         own[:size] &= ~(
             (owner[:size] > DIGITAL_SILENCE_DB + owner_gain)
-            & (owner[:size] - levels[:size] >= dominance_db)
+            & ((owner[:size] - owner_gain) - (levels[:size] - gain) >= dominance_db)
         )
     return _PeerFrames(
         levels,
@@ -549,6 +549,11 @@ def _peer_speaks_near_span(
     return None if unavailable else False
 
 
+def _gain_db(project: EpisodeProject, track_id: str) -> float:
+    track = project.track_by_id(track_id)
+    return track.gain_db if track else 0.0
+
+
 def _voice_reach_db(
     project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None
 ) -> float:
@@ -643,6 +648,23 @@ def measure_peer_speech(
         for s, e in checked
     ]
     owner_rms = max((r for r in span_owner_rms if r is not None), default=None)
+    # Which mic is louder is read on the recordings, without the balance gains (#1549).
+    span_owner_raw = [
+        max(
+            (
+                r - _gain_db(project, tid)
+                for tid in owner_track_ids
+                if (
+                    r := measure_timeline_rms_db(
+                        project, tid, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
+                    )
+                )
+                is not None
+            ),
+            default=None,
+        )
+        for s, e in checked
+    ]
 
     peer_rms: dict[str, float] = {}
     speaking: list[str] = []
@@ -651,7 +673,8 @@ def measure_peer_speech(
         if tid in owner_track_ids:
             continue
         speaks = False
-        for (tl_start, tl_end), span_owner in zip(checked, span_owner_rms, strict=True):
+        peer_gain = _gain_db(project, tid)
+        for (tl_start, tl_end), span_owner in zip(checked, span_owner_raw, strict=True):
             rms = measure_timeline_rms_db(
                 project, tid, tl_start, tl_end, caches=caches, floor_db=DIGITAL_SILENCE_DB
             )
@@ -681,10 +704,11 @@ def measure_peer_speech(
             )
             if calibrated is None:
                 voiced = _peer_voice_in_mean(project, tid, rms, caches)
+                raw = rms - peer_gain
                 calibrated = (
-                    span_owner is None or rms - span_owner >= dominance
+                    span_owner is None or raw - span_owner >= dominance
                     if voiced is None
-                    else voiced and (span_owner is None or span_owner - rms < dominance)
+                    else voiced and (span_owner is None or span_owner - raw < dominance)
                 )
             speaks |= calibrated
         if speaks:

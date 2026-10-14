@@ -193,6 +193,57 @@ def test_assess_allows_when_cut_track_dominates():
 
 
 @pytest.mark.usefixtures("peer_floor")
+@pytest.mark.parametrize("guest_gain_db", [0.0, 20.0])
+def test_a_balance_gain_on_the_peer_does_not_make_it_dominate(guest_gain_db: float):
+    """#1549: the cut track is 15 dB louder as recorded; the guest's +20 dB balance gain lifts the
+    level the mean path reads (recorded dB) above the host's, but moves no verdict."""
+    p = _two_track()
+    p.tracks[1].gain_db = guest_gain_db
+
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+        return -25.0 if track_id == "host" else -40.0 + guest_gain_db
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.measure_timeline_rms_db",
+        side_effect=fake_rms,
+    ):
+        g = assess_cross_track_speech(
+            p,
+            "host",
+            2.0,
+            2.5,
+            defaults={
+                "tighten": {"speech_energy_guard": {"enabled": True, "dominance_db": 3.0}},
+                "analysis": {"heuristics": {}},
+            },
+        )
+    assert not g.blocked
+
+
+@pytest.mark.parametrize("peer_gain_db", [0.0, 20.0])
+def test_owner_dominance_over_peer_frames_reads_the_recordings(peer_gain_db: float):
+    """#1549: frame by frame, the owner owns a frame it out-sounds by the dominance margin as
+    recorded, whatever balance gain the peer's track carries."""
+    from podcast_mcp.edits.speech_energy_guard import _owned_peer_frames
+
+    p = _two_track()
+    p.tracks[1].gain_db = peer_gain_db
+
+    def frames(project, track_id, start, end, **kw):
+        # Owner 15 dB over the peer as recorded; a track reads its recorded level plus its gain.
+        return np.full(4, -25.0 if track_id == "host" else -40.0 + peer_gain_db)
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=frames
+    ):
+        got = _owned_peer_frames(
+            p, "guest", 2.0, 2.2, owner_track_ids=["host"], dominance_db=3.0, caches=None
+        )
+    assert got is not None
+    assert not got.own.any()
+
+
+@pytest.mark.usefixtures("peer_floor")
 def test_resolve_skip_retains_peer_evidence():
     p = _two_track()
     with (

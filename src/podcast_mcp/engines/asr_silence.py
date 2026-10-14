@@ -509,11 +509,16 @@ class SpeechLevels:
         tl_start, tl_end = source_span_timeline_bounds(self.timeline, track_id, start, end)
         if tl_start is None or tl_end is None:
             return True
+        # Which mic is louder is read on the recordings, without the balance gains (#1549).
+        own_raw = own - self.gains_db[track_id]
         for other_id in self.gains_db:
             if other_id == track_id:
                 continue
             other = self._lane_level_db(other_id, tl_start, tl_end)
-            if other is not None and other >= own + self.bleed_margin_db:
+            if (
+                other is not None
+                and other - self.gains_db[other_id] >= own_raw + self.bleed_margin_db
+            ):
                 return False
         return True
 
