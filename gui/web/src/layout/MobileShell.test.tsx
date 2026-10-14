@@ -19,12 +19,12 @@ import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
 const offlineStore = vi.hoisted(() => ({
-  clearConflicts: vi.fn(),
-  clearHostConflicts: vi.fn(),
   loadConflicts: vi.fn(),
   loadCommandQueue: vi.fn(),
   loadHostCommandCount: vi.fn(),
   loadHostConflicts: vi.fn(),
+  loadHostAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
+  loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));
 
 vi.mock("../state/offlineStore", () => offlineStore);
@@ -39,6 +39,14 @@ vi.mock("../waveform/statusStore", async (importOriginal) => ({
 
 describe("MobileShell", () => {
   beforeEach(() => {
+    offlineStore.loadHostAttention.mockReset().mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
+    offlineStore.loadGuestAttention.mockReset().mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
     offlineStore.loadConflicts.mockResolvedValue([]);
     offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostConflicts.mockResolvedValue([]);
@@ -224,7 +232,10 @@ describe("MobileShell", () => {
   });
 
   it("shows queued host commands in the attention banner", async () => {
-    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    offlineStore.loadHostAttention.mockResolvedValue({
+      pending: 1,
+      conflicts: [],
+    });
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <MobileShell />
@@ -257,7 +268,10 @@ describe("MobileShell", () => {
   });
 
   it("goes to Needs attention from the waiting light in any mode", async () => {
-    offlineStore.loadHostCommandCount.mockResolvedValue(2);
+    offlineStore.loadHostAttention.mockResolvedValue({
+      pending: 2,
+      conflicts: [],
+    });
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <MobileShell />

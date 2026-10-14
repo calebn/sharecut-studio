@@ -23,12 +23,12 @@ vi.mock("../api", async (importOriginal) => ({
 }));
 
 vi.mock("../state/offlineStore", () => ({
-  clearConflicts: vi.fn(),
-  clearHostConflicts: vi.fn(),
   loadConflicts: vi.fn().mockResolvedValue([]),
   loadCommandQueue: vi.fn().mockResolvedValue([]),
   loadHostCommandCount: vi.fn().mockResolvedValue(0),
   loadHostConflicts: vi.fn().mockResolvedValue([]),
+  loadHostAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
+  loadGuestAttention: vi.fn().mockResolvedValue({ pending: 0, conflicts: [] }),
 }));
 
 vi.mock("../waveform/statusStore", async (importOriginal) => ({
