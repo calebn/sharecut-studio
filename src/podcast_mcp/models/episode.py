@@ -17,7 +17,7 @@ from podcast_mcp.models.words_revision import (
     words_revision,
 )
 from podcast_mcp.util.batch_scope import scoped
-from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError
+from podcast_mcp.util.coded_error import CodedError, CodedFileNotFoundError, CodedKeyError
 from podcast_mcp.util.media_identity import same_recording
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
@@ -1153,7 +1153,7 @@ class EpisodeProject(BaseModel):
 
         try:
             target = recording_audio_path(self, track_id, source_id)
-        except CodedKeyError:
+        except CodedError:
             return frozenset({source_id})
         equivalent: set[str | None] = set()
         for clip in self.clips:
