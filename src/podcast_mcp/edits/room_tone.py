@@ -330,6 +330,10 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
         return None
+    if _voice_detector_missing():
+        # A pool picked now would skip the ``voiced`` check for good: leave it for a run
+        # that has the detector, and do not decode the recording to find that out.
+        return None
     path = track_audio_path(project, track_id)
     key = _pool_key(path)
     read = track_floor(path)
@@ -350,12 +354,12 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
             ):
                 pool.append(picked.sample)
     if any(x.speech_prob is None for x in pool):
-        # No voice detector this time: a pool recorded now would skip the ``voiced`` check
-        # for good, so leave it unpicked for a run that has one.
-        return None
+        return None  # the detector went away mid-pick
     result = tuple(pool)
     record = _pool_record_path(project, key)
     try:
+        if not Path(project.workspace_dir).is_dir():
+            raise OSError("the project's workspace is gone")
         record.parent.mkdir(parents=True, exist_ok=True)
         write_text_atomic(
             record,
@@ -382,8 +386,12 @@ def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) ->
     """
     for track_id in dict.fromkeys(track_ids):
         try:
+            key = _pool_key(track_audio_path(project, track_id))
+            with _POOLS_LOCK:
+                if key is not None and key in _PENDING_POOLS:
+                    continue  # the ingest thread is picking it
             record_room_tone_pool(project, track_id)
-        except (OSError, ValueError, KeyError):
+        except Exception:
             log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
 
 
@@ -516,6 +524,12 @@ def _measure(track: TrackFloor, span: Span) -> Sample | None:
         rms_db=rms_db(audio, floor_db=DIGITAL_SILENCE_DB),
         speech_prob=speech_prob,
     )
+
+
+def _voice_detector_missing() -> bool:
+    from podcast_mcp.engines.vad_silero import get_shared_vad
+
+    return get_shared_vad() is None
 
 
 def _speech_prob(audio: np.ndarray) -> float | None:
