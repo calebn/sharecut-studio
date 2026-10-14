@@ -962,3 +962,46 @@ async def test_run_once_ws_dispatch_paths():
     assert "pong" in joined
     assert "ws_close" in joined
     assert "snap" in joined or "ws_data" in joined
+
+
+@pytest.mark.asyncio
+async def test_proxy_ws_forwards_query_to_local_gui():
+    import websockets
+
+    client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
+
+    async def send(payload: dict) -> None:
+        return None
+
+    class _FakeLocal:
+        close_code = 1000
+        close_reason = ""
+
+        def __aiter__(self):
+            return self._frames()
+
+        async def _frames(self):
+            if False:
+                yield ""
+
+    class _Ctx:
+        async def __aenter__(self):
+            return _FakeLocal()
+
+        async def __aexit__(self, *args):
+            return False
+
+    with patch.object(websockets, "connect", return_value=_Ctx()) as connect:
+        await client._proxy_ws(
+            {
+                "id": "sid-query",
+                "path": "api/review/daw/ws",
+                "query": "client_id=viewer-abc&name=Ada+L",
+                "share_token": "tok",
+            },
+            send=send,
+            streams={},
+        )
+    assert connect.call_args.args[0] == (
+        "ws://127.0.0.1:8765/api/review/tok/daw/ws?client_id=viewer-abc&name=Ada+L"
+    )
