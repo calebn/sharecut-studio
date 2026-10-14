@@ -435,13 +435,37 @@ def test_ci_compat_selection_rejects_missing_duplicate_or_filtered_engines(
         ("failure", "", "skipped", 1),
         ("cancelled", "", "skipped", 1),
         ("skipped", "", "skipped", 1),
+        ("", "false", "skipped", 1),
+        ("unknown", "false", "skipped", 1),
+        ("success", "", "skipped", 1),
+        ("success", "unknown", "skipped", 1),
+        ("success", "TRUE", "skipped", 1),
+        ("success", "null", "skipped", 1),
+        ("success", "true", "", 1),
+        ("success", "true", "unknown", 1),
+        ("success", "false", "", 1),
+        ("success", "false", "unknown", 1),
+        ("success", "false", "failure", 1),
+        ("success", "false", "cancelled", 1),
+        ("failure", "true", "success", 1),
+        ("cancelled", "true", "success", 1),
+        ("skipped", "true", "success", 1),
     ],
 )
-def test_ci_gate_requires_the_plan_and_every_planned_browser_suite(
-    plan_result: str, gui: str, suite_result: str, expected_returncode: int
+@pytest.mark.parametrize(
+    ("gate_name", "suite_name"),
+    [("frontend", "frontend-suite"), (CI_GATE_JOB, CI_SUITES_JOB)],
+)
+def test_ci_gate_requires_the_plan_and_every_planned_suite(
+    plan_result: str,
+    gui: str,
+    suite_result: str,
+    expected_returncode: int,
+    gate_name: str,
+    suite_name: str,
 ) -> None:
-    gate = load_github_yaml(WORKFLOW)["jobs"][CI_GATE_JOB]
-    assert gate["needs"] == ["changes", CI_SUITES_JOB]
+    gate = load_github_yaml(WORKFLOW)["jobs"][gate_name]
+    assert gate["needs"] == ["changes", suite_name]
     assert gate["if"] == "always()"
     assert not gate.get("continue-on-error"), f"{CI_GATE_JOB} must fail the build"
     (step,) = gate["steps"]
@@ -451,7 +475,7 @@ def test_ci_gate_requires_the_plan_and_every_planned_browser_suite(
     assert step["env"] == {
         "PLAN": "${{ needs.changes.result }}",
         "GUI": "${{ needs.changes.outputs.gui }}",
-        "SUITES": "${{ needs.frontend-e2e-suites.result }}",
+        "SUITES": "${{ needs." + suite_name + ".result }}",
     }
     result = subprocess.run(
         ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", str(step["run"])],
