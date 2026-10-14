@@ -72,6 +72,7 @@ class GuestMcpProgressContext:
         self._current = 0.0
         self._total: float | None = None
         self._label = ""
+        self._failed = False
 
     @property
     def progress_token(self) -> Any:
@@ -109,6 +110,7 @@ class GuestMcpProgressContext:
 
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
         del task_id
+        self._failed = False
         self._label = label
         self._current = 0.0
         self._total = float(total) if total is not None else None
@@ -139,6 +141,8 @@ class GuestMcpProgressContext:
 
     def end(self, task_id: str, *, message: str | None = None) -> None:
         del task_id
+        if self._failed:
+            return
         done = self._total if self._total is not None else self._current
         self.report_progress(done, self._total, message or "done")
 
@@ -150,6 +154,7 @@ class GuestMcpProgressContext:
         phase: str | None = None,
     ) -> None:
         del task_id
+        self._failed = True
         short = short_fail_headline(message, phase) or "failed"
         self.report_progress(self._current, self._total, short)
 

@@ -110,6 +110,13 @@ passes through two ≤4/s layers in a row (this per-task coalesce, then `GuestWs
 own, which shares the same interval constant); the guest sink publishes its pending value before
 a terminal, so the final count always reaches the guest.
 
+One-slot MCP sinks (`McpNotificationProgress` and remote `GuestMcpProgressContext`)
+keep a nested `fail` as the last notification: a later parent `end` does not snap
+the stored child total to N/N `done`. Studio `_JobProgressReporter.fail` writes
+`job.error` and the running step-error only when `task_id` is that job's owned
+unit (`pipeline` for a pipeline job). A named child such as `word-probe` still
+emits `fail` without leaving a step-error after Propose returns.
+
 ## Choke points (cannot skip)
 
 Wrap **before** registrars run — do not copy opt-in decorators like `notify_after_mutation`.

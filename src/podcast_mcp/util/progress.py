@@ -540,8 +540,10 @@ class McpNotificationProgress:
         self._total: float | None = None
         self._label = ""
         self._pending_task: Any = None
+        self._failed = False
 
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
+        self._failed = False
         self._label = label
         self._current = 0.0
         self._total = float(total) if total is not None else None
@@ -565,6 +567,8 @@ class McpNotificationProgress:
         self._schedule(self._current, self._total, text)
 
     def end(self, task_id: str, *, message: str | None = None) -> None:
+        if self._failed:
+            return
         done = self._total if self._total is not None else self._current
         self._schedule(done, self._total, message or "done")
 
@@ -575,6 +579,7 @@ class McpNotificationProgress:
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
+        self._failed = True
         self._schedule(self._current, self._total, message or "failed")
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:

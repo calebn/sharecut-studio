@@ -59,6 +59,40 @@ def test_job_progress_reporter_fail_and_cancel() -> None:
     reporter.close()
 
 
+def test_job_progress_reporter_child_fail_does_not_mark_pipeline_step() -> None:
+    job = PipelineJob(
+        id="j-probe",
+        project_path="/tmp/p.json",
+        from_step=None,
+        only_step=None,
+        status="running",
+        started_at=0.0,
+    )
+    reporter = _JobProgressReporter(job)
+    with JobEventTap(job.id) as tap:
+        reporter.start("pipeline", "Pipeline", total=4)
+        reporter.message("pipeline", "Running analyze_fillers_pauses")
+        assert job.steps[-1].name == "analyze_fillers_pauses"
+        assert job.steps[-1].status == "running"
+        reporter.fail("word-probe", message="whisper weights missing")
+        kinds = [item.get("kind") for item in tap.drain()]
+        assert "fail" in kinds
+        assert job.error is None
+        assert job.steps[-1].status == "running"
+        assert job.steps[-1].error is None
+        reporter.update(
+            "pipeline",
+            1,
+            total=4,
+            message="Completed analyze_fillers_pauses: 2 word probe unavailable",
+        )
+        assert job.steps[-1].status == "ok"
+        assert job.steps[-1].summary == "2 word probe unavailable"
+        assert job.error is None
+        reporter.end("pipeline", message="done")
+        reporter.close()
+
+
 def test_bootstrap_progress_reporter_fail_and_cancel() -> None:
     job = BootstrapJob(id="b1", components=["whisper"])
     reporter = _BootstrapProgressReporter(job)

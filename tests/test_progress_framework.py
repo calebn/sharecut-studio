@@ -217,6 +217,28 @@ async def test_mcp_notification_progress_schedules_and_cancels_prior():
 
 
 @pytest.mark.asyncio
+async def test_mcp_notification_progress_parent_end_after_nested_fail_does_not_snap():
+    calls: list[tuple] = []
+
+    class Ctx:
+        async def report_progress(self, progress, total, message):
+            calls.append((progress, total, message))
+
+    reporter = McpNotificationProgress(Ctx())
+    reporter.start("propose-edits", "Propose edits")
+    reporter.start("word-probe", "Listening for missed words", total=4)
+    reporter.fail("word-probe", message="whisper weights missing")
+    reporter.end("propose-edits", message="done")
+    await asyncio.sleep(0)
+    assert calls
+    progress, total, message = calls[-1]
+    assert progress != total
+    assert message != "done"
+    assert progress == 0.0
+    assert total == 4.0
+
+
+@pytest.mark.asyncio
 async def test_install_mcp_progress_wraps_add_and_call_tool():
     class FakeServer:
         def __init__(self) -> None:
