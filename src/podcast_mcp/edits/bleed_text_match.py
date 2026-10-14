@@ -153,6 +153,16 @@ def _word_confidence(project: EpisodeProject, key: WordKey) -> float:
     return w.confidence if w is not None and w.confidence is not None else 1.0
 
 
+def _pair_levels(pair: dict[str, Any]) -> tuple[float | None, float | None]:
+    """The two words' levels, each over its own track's voice, so a gain change on one track
+    moves neither the tie-break nor the dominance gap (#1495). A report without them reads
+    the raw RMS."""
+    over_a, over_b = pair.get("over_voice_a_db"), pair.get("over_voice_b_db")
+    if over_a is not None and over_b is not None:
+        return over_a, over_b
+    return pair.get("rms_a_db"), pair.get("rms_b_db")
+
+
 def _pick_text_match_winner(
     pair: dict[str, Any],
     *,
@@ -167,8 +177,7 @@ def _pick_text_match_winner(
     if abs(total_a - total_b) >= margin:
         return pair["track_a"] if total_a > total_b else pair["track_b"]
 
-    rms_a = pair.get("rms_a_db")
-    rms_b = pair.get("rms_b_db")
+    rms_a, rms_b = _pair_levels(pair)
     if rms_a is not None and rms_b is not None and abs(rms_a - rms_b) >= 0.5:
         return pair["track_a"] if rms_a > rms_b else pair["track_b"]
 
@@ -239,8 +248,7 @@ def overlap_text_match_losers(
         if _pair_has_anomalous_duration(project, pair, policy):
             continue
 
-        rms_a = pair.get("rms_a_db")
-        rms_b = pair.get("rms_b_db")
+        rms_a, rms_b = _pair_levels(pair)
         if (
             min_dom is not None
             and rms_a is not None

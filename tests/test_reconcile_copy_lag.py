@@ -67,7 +67,7 @@ BLEED_PATH = EchoPairProfile(
 )
 
 
-def _caches(*, background: bool = True) -> TrackRmsCacheSet:
+def _caches(*, background: bool = True, audra_gain_db: float = 0.0) -> TrackRmsCacheSet:
     dry = (
         voices(7)
         if background
@@ -89,7 +89,9 @@ def _caches(*, background: bool = True) -> TrackRmsCacheSet:
                 samples=(caleb + COPY_GAIN * audra + ROOM_NOISE * noise[0]).astype(np.float32)
             ),
             "audra": TrackRmsCache(
-                samples=(delay(audra, LATENCY_SEC) + 1e-4 * noise[1]).astype(np.float32)
+                samples=(
+                    (delay(audra, LATENCY_SEC) + 1e-4 * noise[1]) * 10 ** (audra_gain_db / 20)
+                ).astype(np.float32)
             ),
         }
     )
@@ -139,6 +141,14 @@ def test_crosstalk_keeps_both_words_own(verdicts) -> None:
 
 def test_a_word_at_the_peers_level_stays_own(verdicts) -> None:
     assert verdicts[("caleb", "same")] == ("audible", None)
+
+
+@pytest.mark.parametrize("audra_gain_db", [-18.0, 12.0])
+def test_one_track_recorded_at_another_gain_keeps_every_verdict(
+    verdicts, audra_gain_db: float
+) -> None:
+    """Audra's file alone is 18 dB down (or 12 dB up): the same words get the same verdicts (#1495)."""
+    assert _verdicts(_caches(audra_gain_db=audra_gain_db)) == verdicts
 
 
 def test_the_lag_and_the_copys_likeness_are_measured_once_per_pair() -> None:

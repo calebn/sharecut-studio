@@ -169,6 +169,8 @@ def overlap_duplicate_report(
                             "text_match": text_match,
                             "rms_a_db": row_a.get("own_rms_db"),
                             "rms_b_db": row_b.get("own_rms_db"),
+                            "over_voice_a_db": row_a.get("own_over_voice_db"),
+                            "over_voice_b_db": row_b.get("own_over_voice_db"),
                         }
                     )
 

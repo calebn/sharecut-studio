@@ -125,6 +125,25 @@ def test_pick_text_match_winner_prefers_rms_tiebreak() -> None:
     assert _pick_text_match_winner(pair) == "host"
 
 
+def test_the_tiebreak_reads_levels_over_each_tracks_voice_not_raw_rms() -> None:
+    """The guest's file is 20 dB hotter, so its raw RMS is higher; over its own voice it is 5 dB lower (#1495)."""
+    pair = {
+        "track_a": "host",
+        "track_b": "guest",
+        "status_a": "audible",
+        "status_b": "audible",
+        "confidence_a": 0.9,
+        "confidence_b": 0.9,
+        "rms_a_db": -35.0,
+        "rms_b_db": -15.0,
+        "over_voice_a_db": -3.0,
+        "over_voice_b_db": -8.0,
+    }
+    assert _pick_text_match_winner(pair) == "host"
+    raw_only = {k: v for k, v in pair.items() if not k.startswith("over_voice")}
+    assert _pick_text_match_winner(raw_only) == "guest"
+
+
 def test_text_match_min_dominance_skips_close_rms(tmp_path: Path) -> None:
     project = _two_track_project(tmp_path)
     pol = AnalysisPolicy(

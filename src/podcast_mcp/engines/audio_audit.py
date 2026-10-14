@@ -761,12 +761,17 @@ def _classify_word_audibility(
     policy: AnalysisPolicy,
     bleed_sources: Collection[str],
     voice_floors: dict[str, float],
+    voice_references: dict[str, float],
 ) -> tuple[str, str | None]:
     """The acoustic verdict for one word window.
 
     A word is ``inaudible`` under its own track's voice floor and a mic is a bleed source
     only while it sounds above its own (``voice_floors``, effective dBFS per track; a
     track with no floor never judges a word inaudible).
+
+    Mics are compared by how far each sounds over its own track's voice
+    (``voice_references``, effective dBFS per track), not by raw dBFS, so a gain change on
+    one track moves no verdict (#1495). A track with no reference reads as recorded.
 
     ``bleed`` needs a louder mic *and* a measured bleed path from that mic to this one
     (``bleed_sources``): a word quieter than another mic on a pair with no path is two
@@ -777,13 +782,20 @@ def _classify_word_audibility(
     if own_rms is None:
         return "inaudible", None
 
-    dominant_tid = max(track_rms, key=lambda tid: track_rms.get(tid, -math.inf))
+    def over_voice(tid: str) -> float:
+        return track_rms.get(tid, -math.inf) - voice_references.get(tid, 0.0)
+
+    dominant_tid = max(track_rms, key=over_voice)
     dominant_rms = track_rms.get(dominant_tid, -math.inf)
 
     if dominant_tid != own_track_id and dominant_tid in bleed_sources:
-        own_val = track_rms.get(own_track_id, own_rms)
-        if dominant_rms - own_val >= policy.bleed_dominance_db and dominant_rms >= voice_floors.get(
-            dominant_tid, -math.inf
+        own_val = (
+            over_voice(own_track_id)
+            if own_track_id in track_rms
+            else (own_rms - voice_references.get(own_track_id, 0.0))
+        )
+        if over_voice(dominant_tid) - own_val >= policy.bleed_dominance_db and (
+            dominant_rms >= voice_floors.get(dominant_tid, -math.inf)
         ):
             return "bleed", dominant_tid
 
@@ -791,6 +803,17 @@ def _classify_word_audibility(
         return "inaudible", None
 
     return "audible", None
+
+
+def _voice_references(
+    project: EpisodeProject, track_ids: Collection[str], caches: TrackRmsCacheSet
+) -> dict[str, float]:
+    """Each decoded track's voice level in the units its word levels are read in."""
+    return {
+        tid: cache.profile.path_reference_db + _recorded_gain_db(project, tid)
+        for tid in track_ids
+        if (cache := caches.get(tid)) is not None
+    }
 
 
 def _voice_floors(
@@ -854,6 +877,7 @@ def compute_word_audibility_map(
     all_tracks = dialogue_track_ids(project)
     targets = [track_id] if track_id else all_tracks
     floors = _voice_floors(project, all_tracks, caches)
+    references = _voice_references(project, all_tracks, caches)
 
     lanes = lanes_transcripts(project, targets)
     total_words = sum(len(lane.transcript.words) for lane in lanes)
@@ -946,7 +970,13 @@ def compute_word_audibility_map(
                 track_rms = _track_levels(project, all_tracks, tl_start, tl_end, lags, caches)
                 own_rms = track_rms.get(tid)
                 status, dominant = _classify_word_audibility(
-                    tid, own_rms, track_rms, policy=pol, bleed_sources=paths, voice_floors=floors
+                    tid,
+                    own_rms,
+                    track_rms,
+                    policy=pol,
+                    bleed_sources=paths,
+                    voice_floors=floors,
+                    voice_references=references,
                 )
                 unlike_copy = False
                 if status == "bleed" and dominant in lags:
@@ -958,6 +988,7 @@ def compute_word_audibility_map(
                         policy=pol,
                         bleed_sources=paths,
                         voice_floors=floors,
+                        voice_references=references,
                     )
                     unlike_copy = zero[0] != "bleed" and not paths[dominant].carries(
                         caches.copy_match(dominant, tid, tl_start, tl_end)
@@ -973,6 +1004,11 @@ def compute_word_audibility_map(
                     "start": w.start,
                     "end": w.end,
                     "own_rms_db": round(own_rms, 2) if own_rms is not None else None,
+                    "own_over_voice_db": (
+                        round(own_rms - references.get(tid, 0.0), 2)
+                        if own_rms is not None
+                        else None
+                    ),
                     "track_rms_db": {k: round(v, 2) for k, v in track_rms.items()},
                     "audibility_status": status,
                     "dominant_track": dominant,

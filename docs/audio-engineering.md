@@ -115,9 +115,12 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   open and floor levels are dB re that track's own voice. A track whose loudest frames show
   no voice over its room (a lane that talks for a second in four minutes) is read as
   recorded. The bleed gate and alignment read the voice level of the lane audio they decode.
-  Comparisons between two tracks (which side of a pair is louder, a copy's level against its
-  source) add back the difference of the two references (`LevelProfile.path_reference_db`),
-  so they compare the tracks as recorded, as before.
+  Comparisons between two tracks add back the difference of the two references
+  (`LevelProfile.path_reference_db`), so they compare the tracks as recorded, as before: a
+  copy's level against its source, the clipped-onset and bleed-latency pairs. Reconcile's
+  audibility verdict is the exception: it ranks the mics by dB over each one's own voice, so
+  one file recorded at another gain keeps every verdict (#1495,
+  `tests/test_reconcile_copy_lag.py`).
 - Digital silence (`util.dsp.DIGITAL_SILENCE_DB`) reads the same at any gain.
 
 The bleed path's offsets were dBFS levels set on the lab tape, whose tracks' median voice
