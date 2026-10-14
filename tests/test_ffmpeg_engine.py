@@ -208,6 +208,25 @@ def test_check_available_handles_empty_version_output():
     assert "did not report a numeric" in message
 
 
+def test_check_available_refreshes_live_pair_after_cached_probe_failure():
+    engine = FFmpegEngine()
+    with patch("podcast_mcp.util.binaries.run", side_effect=FileNotFoundError("missing")) as run:
+        ok, message = engine.check_available()
+    assert ok is False
+    assert "Cannot run" in message
+    run.assert_called_once()
+
+    def report_version(command, **_kwargs):
+        executable = Path(command[0]).name
+        return MagicMock(returncode=0, stdout=f"{executable} version 9.0.2\n")
+
+    with patch("podcast_mcp.util.binaries.run", side_effect=report_version) as run:
+        ok, message = engine.check_available()
+    assert ok is True
+    assert message == "FFmpeg/FFprobe 9.0.2"
+    assert run.call_count == 2
+
+
 def test_probe_parsed_from_json(tmp_path: Path):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"

@@ -312,6 +312,7 @@ Single-command helpers use the same validated pair.
 After a successful admission, a process reuses that result only while the
 effective selectors, search precedence, and candidate executable identities
 remain unchanged. Failed pair admission is retried rather than cached.
+Explicit health checks run fresh bounded version probes even when admission is cached.
 
 The authoritative [source recipe](../contracts/ffmpeg-build.json) pins FFmpeg
 9.0.2, static LAME 4.0, static zlib 1.3.2 and static Opus 1.6.1 by independently

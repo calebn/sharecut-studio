@@ -263,15 +263,25 @@ def _resolve_ffmpeg_pair_uncached(ffmpeg: str | None, ffprobe: str | None) -> FF
     return _automatic_pair()
 
 
-def resolve_ffmpeg_pair(ffmpeg: str | None = None, ffprobe: str | None = None) -> FFmpegPair:
-    """Admit a supported pair once while its selectors and binaries stay unchanged."""
+def resolve_ffmpeg_pair(
+    ffmpeg: str | None = None,
+    ffprobe: str | None = None,
+    *,
+    force_refresh: bool = False,
+) -> FFmpegPair:
+    """Admit a supported pair once while selectors and binaries stay unchanged.
+
+    ``force_refresh`` performs live version probes even when admission is cached.
+    Only a successful refreshed pair is written to the cache.
+    """
     with _PAIR_CACHE_LOCK:
         key = _admission_cache_key(ffmpeg, ffprobe)
-        cached = _PAIR_CACHE.get(key)
-        if cached is not None:
-            _PAIR_CACHE.pop(key)
-            _PAIR_CACHE[key] = cached
-            return cached
+        if not force_refresh:
+            cached = _PAIR_CACHE.get(key)
+            if cached is not None:
+                _PAIR_CACHE.pop(key)
+                _PAIR_CACHE[key] = cached
+                return cached
         pair = _resolve_ffmpeg_pair_uncached(ffmpeg, ffprobe)
         _PAIR_CACHE[key] = pair
         while len(_PAIR_CACHE) > _PAIR_CACHE_LIMIT:

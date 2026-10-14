@@ -361,7 +361,7 @@ class FFmpegEngine:
 
     def check_available(self) -> tuple[bool, str]:
         try:
-            pair = resolve_ffmpeg_pair(self.ffmpeg, self.ffprobe)
+            pair = resolve_ffmpeg_pair(self.ffmpeg, self.ffprobe, force_refresh=True)
         except FFmpegPairResolutionError as exc:
             return False, str(exc)
         return True, "FFmpeg/FFprobe " + ".".join(map(str, pair.version))
