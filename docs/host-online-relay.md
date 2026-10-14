@@ -790,10 +790,11 @@ with private paths and path-free diagnostic secrets.
   `review_artifacts_not_private`. These refusals apply on every guest surface, including the share-identity middleware and the remote MCP
   resolve step (JSON-RPC `-32603` with `data.error_code`). Refusal messages never embed another
   exception's text (`HistoryRerenderError`'s render error, ffprobe's error on an upload
-  stay in the log). `tests/test_guest_host_path_sweep.py` builds a share under folders named
-  with apostrophes, quotes, `?`, spaces and non-ASCII and reads every guest surface (review and
-  record HTTP, remote MCP, the share and record pages, both WebSocket admissions, the progress
-  stream) for any word of the folder name. See § Remote MCP › Routing.
+  stay in the log). `tests/test_guest_contract.py` is the one guard: it lists every guest route, socket and MCP tool
+  (a new route without a probe fails it), builds a share under folders named with apostrophes,
+  quotes, `?`, spaces and non-ASCII, plants a host path and a secret-looking string in a coded
+  refusal, a crash and an `OSError` (and breaks the real mix and project file), and checks that no
+  response, close reason or progress frame carries any word of the folder or the secret. See § Remote MCP › Routing.
 - **Rate limiting**: see § Rate limiting above. Optional **Caddy `rate_limit` module** (edge IP limits) is later ops polish if that Caddy plugin is installed; the relay IP bucket already covers MVP.
 - **Presence**: guests with `view` see other participants' cursors, selection, playhead, and viewport, fanned out server-side as per-client `PresenceDelta`s rather than a full-roster resend on every tick, with a `RosterRequest` frame for the guest to resync on a version gap (`docs/session-sync.md` § Server → client: `Presence` / `PresenceDelta` / `RosterRequest`). Session-plane WS messages echo the assigned `guest-{token}-…` `client_id` (the query string keeps the tab’s original id) so the guest never draws their own ghost. The guest DAW WebSocket accepts `Presence` and `RosterRequest` frames only, with a 4 KiB size cap, per-connection and per-token rate limits, a malformed-frame close (`4400` after 20), mid-session share revocation re-check, and an Origin allow-list check for restricted shares. A `RosterRequest` reply is additionally throttled to one per second per assigned guest client id, which survives a reconnect (the `ws_roster_request` host limiter, `PODCAST_WS_ROSTER_REQUEST_RPM` / `_BURST`). The relay `ws_presence` bucket is a coarse prefix pre-filter (`is_presence_ws_text` classifies both `Presence` and `RosterRequest` into it); the host limiter is authoritative. An invalid guest `playhead_sec` (negative, NaN, infinite, or not a JSON number) is dropped by the host and the last good one is kept; the frame is not counted as malformed.
 
