@@ -332,7 +332,7 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
     }
     (plan,) = [step for step in changes["steps"] if step.get("id") == "plan"]
     assert plan["run"].startswith("python3 scripts/ci_plan.py plan --event")
-    for name in ("frontend", "frontend-e2e-suites"):
+    for name in ("frontend-suite", "frontend-e2e-suites"):
         assert jobs[name]["needs"] == "changes"
         assert jobs[name]["if"] == "needs.changes.outputs.gui == 'true'"
     assert set(load_github_yaml(WORKFLOW)["on"]) == {

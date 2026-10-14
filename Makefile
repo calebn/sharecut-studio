@@ -40,7 +40,7 @@ e2e-real:
 	uv run pytest -m e2e_real --no-cov -q 2>/dev/null || .venv/bin/pytest -m e2e_real --no-cov -q 2>/dev/null || pytest -m e2e_real --no-cov -q
 
 # Sharecut Studio frontend: oxlint + Stylelint + Biome format check + typecheck +
-# vitest (component axe) + production build. Mirrors CI `frontend` job.
+# vitest (component axe) + production build. Mirrors CI `frontend-suite` job.
 test-web:
 	cd gui/web && npm ci && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npx vite-node scripts/generate-keymap-cheatsheet.ts --check
 
