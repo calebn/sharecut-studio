@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
@@ -547,7 +547,7 @@ def update_pending_edit(
         edit.end = end
     require_source_remove(project, edit)
     if snap:
-        optimizer_kwargs: dict[str, CutWordIndex] = {}
+        optimizer_kwargs: dict[str, Any] = {}
         if edit.source_id is not None:
             selected_transcript = project.transcript_for_source(edit.track_id, edit.source_id)
             optimizer_kwargs["word_index"] = CutWordIndex.from_transcript(
