@@ -231,6 +231,7 @@ describe("TranscriptWordInspector", () => {
         "host",
         1,
         "there",
+        null,
       );
     });
   });
@@ -281,6 +282,7 @@ describe("TranscriptWordInspector", () => {
     expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
       projectPath: "/tmp/ep",
       trackId: "host",
+      sourceId: null,
       wordIndex: 1,
       originalText: "there",
       flag: { name: "audibility_locked", was: true },
@@ -442,6 +444,7 @@ describe("TranscriptWordInspector", () => {
         0,
         true,
         "hello",
+        null,
       );
     });
   });
@@ -465,6 +468,7 @@ describe("TranscriptWordInspector", () => {
         0,
         false,
         "hello",
+        null,
       );
     });
   });
@@ -479,6 +483,7 @@ describe("TranscriptWordInspector", () => {
         1,
         true,
         "there",
+        null,
       );
     });
   });
@@ -523,6 +528,7 @@ describe("TranscriptWordInspector", () => {
         1,
         true,
         null,
+        null,
       );
     });
   });
@@ -538,6 +544,7 @@ describe("TranscriptWordInspector", () => {
         1,
         false,
         "there",
+        null,
       );
     });
   });
@@ -553,6 +560,7 @@ describe("TranscriptWordInspector", () => {
         1,
         1,
         true,
+        null,
         null,
       );
     });
@@ -607,6 +615,7 @@ describe("TranscriptWordInspector", () => {
     expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
       projectPath: "/tmp/ep",
       trackId: "host",
+      sourceId: null,
       wordIndex: 0,
       originalText: "hello",
       flag: { name: "suppressed", was: false },
@@ -636,6 +645,7 @@ describe("TranscriptWordInspector", () => {
     expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
       projectPath: "/tmp/ep",
       trackId: "host",
+      sourceId: null,
       wordIndex: 0,
       originalText: "hello",
       flag: { name: "ignored", was: false },
@@ -669,6 +679,7 @@ describe("TranscriptWordInspector", () => {
     expect(failure).toEqual({
       projectPath: "/tmp/ep",
       trackId: "host",
+      sourceId: null,
       wordIndex: 0,
       originalText: "hello",
       message: "Could not fix “hello”: boom",

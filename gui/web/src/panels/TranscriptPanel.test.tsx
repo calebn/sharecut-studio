@@ -223,6 +223,7 @@ describe("TranscriptPanel", () => {
     const thereWord = {
       kind: "transcriptWord",
       trackId: "host",
+      sourceId: null,
       wordIndex: 1,
     } as const;
 
@@ -756,6 +757,7 @@ describe("TranscriptPanel", () => {
       expect(useDawStore.getState().selection).toEqual({
         kind: "transcriptWord",
         trackId: "host",
+        sourceId: null,
         wordIndex: 0,
       });
     });
@@ -1260,6 +1262,89 @@ describe("TranscriptPanel", () => {
       "transcript.ignoreWords",
       {
         trackId: "host",
+        sourceId: null,
+        startWordIndex: 0,
+        endWordIndex: 1,
+        ignored: false,
+      },
+      expect.objectContaining({ skipWhen: true }),
+    );
+  });
+
+  it("keeps primary Restore targeted while a take is selected", () => {
+    const primary = project().transcript!.utterances[0];
+    useDawStore.setState({
+      project: {
+        ...project(),
+        transcript: {
+          utterances: [
+            {
+              ...primary,
+              source_id: null,
+              words: primary.words!.map((w) => ({
+                ...w,
+                ignored: true,
+              })),
+            },
+            {
+              ...primary,
+              start: primary.start + 0.1,
+              end: primary.end + 0.1,
+              speaker: "Guest",
+              text: "alternate words",
+              source_id: "take-b",
+              words: primary.words!.map((w, index) => ({
+                ...w,
+                text: index === 0 ? "alternate" : "words",
+                ignored: true,
+              })),
+            },
+          ],
+        },
+      },
+      selection: null,
+    });
+    const { container } = render(<TranscriptPanel />);
+    fireEvent.click(within(container).getByRole("button", { name: /Select/i }));
+    fireEvent.click(
+      within(container).getByRole("button", { name: "alternate" }),
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptRange",
+      trackId: "host",
+      sourceId: "take-b",
+      startWordIndex: 0,
+      endWordIndex: 0,
+    });
+    fireEvent.click(
+      within(container).getByRole("button", {
+        name: "Restore ignored: hello there",
+      }),
+    );
+
+    expect(execute).toHaveBeenCalledWith(
+      "transcript.ignoreWords",
+      {
+        trackId: "host",
+        sourceId: null,
+        startWordIndex: 0,
+        endWordIndex: 1,
+        ignored: false,
+      },
+      expect.objectContaining({ skipWhen: true }),
+    );
+
+    vi.mocked(execute).mockClear();
+    fireEvent.click(
+      within(container).getByRole("button", {
+        name: "Restore ignored: alternate words",
+      }),
+    );
+    expect(execute).toHaveBeenCalledWith(
+      "transcript.ignoreWords",
+      {
+        trackId: "host",
+        sourceId: "take-b",
         startWordIndex: 0,
         endWordIndex: 1,
         ignored: false,

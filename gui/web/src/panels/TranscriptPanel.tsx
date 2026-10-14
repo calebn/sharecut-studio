@@ -308,7 +308,7 @@ export function TranscriptPanel() {
     setSelection({
       kind: "transcriptWord",
       trackId,
-      ...(sourceId != null ? { sourceId } : {}),
+      sourceId,
       wordIndex,
     });
     return true;
@@ -535,7 +535,7 @@ export function TranscriptPanel() {
     setSelection({
       kind: "transcriptRange",
       trackId,
-      ...(sourceId != null ? { sourceId } : {}),
+      sourceId,
       startWordIndex: Math.min(a, b),
       endWordIndex: Math.max(a, b),
     });
@@ -1361,7 +1361,7 @@ export function TranscriptPanel() {
                         commandId="transcript.ignoreWords"
                         args={{
                           trackId: u.track_id,
-                          ...(sourceId != null ? { sourceId } : {}),
+                          sourceId: restoreRun.sourceId,
                           startWordIndex: restoreRun.startWordIndex,
                           endWordIndex: restoreRun.endWordIndex,
                           ignored: false,
@@ -1504,7 +1504,7 @@ export function TranscriptPanel() {
                               setSelection({
                                 kind: "transcriptWord",
                                 trackId: u.track_id,
-                                ...(sourceId != null ? { sourceId } : {}),
+                                sourceId,
                                 wordIndex,
                               });
                               return;

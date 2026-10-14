@@ -7,7 +7,7 @@ import { findTranscriptWordIn } from "../utils/transcript";
 
 export interface IgnoredWordRun {
   trackId: string;
-  sourceId?: string | null;
+  sourceId: string | null;
   startWordIndex: number;
   endWordIndex: number;
 }
@@ -39,7 +39,7 @@ export function ignoredRuns(
     if (start !== null && prev !== null) {
       runs.push({
         trackId,
-        ...(sourceId != null ? { sourceId } : {}),
+        sourceId,
         startWordIndex: start,
         endWordIndex: prev,
       });
@@ -50,7 +50,7 @@ export function ignoredRuns(
   if (start !== null && prev !== null) {
     runs.push({
       trackId,
-      ...(sourceId != null ? { sourceId } : {}),
+      sourceId,
       startWordIndex: start,
       endWordIndex: prev,
     });
@@ -68,7 +68,7 @@ export interface IgnoreTargetArgs {
 
 export interface IgnoreTarget {
   trackId: string;
-  sourceId?: string | null;
+  sourceId: string | null;
   startWordIndex: number;
   endWordIndex: number;
   ignored: boolean;
@@ -116,11 +116,12 @@ export function ignoreTarget(
   }
   const [startWordIndex, endWordIndex] = resolveRange(selection, args);
   const sourceId =
-    args.sourceId ??
-    (selection?.kind === "transcriptWord" ||
-    selection?.kind === "transcriptRange"
-      ? (selection.sourceId ?? null)
-      : null);
+    args.sourceId !== undefined
+      ? args.sourceId
+      : selection?.kind === "transcriptWord" ||
+          selection?.kind === "transcriptRange"
+        ? (selection.sourceId ?? null)
+        : null;
   if (
     startWordIndex == null ||
     endWordIndex == null ||
@@ -139,7 +140,7 @@ export function ignoreTarget(
     );
   return {
     trackId,
-    ...(sourceId != null ? { sourceId } : {}),
+    sourceId,
     startWordIndex,
     endWordIndex,
     ignored,

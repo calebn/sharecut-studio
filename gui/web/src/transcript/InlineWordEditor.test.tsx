@@ -410,6 +410,7 @@ describe("InlineWordEditor", () => {
       expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
         projectPath: "/tmp/ep",
         trackId: "host",
+        sourceId: null,
         wordIndex: 0,
         originalText: "hello",
         message: "Could not fix “hello”: network down",

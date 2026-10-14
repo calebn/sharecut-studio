@@ -184,6 +184,7 @@ describe("TranscriptPanel suppressed edge words (#752)", () => {
       expect(useDawStore.getState().selection).toEqual({
         kind: "transcriptWord",
         trackId: "host",
+        sourceId: null,
         wordIndex: edgeCase.targetWordIndex,
       });
 
@@ -198,6 +199,7 @@ describe("TranscriptPanel suppressed edge words (#752)", () => {
         edgeCase.targetWordIndex,
         false,
         edgeCase.targetText,
+        null,
       );
 
       await expectNoA11yViolations(container);
