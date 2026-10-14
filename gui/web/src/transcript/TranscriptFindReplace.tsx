@@ -9,6 +9,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { Button, CommandButton, Field, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 
 type ReplaceState =
@@ -135,8 +136,14 @@ export function TranscriptFindReplace() {
         </label>
         <Button
           type="submit"
-          disabled={
-            busy || !options.search.trim() || !options.replacement.trim()
+          disabledReason={
+            busy
+              ? BUSY_REASON
+              : !options.search.trim()
+                ? "Enter the text to find."
+                : !options.replacement.trim()
+                  ? "Enter the replacement text."
+                  : undefined
           }
         >
           {state.kind === "previewing" ? "Finding…" : "Preview replacements"}
@@ -191,7 +198,13 @@ export function TranscriptFindReplace() {
             </Button>
           )}
           <Button
-            disabled={busy || preview.count === 0}
+            disabledReason={
+              busy
+                ? BUSY_REASON
+                : preview.count === 0
+                  ? "No matches to replace. Change the search."
+                  : undefined
+            }
             onClick={() => void replace()}
           >
             {state.kind === "replacing"
@@ -205,8 +218,10 @@ export function TranscriptFindReplace() {
           Replaced {state.count} instance{state.count === 1 ? "" : "s"}.{" "}
           <CommandButton
             commandId="history.undo"
-            disabled={
+            disabledReason={
               project !== state.project || currentDocumentSeq() !== state.seq
+                ? "The transcript changed since this replacement. Use History to review newer changes."
+                : undefined
             }
           >
             Undo replacements

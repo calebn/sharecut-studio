@@ -513,9 +513,12 @@ export function PrecisionBoundaryDialog({
           <div className="precision-boundary-number">
             <Button
               aria-label="Adjust by minus 1 millisecond"
-              disabled={
-                saving ||
-                (state.kind === "editing" && state.preview === "preparing")
+              disabledReason={
+                saving
+                  ? "Saving the boundary."
+                  : state.kind === "editing" && state.preview === "preparing"
+                    ? "Wait for the preview to load."
+                    : undefined
               }
               onClick={() => changeValue(value - context.limits.fine_step_sec)}
             >
@@ -551,9 +554,12 @@ export function PrecisionBoundaryDialog({
             />
             <Button
               aria-label="Adjust by plus 1 millisecond"
-              disabled={
-                saving ||
-                (state.kind === "editing" && state.preview === "preparing")
+              disabledReason={
+                saving
+                  ? "Saving the boundary."
+                  : state.kind === "editing" && state.preview === "preparing"
+                    ? "Wait for the preview to load."
+                    : undefined
               }
               onClick={() => changeValue(value + context.limits.fine_step_sec)}
             >
@@ -674,20 +680,28 @@ export function PrecisionBoundaryDialog({
           ) : null}
           <div className="precision-boundary-audition">
             <Button
-              disabled={
-                !inputValid ||
-                saving ||
-                (state.kind === "editing" && state.preview === "preparing")
+              disabledReason={
+                !inputValid
+                  ? "Enter a valid change in seconds."
+                  : saving
+                    ? "Saving the boundary."
+                    : state.kind === "editing" && state.preview === "preparing"
+                      ? "Wait for the preview to load."
+                      : undefined
               }
               onClick={() => void listen("current")}
             >
               Listen current
             </Button>
             <Button
-              disabled={
-                !inputValid ||
-                saving ||
-                (state.kind === "editing" && state.preview === "preparing")
+              disabledReason={
+                !inputValid
+                  ? "Enter a valid change in seconds."
+                  : saving
+                    ? "Saving the boundary."
+                    : state.kind === "editing" && state.preview === "preparing"
+                      ? "Wait for the preview to load."
+                      : undefined
               }
               onClick={() => void listen("proposed")}
             >
@@ -703,7 +717,15 @@ export function PrecisionBoundaryDialog({
             </Button>
             <Button
               variant="primary"
-              disabled={!inputValid || saving || state.kind !== "editing"}
+              disabledReason={
+                !inputValid
+                  ? "Enter a valid change in seconds."
+                  : saving
+                    ? "Saving the boundary."
+                    : state.kind !== "editing"
+                      ? "Wait for the boundary to load."
+                      : undefined
+              }
               onClick={() => void apply()}
             >
               {saving ? "Saving boundary…" : "Apply"}
