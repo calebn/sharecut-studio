@@ -1,8 +1,10 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from podcast_mcp.edits.decisions import approve_edits
+from podcast_mcp.edits.decisions import approve_edits, update_pending_edit
+from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.pending_preview import _timeline_span
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_cuts import cut_text_match, cut_words, search_transcript
@@ -11,6 +13,7 @@ from podcast_mcp.export.transcript import combined_transcript_markdown
 from podcast_mcp.gui.mapper import map_pending_edits_to_timeline
 from podcast_mcp.models import (
     Clip,
+    EditDecision,
     EpisodeProject,
     MediaAsset,
     SourceRecording,
@@ -18,7 +21,12 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
     TranscriptWord,
+    load_project,
+    save_project,
 )
+from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import EditService
 
 
 def _two_take_project() -> EpisodeProject:
@@ -116,6 +124,148 @@ def test_pending_cut_projection_uses_selected_placement_and_marks_stale() -> Non
     assert stale["mappable"] is False
     assert stale["timeline_spans"] == []
     assert _timeline_span(project, decision) == (0.0, 0.0, False)
+
+
+def test_pending_source_remove_resizes_on_the_same_unique_placement() -> None:
+    project = _two_take_project()
+    decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+
+    updated = update_pending_edit(project, decision.id, start=0.05, end=0.45, snap=False)
+
+    assert (updated.start, updated.end) == (0.05, 0.45)
+    assert updated.source_id == "B"
+    assert updated.source_timeline_span is not None
+    assert (updated.source_timeline_span.start, updated.source_timeline_span.end) == pytest.approx(
+        (10.05, 10.45)
+    )
+    assert project.edit_decisions[0] == updated
+
+
+def test_edit_service_persists_resized_source_geometry(tmp_path: Path) -> None:
+    project = _two_take_project()
+    project.meta.workspace_dir = str(tmp_path)
+    decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    path = save_project(project, tmp_path / "episode.project.json")
+
+    updated = EditService(ProjectWorkspace.open(path)).update_pending(
+        decision.id, start=0.05, end=0.45, snap=False
+    )
+    saved = load_project(path).edit_decisions[0]
+
+    assert (updated.start, updated.end) == (0.05, 0.45)
+    assert saved == updated
+    assert saved.source_id == "B"
+    assert saved.source_timeline_span is not None
+    assert (saved.source_timeline_span.start, saved.source_timeline_span.end) == pytest.approx(
+        (10.05, 10.45)
+    )
+
+
+@pytest.mark.parametrize("stale_geometry", ["moved", "duplicate", "uncovered"])
+def test_pending_source_remove_resize_keeps_geometry_holds(stale_geometry: str) -> None:
+    project = _two_take_project()
+    decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    if stale_geometry == "moved":
+        project.clips[1].timeline_start += 1
+        new_bounds = (0.05, 0.45)
+    elif stale_geometry == "duplicate":
+        project.clips.append(
+            Clip(
+                id="b-overlap",
+                track_id="host",
+                source_id="B",
+                source_start=1.0,
+                source_end=2.0,
+                timeline_start=30,
+            )
+        )
+        new_bounds = (1.2, 1.8)
+    else:
+        new_bounds = (1.9, 2.5)
+    before = decision.model_copy(deep=True)
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        update_pending_edit(
+            project,
+            decision.id,
+            start=new_bounds[0],
+            end=new_bounds[1],
+            snap=False,
+        )
+
+    assert held.value.ids == (decision.id,)
+    assert project.edit_decisions[0] == before
+
+
+@pytest.mark.parametrize("source_id", [None, "B"])
+def test_pending_source_remove_snap_keeps_source_identity(source_id, monkeypatch) -> None:
+    if source_id == "B":
+        project = _two_take_project()
+        decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    else:
+        project = EpisodeProject.create("primary", "/tmp/primary-source")
+        project.tracks = [
+            Track(
+                id="host",
+                label="Host",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+            )
+        ]
+        project.clips = [
+            Clip(id="primary", track_id="host", source_start=0, source_end=2, timeline_start=10)
+        ]
+        decision = EditDecision(
+            id="primary-cut",
+            track_id="host",
+            start=0.5,
+            end=0.7,
+            reason="manual",
+            applied=False,
+            source_id=None,
+            source_timeline_span=RangeInterval(start=10.5, end=10.7),
+        )
+        project.edit_decisions = [decision]
+    observed = {}
+
+    def optimize(_project, track_id, start, end, **kwargs):
+        observed.update(track_id=track_id, start=start, end=end, kwargs=kwargs)
+        return SimpleNamespace(
+            start=start + 0.01,
+            end=end - 0.01,
+            mode="waveform_only",
+            confidence=0.9,
+        )
+
+    monkeypatch.setattr("podcast_mcp.edits.decisions.optimize_source_cut_range", optimize)
+    updated = update_pending_edit(
+        project,
+        decision.id,
+        start=decision.start,
+        end=decision.end,
+        snap=True,
+    )
+
+    assert (observed["track_id"], observed["start"], observed["end"]) == (
+        "host",
+        decision.start,
+        decision.end,
+    )
+    assert observed["kwargs"]["source_id"] == source_id
+    if source_id is None:
+        assert observed["kwargs"] == {"source_id": None}
+    else:
+        word_index = observed["kwargs"]["word_index"]
+        assert isinstance(word_index, CutWordIndex)
+        assert word_index.starts == (0.1, 0.5, 2.5, 4.1)
+    assert updated.source_id == source_id
+    assert (updated.start, updated.end) == pytest.approx(
+        (decision.start + 0.01, decision.end - 0.01)
+    )
+    assert updated.source_timeline_span is not None
+    assert (updated.source_timeline_span.start, updated.source_timeline_span.end) == pytest.approx(
+        (10 + updated.start, 10 + updated.end)
+    )
 
 
 def test_combined_markdown_uses_each_take_placement_and_drops_unplaced_or_suppressed_words() -> (
