@@ -125,6 +125,36 @@ async function settleCommandOutcome(
   }
 }
 
+export async function reconcileCommandBeforeReplay(
+  projectPath: string,
+  command: QueuedCommand,
+): Promise<"send" | "skip" | "stop"> {
+  const attention = await import("../state/offlineAttention");
+  const volatile = attention.volatileOutcomeFor(
+    projectPath,
+    command.command_id,
+  );
+  let outcome: OfflineConflict | null = null;
+  if (isHistoryCommand(command.type)) {
+    outcome =
+      volatile ??
+      commandOutcome(
+        command,
+        "unknown",
+        "Undo or Redo may have been applied. Check History before trying again.",
+      );
+  } else if (volatile?.kind === "refused") {
+    outcome = volatile;
+  }
+  if (!outcome) return "send";
+  try {
+    await settleCommandOutcome(projectPath, command, outcome, true);
+    return "skip";
+  } catch {
+    return "stop";
+  }
+}
+
 interface DocumentCommandBody {
   scope: DocumentScope;
   command_id: string;
@@ -429,7 +459,10 @@ async function submitLiveHistoryIntent(
       return data;
     } catch (error) {
       try {
-        await queue.removeQueuedCommand(token, identity.command_id);
+        const attention = await import("../state/offlineAttention");
+        if (!attention.volatileOutcomeFor(projectPath, identity.command_id)) {
+          await queue.removeQueuedCommand(token, identity.command_id);
+        }
       } catch {}
       throw error;
     }
@@ -510,7 +543,13 @@ async function submitLiveHistoryIntent(
     return reply.data;
   } finally {
     try {
-      await queue?.removeHostQueuedCommand(projectPath, identity.command_id);
+      const attention = await import("../state/offlineAttention");
+      if (
+        queue &&
+        !attention.volatileOutcomeFor(projectPath, identity.command_id)
+      ) {
+        await queue.removeHostQueuedCommand(projectPath, identity.command_id);
+      }
     } catch {}
     send.finish();
   }

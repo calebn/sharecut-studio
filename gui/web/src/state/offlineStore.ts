@@ -221,21 +221,20 @@ function parseConflictList(value: unknown): OfflineConflict[] {
       throw new Error("Invalid saved conflict");
     }
     const command = parseQueuedCommand(conflict.command);
-    const kind = conflict.kind ?? "refused";
+    const kind = conflict.kind;
     if (kind === "refused") {
-      const recovery = conflict.recovery ?? "edit-and-resubmit";
-      if (recovery !== "edit-and-resubmit") {
+      if (conflict.recovery !== "edit-and-resubmit") {
         throw new Error("Invalid saved conflict outcome");
       }
       return {
         command,
         reason: conflict.reason,
         kind,
-        recovery,
+        recovery: "edit-and-resubmit",
       };
     }
     if (kind === "unknown") {
-      const recovery = conflict.recovery ?? "inspect-history";
+      const recovery = conflict.recovery;
       if (recovery !== "retry-same-command" && recovery !== "inspect-history") {
         throw new Error("Invalid saved conflict outcome");
       }

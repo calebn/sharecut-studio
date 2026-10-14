@@ -13,6 +13,7 @@ export interface GuestAttentionBannerViewProps {
   /** Count of host edits queued but not yet applied. */
   pending: number;
   conflicts: readonly OfflineConflict[];
+  guest?: boolean;
   unreadable?: boolean;
   checking?: boolean;
   onDismissAll: () => void;
@@ -28,6 +29,7 @@ export interface GuestAttentionBannerViewProps {
 export function GuestAttentionBannerView({
   pending,
   conflicts,
+  guest = false,
   onDismissAll,
   onSendNow,
   onRetry,
@@ -105,7 +107,11 @@ export function GuestAttentionBannerView({
             {c.kind === "refused" ? (
               <span>Edit the change and submit it again.</span>
             ) : c.recovery === "inspect-history" ? (
-              <span>Inspect History before trying this action again.</span>
+              <span>
+                {guest
+                  ? "Ask the project owner to inspect History before trying this action again."
+                  : "Inspect History before trying this action again."}
+              </span>
             ) : (
               <span>Send now retries this same command.</span>
             )}

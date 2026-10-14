@@ -51,6 +51,15 @@ type Source = {
 const sources = new Map<string, Source>();
 const volatileOutcomes = new Map<string, OfflineConflict[]>();
 
+export function volatileOutcomeFor(
+  projectPath: string,
+  commandId: string,
+): OfflineConflict | undefined {
+  return volatileOutcomes
+    .get(projectPath)
+    ?.find((outcome) => outcome.command.command_id === commandId);
+}
+
 function read(projectPath: string): Promise<[number, OfflineConflict[]]> {
   const token = shareTokenFromKey(projectPath);
   const stored = token
