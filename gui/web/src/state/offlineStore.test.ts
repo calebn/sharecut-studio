@@ -173,6 +173,24 @@ describe("durable list admission", () => {
   );
 
   it.each([
+    { key: "conflicts:bucket", load: () => loadConflicts("bucket") },
+    { key: "host-conflicts:bucket", load: () => loadHostConflicts("bucket") },
+  ])(
+    "does not infer a saved conflict outcome in $key",
+    async ({ key, load }) => {
+      const missingKind = [{ command, reason: "server failed" }];
+      rows.set(key, missingKind);
+      await expect(load()).rejects.toThrow("Invalid saved conflict outcome");
+      expect(rows.get(key)).toEqual(missingKind);
+
+      const missingRecovery = [{ ...conflict, recovery: undefined }];
+      rows.set(key, missingRecovery);
+      await expect(load()).rejects.toThrow("Invalid saved conflict outcome");
+      expect(rows.get(key)).toEqual(missingRecovery);
+    },
+  );
+
+  it.each([
     { client_id: "" },
     { command_id: "" },
     { client_seq: 0 },

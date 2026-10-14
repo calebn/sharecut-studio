@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { QueuedCommand } from "../state/offlineStore";
 import { commandLocks } from "../test/commandLocks";
 import type { HistoryEntryId } from "../types/project";
 
@@ -128,6 +129,84 @@ describe("history command lifetime at queue admission", () => {
         payload: { rerender: false, expected_head_id: "visible-head" },
       });
       expect(fetchSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["UndoHistory", "RedoHistory"] as const)(
+    "keeps a live %s reservation when its unknown outcome cannot be saved",
+    async (type) => {
+      const route = type === "UndoHistory" ? "host" : "guest";
+      const path =
+        route === "host"
+          ? "/tmp/history-unknown-host.json"
+          : "share:history-unknown-guest";
+      const token = "history-unknown-guest";
+      const rows: QueuedCommand[] = [];
+      const enqueue = async (_key: string, command: QueuedCommand) => {
+        rows.push(command);
+        return { persisted: true, hadPredecessor: false };
+      };
+      const load = async () => [...rows];
+      const remove = async (_key: string, commandId: string) => {
+        for (let index = rows.length - 1; index >= 0; index--) {
+          if (rows[index]?.command_id === commandId) rows.splice(index, 1);
+        }
+      };
+      if (route === "host") {
+        queue.enqueueHostCommand.mockImplementation(enqueue);
+        queue.loadHostCommandQueue.mockImplementation(load);
+        queue.removeHostQueuedCommand.mockImplementation(remove);
+        queue.settleHostCommandOutcome.mockRejectedValue(
+          new Error("IndexedDB unavailable"),
+        );
+      } else {
+        queue.enqueueCommand.mockImplementation(enqueue);
+        queue.loadCommandQueue.mockImplementation(load);
+        queue.removeQueuedCommand.mockImplementation(remove);
+        queue.settleGuestCommandOutcome.mockRejectedValue(
+          new Error("IndexedDB unavailable"),
+        );
+      }
+
+      const { useDawStore } = await import("../state/dawStore");
+      const { minimalProject } = await import("../test/fixtures");
+      const authority = await import("../document/authorityState");
+      const { clearRegisteredCommands, execute } = await import(
+        "../commands/execute"
+      );
+      const { _resetHistoryMovesForTests, registerHistoryCommands } =
+        await import("../commands/history");
+      const project = minimalProject();
+      useDawStore.setState({
+        projectPath: path,
+        project: {
+          ...project,
+          history: { ...project.history, can_undo: true, can_redo: false },
+        },
+      });
+      authority.resetDocumentAuthority(path);
+      clearRegisteredCommands();
+      _resetHistoryMovesForTests();
+      registerHistoryCommands();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("network down");
+        }),
+      );
+
+      await expect(execute("history.undo")).rejects.toThrow();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ type: "UndoHistory" });
+      expect(
+        route === "host"
+          ? queue.removeHostQueuedCommand
+          : queue.removeQueuedCommand,
+      ).not.toHaveBeenCalledWith(
+        route === "host" ? path : token,
+        rows[0]?.command_id,
+      );
     },
   );
 
