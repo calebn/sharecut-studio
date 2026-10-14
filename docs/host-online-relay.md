@@ -790,11 +790,18 @@ with private paths and path-free diagnostic secrets.
   `review_artifacts_not_private`. These refusals apply on every guest surface, including the share-identity middleware and the remote MCP
   resolve step (JSON-RPC `-32603` with `data.error_code`). Refusal messages never embed another
   exception's text (`HistoryRerenderError`'s render error, ffprobe's error on an upload
-  stay in the log). `tests/test_guest_contract.py` is the one guard: it lists every guest route, socket and MCP tool
-  (a new route without a probe fails it), builds a share under folders named with apostrophes,
-  quotes, `?`, spaces and non-ASCII, plants a host path and a secret-looking string in a coded
-  refusal, a crash and an `OSError` (and breaks the real mix and project file), and checks that no
-  response, close reason or progress frame carries any word of the folder or the secret. See § Remote MCP › Routing.
+  stay in the log). `tests/test_guest_contract.py` is the one guard. It walks every route the app
+  serves under a share `{token}` (the `/r/` and `/rec/` pages included), both guest sockets and
+  every remote MCP tool, and a new one without a probe fails it. Each probe names the call inside
+  its own handler where the test plants a host path and a secret-looking string, as a coded
+  refusal, a crash, an `OSError` and an uncoded `KeyError`, and checks the probe reached it. A
+  coded refusal reads as 404 with the fixed guest message and its code. Any other fault reads as
+  exactly 500 `{"detail": "internal error"}` (socket close `1011`, the fixed MCP crash result) and
+  logs the secret on the host, except that an uncoded `KeyError` from the share-token lookup reads
+  as its fixed 404. The waveform routes keep `Cache-Control: no-store`. It also builds a share
+  under folders named with apostrophes, quotes, `?`, spaces and non-ASCII, breaks the real mix
+  and project file, and checks that no response, close reason or progress frame carries any word
+  of the folder or the secret. See § Remote MCP › Routing.
 - **Rate limiting**: see § Rate limiting above. Optional **Caddy `rate_limit` module** (edge IP limits) is later ops polish if that Caddy plugin is installed; the relay IP bucket already covers MVP.
 - **Presence**: guests with `view` see other participants' cursors, selection, playhead, and viewport, fanned out server-side as per-client `PresenceDelta`s rather than a full-roster resend on every tick, with a `RosterRequest` frame for the guest to resync on a version gap (`docs/session-sync.md` § Server → client: `Presence` / `PresenceDelta` / `RosterRequest`). Session-plane WS messages echo the assigned `guest-{token}-…` `client_id` (the query string keeps the tab’s original id) so the guest never draws their own ghost. The guest DAW WebSocket accepts `Presence` and `RosterRequest` frames only, with a 4 KiB size cap, per-connection and per-token rate limits, a malformed-frame close (`4400` after 20), mid-session share revocation re-check, and an Origin allow-list check for restricted shares. A `RosterRequest` reply is additionally throttled to one per second per assigned guest client id, which survives a reconnect (the `ws_roster_request` host limiter, `PODCAST_WS_ROSTER_REQUEST_RPM` / `_BURST`). The relay `ws_presence` bucket is a coarse prefix pre-filter (`is_presence_ws_text` classifies both `Presence` and `RosterRequest` into it); the host limiter is authoritative. An invalid guest `playhead_sec` (negative, NaN, infinite, or not a JSON number) is dropped by the host and the last good one is kept; the frame is not counted as malformed.
 

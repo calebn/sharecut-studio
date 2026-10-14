@@ -71,7 +71,8 @@ def get_record_bootstrap(token: str) -> dict[str, Any]:
 def get_record_features(token: str, request: Request) -> dict[str, Any]:
     check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "read")
-    return share_features_manifest(request)
+    with guest_boundary(log, "record features"):
+        return share_features_manifest(request)
 
 
 def _record_still_valid(token: str) -> bool:
