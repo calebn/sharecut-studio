@@ -187,3 +187,108 @@ def test_gate_collection_rechecks_head_after_network_reads(monkeypatch: Any) -> 
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 200, TOKEN, 0, 6)
     assert not verdict["mergeable"]
     assert "head moved during gate collection" in verdict["blockers"]
+
+
+GRAPHQL_403 = "GraphQL: Resource not accessible by integration"
+
+
+def _rest_pr(*, sha: str = SHA, mergeable_state: str = "clean") -> dict[str, Any]:
+    return {
+        "state": "open",
+        "body": "Fixes #251",
+        "head": {"sha": sha},
+        "base": {"ref": "main"},
+        "labels": [{"name": "pipeline:merging"}],
+        "mergeable_state": mergeable_state,
+    }
+
+
+def _rest_issue() -> dict[str, Any]:
+    return {"number": 251, "labels": [{"name": "in-progress"}, {"name": "pipeline:merging"}]}
+
+
+def _rest_check_run(
+    name: str, *, status: str = "completed", conclusion: str | None = "success"
+) -> dict[str, Any]:
+    return {"name": name, "status": status, "conclusion": conclusion}
+
+
+def _rest_check_pages(*pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"total_count": sum(len(page) for page in pages), "check_runs": page} for page in pages]
+
+
+def _graphql_forbidden_rest(
+    *,
+    pr: dict[str, Any] | None = None,
+    after_pr: dict[str, Any] | None = None,
+    check_pages: list[dict[str, Any]] | None = None,
+    review_pages: list[list[dict[str, Any]]] | None = None,
+    issue: dict[str, Any] | None = None,
+    comments: list[list[dict[str, Any]]] | None = None,
+) -> Any:
+    pr = _rest_pr() if pr is None else pr
+    after_pr = pr if after_pr is None else after_pr
+    check_pages = (
+        _rest_check_pages([_rest_check_run(name) for name in gate.REQUIRED_CHECKS])
+        if check_pages is None
+        else check_pages
+    )
+    review_pages = [[]] if review_pages is None else review_pages
+    issue = _rest_issue() if issue is None else issue
+    comments = [[_claim()]] if comments is None else comments
+    pr_reads = [pr, after_pr]
+
+    def fake_gh_json(*args: str) -> Any:
+        if not args or args[0] != "api" or args[1:2] == ("graphql",):
+            raise RuntimeError(GRAPHQL_403)
+        path = args[1]
+        if path == "repos/calebn/sharecut-studio/pulls/252":
+            return pr_reads.pop(0)
+        if path.startswith("repos/calebn/sharecut-studio/commits/") and "/check-runs" in path:
+            return check_pages
+        if path.startswith("repos/calebn/sharecut-studio/pulls/252/comments"):
+            return review_pages
+        if path == "repos/calebn/sharecut-studio/issues/251":
+            return issue
+        if path.startswith("repos/calebn/sharecut-studio/issues/251/comments"):
+            return comments
+        raise RuntimeError(GRAPHQL_403)
+
+    return fake_gh_json
+
+
+def test_collect_gate_falls_back_to_rest_when_graphql_returns_403(monkeypatch: Any) -> None:
+    monkeypatch.setattr(gate, "gh_json", _graphql_forbidden_rest())
+    verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
+    assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
+
+
+def test_collect_gate_paginates_rest_check_runs_and_blocks_pending(
+    monkeypatch: Any,
+) -> None:
+    first = [_rest_check_run("pytest"), _rest_check_run("frontend")]
+    second = [
+        _rest_check_run("frontend-e2e"),
+        _rest_check_run("gitleaks-history", status="in_progress", conclusion=None),
+    ]
+    monkeypatch.setattr(
+        gate,
+        "gh_json",
+        _graphql_forbidden_rest(check_pages=_rest_check_pages(first, second)),
+    )
+    verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
+    assert verdict["head_sha"] == SHA
+    assert "required check not successful: gitleaks-history" in verdict["blockers"]
+    assert "missing required check: frontend-e2e" not in verdict["blockers"]
+
+
+def test_collect_gate_counts_each_rest_review_comment_thread_as_unresolved(
+    monkeypatch: Any,
+) -> None:
+    review_pages = [
+        [{"id": 10, "in_reply_to_id": None}],
+        [{"id": 11, "in_reply_to_id": 10}, {"id": 20, "in_reply_to_id": None}],
+    ]
+    monkeypatch.setattr(gate, "gh_json", _graphql_forbidden_rest(review_pages=review_pages))
+    verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
+    assert "2 unresolved review thread(s)" in verdict["blockers"]
