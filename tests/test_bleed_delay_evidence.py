@@ -170,3 +170,11 @@ def test_default_short_delay_profile_never_eagerly_measures_long_delays(monkeypa
     )
     assert profile.echo_risk(EchoConfig())
     assert profile.long_delay_regions == ()
+
+
+def test_a_quiet_but_real_copy_is_admitted_and_digital_near_silence_is_not() -> None:
+    source = _voice(11)
+    quiet = _measure(source * 1e-5, _copy(source, 150.0, 0.15) * 1e-5)
+    assert len([row for row in quiet if row.supported]) >= 10
+    silent = _measure(source * 1e-12, _copy(source, 150.0, 0.15) * 1e-12)
+    assert not [row for row in silent if row.supported]
