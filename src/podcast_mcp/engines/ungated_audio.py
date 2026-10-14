@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 import numpy as np
@@ -19,8 +22,48 @@ from podcast_mcp.util.process import run
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.wav import open_wav
 
+_DecodeKey = tuple[str, int, int, int, str | None, tuple[str, ...]]
+_decode_scope: ContextVar[dict[_DecodeKey, np.ndarray] | None] = ContextVar(
+    "decode_scope", default=None
+)
+
+
+@contextmanager
+def decode_scope() -> Iterator[None]:
+    """Decode each source file once while a batch of edits reads the same audio.
+
+    A batch such as Approve all proves every cut against the same stems. Inside the scope
+    a repeat decode of an unchanged file returns the first result, so the batch pays one
+    ffmpeg pass per file, not one per edit. The decodes are freed when the scope exits.
+    """
+    if _decode_scope.get() is not None:
+        yield
+        return
+    token = _decode_scope.set({})
+    try:
+        yield
+    finally:
+        _decode_scope.reset(token)
+
 
 def _decode_f32(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[str]) -> np.ndarray:
+    scope = _decode_scope.get()
+    key: _DecodeKey | None = None
+    if scope is not None:
+        stat = path.stat()
+        key = (str(path), stat.st_mtime_ns, stat.st_size, sample_rate, ffmpeg, tuple(layout))
+        cached = scope.get(key)
+        if cached is not None:
+            return cached
+    samples = _decode_f32_uncached(path, sample_rate, ffmpeg, layout)
+    if scope is not None and key is not None:
+        scope[key] = samples
+    return samples
+
+
+def _decode_f32_uncached(
+    path: Path, sample_rate: int, ffmpeg: str | None, layout: list[str]
+) -> np.ndarray:
     result = run(
         [
             resolve_ffmpeg_pair(ffmpeg=ffmpeg).ffmpeg,

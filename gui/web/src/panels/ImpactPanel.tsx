@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { approveEdits, rejectEdits } from "../api";
 import { askConfirm } from "../feedback/ask";
 import { useProjectMutation } from "../hooks/useProjectMutation";
@@ -25,6 +25,8 @@ import {
   reviewPassOf,
 } from "../utils/pendingReviewPass";
 
+import { BulkReviewWorking } from "./BulkReviewWorking";
+
 const REVIEW_FORBIDDEN_REASON =
   "Only the host or an Editor can review suggestions.";
 
@@ -38,6 +40,11 @@ export function ImpactPanel() {
     }),
   );
   const { busy, error, errorCode, setError, run } = useProjectMutation();
+  const [working, setWorking] = useState<{
+    action: BulkReviewAction;
+    count: number;
+    startedAtSec: number;
+  } | null>(null);
   const { notice: queuedNotice, setQueued } =
     useQueuedReviewNotice(projectPath);
   const appliedRecords = project?.applied_edits.records;
@@ -84,6 +91,11 @@ export function ImpactPanel() {
       return;
     }
     setQueued(false);
+    setWorking({
+      action,
+      count: ids.length,
+      startedAtSec: Date.now() / 1000,
+    });
     await run(async () => {
       const { queued, asked, historyHead } =
         action === "approve"
@@ -99,6 +111,7 @@ export function ImpactPanel() {
           });
       }
     });
+    setWorking(null);
   };
 
   return (
@@ -203,6 +216,13 @@ export function ImpactPanel() {
               Reject all ({reviewRequired.length})
             </Button>
           </div>
+          {working ? (
+            <BulkReviewWorking
+              verb={working.action === "approve" ? "Approving" : "Rejecting"}
+              count={working.count}
+              startedAtSec={working.startedAtSec}
+            />
+          ) : null}
           {canReviewAll ? null : (
             <p className="impact-bulk-reason">{REVIEW_FORBIDDEN_REASON}</p>
           )}

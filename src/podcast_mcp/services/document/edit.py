@@ -186,6 +186,7 @@ from podcast_mcp.effects.presets import (
     set_effect_bypass,
 )
 from podcast_mcp.engines.render_status import render_status_report
+from podcast_mcp.engines.ungated_audio import decode_scope
 from podcast_mcp.history.manager import apply_snapshot_to_project, snapshot_from_project
 from podcast_mcp.history.rollback import RollbackOutcome
 from podcast_mcp.models import EditDecision, EditMode, EpisodeProject
@@ -483,14 +484,15 @@ class EditService:
             restored = outcome is RollbackOutcome.RESTORED
 
         try:
-            return self.ws.mutate(
-                "before approve edits",
-                "after approve edits",
-                mutate,
-                operation="approve_edits",
-                params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
-                on_failure=on_failure,
-            )
+            with decode_scope():
+                return self.ws.mutate(
+                    "before approve edits",
+                    "after approve edits",
+                    mutate,
+                    operation="approve_edits",
+                    params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
+                    on_failure=on_failure,
+                )
         except UnconfirmedCutSpeech as asked:
             if restored:
                 return asked.confirmation
