@@ -52,7 +52,9 @@ History Undo restores the whole action. Disabled actions explain permissions;
 Bounce is host-only. Changed selected audio requires reselection.
 
 Phone users open Timeline and arm **Select range** on its tool rail for a touch
-drag, or use numeric In/Out and lanes (on a phone or tablet the fields sit at the top of the selection sheet). Viewers can select a timeline range and
+drag, or use numeric In/Out and lanes (on a phone or tablet the fields sit at
+the top of the selection sheet, with **Cancel range selection** in that same
+sheet scroll). Viewers can select a timeline range and
 play a fresh full mix but cannot suggest edits, and get no transcript Select. Stale range playback asks for host Refresh; guests
 receive no isolated selected-track audio through this action.
 
