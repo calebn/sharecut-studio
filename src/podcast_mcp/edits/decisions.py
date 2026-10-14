@@ -72,15 +72,21 @@ def edit_timeline_range(
 def _plays_source_span(edit: EditDecision) -> bool:
     """Whether ``edit`` names source seconds that a clip has to play for it to apply."""
     return (
-        edit.timebase == "source"
+        not edit.applied
+        and edit.timebase == "source"
         and edit.exact_range is None
         and edit.type in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
     )
 
 
-def unplayed_pending_ids(project: EpisodeProject) -> list[str]:
-    """Ids of pending remove/mute proposals whose source span no clip plays any more."""
-    candidates = [e for e in project.edit_decisions if _plays_source_span(e)]
+def unplayed_pending_ids(project: EpisodeProject, ids: set[str] | None = None) -> list[str]:
+    """Ids of pending remove/mute proposals whose source span no clip plays any more.
+
+    ``ids`` limits the check to those proposals; ``None`` checks every pending one.
+    """
+    candidates = [
+        e for e in project.edit_decisions if _plays_source_span(e) and (ids is None or e.id in ids)
+    ]
     if not candidates:
         return []
     timeline = SessionTimeline(project)
@@ -242,7 +248,7 @@ def approve_edits(
     id_set = set(ids)
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]
-    unplayed = sorted(set(unplayed_pending_ids(project)) & id_set)
+    unplayed = sorted(unplayed_pending_ids(project, id_set))
     if unplayed:
         raise CodedValueError(
             f"{len(unplayed)} proposal(s) point at audio that was cut away and no longer plays "

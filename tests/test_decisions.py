@@ -1122,10 +1122,12 @@ def test_unplayed_pending_ids_flags_only_spans_no_clip_plays():
         _pending("cut-remove", EditDecisionType.REMOVE, 7.0, 8.0),
         _pending("cut-mute", EditDecisionType.MUTE, 7.2, 7.5),
         _pending("split", EditDecisionType.SPLIT, 7.0, 7.0),
+        _pending("done", EditDecisionType.REMOVE, 7.0, 8.0).model_copy(update={"applied": True}),
     ]
     assert unplayed_pending_ids(proj) == ["cut-remove", "cut-mute"]
+    assert unplayed_pending_ids(proj, {"cut-mute", "played", "done"}) == ["cut-mute"]
     assert retire_unplayed_pending(proj) == 2
-    assert [e.id for e in proj.edit_decisions] == ["played", "split"]
+    assert [e.id for e in proj.edit_decisions] == ["played", "split", "done"]
 
 
 def test_audio_mutation_retires_proposals_in_the_cut_range(tmp_path):
