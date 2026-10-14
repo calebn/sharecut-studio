@@ -248,7 +248,7 @@ Missing, failed, cancelled, or skipped planners, malformed GUI flags, failed or
 cancelled workloads, and unexpected skips therefore block the required aggregate.
 The repository merge helper still requires literal `SUCCESS` from `pytest`,
 `frontend`, `frontend-e2e`, and `gitleaks-history` on the exact PR head. It rejects
-missing contexts, arbitrary `SKIPPED` checks, API errors, and moved heads.
+missing contexts, arbitrary `SKIPPED` checks, API errors, and moved heads. A successful aggregate confirms that the workload result matches the declared plan.
 - `gitleaks-history` runs on every PR in `secret-scan.yml`.
 
 Regressions in skipped areas surface on the next `main` push or nightly run. Check the nightly `test` run before trusting `main`.
