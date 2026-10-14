@@ -202,6 +202,267 @@ def test_edit_service_resize_does_not_retarget_another_source_occurrence(
     assert load_project(path).edit_decisions[0] == decision
 
 
+def _source_overlap_project(*, scope: str = "track", overlap: bool = True):
+    project = _two_take_project()
+    project.clips[0].timeline_start = 10.0
+    project.clips[1].timeline_start = 5.0
+    decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+    decision.scope = scope
+    if overlap:
+        project.clips[1].timeline_start = 10.3
+    assert decision.source_timeline_span is not None
+    assert (
+        decision.source_timeline_span.start,
+        decision.source_timeline_span.end,
+    ) == pytest.approx((10.1, 10.4))
+    return project, decision
+
+
+def _clip_geometry(
+    project: EpisodeProject,
+) -> list[tuple[str, str, str | None, float, float, float]]:
+    return [
+        (
+            clip.id,
+            clip.track_id,
+            clip.source_id,
+            clip.source_start,
+            clip.source_end,
+            clip.timeline_start,
+        )
+        for clip in project.clips
+    ]
+
+
+@pytest.mark.parametrize("scope", ["track", "session"])
+def test_source_witness_rejects_foreign_overlap_before_persisted_approval(
+    tmp_path: Path, scope: str
+) -> None:
+    project, decision = _source_overlap_project(scope=scope)
+    project.meta.workspace_dir = str(tmp_path)
+    path = save_project(project, tmp_path / "episode.project.json")
+    before_bytes = path.read_bytes()
+    before_geometry = _clip_geometry(load_project(path))
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        EditService(ProjectWorkspace.open(path)).approve([decision.id], confirm_cut_speech=True)
+
+    assert held.value.held[0].reason == "source_geometry"
+    assert path.read_bytes() == before_bytes
+    saved = load_project(path)
+    assert _clip_geometry(saved) == before_geometry
+    assert saved.edit_decisions[0].applied is False
+
+
+def test_source_witness_foreign_overlap_is_stale_in_preview_and_update(tmp_path: Path) -> None:
+    project, decision = _source_overlap_project()
+    project.meta.workspace_dir = str(tmp_path)
+    path = save_project(project, tmp_path / "episode.project.json")
+    before = path.read_bytes()
+
+    assert _timeline_span(project, decision) == (0.0, 0.0, False)
+    with pytest.raises(ScopeChangedAtApproval):
+        EditService(ProjectWorkspace.open(path)).update_pending(
+            decision.id, start=0.1, end=0.4, snap=False
+        )
+
+    assert path.read_bytes() == before
+
+
+def test_source_witness_foreign_overlap_blocks_suggested_snapshot() -> None:
+    from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
+
+    project, decision = _source_overlap_project(scope="session")
+    window = resolve_pending_preview(project, decision.id)
+    preview = project.model_copy(deep=True)
+    before = _clip_geometry(preview)
+
+    with pytest.raises(ScopeChangedAtApproval):
+        apply_for_suggested(preview, window)
+
+    assert _clip_geometry(preview) == before
+    assert preview.edit_decisions[0].applied is False
+
+
+def test_source_witness_rejects_foreign_overlap_when_staging() -> None:
+    project = _two_take_project()
+    project.clips[0].timeline_start = 10.0
+    project.clips[1].timeline_start = 10.3
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+
+    assert held.value.held[0].reason == "source_geometry"
+    assert project.edit_decisions == []
+
+
+def test_source_witness_allows_nonoverlapping_foreign_clip() -> None:
+    project, decision = _source_overlap_project(overlap=False)
+    before_b = project.clips[1].model_copy(deep=True)
+
+    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+    after_b = next(clip for clip in project.clips if clip.id == before_b.id)
+    assert (after_b.source_start, after_b.source_end, after_b.timeline_start) == (
+        before_b.source_start,
+        before_b.source_end,
+        before_b.timeline_start,
+    )
+
+
+def test_source_witness_allows_one_equivalent_recording_alias_clip() -> None:
+    project = _two_take_project()
+    project.clips[1].timeline_start = 5.0
+    project.sources.append(SourceRecording(id="A-alias", path="raw/a.wav"))
+    project.tracks.append(
+        Track(
+            id="take-lane",
+            label="Take lane",
+            speaker="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/b.wav", duration_sec=30.0),
+        )
+    )
+    project.clips[0].source_id = "A-alias"
+    project.clips[0].track_id = "take-lane"
+    project.clips[0].timeline_start = 10.0
+    decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+    decision.scope = "session"
+
+    assert project.equivalent_source_ids("host", "A") >= {"A", "A-alias"}
+    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+
+
+def test_source_witness_allows_primary_clip_with_explicit_take_selection() -> None:
+    project = _two_take_project()
+    project.clips[1].timeline_start = 5.0
+    project.clips[0].source_id = None
+    project.clips[0].timeline_start = 10.0
+    decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+
+    assert None in project.equivalent_source_ids("host", "A")
+    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+
+
+def test_source_witness_rejects_identical_overlapping_selected_clip() -> None:
+    project, decision = _source_overlap_project(overlap=False)
+    project.clips.append(project.clips[0].model_copy(update={"id": "a-duplicate"}))
+
+    assert _timeline_span(project, decision) == (0.0, 0.0, False)
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        approve_edits(project, [decision.id], confirm_cut_speech=True)
+
+    assert held.value.held[0].reason == "source_geometry"
+
+
+def test_source_witness_rejects_duplicate_during_staging() -> None:
+    project = _two_take_project()
+    project.clips[0].timeline_start = 10.0
+    project.clips.append(project.clips[0].model_copy(update={"id": "a-duplicate"}))
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+
+    assert held.value.held[0].reason == "source_geometry"
+    assert project.edit_decisions == []
+
+
+def test_source_witness_allows_adjacent_contiguous_selected_clips() -> None:
+    project = _two_take_project()
+    project.clips[1].timeline_start = 5.0
+    project.clips[0] = project.clips[0].model_copy(
+        update={"source_end": 0.25, "timeline_start": 10.0}
+    )
+    project.clips.append(
+        project.clips[0].model_copy(
+            update={
+                "id": "a-next",
+                "source_start": 0.25,
+                "source_end": 2.0,
+                "timeline_start": 10.25,
+            }
+        )
+    )
+    decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+
+    assert decision.source_timeline_span is not None
+    assert (
+        decision.source_timeline_span.start,
+        decision.source_timeline_span.end,
+    ) == pytest.approx((10.1, 10.4))
+    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+
+
+def test_source_witness_allows_moved_selected_clip_for_session_scope() -> None:
+    project = _two_take_project()
+    project.clips[0].timeline_start = 10.0
+    project.clips[1].timeline_start = 5.0
+    project.tracks.append(
+        Track(
+            id="take-lane",
+            label="Take lane",
+            speaker="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/b.wav", duration_sec=30.0),
+        )
+    )
+    selected = next(clip for clip in project.clips if clip.id == "a")
+    selected.track_id = "take-lane"
+    decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+    decision.scope = "session"
+
+    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+
+
+@pytest.mark.parametrize("foreign_lane", ["host", "take-lane"])
+def test_source_witness_rejects_foreign_overlap_on_origin_or_selected_lane(
+    foreign_lane: str,
+) -> None:
+    project = _two_take_project()
+    project.clips[0].timeline_start = 10.0
+    project.clips[1].timeline_start = 5.0
+    project.tracks.append(
+        Track(
+            id="take-lane",
+            label="Take lane",
+            speaker="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/b.wav", duration_sec=30.0),
+        )
+    )
+    selected = next(clip for clip in project.clips if clip.id == "a")
+    selected.track_id = "take-lane"
+    decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
+    decision.scope = "session"
+    foreign = next(clip for clip in project.clips if clip.id == "b1")
+    foreign.track_id = foreign_lane
+    foreign.timeline_start = 10.3
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        approve_edits(project, [decision.id], confirm_cut_speech=True)
+
+    assert held.value.held[0].reason == "source_geometry"
+
+
+def test_source_witness_rejects_equivalent_clip_on_different_source_clock() -> None:
+    project, decision = _source_overlap_project(overlap=False)
+    project.sources.append(SourceRecording(id="A-alias", path="raw/a.wav"))
+    project.clips.append(
+        Clip(
+            id="a-shifted-alias",
+            track_id="host",
+            source_id="A-alias",
+            source_start=5.0,
+            source_end=6.2,
+            timeline_start=10.3,
+        )
+    )
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        approve_edits(project, [decision.id], confirm_cut_speech=True)
+
+    assert held.value.held[0].reason == "source_geometry"
+
+
 @pytest.mark.parametrize("stale_geometry", ["moved", "duplicate", "uncovered"])
 def test_pending_source_remove_resize_keeps_geometry_holds(stale_geometry: str) -> None:
     project = _two_take_project()

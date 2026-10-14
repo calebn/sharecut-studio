@@ -31,6 +31,7 @@ from podcast_mcp.edits.timeline_ops import (
 )
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
+    clip_timeline_overlap_to_source,
     clip_plays_lane,
     origin_track_id_for_clip,
 )
@@ -48,6 +49,7 @@ from podcast_mcp.util.timebase import SourceSec, TimelineSec, clock_label
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path
 
 _PAD_EDGE_MATCH_SEC = 0.05
+_SOURCE_GEOMETRY_TOLERANCE_SEC = 1e-6
 
 
 @dataclass(frozen=True)
@@ -97,10 +99,11 @@ def _source_remove_lanes(
     end: TimelineSec,
 ) -> frozenset[str]:
     if edit.source_timeline_span is not None:
+        source_ids = project.equivalent_source_ids(edit.track_id, edit.source_id)
         selected = frozenset(
             clip.track_id
             for clip in project.clips
-            if clip.source_id == edit.source_id
+            if clip.source_id in source_ids
             and clip_plays_lane(project, clip, edit.track_id)
             and min(float(end), clip.timeline_end) > max(float(start), clip.timeline_start) + 1e-9
         )
@@ -254,6 +257,8 @@ def _inspect_source_remove_placement(
             if check_witness and expected is not None
             else (spans[0][0], spans[0][1])
         )
+        if _witnessed_source_span_has_unsafe_overlap(project, edit, *span):
+            return CutScopeHold(edit.id, (), "source_geometry")
     else:
         if edit.source_id is not None:
             return CutScopeHold(edit.id, (), "source_geometry")
@@ -289,6 +294,73 @@ def _inspect_source_remove_placement(
     if not lanes or not lanes <= allowed:
         return CutScopeHold(edit.id, (), "operation_scope")
     return span
+
+
+def _witnessed_source_span_has_unsafe_overlap(
+    project: EpisodeProject,
+    edit: EditDecision,
+    start: TimelineSec,
+    end: TimelineSec,
+) -> bool:
+    source_ids = project.equivalent_source_ids(edit.track_id, edit.source_id)
+    lo_window, hi_window = float(start), float(end)
+    selected_pieces = []
+    for clip in project.clips:
+        lo = max(lo_window, clip.timeline_start)
+        hi = min(hi_window, clip.timeline_end)
+        if (
+            hi <= lo + _SOURCE_GEOMETRY_TOLERANCE_SEC
+            or clip.source_id not in source_ids
+            or not clip_plays_lane(project, clip, edit.track_id)
+        ):
+            continue
+        selected_pieces.append((clip, lo, hi))
+
+    selected_lanes = {clip.track_id for clip, _, _ in selected_pieces}
+    protected_lanes = selected_lanes | {edit.track_id}
+    for clip in project.clips:
+        if clip.track_id not in protected_lanes:
+            continue
+        lo = max(lo_window, clip.timeline_start)
+        hi = min(hi_window, clip.timeline_end)
+        if hi <= lo + _SOURCE_GEOMETRY_TOLERANCE_SEC:
+            continue
+        if clip.source_id not in source_ids or not clip_plays_lane(project, clip, edit.track_id):
+            return True
+        expected_lo = edit.start + (lo - lo_window)
+        expected_hi = edit.start + (hi - lo_window)
+        actual = clip_timeline_overlap_to_source(clip, lo, hi)
+        if actual is None:
+            return True
+        actual_lo, actual_hi = actual
+        if (
+            abs(actual_lo - expected_lo) > _SOURCE_GEOMETRY_TOLERANCE_SEC
+            or abs(actual_hi - expected_hi) > _SOURCE_GEOMETRY_TOLERANCE_SEC
+        ):
+            return True
+
+    if not selected_pieces:
+        return False
+    boundaries = sorted(
+        {
+            lo_window,
+            hi_window,
+            *(lo for _, lo, _ in selected_pieces),
+            *(hi for _, _, hi in selected_pieces),
+        }
+    )
+    for left, right in zip(boundaries, boundaries[1:]):
+        if right <= left + _SOURCE_GEOMETRY_TOLERANCE_SEC:
+            continue
+        covering = [
+            clip
+            for clip, lo, hi in selected_pieces
+            if lo <= left + _SOURCE_GEOMETRY_TOLERANCE_SEC
+            and hi >= right - _SOURCE_GEOMETRY_TOLERANCE_SEC
+        ]
+        if len(covering) != 1:
+            return True
+    return False
 
 
 def inspect_source_remove(
