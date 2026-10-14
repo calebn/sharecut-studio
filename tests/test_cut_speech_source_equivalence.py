@@ -93,7 +93,6 @@ def test_equivalent_source_ids_includes_alias(tmp_path: Path):
 
 
 def test_equivalent_source_ids_on_track_without_media(tmp_path: Path):
-    """Clip-only lanes (no track.media) must not raise when batching cut-speech extents."""
     root = tmp_path / "ep"
     project = EpisodeProject.create("clip lane", str(root))
     project.tracks = [Track(id="c", label="c", role=TrackRole.DIALOGUE)]
