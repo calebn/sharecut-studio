@@ -28,6 +28,7 @@ from podcast_mcp.engines.audio_audit import (
     measure_timeline_rms_db,
     timeline_frame_levels_db,
 )
+from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.ungated_audio import raw_timeline_samples
 from podcast_mcp.models import (
@@ -104,8 +105,10 @@ def _two_track(
 @pytest.fixture
 def peer_floor(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every track's voice reaches -42 dBFS: these tests mock the span levels over media that is not on disk."""
+    profile = LevelProfile(room_db=-60.0, speech_db=-15.0, loud_db=-15.0)
+    assert profile.voice_reach_db == -42.0
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.track_voice_reach_db", lambda *_a, **_k: -42.0
+        "podcast_mcp.edits.speech_energy_guard.track_level_profile", lambda *_a, **_k: profile
     )
 
 
