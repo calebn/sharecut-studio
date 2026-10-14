@@ -355,10 +355,9 @@ class _JobProgressReporter(ElapsedProgressMixin):
         short = _gui_fail_message(message, phase)
         owns = self._owns_units(task_id)
         with self._job._lock:
-            if short is not None:
+            if short is not None and owns:
                 self._job.message = short
-                if owns:
-                    self._job.error = short
+                self._job.error = short
             if self._job.kind == "agent" and owns:
                 self._job.status = "error"
             if owns and self._job.steps and self._job.steps[-1].status == "running":

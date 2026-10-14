@@ -113,9 +113,12 @@ a terminal, so the final count always reaches the guest.
 One-slot MCP sinks (`McpNotificationProgress` and remote `GuestMcpProgressContext`)
 keep a nested `fail` as the last notification: a later parent `end` does not snap
 the stored child total to N/N `done`. Studio `_JobProgressReporter.fail` writes
-`job.error` and the running step-error only when `task_id` is that job's owned
-unit (`pipeline` for a pipeline job). A named child such as `word-probe` still
-emits `fail` without leaving a step-error after Propose returns.
+`job.error`, `job.message`, and the running step-error only when `task_id` is that
+job's owned unit (`pipeline` for a pipeline job; an agent job owns its wrap
+`tool_id`). A named child such as `word-probe` still emits `fail` without leaving
+a step-error or a status-ok activity whose headline is the child failure after
+Propose returns. Guest WS (`GuestWsProgressReporter`) does not close on that nested
+`fail`, so the wrap `end` still reaches the share chip.
 
 ## Choke points (cannot skip)
 
