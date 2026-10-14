@@ -19,7 +19,7 @@ CLAIM_MARK = re.compile(
 )
 CLOSES_ISSUE = re.compile(r"(?im)^\s*(?:fixes|closes|resolves)\s+#(\d+)\s*$")
 PART_OF_ISSUE = re.compile(r"(?im)^\s*part\s+of\s+#(\d+)\s*$")
-_GRAPHQL_FORBIDDEN = "GraphQL: Resource not accessible by integration"
+_GRAPHQL_FORBIDDEN = "Resource not accessible by integration"
 
 _CHECK_RUNS_PER_PAGE: Final = "100"
 _REVIEW_COMMENTS_PER_PAGE: Final = "100"
@@ -201,7 +201,7 @@ def collect_review_threads(repo: str, pr_number: int) -> list[dict[str, Any]]:
     try:
         return review_threads(repo, pr_number)
     except RuntimeError as exc:
-        if str(exc) != _GRAPHQL_FORBIDDEN:
+        if _GRAPHQL_FORBIDDEN not in str(exc):
             raise
         return adapt_review_comment_pages(rest_fetch_review_comment_pages(repo, pr_number))
 
