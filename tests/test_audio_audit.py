@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import wave
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1843,6 +1844,35 @@ def _bleed_path(source: str, bleed: str) -> EchoPairProfile:
         null_copy_rate=0.05,
         null_consistent_rate=0.02,
     )
+
+
+def _caches_with_paths(*pairs: EchoPairProfile) -> TrackRmsCacheSet:
+    caches = TrackRmsCacheSet()
+    caches._echo_pairs = list(pairs)
+    return caches
+
+
+@pytest.mark.parametrize(
+    ("guest_into_host", "host_into_guest", "host_sources", "guest_sources"),
+    [
+        (30, 30, {"guest"}, {"host"}),
+        (400, 30, {"guest"}, set()),
+        (400, 41, {"guest"}, {"host"}),
+        (400, 0, {"guest"}, set()),
+    ],
+    ids=["even", "one-way-by-more-than-ten", "just-under-ten", "no-reverse-path"],
+)
+def test_a_path_the_reverse_path_dwarfs_is_not_a_source(
+    guest_into_host: int, host_into_guest: int, host_sources: set[str], guest_sources: set[str]
+) -> None:
+    """Two mics hearing one sound at a fixed ratio measure a path both ways; only the one that
+    leaks counts, so the quiet side's words are never judged the louder mic's copy (#1495)."""
+    pairs = [replace(_bleed_path("guest", "host"), consistent_frames=guest_into_host)]
+    if host_into_guest:
+        pairs.append(replace(_bleed_path("host", "guest"), consistent_frames=host_into_guest))
+    caches = _caches_with_paths(*pairs)
+    assert set(caches.leak_paths("host")) == host_sources
+    assert set(caches.leak_paths("guest")) == guest_sources
 
 
 @pytest.mark.parametrize(

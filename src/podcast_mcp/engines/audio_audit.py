@@ -75,6 +75,8 @@ _GATE_JUDGED_UNDER_VOICE_DB = 45.0
 _GATE_LOST_UNDER_VOICE_DB = 65.0
 # Acoustic statuses that call for transcript suppression (used both for the flagged/
 # bleed report and, via `word_targets`, for suggest-mode's suppression_recommendations).
+# A path is a one-way leak when the reverse path has this many times fewer consistent frames.
+ONE_WAY_RATIO = 10
 _FLAGGED_STATUSES = ("inaudible", "bleed")
 
 
@@ -404,6 +406,25 @@ class TrackRmsCacheSet:
             p.source_track_id: self.copy_path(p.source_track_id, track_id)
             for p in self.echo_pairs()
             if p.bleed_track_id == track_id
+        }
+
+    def leak_paths(self, track_id: str) -> dict[str, CopyPath]:
+        """``bleed_paths`` less the mics whose path into ``track_id`` only echoes its own.
+
+        Two mics that hear one sound at a fixed level ratio (a call recording carries the
+        remote voice, and the room mic carries the host) measure a path both ways, but one
+        way is a leak and the other is the co-timed speech of the same moments. A mic
+        whose reverse path (from ``track_id`` into it) rests on at least ``ONE_WAY_RATIO``
+        times this path's consistent frames is not a source for the words on ``track_id``:
+        a word there is not judged its copy because that mic sounds louder (#1495).
+        """
+        evidence = {
+            (p.source_track_id, p.bleed_track_id): p.consistent_frames for p in self.echo_pairs()
+        }
+        return {
+            source: path
+            for source, path in self.bleed_paths(track_id).items()
+            if evidence.get((track_id, source), 0) < ONE_WAY_RATIO * evidence[(source, track_id)]
         }
 
     def path_lag_sec(self, source_track_id: str, bleed_track_id: str) -> float:
@@ -941,7 +962,7 @@ def compute_word_audibility_map(
 
         for lane in lanes:
             tid, tr = lane.track_id, lane.transcript
-            paths = caches.bleed_paths(tid)
+            paths = caches.leak_paths(tid)
             lags = {src: path.lag_sec for src, path in paths.items() if path.lag_sec}
             for i, w in enumerate(tr.words):
                 # Degenerate ASR timestamps (start==end) never produce an RMS window.
