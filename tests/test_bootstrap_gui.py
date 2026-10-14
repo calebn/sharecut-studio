@@ -21,7 +21,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
 
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
     monkeypatch.setattr(config, "whisper_cache_dir", lambda: tmp_path / "cache" / "whisper")
-    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda: None)
+    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: None)
     from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
@@ -681,6 +681,8 @@ def test_first_run_readiness_checks_bare_and_nonexecutable_explicit_commands(
 
     monkeypatch.setattr(binaries.shutil, "which", lambda _command: "found" if executable else None)
     monkeypatch.setattr(
-        boot, "resolve_ffmpeg_pair", lambda: FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit")
+        boot,
+        "resolve_ffmpeg_pair",
+        lambda **_kwargs: FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
     )
     assert boot.component_status()["components"]["ffmpeg"]["ok"] is executable

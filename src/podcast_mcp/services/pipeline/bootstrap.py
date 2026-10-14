@@ -124,13 +124,13 @@ def word_aligner_component() -> dict[str, Any]:
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
-    """Return readiness for GUI first-run (no downloads)."""
+    """Return GUI first-run readiness without downloads; FFmpeg gets fresh probes."""
     from podcast_mcp.engines.vad_silero import is_available as silero_available
 
     model = resolve_whisper_model(requested=whisper_model)
     ffmpeg_error = None
     try:
-        ffmpeg_pair = resolve_ffmpeg_pair()
+        ffmpeg_pair = resolve_ffmpeg_pair(force_refresh=True)
     except FFmpegPairResolutionError as exc:
         ffmpeg_pair = None
         ffmpeg_error = str(exc)

@@ -317,6 +317,54 @@ def test_component_status_shape() -> None:
     assert status["word-aligner"]["opt_in"] is True
 
 
+def test_pipeline_and_bootstrap_ffmpeg_status_refresh_warmed_admission(
+    tmp_path, monkeypatch
+) -> None:
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from podcast_mcp.services.pipeline import bootstrap
+    from podcast_mcp.services.pipeline import config as pipeline_config
+    from podcast_mcp.util import binaries
+
+    ffmpeg = tmp_path / "ffmpeg"
+    ffprobe = tmp_path / "ffprobe"
+    for executable in (ffmpeg, ffprobe):
+        executable.write_text("#!/bin/sh\n", encoding="utf-8")
+        executable.chmod(0o755)
+    monkeypatch.setenv("PODCAST_MCP_FFMPEG", str(ffmpeg))
+    monkeypatch.setenv("PODCAST_MCP_FFPROBE", str(ffprobe))
+
+    version_calls = []
+
+    def report_versions(command, **_kwargs):
+        version_calls.append(command)
+        name = Path(command[0]).name
+        return SimpleNamespace(returncode=0, stdout=f"{name} version 9.0.2\n")
+
+    monkeypatch.setattr(binaries, "run", report_versions)
+    assert binaries.resolve_ffmpeg_pair().version == (9, 0, 2)
+    assert len(version_calls) == 2
+    version_calls.clear()
+
+    calls = []
+
+    def fail_version_probe(*args, **_kwargs):
+        calls.append(args)
+        raise FileNotFoundError("mocked version-probe launch failure")
+
+    monkeypatch.setattr(binaries, "run", fail_version_probe)
+    assert bootstrap.component_status()["components"]["ffmpeg"]["ok"] is False
+    assert pipeline_config.component_status()["ffmpeg"]["ok"] is False
+    assert len(calls) == 2
+
+    calls.clear()
+    monkeypatch.setattr(binaries, "run", report_versions)
+    assert bootstrap.component_status()["components"]["ffmpeg"]["ok"] is True
+    assert pipeline_config.component_status()["ffmpeg"]["ok"] is True
+    assert len(version_calls) == 4
+
+
 def test_component_status_word_aligner_missing_hint(monkeypatch) -> None:
     from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.services.pipeline.config import component_status
@@ -683,7 +731,7 @@ def test_deep_merge_skips_underscore_keys() -> None:
 def test_component_status_error_branches(monkeypatch) -> None:
     from podcast_mcp.services.pipeline import config as pc
 
-    def boom_ffmpeg():
+    def boom_ffmpeg(**_kwargs):
         from podcast_mcp.util.binaries import FFmpegPairResolutionError
 
         raise FFmpegPairResolutionError("no ffmpeg")
@@ -1442,6 +1490,6 @@ def test_component_status_checks_executability_for_explicit_pair(monkeypatch, ex
     monkeypatch.setattr(
         binaries,
         "resolve_ffmpeg_pair",
-        lambda: binaries.FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
+        lambda **_kwargs: binaries.FFmpegPair("ffmpeg", "ffprobe", (9, 0, 2), "explicit"),
     )
     assert pc.component_status()["ffmpeg"]["ok"] is executable

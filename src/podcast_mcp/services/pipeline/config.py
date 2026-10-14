@@ -266,6 +266,7 @@ def ensure_whisper_cached_for_run(
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     """Host component readiness for Pipeline badges.
 
+    FFmpeg status uses fresh bounded version probes even after pair admission.
     ``whisper.ok`` requires both the faster-whisper import **and** on-disk
     weights for ``whisper_model`` (working-set / resolved preference).
     ``word-aligner`` is an opt-in download (``opt_in: true``); the Precise word boundaries
@@ -278,7 +279,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     try:
         from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
 
-        pair = resolve_ffmpeg_pair()
+        pair = resolve_ffmpeg_pair(force_refresh=True)
         path = pair.ffmpeg
         ok = pair.is_available()
         out["ffmpeg"] = {
