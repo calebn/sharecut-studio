@@ -329,8 +329,12 @@ def test_deleting_touching_clips_on_two_tracks_asks_for_an_unselected_clips_word
 
 
 def _quiet_guest(path: Path) -> None:
-    """Guest says "so the plan" below the speech level, so only the words show it."""
+    """Guest says "so the plan" below the speech level, so only the words show it.
+
+    Guest's own voice is the louder stretch at 2-4 s, the level "so the plan" is read against.
+    """
     guest = np.random.default_rng(7).normal(0.0, 0.0003, int(DUR * SR))
+    guest[int(2.0 * SR) : int(4.0 * SR)] = _tone(330)[int(2.0 * SR) : int(4.0 * SR)]
     guest[int(10.0 * SR) : int(11.0 * SR)] = 0.02 * _tone(330)[int(10.0 * SR) : int(11.0 * SR)]
     _write_wav(load_project(path).raw_dir() / "guest.wav", guest)
 
