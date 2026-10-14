@@ -1,5 +1,7 @@
+import wave
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -216,6 +218,75 @@ def _source_overlap_project(*, scope: str = "track", overlap: bool = True):
         decision.source_timeline_span.end,
     ) == pytest.approx((10.1, 10.4))
     return project, decision
+
+
+def _write_quiet_recording(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16_000)
+        audio.writeframes(b"\0\0" * (16_000 * 6))
+
+
+def test_source_witness_geometry_matches_with_and_without_proof_caches(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+
+    outcomes: dict[tuple[bool, bool], tuple[Any, ...]] = {}
+    for overlap in (True, False):
+        for caches_enabled in (False, True):
+            case = tmp_path / f"overlap-{overlap}-cache-{caches_enabled}"
+            _write_quiet_recording(case / "raw" / "a.wav")
+            _write_quiet_recording(case / "raw" / "b.wav")
+            project, decision = _source_overlap_project(scope="session", overlap=overlap)
+            project.meta.workspace_dir = str(case)
+            before = _clip_geometry(project)
+
+            with monkeypatch.context() as patch:
+                if not caches_enabled:
+                    patch.setattr(
+                        "podcast_mcp.edits.cut_proof.shared_timeline_rms_caches",
+                        lambda _project: TrackRmsCacheSet(),
+                    )
+                    patch.setattr(
+                        "podcast_mcp.edits.cut_proof.shared_source_audio_caches",
+                        lambda _project: {},
+                    )
+                try:
+                    applied = approve_edits(project, [decision.id], confirm_cut_speech=True)
+                except ScopeChangedAtApproval as held:
+                    result = (
+                        "held",
+                        held.held[0].reason,
+                        _clip_geometry(project),
+                        project.edit_decisions[0].applied,
+                    )
+                else:
+                    result = (
+                        "applied",
+                        applied,
+                        _clip_geometry(project),
+                        project.edit_decisions[0].applied,
+                    )
+
+            outcomes[(overlap, caches_enabled)] = result
+            if overlap:
+                assert result == ("held", "source_geometry", before, False)
+            else:
+                assert result[0] == "applied"
+                assert result[1] == 1
+                assert result[3] is True
+                assert [
+                    (row[3], row[4], row[5]) for row in result[2] if row[2] == "A"
+                ] == pytest.approx([(0.0, 0.1, 10.0), (0.4, 2.0, 10.1)])
+                assert [row for row in result[2] if row[2] == "B"] == [
+                    row for row in before if row[2] == "B"
+                ]
+
+    assert outcomes[(True, False)] == outcomes[(True, True)]
+    assert outcomes[(False, False)] == outcomes[(False, True)]
 
 
 def _clip_geometry(
