@@ -310,7 +310,7 @@ is dropped, so bleed-phrase alignment on very quiet bleed falls back to gap alig
 such episodes lower `transcribe.vad.threshold` or turn `transcribe.vad.enabled` off. After
 ASR, each word whose loudest 10 ms frame is under its own track's audibility floor, or sits
 over digital silence, gets `suspect_hallucination: true` (#1366). The floor is
-`TrackRmsCache.audibility_floor_db`, the one per-track floor reconcile and tighten read
+`LevelProfile.audibility_floor_db`, the one per-track floor reconcile and tighten read
 (27 dB under the track's speech level, never closer than 6 dB over its room; see
 [transcript reconcile](transcript-reconcile.md)), and the frames are measured the way the
 floor was (mono, 8 kHz), so the same recording at any level flags the same words. A track
@@ -323,10 +323,9 @@ a cache input. `transcribe_tracks` re-flags a reused transcript when its audio i
 **Aligner evidence (#195).** With `transcribe.forced_alignment.enabled`, each word the aligner
 places gets `alignment_score`, the mean posterior of the frames it used. A score below
 `transcribe.forced_alignment.min_word_score` (default 0.01, 0 = off) also sets
-`suspect_hallucination`, but only when the audio agrees (#780): the word's own track is
-quieter than its noise floor (the 5th percentile of its frames above digital silence, so a
-quieter copy of the recording gives the same floor, #1366) plus `evidence_speech_margin_db` (12)
-over the aligned span, or
+`suspect_hallucination`, but only when the audio agrees (#780): the word's own track holds
+no voice over the aligned span (the silence filter's own test against the track's
+audibility floor, one floor for one question, #1382), or
 another dialogue lane is `evidence_bleed_margin_db` (3) louder over the same session-clock
 span (`engines/asr_silence.SpeechLevels`: selected media is streamed into 10 ms frame levels
 at 8 kHz, about 0.7 MB per half hour of unique media, then the lane's `gain_db` is applied,

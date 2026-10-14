@@ -196,7 +196,7 @@ other instant reads both sides of that one point. Before #775 the sweep mapped
 the join to the resume point alone and scored raw source continuity there, which
 passed a cut that resumed inside a phrase. A splice whose two sides are both below
 `join_continuity.inaudible_under_voice_floor_db` (18 dB) under the track's voice floor
-(`TrackAudioCache.voice_floor_db`; -60 dBFS at the lab host's -42 dBFS floor; RMS over the 45 ms side windows,
+(`LevelProfile.voice_floor_db`; -60 dBFS at the lab host's -42 dBFS floor; RMS over the 45 ms side windows,
 e.g. room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
 verdict `pass`, one `inaudible_splice` detector carrying both levels, instead of a
 level-jump `fail` nobody can hear. On the lab tape that turned 7 of 8 sweep fails
