@@ -471,7 +471,7 @@ def test_reused_reflag_tracks_own_gain_and_reuses_unchanged_evidence(tmp_workspa
     assert refresh_count == 2
 
 
-def test_settled_reflag_tracks_peer_gain_and_reuses_unchanged_evidence(tmp_workspace):
+def test_settled_reflag_ignores_peer_gain_and_reuses_unchanged_evidence(tmp_workspace):
     project, host = _scored_two_mic(tmp_workspace)
     options = AsrOptions(silence_filter_enabled=False)
 
@@ -479,9 +479,10 @@ def test_settled_reflag_tracks_peer_gain_and_reuses_unchanged_evidence(tmp_works
     assert _flags(host) == [False, True, True]
     assert refresh_settled_silence_flags(project, options) == ([], 0)
 
+    # A balance gain is a listening choice (#1549): it re-reads the evidence but moves no flag.
     project.track_by_id("guest").gain_db = -20.0
     assert refresh_settled_silence_flags(project, options) == ([], 1)
-    assert _flags(host) == [False, False, True]
+    assert _flags(host) == [False, True, True]
     assert refresh_settled_silence_flags(project, options) == ([], 0)
 
 
