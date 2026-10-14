@@ -497,12 +497,14 @@ def _peer_speaks_near_span(
     # Under the track's own voice floor a frame holds no voice, whatever its room is (#1549): a
     # peer whose room tone sits 40 dB under its speech never "speaks" in it.
     # A track with no recording, no live audio or no contrast has no voice level to read it against.
-    audible = (
-        _peer_profile(project, peer_track_id, caches).audibility_floor_db
-        if track and track.media
-        else -math.inf
-    )
-    audible = audible + gain if math.isfinite(audible) else -math.inf
+    cache = caches.get(peer_track_id) if caches else None
+    audible = -math.inf
+    if track is not None and (track.media is not None or cache is not None):
+        try:
+            audible = _peer_profile(project, peer_track_id, caches).audibility_floor_db + gain
+        except (OSError, CodedValueError, subprocess.CalledProcessError):
+            audible = -math.inf
+    audible = audible if math.isfinite(audible) else -math.inf
     blocks: list[tuple[float, float]] = []
     for left, right in decision_spans:
         block_start = left
@@ -590,8 +592,11 @@ def _track_voice_db(
 ) -> float | None:
     """``track_id``'s ``path_reference_db``, or ``None`` where it has no recording to read."""
     track = project.track_by_id(track_id)
-    if track is None or track.media is None:
+    if track is None:
         return None
+    cache = caches.get(track_id) if caches else None
+    if track.media is None:
+        return cache.profile.path_reference_db if cache is not None else None
     try:
         return _peer_profile(project, track_id, caches).path_reference_db
     except (OSError, CodedValueError, subprocess.CalledProcessError):
