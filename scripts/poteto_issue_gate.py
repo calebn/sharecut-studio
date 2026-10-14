@@ -19,6 +19,7 @@ CLAIM_MARK = re.compile(
 )
 CLOSES_ISSUE = re.compile(r"(?im)^\s*(?:fixes|closes|resolves)\s+#(\d+)\s*$")
 PART_OF_ISSUE = re.compile(r"(?im)^\s*part\s+of\s+#(\d+)\s*$")
+_GRAPHQL_FORBIDDEN = "GraphQL: Resource not accessible by integration"
 
 _CHECK_RUNS_PER_PAGE: Final = "100"
 _REVIEW_COMMENTS_PER_PAGE: Final = "100"
@@ -118,13 +119,26 @@ def adapt_check_run_to_gate_row(run: dict[str, Any]) -> dict[str, str]:
 
 def flatten_check_run_pages(pages: list[dict[str, Any]]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
+    expected_total: int | None = None
     for page in pages:
         check_runs = page.get("check_runs")
         if not isinstance(check_runs, list):
             raise RuntimeError("check runs page missing check_runs")
+        total_count = page.get("total_count")
+        if not isinstance(total_count, int):
+            raise RuntimeError("check runs page missing total_count")
+        if expected_total is None:
+            expected_total = total_count
+        elif total_count != expected_total:
+            raise RuntimeError("check run pages disagree on total_count")
         for run in check_runs:
-            if isinstance(run, dict):
-                rows.append(adapt_check_run_to_gate_row(run))
+            if not isinstance(run, dict):
+                raise RuntimeError("check run entry is not an object")
+            rows.append(adapt_check_run_to_gate_row(run))
+    if expected_total is not None and len(rows) != expected_total:
+        raise RuntimeError(
+            f"flattened {len(rows)} check run(s) but total_count is {expected_total}"
+        )
     return rows
 
 
@@ -146,6 +160,30 @@ def _thread_root_id(comment_id: int, by_id: dict[int, dict[str, Any]]) -> int:
         current = parent
 
 
+def review_threads(repo: str, pr_number: int) -> list[dict[str, Any]]:
+    owner, name = repo.split("/", 1)
+    cursor: str | None = None
+    threads: list[dict[str, Any]] = []
+    while True:
+        query = (
+            "{repository(owner:"
+            f"{json.dumps(owner)},name:{json.dumps(name)})"
+            f"{{pullRequest(number:{pr_number})"
+            "{reviewThreads(first:100,after:"
+            f"{json.dumps(cursor)})"
+            "{nodes{id isResolved} pageInfo{hasNextPage endCursor}}}}}"
+        )
+        data = gh_json("api", "graphql", "-f", f"query={query}")
+        page = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+        threads.extend(page["nodes"])
+        if not page["pageInfo"]["hasNextPage"]:
+            return threads
+        next_cursor = page["pageInfo"]["endCursor"]
+        if not next_cursor or next_cursor == cursor:
+            raise RuntimeError("review thread pagination did not advance")
+        cursor = next_cursor
+
+
 def adapt_review_comment_pages(pages: list[list[dict[str, Any]]]) -> list[dict[str, bool]]:
     comments = [comment for page in pages for comment in page if isinstance(comment, dict)]
     by_id: dict[int, dict[str, Any]] = {}
@@ -157,6 +195,15 @@ def adapt_review_comment_pages(pages: list[list[dict[str, Any]]]) -> list[dict[s
     for comment_id in by_id:
         roots.add(_thread_root_id(comment_id, by_id))
     return [{"isResolved": False} for _ in sorted(roots)]
+
+
+def collect_review_threads(repo: str, pr_number: int) -> list[dict[str, Any]]:
+    try:
+        return review_threads(repo, pr_number)
+    except RuntimeError as exc:
+        if str(exc) != _GRAPHQL_FORBIDDEN:
+            raise
+        return adapt_review_comment_pages(rest_fetch_review_comment_pages(repo, pr_number))
 
 
 def issue_comments(repo: str, issue_number: int) -> list[dict[str, Any]]:
@@ -272,7 +319,7 @@ def collect_gate(
     before = adapt_rest_pull(rest_fetch_pull(repo, pr_number))
     head_sha = before["headRefOid"]
     checks = flatten_check_run_pages(rest_fetch_check_run_pages(repo, head_sha))
-    threads = adapt_review_comment_pages(rest_fetch_review_comment_pages(repo, pr_number))
+    threads = collect_review_threads(repo, pr_number)
     issue = rest_fetch_issue(repo, issue_number)
     comments = issue_comments(repo, issue_number)
     after = adapt_rest_pull(rest_fetch_pull(repo, pr_number))
