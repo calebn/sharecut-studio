@@ -183,7 +183,7 @@ def inspect_source_remove_placement(
 def resize_source_remove(
     project: EpisodeProject, saved: EditDecision, *, start: float, end: float
 ) -> EditDecision:
-    """Return a resized remove with a fresh witness only if its saved placement is current."""
+    """Refresh a remove's witness only when resized bounds stay on the saved placement."""
     current = inspect_source_remove_placement(project, saved)
     if isinstance(current, CutScopeHold):
         raise ScopeChangedAtApproval([current], {}, {saved.id: cut_label(project, saved)})
@@ -191,6 +191,14 @@ def resize_source_remove(
     placement = _inspect_source_remove_placement(project, candidate, check_witness=False)
     if isinstance(placement, CutScopeHold):
         raise ScopeChangedAtApproval([placement], {}, {saved.id: cut_label(project, saved)})
+    expected_start = float(current[0]) + (start - saved.start)
+    expected_end = float(current[1]) + (end - saved.end)
+    if (
+        abs(float(placement[0]) - expected_start) > 1e-6
+        or abs(float(placement[1]) - expected_end) > 1e-6
+    ):
+        hold = CutScopeHold(saved.id, (), "source_geometry")
+        raise ScopeChangedAtApproval([hold], {}, {saved.id: cut_label(project, saved)})
     candidate.source_timeline_span = RangeInterval(
         start=float(placement[0]), end=float(placement[1])
     )
