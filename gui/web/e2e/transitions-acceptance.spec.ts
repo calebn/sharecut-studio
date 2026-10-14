@@ -64,7 +64,11 @@ test("pending suggestions preserve drafts and save the displayed full range once
     },
     projectPath,
   );
-  await expect(page.getByLabel("Source start")).toHaveValue("0:02.000");
+  const sourceStart = page.getByRole("textbox", {
+    name: "Source start",
+    exact: true,
+  });
+  await expect(sourceStart).toHaveValue("0:02.000");
   const before = fs.readFileSync(projectPath, "utf8");
   const response = await page.request.get(
     `/api/pending-edits/${encodeURIComponent(editId)}/cut-suggestion?path=${encodeURIComponent(projectPath)}`,
@@ -79,11 +83,11 @@ test("pending suggestions preserve drafts and save the displayed full range once
   expect(fs.readFileSync(projectPath, "utf8")).toBe(before);
   const useSuggestion = page.getByRole("button", { name: "Use suggestion" });
   await expect(useSuggestion).toBeEnabled();
-  await page.getByLabel("Source start").fill("2.25");
+  await sourceStart.fill("2.25");
   await expect(useSuggestion).toBeDisabled();
-  await expect(page.getByLabel("Source start")).toHaveValue("2.25");
+  await expect(sourceStart).toHaveValue("2.25");
   await expectPageAxeClean(page, ".inspector");
-  await page.getByLabel("Source start").fill("0:02.000");
+  await sourceStart.fill("0:02.000");
   await expect(useSuggestion).toBeEnabled();
   const updateRequests: { type: string; payload: Record<string, unknown> }[] =
     [];

@@ -246,7 +246,10 @@ test("phone pending controls stay clear of handles and dense labels follow layou
       .locator(".pending-actionbar")
       .getByRole("button", { name: "Edit timing" }),
   ).toHaveCount(0);
-  const sourceStart = page.getByLabel("Source start");
+  const sourceStart = page.getByRole("textbox", {
+    name: "Source start",
+    exact: true,
+  });
   await sourceStart.tap();
   await expect(dragRegion.first()).toHaveAttribute(
     "data-coarse-pointer",
@@ -290,7 +293,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   );
   await wideRegion.locator(".pending-hit").focus();
   await wideRegion.locator(".pending-hit").press("Enter");
-  await page.getByLabel("Source start").tap();
+  await page.getByRole("textbox", { name: "Source start", exact: true }).tap();
   await wideRegion.locator(".pending-hit").focus();
   for (
     let zoomStep = 0;
