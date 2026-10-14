@@ -43,6 +43,7 @@ from podcast_mcp.engines.audio_audit import (
 from podcast_mcp.engines.level_profile import (
     LEVEL_FRAME_SEC,
     VOICE_FLOOR_OVER_ROOM_DB,
+    LevelProfile,
     room_floor_db,
     speech_level_db,
 )
@@ -488,6 +489,9 @@ def _peer_speaks_near_span(
                 decision_spans = merge_intervals([*decision_spans, *removed.spans(removed.shared)])
             except (OSError, ValueError):
                 unavailable = True
+    # Under the track's own voice floor a frame holds no voice, whatever its room is (#1549): a
+    # peer whose room tone sits 40 dB under its speech never "speaks" in it.
+    audible = _peer_profile(project, peer_track_id, caches).audibility_floor_db + gain
     blocks: list[tuple[float, float]] = []
     for left, right in decision_spans:
         block_start = left
@@ -542,7 +546,7 @@ def _peer_speaks_near_span(
                             return True
                         continue
                     unavailable = True
-                elif bool((own & (levels >= floor)).any()):
+                elif bool((own & (levels >= max(floor, audible))).any()):
                     return True
             else:
                 unavailable = True
@@ -554,18 +558,23 @@ def _gain_db(project: EpisodeProject, track_id: str) -> float:
     return track.gain_db if track else 0.0
 
 
+def _peer_profile(
+    project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None
+) -> LevelProfile:
+    cache = caches.get(track_id) if caches else None
+    return (
+        cache.profile
+        if cache is not None
+        else track_level_profile(project, track_id, sample_rate=_RMS_SAMPLE_RATE)
+    )
+
+
 def _voice_reach_db(
     project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None
 ) -> float:
     """The level the mean of a stretch must reach to hold ``track_id``'s voice, in recorded dB."""
-    cache = caches.get(track_id) if caches else None
-    reach = (
-        cache.profile
-        if cache is not None
-        else track_level_profile(project, track_id, sample_rate=_RMS_SAMPLE_RATE)
-    ).voice_reach_db
-    track = project.track_by_id(track_id)
-    return reach + (track.gain_db if track else 0.0)
+    reach = _peer_profile(project, track_id, caches).voice_reach_db
+    return reach + _gain_db(project, track_id)
 
 
 def _peer_voice_in_mean(
