@@ -28,6 +28,18 @@ from podcast_mcp.ingest.manifest import IngestManifest
 AlignMode = Literal["auto", "audio", "transcript"]
 
 
+def session_content_offset(offset_sec: float, align_method: str) -> float:
+    """Translate audio's raw lag into the session-clock shift used by placement.
+
+    ``cross_speaker_offsets`` keeps its engine contract: a positive lag means
+    the source content is later in its file. Project placement instead stores
+    the shift to apply to the source on the session clock, so audio lags have
+    the opposite sign. Manifest and transcript offsets already use that
+    session-clock convention.
+    """
+    return -offset_sec if align_method == "audio" else offset_sec
+
+
 @dataclass
 class SpeakerAlignment:
     name: str
@@ -209,7 +221,10 @@ def consolidate_speakers(
                     trim_start = file_time_for_session(
                         file_session_start,
                         extract_start_sec,
-                        cross_offsets.get(name, 0.0),
+                        session_content_offset(
+                            cross_offsets.get(name, 0.0),
+                            align_methods.get(name, "unknown"),
+                        ),
                     )
                 else:
                     trim_start = None
@@ -285,6 +300,10 @@ def alignment_report(
         align_mode=align_mode,
         transcript_path=transcript_path,
     )
+    session_offsets = {
+        name: session_content_offset(offset, methods.get(name, "unknown"))
+        for name, offset in offsets.items()
+    }
     ref_name = manifest.reference_speaker_name()
     ref_path = next((paths[0] for name, paths in groups if name == ref_name and paths), None)
     rows: list[dict] = []
@@ -295,14 +314,14 @@ def alignment_report(
         trim = file_time_for_session(
             session_starts.get(name, 0.0),
             analysis_start_sec,
-            offsets.get(name, 0.0),
+            session_offsets.get(name, 0.0),
         )
         row: dict = {
             "speaker": name,
             "source": str(primary),
             "session_start_in_file_sec": round(session_starts.get(name, 0.0), 4),
-            "content_align_sec": round(offsets.get(name, 0.0), 4),
-            "session_offset_sec": round(offsets.get(name, 0.0), 4),
+            "content_align_sec": round(session_offsets.get(name, 0.0), 4),
+            "session_offset_sec": round(session_offsets.get(name, 0.0), 4),
             "align_method": methods.get(name, "unknown"),
             "extract_trim_start_sec": round(trim, 4),
         }
@@ -325,7 +344,7 @@ def alignment_report(
             src_trim = file_time_for_session(
                 session_starts.get(name, 0.0),
                 analysis_start_sec,
-                offsets.get(name, 0.0),
+                session_offsets.get(name, 0.0),
             )
             src_iv = vad_speech_intervals(
                 paths[0], start_sec=src_trim, duration_sec=analysis_duration_sec

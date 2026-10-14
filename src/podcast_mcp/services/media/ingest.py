@@ -22,7 +22,11 @@ from podcast_mcp.engines.session_timeline import (
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
 )
-from podcast_mcp.ingest.consolidate import ConsolidateResult, consolidate_speakers
+from podcast_mcp.ingest.consolidate import (
+    ConsolidateResult,
+    consolidate_speakers,
+    session_content_offset,
+)
 from podcast_mcp.ingest.import_folder import (
     DEFAULT_MAX_FILES,
     DEFAULT_MAX_TOTAL_DURATION_SEC,
@@ -409,7 +413,10 @@ class IngestService:
                     durations.append(dur)
                 recorded = SpeakerIngestAlignment(
                     session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),
-                    content_align_sec=result.cross_speaker_offsets.get(name, 0.0),
+                    content_align_sec=session_content_offset(
+                        result.cross_speaker_offsets.get(name, 0.0),
+                        result.cross_speaker_align_method.get(name, "unknown"),
+                    ),
                     align_method=result.cross_speaker_align_method.get(name, "unknown"),
                 )
                 placement_sec = (
