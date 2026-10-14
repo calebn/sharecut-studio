@@ -865,4 +865,15 @@ describe("StatusBar cut chip", () => {
     await user.click(screen.getByRole("button", { name: "Open comments" }));
     expect(useDawStore.getState().activeTab).toBe("comments");
   });
+  it("carries the save state on desktop and tablet, since the transport folds its status away under load", async () => {
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    for (const shell of ["desktop", "tablet"] as const) {
+      useDawStore.getState().setShellBreakpoint(shell);
+      const view = render(<StatusBar />);
+      const pill = await screen.findByText("Saved to project");
+      expect(pill.closest("footer.status-bar")).not.toBeNull();
+      view.unmount();
+    }
+  });
 });

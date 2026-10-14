@@ -379,6 +379,21 @@ pinned header without measuring or changing scroll padding.
 
 Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
 
+### Project save state
+
+A host project shows one save state, so "did that save?" never needs the History tab. It is derived, not tracked: `layout/saveState.ts` (`saveStateOf`) reads three facts the editor already holds, and `SaveStatePill` renders the result.
+
+| State | Read from | Pill |
+| --- | --- | --- |
+| Saving | this tab has an edit save preparing, a live send in flight or a queue drain running (`documentActivityBusy` in `state/documentSendOrder.ts`) | `Saving to project…` |
+| Waiting to send | edits in the host offline queue (`host-queue:{projectPath}`) with nothing in flight | `Not saved yet · N waiting to send`; a button that sends now (`requestHostDrain`) |
+| Save failed | a refused edit in `host-conflicts:{projectPath}`, or a queue that cannot be read | `Save failed · See why` (focuses **Needs attention**, whose list gives each reason) or `Save failed · Retry` (reads the saved edits again) |
+| Saved | none of the above, after the queue has been read once | `Saved to project` |
+
+Saving wins over the others because an edit on its way is the freshest fact. The pill says nothing until the queue has been read once, so it never claims Saved before it knows. The queue and conflict read is the one shared poll in `state/offlineAttention.ts` (2 s, plus an immediate read when a save or drain ends) that the **Needs attention** banner also uses. The wording for saving and saved is the record room's (`record/saveStatus.ts`). A screen reader hears a problem when it arrives and the recovery from it, never each routine save. Share guests see no pill.
+
+It sits in one place per shell: the status bar on desktop and tablet, and the status row on phone, which sticks while a save needs the host. It is not in the transport, because the transport folds its status away whenever an error, import, layout chip or recording chip needs the room. `StatusBar` and `MobileShell` mount it; the Vitest placement tests are in `StatusBar.test.tsx` and `MobileShell.test.tsx`.
+
 The desktop/tablet shell is a single-column grid with named areas `banners / follow / transport / main / tabs / status`; the phone shell uses `banners / follow / transport / main / nav`. Banner rows are always `auto` (0 when empty), and layouts change only the `main` / `tabs` track sizes, so a banner or layout never shifts another child. Guarded by `gui/web/src/layout/shellGrid.test.ts`. Desktop/tablet layouts are switched by the transport layout control, View › Layout, and `Mod+1`–`4`; a Restore chip in the transport exits any non-default layout (see `docs/gui-mobile.md` § Desktop — layouts).
 
 ### Live project reload

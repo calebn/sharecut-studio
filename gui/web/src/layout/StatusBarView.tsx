@@ -14,6 +14,8 @@ type Props = {
   summary: StatusBarSummary | null;
   narrow: boolean;
   presence?: ReactNode;
+  /** The project save state. */
+  saveState?: ReactNode;
   reconcileHighlight?: boolean;
   job?: PipelineJobSnapshot | null;
   runningCount?: number;
@@ -31,6 +33,7 @@ export function StatusBarView({
   summary,
   narrow,
   presence,
+  saveState,
   reconcileHighlight,
   job,
   runningCount,
@@ -67,6 +70,7 @@ export function StatusBarView({
   return (
     <footer className="status-bar">
       {presence}
+      {saveState}
       {guestShare ? (
         <span>Pending: {pendingReviewCount}</span>
       ) : (
