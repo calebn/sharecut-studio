@@ -296,6 +296,20 @@ def test_audition_context_marks_the_echo_check_skipped_on_stale_stems(
     assert not [h for h in ctx["hypotheses"] if h["code"] == "echo_risk"]
 
 
+@pytest.mark.parametrize("guest_gain_db", [0, 12, -12, 18, -18, 24, -24, 36, -36])
+def test_two_mic_pairs_keep_direction_when_guest_gain_changes(guest_gain_db: float) -> None:
+    host_own = _speech_like(20.0, seed=1)
+    guest_own = _speech_like(20.0, seed=2)
+    gain = 10 ** (guest_gain_db / 20.0)
+    host = host_own + _delayed_copy(guest_own, delay_samples=64, gain_db=-12.0)
+    guest = guest_own * gain + _delayed_copy(host_own, delay_samples=64, gain_db=-12.0) * gain
+    flagged = _risk_pairs({"host": host.astype(np.float32), "guest": guest.astype(np.float32)})
+    pairs = {(p.source_track_id, p.bleed_track_id): p.lag_ms for p in flagged}
+    assert set(pairs) == {("host", "guest"), ("guest", "host")}
+    assert pairs[("host", "guest")] == pytest.approx(8.0, abs=0.25)
+    assert pairs[("guest", "host")] == pytest.approx(8.0, abs=0.25)
+
+
 def test_echo_risk_pairs_flags_only_the_measured_direction() -> None:
     """Reconcile's whole-track measurement: the mic that carries a delayed copy is the
     bleed side of one directed pair, and independent voices produce no pair (#774)."""
