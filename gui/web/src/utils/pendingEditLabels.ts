@@ -46,7 +46,6 @@ export function pendingTypeLabel(type: string): string {
   return TYPE_LABELS[type] ?? capitalize(type);
 }
 
-/** Pending-list row: whose cut at which source clock, plus the reason label (toast uses the same clock). */
 export function pendingListRowLabel(
   edit: PendingEditView,
   tracks: readonly TrackView[],

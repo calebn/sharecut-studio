@@ -136,8 +136,6 @@ export function formatRulerTime(sec: number, step: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
-/** `m:ss.mmm` (`h:mm:ss.mmm` from an hour): a precise time for inspector fields. */
-/** ``m:ss.s`` (``h:mm:ss.s`` past an hour); matches ``podcast_mcp.util.timebase.clock_label``. */
 export function clockLabel(sec: number | null | undefined): string {
   if (sec == null || !Number.isFinite(sec)) {
     return "?";
@@ -152,6 +150,7 @@ export function clockLabel(sec: number | null | undefined): string {
   return `${m}:${remText}`;
 }
 
+/** `m:ss.mmm` (`h:mm:ss.mmm` from an hour): a precise time for inspector fields. */
 export function formatTimeMs(sec: number): string {
   return formatRulerTime(sec, 0.001);
 }
