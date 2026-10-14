@@ -62,7 +62,7 @@ class Glob:
             raise ContractError(
                 f"invalid glob {text!r}: must be repo-relative, no leading /, ./ or backslash"
             )
-        body = text[:-1] + "**" if text.endswith("/") else text
+        body = text + "**" if text.endswith("/") else text
         out: list[str] = []
         i, n = 0, len(body)
         while i < n:
