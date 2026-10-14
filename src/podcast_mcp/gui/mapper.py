@@ -267,10 +267,6 @@ def _mapped_word_index(
     tr = recording.transcript
     words = tr.words if tr is not None else []
     mapped = recording.map_words(timeline, [(w.start, w.end) for w in words])
-    # The Studio word inspector and its store address a word by track and index alone, and
-    # send the first take's ``source_id`` with it (#1476), so another take's words carry no
-    # ``word_index``: they can be seen, followed and sought, never edited from here.
-    addressable = tr is None or tr is project.transcript_for_track(track_id)
     views = [
         _word_view(
             timeline,
@@ -279,7 +275,6 @@ def _mapped_word_index(
             w,
             spans,
             source_id=tr.source_id if tr else None,
-            addressable=addressable,
         )
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
     ]
@@ -551,7 +546,6 @@ def _word_view(
     spans: list[tuple[Any, Any]] | None = None,
     *,
     source_id: str | None,
-    addressable: bool = True,
 ) -> dict[str, Any]:
     src_end = float(word_source_span(word.start, word.end)[1])
     if spans is None:
@@ -569,6 +563,7 @@ def _word_view(
         "timeline_start": tl_start,
         "timeline_end": tl_end,
         "mappable": mappable,
+        "word_index": word_index,
         "timing_target": {"track_id": track_id, "source_id": source_id, "word_index": word_index},
         "confidence": word.confidence,
         "suppressed": bool(word.suppressed),
@@ -576,8 +571,6 @@ def _word_view(
         "suspect_hallucination": bool(word.suspect_hallucination),
         "audibility_locked": bool(word.audibility_locked),
     }
-    if addressable:
-        view["word_index"] = word_index
     return view
 
 
