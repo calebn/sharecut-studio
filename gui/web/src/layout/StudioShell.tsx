@@ -20,8 +20,7 @@ import {
   newTracksDropLabel,
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
-import { Inspector, SheetInspector } from "../inspector/Inspector";
-import { InspectorPeek } from "../inspector/InspectorPeek";
+import { Inspector } from "../inspector/Inspector";
 import { displayShortcutFor } from "../keymap/registry";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
@@ -47,7 +46,7 @@ import { MobileShell } from "./MobileShell";
 import { StatusBar } from "./StatusBar";
 import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
 import { TransportBar } from "./TransportBar";
-import { compactSheetProps, useCompactInspector } from "./useCompactInspector";
+import { useSelectionSheet } from "./useSelectionSheet";
 
 function StudioShellAdapter({
   guestShare = false,
@@ -62,16 +61,12 @@ function StudioShellAdapter({
   const {
     project,
     selection,
-    rangeArmed,
-    setSelection,
     activeTab,
     pipelineJob,
     activityJob,
     setTimelineFocused,
     setShellBreakpoint,
     layoutMode,
-    sheetExpanded,
-    setSheetExpanded,
     guestMode,
     projectPath,
     shareCapabilities,
@@ -79,16 +74,12 @@ function StudioShellAdapter({
   } = useDaw((s) => ({
     project: s.project,
     selection: s.selection,
-    rangeArmed: s.rangeArmed,
-    setSelection: s.setSelection,
     activeTab: s.activeTab,
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
     setTimelineFocused: s.setTimelineFocused,
     setShellBreakpoint: s.setShellBreakpoint,
     layoutMode: s.layoutMode,
-    sheetExpanded: s.sheetExpanded,
-    setSheetExpanded: s.setSheetExpanded,
     guestMode: s.guestMode,
     projectPath: s.projectPath,
     shareCapabilities: s.shareCapabilities,
@@ -163,7 +154,7 @@ function StudioShellAdapter({
     ),
     [addDropOver, addFileCount],
   );
-  const compact = useCompactInspector(shell === "tablet" ? "tablet" : null);
+  const selectionSheet = useSelectionSheet(shell === "tablet" ? shell : null);
 
   if (shell === "phone") {
     return (
@@ -175,20 +166,8 @@ function StudioShellAdapter({
     );
   }
 
-  const useSheetInspector = shell === "tablet";
   const showInspector =
-    !useSheetInspector && selection != null && !isRangeSelection(selection);
-  // Peek sheet shares the bottom band with tabs; hide it when text/review
-  // focus expands that band so Transcript/Comments stay fully readable.
-  const sheetOpen =
-    useSheetInspector &&
-    selection != null &&
-    layoutMode !== "text" &&
-    layoutMode !== "review";
-  // A sheet that hosts the range controls replaces the bar, so they never sit
-  // under the sheet's scrim: Range actions for a range, In and Out while armed.
-  const rangeActionsInSheet =
-    sheetOpen && (rangeArmed || isRangeSelection(selection));
+    shell === "desktop" && selection != null && !isRangeSelection(selection);
   // Only the ingest drop target keeps headers outside the timeline; any drawn
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;
@@ -270,7 +249,7 @@ function StudioShellAdapter({
         transport: (
           <>
             <TransportBar compact={shell === "tablet"} showLayout />
-            {rangeActionsInSheet ? null : <RangeActions />}
+            {selectionSheet.open ? null : <RangeActions />}
           </>
         ),
         footer: <StatusBar guestShare={guestShare} />,
@@ -285,30 +264,11 @@ function StudioShellAdapter({
         onTabChange: (tab) => runPointerCommand("view.setTab", { tab }),
       }}
       inspector={
-        useSheetInspector
+        shell === "tablet"
           ? {
               kind: "tablet",
-              tools: (
-                <EditingToolRail
-                  inert={sheetOpen && compact != null && !compact.stowed}
-                />
-              ),
-              sheet: {
-                open: sheetOpen,
-                expanded: sheetExpanded,
-                content:
-                  compact?.view === "peek" ? (
-                    <InspectorPeek peek={compact.peek} />
-                  ) : (
-                    <SheetInspector />
-                  ),
-                onClose: () => {
-                  setSelection(null);
-                  setSheetExpanded(false);
-                },
-                onExpandedChange: setSheetExpanded,
-                compact: compact ? compactSheetProps(compact) : undefined,
-              },
+              tools: <EditingToolRail inert={selectionSheet.coversTools} />,
+              sheet: selectionSheet,
             }
           : { kind: "desktop", content: showInspector ? <Inspector /> : null }
       }

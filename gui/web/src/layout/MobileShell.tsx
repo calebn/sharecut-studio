@@ -7,16 +7,12 @@ import {
   useState,
 } from "react";
 import { runPointerCommand } from "../commands/pointer";
-import { isRangeSelection } from "../edit/rangeSelection";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
-import { SheetInspector } from "../inspector/Inspector";
-import { InspectorPeek } from "../inspector/InspectorPeek";
-import { RelatedCommands } from "../inspector/RelatedCommands";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
 import { ImpactPanel } from "../panels/ImpactPanel";
@@ -73,7 +69,7 @@ import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
 import { TAB_LABELS } from "./tabLabels";
 import { transportPlayHandlers } from "./transportPlay";
-import { compactSheetProps, useCompactInspector } from "./useCompactInspector";
+import { useSelectionSheet } from "./useSelectionSheet";
 
 function MoreHub({
   guestShare,
@@ -400,7 +396,6 @@ function MobileShellAdapter({
     mobileMode,
     moreDestination,
     setMoreDestination,
-    sheetExpanded,
     setSheetExpanded,
     setTimelineFocused,
     guestMode,
@@ -421,7 +416,6 @@ function MobileShellAdapter({
     mobileMode: s.mobileMode,
     moreDestination: s.moreDestination,
     setMoreDestination: s.setMoreDestination,
-    sheetExpanded: s.sheetExpanded,
     setSheetExpanded: s.setSheetExpanded,
     setTimelineFocused: s.setTimelineFocused,
     guestMode: s.guestMode,
@@ -478,7 +472,7 @@ function MobileShellAdapter({
     project != null &&
     canApplyPass12(projectPath, guestMode, shareCapabilities);
   useTwoFingerTap(shellRef, { enabled: undoEnabled });
-  const compact = useCompactInspector("phone");
+  const selectionSheet = useSelectionSheet("phone");
   usePresenceCursorSource(shellRef);
 
   useEffect(() => {
@@ -486,11 +480,6 @@ function MobileShellAdapter({
       setSheetExpanded(false);
     }
   }, [selection, setSheetExpanded]);
-
-  const closeSheet = () => {
-    setSelection(null);
-    setSheetExpanded(false);
-  };
 
   const moreContent =
     moreDestination === "hub" ? (
@@ -522,20 +511,6 @@ function MobileShellAdapter({
     ) : (
       <PipelinePanel />
     );
-  const inspectorOpen =
-    rangeArmed ||
-    (selection != null &&
-      (mobileMode === "timeline" ||
-        mobileMode === "listen" ||
-        (mobileMode === "text" &&
-          (selection.kind === "transcriptWord" ||
-            isRangeSelection(selection))) ||
-        (mobileMode === "more" &&
-          moreDestination === "comments" &&
-          selection.kind === "comment") ||
-        (mobileMode === "more" &&
-          moreDestination === "impact" &&
-          selection.kind === "pending")));
   const screen: MobileScreen =
     mobileMode === "listen"
       ? {
@@ -551,11 +526,7 @@ function MobileShellAdapter({
         ? {
             kind: "timeline",
             canvas: <TimelineView fixedPlayhead headerSlot={headerSlot} />,
-            tools: (
-              <EditingToolRail
-                inert={inspectorOpen && compact != null && !compact.stowed}
-              />
-            ),
+            tools: <EditingToolRail inert={selectionSheet.coversTools} />,
           }
         : mobileMode === "text"
           ? { kind: "text", content: <TranscriptPanel /> }
@@ -569,25 +540,14 @@ function MobileShellAdapter({
               },
             };
 
-  const strip = compact?.view === "peek" ? compact.peek : null;
-  const sheet: MobileSheet = inspectorOpen
+  const sheet: MobileSheet = selectionSheet.open
     ? {
         kind: "inspector",
-        expanded: sheetExpanded,
-        onExpandedChange: setSheetExpanded,
-        onClose: () => {
-          setRangeArmed(false);
-          closeSheet();
-        },
-        compact: compact ? compactSheetProps(compact) : undefined,
-        content: strip ? (
-          <InspectorPeek peek={strip} />
-        ) : (
-          <>
-            <SheetInspector />
-            {rangeArmed ? null : <RelatedCommands selection={selection} />}
-          </>
-        ),
+        expanded: selectionSheet.expanded,
+        onExpandedChange: selectionSheet.onExpandedChange,
+        onClose: selectionSheet.onClose,
+        compact: selectionSheet.compact,
+        content: selectionSheet.content,
       }
     : mixEligible
       ? {
