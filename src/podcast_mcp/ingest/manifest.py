@@ -3,11 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SessionConfig(BaseModel):
     """Shared podcast session clock (remote recorders with different start/stop)."""
+
+    # A removed key (``hint_sec``) fails loudly instead of being dropped.
+    model_config = ConfigDict(extra="forbid")
 
     reference_speaker: str | None = Field(
         default=None,

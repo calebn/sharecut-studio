@@ -72,3 +72,13 @@ def test_consolidate_guesses_no_session_start_from_speech_onsets(
     """Two speakers' first words are not one event: an omitted start is 0, never an estimate."""
     result = _consolidate(sample_wav, tmp_path, "")
     assert result.session_start_in_file_sec == {"Host": 0.0, "Guest": 0.0}
+
+
+def test_a_removed_session_key_is_an_error_not_silently_dropped(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "ingest.yaml"
+    manifest_path.write_text(
+        "session:\n  hint_sec: 30\nspeakers:\n  - name: Host\n    sources: [host.wav]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="hint_sec"):
+        IngestManifest.load(manifest_path)
