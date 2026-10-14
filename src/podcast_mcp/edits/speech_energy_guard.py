@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import math
+import subprocess
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
@@ -563,6 +564,11 @@ def _peer_speaks_near_span(
     return None if unavailable else False
 
 
+# A track whose voice level sits this far under the session's loudest voice carries residue,
+# not a microphone. Relative, so the guard decides the same at any recording level (#1549).
+_RESIDUE_UNDER_LOUDEST_DB = 40.0
+
+
 def _gain_db(project: EpisodeProject, track_id: str) -> float:
     track = project.track_by_id(track_id)
     return track.gain_db if track else 0.0
@@ -579,20 +585,41 @@ def _peer_profile(
     )
 
 
+def _track_voice_db(
+    project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None
+) -> float | None:
+    """``track_id``'s ``path_reference_db``, or ``None`` where it has no recording to read."""
+    track = project.track_by_id(track_id)
+    if track is None or track.media is None:
+        return None
+    try:
+        return _peer_profile(project, track_id, caches).path_reference_db
+    except (OSError, CodedValueError, subprocess.CalledProcessError):
+        return None
+
+
 def _voice_ref_db(project: EpisodeProject, track_id: str, caches: TrackRmsCacheSet | None) -> float:
     """The offset (dB) that puts ``track_id``'s own speaker at 0 on the common voice scale.
 
     A call recording can carry another speaker hotter than that speaker's own mic, so levels
     cannot be compared across mics as recorded; each track is read against its own voice
-    (``LevelProfile.path_reference_db``), and 0 where it has none to read (#1495, #1549).
+    (``LevelProfile.path_reference_db``), and 0 where it has none to read (#1495, #1549). A track
+    whose voice sits ``_RESIDUE_UNDER_LOUDEST_DB`` under the session's loudest carries residue,
+    not a mic, and is read as recorded: scaled up by its own residue level it would out-sound
+    every speaker.
     """
-    track = project.track_by_id(track_id)
-    if track is None or track.media is None:
+    reference = _track_voice_db(project, track_id, caches)
+    if reference is None:
         return 0.0
-    try:
-        return _peer_profile(project, track_id, caches).path_reference_db
-    except (OSError, CodedValueError):
-        return 0.0
+    loudest = max(
+        (
+            v
+            for t in project.timeline.tracks
+            if (v := _track_voice_db(project, t.id, caches)) is not None
+        ),
+        default=reference,
+    )
+    return reference if reference > loudest - _RESIDUE_UNDER_LOUDEST_DB else 0.0
 
 
 def _voice_reach_db(
