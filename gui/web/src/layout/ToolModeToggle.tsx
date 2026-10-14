@@ -36,12 +36,18 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
   return (
     <ToolModeToggleView
       compact={compact}
-      structuralToolsAllowed={allowed}
-      selectAllowed={project != null}
-      commentAllowed={
+      selectReason={
+        project != null ? undefined : "Open a project to select audio"
+      }
+      bladeReason={
+        allowed ? undefined : "Blade requires permission to suggest edits"
+      }
+      commentReason={
         project != null &&
         (!(isShareProjectKey(projectPath) || guestMode != null) ||
           hasShareCapability(shareCapabilities, "comment"))
+          ? undefined
+          : "This share cannot add comments"
       }
       toolMode={toolMode}
       commentMode={commentMode}

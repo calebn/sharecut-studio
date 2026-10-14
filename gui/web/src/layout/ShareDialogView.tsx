@@ -488,7 +488,13 @@ function ReviewLinkRow({
         <div className="share-dialog-row-actions">
           <Button
             type="button"
-            disabled={busy || !row.url}
+            disabledReason={
+              busy
+                ? BUSY_REASON
+                : !row.url
+                  ? "This link has no address to copy yet."
+                  : undefined
+            }
             aria-describedby={labelId}
             onClick={() => onCopy("link", row.token, "Link", row.url)}
           >
@@ -666,7 +672,15 @@ function RoomLink({
       <div className="share-dialog-row-actions">
         <Button
           type="button"
-          disabled={busy || !link?.url || !!link?.invite_closed}
+          disabledReason={
+            busy
+              ? BUSY_REASON
+              : link?.invite_closed
+                ? "This invite is closed. Replace it to share a new link."
+                : !link?.url
+                  ? "This link has no address to copy yet."
+                  : undefined
+          }
           aria-describedby={labelId}
           onClick={() => onCopy("link", key, copy.copyLabel, link?.url ?? null)}
         >

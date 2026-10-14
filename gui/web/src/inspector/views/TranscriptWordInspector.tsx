@@ -362,7 +362,7 @@ export function TranscriptWordInspector({
               {
                 label: suppressed ? "Unsuppress" : "Suppress",
                 variant: "default",
-                disabled: busy,
+                disabledReason: busy ? BUSY_REASON : undefined,
                 onClick: () => void toggleSuppress(),
                 title: suppressed
                   ? TRANSCRIPT_UNSUPPRESS_TIP
@@ -371,7 +371,7 @@ export function TranscriptWordInspector({
               {
                 label: ignored ? "Restore" : "Ignore",
                 variant: "primary",
-                disabled: busy,
+                disabledReason: busy ? BUSY_REASON : undefined,
                 onClick: () => void toggleIgnored(),
                 title: capabilityTooltip("daw.transcript.ignore", {
                   pressed: ignored,

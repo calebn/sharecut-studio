@@ -273,11 +273,9 @@ describe("ExportDialog", () => {
 
     const exportBtn = screen.getByRole("button", { name: "Export" });
     expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
-    expect(exportBtn.getAttribute("aria-describedby")).toBeTruthy();
-    expect(
-      document.getElementById(exportBtn.getAttribute("aria-describedby")!)
-        ?.textContent,
-    ).toBe("Choose at least one format.");
+    expect(exportBtn).toHaveAccessibleDescription(
+      "Choose at least one format.",
+    );
   });
 
   it("returns to settings and announces nothing when the project changes", async () => {

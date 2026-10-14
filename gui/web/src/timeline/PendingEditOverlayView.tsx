@@ -20,6 +20,7 @@ import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { Button } from "../ui/Button";
 import { inspectorSheetPanel, inspectorSheetTop } from "../ui/compactSheet";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   ApiError,
@@ -1008,15 +1009,13 @@ function PendingEditRegion({
               <div className="pending-actions">
                 <Button
                   variant="primary"
-                  disabled={
-                    !canApply ||
-                    actionState.kind === "busy" ||
-                    gesture.kind === "settling"
-                  }
-                  title={
+                  disabledReason={
                     !canApply
-                      ? "Only the host or an Editor can review exact range proposals"
-                      : undefined
+                      ? "Only the host or an Editor can review exact range proposals."
+                      : actionState.kind === "busy" ||
+                          gesture.kind === "settling"
+                        ? BUSY_REASON
+                        : undefined
                   }
                   onClick={() => void runReviewAction("approve")}
                 >
@@ -1024,15 +1023,13 @@ function PendingEditRegion({
                 </Button>
                 <Button
                   variant="danger"
-                  disabled={
-                    !canApply ||
-                    actionState.kind === "busy" ||
-                    gesture.kind === "settling"
-                  }
-                  title={
+                  disabledReason={
                     !canApply
-                      ? "Only the host or an Editor can review exact range proposals"
-                      : undefined
+                      ? "Only the host or an Editor can review exact range proposals."
+                      : actionState.kind === "busy" ||
+                          gesture.kind === "settling"
+                        ? BUSY_REASON
+                        : undefined
                   }
                   onClick={() => void runReviewAction("reject")}
                 >

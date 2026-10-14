@@ -71,7 +71,6 @@ export function TrackInspector({
   const mixOnly = guestHearsMixOnly(guestMode);
   const hostCanSplit = canManageProjects(projectPath);
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
-  const splitBlockerId = `split-speakers-blocker-${track.id}`;
   const [label, setLabel] = useState(track.label);
   const [speaker, setSpeaker] = useState(track.speaker ?? "");
   const [role, setRole] = useState(track.role);
@@ -241,8 +240,9 @@ export function TrackInspector({
                 commandId="track.splitSpeakers"
                 args={{ trackId: track.id }}
                 className="split-speakers-entry"
-                disabled={busy || splitBlocker != null}
-                aria-describedby={splitBlocker ? splitBlockerId : undefined}
+                disabledReason={
+                  busy ? BUSY_REASON : (splitBlocker ?? undefined)
+                }
               >
                 Split speakers…
               </CommandButton>
@@ -257,9 +257,7 @@ export function TrackInspector({
             </CommandButton>
           </div>
           {hostCanSplit && splitBlocker ? (
-            <p id={splitBlockerId} className="modifier-note">
-              {splitBlocker}
-            </p>
+            <p className="modifier-note">{splitBlocker}</p>
           ) : null}
         </>
       ) : (

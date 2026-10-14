@@ -176,7 +176,11 @@ function MoreHub({
       </div>
       {mayManage ? (
         <div className="mobile-more-group">
-          <CommandButton commandId="edit.addChapter" respectWhen>
+          <CommandButton
+            commandId="edit.addChapter"
+            respectWhen
+            whenReason="Open an episode project to add a chapter."
+          >
             Add chapter at playhead
           </CommandButton>
         </div>

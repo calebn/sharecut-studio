@@ -3,9 +3,10 @@ import { Icon, SegmentedControl, ToggleButton } from "../ui";
 
 export interface ToolModeToggleViewProps {
   compact?: boolean;
-  structuralToolsAllowed: boolean;
-  selectAllowed?: boolean;
-  commentAllowed?: boolean;
+  /** Why each tool is unavailable; omit when it can be used. */
+  selectReason?: string;
+  bladeReason?: string;
+  commentReason?: string;
   toolMode: ToolMode;
   commentMode: boolean;
   selectTitle: string;
@@ -22,9 +23,9 @@ export interface ToolModeToggleViewProps {
 /** Store-free Select / Blade (and Comment when not compact) tool cluster. */
 export function ToolModeToggleView({
   compact = false,
-  structuralToolsAllowed,
-  selectAllowed = true,
-  commentAllowed = true,
+  selectReason,
+  bladeReason,
+  commentReason,
   toolMode,
   commentMode,
   selectTitle,
@@ -49,8 +50,8 @@ export function ToolModeToggleView({
         <ToggleButton
           quiet
           pressed={selectActive}
-          disabled={!selectAllowed}
-          title={selectAllowed ? selectTitle : "Open a project to select audio"}
+          disabledReason={selectReason}
+          title={selectTitle}
           aria-label="Select"
           aria-keyshortcuts={selectAriaKeyShortcuts}
           onClick={onSelect}
@@ -60,12 +61,8 @@ export function ToolModeToggleView({
         <ToggleButton
           quiet
           pressed={bladeActive}
-          disabled={!structuralToolsAllowed}
-          title={
-            structuralToolsAllowed
-              ? `${bladeTitle}: split at click or playhead`
-              : "Blade requires permission to suggest edits"
-          }
+          disabledReason={bladeReason}
+          title={`${bladeTitle}: split at click or playhead`}
           aria-label="Blade"
           aria-keyshortcuts={bladeAriaKeyShortcuts}
           onClick={onBlade}
@@ -78,10 +75,8 @@ export function ToolModeToggleView({
           quiet
           pressed={commentMode}
           className="comment-mode-btn"
-          disabled={!commentAllowed}
-          title={
-            commentAllowed ? commentTitle : "This share cannot add comments"
-          }
+          disabledReason={commentReason}
+          title={commentTitle}
           aria-label="Comment"
           aria-keyshortcuts={commentAriaKeyShortcuts}
           onClick={onToggleComment}

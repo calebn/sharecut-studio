@@ -199,9 +199,7 @@ describe("TrackInspector", () => {
       render(<TrackInspector track={track} effects={[]} />);
       const button = screen.getByRole("button", { name: "Split speakers…" });
       expect(button).toBeDisabled();
-      expect(
-        document.getElementById(button.getAttribute("aria-describedby")!),
-      ).toHaveTextContent(reason);
+      expect(button).toHaveAccessibleDescription(reason);
     });
 
     it("is not offered on a review link", () => {

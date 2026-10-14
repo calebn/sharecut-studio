@@ -16,7 +16,6 @@ describe("ToolModeToggleView", () => {
   it("reflects the select tool via aria-pressed", async () => {
     const { container } = render(
       <ToolModeToggleView
-        structuralToolsAllowed
         toolMode="select"
         commentMode={false}
         selectTitle="Select tool (V)"
@@ -43,7 +42,6 @@ describe("ToolModeToggleView", () => {
   it("reflects the blade tool via aria-pressed", () => {
     render(
       <ToolModeToggleView
-        structuralToolsAllowed
         toolMode="blade"
         commentMode={false}
         selectTitle="Select tool (V)"
@@ -65,7 +63,6 @@ describe("ToolModeToggleView", () => {
   it("shows comment mode as pressed and both tools as unpressed", () => {
     render(
       <ToolModeToggleView
-        structuralToolsAllowed
         toolMode="select"
         commentMode
         selectTitle="Select tool (V)"
@@ -87,7 +84,6 @@ describe("ToolModeToggleView", () => {
   it("titles Select, Blade and Comment with their shortcuts", () => {
     render(
       <ToolModeToggleView
-        structuralToolsAllowed
         toolMode="select"
         commentMode={false}
         selectTitle="Select tool (V)"
@@ -119,7 +115,6 @@ describe("ToolModeToggleView", () => {
   it("renders inside a group with the shared segmented classes", () => {
     render(
       <ToolModeToggleView
-        structuralToolsAllowed
         toolMode="select"
         commentMode={false}
         selectTitle="Select tool (V)"
@@ -137,7 +132,6 @@ describe("ToolModeToggleView", () => {
     render(
       <ToolModeToggleView
         compact
-        structuralToolsAllowed
         toolMode="select"
         commentMode={false}
         selectTitle="Select tool (V)"
@@ -154,7 +148,7 @@ describe("ToolModeToggleView", () => {
   it("keeps Select and disabled Blade visible for a viewer", () => {
     render(
       <ToolModeToggleView
-        structuralToolsAllowed={false}
+        bladeReason="Blade requires permission to suggest edits"
         toolMode="select"
         commentMode={false}
         selectTitle="Select tool (V)"
@@ -177,7 +171,6 @@ describe("ToolModeToggleView", () => {
     const cbs = actions();
     render(
       <ToolModeToggleView
-        structuralToolsAllowed
         toolMode="select"
         commentMode={false}
         selectTitle="Select tool (V)"

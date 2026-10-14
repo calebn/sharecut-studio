@@ -66,7 +66,7 @@ export function SocialClipInspector({
               {
                 label: "Delete",
                 variant: "danger",
-                disabled: busy,
+                disabledReason: busy ? BUSY_REASON : undefined,
                 onClick: () => void remove(),
               },
             ]

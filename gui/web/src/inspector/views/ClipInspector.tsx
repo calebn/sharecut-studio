@@ -520,7 +520,13 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                     />
                     <span>ms</span>
                     <Button
-                      disabled={clipMutationBusy || joinLengthStr.trim() === ""}
+                      disabledReason={
+                        clipMutationBusy
+                          ? BUSY_REASON
+                          : joinLengthStr.trim() === ""
+                            ? "Enter a transition length in milliseconds."
+                            : undefined
+                      }
                       onClick={() =>
                         void commitJoin(clip.join_in_mode, joinLengthStr)
                       }

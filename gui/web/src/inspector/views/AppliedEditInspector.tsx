@@ -5,6 +5,7 @@ import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AppliedEditRecord } from "../../types/project";
 import { DefItem, DefinitionList, InspectorSeekFooter } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { ModifierInspector } from "../ModifierInspector";
 
 export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
@@ -59,7 +60,7 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
               {
                 label: "Restore",
                 variant: "primary",
-                disabled: busy,
+                disabledReason: busy ? BUSY_REASON : undefined,
                 onClick: () => void onRestore(),
               },
             ]

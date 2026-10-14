@@ -241,7 +241,11 @@ export function SplitSpeakersDialog() {
               activityJob != null && activityJob.id === flow.jobId
                 ? activityJob
                 : null,
-            canCancel: flow.jobId != null && !flow.cancelling,
+            cancelReason: flow.cancelling
+              ? "Already cancelling the split."
+              : flow.jobId == null
+                ? "The split is still starting. Cancel once it has started."
+                : null,
             cancelling: flow.cancelling,
             cancelError: flow.cancelError,
           }
