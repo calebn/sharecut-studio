@@ -578,8 +578,6 @@ def _peer_voice_in_span(
     peer_track_id: str,
     span: tuple[float, float],
     caches: TrackRmsCacheSet | None,
-    *,
-    dominance_db: float = 3.0,
 ) -> bool | None:
     """Whether any frame in ``span`` on the peer reaches its own voice level.
 
@@ -610,14 +608,12 @@ def _peer_voice_in_span(
         return None
     if reach == math.inf:
         return False
-    slack = 0.0
     if reach == -math.inf:
         session_reach = _session_voice_reach_db(project, peer_track_id, caches)
         if session_reach is None:
             return None
         reach = session_reach
-        slack = dominance_db
-    return bool((levels >= reach - slack).any())
+    return bool((levels >= reach).any())
 
 
 def _peer_voice_in_mean(
@@ -644,10 +640,8 @@ def _peer_voice_fallback(
     span: tuple[float, float],
     rms: float,
     caches: TrackRmsCacheSet | None,
-    *,
-    dominance_db: float,
 ) -> bool | None:
-    framed = _peer_voice_in_span(project, peer_track_id, span, caches, dominance_db=dominance_db)
+    framed = _peer_voice_in_span(project, peer_track_id, span, caches)
     if framed is not None:
         return framed
     return _peer_voice_in_mean(project, peer_track_id, rms, caches)
@@ -745,9 +739,7 @@ def measure_peer_speech(
                 else None,
             )
             if calibrated is None:
-                voiced = _peer_voice_fallback(
-                    project, tid, (tl_start, tl_end), rms, caches, dominance_db=dominance
-                )
+                voiced = _peer_voice_fallback(project, tid, (tl_start, tl_end), rms, caches)
                 calibrated = (
                     span_owner is None or rms - span_owner >= dominance
                     if voiced is None

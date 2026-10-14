@@ -20,7 +20,11 @@ from podcast_mcp.edits.speech_energy_guard import (
     measure_peer_speech,
 )
 from podcast_mcp.edits.tighten import propose_tighten_edits
-from podcast_mcp.engines.audio_audit import build_track_rms_caches, measure_timeline_rms_db
+from podcast_mcp.engines.audio_audit import (
+    TrackRmsCacheSet,
+    build_track_rms_caches,
+    measure_timeline_rms_db,
+)
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -462,6 +466,41 @@ def _frame_fallback_quiet_peer_tracks() -> tuple:
     guest = np.random.default_rng(23).normal(0, 10 ** (_OPEN_MIC_DB / 20), SECONDS * RATE)
     _voice(guest, 6.5, 7.5, SPEECH_DB - 30.0)
     return (("host", (host, [])), ("guest", (guest, [])))
+
+
+def _peer_speech_with_calibration_off(
+    project: EpisodeProject, *, caches: TrackRmsCacheSet | None
+) -> tuple[str, ...]:
+    with patch("podcast_mcp.edits.speech_energy_guard._peer_speaks_near_span", return_value=None):
+        levels = measure_peer_speech(
+            project,
+            [_PEER_SPAN],
+            owner_track_ids=["host"],
+            peer_track_ids=["guest"],
+            defaults=_GUARD_ON,
+            caches=caches,
+        )
+    assert levels is not None
+    return levels.speaking
+
+
+@pytest.mark.parametrize(
+    ("voice_db", "expected"),
+    [(None, ()), (SPEECH_DB - 36.0, ())],
+    ids=["wordless_open_mic", "guest_36db_under_speech"],
+)
+def test_peer_fallback_live_and_cache_agree_without_session_reach_slack(
+    tmp_path: Path, voice_db: float | None, expected: tuple[str, ...]
+) -> None:
+    """896fa0bf dominance slack made live lane reads speak on open mic while cache stayed silent."""
+    tracks = _peer_tracks_in_span(voice_db=voice_db)
+    project = _project(tmp_path, 0.0, gated=False, tracks=tracks)
+    caches = build_track_rms_caches(project)
+    assert _peer_speech_with_calibration_off(project, caches=None) == expected
+    assert _peer_speech_with_calibration_off(project, caches=caches) == expected
+    assert _peer_speech_with_calibration_off(
+        project, caches=None
+    ) == _peer_speech_with_calibration_off(project, caches=caches)
 
 
 def test_frame_fallback_finds_quiet_peer_when_mean_and_trunk_stay_silent(tmp_path: Path) -> None:

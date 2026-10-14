@@ -6,7 +6,7 @@ import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.media_probe import probe_media
-from podcast_mcp.engines.sample_grid import Piece, lay_out
+from podcast_mcp.engines.sample_grid import Piece, PieceCells, lay_out
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     TimelineClipSpan,
@@ -59,6 +59,31 @@ def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
     return _decode_f32(path, sample_rate, None, []).reshape(-1, channels)
 
 
+def _clip_window(
+    path: Path,
+    span: TimelineClipSpan,
+    cell: PieceCells,
+    *,
+    sample_rate: int,
+    preserve_channels: bool,
+) -> np.ndarray:
+    start_sec = float(span.source_start) + cell.first / sample_rate
+    duration_sec = cell.count / sample_rate
+    if preserve_channels:
+        return load_wav_channels_window(
+            path,
+            start_sec=start_sec,
+            duration_sec=duration_sec,
+            sample_rate=sample_rate,
+        )
+    return load_mono_window(
+        path,
+        start_sec=start_sec,
+        duration_sec=duration_sec,
+        sample_rate=sample_rate,
+    )
+
+
 def raw_samples_on_timeline(
     spans: list[TimelineClipSpan],
     paths: list[Path],
@@ -69,22 +94,11 @@ def raw_samples_on_timeline(
 ) -> np.ndarray:
     """Raw clips placed on the timeline: mono, or ``(frames, channels)`` with
     ``preserve_channels``, where a mono clip on a multichannel lane fills every channel."""
-    load = load_channels_full if preserve_channels else load_mono_full
-    for path in paths:
-        if path not in sources:
-            sources[path] = load(path, sample_rate=sample_rate)
     if not spans:
+        load = load_channels_full if preserve_channels else load_mono_full
+        if paths[0] not in sources:
+            sources[paths[0]] = load(paths[0], sample_rate=sample_rate)
         return sources[paths[0]]
-    if len(spans) == 1:
-        span = spans[0]
-        source = sources[paths[0]]
-        if (
-            span.timeline_start == 0
-            and span.source_start == 0
-            and span.timeline_end == span.source_end
-            and round(float(span.source_end) * sample_rate) == source.shape[0]
-        ):
-            return source
     order = sorted(range(len(spans)), key=lambda i: float(spans[i].timeline_start))
     spans = [spans[i] for i in order]
     paths = [paths[i] for i in order]
@@ -100,13 +114,33 @@ def raw_samples_on_timeline(
         ],
         sample_rate,
     )
-    layout = max(sources[path].shape[1:] for path in paths)
-    placed = np.zeros((max(0, *(cell.stop for cell in cells)), *layout), dtype=np.float32)
+    end = max(0, *(cell.stop for cell in cells))
+    layout: tuple[int, ...] = ()
+    placed: np.ndarray | None = None
     for span, path, cell in zip(spans, paths, cells, strict=True):
-        source = sources[path]
-        if cell.dest < 0 or cell.first < 0 or cell.first + cell.count > source.shape[0]:
+        if cell.count <= 0:
+            continue
+        window = _clip_window(
+            path, span, cell, sample_rate=sample_rate, preserve_channels=preserve_channels
+        )
+        if window.size < cell.count:
             raise ValueError(f"clip {span.clip.id} source samples are unavailable")
-        placed[cell.dest : cell.stop] += source[cell.first : cell.first + cell.count]
+        chunk = window[: cell.count]
+        if preserve_channels:
+            if chunk.ndim == 1:
+                chunk = chunk.reshape(-1, 1)
+            if placed is None:
+                layout = chunk.shape[1:]
+                placed = np.zeros((end, *layout), dtype=np.float32)
+            elif placed.shape[1:] != chunk.shape[1:]:
+                raise ValueError("selected media channel layouts differ")
+            placed[cell.dest : cell.stop] += chunk
+        else:
+            if placed is None:
+                placed = np.zeros(end, dtype=np.float32)
+            placed[cell.dest : cell.stop] += chunk
+    if placed is None:
+        return np.zeros(0 if not preserve_channels else (0, 1), dtype=np.float32)
     return placed
 
 
