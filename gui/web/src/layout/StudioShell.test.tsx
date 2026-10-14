@@ -405,7 +405,9 @@ describe("StudioShell tablet peek", () => {
       name: "Needs attention. 1 pending, 1 conflict",
     });
     expect(within(alert).getByText("Attention", { exact: true })).toBeVisible();
-    const details = within(alert).getByText("Details", { exact: true });
+    const details = within(alert).getByLabelText(
+      "View attention details and recovery actions",
+    );
     expect(details).toHaveAttribute(
       "aria-label",
       "View attention details and recovery actions",
