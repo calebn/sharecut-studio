@@ -286,9 +286,7 @@ def test_strip_silence_no_media_and_relative_path(tmp_path, sample_wav):
                 SilenceInterval(start=1.5, end=1.8),
             ],
         )
-        result = strip_silence(
-            p, "host", threshold_db=-50, min_duration_sec=0.05, use_inaudible_opt=False
-        )
+        result = strip_silence(p, "host", min_duration_sec=0.05, use_inaudible_opt=False)
     assert result["clips_created"] >= 1
     assert result["silence_intervals"] == 2
 
@@ -312,7 +310,7 @@ def test_silence_interval_duration_and_orphan_end(tmp_path, sample_wav, monkeypa
 
     monkeypatch.setattr("podcast_mcp.engines.silence.run", fake_run)
     monkeypatch.setattr("podcast_mcp.engines.silence.resolve_ffmpeg", lambda: "ffmpeg")
-    ivs = detect_silence(sample_wav)
+    ivs = detect_silence(sample_wav, threshold_db=-50.0)
     assert len(ivs) == 1
     assert ivs[0].start == 3.0
 

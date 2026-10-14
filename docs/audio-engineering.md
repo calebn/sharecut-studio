@@ -99,7 +99,8 @@ audio file revision, and every stage that reads the file reads that one profile
 
 - The voice floor, `max(S - 27 dB, R + 6 dB)`, and the audibility floor and voice reach
   read from it. Tighten, reconcile, the ASR silence filter and its aligner evidence gate,
-  word spans, joins, prosody segments and strip-silence all read these.
+  word spans, joins, prosody segments and strip-silence all read these. Prosody's
+  word-less segmentation reads the profile of its own energy pass, so it adds no decode.
 - The voice level, `max(S, L - 6 dB)`: the speech level, or for a speaker who talks under
   a tenth of the time (whose speech level is room tone) 6 dB under the loud level. A
   speaker's loudest frames sit 5.3 to 6.3 dB over their speech level on the lab tape.

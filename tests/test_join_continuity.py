@@ -5,6 +5,7 @@ from __future__ import annotations
 import wave
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -642,10 +643,13 @@ def test_assess_proposed_cut_rejects_inverted(minimal_project: Path) -> None:
 
 
 def _write_tone_with_click(raw: Path, *, click_at_sec: float) -> None:
-    """2 s of a 220 Hz tone at 16 kHz with one 0.9 FS impulse at ``click_at_sec``."""
+    """2 s at 16 kHz: a 220 Hz tone from 0.3 to 1.7 s over a -60 dBFS room, with one 0.9 FS
+    impulse at ``click_at_sec``. The room gives the track a voice floor to read onsets by."""
     sr = 16000
     t = np.arange(2 * sr) / sr
-    samples = (0.1 * np.sin(2 * np.pi * 220.0 * t)).astype(np.float32)
+    room = np.random.default_rng(3).normal(0.0, 10 ** (-60 / 20), t.size)
+    tone = 0.1 * np.sin(2 * np.pi * 220.0 * t) * ((t >= 0.3) & (t < 1.7))
+    samples = (room + tone).astype(np.float32)
     samples[int(click_at_sec * sr)] += 0.9
     with wave.open(str(raw), "wb") as handle:
         handle.setnchannels(1)
@@ -700,7 +704,11 @@ def test_proposed_cut_reports_the_highest_tolerated_placement_risk(
         join_continuity, "_resolve_source_samples", lambda *args, **kwargs: np.ones(32000)
     )
     monkeypatch.setattr(join_continuity, "score_splice_samples", score)
-    monkeypatch.setattr(join_continuity, "track_voice_floor_db", lambda *args, **kwargs: -42.0)
+    monkeypatch.setattr(
+        join_continuity,
+        "track_level_profile",
+        lambda *args, **kwargs: SimpleNamespace(voice_floor_db=-42.0),
+    )
     project = load_project(minimal_project)
 
     report = assess_proposed_cut(
@@ -839,7 +847,7 @@ def test_spectral_shape_detectors_lose_weight_on_quiet_air() -> None:
         gain = 10 ** (level_db / 20)
         return dark / linear_rms(dark) * gain, white / linear_rms(white) * gain
 
-    full = _cfg(spectral_audibility_db=0.0)
+    full = _cfg(spectral_audibility_db=0.0).at_voice_floor(-42.0)
     ramped = _cfg(spectral_audibility_db=30.0).at_voice_floor(-42.0)
 
     quiet_full, hits_full = score_splice_samples(*sides(-50.0), sample_rate=sr, config=full)

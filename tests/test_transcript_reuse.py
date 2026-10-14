@@ -464,7 +464,9 @@ def test_reused_reflag_tracks_own_gain_and_reuses_unchanged_evidence(tmp_workspa
     project.track_by_id("host").gain_db = 25.0
     assert refresh_reused_silence_flags(project, plan, options) == []
     assert refresh_count == 2
-    assert _flags(host) == [False, False, False]
+    # The gain lifts the host over the guest's copy, so "yeah" is its own; the silent span
+    # stays silent at any gain, since its floor is read from the host's own levels.
+    assert _flags(host) == [False, False, True]
     assert refresh_reused_silence_flags(project, plan, options) == []
     assert refresh_count == 2
 
