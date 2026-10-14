@@ -38,6 +38,7 @@ import {
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import {
+  bulkReviewAppliedBeforeAskMessage,
   capturePendingReview,
   type HeldCut,
   type PendingReviewCapture,
@@ -146,6 +147,11 @@ export function askIfReplayHeldBack(
 ): void {
   if (type === "ApproveEdits") {
     const review = capturePendingReview("approve", projectPath);
+    const command = result.command;
+    const sent = isSuggestionRecord(command) ? command.payload : null;
+    const done = isSuggestionRecord(sent) ? sent.result : null;
+    // A batch that applied the rest asks only about the cuts it left.
+    const only = confirmIdsOf(done);
     const choices: CutSpeechChoices = {
       kind: "pending-review",
       review,
@@ -153,13 +159,22 @@ export function askIfReplayHeldBack(
         requireCurrentPendingReview(review);
         const reply = await submitDocumentCommand(projectPath, type, {
           ...payload,
+          ...(only ? { ids: only } : {}),
           confirm_cut_speech: true,
         });
         return reviewOutcome(projectPath, reply, choices);
       },
       leaveGap: null,
     };
-    rippleOutcome(projectPath, result, choices);
+    const asked = rippleOutcome(projectPath, result, choices).asked;
+    const applied = isSuggestionRecord(done) ? done.count : null;
+    if (asked && typeof applied === "number" && applied > 0)
+      useDawStore
+        .getState()
+        .announceStatus(
+          bulkReviewAppliedBeforeAskMessage(applied, heldOf(done)),
+          { undo: replyHistoryHead(result) },
+        );
     return;
   }
   rippleOutcome(projectPath, result, {
