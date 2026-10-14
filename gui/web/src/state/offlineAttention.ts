@@ -29,6 +29,8 @@ export type AttentionSnapshot = {
   status: AttentionStatus;
   /** True once a read of this project has succeeded. */
   loaded: boolean;
+  /** A send is in flight, or ended and the queue has not been read since. */
+  settling: boolean;
 };
 
 export const ATTENTION_POLL_MS = 2_000;
@@ -38,6 +40,7 @@ const INITIAL: AttentionSnapshot = {
   conflicts: [],
   status: "checking",
   loaded: false,
+  settling: false,
 };
 
 type Source = {
@@ -78,25 +81,41 @@ function refresh(projectPath: string, source: Source): void {
   read(projectPath)
     .then(([pending, conflicts]) => {
       if (reading !== source.generation) return;
-      set(source, { pending, conflicts, status: "ready", loaded: true });
+      set(source, {
+        pending,
+        conflicts,
+        status: "ready",
+        loaded: true,
+        settling: documentActivityBusy(projectPath),
+      });
     })
     .catch(() => {
-      if (reading === source.generation) set(source, { status: "unreadable" });
+      if (reading === source.generation) {
+        set(source, {
+          status: "unreadable",
+          settling: documentActivityBusy(projectPath),
+        });
+      }
     });
 }
 
 function start(projectPath: string): Source {
+  let busy = documentActivityBusy(projectPath);
   const source: Source = {
-    snapshot: INITIAL,
+    snapshot: { ...INITIAL, settling: busy },
     listeners: new Set(),
     generation: 0,
     stop: () => {},
   };
-  let busy = documentActivityBusy(projectPath);
   const unsubscribe = subscribeDocumentActivity(() => {
     const now = documentActivityBusy(projectPath);
+    if (now && !busy) set(source, { settling: true });
     // A save or drain just ended, and its queue cleanup is done: read the result now.
-    if (busy && !now) refresh(projectPath, source);
+    // `settling` holds until that read lands, so the stale snapshot never reads as saved.
+    if (busy && !now) {
+      set(source, { settling: true });
+      refresh(projectPath, source);
+    }
     busy = now;
   });
   const timer = window.setInterval(

@@ -19,16 +19,18 @@ export type SaveStateInput = {
   unreadable: boolean;
   /** A read of the queue has succeeded at least once. */
   loaded: boolean;
+  /** A send ended and the queue has not been read since, so the counts are stale. */
+  settling: boolean;
 };
 
 /**
- * Busy wins because an edit on its way is the freshest fact. Then an
- * unreadable queue, a refused edit, and edits waiting; the rest is saved. Null
- * until the queue has been read once, so a project never claims "Saved" before
- * it knows.
+ * Busy or settling wins because an edit on its way, or one whose outcome is not
+ * yet read back, is the freshest fact. Then an unreadable queue, a refused
+ * edit, and edits waiting; the rest is saved. Null until the queue has been
+ * read once, so a project never claims "Saved" before it knows.
  */
 export function saveStateOf(input: SaveStateInput): SaveState | null {
-  if (input.busy) return { kind: "saving" };
+  if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
   if (!input.loaded) return null;
   if (input.refusals.length > 0) {

@@ -4,6 +4,9 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject, offlineConflict } from "../test/fixtures";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 
+const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
+vi.mock("../state/drainOfflineQueue", () => drain);
+
 const offlineStore = vi.hoisted(() => ({
   clearConflicts: vi.fn(),
   clearHostConflicts: vi.fn(),
@@ -477,5 +480,28 @@ describe("GuestAttentionBanner", () => {
         "Newer admitted conflict",
       );
     });
+  });
+
+  it("Send now replays the host queue; a share guest is not offered it", async () => {
+    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    drain.requestHostDrain.mockResolvedValue(undefined);
+    useDawStore.getState().hydrate("/tmp/p-1448.json", minimalProject());
+    const { unmount } = render(<GuestAttentionBanner />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send now" }));
+    expect(drain.requestHostDrain).toHaveBeenCalledWith("/tmp/p-1448.json");
+    unmount();
+
+    offlineStore.loadConflicts.mockResolvedValue([offlineConflict()]);
+    useDawStore.getState().hydrate("share:tok-1448", minimalProject());
+    render(<GuestAttentionBanner />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(
+      screen.queryByRole("button", { name: "Send now" }),
+    ).not.toBeInTheDocument();
   });
 });

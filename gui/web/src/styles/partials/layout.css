@@ -150,6 +150,23 @@ html[data-shell] body {
   flex-wrap: wrap;
 }
 
+.guest-attention-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+@media (pointer: coarse) {
+  .guest-attention-actions .ui-control,
+  .guest-attention-dismiss {
+    min-block-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] .guest-attention-actions .ui-control,
+html[data-shell="phone"] .guest-attention-dismiss {
+  min-block-size: var(--touch-min);
+}
+
 .guest-attention-dismiss {
   margin-left: auto;
   background: transparent;
