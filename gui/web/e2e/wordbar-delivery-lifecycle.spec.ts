@@ -130,7 +130,11 @@ for (const delivery of ["409", "abort-replay"] as const)
         await expect(block.locator(".clip-fade-line")).toHaveCount(0);
       } else {
         await expect.poll(() => hostOfflineQueueCount(page, p)).toBe(1);
-        await expect(page.getByRole("alert")).toContainText("1 pending");
+        await expect(
+          page.getByRole("alert", {
+            name: /^Needs attention\. 1 pending(?:,|$)/,
+          }),
+        ).toBeVisible();
         expect(snapshot(p)).toEqual(origin);
         const first = attempts[0];
         expect(first.command_id).toEqual(expect.stringMatching(/\S/));

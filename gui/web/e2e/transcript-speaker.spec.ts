@@ -113,6 +113,10 @@ test("queued speaker save stays visible and reports pending delivery", async ({
       })
       .first(),
   ).toBeVisible();
-  await expect(page.locator(".guest-attention")).toContainText("1 pending");
+  await expect(
+    page.getByRole("alert", {
+      name: /^Needs attention\. 1 pending(?:,|$)/,
+    }),
+  ).toBeVisible();
   await expectFeedback(page, "Track metadata change queued. Still sending.");
 });
