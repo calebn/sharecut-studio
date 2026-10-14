@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track, new_clip_id
-from podcast_mcp.edits.mute_regions import add_source_mute, subtract_source_mute
+from podcast_mcp.edits.mute_regions import add_source_mute, merge_mute_regions
 from podcast_mcp.edits.timeline_ops import mute_room_tone_fill
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.transcript_sync import rebuild_combined
@@ -32,6 +32,7 @@ from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.speaker_split import SpeakerAttribution
 from podcast_mcp.models import (
+    Clip,
     ClipMuteRegion,
     EpisodeProject,
     MediaAsset,
@@ -145,6 +146,42 @@ def _mute_region(span: Span, duration: float, fade_ms: int) -> ClipMuteRegion:
     )
 
 
+def _nominal_mute_span(region: ClipMuteRegion) -> Span:
+    """Undo the centred-fade expansion so leftover rebuild can use ``_mute_region``."""
+    start = region.start_s + region.fade_out_ms / 2000.0
+    end = region.end_s - region.fade_in_ms / 2000.0
+    if end <= start + 1e-9:
+        return (region.start_s, region.end_s)
+    return (start, end)
+
+
+def _rebuild_leftover_mutes(
+    project: EpisodeProject,
+    clip: Clip,
+    start: float,
+    end: float,
+    duration: float,
+    fade_ms: int,
+) -> None:
+    """Reopen ``[start, end)`` and rebuild overlapping leftovers with split fade geometry."""
+    hole = _mute_region((start, end), duration, fade_ms)
+    kept: list[ClipMuteRegion] = []
+    leftovers: list[ClipMuteRegion] = []
+    for region in clip.mute_regions:
+        if region.end_s <= hole.start_s + 1e-9 or region.start_s >= hole.end_s - 1e-9:
+            kept.append(region)
+            continue
+        for span in subtract_intervals([_nominal_mute_span(region)], [(start, end)]):
+            if span[1] <= span[0] + 1e-9:
+                continue
+            leftover = _mute_region(span, duration, fade_ms)
+            if region.fill is not None:
+                fill = mute_room_tone_fill(project, clip, *span)
+                leftover = leftover.model_copy(update={"fill": fill or region.fill})
+            leftovers.append(leftover)
+    clip.mute_regions = merge_mute_regions([*kept, *leftovers])
+
+
 def _unique_track_id(project: EpisodeProject, wanted: str, taken: set[str]) -> str:
     base = slug_track_id(wanted)
     candidate, n = base, 2
@@ -216,7 +253,7 @@ def move_lane_span(
     *,
     fade_ms: int = SPLIT_FADE_MS,
 ) -> dict[str, Any]:
-    """Mute ``move`` on ``from_lane`` and reopen the same expanded span on ``to_lane``."""
+    """Mute ``move`` on ``from_lane`` and reopen it on ``to_lane`` with split fade geometry."""
     start, end = move.source_start, move.source_end
     if end <= start + 1e-9:
         raise CodedValueError("source span must be non-empty", code="speaker_move_lane_span_empty")
@@ -236,7 +273,7 @@ def move_lane_span(
     for clip in clips_for_track(project, move.from_lane):
         add_source_mute(clip, region)
     for clip in clips_for_track(project, move.to_lane):
-        subtract_source_mute(clip, region.start_s, region.end_s)
+        _rebuild_leftover_mutes(project, clip, start, end, duration, fade_ms)
     words_moved = _transfer_transcript_words(project, move.from_lane, move.to_lane, start, end)
     rebuild_combined(project)
     record_invalidation(project, track_ids=[move.from_lane, move.to_lane])
