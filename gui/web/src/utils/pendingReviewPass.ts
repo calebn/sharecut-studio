@@ -75,20 +75,50 @@ export function bulkReviewQuestion(
 export function bulkReviewDoneMessage(
   action: BulkReviewAction,
   count: number,
+  outcome?: Pick<ReviewOutcome, "count" | "held">,
 ): string {
+  const held = outcome?.held ?? [];
+  if (action === "approve" && held.length > 0 && outcome?.count != null)
+    return bulkReviewHeldMessage(outcome.count, held);
   return `${action === "approve" ? "Approved" : "Rejected"} ${pendingEdits(count)}`;
 }
 
+/** A cut Approve all left pending, with the reason the list shows. */
+export type HeldCut = Readonly<{ id: string; label: string; reason: string }>;
+
 export type ReviewOutcome = Readonly<
-  | { queued: true; asked: false; count: null; historyHead: null }
-  | { queued: false; asked: true; count: null; historyHead: null }
+  | {
+      queued: true;
+      asked: false;
+      count: null;
+      historyHead: null;
+      held: readonly HeldCut[];
+    }
+  | {
+      queued: false;
+      asked: true;
+      count: null;
+      historyHead: null;
+      held: readonly HeldCut[];
+    }
   | {
       queued: false;
       asked: false;
       count: number;
       historyHead: HistoryEntryId | null;
+      held: readonly HeldCut[];
     }
 >;
+
+/** "Applied 80, held 6" when some cuts were left pending, else the plain done line. */
+export function bulkReviewHeldMessage(
+  count: number,
+  held: readonly HeldCut[],
+): string {
+  return `Applied ${count}, held ${held.length}. ${held
+    .map((h) => `${h.label} is held: ${h.reason}.`)
+    .join(" ")}`;
+}
 
 export type PendingReviewCapture = Readonly<{
   action: BulkReviewAction;
@@ -181,7 +211,7 @@ export function pendingReviewFeedback(
         undo: null,
       }
     : {
-        message: bulkReviewDoneMessage(action, outcome.count),
+        message: bulkReviewDoneMessage(action, outcome.count, outcome),
         undo: outcome.historyHead,
       };
 }

@@ -56,6 +56,7 @@ from podcast_mcp.edits.cut_speech import (
     clear_ripple,
 )
 from podcast_mcp.edits.decisions import (
+    HeldEdit,
     PendingCutSuggestion,
     PendingEditBaseline,
     preview_pending_cut_range,
@@ -461,8 +462,13 @@ class EditService:
         allow_exact: bool = False,
         confirm_cut_speech: bool = False,
         allow_review: bool = True,
+        held_out: list[HeldEdit] | None = None,
     ) -> int | CutSpeechConfirmation:
-        """Apply pending edits; a suggested ripple over other speech asks to confirm first."""
+        """Apply pending edits; a suggested ripple over other speech asks to confirm first.
+
+        With ``held_out`` (Approve all), a cut that cannot apply safely stays pending and is
+        reported there while every other selected edit applies.
+        """
 
         def mutate(p) -> int:
             selected = [e for e in p.edit_decisions if e.id in ids]
@@ -476,7 +482,11 @@ class EditService:
                     code="exact_range_needs_editor",
                 )
             return approve_edits(
-                p, ids, confirm_cut_speech=confirm_cut_speech, allow_review=allow_review
+                p,
+                ids,
+                confirm_cut_speech=confirm_cut_speech,
+                allow_review=allow_review,
+                held_out=held_out,
             )
 
         restored = False

@@ -155,6 +155,14 @@ class ApproveEditsPayload(BaseModel):
         ),
     )
     confirm_cut_speech: ConfirmCutSpeech = False
+    hold_blocked: bool = Field(
+        default=False,
+        description=(
+            "Approve all: a cut that cannot apply safely (another speaker is talking "
+            "there, say) stays pending and is reported in `held`; every other edit "
+            "applies. Without it one such cut refuses the whole batch."
+        ),
+    )
 
 
 class RejectEditsPayload(BaseModel):

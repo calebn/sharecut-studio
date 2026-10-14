@@ -329,12 +329,14 @@ describe("ImpactPanel bulk review", () => {
       asked: false,
       count: 3,
       historyHead: head,
+      held: [],
     });
     vi.mocked(rejectEdits).mockReset().mockResolvedValue({
       asked: false,
       queued: false,
       count: 3,
       historyHead: head,
+      held: [],
     });
     useDawStore.getState().hydrate("/tmp/p.json", reviewProject());
     useDawStore.setState({
@@ -351,11 +353,14 @@ describe("ImpactPanel bulk review", () => {
     expect(screen.getByText("3 pending edits need review.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
     await waitFor(() =>
-      expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", [
-        "e1",
-        "e2",
-        "e3",
-      ]),
+      expect(approveEdits).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        ["e1", "e2", "e3"],
+        false,
+        true,
+        undefined,
+        true,
+      ),
     );
     expect(asked).toEqual([
       {
@@ -371,6 +376,31 @@ describe("ImpactPanel bulk review", () => {
     const toast = useDawStore.getState().feedbackToast;
     expect(toast?.message).toBe("Approved 3 pending edits");
     expect(toast?.undo).toBe(head);
+  });
+
+  it("says how many applied and which cuts were held, naming each reason", async () => {
+    const user = userEvent.setup();
+    answerQuestions(true);
+    vi.mocked(approveEdits).mockResolvedValue({
+      queued: false,
+      asked: false,
+      count: 2,
+      historyHead: head,
+      held: [
+        {
+          id: "e2",
+          label: "Dani's cut at 12:03",
+          reason: "Vicky is speaking where the session cut would remove it",
+        },
+      ],
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Applied 2, held 1. Dani's cut at 12:03 is held: Vicky is speaking where the session cut would remove it.",
+      ),
+    );
   });
 
   it("asks before rejecting, names it as discarding, and offers one Undo", async () => {
@@ -419,6 +449,7 @@ describe("ImpactPanel bulk review", () => {
       asked: false,
       count: 2,
       historyHead: head,
+      held: [],
     });
     const user = userEvent.setup();
     answerQuestions(() => {
@@ -436,7 +467,14 @@ describe("ImpactPanel bulk review", () => {
     renderPanel();
     await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
     await waitFor(() =>
-      expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1", "e3"]),
+      expect(approveEdits).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        ["e1", "e3"],
+        false,
+        true,
+        undefined,
+        true,
+      ),
     );
     expect(useDawStore.getState().feedbackToast?.message).toBe(
       "Approved 2 pending edits",

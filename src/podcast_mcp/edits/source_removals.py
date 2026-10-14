@@ -102,6 +102,14 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         self.held = tuple(held)
         self.speakers = speakers
         self.cuts = dict(cuts or {})
+        details = []
+        for hold in held:
+            label = self.cuts.get(hold.edit_id, "A selected cut")
+            details.append(f"{label} was not applied because {self.reason_for(hold)}.")
+        super().__init__(" ".join([*details, _SELECT_OR_REJECT]))
+
+    def reason_for(self, hold: CutScopeHold) -> str:
+        """Why this one cut was held, in words the list can show beside it."""
         reasons = {
             "source_geometry": "the selected audio no longer has one complete, continuous placement",
             "stored_track_pause": "a pause must shorten the session and cannot silence only one track",
@@ -114,21 +122,17 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             "pause_air": "the pause cannot retain enough original quiet audio safely",
             "pause_join": "the final pause join did not pass its audio checks",
         }
-        details = []
-        for hold in held:
-            peers = ", ".join(speakers.get(peer, peer) for peer in hold.peers)
-            why = reasons.get(
-                hold.reason,
-                f"{peers or 'another track'} is speaking where the session cut would remove it",
+        peers = ", ".join(self.speakers.get(peer, peer) for peer in hold.peers)
+        why = reasons.get(
+            hold.reason,
+            f"{peers or 'another track'} is speaking where the session cut would remove it",
+        )
+        if hold.unavailable_lanes:
+            problems = "; ".join(
+                _lane_problem(lane, self.speakers) for lane in hold.unavailable_lanes
             )
-            if hold.unavailable_lanes:
-                problems = "; ".join(
-                    _lane_problem(lane, speakers) for lane in hold.unavailable_lanes
-                )
-                why += f" ({problems})"
-            label = self.cuts.get(hold.edit_id, "A selected cut")
-            details.append(f"{label} was not applied because {why}.")
-        super().__init__(" ".join([*details, _SELECT_OR_REJECT]))
+            why += f" ({problems})"
+        return why
 
     def for_delivery(self, delivery: Literal["saved", "suggested"]) -> ScopeChangedAtApproval:
         error = ScopeChangedAtApproval(self.held, self.speakers, self.cuts)

@@ -6,7 +6,7 @@ from typing import Any
 
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
-from podcast_mcp.edits.decisions import PendingEditBaseline
+from podcast_mcp.edits.decisions import HeldEdit, PendingEditBaseline
 from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
@@ -15,15 +15,23 @@ from podcast_mcp.util.coded_error import CodedValueError
 
 def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = list(p["ids"])
+    hold_blocked = p.get("hold_blocked") is True
+    held: list[HeldEdit] = []
     outcome = EditService(ws).approve(
         ids,
         allow_exact=p.get("_allow_exact") is True,
         confirm_cut_speech=p.get("confirm_cut_speech") is True,
         allow_review=p.get("allow_review", True) is True,
+        held_out=held if hold_blocked else None,
     )
     if isinstance(outcome, CutSpeechConfirmation):
         return outcome.result("approve_edits")
-    return {"count": outcome}
+    if not hold_blocked:
+        return {"count": outcome}
+    return {
+        "count": outcome,
+        "held": [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held],
+    }
 
 
 def reject_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
