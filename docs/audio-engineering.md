@@ -83,7 +83,7 @@ evidence:
 - #1443 beta plan D1, approved by the owner 2026-10-13
 - #1374: the bleed gate planned 196 spans at 0 dB and none at -24 dB on the lab tape
 - #1401: tighten proposals moved on the lab tape scaled -12 and -24 dB
-- #1376: one mic much quieter than the other lost or inverted the echo pair
+- #1376: as-recorded pair loudness lost or inverted the echo pair when one mic was much quieter; discovery now uses voice floors plus optional normalized dominance
 enforced-by:
 - tests/test_level_literals.py::test_the_detectors_hold_no_absolute_level
 - tests/test_tighten_gain_invariance.py::test_a_detector_decides_the_same_at_any_recording_level
@@ -119,6 +119,9 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   source) add back the difference of the two references (`LevelProfile.path_reference_db`),
   so they compare the tracks as recorded, as before: a track that holds only bleed (a muted
   guest) reads its bleed as its own voice, so only the as-recorded comparison can find it.
+  Reported copy level (`level_db`) and word-level loudness add back that same difference.
+  Pair discovery does not: it selects frames from per-track voice floors, and a
+  voice-normalized dominance mask when enough co-open frames pass it.
   Reconcile's evidence is each track before its effects chain
   (`build_reconciliation_caches(..., unprocessed=True)`): a compressor's threshold is an
   absolute level, so a processed stem moves less than the recording's gain does (#1495).
@@ -908,10 +911,13 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   mics over up to 600 s of **fresh** timeline stems centred on the window (the audio
   the listener hears, one clock for every track). Each stem is read at its own voice
   level (`LevelProfile.voice_gain`). In 50 ms frames where speaker A is within 25 dB of
-  its voice level, mic B is open (within 45 dB of its own; on the lab tape, whose median
-  voice level is −15.3 dBFS, about -40 and -60 dBFS) and at least 6 dB quieter, the
+  its voice level and mic B is open (within 45 dB of its own; on the lab tape, whose median
+  voice level is −15.3 dBFS, about -40 and -60 dBFS), the
   normalised cross-correlation peak over ±40 ms marks B as carrying a copy of A when
-  it reaches 0.25; the copies' lags are clustered in half-millisecond bins and the
+  it reaches 0.25. When enough of those co-open frames also have A at least 6 dB louder
+  on the voice-normalized levels, only that quieter-bleed subset scores; otherwise every
+  co-open frame scores. Observation and each null shift use that same frame population.
+  The copies' lags are clustered in half-millisecond bins and the
   copies within ±1.5 ms of the most common lag are the *consistent* ones. Chance
   peaks between independent voices also cluster near 0 ms (full overlap gives the
   normalised correlation its largest variance at small lags), which is where a
