@@ -191,22 +191,44 @@ def binomial_tail(k: int, n: int, p: float) -> float:
     return min(1.0, total)
 
 
+def _open_and_dominated(
+    src_db: np.ndarray,
+    bld_db: np.ndarray,
+    partner_index: np.ndarray,
+    *,
+    cfg: EchoConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    n = min(src_db.size, bld_db.size)
+    open_frames = (src_db[:n] > -cfg.source_under_voice_db) & (
+        bld_db[partner_index] > -cfg.open_under_voice_db
+    )
+    dominated = open_frames & (src_db[:n] - bld_db[partner_index] >= cfg.dominance_db)
+    return open_frames, dominated
+
+
+def echo_open_fallback(
+    src_db: np.ndarray,
+    bld_db: np.ndarray,
+    partner_index: np.ndarray,
+    *,
+    cfg: EchoConfig,
+) -> bool:
+    _, dominated = _open_and_dominated(src_db, bld_db, partner_index, cfg=cfg)
+    return int(dominated.sum()) < cfg.null_min_dominated
+
+
 def echo_dominated_frames(
     src_db: np.ndarray,
     bld_db: np.ndarray,
     partner_index: np.ndarray,
     *,
     cfg: EchoConfig,
+    use_open: bool,
 ) -> np.ndarray:
     n = min(src_db.size, bld_db.size)
     idx = np.arange(n)
-    open_frames = (src_db[:n] > -cfg.source_under_voice_db) & (
-        bld_db[partner_index] > -cfg.open_under_voice_db
-    )
-    dominated = open_frames & (src_db[:n] - bld_db[partner_index] >= cfg.dominance_db)
-    if int(dominated.sum()) < cfg.null_min_dominated:
-        return idx[open_frames]
-    return idx[dominated]
+    open_frames, dominated = _open_and_dominated(src_db, bld_db, partner_index, cfg=cfg)
+    return idx[open_frames] if use_open else idx[dominated]
 
 
 def _copy_rows(
@@ -220,6 +242,7 @@ def _copy_rows(
     shift_frames: int,
     cfg: EchoConfig,
     limit: int | None,
+    use_open: bool,
 ) -> tuple[int, list[tuple[int, float, float]]]:
     """Dominated frame count and ``(frame, lag_ms, ncc)`` copy rows.
 
@@ -229,7 +252,7 @@ def _copy_rows(
     n = min(src_db.size, bld_db.size)
     idx = np.arange(n)
     partner = (idx + shift_frames) % n if n else idx
-    selected = echo_dominated_frames(src_db, bld_db, partner, cfg=cfg)
+    selected = echo_dominated_frames(src_db, bld_db, partner, cfg=cfg, use_open=use_open)
     dominated = int(selected.size)
     if limit is not None and selected.size > limit:
         selected = selected[np.linspace(0, selected.size - 1, limit).astype(int)]
@@ -273,6 +296,7 @@ def _null_rates(
     sample_rate: int,
     frame: int,
     cfg: EchoConfig,
+    use_open: bool,
 ) -> tuple[int, float | None, float | None]:
     """``(runs, pooled copy rate, pooled consistent rate)`` over the time-shifted null pairs.
 
@@ -300,6 +324,7 @@ def _null_rates(
             shift_frames=shift,
             cfg=cfg,
             limit=cfg.null_max_frames,
+            use_open=use_open,
         )
         if dominated < cfg.null_min_dominated:
             continue
@@ -329,6 +354,8 @@ def echo_pair_profile(
     n = min(source.size, bleed.size)
     src_db = frame_rms_db(source[:n], frame, frame)
     bld_db = frame_rms_db(bleed[:n], frame, frame)
+    n_frames = min(src_db.size, bld_db.size)
+    use_open = echo_open_fallback(src_db, bld_db, np.arange(n_frames), cfg=cfg)
     dominated, copies = _copy_rows(
         source,
         bleed,
@@ -339,9 +366,17 @@ def echo_pair_profile(
         shift_frames=0,
         cfg=cfg,
         limit=None,
+        use_open=use_open,
     )
     null_runs, null_copy, null_consistent = _null_rates(
-        source, bleed, src_db, bld_db, sample_rate=sample_rate, frame=frame, cfg=cfg
+        source,
+        bleed,
+        src_db,
+        bld_db,
+        sample_rate=sample_rate,
+        frame=frame,
+        cfg=cfg,
+        use_open=use_open,
     )
     span_end = t0 + n / sample_rate
     long_regions = (

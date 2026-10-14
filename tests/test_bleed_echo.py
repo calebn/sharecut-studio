@@ -9,7 +9,12 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines import bleed_echo
-from podcast_mcp.engines.bleed_echo import EchoConfig, echo_pair_profile, echo_profiles
+from podcast_mcp.engines.bleed_echo import (
+    EchoConfig,
+    echo_open_fallback,
+    echo_pair_profile,
+    echo_profiles,
+)
 from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.util.dsp import frame_rms_db
 from podcast_mcp.models import (
@@ -345,10 +350,12 @@ def _frame_population(
     return "other"
 
 
-def test_one_way_null_uses_the_same_frames_as_observation() -> None:
+def test_one_way_null_uses_the_same_frames_as_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     host = _speech_like(20.0, seed=3)
     guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
-    (src, _), (bld, _) = _at_voice(host), _at_voice(guest)
+    (src, src_voice), (bld, bld_voice) = _at_voice(host), _at_voice(guest)
     cfg = EchoConfig()
     frame = max(1, round(cfg.frame_sec * RATE))
     n_samples = min(src.size, bld.size)
@@ -356,6 +363,8 @@ def test_one_way_null_uses_the_same_frames_as_observation() -> None:
     bld_db = frame_rms_db(bld[:n_samples], frame, frame)
     n = min(src_db.size, bld_db.size)
     idx = np.arange(n)
+    use_open = echo_open_fallback(src_db, bld_db, idx, cfg=cfg)
+    assert use_open
     obs_n, _ = bleed_echo._copy_rows(
         src,
         bld,
@@ -366,8 +375,10 @@ def test_one_way_null_uses_the_same_frames_as_observation() -> None:
         shift_frames=0,
         cfg=cfg,
         limit=None,
+        use_open=use_open,
     )
     expected = _frame_population(src_db, bld_db, idx, cfg, obs_n)
+    assert expected == "open"
     for shift_sec in cfg.null_shifts_sec:
         shift = round(shift_sec / cfg.frame_sec) % n if n else 0
         if shift == 0:
@@ -383,10 +394,50 @@ def test_one_way_null_uses_the_same_frames_as_observation() -> None:
             shift_frames=shift,
             cfg=cfg,
             limit=None,
+            use_open=use_open,
         )
         if selected_n < cfg.null_min_dominated:
             continue
         assert _frame_population(src_db, bld_db, partner, cfg, selected_n) == expected
+    policies: list[bool] = []
+    real = bleed_echo.echo_dominated_frames
+
+    def _record(
+        src_db: np.ndarray,
+        bld_db: np.ndarray,
+        partner_index: np.ndarray,
+        *,
+        cfg: EchoConfig,
+        use_open: bool,
+    ) -> np.ndarray:
+        policies.append(use_open)
+        return real(src_db, bld_db, partner_index, cfg=cfg, use_open=use_open)
+
+    monkeypatch.setattr(bleed_echo, "echo_dominated_frames", _record)
+    echo_pair_profile(
+        src,
+        bld,
+        sample_rate=RATE,
+        t0=0.0,
+        source_track_id="host",
+        bleed_track_id="guest",
+        gap_db=bld_voice - src_voice,
+        config=cfg,
+    )
+    assert policies and all(policy is True for policy in policies)
+
+
+def test_one_way_reverse_stays_voice_dominated() -> None:
+    host = _speech_like(20.0, seed=3)
+    guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
+    (src, _), (bld, _) = _at_voice(guest), _at_voice(host)
+    cfg = EchoConfig()
+    frame = max(1, round(cfg.frame_sec * RATE))
+    n_samples = min(src.size, bld.size)
+    src_db = frame_rms_db(src[:n_samples], frame, frame)
+    bld_db = frame_rms_db(bld[:n_samples], frame, frame)
+    n = min(src_db.size, bld_db.size)
+    assert echo_open_fallback(src_db, bld_db, np.arange(n), cfg=cfg) is False
 
 
 def test_audition_context_exposes_long_delay_without_claiming_owner_absence(tmp_path, monkeypatch):
