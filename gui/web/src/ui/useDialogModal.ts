@@ -53,10 +53,6 @@ export type UseDialogModalOptions = {
    * shortcut is held while it is open.
    */
   shortcuts?: readonly string[];
-  /**
-   * Stable rank for a peek surface that remounts (Inspector BottomSheet).
-   * Reopen reuses the same stack rank so a later non-modal stays innermost.
-   */
   stackKey?: string;
 };
 
