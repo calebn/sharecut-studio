@@ -49,6 +49,12 @@ jobs:
         run: npm run test:e2e:storybook
         working-directory: gui/web
 
+      - name: Summarize Storybook tests
+        if: always()
+        continue-on-error: true
+        working-directory: .
+        run: python3 scripts/test_area_summary.py playwright --area stories --report gui/web/playwright-report/stories.json
+
       - name: Upload Pages artifact
         if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v5

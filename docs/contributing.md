@@ -188,6 +188,10 @@ limit or universal review-round cap.
 In the existing PR verification notes, explain the choice for each proposed
 new check. Name the protection and its recurring cost.
 
+Before adding a test, check existing coverage and state the behavior that the
+new test covers and existing tests do not. Prefer one focused test per
+invariant. Extend an existing test when it already covers that behavior.
+
 - A permanent CI regression test protects a unique, important future failure
   or demonstrated defect at the cheapest reliable test level.
 - PR-only proof retains exploratory checks, broad layout sweeps, base/head
