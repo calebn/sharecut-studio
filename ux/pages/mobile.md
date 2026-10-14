@@ -76,6 +76,8 @@ The selection sheet groups actions in this order:
 2. **You might also want…** — related commands when available
 3. **More** — available clip Cut or track Move up/down actions. Selections with no related or overflow actions omit the command region.
 
+The phone and the tablet build this sheet from one table of selection kinds, so what you can do with a selection is the same on both. While a sheet is open, no range control sits behind it.
+
 Ordinary phone and tablet modifier sheets scroll together, including the heading,
 actions, fields, help, errors, and audition controls. Scroll to the top to reach
 **Close**, **Expand**, and **Collapse**. Use **Expand** for more room on a short
