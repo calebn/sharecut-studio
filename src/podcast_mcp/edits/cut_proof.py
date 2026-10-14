@@ -1,5 +1,3 @@
-"""One cut's approval proof shares each track's timeline decode (#1566)."""
-
 from __future__ import annotations
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
