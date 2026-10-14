@@ -835,7 +835,8 @@ def test_peer_frames_discount_only_concurrent_owner_bleed(
     elsewhere = (clock >= 4.0) & (clock < 5.0)
     peer = np.zeros_like(clock)
     owner = np.zeros_like(clock)
-    peer[brief] = 0.0045 * carrier[brief]
+    # Within 27 dB of the loud copy that sets this track's voice level (#1549).
+    peer[brief] = 0.02 * carrier[brief]
     if owner_case == "same_time":
         owner[brief] = 0.1 * carrier[brief]
     else:
@@ -1506,7 +1507,8 @@ def test_separate_spans_keep_independent_peer_calibration(tmp_path: Path, cached
     brief = (clock >= 16.1) & (clock < 16.2)
     owner[copy] = 0.6 * carrier[copy]
     peer[copy] = 0.3 * carrier[copy]
-    peer[brief] = 0.0045 * carrier[brief]
+    # Within 27 dB of the loud copy that sets this track's voice level (#1549).
+    peer[brief] = 0.02 * carrier[brief]
     p = _project_with_peer_audio(tmp_path, peer)
     _write_wav(tmp_path / "host.wav", owner)
     p.clips[0].source_end = 2.0
@@ -1616,3 +1618,33 @@ def test_resolve_cut_scope_with_stems_lets_sound_decide_over_peer_word(tmp_path:
     assert scope == "session"
     assert guard is not None
     assert not guard.blocked
+
+
+@pytest.mark.parametrize(
+    ("burst", "expected"),
+    [(0.0003, ()), (0.03, ("guest",))],
+    ids=["room_noise", "quiet_voice"],
+)
+def test_a_burst_under_the_peers_voice_floor_is_not_speech(
+    tmp_path: Path, burst: float, expected: tuple[str, ...]
+) -> None:
+    """#1549: the peer talks at -23 dBFS early on and is quiet around the cut. A 0.2 s burst 55 dB under that
+    is room noise and clears the cut; one within 27 dB of it is a quiet voice and blocks."""
+    clock = np.arange(20 * _SR) / _SR
+    carrier = np.sin(2 * np.pi * 220 * clock)
+    peer = 0.00003 * carrier
+    voice = (clock >= 0.1) & (clock < 1.6)
+    peer[voice] = 0.1 * carrier[voice]
+    noise = (clock >= 14.0) & (clock < 14.2)
+    peer[noise] = burst * carrier[noise]
+    p = _project_with_peer_audio(tmp_path, peer)
+
+    levels = measure_peer_speech(
+        p,
+        [(13.0, 16.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+    )
+    assert levels is not None
+    assert levels.speaking == expected
