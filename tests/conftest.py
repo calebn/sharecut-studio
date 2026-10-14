@@ -146,6 +146,23 @@ def _hide_host_word_aligner(
 
 
 @pytest.fixture(autouse=True)
+def _span_whisper_hears_nothing(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tighten proposals never load the developer's Whisper to hear an acoustic span (#1062).
+
+    Tests that exercise the word probe plant their own transcriber;
+    ``e2e_real`` tests keep the real model.
+    """
+    if request.node.get_closest_marker("e2e_real"):
+        return
+    monkeypatch.setattr(
+        "podcast_mcp.edits.tighten.whisper_span_transcriber",
+        lambda defaults: lambda samples, language: "",
+    )
+
+
+@pytest.fixture(autouse=True)
 def _transcript_refine_gate_off_by_default(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:

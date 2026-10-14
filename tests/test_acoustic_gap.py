@@ -17,6 +17,7 @@ from podcast_mcp.edits.acoustic_gap import (
     find_voiced_gap_runs,
 )
 from podcast_mcp.edits.acoustic_laugh import has_laugh_bursts
+from podcast_mcp.edits.acoustic_word import flag_possible_words, heard_a_word
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audition_context import _build_hypotheses
 from podcast_mcp.edits.fillers import (
@@ -34,8 +35,10 @@ from podcast_mcp.edits.tighten import (
     propose_tighten_edits,
 )
 from podcast_mcp.edits.tighten_hits import eligible_tighten_ids
+from podcast_mcp.edits.tighten_reasons import is_likely_laugh_reason, is_possible_word_reason
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
 from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -48,6 +51,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.pipeline.meta import PARAM_FIELDS
+from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 RATE = 16_000
 
@@ -1191,3 +1195,183 @@ def test_a_likely_laugh_is_held_for_review_and_named_in_the_summary(
     assert decision.review_required
     assert eligible_tighten_ids(proposal.decisions) == []
     assert "1 acoustic (review, 1 likely laugh)" in proposal.summary()
+
+
+# --- possible missed words (#1062) ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("heard", "is_word"),
+    [
+        ("Then...", True),
+        ("I nut.", True),
+        ("Here.", True),
+        ("This seems-", True),
+        ("Um, that, uh, that's what", True),
+        ("Umm.", False),
+        ("Uhh.", False),
+        ("Hmm.", False),
+        ("Mmm. Mmm.", False),
+        ("Mm-hmm.", False),
+        ("Uh-huh.", False),
+        ("Mhm. Mhm.", False),
+        ("Hahaha.", False),
+        ("Ha ha ha ha.", False),
+        ("Heh heh heh.", False),
+        ("", False),
+    ],
+)
+def test_a_word_is_told_from_a_hesitation_laugh_or_backchannel(heard: str, is_word: bool) -> None:
+    assert heard_a_word(heard) is is_word
+
+
+def _planted_probe(monkeypatch: pytest.MonkeyPatch, heard: str, calls: list[tuple[int, str]]):
+    def transcriber(defaults: dict) -> object:
+        def transcribe(samples: np.ndarray, language: str | None) -> str:
+            calls.append((samples.size, str(language)))
+            return heard
+
+        return transcribe
+
+    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+
+
+def _acoustic_project(tmp_path: Path) -> EpisodeProject:
+    return _project(tmp_path, _acoustic_dialogue_samples(), _two_words().words)
+
+
+def test_a_span_the_model_hears_as_a_word_is_flagged_held_and_named_in_the_summary(
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del sample_wav
+    calls: list[tuple[int, str]] = []
+    _planted_probe(monkeypatch, "Then...", calls)
+
+    proposal = propose_tighten_edits(_acoustic_project(tmp_path), _e2e_defaults())
+
+    (decision,) = proposal.decisions
+    assert decision.reason == "filler:acoustic:possible_word"
+    assert decision.review_required
+    assert eligible_tighten_ids(proposal.decisions) == []
+    assert "1 acoustic (review, 1 possible missed word)" in proposal.summary()
+    (samples, language) = calls[0]
+    assert language == "en"
+    assert samples == round((decision.end - decision.start + 0.6) * RATE)
+
+
+def test_a_span_the_model_hears_as_a_hesitation_is_proposed_unflagged(
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del sample_wav
+    _planted_probe(monkeypatch, "Umm.", [])
+
+    proposal = propose_tighten_edits(_acoustic_project(tmp_path), _e2e_defaults())
+
+    (decision,) = proposal.decisions
+    assert decision.reason == "filler:acoustic"
+    assert "1 acoustic (review)" in proposal.summary()
+
+
+def test_a_laugh_the_model_hears_as_a_word_carries_both_flags_and_reads_as_a_word(
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del sample_wav
+    _planted_probe(monkeypatch, "This seems-", [])
+    samples = np.random.default_rng(941).normal(0, 0.0003, 3 * RATE).astype(np.float32)
+    for start, end in ((0.73, 0.78), (1.24, 1.29)):
+        samples[round(start * RATE) : round(end * RATE)] *= 0.1
+    samples += _tone(3.0, 0.2, 0.4) + _laugh(3.0, 0.8, 3, period=0.13) + _tone(3.0, 2.0, 2.2)
+
+    project = _project(tmp_path, samples, _two_words().words)
+    proposal = propose_tighten_edits(project, _e2e_defaults())
+
+    (decision,) = proposal.decisions
+    assert decision.reason == "filler:acoustic:likely_laugh:possible_word"
+    assert is_possible_word_reason(decision.reason)
+    assert is_likely_laugh_reason(decision.reason)
+    assert "1 acoustic (review, 1 likely laugh, 1 possible missed word)" in proposal.summary()
+
+
+def test_without_the_probe_setting_nothing_is_heard(
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del sample_wav
+    calls: list[tuple[int, str]] = []
+    _planted_probe(monkeypatch, "Then...", calls)
+    defaults = _e2e_defaults(acoustic_gap_filler={"word_probe": False})
+
+    proposal = propose_tighten_edits(_acoustic_project(tmp_path), defaults)
+
+    assert [d.reason for d in proposal.decisions] == ["filler:acoustic"]
+    assert calls == []
+
+
+def test_a_missing_model_leaves_the_proposal_unflagged_and_counts_it(
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del sample_wav
+
+    def missing(defaults: dict) -> object:
+        raise WhisperWeightsMissingError("large-v3-turbo")
+
+    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", missing)
+
+    proposal = propose_tighten_edits(_acoustic_project(tmp_path), _e2e_defaults())
+
+    assert [d.reason for d in proposal.decisions] == ["filler:acoustic"]
+    assert proposal.skip_counts["word_probe:unavailable"] == 1
+
+
+def test_only_acoustic_decisions_are_heard_and_a_flagged_one_is_not_flagged_twice() -> None:
+    heard: list[float] = []
+
+    def transcribe(samples: np.ndarray, language: str | None) -> str:
+        heard.append(samples.size / RATE)
+        return "Great."
+
+    decisions = [
+        _decision("a", 1.0, 1.5, "filler:acoustic", review=True),
+        _decision("b", 2.0, 2.4, "filler:um"),
+        _decision("c", 3.0, 3.3, "filler:acoustic:possible_word", review=True),
+        _decision("d", 4.0, 4.2, "filler:acoustic:risky", review=True),
+    ]
+
+    flagged = flag_possible_words(
+        decisions, lambda track, start, end: np.ones(round((end - start) * RATE)), transcribe, {}
+    )
+
+    assert flagged == 2
+    assert [d.reason for d in decisions] == [
+        "filler:acoustic:possible_word",
+        "filler:um",
+        "filler:acoustic:possible_word",
+        "filler:acoustic:risky:possible_word",
+    ]
+    assert heard == pytest.approx([1.1, 0.8])
+
+
+def test_the_engine_hands_the_model_only_the_samples_it_was_given() -> None:
+    seen: dict[str, object] = {}
+
+    class _Segment:
+        text = " Then. "
+
+    class _Model:
+        def transcribe(self, audio: np.ndarray, **kwargs: object):
+            seen.update(kwargs, dtype=audio.dtype, size=audio.size)
+            return iter([_Segment()]), None
+
+    engine = TranscriptionEngine(model_size="base")
+    engine._model = _Model()
+
+    text = engine.transcribe_samples(np.zeros(1600), language="en", initial_prompt="Umm.")
+
+    assert text == "Then."
+    assert seen == {
+        "language": "en",
+        "initial_prompt": "Umm.",
+        "vad_filter": False,
+        "condition_on_previous_text": False,
+        "dtype": np.dtype("float32"),
+        "size": 1600,
+    }
