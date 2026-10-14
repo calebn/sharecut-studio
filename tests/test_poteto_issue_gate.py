@@ -320,7 +320,7 @@ def _gh_run_through_json(
     return fake_run
 
 
-def _assert_prefixed_graphql_403_uses_rest(monkeypatch: Any, stderr: str) -> None:
+def _assert_graphql_403_uses_rest(monkeypatch: Any, stderr: str) -> None:
     calls: list[tuple[str, ...]] = []
     inner = _graphql_forbidden_rest(
         review_pages=[
@@ -339,19 +339,13 @@ def _assert_prefixed_graphql_403_uses_rest(monkeypatch: Any, stderr: str) -> Non
 
 
 def test_collect_gate_falls_back_to_rest_when_graphql_returns_403(monkeypatch: Any) -> None:
-    _assert_prefixed_graphql_403_uses_rest(monkeypatch, GH_PREFIXED_403)
-
-
-def test_collect_gate_falls_back_to_rest_when_gh_prefixes_graphql_403(
-    monkeypatch: Any,
-) -> None:
-    _assert_prefixed_graphql_403_uses_rest(monkeypatch, GH_PREFIXED_403)
+    _assert_graphql_403_uses_rest(monkeypatch, GH_PREFIXED_403)
 
 
 def test_collect_gate_falls_back_to_rest_when_gh_suffixes_graphql_403_field_path(
     monkeypatch: Any,
 ) -> None:
-    _assert_prefixed_graphql_403_uses_rest(monkeypatch, GH_FIELD_PATH_403)
+    _assert_graphql_403_uses_rest(monkeypatch, GH_FIELD_PATH_403)
 
 
 def test_collect_gate_resolved_graphql_threads_match_trunk_when_rest_comments_remain(
