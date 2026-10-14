@@ -44,6 +44,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 
 
 def _project_with_audio(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
@@ -497,12 +498,15 @@ def _noise_floor_project(tmp_path: Path, *, uh_sec: float = 0.3) -> EpisodeProje
     return project
 
 
-# rms_db floors digital silence at -80 dB.
+# rms_db reads digital silence as DIGITAL_SILENCE_DB.
 @pytest.mark.parametrize(
     ("pad_mode", "fill", "inside_db"),
     # The nearest stretch of the -60 dBFS floor clear of the uh's onset, as a ripple pad
     # samples it.
-    [("room_tone", (pytest.approx(0.55), pytest.approx(0.85)), -60.0), ("silence", None, -80.0)],
+    [
+        ("room_tone", (pytest.approx(0.55), pytest.approx(0.85)), -60.0),
+        ("silence", None, DIGITAL_SILENCE_DB),
+    ],
 )
 def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, inside_db):
     from unittest.mock import patch
@@ -555,7 +559,7 @@ def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region,
     out = Path(project.workspace_dir) / "artifacts" / "host.wav"
     render_track_from_timeline(project, project.tracks[0], out, {})
     assert measure_window_rms_db(out, 0.9, 0.99) == pytest.approx(-60.5, abs=0.5)
-    assert measure_window_rms_db(out, 1.0, 1.3) == pytest.approx(-80.0)
+    assert measure_window_rms_db(out, 1.0, 1.3) == pytest.approx(DIGITAL_SILENCE_DB)
     assert [
         measure_window_rms_db(out, a, b) for a, b in ((1.3, 1.31), (1.31, 1.33), (1.35, 1.4))
     ] == [pytest.approx(level, abs=0.5) for level in resume_db]

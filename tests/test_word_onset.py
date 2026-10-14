@@ -196,14 +196,14 @@ def test_voice_floor_is_relative_to_the_tracks_speech_and_room(room_db, floor_db
     # Speech fills 0.9 of 3 s, so the 90th percentile is the speech and the 10th the room.
     cache = _cache((1.0, _voice(round(0.9 * RATE))), room_db=room_db)
 
-    assert cache.voice_floor_db == pytest.approx(floor_db, abs=1.0)
+    assert cache.profile.voice_floor_db == pytest.approx(floor_db, abs=1.0)
 
 
 def test_a_track_of_digital_silence_is_quiet_everywhere():
     track = TrackRmsCache(np.zeros(3 * RATE, dtype=np.float32), RATE)
     cache = TrackAudioCache(track, track)
 
-    assert cache.voice_floor_db == np.inf
+    assert cache.profile.voice_floor_db == np.inf
     assert voice_end(cache, 1.0, 1.5) == 1.0
     assert voice_onset(cache, 1.6, 1.0) == 1.6
 
@@ -218,7 +218,7 @@ def test_voice_floor_of_a_gated_track_reads_its_digital_silence_as_room():
     track = TrackRmsCache(samples.astype(np.float32), RATE)
 
     # 27 dB under the words' 90th percentile, not 6 dB over their faded edges.
-    assert TrackAudioCache(track, track).voice_floor_db == pytest.approx(-47.0, abs=1.0)
+    assert TrackAudioCache(track, track).profile.voice_floor_db == pytest.approx(-47.0, abs=1.0)
 
 
 def _noise_envelope(*knots: tuple[float, float]) -> tuple[float, np.ndarray]:
@@ -283,7 +283,7 @@ def test_voice_edges_are_the_same_at_every_recording_level(gain_db):
 def test_a_valley_near_the_floor_ends_a_voice(ss_db, dip_db, onset):
     cache = _so_then_ss_uh(ss_db=ss_db, dip_db=dip_db)
 
-    assert cache.voice_floor_db == pytest.approx(-47.0, abs=0.5)
+    assert cache.profile.voice_floor_db == pytest.approx(-47.0, abs=0.5)
     found = voice_onset(cache, 1.95, 1.45)
     assert found == (None if onset is None else pytest.approx(onset, abs=0.011))
 
