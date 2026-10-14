@@ -321,7 +321,9 @@ def test_a_gated_track_is_measured_before_its_transcript_gate(tmp_path: Path) ->
     with patch("podcast_mcp.engines.audio_audit.build_track_rms_caches") as build:
         build_reconciliation_caches(project)
 
-    build.assert_called_once_with(project, before_transcript_gate=True, private_copy=False)
+    build.assert_called_once_with(
+        project, before_transcript_gate=True, private_copy=False, unprocessed=True
+    )
 
 
 def test_a_worker_inside_a_mutation_measures_a_gated_track_without_the_project_lock(

@@ -120,7 +120,9 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   copy's level against its source, the clipped-onset and bleed-latency pairs. Reconcile's
   audibility verdict is the exception: it ranks the mics by dB over each one's own voice, so
   one file recorded at another gain keeps every verdict (#1495,
-  `tests/test_reconcile_copy_lag.py`).
+  `tests/test_reconcile_copy_lag.py`). Its evidence is the track before its effects chain
+  (`build_reconciliation_caches(..., unprocessed=True)`): a compressor's threshold is an
+  absolute level, so a processed stem moves less than the recording's gain does.
 - Digital silence (`util.dsp.DIGITAL_SILENCE_DB`) reads the same at any gain.
 
 The bleed path's offsets were dBFS levels set on the lab tape, whose tracks' median voice

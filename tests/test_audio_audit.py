@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1910,3 +1911,62 @@ def test_rms_cache_reports_digital_silence_at_the_floor_the_caller_names() -> No
 
     assert cache.rms_db(0.0, 0.5) == DIGITAL_SILENCE_DB
     assert cache.rms_db(0.0, 0.5, floor_db=-400.0) == -400.0
+
+
+@pytest.mark.parametrize("gain_db", [-12.0, 6.0])
+def test_reconciliation_evidence_leaves_the_effects_chain_out(tmp_path: Path, gain_db: float):
+    """A compressor's threshold is an absolute level, so the processed track would not move
+    with the recording's gain: the evidence is read before the chain (#1495)."""
+    from podcast_mcp.engines.audio_audit import build_reconciliation_caches
+    from podcast_mcp.models import Clip, MediaAsset, ProcessingChain, ProcessingEffect
+
+    def level_db(gain: float) -> float:
+        workspace = tmp_path / f"g{gain}"
+        workspace.mkdir()
+        project = EpisodeProject.create("ep", str(workspace))
+        project.ensure_dirs()
+        raw = workspace / "raw" / "host.wav"
+        raw.parent.mkdir(exist_ok=True)
+        t = np.arange(48000 * 2) / 48000
+        samples = 0.5 * 10 ** (gain / 20) * np.sin(2 * np.pi * 220 * t)
+        with wave.open(str(raw), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(48000)
+            wav.writeframes((samples * 32767).astype("<i2").tobytes())
+        project.timeline.tracks = [
+            Track(
+                id="host",
+                label="Host",
+                role=TrackRole.DIALOGUE,
+                speaker="Host",
+                transcript_gate=True,
+                media=MediaAsset(path="raw/host.wav"),
+            )
+        ]
+        project.clips = [
+            Clip(id="c", track_id="host", source_start=0, source_end=2, timeline_start=0)
+        ]
+        project.processing_chains = [
+            ProcessingChain(
+                track_id="host",
+                effects=[
+                    ProcessingEffect(
+                        effect="acompressor",
+                        params={
+                            "threshold_db": -18.0,
+                            "ratio": 3.0,
+                            "attack_ms": 15,
+                            "release_ms": 150,
+                        },
+                    )
+                ],
+            )
+        ]
+        cache = build_reconciliation_caches(project).get("host")
+        assert cache is not None
+        level = cache.rms_db(0.5, 1.5)
+        assert level is not None
+        return level
+
+    assert level_db(gain_db) - level_db(0.0) == pytest.approx(gain_db, abs=0.1)

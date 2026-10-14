@@ -494,9 +494,9 @@ def build_reconciliation_caches(
     """
     if any(track.transcript_gate for track in project.tracks):
         return build_track_rms_caches(
-            project, before_transcript_gate=True, private_copy=private_copy
+            project, before_transcript_gate=True, private_copy=private_copy, unprocessed=True
         )
-    return build_track_rms_caches(project)
+    return build_track_rms_caches(project, unprocessed=True)
 
 
 def build_track_rms_caches(
@@ -505,7 +505,14 @@ def build_track_rms_caches(
     before_transcript_gate: bool = False,
     track_ids: Collection[str] | None = None,
     private_copy: bool = False,
+    unprocessed: bool = False,
 ) -> TrackRmsCacheSet:
+    """One decoded cache per dialogue track, from its fresh stem, else its raw clips.
+
+    ``unprocessed`` reads a track that has an effects chain from its clips with the chain
+    left out, never from the stem: a compressor's threshold is an absolute dBFS level, so
+    the processed audio does not move with the recording's gain (#1495).
+    """
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
     caches: dict[str, TrackRmsCache] = {}
@@ -514,6 +521,10 @@ def build_track_rms_caches(
     timeline = SessionTimeline(project)
     for tid in dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids):
         track = project.track_by_id(tid)
+        if unprocessed and track is not None and _has_active_chain(project, tid):
+            snapshot = project.model_copy(deep=True) if private_copy else _snapshot(project)
+            caches[tid] = _ungated_cache(snapshot, tid, with_chain=False)
+            continue
         if before_transcript_gate and track is not None:
             proc = _fresh_stem_path(project, tid)
             if not track.transcript_gate and proc is not None:
@@ -558,20 +569,43 @@ def build_track_rms_caches(
     return TrackRmsCacheSet(caches=caches)
 
 
-def _pre_transcript_gate_cache(project: EpisodeProject, track_id: str) -> TrackRmsCache:
+def _snapshot(project: EpisodeProject) -> EpisodeProject:
     from podcast_mcp.util.project_state import snapshot_project
 
-    return _ungated_cache(snapshot_project(project), track_id)
+    return snapshot_project(project)
 
 
-def _ungated_cache(snapshot: EpisodeProject, track_id: str) -> TrackRmsCache:
-    """``track_id`` rendered with its transcript gate off, from a private copy it may change."""
+def _has_active_chain(project: EpisodeProject, track_id: str) -> bool:
+    """Whether the track has a processing chain with an effect that is not bypassed."""
+    return any(
+        not fx.bypass
+        for chain in project.processing_chains
+        if chain.track_id == track_id
+        for fx in chain.effects
+    )
+
+
+def _pre_transcript_gate_cache(project: EpisodeProject, track_id: str) -> TrackRmsCache:
+    return _ungated_cache(_snapshot(project), track_id)
+
+
+def _ungated_cache(
+    snapshot: EpisodeProject, track_id: str, *, with_chain: bool = True
+) -> TrackRmsCache:
+    """``track_id`` rendered with its transcript gate off, from a private copy it may change.
+
+    ``with_chain=False`` also leaves the track's effects chain out of the render.
+    """
     from podcast_mcp.engines.timeline_render import render_track_from_timeline
 
     track = snapshot.track_by_id(track_id)
     if track is None:
         raise ValueError(f"track {track_id!r} is unavailable")
     track.transcript_gate = False
+    if not with_chain:
+        snapshot.processing_chains = [
+            chain for chain in snapshot.processing_chains if chain.track_id != track_id
+        ]
     with tempfile.TemporaryDirectory(prefix="podcast-ungated-evidence-") as directory:
         path = Path(directory) / "evidence.wav"
         render_track_from_timeline(snapshot, track, path, load_defaults())
