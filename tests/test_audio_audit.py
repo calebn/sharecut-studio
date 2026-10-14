@@ -1970,3 +1970,29 @@ def test_reconciliation_evidence_leaves_the_effects_chain_out(tmp_path: Path, ga
         return level
 
     assert level_db(gain_db) - level_db(0.0) == pytest.approx(gain_db, abs=0.1)
+
+
+def test_reconcile_levels_and_floors_are_raw_not_scaled_by_balance_gain(tmp_path: Path) -> None:
+    """#1495: a track's balance gain (``gain_db``) never moves a reconcile level or floor."""
+    from podcast_mcp.engines import audio_audit as aa
+
+    rate = 8000
+    rng = np.random.default_rng(2)
+    clock = np.arange(4 * rate) / rate
+    voice = 0.2 * rng.normal(size=clock.size) * (0.5 - 0.5 * np.cos(2 * np.pi * 3 * clock))
+    samples = voice + 0.002 * rng.normal(size=clock.size)
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+    caches = TrackRmsCacheSet(caches={"host": TrackRmsCache(samples=samples, sample_rate=rate)})
+
+    def read(gain_db: float) -> tuple[dict[str, float], dict[str, float]]:
+        project.timeline.tracks[0].gain_db = gain_db
+        levels = aa._track_levels(project, ["host"], 0.5, 1.5, {}, caches)
+        return levels, aa._voice_floors(["host"], caches)
+
+    flat, boosted = read(0.0), read(18.0)
+    assert boosted == flat
+    # ``measure_timeline_rms_db`` and the speech guard still read the recording's level.
+    assert aa._rms_for_track_at_timeline(project, "host", 0.5, 1.5, caches=caches) == pytest.approx(
+        flat[0]["host"] + 18.0
+    )
