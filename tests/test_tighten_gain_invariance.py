@@ -767,8 +767,6 @@ DETECTORS = {
 }
 
 # Every track recorded this many dB louder (+) or quieter (-) than the 0 dB scene.
-# Keep both detector limits and representative interior levels.  -34 dB duplicated
-# the same broad within-range check as -24 dB without covering another boundary.
 ALL_TRACK_GAINS = (6.0, 12.0, -12.0, -24.0, -36.0, -40.0)
 
 
