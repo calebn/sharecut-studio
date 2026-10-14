@@ -244,8 +244,9 @@ export async function loadBoundaryContext(
     timeoutMessage,
     async (requestSignal) => {
       let body: unknown;
+      let response: Response | null = null;
       try {
-        const response = await (guestToken ? fetch : hostFetch)(url, {
+        response = await (guestToken ? fetch : hostFetch)(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -259,6 +260,13 @@ export async function loadBoundaryContext(
         body = await response.json();
       } catch (error) {
         if (error instanceof TypeError && !requestSignal.aborted) {
+          if (response && !response.ok) {
+            throw new ApiError(
+              `Request failed (${response.status})`,
+              response.headers.get("X-Sharecut-Error-Code"),
+              response.status,
+            );
+          }
           throw new ApiError(
             "The boundary couldn't load. Check your connection and try again.",
             "network_error",
