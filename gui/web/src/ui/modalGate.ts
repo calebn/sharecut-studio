@@ -7,30 +7,61 @@
  * `confirm()` did: the Daw keymap runs nothing behind it (no Mod+Z undoing an
  * edit behind "Remove the guest track?"), except the shortcuts the innermost
  * modal hands on, such as M for a marker in the Record room.
+ *
+ * Non-modals order by `stackRank`, not last mount. A peek sheet that remounts
+ * reuses the rank for its `stackKey`, so a later JoinPopover stays innermost.
  */
 type Layer = {
   readonly modal: boolean;
   /** Keymap command ids this modal lets through while it is innermost. */
   readonly shortcuts: readonly string[];
   readonly takeEntryFocus: () => void;
+  readonly stackRank: number;
 };
 
 const layers: Layer[] = [];
+const rankByStackKey = new Map<string, number>();
+let nextRank = 1;
+
+function stackRankFor(modal: boolean, stackKey: string | undefined): number {
+  if (modal) {
+    return Number.POSITIVE_INFINITY;
+  }
+  if (stackKey) {
+    const existing = rankByStackKey.get(stackKey);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const rank = nextRank;
+    nextRank += 1;
+    rankByStackKey.set(stackKey, rank);
+    return rank;
+  }
+  const rank = nextRank;
+  nextRank += 1;
+  return rank;
+}
 
 /**
  * Register an overlay as it opens; pass the result to `closeOverlay`. A
- * non-modal layer goes below the topmost open modal: nothing non-modal opens
- * from inside a modal (it makes the chrome inert), so a sheet that remounts
- * or renders beneath one belongs under it.
+ * non-modal layer goes below every open overlay with a higher rank (modals
+ * are highest): a sheet that remounts or renders beneath a popover or modal
+ * belongs under it.
  */
 export function openOverlay(
   modal: boolean,
   shortcuts: readonly string[] = [],
   takeEntryFocus: () => void = () => undefined,
+  stackKey?: string,
 ): Layer {
-  const layer = { modal, shortcuts, takeEntryFocus };
-  const topModal = modal ? -1 : layers.findLastIndex((open) => open.modal);
-  layers.splice(topModal >= 0 ? topModal : layers.length, 0, layer);
+  const stackRank = stackRankFor(modal, stackKey);
+  const layer = { modal, shortcuts, takeEntryFocus, stackRank };
+  if (modal) {
+    layers.push(layer);
+    return layer;
+  }
+  const insertAt = layers.findIndex((open) => open.stackRank > stackRank);
+  layers.splice(insertAt >= 0 ? insertAt : layers.length, 0, layer);
   return layer;
 }
 
@@ -42,6 +73,11 @@ export function closeOverlay(layer: Layer): void {
 /** True when `layer` is the innermost open overlay (it owns Escape). */
 export function isInnermostOverlay(layer: Layer): boolean {
   return layers.at(-1) === layer;
+}
+
+/** True while any overlay is registered. The keymap must not run Escape then. */
+export function hasOpenOverlay(): boolean {
+  return layers.length > 0;
 }
 
 const claimedEscapes = new WeakSet<Event>();

@@ -264,9 +264,11 @@ The person's own navigation clears the intent; a selection adopted from the agen
 (`adoptRemoteSelection`, `remoteSelectionRevision`) does not. No other client's selection reaches a tab, and an agent's applies once, when it sets it (D-tabs-keep-own-selection). The current compact Close supplies the existing Toast
 return-focus ref, validated when this tab's own undo removes or disables the
 focused action, including when a peer edit removes it. `ui/modalGate` keeps a
-modal above every non-modal layer opened while it is open, so a sheet opened or
-remounted behind a modal takes neither Escape nor entry focus; it takes entry
-focus when the modal closes without a usable return target. `Toast` re-reads
+modal above every non-modal, and ranks remount-stable peek sheets below later
+non-modals (JoinPopover), so a sheet opened or remounted behind a modal or
+popover takes neither Escape nor entry focus; it takes entry focus when the
+inner overlay closes without a usable return target. The keymap skips Escape
+commands while any overlay is open. `Toast` re-reads
 `document.activeElement` after each commit, so a host move that detaches a
 focused action without a blur resumes its timer. Store announcements and command authority
 remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).

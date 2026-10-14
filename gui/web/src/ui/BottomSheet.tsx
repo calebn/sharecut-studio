@@ -131,6 +131,7 @@ export function BottomSheet({
     panelRef,
     initialFocusRef: closeRef,
     mode: "sheet",
+    stackKey: title ?? "bottom-sheet",
   });
 
   if (!open || typeof document === "undefined") {

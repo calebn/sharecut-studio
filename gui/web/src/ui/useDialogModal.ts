@@ -1,5 +1,6 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { focusHeld } from "./focusHold";
+import { isValidFocusTarget } from "./focusTarget";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
 import {
@@ -52,6 +53,11 @@ export type UseDialogModalOptions = {
    * shortcut is held while it is open.
    */
   shortcuts?: readonly string[];
+  /**
+   * Stable rank for a peek surface that remounts (Inspector BottomSheet).
+   * Reopen reuses the same stack rank so a later non-modal stays innermost.
+   */
+  stackKey?: string;
 };
 
 /**
@@ -72,6 +78,7 @@ export function useDialogModal({
   backgroundSelector = "[data-daw-app-chrome]",
   mode = "modal",
   shortcuts,
+  stackKey,
 }: UseDialogModalOptions): void {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -120,6 +127,7 @@ export function useDialogModal({
       mode === "modal",
       shortcutIds ? shortcutIds.split(" ") : [],
       focusInitial,
+      stackKey,
     );
     const raf = requestAnimationFrame(focusInitial);
     let escaped = false;
@@ -179,6 +187,7 @@ export function useDialogModal({
       closeOverlay(layer);
       const restore = returnTarget ?? restoreFocusRef.current;
       const active = document.activeElement;
+      const activeEl = active instanceof HTMLElement ? active : null;
       const movedOutsideSheet =
         mode === "sheet" &&
         !escaped &&
@@ -189,11 +198,12 @@ export function useDialogModal({
         active.isConnected &&
         !openedPanel?.contains(active);
       if (!movedOutsideSheet) {
-        if (restore?.isConnected) restore.focus();
+        if (isValidFocusTarget(restore)) restore.focus();
         else if (
-          !(active instanceof HTMLElement) ||
-          active === document.body ||
-          !active.isConnected
+          !activeEl ||
+          activeEl === document.body ||
+          !isValidFocusTarget(activeEl) ||
+          Boolean(openedPanel?.contains(activeEl))
         ) {
           focusInnermostOverlay();
         }
@@ -208,5 +218,6 @@ export function useDialogModal({
     backgroundSelector,
     mode,
     shortcutIds,
+    stackKey,
   ]);
 }
