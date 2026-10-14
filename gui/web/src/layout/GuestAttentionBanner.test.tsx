@@ -53,6 +53,11 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+type Dismissal = {
+  pending: number;
+  conflicts: ReturnType<typeof offlineConflict>[];
+};
+
 describe("GuestAttentionBanner", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -61,8 +66,14 @@ describe("GuestAttentionBanner", () => {
     }
     offlineStore.clearConflicts.mockResolvedValue(undefined);
     offlineStore.clearHostConflicts.mockResolvedValue(undefined);
-    offlineStore.dismissConflicts.mockResolvedValue(undefined);
-    offlineStore.dismissHostConflicts.mockResolvedValue(undefined);
+    offlineStore.dismissConflicts.mockResolvedValue({
+      pending: 0,
+      conflicts: [],
+    });
+    offlineStore.dismissHostConflicts.mockImplementation(async (path) => ({
+      pending: await offlineStore.loadHostCommandCount(path),
+      conflicts: [],
+    }));
     offlineStore.loadConflicts.mockResolvedValue([]);
     offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
@@ -128,9 +139,9 @@ describe("GuestAttentionBanner", () => {
     });
     const newer = offlineConflict({
       command: { command_id: "same-command" },
-      reason: "Earlier refusal.",
+      reason: "Newer refusal.",
     });
-    const dismissal = deferred<void>();
+    const dismissal = deferred<Dismissal>();
     offlineStore.loadHostConflicts.mockResolvedValue([observed]);
     offlineStore.dismissHostConflicts.mockReturnValueOnce(dismissal.promise);
     useDawStore.getState().hydrate(path, minimalProject());
@@ -141,11 +152,16 @@ describe("GuestAttentionBanner", () => {
       fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
       recordVolatileOutcome(path, newer);
     });
-    await act(async () => dismissal.resolve());
+    await act(async () =>
+      dismissal.resolve({
+        pending: 0,
+        conflicts: [{ ...observed, dismissed: true }],
+      }),
+    );
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Earlier refusal.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Newer refusal.");
     expect(volatileOutcomeFor(path, "same-command")).toMatchObject({
-      reason: "Earlier refusal.",
+      reason: "Newer refusal.",
     });
     expect(volatileOutcomeFor(path, "same-command")).not.toHaveProperty(
       "dismissed",
@@ -533,7 +549,7 @@ describe("GuestAttentionBanner", () => {
         screen.getByRole("button", { name: "Dismiss all" }),
       ).toHaveAttribute("aria-disabled", "true");
       await act(() => vi.advanceTimersByTimeAsync(2000));
-      const dismiss = deferred<void>();
+      const dismiss = deferred<Dismissal>();
       clear().mockReturnValueOnce(dismiss.promise);
       await act(async () =>
         fireEvent.click(screen.getByRole("button", { name: "Dismiss all" })),
@@ -548,7 +564,12 @@ describe("GuestAttentionBanner", () => {
       expect(
         screen.getByRole("button", { name: "Dismiss all" }),
       ).toHaveAttribute("aria-disabled", "true");
-      await act(async () => dismiss.resolve());
+      await act(async () =>
+        dismiss.resolve({
+          pending: host ? 2 : 0,
+          conflicts: [{ ...verified, dismissed: true }],
+        }),
+      );
       expect(
         screen.queryByText("Verified retained conflict"),
       ).not.toBeInTheDocument();
@@ -559,7 +580,7 @@ describe("GuestAttentionBanner", () => {
 
     it("ignores dismissal completion after a project switch", async () => {
       await showVerified();
-      const dismiss = deferred<void>();
+      const dismiss = deferred<Dismissal>();
       clear().mockReturnValueOnce(dismiss.promise);
       await act(async () =>
         fireEvent.click(screen.getByRole("button", { name: "Dismiss all" })),
@@ -576,7 +597,9 @@ describe("GuestAttentionBanner", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );
-      await act(async () => dismiss.resolve());
+      await act(async () =>
+        dismiss.resolve({ pending: host ? 2 : 0, conflicts: [newer] }),
+      );
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Newer admitted conflict",
       );

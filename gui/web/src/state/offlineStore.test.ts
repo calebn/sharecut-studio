@@ -4,11 +4,13 @@ import {
   addHostConflict,
   clearConflicts,
   clearHostConflicts,
+  dismissConflicts,
   dismissHostConflicts,
   enqueueCommand,
   enqueueHostCommand,
   loadCommandQueue,
   loadConflicts,
+  loadGuestAttention,
   loadHostAttention,
   loadHostCommandCount,
   loadHostCommandQueue,
@@ -116,6 +118,98 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
+
+describe("dismissal transaction results", () => {
+  const refusal = {
+    ...conflict,
+    command: { ...command, command_id: "refused" },
+    reason: "Rejected edit.",
+  };
+  const historyCommand = {
+    ...command,
+    command_id: "history",
+    type: "UndoHistory",
+  };
+  const history = {
+    command: historyCommand,
+    kind: "unknown" as const,
+    reason: "Undo may have been applied.",
+    recovery: "inspect-history" as const,
+  };
+  const unrelated = { ...command, command_id: "unrelated" };
+  const hostQueue = "host-queue:/project";
+  const hostConflicts = "host-conflicts:/project";
+  const guestQueue = "queue:token";
+  const guestConflicts = "conflicts:token";
+
+  it.each([
+    {
+      name: "host",
+      queueKey: hostQueue,
+      conflictKey: hostConflicts,
+      dismiss: () => dismissHostConflicts("/project", [refusal, history]),
+      readAttention: () => loadHostAttention("/project"),
+      readQueue: () => loadHostCommandQueue("/project"),
+      otherQueueKey: guestQueue,
+      otherConflictKey: guestConflicts,
+      otherQueue: () => loadCommandQueue("token"),
+      otherConflicts: () => loadConflicts("token"),
+      pending: 2,
+    },
+    {
+      name: "guest",
+      queueKey: guestQueue,
+      conflictKey: guestConflicts,
+      dismiss: () => dismissConflicts("token", [refusal, history]),
+      readAttention: () => loadGuestAttention("token"),
+      readQueue: () => loadCommandQueue("token"),
+      otherQueueKey: hostQueue,
+      otherConflictKey: hostConflicts,
+      otherQueue: () => loadHostCommandQueue("/project"),
+      otherConflicts: () => loadHostConflicts("/project"),
+      pending: 0,
+    },
+  ])(
+    "returns the committed $name queue and conflict snapshot",
+    async ({
+      queueKey,
+      conflictKey,
+      dismiss,
+      readAttention,
+      readQueue,
+      otherQueueKey,
+      otherConflictKey,
+      otherQueue,
+      otherConflicts,
+      pending,
+    }) => {
+      rows.set(queueKey, [refusal.command, unrelated, historyCommand]);
+      rows.set(conflictKey, [refusal, history]);
+      rows.set(otherQueueKey, [refusal.command, unrelated, historyCommand]);
+      rows.set(otherConflictKey, [refusal, history]);
+      const committedConflicts = [
+        { ...refusal, dismissed: true },
+        { ...history, dismissed: true },
+      ];
+
+      await expect(dismiss()).resolves.toEqual({
+        pending,
+        conflicts: committedConflicts,
+      });
+      await expect(readAttention()).resolves.toEqual({
+        pending,
+        conflicts: committedConflicts,
+      });
+      await expect(readQueue()).resolves.toEqual([unrelated, historyCommand]);
+      await expect(otherQueue()).resolves.toEqual([
+        refusal.command,
+        unrelated,
+        historyCommand,
+      ]);
+      await expect(otherConflicts()).resolves.toEqual([refusal, history]);
+    },
+  );
+});
 
 it("reads host pending work and its outcome from one IndexedDB snapshot", async () => {
   rows.set("host-queue:/project", [command]);
