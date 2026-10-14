@@ -137,3 +137,13 @@ def test_strip_silence_on_a_track_with_no_live_audio_removes_it_end_to_end(tmp_p
 
     assert result["silence_intervals"] == 1
     assert result["removed_sec"] == pytest.approx(1.9, abs=1e-6)
+
+
+def test_strip_silence_keeps_a_track_whose_voice_does_not_stand_out_of_its_room(tmp_path) -> None:
+    rng = np.random.default_rng(13)
+    flat = rng.standard_normal(4 * _RATE) * 10 ** (-30 / 20)
+
+    result = _strip(tmp_path, flat)
+
+    assert result["silence_intervals"] == 0
+    assert result["removed_sec"] == pytest.approx(0.0)
