@@ -24,6 +24,7 @@ def test_python_sleeps_are_counted_and_look_alikes_are_not(tmp_path: Path) -> No
     planted = tmp_path / "test_planted.py"
     planted.write_text(
         "import asyncio\n"
+        "import asyncio as aio\n"
         "import time\n"
         "from asyncio import sleep as nap\n"
         "# time.sleep(1) in a comment\n"
@@ -34,8 +35,9 @@ def test_python_sleeps_are_counted_and_look_alikes_are_not(tmp_path: Path) -> No
         "async def test_async():\n"
         "    await asyncio.sleep(0.2)\n"
         "    clock.sleep(3)\n"
+        "    aio.sleep(4)\n"
     )
-    assert lint.python_waits(planted) == [7, 8, 10]
+    assert lint.python_waits(planted) == [8, 9, 11, 13]
 
 
 def test_typescript_wait_for_timeout_is_counted_outside_comments(tmp_path: Path) -> None:
@@ -45,8 +47,9 @@ def test_typescript_wait_for_timeout_is_counted_outside_comments(tmp_path: Path)
         "// await page.waitForTimeout(500);\n"
         "await expect(page.getByRole('button')).toBeVisible();\n"
         "await  page.waitForTimeout (50); // settle\n"
+        "/* await page.waitForTimeout(1); */ await page.goto('http://x'); await page.waitForTimeout(5);\n"
     )
-    assert lint.typescript_waits(planted) == [1, 4]
+    assert lint.typescript_waits(planted) == [1, 4, 5]
 
 
 def test_a_new_wait_fails_and_a_removed_wait_asks_for_a_lower_allowlist() -> None:

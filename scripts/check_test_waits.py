@@ -8,7 +8,8 @@ may not gain a wait, a file that is not listed may not have one, and a file that
 lower its count, so the list only shrinks. ``--write`` regenerates it after a fix.
 
 Python files are read with ``ast``, so a comment or a string that says ``time.sleep`` does not
-count. A TypeScript line counts when it calls ``waitForTimeout(`` outside a ``//`` comment.
+count. A TypeScript line counts when it calls ``waitForTimeout(`` outside a ``//`` or ``/* */`` comment
+(a ``//`` right after a colon, as in ``http://``, is not a comment).
 """
 
 from __future__ import annotations
@@ -27,15 +28,20 @@ TS_ROOTS = ("gui/web/e2e", "gui/web/e2e-compat", "gui/web/e2e-storybook")
 TS_SUFFIXES = frozenset({".ts", ".tsx", ".js", ".mjs"})
 SLEEP_MODULES = frozenset({"time", "asyncio"})
 TS_WAIT = re.compile(r"\bwaitForTimeout\s*\(")
+TS_BLOCK_COMMENT = re.compile(r"/\*.*?\*/")
+TS_LINE_COMMENT = re.compile(r"(?<!:)//.*")
 
 
 def python_waits(path: Path) -> list[int]:
     """Line numbers of ``time.sleep(...)`` and ``asyncio.sleep(...)`` calls in ``path``."""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     bare: set[str] = set()
+    modules: set[str] = set(SLEEP_MODULES)
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module in SLEEP_MODULES:
             bare.update(a.asname or a.name for a in node.names if a.name == "sleep")
+        elif isinstance(node, ast.Import):
+            modules.update(a.asname for a in node.names if a.asname and a.name in SLEEP_MODULES)
     lines: list[int] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -45,7 +51,7 @@ def python_waits(path: Path) -> list[int]:
             isinstance(func, ast.Attribute)
             and func.attr == "sleep"
             and isinstance(func.value, ast.Name)
-            and func.value.id in SLEEP_MODULES
+            and func.value.id in modules
         )
         if module_sleep or (isinstance(func, ast.Name) and func.id in bare):
             lines.append(node.lineno)
@@ -56,7 +62,7 @@ def typescript_waits(path: Path) -> list[int]:
     """Line numbers of ``waitForTimeout(...)`` calls that are not inside a ``//`` comment."""
     lines: list[int] = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        code = line.split("//", 1)[0]
+        code = TS_LINE_COMMENT.sub("", TS_BLOCK_COMMENT.sub("", line))
         if TS_WAIT.search(code):
             lines.append(number)
     return lines
