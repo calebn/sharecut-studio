@@ -1256,6 +1256,7 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
         assert aa.timeline_window_samples(project, "host", 0.0, 0.5) is not None
     stem_read.assert_not_called()
     lane.assert_called_once()
+    assert lane.call_args.kwargs["antialias"] is True
 
     # A fresh stem is read as it is.
     with (
@@ -1267,6 +1268,7 @@ def test_a_stale_stem_is_not_read_at_the_timeline_seconds_an_edit_moved(
     ):
         assert aa.timeline_window_samples(project, "host", 0.0, 0.5) is not None
     stem_read.assert_called_once()
+    assert stem_read.call_args.kwargs["antialias"] is True
     lane.assert_not_called()
 
 

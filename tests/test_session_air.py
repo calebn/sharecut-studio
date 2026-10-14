@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -321,3 +322,12 @@ def test_a_recording_with_no_words_takes_its_speech_level_from_its_own_levels() 
     (spoken,) = [s for s in sounds if s.lo == pytest.approx(5.97)]
     (quiet,) = [s for s in sounds if s.lo == pytest.approx(8.97)]
     assert (spoken.removable, quiet.removable) == (False, True)
+
+
+def test_the_band_level_reader_asks_for_the_anti_aliased_window() -> None:
+    """#1547: a level read of a file at a higher rate low-passes before it downsamples."""
+    from podcast_mcp.edits.session_air import _file_reader
+
+    with patch("podcast_mcp.edits.session_air.load_mono_window", return_value=np.zeros(8)) as read:
+        _file_reader(Path("x.wav"), 8000)(0.0, 0.1)
+    assert read.call_args.kwargs["antialias"] is True
