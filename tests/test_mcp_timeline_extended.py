@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -25,13 +26,17 @@ from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
 def _seed_project(path: str, sample_wav) -> None:
     proj = load_project(Path(path))
+    workspace = proj.workspace_path()
+    media_path = workspace / "raw" / "host.wav"
+    media_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(sample_wav, media_path)
     proj.tracks = [
         Track(
             id="host",
             label="Host",
             role=TrackRole.DIALOGUE,
             speaker="Host",
-            media=MediaAsset(path=str(sample_wav), duration_sec=10.0),
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
         )
     ]
     proj.clips = [

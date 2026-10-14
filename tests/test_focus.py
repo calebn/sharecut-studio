@@ -43,10 +43,18 @@ def _project_with_repeated_utterances() -> EpisodeProject:
         Transcript(
             track_id="host",
             words=[
-                TranscriptWord(text=w, start=i * 0.4, end=i * 0.4 + 0.3)
-                for i, w in enumerate(text.split())
+                TranscriptWord(text=word, start=i * 1.2, end=i * 1.2 + 0.5)
+                for i, word in enumerate(text.split())
             ],
-        )
+        ),
+        Transcript(
+            track_id="host",
+            source_id="repeat",
+            words=[
+                TranscriptWord(text=word, start=40.0 + i * 1.2, end=40.0 + i * 1.2 + 0.5)
+                for i, word in enumerate(text.split())
+            ],
+        ),
     ]
     p.combined_transcript = CombinedTranscript(
         utterances=[
@@ -54,14 +62,14 @@ def _project_with_repeated_utterances() -> EpisodeProject:
                 track_id="host",
                 speaker="Host",
                 start=0.0,
-                end=20.0,
+                end=19.7,
                 text=text,
             ),
             CombinedUtterance(
                 track_id="host",
                 speaker="Host",
                 start=40.0,
-                end=60.0,
+                end=59.7,
                 text=text,
             ),
         ]
