@@ -37,8 +37,21 @@ describe("BulkReviewWorking", () => {
       vi.advanceTimersByTime(12_000);
     });
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Approving 86 edits… 0:12 so far.",
+      /^Approving 86 edits…$/,
     );
+    expect(screen.getByText("0:12 so far.")).toBeVisible();
+  });
+
+  it("keeps the live region text still while the clock ticks", () => {
+    render(
+      <BulkReviewWorking verb="Approving" count={86} startedAtSec={started} />,
+    );
+    const live = screen.getByRole("status");
+    const before = live.textContent;
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(live.textContent).toBe(before);
   });
 
   it("has no a11y violations", async () => {

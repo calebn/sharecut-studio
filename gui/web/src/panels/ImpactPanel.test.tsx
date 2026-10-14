@@ -478,7 +478,7 @@ describe("ImpactPanel bulk review", () => {
     );
     renderPanel();
     await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
+    expect(await screen.findByRole("status", {})).toHaveTextContent(
       "Approving 3 edits…",
     );
     act(() => finish());

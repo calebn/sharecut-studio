@@ -13,20 +13,21 @@ const ELAPSED_AFTER_SEC = 2;
 /**
  * The in-place working state of a bulk review: what is running and, once it is not
  * instant, how long it has run. No percent, because the host reports none for this
- * command (docs/progress.md: never a fake bar).
+ * command (docs/progress.md: never a fake bar). The ticking clock stays outside the
+ * live region so a screen reader hears the headline once, not every second.
  */
 export function BulkReviewWorking({ verb, count, startedAtSec }: Props) {
   const nowSec = useNowSec(true);
   const elapsed = Math.max(0, nowSec - startedAtSec);
   return (
-    <p className="impact-bulk-working" role="status" aria-live="polite">
+    <div className="impact-bulk-working">
       <span className="pipeline-pulse" aria-hidden="true" />
-      <span>
+      <span role="status" aria-live="polite">
         {verb} {count === 1 ? "1 edit" : `${count} edits`}…
-        {elapsed >= ELAPSED_AFTER_SEC
-          ? ` ${formatTimeShort(elapsed)} so far. Keep working, nothing is lost if you wait.`
-          : ""}
       </span>
-    </p>
+      {elapsed >= ELAPSED_AFTER_SEC ? (
+        <span>{formatTimeShort(elapsed)} so far.</span>
+      ) : null}
+    </div>
   );
 }
