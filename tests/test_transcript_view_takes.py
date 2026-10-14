@@ -273,3 +273,42 @@ def test_stale_row_does_not_duplicate_an_edge_suppressed_word(tmp_path: Path) ->
         if 1 in row.get("edge_suppressed_word_indices", []) and row["text"] in ("edited", "a2")
     ]
     assert len(owners) == 1
+
+
+def test_second_take_moved_to_another_lane_keeps_its_row(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+    project.clips[1] = project.clips[1].model_copy(update={"track_id": "dani"})
+    rows = {row["text"]: row for row in _view(project)}
+    assert rows["b0"]["mappable"] is True
+    assert rows["b0"]["timeline_start"] == 11.0
+    assert [w["text"] for w in rows["b0"]["words"]] == ["b0"]
+
+
+def test_identical_lines_in_two_takes_each_keep_their_own_take(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+    project.transcripts[0] = Transcript(
+        track_id="vicky", source_id="take2", words=_words("okay", [1.0])
+    )
+    project.transcripts[1] = Transcript(
+        track_id="vicky", source_id="take3", words=_words("okay", [1.0, 8.0])
+    )
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    rows = [row for row in _view(project) if row["track_id"] == "vicky"]
+    assert [row["text"] for row in rows] == ["okay0", "okay0", "okay1"]
+    assert [row["timeline_start"] for row in rows] == [1.0, 11.0, 18.0]
+    assert [row["words"][0]["timing_target"]["source_id"] for row in rows] == [
+        "take2",
+        "take3",
+        "take3",
+    ]
+
+
+def test_offset_lane_orders_with_the_takes_by_timeline(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+    # Dani's recording starts 100 s into the session: source 3.0 plays at timeline 103.
+    project.clips[2] = project.clips[2].model_copy(update={"timeline_start": 100.0})
+    project.transcripts[2] = Transcript(track_id="dani", words=_words("d", [3.0]))
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    starts = [row["timeline_start"] for row in _view(project)]
+    assert starts == sorted(starts)
+    assert _view(project)[-1]["text"] == "d0"
