@@ -57,7 +57,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import CutSpeechWord, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db
 from podcast_mcp.util.intervals import intersect_intervals, merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -645,29 +645,62 @@ def _voice_reach_db(
     return reach + _gain_db(project, track_id)
 
 
-def _peer_voice_in_mean(
-    project: EpisodeProject, peer_track_id: str, rms: float, caches: TrackRmsCacheSet | None
-) -> bool | None:
-    """Whether a peer's whole-span mean level ``rms`` (recorded dB) holds its voice.
+# The window a short word is read in where the frame evidence is missing: inside the 40-100 ms
+# a syllable fills, so a word is not diluted by the seconds of silence around it.
+_FALLBACK_WINDOW_SEC = 0.1
 
-    Where no frame-by-frame calibration can be made, the span's mean is held to the level
-    the peer's voice reaches (:attr:`~podcast_mcp.engines.level_profile.LevelProfile.voice_reach_db`):
+
+def _loudest_window_db(
+    project: EpisodeProject,
+    track_id: str,
+    span: tuple[float, float],
+    mean_db: float,
+    caches: TrackRmsCacheSet | None,
+) -> float:
+    """The loudest 100 ms window of ``span`` on ``track_id`` (recorded dB), at least ``mean_db``.
+
+    A span's mean is diluted by its silence: a peer word 15 dB under its voice, inside a 3 s
+    span, reads under the voice's reach. The loudest window is what a listener hears (#1419).
+    ``mean_db`` where the span cannot be read in windows.
+    """
+    read = timeline_window_samples(project, track_id, *span, caches=caches)
+    if read is None:
+        return mean_db
+    samples, rate = read
+    frame = max(1, round(rate * _FALLBACK_WINDOW_SEC))
+    levels = frame_rms_db(samples, frame, max(1, frame // 2), floor_db=DIGITAL_SILENCE_DB)
+    if not levels.size:
+        return mean_db
+    return max(mean_db, float(levels.max()) + _gain_db(project, track_id))
+
+
+def _peer_voice_in_level(
+    project: EpisodeProject, peer_track_id: str, level_db: float, caches: TrackRmsCacheSet | None
+) -> bool | None:
+    """Whether a peer's ``level_db`` (recorded dB over a span) holds its voice.
+
+    Where no frame-by-frame calibration can be made, the level is held to the one the peer's
+    voice reaches (:attr:`~podcast_mcp.engines.level_profile.LevelProfile.voice_reach_db`):
     a peer with no live audio never speaks. A peer whose loudest frames show no contrast with
     its room has no voice level of its own to read, so it is held to the voice level of the
-    session's other tracks (the median of theirs), at any recording level. ``None`` when the
-    session has no track to read it against.
+    session's other tracks (the median of theirs), at any recording level. A lane with no
+    recording to read has none to give. ``None`` when the session has no track to read it
+    against.
     """
     reach = _voice_reach_db(project, peer_track_id, caches)
     if reach == -math.inf:
-        session = [
-            r
-            for tid in dialogue_track_ids(project)
-            if math.isfinite(r := _voice_reach_db(project, tid, caches))
-        ]
+        session = []
+        for tid in dialogue_track_ids(project):
+            try:
+                other = _voice_reach_db(project, tid, caches)
+            except (OSError, CodedValueError, subprocess.CalledProcessError):
+                continue
+            if math.isfinite(other):
+                session.append(other)
         if not session:
             return None
         reach = float(np.median(session))
-    return rms >= reach
+    return level_db >= reach
 
 
 def measure_peer_speech(
@@ -734,25 +767,33 @@ def measure_peer_speech(
         speaks = False
         refs = _voice_refs(project, [tid, *owner_track_ids], caches)
         peer_voice = _gain_db(project, tid) + refs[tid]
+
         # Which mic is louder is read on the recordings against each one's own voice, without
-        # the balance gains (#1549).
-        span_owner_raw = [
-            max(
-                (
-                    r - _gain_db(project, owner) - refs[owner]
-                    for owner in owner_track_ids
-                    if (
-                        r := measure_timeline_rms_db(
-                            project, owner, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
+        # the balance gains (#1549). A peer with a voice of its own is read in the loudest window
+        # of the span, so the owner is too: the two levels are of the same kind (#1419).
+        def owner_raw(*, windowed: bool) -> list[float | None]:
+            return [
+                max(
+                    (
+                        (_loudest_window_db(project, owner, (s, e), r, caches) if windowed else r)
+                        - _gain_db(project, owner)
+                        - refs[owner]
+                        for owner in owner_track_ids
+                        if (
+                            r := measure_timeline_rms_db(
+                                project, owner, s, e, caches=caches, floor_db=DIGITAL_SILENCE_DB
+                            )
                         )
-                    )
-                    is not None
-                ),
-                default=None,
-            )
-            for s, e in checked
-        ]
-        for (tl_start, tl_end), span_owner in zip(checked, span_owner_raw, strict=True):
+                        is not None
+                    ),
+                    default=None,
+                )
+                for s, e in checked
+            ]
+
+        span_owner_mean = owner_raw(windowed=False)
+        span_owner_loudest: list[float | None] | None = None
+        for index, (tl_start, tl_end) in enumerate(checked):
             rms = measure_timeline_rms_db(
                 project, tid, tl_start, tl_end, caches=caches, floor_db=DIGITAL_SILENCE_DB
             )
@@ -781,8 +822,19 @@ def measure_peer_speech(
                 else None,
             )
             if calibrated is None:
-                voiced = _peer_voice_in_mean(project, tid, rms, caches)
-                raw = rms - peer_voice
+                own_voice = math.isfinite(_voice_reach_db(project, tid, caches))
+                if own_voice and span_owner_loudest is None:
+                    span_owner_loudest = owner_raw(windowed=True)
+                heard = (
+                    _loudest_window_db(project, tid, (tl_start, tl_end), rms, caches)
+                    if own_voice
+                    else rms
+                )
+                owner_levels = span_owner_loudest if own_voice else span_owner_mean
+                assert owner_levels is not None
+                span_owner = owner_levels[index]
+                voiced = _peer_voice_in_level(project, tid, heard, caches)
+                raw = heard - peer_voice
                 calibrated = (
                     span_owner is None or raw - span_owner >= dominance
                     if voiced is None

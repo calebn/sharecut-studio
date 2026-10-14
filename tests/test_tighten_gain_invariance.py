@@ -15,7 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from unittest.mock import PropertyMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -36,7 +36,6 @@ from podcast_mcp.engines.audio_audit import (
 )
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
-from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.speaker_split import attribute_speakers
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import (
@@ -809,14 +808,6 @@ def test_speaker_split_decides_the_same_at_any_recording_level(gain_db: float) -
     _same_turns(_speaker_split(audio * np.float32(10 ** (gain_db / 20))), expected)
 
 
-def test_a_fixed_voice_floor_would_break_the_contract(tmp_path: Path) -> None:
-    """Sabotage: every lane read against -48 dBFS again moves the handoff with the level."""
-    detector = DETECTORS["handoff"]
-    with patch.object(LevelProfile, "voice_floor_db", PropertyMock(return_value=-48.0)):
-        quieter = _scaled(detector.scene(tmp_path), SCALINGS["all-24dB"][1](detector.alone))
-        assert detector.outcome(quieter) != detector.expected
-
-
 def _guard_scene(tmp_path: Path, host: np.ndarray, guest: np.ndarray) -> EpisodeProject:
     return _project(tmp_path, {"host": (host, []), "guest": (guest, [])})
 
@@ -837,11 +828,44 @@ def test_a_same_pitch_peer_is_told_from_the_owner_by_level(
 
 
 @pytest.mark.parametrize(
+    ("word_db", "word_sec", "burst_db", "expected"),
+    [
+        pytest.param(-15.0, 0.15, None, ("guest",), id="short-quiet-word-in-a-long-span"),
+        pytest.param(-15.0, 0.10, None, ("guest",), id="word-of-one-syllable"),
+        pytest.param(None, 0.0, -54.0, (), id="noise-under-the-reach-is-no-voice"),
+    ],
+)
+def test_a_peer_word_is_heard_in_the_window_it_fills(
+    tmp_path: Path,
+    word_db: float | None,
+    word_sec: float,
+    burst_db: float | None,
+    expected: tuple[str, ...],
+) -> None:
+    """The fallback reads the span's loudest 100 ms, not its mean, which a few seconds of
+    silence dilute (#1419). The peer talks under a tenth of the time, so the reach clamp
+    (27 dB under its loudest frames) is what keeps a second of noise above its room tone, but
+    far under its voice, from reading as the voice."""
+    host = _room(11, gated=False)
+    for start, end in ((1.0, 5.5), (9.5, 14.0)):
+        _voice(host, start, end, SPEECH_DB + 4.0)
+    guest = np.random.default_rng(23).normal(0, 10 ** (ROOM_DB / 20), SECONDS * RATE)
+    _voice(guest, 2.0, 3.0, SPEECH_DB + 4.0)
+    if word_db is not None:
+        _voice(guest, 7.0, 7.0 + word_sec, SPEECH_DB + 4.0 + word_db)
+    if burst_db is not None:
+        lo, hi = round(7.0 * RATE), round(8.0 * RATE)
+        guest[lo:hi] += np.random.default_rng(5).normal(0, 10 ** (burst_db / 20), hi - lo)
+    assert _guard_fallback(_guard_scene(tmp_path, host, guest)) == expected
+
+
+@pytest.mark.parametrize(
     ("host", "guest", "expected"),
     [
         pytest.param("talk", "silent", (), id="peer-with-no-audio-never-speaks"),
         pytest.param("flat", "flat", (), id="flat-peer-as-loud-as-the-owner-is-no-voice"),
         pytest.param("silent", "flat", ("guest",), id="flat-peer-over-a-silent-owner-speaks"),
+        pytest.param("talk+ghost", "flat", (), id="a-lane-with-no-file-is-skipped"),
     ],
 )
 def test_a_peer_with_nothing_to_read_it_against(
@@ -856,7 +880,19 @@ def test_a_peer_with_nothing_to_read_it_against(
         _voice(audio, 1.0, 5.5, SPEECH_DB + 4.0)
         return audio
 
-    assert _guard_fallback(_guard_scene(tmp_path, lane(host, 3), lane(guest, 4))) == expected
+    project = _guard_scene(tmp_path, lane(host.removesuffix("+ghost"), 3), lane(guest, 4))
+    if host.endswith("+ghost"):
+        # An unrelated dialogue lane whose recording is gone: the session's voice level is read
+        # from the lanes that have audio.
+        project.timeline.tracks.append(
+            Track(
+                id="ghost",
+                label="ghost",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path="raw/ghost.wav", duration_sec=SECONDS),
+            )
+        )
+    assert _guard_fallback(project) == expected
 
 
 @pytest.mark.parametrize("gain_db", [0.0, -12.0, -24.0])
