@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
@@ -196,7 +197,11 @@ def inspect_source_remove_placement(
 
 
 def inspect_source_remove(
-    project: EpisodeProject, edit: EditDecision, *, heard_pause_sec: float | None = None
+    project: EpisodeProject,
+    edit: EditDecision,
+    *,
+    heard_pause_sec: float | None = None,
+    audio_caches: Mapping[str, TrackAudioCache] | None = None,
 ) -> tuple[float, float] | CutScopeHold:
     """Assess final ordinary SOURCE bounds without publishing or authorizing a later mutation."""
     span = inspect_source_remove_placement(project, edit)
@@ -211,7 +216,9 @@ def inspect_source_remove(
         if heard is None:
             from podcast_mcp.edits.session_air import SessionAir
 
-            heard = SessionAir(project).silence_around(float(span[0]), float(span[1]))
+            heard = SessionAir(project, audio_caches=audio_caches or {}).silence_around(
+                float(span[0]), float(span[1])
+            )
         if heard is None:
             transcript = project.transcript_for_track(edit.track_id)
             words = (
@@ -310,6 +317,7 @@ def _apply_replace_gap_pad(
     tl_start: float,
     *,
     exact_seam: bool = False,
+    source_audio_caches: Mapping[str, TrackAudioCache] | None = None,
 ) -> list[dict]:
     gap = edit.replace_gap_sec
     if gap is None or gap <= 0:
@@ -340,12 +348,14 @@ def _apply_replace_gap_pad(
     for tid in dialogue_track_ids(project):
         for clip in clips_for_track(project, tid):
             if abs(clip.timeline_start - right_pad_edge_sec) <= _PAD_EDGE_MATCH_SEC:
+                cache = (source_audio_caches or {}).get(tid)
                 right_pad_fade_in_ms = recommend_post_pad_fade_in_ms(
                     project,
                     tid,
                     clip.source_start,
                     next_burst_sec=edit.next_burst_sec,
                     defaults=defaults,
+                    audio_cache=cache,
                 )
                 if right_pad_fade_in_ms > 0:
                     clip.fade_in_ms = max(int(clip.fade_in_ms), right_pad_fade_in_ms)
@@ -399,8 +409,12 @@ def _consume_source_remove(
     scope still holds. A hold changes no geometry. No downstream kernel re-optimizes the
     final proven window, and archived parameters name the consumed source and pad.
     """
+    from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
     from podcast_mcp.edits.track_media import full_span_clip
+
+    timeline_caches = shared_timeline_rms_caches(project)
+    source_audio_caches = shared_source_audio_caches(project)
 
     scope = edit.scope or "session"
     seed = inspect_source_remove_placement(project, edit)
@@ -504,7 +518,10 @@ def _consume_source_remove(
         return CutScopeHold(edit.id, (), "operation_scope")
     actual = actual.model_copy(update={"start": float(source[0]), "end": float(source[1])})
     assessed = inspect_source_remove(
-        project, actual, heard_pause_sec=prepared_pause.heard_pause if prepared_pause else None
+        project,
+        actual,
+        heard_pause_sec=prepared_pause.heard_pause if prepared_pause else None,
+        audio_caches=source_audio_caches,
     )
     if isinstance(assessed, CutScopeHold):
         return assessed
@@ -531,6 +548,7 @@ def _consume_source_remove(
                 actual.end,
                 requested_scope=scope,
                 defaults=load_defaults(),
+                caches=timeline_caches,
                 _admissible_spans=admissible_spans,
             )
         except ValueError as blocked:
@@ -587,7 +605,11 @@ def _consume_source_remove(
         )
     assert removal is not None
     clearance = clear_ripple(
-        working, removal, confirm_cut_speech=confirm_cut_speech, also_chosen=batch
+        working,
+        removal,
+        confirm_cut_speech=confirm_cut_speech,
+        also_chosen=batch,
+        timeline_caches=timeline_caches,
     )
     if isinstance(clearance, CutSpeechConfirmation):
         return clearance
@@ -603,7 +625,13 @@ def _consume_source_remove(
     tl_start, tl_end = report["timeline_start"], report["timeline_end"]
     per_track = report["per_track_source"]
     track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
-    samples = _apply_replace_gap_pad(project, actual, tl_start, exact_seam=pause)
+    samples = _apply_replace_gap_pad(
+        project,
+        actual,
+        tl_start,
+        exact_seam=pause,
+        source_audio_caches=source_audio_caches,
+    )
     effects = prepared_pause.plan.effects if prepared_pause is not None else ()
     matches = []
     for edge in effects:
