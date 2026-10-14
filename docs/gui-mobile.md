@@ -318,7 +318,8 @@ neither undoes nor removes anything while it asks. An open peek sheet also
 holds Escape: `hasOpenOverlay()` skips keymap `edit.clearSelection`.
 Inspector dismiss still clears the clip selection. A remounted Inspector
 sheet stays under a still-open JoinPopover and does not steal focus from
-a docked waiver field. Clip Inspector fade Escape
+a docked waiver field. A new sheet still takes Close after deferred
+envelope first-entry. Clip Inspector fade Escape
 stops propagation and cancels the fade preview, so the sheet stays open.
 Typing, Tab and Enter inside
 the dialog stay native. A modal can hand on named shortcuts; the Record room
