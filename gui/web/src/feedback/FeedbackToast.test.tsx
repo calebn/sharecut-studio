@@ -14,7 +14,7 @@ import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import type { SessionState } from "../types/session";
 import { closeOverlay, openOverlay } from "../ui/modalGate";
-import { TOAST_MS } from "../ui/Toast";
+import { TOAST_MS, TOAST_UNDO_MS } from "../ui/Toast";
 import { ApiError } from "../utils/apiError";
 import { FeedbackToast } from "./FeedbackToast";
 
@@ -307,7 +307,7 @@ describe("FeedbackToast", () => {
     act(() => screen.getByRole("button", { name: "Dismiss" }).blur());
     act(() => undo.blur());
     act(() => {
-      vi.advanceTimersByTime(8000);
+      vi.advanceTimersByTime(TOAST_UNDO_MS - 3000);
     });
     expect(screen.queryByText("Removed Host")).not.toBeInTheDocument();
   });
@@ -335,8 +335,9 @@ describe("FeedbackToast", () => {
     rerender(<FeedbackToast />);
     expect(disconnect).toHaveBeenCalledOnce();
     expect(screen.getByText("Saved Time").closest(".ui-toast")).toBe(card);
+    const undoRemaining = TOAST_UNDO_MS - 3000;
     act(() => {
-      vi.advanceTimersByTime(4999);
+      vi.advanceTimersByTime(undoRemaining - 1);
     });
     expect(screen.getByText("Saved Time")).toBeVisible();
     act(() => {
