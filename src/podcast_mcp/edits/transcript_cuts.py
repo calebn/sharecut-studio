@@ -14,7 +14,7 @@ from podcast_mcp.edits.edit_reasons import (
     NL_WORDS_REASON,
 )
 from podcast_mcp.edits.filler_pacing import paced_pad_for_span
-from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
+from podcast_mcp.edits.inaudible_cuts import CutWordIndex, optimize_source_cut_range
 from podcast_mcp.edits.tighten_reasons import is_review_only_reason
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
@@ -27,6 +27,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.util.text import normalize_text
+from podcast_mcp.util.timebase import SourceSec
 
 
 @dataclass
@@ -177,6 +178,21 @@ def time_range_from_utterance(
     return utt.track_id, utt.source_id, utt.start, utt.end, utt.text
 
 
+def _cut_transcript_for_source(
+    project: EpisodeProject, track_id: str, source_id: str | None
+) -> Transcript | None:
+    if source_id is None:
+        return project.transcript_for_source(track_id, None)
+    return next(
+        (
+            transcript
+            for transcript in project.transcripts
+            if transcript.track_id == track_id and transcript.source_id == source_id
+        ),
+        None,
+    )
+
+
 def append_remove_decision(
     project: EpisodeProject,
     track_id: str,
@@ -271,6 +287,8 @@ def add_remove_decision(
     crossfade_ms: int = 10,
     use_inaudible_opt: bool | None = None,
     defaults: dict | None = None,
+    source_id: str | None = None,
+    source_aware: bool = False,
 ) -> EditDecision:
     if end <= start:
         raise ValueError("end must be greater than start")
@@ -285,6 +303,34 @@ def add_remove_decision(
     )
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
 
+    transcript = _cut_transcript_for_source(project, track_id, source_id) if source_aware else None
+    if source_aware and transcript is None:
+        raise ValueError(f"No transcript for track {track_id} source {source_id}")
+    selected_clips = any(
+        clip_plays_lane(project, clip, track_id) and clip.source_id == source_id
+        for clip in project.clips
+    )
+    has_lane_clips = any(clip_plays_lane(project, clip, track_id) for clip in project.clips)
+    timeline = SessionTimeline(project)
+    initial_spans = (
+        timeline.map_placements_source_span(track_id, {source_id}, start, end)
+        if source_aware and selected_clips
+        else timeline.map_source_span(track_id, start, end)
+        if source_aware and source_id is None and not has_lane_clips
+        else []
+    )
+    if source_aware and (
+        len(initial_spans) != 1
+        or abs(float(initial_spans[0][1] - initial_spans[0][0]) - (end - start)) > 1e-6
+    ):
+        from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+
+        raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
+    placement_witness = (
+        RangeInterval(start=float(initial_spans[0][0]), end=float(initial_spans[0][1]))
+        if source_aware
+        else None
+    )
     placement = inspect_source_remove_placement(
         project,
         EditDecision(
@@ -295,6 +341,8 @@ def add_remove_decision(
             end=end,
             reason=reason,
             applied=False,
+            source_id=source_id,
+            source_timeline_span=placement_witness,
         ),
     )
     if isinstance(placement, CutScopeHold):
@@ -302,26 +350,22 @@ def add_remove_decision(
     cfg = defaults if defaults is not None else load_defaults()
     # Pace from the requested span first so waveform snap cannot pull a boundary
     # onto the next word and then room-tone-expand across real dialogue.
-    paced = apply_filler_pacing(
-        project,
-        track_id,
-        start,
-        end,
-        defaults=cfg,
-        cut_kind="nl",
-    )
+    pacing_kwargs = {"defaults": cfg, "cut_kind": "nl"}
+    if source_aware:
+        pacing_kwargs["transcript"] = transcript
+    paced = apply_filler_pacing(project, track_id, start, end, **pacing_kwargs)
     if paced is None:
         raise ValueError(
             "cut would leave flanking words closer than min_gap_after_filler_sec; "
             "widen the retained gap or leave this hesitation in"
         )
-    opt = optimize_source_cut_range(
-        project,
-        track_id,
-        paced.start,
-        paced.end,
-        force_enabled=use_inaudible_opt,
-    )
+    optimizer_kwargs = {"force_enabled": use_inaudible_opt}
+    if source_aware:
+        optimizer_kwargs.update(
+            source_id=source_id,
+            word_index=CutWordIndex.from_transcript(transcript, track_id),
+        )
+    opt = optimize_source_cut_range(project, track_id, paced.start, paced.end, **optimizer_kwargs)
     # Keep room-tone pad intent; clamp optimized bounds inside the paced window.
     # Trailing-energy may extend past ``paced.end`` only when the next ASR token
     # overlaps the filler (um→you); otherwise keep lead-in on the next onset
@@ -336,6 +380,32 @@ def add_remove_decision(
     if cut_end <= cut_start:
         cut_start, cut_end = paced.start, paced.end
 
+    if source_aware:
+        final_timeline = SessionTimeline(project)
+        if source_id is not None or selected_clips:
+            final_spans = final_timeline.map_placements_source_span(
+                track_id, {source_id}, SourceSec(cut_start), SourceSec(cut_end)
+            )
+        elif not has_lane_clips:
+            final_spans = final_timeline.map_source_span(
+                track_id, SourceSec(cut_start), SourceSec(cut_end)
+            )
+        else:
+            final_spans = []
+    else:
+        final_spans = []
+    if source_aware and (
+        len(final_spans) != 1
+        or abs(float(final_spans[0][1] - final_spans[0][0]) - (cut_end - cut_start)) > 1e-6
+    ):
+        from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+
+        raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
+    if source_aware:
+        placement_witness = RangeInterval(
+            start=float(final_spans[0][0]), end=float(final_spans[0][1])
+        )
+
     replace_gap = None if paced.pad is None else paced.pad.seconds(cut_start, cut_end)
     review = review_required
     cut_reason = reason
@@ -346,6 +416,11 @@ def add_remove_decision(
         cut_start,
         cut_end,
         defaults=cfg,
+        _admissible_spans=(
+            [(float(placement_witness.start), float(placement_witness.end))]
+            if placement_witness is not None
+            else None
+        ),
     )
     if isinstance(resolved, CutScopeUnavailable):
         raise ScopeChangedAtApproval([CutScopeHold(decision_id, (), "scope_unavailable")], {})
@@ -374,6 +449,8 @@ def add_remove_decision(
         cut_confidence=opt.confidence,
         boundary_mode=opt.mode,
         replace_gap_sec=replace_gap,
+        source_id=source_id if source_aware else None,
+        source_timeline_span=placement_witness,
     )
     require_source_remove(project, decision)
     if guard is not None and guard.blocked:
@@ -405,6 +482,8 @@ def _same_merge_identity(left: EditDecision, right: EditDecision) -> bool:
         and left.scope == right.scope
         and left.author == right.author
         and left.applied == right.applied
+        and left.source_id == right.source_id
+        and (left.source_timeline_span is not None) == (right.source_timeline_span is not None)
         and left.boundary_mode == right.boundary_mode
         and left.cut_speech == right.cut_speech
         and left.exact_range is None
@@ -489,6 +568,7 @@ def coalesce_edits(
     merged_count = 0
     from podcast_mcp.edits.source_removals import (
         CutScopeHold,
+        ScopeChangedAtApproval,
         inspect_source_remove,
         require_source_remove,
     )
@@ -512,6 +592,41 @@ def coalesce_edits(
         merged_count += len(group) - 1
         if len(group) > 1:
             survivor.replace_gap_sec = _merged_pad_sec(project, group, defaults)
+            if survivor.source_timeline_span is not None:
+                timeline = SessionTimeline(project)
+                has_lane_clips = any(
+                    clip_plays_lane(project, clip, survivor.track_id) for clip in project.clips
+                )
+                if survivor.source_id is None and not has_lane_clips:
+                    merged_spans = timeline.map_source_span(
+                        survivor.track_id, SourceSec(survivor.start), SourceSec(survivor.end)
+                    )
+                elif survivor.source_id is not None or has_lane_clips:
+                    merged_spans = timeline.map_placements_source_span(
+                        survivor.track_id,
+                        {survivor.source_id},
+                        SourceSec(survivor.start),
+                        SourceSec(survivor.end),
+                    )
+                else:
+                    merged_spans = []
+                if (
+                    len(merged_spans) != 1
+                    or abs(
+                        float(merged_spans[0][1] - merged_spans[0][0])
+                        - (survivor.end - survivor.start)
+                    )
+                    > 1e-6
+                ):
+                    if skip_counts is None:
+                        raise ScopeChangedAtApproval(
+                            [CutScopeHold(survivor.id, (), "source_geometry")], {}
+                        )
+                    skip_counts["source_geometry"] = skip_counts.get("source_geometry", 0) + 1
+                    continue
+                survivor.source_timeline_span = RangeInterval(
+                    start=float(merged_spans[0][0]), end=float(merged_spans[0][1])
+                )
         if (
             survivor.type == EditDecisionType.REMOVE
             and not survivor.applied
@@ -544,7 +659,16 @@ def _merged_pad_sec(
     pad_sec = max(shortfalls, default=0.0)
     if len(shortfalls) < len(padded):
         top = group[0]
-        paced = paced_pad_for_span(project, top.track_id, top.start, top.end, defaults)
+        paced = paced_pad_for_span(
+            project,
+            top.track_id,
+            top.start,
+            top.end,
+            defaults,
+            transcript=_cut_transcript_for_source(project, top.track_id, top.source_id)
+            if top.source_timeline_span is not None
+            else None,
+        )
         pad_sec = max(pad_sec, paced.seconds(top.start, top.end))
     return pad_sec if pad_sec > 0 else None
 
@@ -648,6 +772,7 @@ def cut_utterance(
         end,
         reason=f"{NL_UTTERANCE_REASON_PREFIX}{text[:40]}",
         review_required=review_required,
+        use_inaudible_opt=use_inaudible_opt,
     )
 
 
@@ -661,7 +786,7 @@ def cut_words(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> EditDecision:
-    transcript = project.transcript_for_source(track_id, source_id)
+    transcript = _cut_transcript_for_source(project, track_id, source_id)
     if not transcript:
         raise ValueError(f"No transcript for track {track_id} source {source_id}")
     start, end = time_range_from_words(transcript, start_word_index, end_word_index)
@@ -673,6 +798,7 @@ def cut_words(
         end,
         reason=NL_WORDS_REASON,
         review_required=review_required,
+        use_inaudible_opt=use_inaudible_opt,
     )
 
 
@@ -685,52 +811,23 @@ def _cut_transcript_source_range(
     *,
     reason: str,
     review_required: bool,
+    use_inaudible_opt: bool | None,
 ) -> EditDecision:
-    """Stage a transcript cut against only placements of its source recording."""
-    transcript = project.transcript_for_source(track_id, source_id)
+    """Stage an ordinary cut using the selected recording's source clock."""
+    transcript = _cut_transcript_for_source(project, track_id, source_id)
     if transcript is None:
         raise ValueError(f"No transcript for track {track_id} source {source_id}")
-    timeline = SessionTimeline(project)
-    placements = {
-        clip.source_id
-        for clip in project.clips
-        if clip_plays_lane(project, clip, track_id)
-        and project.transcript_for_source(track_id, clip.source_id) is transcript
-    }
-    if placements:
-        spans = timeline.map_placements_source_span(track_id, placements, start, end)
-    elif source_id is None and not any(
-        clip_plays_lane(project, clip, track_id) for clip in project.clips
-    ):
-        # Native primary media with no explicit clip list uses the timeline's
-        # established implicit source clock. A deleted secondary take has no such fallback.
-        spans = timeline.map_source_span(track_id, start, end)
-    else:
-        spans = []
-    if not spans:
-        raise ValueError("Transcript selection has no audible placement")
-    intervals = [RangeInterval(start=float(a), end=float(b)) for a, b in spans]
-    from podcast_mcp.edits.range_edits import build_range_target
-
-    target = build_range_target(project, intervals, [track_id])
-    if not target.clips:
-        raise ValueError("Transcript selection has no audible placement")
-    decision = EditDecision(
-        id=f"cut_{uuid.uuid4().hex[:8]}",
-        track_id=track_id,
-        type=EditDecisionType.REMOVE,
-        start=float(intervals[0].start),
-        end=float(intervals[-1].end),
+    return add_remove_decision(
+        project,
+        track_id,
+        start,
+        end,
         reason=reason,
         review_required=review_required,
-        applied=False,
-        timebase="timeline",
-        track_ids=[track_id],
-        scope="track",
-        exact_range=target,
+        use_inaudible_opt=use_inaudible_opt,
+        source_id=source_id,
+        source_aware=True,
     )
-    project.edit_decisions.append(decision)
-    return decision
 
 
 def apply_edit_plan(

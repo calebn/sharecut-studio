@@ -994,8 +994,12 @@ def assess_cross_track_speech(
     if src_end <= src_start or not speech_energy_guard_enabled(defaults):
         return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
 
-    spans = SessionTimeline(project).map_source_span(
-        cut_track_id, SourceSec(src_start), SourceSec(src_end)
+    spans = (
+        list(_admissible_spans)
+        if _admissible_spans is not None
+        else SessionTimeline(project).map_source_span(
+            cut_track_id, SourceSec(src_start), SourceSec(src_end)
+        )
     )
     # A track-local hole inside the gap splits it into several mapped spans;
     # peer speech in any span at or above min_overlap can block, not just the

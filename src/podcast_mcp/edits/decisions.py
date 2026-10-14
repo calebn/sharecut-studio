@@ -181,7 +181,16 @@ def _near_on_timeline(
 
 
 def _source_extents(removes: list[EditDecision]) -> tuple[SourceExtent, ...]:
-    return tuple(SourceExtent(e.track_id, e.start, e.end) for e in removes)
+    return tuple(
+        SourceExtent(
+            e.track_id,
+            e.start,
+            e.end,
+            e.source_id,
+            source_scoped=e.source_timeline_span is not None,
+        )
+        for e in removes
+    )
 
 
 def _pre_pad_fade_out_ms() -> int:

@@ -29,7 +29,11 @@ from podcast_mcp.edits.timeline_ops import (
     punch_delete,
     ripple_delete,
 )
-from podcast_mcp.engines.session_timeline import SessionTimeline, origin_track_id_for_clip
+from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
+    clip_plays_lane,
+    origin_track_id_for_clip,
+)
 from podcast_mcp.models import (
     ClipJoinMode,
     EditDecision,
@@ -82,6 +86,26 @@ def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
     return (
         f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(cause, _UNCHECKED_LANE)}"
     )
+
+
+def _source_remove_lanes(
+    project: EpisodeProject,
+    timeline: SessionTimeline,
+    edit: EditDecision,
+    start: TimelineSec,
+    end: TimelineSec,
+) -> frozenset[str]:
+    if edit.source_timeline_span is not None:
+        selected = frozenset(
+            clip.track_id
+            for clip in project.clips
+            if clip.source_id == edit.source_id
+            and clip_plays_lane(project, clip, edit.track_id)
+            and min(float(end), clip.timeline_end) > max(float(start), clip.timeline_start) + 1e-9
+        )
+        if selected:
+            return selected
+    return timeline.origin_placement_lanes(edit.track_id, start, end)
 
 
 def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
@@ -162,10 +186,37 @@ def inspect_source_remove_placement(
     if pause and edit.scope == "track":
         return CutScopeHold(edit.id, (), "stored_track_pause")
     timeline = SessionTimeline(project)
-    span = timeline.exact_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
-    if (
-        span is None
-        or timeline.exact_timeline_source_span(
+    if edit.source_timeline_span is not None:
+        lane_clips = [c for c in project.clips if clip_plays_lane(project, c, edit.track_id)]
+        if lane_clips:
+            spans = timeline.map_placements_source_span(
+                edit.track_id,
+                {edit.source_id},
+                SourceSec(edit.start),
+                SourceSec(edit.end),
+            )
+        elif edit.source_id is None:
+            spans = timeline.map_source_span(
+                edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
+            )
+        else:
+            spans = []
+        expected = edit.source_timeline_span
+        if (
+            len(spans) != 1
+            or abs(float(spans[0][1] - spans[0][0]) - (edit.end - edit.start)) > 1e-6
+            or abs(float(spans[0][0]) - expected.start) > 1e-6
+            or abs(float(spans[0][1]) - expected.end) > 1e-6
+        ):
+            return CutScopeHold(edit.id, (), "source_geometry")
+        span = (TimelineSec(expected.start), TimelineSec(expected.end))
+    else:
+        if edit.source_id is not None:
+            return CutScopeHold(edit.id, (), "source_geometry")
+        span = timeline.exact_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
+    if span is None or (
+        edit.source_timeline_span is None
+        and timeline.exact_timeline_source_span(
             edit.track_id,
             *span,
             on_origin_lane=edit.scope == "track",
@@ -185,7 +236,7 @@ def inspect_source_remove_placement(
         ):
             return CutScopeHold(edit.id, (), "media_extent_unavailable")
         return CutScopeHold(edit.id, (), "source_geometry")
-    lanes = timeline.origin_placement_lanes(edit.track_id, *span)
+    lanes = _source_remove_lanes(project, timeline, edit, *span)
     allowed = (
         {edit.track_id}
         if edit.scope == "track"
@@ -258,10 +309,10 @@ def record_suggested_cut_speech(project: EpisodeProject, decision: EditDecision)
     Approval then asks to confirm that speech (Cut anyway) instead of holding the cut
     as changed.
     """
-    span = SessionTimeline(project).exact_source_span(
-        decision.track_id, SourceSec(decision.start), SourceSec(decision.end)
-    )
+    span = inspect_source_remove_placement(project, decision)
     if span is None:
+        return
+    if isinstance(span, CutScopeHold):
         return
     decision.cut_speech = assess_cut_speech(
         project,
@@ -511,16 +562,23 @@ def _consume_source_remove(
         if len(removal.spans) != 1:
             return CutScopeHold(edit.id, (), "source_geometry")
         tl_start, tl_end = removal.spans[0]
-    source = SessionTimeline(project).exact_timeline_source_span(
-        edit.track_id, TimelineSec(tl_start), TimelineSec(tl_end), on_origin_lane=scope == "track"
+    source = (
+        (SourceSec(actual.start), SourceSec(actual.end))
+        if edit.source_timeline_span is not None
+        else SessionTimeline(project).exact_timeline_source_span(
+            edit.track_id,
+            TimelineSec(tl_start),
+            TimelineSec(tl_end),
+            on_origin_lane=scope == "track",
+        )
     )
     if source is None:
         return CutScopeHold(edit.id, (), "source_geometry")
     tracks = (
         [edit.track_id] if removal is None else ripple_track_ids(project, removal.edited_track_ids)
     )
-    lanes = timeline.origin_placement_lanes(
-        edit.track_id, TimelineSec(tl_start), TimelineSec(tl_end)
+    lanes = _source_remove_lanes(
+        project, timeline, edit, TimelineSec(tl_start), TimelineSec(tl_end)
     )
     if not lanes or not lanes <= set(tracks):
         return CutScopeHold(edit.id, (), "operation_scope")
@@ -534,10 +592,14 @@ def _consume_source_remove(
     if isinstance(assessed, CutScopeHold):
         return assessed
     if scope != "track":
-        mapped_spans = tuple(
-            (float(start), float(end))
-            for start, end in timeline.map_source_span(
-                edit.track_id, SourceSec(actual.start), SourceSec(actual.end)
+        mapped_spans = (
+            ((edit.source_timeline_span.start, edit.source_timeline_span.end),)
+            if edit.source_timeline_span is not None
+            else tuple(
+                (float(start), float(end))
+                for start, end in timeline.map_source_span(
+                    edit.track_id, SourceSec(actual.start), SourceSec(actual.end)
+                )
             )
         )
         admissible_spans = mapped_spans if not pause else None
@@ -616,6 +678,7 @@ def _consume_source_remove(
                 "scope": scope,
                 "source_start": actual.start,
                 "source_end": actual.end,
+                **({"source_id": edit.source_id} if edit.source_timeline_span is not None else {}),
             },
         )
     assert removal is not None
@@ -698,6 +761,7 @@ def _consume_source_remove(
             "scope": scope,
             "source_start": actual.start,
             "source_end": actual.end,
+            **({"source_id": edit.source_id} if edit.source_timeline_span is not None else {}),
             "crossfade_ms": actual.crossfade_ms,
             "next_burst_sec": actual.next_burst_sec,
             "pad_samples": samples,

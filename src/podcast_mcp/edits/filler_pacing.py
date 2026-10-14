@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.models import EpisodeProject, TranscriptWord
+from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 
 FillerPadMode = Literal["silence", "room_tone"]
 FILLER_PAD_MODES: tuple[FillerPadMode, ...] = ("silence", "room_tone")
@@ -107,13 +107,15 @@ def paced_pad_for_span(
     start: float,
     end: float,
     defaults: dict[str, Any] | None = None,
+    *,
+    transcript: Transcript | None = None,
 ) -> PacedPad:
     """The pad a ripple of ``[start, end]`` gets, read from the words around that span.
 
     Coalescing merges cuts into one wider cut; its pad is paced from the merged span by
     the same rule a single cut of that span would get (#1129).
     """
-    prev, nxt = flanking_retained_words(project, track_id, start, end)
+    prev, nxt = flanking_retained_words(project, track_id, start, end, transcript=transcript)
     inter_word = 0.0 if prev is None or nxt is None else max(0.0, nxt.start - prev.end)
     gap_sec = inter_word if _takes_whole_gap(inter_word, end - start, _tighten(defaults)) else 0.0
     return PacedPad.from_defaults(gap_sec, defaults)
@@ -141,6 +143,8 @@ def flanking_retained_words(
     track_id: str,
     cut_start: float,
     cut_end: float,
+    *,
+    transcript: Transcript | None = None,
 ) -> tuple[TranscriptWord | None, TranscriptWord | None]:
     """Nearest words fully outside ``[cut_start, cut_end]`` (timing anchors).
 
@@ -148,7 +152,7 @@ def flanking_retained_words(
     timing. Skipping them made room-tone expand jump to distant non-suppressed
     words and wipe huge ranges.
     """
-    tr = project.transcript_for_track(track_id)
+    tr = transcript if transcript is not None else project.transcript_for_track(track_id)
     if not tr:
         return None, None
     prev: TranscriptWord | None = None
@@ -229,6 +233,7 @@ def apply_filler_pacing(
     cut_kind: str = "filler",
     allow_gap_expand: bool = True,
     keeps_time: bool = False,
+    transcript: Transcript | None = None,
 ) -> FillerPacingResult | None:
     """Enforce post-filler pacing; return adjusted cut or ``None`` to skip.
 
@@ -261,7 +266,9 @@ def apply_filler_pacing(
     if min_gap <= 0:
         return FillerPacingResult(start=cut_start, end=cut_end)
 
-    prev, nxt = flanking_retained_words(project, track_id, cut_start, cut_end)
+    prev, nxt = flanking_retained_words(
+        project, track_id, cut_start, cut_end, transcript=transcript
+    )
     if prev is None or nxt is None:
         return FillerPacingResult(start=cut_start, end=cut_end)
 

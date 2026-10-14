@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
-from podcast_mcp.edits.range_edits import apply_ranges
 from podcast_mcp.edits.transcript_cuts import (
     append_remove_decision,
     apply_edit_plan,
@@ -26,6 +26,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
     MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
     Transcript,
@@ -683,24 +684,36 @@ def test_transcript_cuts_resolve_source_and_placement(tmp_path):
             track_id="host", source_id="B", words=[TranscriptWord(text="beta", start=0, end=0.4)]
         ),
     ]
+    proj.sources = [
+        SourceRecording(id="A", path="raw/take-a.wav"),
+        SourceRecording(id="B", path="raw/take-b.wav"),
+    ]
+    by_word = cut_words(proj, "host", 0, 0, source_id="B")
+    assert by_word.exact_range is None
+    assert by_word.source_id == "B"
+    assert by_word.source_timeline_span.start == 10
+    assert by_word.source_timeline_span.end == 10.4
+
     proj.combined_transcript = CombinedTranscript(
         utterances=[
-            CombinedUtterance(track_id="host", speaker="Host", start=0, end=0.4, text="stale")
+            CombinedUtterance(
+                track_id="host", speaker="Host", start=0, end=0.4, text="alpha", source_id="A"
+            ),
+            CombinedUtterance(
+                track_id="host", speaker="Host", start=0, end=0.4, text="beta", source_id="B"
+            ),
         ]
     )
-
-    by_word = cut_words(proj, "host", 0, 0, source_id="B")
-    assert by_word.exact_range is not None
-    assert [clip.id for clip in by_word.exact_range.clips] == ["take-b"]
-    assert by_word.exact_range.intervals[0].start == 10
-
     by_utterance = cut_utterance(proj, 1)
-    assert by_utterance.exact_range is not None
-    assert [clip.id for clip in by_utterance.exact_range.clips] == ["take-b"]
-    assert by_utterance.exact_range.intervals[0].start == 10
+    assert by_utterance.source_id == "B"
+    assert by_utterance.source_timeline_span.start == 10
+    saved = load_project(save_project(proj, tmp_path / "episode.project.json"))
+    persisted = next(row for row in saved.edit_decisions if row.id == by_word.id)
+    assert persisted.source_id == "B"
+    assert persisted.source_timeline_span.start == 10
 
 
-def test_transcript_cut_target_excludes_overlapping_unselected_take(tmp_path):
+def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monkeypatch):
     proj = _project_with_media()
     proj.clips = [
         Clip(
@@ -728,14 +741,54 @@ def test_transcript_cut_target_excludes_overlapping_unselected_take(tmp_path):
             track_id="host", source_id="B", words=[TranscriptWord(text="beta", start=0.1, end=0.4)]
         ),
     ]
+    proj.sources = [
+        SourceRecording(id="A", path="raw/take-a.wav"),
+        SourceRecording(id="B", path="raw/take-b.wav"),
+    ]
 
     decision = cut_words(proj, "host", 0, 0, source_id="B")
 
-    assert decision.exact_range is not None
-    apply_ranges(proj, [decision])
+    assert decision.source_id == "B"
+    assert decision.source_timeline_span.start == 0.1
+    assert decision.source_timeline_span.end == 0.4
+    monkeypatch.setattr(
+        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        lambda *args, **kwargs: ResolvedCutScope("session_clear"),
+    )
+    assert approve_edits(proj, [decision.id]) == 1
 
-    unselected_take = [clip for clip in proj.clips if clip.source_id == "A"]
-    assert [(clip.source_start, clip.source_end) for clip in unselected_take] == [(0, 10)]
+    assert all(clip.source_end <= 0.1 or clip.source_start >= 0.4 for clip in proj.clips)
+
+
+def test_transcript_cut_holds_if_selected_source_moves_before_approval(tmp_path):
+    from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+
+    proj = _project_with_media()
+    proj.clips = [
+        Clip(
+            id="take-b",
+            track_id="host",
+            source_id="B",
+            source_start=0,
+            source_end=10,
+            timeline_start=10,
+        )
+    ]
+    proj.sources = [SourceRecording(id="B", path="raw/take-b.wav")]
+    proj.transcripts = [
+        Transcript(
+            track_id="host", source_id="B", words=[TranscriptWord(text="beta", start=0.1, end=0.4)]
+        )
+    ]
+    decision = cut_words(proj, "host", 0, 0, source_id="B")
+    proj.clips[0].timeline_start = 20
+
+    with pytest.raises(ScopeChangedAtApproval, match="selected audio no longer has"):
+        approve_edits(proj, [decision.id])
+
+    assert [(clip.timeline_start, clip.source_start, clip.source_end) for clip in proj.clips] == [
+        (20, 0, 10)
+    ]
 
 
 def test_combined_projection_rebuilds_from_saved_current_source_transcripts(tmp_path):
