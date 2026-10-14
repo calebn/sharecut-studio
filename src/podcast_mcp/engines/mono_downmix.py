@@ -13,7 +13,6 @@ from pathlib import Path
 
 
 def channel_mean_pan_filter(channels: int) -> str:
-    """ffmpeg ``pan`` expression that downmixes to mono by averaging inputs."""
     if channels < 1:
         raise ValueError("channels must be >= 1")
     if channels == 1:
@@ -39,7 +38,6 @@ def _input_channels(path: Path) -> int:
 
 
 def ffmpeg_mono_mean_layout(path: Path) -> list[str]:
-    """ffmpeg output layout args that match wave's per-channel mean downmix."""
     channels = _input_channels(path)
     if channels == 1:
         return ["-ac", "1"]
