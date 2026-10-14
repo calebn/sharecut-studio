@@ -11,6 +11,7 @@ from pathlib import Path
 from stat import S_ISREG
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import numpy as np
 from filelock import FileLock, Timeout
 
 from podcast_mcp.config import whisper_cache_dir
@@ -656,6 +657,27 @@ class TranscriptionEngine:
         transcript.word_aligner = aligner.model.id
         transcript.alignment_score_method = ALIGNMENT_SCORE_METHOD
         return entry
+
+    def transcribe_samples(
+        self,
+        samples: np.ndarray,
+        *,
+        language: str | None = "en",
+        initial_prompt: str | None = None,
+    ) -> str:
+        """What the model hears in 16 kHz mono ``samples`` taken alone, as one string.
+
+        No VAD and no earlier text to condition on: the model sees only this audio, so a
+        sound that is not a word comes back as a filler or nothing.
+        """
+        segments, _ = self._get_model().transcribe(
+            samples.astype(np.float32, copy=False),
+            language=language,
+            initial_prompt=initial_prompt,
+            vad_filter=False,
+            condition_on_previous_text=False,
+        )
+        return " ".join(segment.text.strip() for segment in segments).strip()
 
     def transcribe_file(
         self,

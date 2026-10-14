@@ -116,6 +116,9 @@ tighten:
     # Breath rejection for each candidate run: heuristic by default, Silero
     # only when explicitly selected (falls back if unavailable or not 16 kHz).
     vad_backend: heuristic
+    # Each proposed run, heard alone by the project's Whisper model, that comes back as a
+    # word is labelled "possible missed word" (still proposed, never auto-applied).
+    word_probe: true
   # Floor left after trimming a long pause. Turn/dead-air (peer speaking in the
   # gap) can go this short. Solo same-speaker pauses use the higher floor below
   # so thinking / list-restart air is not crushed to a hard edit.
