@@ -837,10 +837,29 @@ def _classify_word_audibility(
     return "audible", None
 
 
-def _voice_floors(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict[str, float]:
-    """Each decoded track's audibility floor, raw, in the units its word levels are read in."""
+def _voice_offsets(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict[str, float]:
+    """Each decoded track's fixed offset (dB) onto the common voice scale, from its own profile.
+
+    Raw levels cannot be compared across mics: a call recording can carry another speaker
+    hotter than that speaker's own quiet mic, so their copy always outranks them. One static
+    offset per track, its own voice level (``LevelProfile.path_reference_db``), puts every
+    mic's own speaker at 0 dB. It is a constant of the recording, not a gain on the audio
+    (no compression, no normalization), and it moves with the file's gain, so a verdict
+    never depends on how loud the file was recorded (#1495).
+    """
     return {
-        tid: cache.profile.audibility_floor_db
+        tid: cache.profile.path_reference_db
+        for tid in track_ids
+        if (cache := caches.get(tid)) is not None
+    }
+
+
+def _voice_floors(
+    track_ids: Collection[str], caches: TrackRmsCacheSet, offsets: dict[str, float]
+) -> dict[str, float]:
+    """Each decoded track's audibility floor, on the same voice scale as its word levels."""
+    return {
+        tid: cache.profile.audibility_floor_db - offsets.get(tid, 0.0)
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -853,8 +872,9 @@ def _track_levels(
     t_end: float,
     lags: dict[str, float],
     caches: TrackRmsCacheSet,
+    offsets: dict[str, float],
 ) -> dict[str, float]:
-    """Each track's level for a timeline window, a lagged source read that much later."""
+    """Each track's level for a timeline window on the voice scale, a lagged source read later."""
     levels: dict[str, float] = {}
     for tid in track_ids:
         lag = lags.get(tid, 0.0)
@@ -862,7 +882,7 @@ def _track_levels(
             project, tid, t_start + lag, t_end + lag, caches=caches, recorded_gain=False
         )
         if rms is not None:
-            levels[tid] = rms
+            levels[tid] = rms - offsets.get(tid, 0.0)
     return levels
 
 
@@ -897,7 +917,8 @@ def compute_word_audibility_map(
     out: list[dict[str, Any]] = []
     all_tracks = dialogue_track_ids(project)
     targets = [track_id] if track_id else all_tracks
-    floors = _voice_floors(all_tracks, caches)
+    offsets = _voice_offsets(all_tracks, caches)
+    floors = _voice_floors(all_tracks, caches, offsets)
 
     lanes = lanes_transcripts(project, targets)
     total_words = sum(len(lane.transcript.words) for lane in lanes)
@@ -987,14 +1008,18 @@ def compute_word_audibility_map(
                     _tick()
                     continue
                 tl_start, tl_end = tl_span
-                track_rms = _track_levels(project, all_tracks, tl_start, tl_end, lags, caches)
+                track_rms = _track_levels(
+                    project, all_tracks, tl_start, tl_end, lags, caches, offsets
+                )
                 own_rms = track_rms.get(tid)
                 status, dominant = _classify_word_audibility(
                     tid, own_rms, track_rms, policy=pol, bleed_sources=paths, voice_floors=floors
                 )
                 unlike_copy = False
                 if status == "bleed" and dominant in lags:
-                    at_zero = _track_levels(project, all_tracks, tl_start, tl_end, {}, caches)
+                    at_zero = _track_levels(
+                        project, all_tracks, tl_start, tl_end, {}, caches, offsets
+                    )
                     zero = _classify_word_audibility(
                         tid,
                         at_zero.get(tid),

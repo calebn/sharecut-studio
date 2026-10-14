@@ -1972,27 +1972,70 @@ def test_reconciliation_evidence_leaves_the_effects_chain_out(tmp_path: Path, ga
     assert level_db(gain_db) - level_db(0.0) == pytest.approx(gain_db, abs=0.1)
 
 
-def test_reconcile_levels_and_floors_are_raw_not_scaled_by_balance_gain(tmp_path: Path) -> None:
-    """#1495: a track's balance gain (``gain_db``) never moves a reconcile level or floor."""
-    from podcast_mcp.engines import audio_audit as aa
-
+def _voice_scale_caches(a_gain: float = 1.0, b_gain: float = 1.0) -> TrackRmsCacheSet:
+    """A quiet mic A (own speech at 0.05) and a call recording B that carries A 12 dB hotter."""
     rate = 8000
     rng = np.random.default_rng(2)
-    clock = np.arange(4 * rate) / rate
-    voice = 0.2 * rng.normal(size=clock.size) * (0.5 - 0.5 * np.cos(2 * np.pi * 3 * clock))
-    samples = voice + 0.002 * rng.normal(size=clock.size)
-    project = EpisodeProject.create("ep", str(tmp_path))
-    project.timeline.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
-    caches = TrackRmsCacheSet(caches={"host": TrackRmsCache(samples=samples, sample_rate=rate)})
+    clock = np.arange(8 * rate) / rate
 
-    def read(gain_db: float) -> tuple[dict[str, float], dict[str, float]]:
-        project.timeline.tracks[0].gain_db = gain_db
-        levels = aa._track_levels(project, ["host"], 0.5, 1.5, {}, caches)
-        return levels, aa._voice_floors(["host"], caches)
+    def burst(start: float, end: float, amp: float) -> np.ndarray:
+        inside = (clock >= start) & (clock < end)
+        shape = 0.5 - 0.5 * np.cos(2 * np.pi * 4 * (clock - start))
+        return np.where(inside, amp * rng.normal(size=clock.size) * shape, 0.0)
 
-    flat, boosted = read(0.0), read(18.0)
-    assert boosted == flat
-    # ``measure_timeline_rms_db`` and the speech guard still read the recording's level.
-    assert aa._rms_for_track_at_timeline(project, "host", 0.5, 1.5, caches=caches) == pytest.approx(
-        flat[0]["host"] + 18.0
+    room = 0.0005
+    a = burst(0.5, 3.5, 0.05) + room * rng.normal(size=clock.size)
+    b = burst(0.5, 3.5, 0.2) + burst(4.5, 7.5, 0.2) + room * rng.normal(size=clock.size)
+    return TrackRmsCacheSet(
+        caches={
+            "a": TrackRmsCache(samples=a * a_gain, sample_rate=rate),
+            "b": TrackRmsCache(samples=b * b_gain, sample_rate=rate),
+        }
     )
+
+
+def _own_word_verdict(caches: TrackRmsCacheSet, project: EpisodeProject, *, start: float) -> str:
+    """The verdict for a word of A's at ``start`` (B is a bleed source for A)."""
+    from podcast_mcp.engines import audio_audit as aa
+
+    ids = ["a", "b"]
+    offsets = aa._voice_offsets(ids, caches)
+    floors = aa._voice_floors(ids, caches, offsets)
+    levels = aa._track_levels(project, ids, start, start + 1.0, {}, caches, offsets)
+    return aa._classify_word_audibility(
+        "a",
+        levels.get("a"),
+        levels,
+        policy=AnalysisPolicy(bleed_dominance_db=6.0),
+        bleed_sources={"b"},
+        voice_floors=floors,
+    )[0]
+
+
+def _two_mic_project(tmp_path: Path) -> EpisodeProject:
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="a", label="A", role=TrackRole.DIALOGUE),
+        Track(id="b", label="B", role=TrackRole.DIALOGUE),
+    ]
+    return project
+
+
+def test_a_hot_copy_on_another_recording_does_not_outrank_a_quiet_mic_own_speech(
+    tmp_path: Path,
+) -> None:
+    """#1495: B carries A 12 dB hotter than A's own mic; on raw levels B always dominates A."""
+    project = _two_mic_project(tmp_path)
+    assert _own_word_verdict(_voice_scale_caches(), project, start=1.0) == "audible"
+
+
+def test_reconcile_verdicts_do_not_depend_on_balance_gain_or_recording_gain(
+    tmp_path: Path,
+) -> None:
+    """#1495: a track's ``gain_db`` and a file recorded +12 dB hotter give the same verdicts."""
+    project = _two_mic_project(tmp_path)
+    base = _own_word_verdict(_voice_scale_caches(), project, start=1.0)
+    project.timeline.tracks[0].gain_db = 18.0
+    assert _own_word_verdict(_voice_scale_caches(), project, start=1.0) == base
+    for gains in ((4.0, 1.0), (1.0, 4.0), (0.25, 0.25)):
+        assert _own_word_verdict(_voice_scale_caches(*gains), project, start=1.0) == base
