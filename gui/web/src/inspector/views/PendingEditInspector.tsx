@@ -23,6 +23,7 @@ import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { PendingEditView } from "../../types/project";
 import { Button, DefItem, DefinitionList, FieldRow } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
 import {
   resolveCommentActor,
@@ -574,7 +575,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                     m:ss.mmm or seconds
                   </span>
                   <Button
-                    disabled={timingBusy}
+                    disabledReason={timingBusy ? BUSY_REASON : undefined}
                     onClick={() => void applyNudge()}
                   >
                     Apply
@@ -595,7 +596,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                     onChange={(e) => setTracksStr(e.target.value)}
                   />
                   <Button
-                    disabled={timingBusy}
+                    disabledReason={timingBusy ? BUSY_REASON : undefined}
                     onClick={() => void applyNudge()}
                   >
                     Apply tracks
@@ -651,7 +652,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 </label>
                 <Button
                   className="pending-source-time-apply"
-                  disabled={timingBusy}
+                  disabledReason={timingBusy ? BUSY_REASON : undefined}
                   onClick={() => void applyNudge()}
                 >
                   Apply timing
@@ -718,7 +719,10 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
               <p className="ui-field-hint">
                 Suggestion unavailable. {suggestion.state.message}
               </p>
-              <Button disabled={timingBusy} onClick={suggestion.retry}>
+              <Button
+                disabledReason={timingBusy ? BUSY_REASON : undefined}
+                onClick={suggestion.retry}
+              >
                 Retry suggestion
               </Button>
             </>

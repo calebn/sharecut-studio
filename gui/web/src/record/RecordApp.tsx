@@ -6,6 +6,7 @@ import {
   FocusPull,
   LoadingScreen,
 } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import "../styles/partials/record-entry.css";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
@@ -329,14 +330,17 @@ export function RecordApp({ token }: { token: string }) {
         </p>
         {!captureSettled ? <p>Finishing your full-quality recording…</p> : null}
         {captureSettled && keeperActions.recover ? (
-          <Button onClick={keeperActions.recover} disabled={keeperActions.busy}>
+          <Button
+            onClick={keeperActions.recover}
+            disabledReason={keeperActions.busy ? BUSY_REASON : undefined}
+          >
             Recover full-quality recording
           </Button>
         ) : null}
         {captureSettled && keeperActions.download ? (
           <Button
             onClick={keeperActions.download}
-            disabled={keeperActions.busy}
+            disabledReason={keeperActions.busy ? BUSY_REASON : undefined}
           >
             Download full-quality recording
           </Button>

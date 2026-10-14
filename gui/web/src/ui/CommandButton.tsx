@@ -4,18 +4,25 @@ import {
   type ReactNode,
 } from "react";
 import { Button, type ButtonVariant } from "./Button";
+import { type DisabledReasonProps, useDisabledReason } from "./disabledReason";
 import { useCommand } from "./useCommand";
+
+type WhenGate =
+  | { respectWhen?: false; whenReason?: never }
+  | {
+      /** Disable when the command's keyboard `when` fails. Pointer default skips it. */
+      respectWhen: true;
+      /** What the person reads when the `when` gate holds the command back. */
+      whenReason: string;
+    };
 
 type BaseProps = {
   commandId: string;
   args?: Record<string, unknown>;
-  /**
-   * When true, disable when the command's keyboard `when` fails.
-   * Default false — pointer uses skipWhen (historical transport policy).
-   */
-  respectWhen?: boolean;
   children?: ReactNode;
-} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children">;
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "disabled"> &
+  DisabledReasonProps &
+  WhenGate;
 
 export type CommandButtonProps = BaseProps & {
   /** Plain button for domain chrome (play-btn, transport-icon-btn). */
@@ -30,8 +37,9 @@ export function CommandButton({
   commandId,
   args,
   respectWhen = false,
+  whenReason,
   children,
-  disabled,
+  disabledReason,
   onClick,
   bare = false,
   variant = "default",
@@ -39,7 +47,10 @@ export function CommandButton({
   ...rest
 }: CommandButtonProps) {
   const { run, enabled, label } = useCommand(commandId);
-  const isDisabled = Boolean(disabled) || (respectWhen && !enabled);
+  const reason =
+    disabledReason || (respectWhen && !enabled ? whenReason : undefined);
+  const isDisabled = Boolean(reason);
+  const { attrs, note } = useDisabledReason(reason, rest["aria-describedby"]);
 
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     onClick?.(e);
@@ -54,15 +65,18 @@ export function CommandButton({
   if (bare) {
     const bareClass = className ? `ui-control ${className}` : "ui-control";
     return (
-      <button
-        type="button"
-        {...rest}
-        className={bareClass}
-        disabled={isDisabled}
-        onClick={handleClick}
-      >
-        {content}
-      </button>
+      <>
+        <button
+          type="button"
+          {...rest}
+          {...attrs}
+          className={bareClass}
+          onClick={handleClick}
+        >
+          {content}
+        </button>
+        {note}
+      </>
     );
   }
 
@@ -71,7 +85,7 @@ export function CommandButton({
       variant={variant}
       className={className}
       {...rest}
-      disabled={isDisabled}
+      disabledReason={reason}
       onClick={handleClick}
     >
       {content}

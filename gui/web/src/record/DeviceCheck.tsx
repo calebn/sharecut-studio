@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Button, Field } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { MicMeter } from "./MicMeter";
 import {
   copyForMicStatus,
@@ -98,7 +99,7 @@ export function DeviceCheck({
               variant="primary"
               type="button"
               onClick={onAllow}
-              disabled={prompting}
+              disabledReason={prompting ? BUSY_REASON : undefined}
               aria-busy={prompting}
               aria-describedby={grantHintId}
             >

@@ -6,6 +6,7 @@ import {
   joinNames,
 } from "../edit/cutSpeech";
 import { Button, Dialog, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { formatRulerTime } from "../utils/time";
 
 const QUOTED_WORDS_MAX = 8;
@@ -53,15 +54,25 @@ export function CutSpeechDialogView({
       footer={
         <div className="bounce-dialog-actions cut-speech-dialog-actions">
           {canLeaveGap ? (
-            <Button disabled={busy} onClick={onLeaveGap}>
+            <Button
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={onLeaveGap}
+            >
               Leave a gap
             </Button>
           ) : (
-            <Button disabled={busy} onClick={onClose}>
+            <Button
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={onClose}
+            >
               Cancel
             </Button>
           )}
-          <Button variant="danger" disabled={busy} onClick={onCutAnyway}>
+          <Button
+            variant="danger"
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={onCutAnyway}
+          >
             Cut anyway
           </Button>
         </div>

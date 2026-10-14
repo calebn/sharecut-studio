@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { waiveTranscriptRefine } from "../api";
 import { Button, Field } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import {
   errorMessage,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
@@ -80,7 +81,10 @@ export function TranscriptRefineRecovery({
           />
         )}
       </Field>
-      <Button disabled={busy} onClick={() => void submit()}>
+      <Button
+        disabledReason={busy ? BUSY_REASON : undefined}
+        onClick={() => void submit()}
+      >
         Waive with reason
       </Button>
     </section>

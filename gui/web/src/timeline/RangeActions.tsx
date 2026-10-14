@@ -5,6 +5,7 @@ import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
 import { useDaw } from "../state/useDaw";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 export function RangeActions({ sheet = false }: { sheet?: boolean }) {
   const state = useDaw((s) => ({
@@ -140,7 +141,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
           <Button
             type="button"
             className="ui-control--compact"
-            disabled={state.rangeBusy}
+            disabledReason={state.rangeBusy ? BUSY_REASON : undefined}
             onClick={() => {
               state.setSelection(null);
               state.setRangeArmed(false);

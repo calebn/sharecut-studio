@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import { type WhisperModelChoice } from "../api";
 import { useBootstrapDownload } from "../hooks/useBootstrapDownload";
 import { Button, Dialog, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 /** A pipeline run mode: an ordinary run, forced re-transcription, or a forced-aligner re-time. */
 export type PipelineRunMode = "run" | "retranscribe" | "retime";
@@ -185,7 +186,7 @@ export function WhisperDownloadDialog({
           ref={downloadBtnRef}
           variant="primary"
           type="button"
-          disabled={busy}
+          disabledReason={busy ? BUSY_REASON : undefined}
           onClick={() => void startDownload()}
         >
           {busy ? "Downloading…" : "Download"}
@@ -201,7 +202,11 @@ export function WhisperDownloadDialog({
         >
           Use without downloading
         </Button>
-        <Button type="button" disabled={busy} onClick={closeOrRevert}>
+        <Button
+          type="button"
+          disabledReason={busy ? BUSY_REASON : undefined}
+          onClick={closeOrRevert}
+        >
           Cancel
         </Button>
       </div>

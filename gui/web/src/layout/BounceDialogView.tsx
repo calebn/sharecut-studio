@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Button, Dialog, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 export type BounceSourceMode = "entire" | "selected" | "soloed";
 
@@ -121,7 +122,7 @@ export function BounceDialogView(props: BounceDialogViewProps) {
             <Button
               variant="primary"
               type="button"
-              disabled={busy}
+              disabledReason={busy ? BUSY_REASON : undefined}
               onClick={onBounce}
             >
               {busy ? "Bouncing…" : "Bounce"}

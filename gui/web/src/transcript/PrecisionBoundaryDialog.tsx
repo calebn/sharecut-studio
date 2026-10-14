@@ -20,6 +20,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { EditBoundaryView } from "../types/project";
 import { Button, Dialog, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 
 type LoadAction = "reload" | "retry" | null;
@@ -565,7 +566,7 @@ export function PrecisionBoundaryDialog({
           >
             <Button
               aria-label="Adjust by minus 10 milliseconds"
-              disabled={saving}
+              disabledReason={saving ? BUSY_REASON : undefined}
               onClick={() =>
                 changeValue(value - context.limits.regular_step_sec)
               }
@@ -574,7 +575,7 @@ export function PrecisionBoundaryDialog({
             </Button>
             <Button
               aria-label="Adjust by plus 10 milliseconds"
-              disabled={saving}
+              disabledReason={saving ? BUSY_REASON : undefined}
               onClick={() =>
                 changeValue(value + context.limits.regular_step_sec)
               }
@@ -694,7 +695,10 @@ export function PrecisionBoundaryDialog({
             </Button>
           </div>
           <div className="precision-boundary-actions">
-            <Button disabled={saving} onClick={onClose}>
+            <Button
+              disabledReason={saving ? BUSY_REASON : undefined}
+              onClick={onClose}
+            >
               Cancel
             </Button>
             <Button

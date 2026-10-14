@@ -4,6 +4,7 @@ import { canReply, canSetAction, commentRole } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import type { TimelineComment } from "../../types/project";
 import { Button, DefItem, DefinitionList } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { ModifierInspector } from "../ModifierInspector";
 
 interface Props {
@@ -112,7 +113,7 @@ export function CommentInspector({ comment, onSeek }: Props) {
             disabled={busy}
           />
           <Button
-            disabled={busy}
+            disabledReason={busy ? BUSY_REASON : undefined}
             onClick={() =>
               void reply(comment, replyBody).then((ok) => {
                 if (ok) {

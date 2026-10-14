@@ -25,6 +25,7 @@ import {
   Menu,
   MenuItem,
 } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
 import { sortedVolumePoints } from "../../utils/envelopes";
@@ -229,7 +230,10 @@ export function TrackInspector({
             </DefItem>
           </DefinitionList>
           <div className="modifier-footer-actions">
-            <Button disabled={busy} onClick={() => void importAudio()}>
+            <Button
+              disabledReason={busy ? BUSY_REASON : undefined}
+              onClick={() => void importAudio()}
+            >
               {track.media_path ? "Replace audio…" : "Import audio…"}
             </Button>
             {hostCanSplit ? (
@@ -247,7 +251,7 @@ export function TrackInspector({
               commandId="track.remove"
               args={{ trackId: track.id }}
               variant="danger"
-              disabled={busy}
+              disabledReason={busy ? BUSY_REASON : undefined}
             >
               Remove track
             </CommandButton>
