@@ -67,11 +67,8 @@ describe("saveStateText", () => {
     [{ kind: "saved" }, "Saved to project"],
     [{ kind: "waiting", count: 1 }, "Not saved yet · 1 waiting to send"],
     [{ kind: "waiting", count: 4 }, "Not saved yet · 4 waiting to send"],
-    [
-      { kind: "failed", cause: "refused", reason: "x" },
-      "Save failed · See why",
-    ],
-    [{ kind: "failed", cause: "unreadable" }, "Save failed · Retry"],
+    [{ kind: "failed", cause: "refused", reason: "x" }, "Save failed"],
+    [{ kind: "failed", cause: "unreadable" }, "Save failed"],
   ];
   it.each(cases)("%j reads %s", (state, text) => {
     expect(saveStateText(state)).toBe(text);
