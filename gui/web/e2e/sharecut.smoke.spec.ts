@@ -38,7 +38,11 @@ test.describe("Sharecut Studio smoke", () => {
     await expect
       .poll(() => hostOfflineQueueCount(page, e2eProjectPath))
       .toBe(1);
-    await expect(page.getByRole("alert")).toContainText("1 pending");
+    await expect(
+      page.getByRole("alert", {
+        name: /^Needs attention\. 1 pending(?:,|$)/,
+      }),
+    ).toBeVisible();
     await expect(
       page.getByText("AddComment did not return a comment"),
     ).toHaveCount(0);
