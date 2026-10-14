@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from podcast_mcp.config import join_micro_fade_ms, load_defaults
-from podcast_mcp.edits.audio_cache import TrackAudioCache, track_level_profile
+from podcast_mcp.edits.audio_cache import JUMP_SAMPLE_RATE, TrackAudioCache, track_level_profile
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
     InaudibleCutConfig,
@@ -230,7 +230,7 @@ def recommend_post_pad_fade_in_ms(
 
     fade_ms = min_ms
     if peak_db is not None:
-        profile = track_level_profile(project, track_id, audio_cache)
+        profile = track_level_profile(project, track_id, audio_cache, sample_rate=JUMP_SAMPLE_RATE)
         quiet_db = profile.voice_floor_db
         hot_db = profile.speech_db - hot_under_speech_db
         span = max(1e-6, hot_db - quiet_db)
@@ -288,7 +288,9 @@ def recommend_prev_word_lead_out_ms(
         )
         if db is not None:
             if not saw_energy:
-                quiet_db = track_level_profile(project, track_id, audio_cache).voice_floor_db
+                quiet_db = track_level_profile(
+                    project, track_id, audio_cache, sample_rate=JUMP_SAMPLE_RATE
+                ).voice_floor_db
             saw_energy = True
             if db <= quiet_db:
                 quiet_at = t

@@ -15,7 +15,7 @@ from podcast_mcp.engines.level_profile import (
     LEVEL_FRAME_SEC,
     PROFILE_SAMPLE_RATE,
     LevelProfile,
-    recording_profile,
+    file_level_profile,
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import scoped_by_file
@@ -156,16 +156,22 @@ class TrackAudioCache:
 
 
 def track_level_profile(
-    project: EpisodeProject, track_id: str, audio_cache: TrackAudioCache | None = None
+    project: EpisodeProject,
+    track_id: str,
+    audio_cache: TrackAudioCache | None = None,
+    *,
+    sample_rate: int = WAVEFORM_SAMPLE_RATE,
 ) -> LevelProfile:
     """The track's profile: ``audio_cache``'s, else its recording's, measured once per file.
 
+    ``sample_rate`` is the rate of the levels it is compared with (a floor is read at the
+    rate of the frames it is compared with): ``JUMP_SAMPLE_RATE`` for window RMS reads.
     Callers with no decode of the track (a cut re-optimized at approval, a natural-language
     edit) read the same levels the proposals did.
     """
     if audio_cache is not None:
-        return audio_cache.profile
-    return recording_profile(project, track_id)
+        return audio_cache.jump.profile if sample_rate == JUMP_SAMPLE_RATE else audio_cache.profile
+    return file_level_profile(track_audio_path(project, track_id), sample_rate=sample_rate)
 
 
 def _decode_track(path: Path) -> TrackAudioCache:
