@@ -16,6 +16,7 @@ from podcast_mcp.models.words_revision import (
     bumps_words_revision,
     words_revision,
 )
+from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
@@ -1123,7 +1124,8 @@ class EpisodeProject(BaseModel):
         self.render.last_reconciliation_hash = value
 
     def workspace_path(self) -> Path:
-        return Path(self.meta.workspace_dir).resolve()
+        workspace_dir = Path(self.meta.workspace_dir)
+        return scoped(("resolve", str(workspace_dir)), workspace_dir.resolve)
 
     def raw_dir(self) -> Path:
         return self.workspace_path() / "raw"

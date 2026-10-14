@@ -186,13 +186,13 @@ from podcast_mcp.effects.presets import (
     set_effect_bypass,
 )
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.engines.ungated_audio import decode_scope
 from podcast_mcp.history.manager import apply_snapshot_to_project, snapshot_from_project
 from podcast_mcp.history.rollback import RollbackOutcome
 from podcast_mcp.models import EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
 from podcast_mcp.util.progress import ProgressReporter
@@ -484,7 +484,7 @@ class EditService:
             restored = outcome is RollbackOutcome.RESTORED
 
         try:
-            with decode_scope():
+            with batch_scope():
                 return self.ws.mutate(
                     "before approve edits",
                     "after approve edits",

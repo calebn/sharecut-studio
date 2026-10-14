@@ -3,10 +3,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from podcast_mcp.util.batch_scope import scoped
+
+
+def _resolved(path: Path) -> Path:
+    return scoped(("resolve", str(path)), path.resolve)
+
 
 def same_recording(first: Path, second: Path) -> bool:
-    a = first.resolve()
-    b = second.resolve()
+    a = _resolved(first)
+    b = _resolved(second)
     if a == b:
         return True
     try:

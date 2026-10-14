@@ -5,7 +5,8 @@ import subprocess
 import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, partial
+from pathlib import Path
 
 import numpy as np
 
@@ -17,6 +18,7 @@ from podcast_mcp.engines.level_profile import (
     recording_profile,
 )
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.batch_scope import scoped_by_file
 from podcast_mcp.util.dsp import (
     DIGITAL_SILENCE_DB,
     LOW_BAND,
@@ -166,6 +168,13 @@ def track_level_profile(
     return recording_profile(project, track_id)
 
 
+def _decode_track(path: Path) -> TrackAudioCache:
+    return TrackAudioCache(
+        jump=TrackRmsCache.from_timeline_stem(path, sample_rate=JUMP_SAMPLE_RATE),
+        waveform=TrackRmsCache.from_timeline_stem(path, sample_rate=WAVEFORM_SAMPLE_RATE),
+    )
+
+
 def build_track_audio_caches(
     project: EpisodeProject, track_ids: Iterable[str]
 ) -> dict[str, TrackAudioCache]:
@@ -189,10 +198,7 @@ def build_track_audio_caches(
             continue
         try:
             path = track_audio_path(project, tid)
-            cache = TrackAudioCache(
-                jump=TrackRmsCache.from_timeline_stem(path, sample_rate=JUMP_SAMPLE_RATE),
-                waveform=TrackRmsCache.from_timeline_stem(path, sample_rate=WAVEFORM_SAMPLE_RATE),
-            )
+            cache = scoped_by_file("track_audio_cache", path, None, partial(_decode_track, path))
         except Exception as exc:
             log.debug("audio cache skipped for track %s: %s", tid, exc)
             continue
