@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.util.progress import (
@@ -105,6 +106,46 @@ def test_rerender_preview_skips_reconcile_and_missing_premix(tmp_path):
     assert info["ok"] is False
     assert info["path"] is None
     stale.assert_called_once()
+
+
+def test_rerender_preview_skips_reconcile_when_fresh(tmp_path):
+    proj = EpisodeProject.create("t", str(tmp_path))
+    proj.ensure_dirs()
+    (proj.artifacts_dir() / "premix.wav").write_bytes(b"x")
+    mark_reconciliation_fresh(proj)
+
+    with (
+        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
+        patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
+    ):
+        runner_cls.return_value.run = MagicMock()
+        info = rerender_preview(proj, reconcile=True)
+
+    auto_rec.assert_not_called()
+    assert info["ok"] is True
+    assert "reconciliation" not in info
+    assert proj.reconciliation_stale is False
+
+
+def test_rerender_preview_clears_stale_flag_after_mix_when_audio_unchanged(tmp_path):
+    proj = EpisodeProject.create("t", str(tmp_path))
+    proj.ensure_dirs()
+    (proj.artifacts_dir() / "premix.wav").write_bytes(b"x")
+    mark_reconciliation_fresh(proj)
+
+    def fake_run(project, *, only_step=None, progress=None, **kwargs):
+        if only_step == "assemble_timeline":
+            project.reconciliation_stale = True
+
+    with (
+        patch("podcast_mcp.render.PipelineRunner") as runner_cls,
+        patch("podcast_mcp.render.maybe_auto_reconcile") as auto_rec,
+    ):
+        runner_cls.return_value.run = MagicMock(side_effect=fake_run)
+        rerender_preview(proj, reconcile=True)
+
+    auto_rec.assert_not_called()
+    assert proj.reconciliation_stale is False
 
 
 def test_rerender_preview_missing_premix_keeps_reconciliation(tmp_path):
