@@ -117,7 +117,11 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   recorded. The bleed gate and alignment read the voice level of the lane audio they decode.
   Comparisons between two tracks (which side of a pair is louder, a copy's level against its
   source) add back the difference of the two references (`LevelProfile.path_reference_db`),
-  so they compare the tracks as recorded, as before.
+  so they compare the tracks as recorded, as before: a track that holds only bleed (a muted
+  guest) reads its bleed as its own voice, so only the as-recorded comparison can find it.
+  Reconcile's evidence is each track before its effects chain
+  (`build_reconciliation_caches(..., unprocessed=True)`): a compressor's threshold is an
+  absolute level, so a processed stem moves less than the recording's gain does (#1495).
 - Digital silence (`util.dsp.DIGITAL_SILENCE_DB`) reads the same at any gain.
 
 The bleed path's offsets were dBFS levels set on the lab tape, whose tracks' median voice
