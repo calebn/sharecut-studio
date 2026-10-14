@@ -35,6 +35,8 @@ export type StaleRenderBreakdown = {
   premixStaleVsMix: boolean;
   /** Mix mode would play an old or missing premix (any of the three above). */
   premixBehind: boolean;
+  /** A render-preview would change something: stale stems, an old premix, or needs_rerender. Reconcile alone does not count. */
+  renderBehind: boolean;
   reconcileStale: boolean;
   invalidations: RenderInvalidationView[];
   /** Tracks with a whole-track (non-regional) invalidation. */
@@ -106,6 +108,7 @@ function freshBreakdown(): StaleRenderBreakdown {
     premixStaleVsStems: false,
     premixStaleVsMix: false,
     premixBehind: false,
+    renderBehind: false,
     reconcileStale: false,
     invalidations: [],
     wholeTrackIds: [],
@@ -225,6 +228,9 @@ export function staleRenderBreakdown(
 
   const detail = parts.filter((p) => p !== MIX_MISSING_LABEL).join(" · ");
 
+  const renderBehind =
+    Boolean(rs.needs_rerender) || staleTrackIds.length > 0 || premixBehind;
+
   return {
     stale,
     staleTrackIds,
@@ -232,6 +238,7 @@ export function staleRenderBreakdown(
     premixStaleVsStems,
     premixStaleVsMix,
     premixBehind,
+    renderBehind,
     reconcileStale,
     invalidations,
     wholeTrackIds: [...wholeTrackIds],
@@ -244,6 +251,25 @@ export function staleRenderBreakdown(
       : MIX_FRESH_LABEL,
     detail: detail || null,
   };
+}
+
+/**
+ * Names one stale state of the mix, or null when a rebuild has nothing to do.
+ * A new edit changes the key (its invalidation id, the stale stems, the premix
+ * flags), so the auto-rebuild can tell a new change from a state it already
+ * tried and could not clear.
+ */
+export function mixRebuildKey(breakdown: StaleRenderBreakdown): string | null {
+  if (!breakdown.renderBehind) {
+    return null;
+  }
+  return JSON.stringify([
+    [...breakdown.staleTrackIds].sort(),
+    breakdown.premixMissing,
+    breakdown.premixStaleVsStems,
+    breakdown.premixStaleVsMix,
+    breakdown.invalidations.map((inv) => inv.id).sort(),
+  ]);
 }
 
 export function invalidationsForTrack(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import {
+  mixRebuildKey,
   reasonChipLabel,
   staleMixLabel,
   staleRenderBreakdown,
@@ -417,5 +418,64 @@ describe("staleRenderBreakdown", () => {
     expect(b.premixStaleVsMix).toBe(true);
     expect(b.staleTrackIds).toEqual([]);
     expect(b.summary).toBe("Volume or mute changed");
+  });
+});
+
+describe("mixRebuildKey", () => {
+  const project = (renderStatus: Record<string, unknown>) =>
+    minimalProject({
+      tracks: [sampleTrack({ id: "host", stem_is_fresh: true })],
+      render_status: {
+        needs_rerender: false,
+        reconciliation: { stale: false },
+        premix: { exists: true },
+        ...renderStatus,
+      },
+    });
+  const invalidation = (id: string) => ({
+    id,
+    track_ids: ["host"],
+    timeline_start: null,
+    timeline_end: null,
+    reason: "cut",
+    at: "2026-10-14T00:00:00Z",
+  });
+
+  it("is null when a rebuild has nothing to do", () => {
+    expect(mixRebuildKey(staleRenderBreakdown(project({})))).toBeNull();
+  });
+
+  it("is null when only the transcript is out of date", () => {
+    const b = staleRenderBreakdown(
+      project({ reconciliation: { stale: true } }),
+    );
+    expect(b.stale).toBe(true);
+    expect(b.renderBehind).toBe(false);
+    expect(mixRebuildKey(b)).toBeNull();
+  });
+
+  it("changes with each new edit so a new change is told from a tried state", () => {
+    const behind = { premix: { exists: true, stale_vs_stems: true } };
+    const first = mixRebuildKey(
+      staleRenderBreakdown(
+        project({ ...behind, invalidations: [invalidation("a")] }),
+      ),
+    );
+    const same = mixRebuildKey(
+      staleRenderBreakdown(
+        project({ ...behind, invalidations: [invalidation("a")] }),
+      ),
+    );
+    const next = mixRebuildKey(
+      staleRenderBreakdown(
+        project({
+          ...behind,
+          invalidations: [invalidation("a"), invalidation("b")],
+        }),
+      ),
+    );
+    expect(first).not.toBeNull();
+    expect(same).toBe(first);
+    expect(next).not.toBe(first);
   });
 });

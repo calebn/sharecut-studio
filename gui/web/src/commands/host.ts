@@ -94,7 +94,9 @@ function runRecordTransportCommand(
   });
 }
 export function registerHostCommands(): void {
-  registerCommand("render.refreshMix", async () => {
+  registerCommand("render.refreshMix", async (args) => {
+    // The automatic rebuild (useAutoRefreshMix) stays quiet unless it fails.
+    const quiet = args.auto === true;
     const s = useDawStore.getState();
     if (
       !canRefreshMix(s.projectPath, s.guestMode, s.shareCapabilities) ||
@@ -109,7 +111,9 @@ export function registerHostCommands(): void {
     const isCurrentProject = () =>
       useDawStore.getState().projectEpoch === projectEpoch;
     s.setRenderPreviewBusy(true);
-    s.announceStatus("Refreshing mix preview…");
+    if (!quiet) {
+      s.announceStatus("Refreshing mix preview…");
+    }
     try {
       const started = await startRenderPreview(s.projectPath);
       if (!isCurrentProject()) {
@@ -144,7 +148,9 @@ export function registerHostCommands(): void {
       }
       const store = useDawStore.getState();
       store.setHighlightStaleRender(false);
-      store.announceStatus("Mix preview refreshed");
+      if (!quiet) {
+        store.announceStatus("Mix preview refreshed");
+      }
       return { status: "ok" };
     } catch (err) {
       const reason = errorMessage(err);
