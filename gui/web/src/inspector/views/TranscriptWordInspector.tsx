@@ -61,10 +61,12 @@ const APPLIED_CORRECTIONS_KEPT = 20;
 export function TranscriptWordInspector({
   trackId,
   wordIndex,
+  sourceId,
   embedded = false,
 }: {
   trackId: string;
   wordIndex: number;
+  sourceId?: string | null;
   /** Docked inside TranscriptPanel (text focus) — not the side rail. */
   embedded?: boolean;
 }) {
@@ -76,9 +78,9 @@ export function TranscriptWordInspector({
   const word = useMemo(
     () =>
       project && wordsHydrated
-        ? findTranscriptWord(project, trackId, wordIndex)
+        ? findTranscriptWord(project, trackId, wordIndex, sourceId)
         : null,
-    [project, trackId, wordIndex, wordsHydrated],
+    [project, trackId, wordIndex, sourceId, wordsHydrated],
   );
   // Word texts on this track under the shared duplicate-index rule (#650): a
   // disagreeing duplicate maps to null. `findTranscriptWord` stays
@@ -152,6 +154,7 @@ export function TranscriptWordInspector({
   };
 
   const editable = !isShareProjectKey(projectPath);
+  const recordingSourceId = word?.timing_target?.source_id ?? null;
   const suppressed = Boolean(word?.suppressed);
   const ignored = Boolean(word?.ignored);
   const locked = Boolean(word?.audibility_locked);
@@ -217,6 +220,7 @@ export function TranscriptWordInspector({
           endIndex,
           text,
           expectedText,
+          recordingSourceId,
         ),
       endIndex === wordIndex ? "Word text fixed" : "Phrase text fixed",
     );
@@ -281,6 +285,7 @@ export function TranscriptWordInspector({
           wordIndex,
           !suppressed,
           wordSpanText,
+          recordingSourceId,
         ),
       suppressed
         ? "Word put back in the transcript text"
@@ -297,6 +302,7 @@ export function TranscriptWordInspector({
           trackId,
           wordIndex,
           wordSpanText,
+          recordingSourceId,
         ),
       "Word back to automatic",
     );
@@ -316,6 +322,7 @@ export function TranscriptWordInspector({
           wordIndex,
           !ignored,
           wordSpanText,
+          recordingSourceId,
         ),
       ignored ? "Restored word" : "Ignored word",
     );

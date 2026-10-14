@@ -155,16 +155,27 @@ def inspect_source_remove_placement(
     if pause and edit.scope == "track":
         return CutScopeHold(edit.id, (), "stored_track_pause")
     timeline = SessionTimeline(project)
-    span = timeline.exact_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
-    if (
-        span is None
-        or timeline.exact_timeline_source_span(
-            edit.track_id,
-            *span,
-            on_origin_lane=edit.scope == "track",
+    if edit.recording_scope:
+        span = timeline.exact_selected_source_span(
+            edit.track_id, edit.source_id, SourceSec(edit.start), SourceSec(edit.end)
         )
-        is None
-    ):
+        reverse_ok = span is not None and bool(
+            timeline.map_selected_source_span(
+                edit.track_id, edit.source_id, SourceSec(edit.start), SourceSec(edit.end)
+            )
+        )
+    else:
+        span = timeline.exact_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
+        reverse_ok = (
+            span is not None
+            and timeline.exact_timeline_source_span(
+                edit.track_id,
+                *span,
+                on_origin_lane=edit.scope == "track",
+            )
+            is not None
+        )
+    if span is None or not reverse_ok:
         track = project.track_by_id(edit.track_id)
         if (
             track
@@ -245,9 +256,18 @@ def record_suggested_cut_speech(project: EpisodeProject, decision: EditDecision)
     Approval then asks to confirm that speech (Cut anyway) instead of holding the cut
     as changed.
     """
-    span = SessionTimeline(project).exact_source_span(
-        decision.track_id, SourceSec(decision.start), SourceSec(decision.end)
-    )
+    timeline = SessionTimeline(project)
+    if decision.recording_scope:
+        span = timeline.exact_selected_source_span(
+            decision.track_id,
+            decision.source_id,
+            SourceSec(decision.start),
+            SourceSec(decision.end),
+        )
+    else:
+        span = timeline.exact_source_span(
+            decision.track_id, SourceSec(decision.start), SourceSec(decision.end)
+        )
     if span is None:
         return
     decision.cut_speech = assess_cut_speech(

@@ -166,33 +166,15 @@ describe("setTranscriptWordSuppressed", () => {
 });
 
 describe("word commands on a multi-take track (#1476)", () => {
-  afterEach(() => vi.mocked(useDawStore.getState).mockReturnValue({} as never));
-
-  const lane = (sourceId: string | null) => ({
-    project: {
-      transcript: {
-        utterances: [
-          {
-            track_id: "host",
-            words: [
-              {
-                word_index: 0,
-                timing_target: {
-                  track_id: "host",
-                  source_id: sourceId,
-                  word_index: 0,
-                },
-              },
-            ],
-          },
-        ],
-      },
-    },
-  });
-
   it("sends the recording the indexed words belong to", async () => {
-    vi.mocked(useDawStore.getState).mockReturnValue(lane("take1") as never);
-    await setTranscriptWordSuppressed("/tmp/ep", "host", 0, true);
+    await setTranscriptWordSuppressed(
+      "/tmp/ep",
+      "host",
+      0,
+      true,
+      undefined,
+      "take1",
+    );
     expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
       "/tmp/ep",
       "SetTranscriptWordSuppressed",
@@ -202,8 +184,7 @@ describe("word commands on a multi-take track (#1476)", () => {
   });
 
   it("omits source_id when the words carry none", async () => {
-    vi.mocked(useDawStore.getState).mockReturnValue(lane(null) as never);
-    await setTranscriptWordAutomatic("/tmp/ep", "host", 0);
+    await setTranscriptWordAutomatic("/tmp/ep", "host", 0, undefined, null);
     expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
       "/tmp/ep",
       "SetTranscriptWordAutomatic",

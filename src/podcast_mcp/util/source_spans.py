@@ -16,10 +16,17 @@ def source_span_timeline_bounds(
     source_start: float,
     source_end: float,
     *,
+    source_id: str | None = None,
+    selected_recording: bool = False,
     default: tuple[float | None, float | None] = (None, None),
 ) -> tuple[float | None, float | None]:
     """First/last timeline bounds of a source span, with the caller's empty fallback."""
-    spans = timeline.map_source_span(track_id, SourceSec(source_start), SourceSec(source_end))
+    if selected_recording:
+        spans = timeline.map_selected_source_span(
+            track_id, source_id, SourceSec(source_start), SourceSec(source_end)
+        )
+    else:
+        spans = timeline.map_source_span(track_id, SourceSec(source_start), SourceSec(source_end))
     if not spans:
         return default
     return float(spans[0][0]), float(spans[-1][1])

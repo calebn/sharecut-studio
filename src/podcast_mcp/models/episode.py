@@ -554,6 +554,9 @@ class EditDecision(BaseModel):
     # Clock for start/end. remove/mute are source; blade split is timeline.
     timebase: str = "source"
     exact_range: ExactRangeTarget | None = None
+    # When True, placement and apply target only clips for ``source_id`` on this lane (#1486).
+    recording_scope: bool = False
+    source_id: str | None = None
 
 
 class AppliedEditRecord(BaseModel):

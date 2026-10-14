@@ -89,7 +89,11 @@ const WORDS_LOADING_REASON = "Wait for the transcript words to load.";
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
 
-type WordRef = { trackId: string; wordIndex: number };
+type WordRef = {
+  trackId: string;
+  wordIndex: number;
+  sourceId?: string | null;
+};
 
 function wordInRange(
   selection: {
@@ -277,10 +281,14 @@ export function TranscriptPanel() {
    * Open word correction from a touch gesture. Scoped to the gesture: the
    * previous intent (and Select range) comes back once the sheet closes.
    */
-  const openWordCorrection = ({ trackId, wordIndex }: WordRef): boolean => {
+  const openWordCorrection = ({
+    trackId,
+    wordIndex,
+    sourceId,
+  }: WordRef): boolean => {
     if (
       !canCorrect ||
-      !findTranscriptWordIn(allUtterances, trackId, wordIndex)
+      !findTranscriptWordIn(allUtterances, trackId, wordIndex, sourceId)
     ) {
       return false;
     }
@@ -291,7 +299,7 @@ export function TranscriptPanel() {
       };
     }
     setIntent("correct");
-    setSelection({ kind: "transcriptWord", trackId, wordIndex });
+    setSelection({ kind: "transcriptWord", trackId, wordIndex, sourceId });
     return true;
   };
 
@@ -1071,9 +1079,10 @@ export function TranscriptPanel() {
       {dockWordEditor && selection?.kind === "transcriptWord" ? (
         <div className="transcript-docked-editor">
           <TranscriptWordInspector
-            key={`${selection.trackId}:${selection.wordIndex}`}
+            key={`${selection.trackId}:${selection.sourceId ?? ""}:${selection.wordIndex}`}
             trackId={selection.trackId}
             wordIndex={selection.wordIndex}
+            sourceId={selection.sourceId}
             embedded
           />
         </div>

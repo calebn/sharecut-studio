@@ -437,7 +437,12 @@ export type Selection =
   | { kind: "chapter"; id: string; time: number }
   | { kind: "social"; id: string }
   | { kind: "comment"; id: string }
-  | { kind: "transcriptWord"; trackId: string; wordIndex: number }
+  | {
+      kind: "transcriptWord";
+      trackId: string;
+      wordIndex: number;
+      sourceId?: string | null;
+    }
   | {
       kind: "transcriptRange";
       trackId: string;

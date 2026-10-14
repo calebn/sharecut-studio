@@ -12,15 +12,23 @@ export function findTranscriptWordIn(
   utterances: readonly CombinedUtterance[],
   trackId: string,
   wordIndex: number,
+  sourceId?: string | null,
 ): TranscriptWordView | null {
   for (const utterance of utterances) {
     if (utterance.track_id !== trackId) {
       continue;
     }
     for (const word of utterance.words ?? []) {
-      if (word.word_index === wordIndex) {
-        return word;
+      if (word.word_index !== wordIndex) {
+        continue;
       }
+      if (sourceId !== undefined) {
+        const wordSource = word.timing_target?.source_id ?? null;
+        if (wordSource !== sourceId) {
+          continue;
+        }
+      }
+      return word;
     }
   }
   return null;
@@ -31,34 +39,14 @@ export function findTranscriptWord(
   project: ProjectView | null,
   trackId: string,
   wordIndex: number,
+  sourceId?: string | null,
 ): TranscriptWordView | null {
   return findTranscriptWordIn(
     project?.transcript?.utterances ?? [],
     trackId,
     wordIndex,
+    sourceId,
   );
-}
-
-/**
- * The recording the track's indexed words belong to. The host numbers `word_index` within one
- * recording and refuses a bare index on a track recorded as several takes, so every word
- * command sends this alongside the index (#1476). Null when the track has no indexed word.
- */
-export function trackWordSourceId(
-  project: ProjectView | null,
-  trackId: string,
-): string | null {
-  for (const utterance of project?.transcript?.utterances ?? []) {
-    if (utterance.track_id !== trackId) {
-      continue;
-    }
-    for (const word of utterance.words ?? []) {
-      if (word.word_index !== undefined) {
-        return word.timing_target?.source_id ?? null;
-      }
-    }
-  }
-  return null;
 }
 
 /** Indexed words on `trackId` with `lo <= word_index <= hi`, in transcript order (duplicates included). */

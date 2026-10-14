@@ -17,7 +17,12 @@ from podcast_mcp.edits.filler_pacing import paced_pad_for_span
 from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
 from podcast_mcp.edits.tighten_reasons import is_review_only_reason
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
+from podcast_mcp.engines.lane_words import lane_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.utterance_runs import (
+    UtteranceRunSourceMatcher,
+    lane_has_recording_clips,
+)
 from podcast_mcp.models import (
     CombinedTranscript,
     EditDecision,
@@ -47,13 +52,36 @@ def _timeline_span_for_source(
     track_id: str,
     src_start: float,
     src_end: float,
+    *,
+    source_id: str | None = None,
+    selected_recording: bool = False,
 ) -> tuple[float | None, float | None]:
     """Map a source-clock span to session timeline (None if fully cut away)."""
-    return source_span_timeline_bounds(SessionTimeline(project), track_id, src_start, src_end)
+    return source_span_timeline_bounds(
+        SessionTimeline(project),
+        track_id,
+        src_start,
+        src_end,
+        source_id=source_id,
+        selected_recording=selected_recording,
+    )
 
 
-def _with_timeline_spans(project: EpisodeProject, match: TranscriptMatch) -> TranscriptMatch:
-    tl_start, tl_end = _timeline_span_for_source(project, match.track_id, match.start, match.end)
+def _with_timeline_spans(
+    project: EpisodeProject,
+    match: TranscriptMatch,
+    *,
+    source_id: str | None = None,
+    selected_recording: bool = False,
+) -> TranscriptMatch:
+    tl_start, tl_end = _timeline_span_for_source(
+        project,
+        match.track_id,
+        match.start,
+        match.end,
+        source_id=source_id,
+        selected_recording=selected_recording,
+    )
     if match.timeline_start is None:
         match.timeline_start = tl_start
     if match.timeline_end is None:
@@ -84,7 +112,11 @@ def search_transcript(
         return []
     matches: list[TranscriptMatch] = []
     combined = ensure_combined_transcript(project)
+    run_sources = UtteranceRunSourceMatcher.for_project(project)
     for idx, utt in enumerate(combined.utterances):
+        matched, source_id = run_sources.try_source_id_for(
+            utt.track_id, utt.start, utt.end, utt.text
+        )
         if track_id and utt.track_id != track_id:
             continue
         if speaker and normalize_text(utt.speaker) != normalize_text(speaker):
@@ -102,6 +134,9 @@ def search_transcript(
                         speaker=utt.speaker,
                         utterance_index=idx,
                     ),
+                    source_id=source_id,
+                    selected_recording=matched
+                    and lane_has_recording_clips(project, utt.track_id, source_id),
                 )
             )
 
@@ -136,6 +171,10 @@ def search_transcript(
                                 speaker=sp,
                                 word_start_index=i,
                                 word_end_index=j,
+                            ),
+                            source_id=transcript.source_id,
+                            selected_recording=lane_has_recording_clips(
+                                project, transcript.track_id, transcript.source_id
                             ),
                         )
                     )
@@ -263,6 +302,8 @@ def add_remove_decision(
     crossfade_ms: int = 10,
     use_inaudible_opt: bool | None = None,
     defaults: dict | None = None,
+    recording_scope: bool = False,
+    source_id: str | None = None,
 ) -> EditDecision:
     if end <= start:
         raise ValueError("end must be greater than start")
@@ -287,6 +328,8 @@ def add_remove_decision(
             end=end,
             reason=reason,
             applied=False,
+            recording_scope=recording_scope,
+            source_id=source_id,
         ),
     )
     if isinstance(placement, CutScopeHold):
@@ -366,6 +409,8 @@ def add_remove_decision(
         cut_confidence=opt.confidence,
         boundary_mode=opt.mode,
         replace_gap_sec=replace_gap,
+        recording_scope=recording_scope,
+        source_id=source_id,
     )
     require_source_remove(project, decision)
     if guard is not None and guard.blocked:
@@ -579,6 +624,8 @@ def cut_time_range(
     crossfade_ms: int = 10,
     use_inaudible_opt: bool | None = None,
     defaults: dict | None = None,
+    recording_scope: bool = False,
+    source_id: str | None = None,
 ) -> EditDecision:
     return add_remove_decision(
         project,
@@ -590,6 +637,8 @@ def cut_time_range(
         crossfade_ms=crossfade_ms,
         use_inaudible_opt=use_inaudible_opt,
         defaults=defaults,
+        recording_scope=recording_scope,
+        source_id=source_id,
     )
 
 
@@ -632,6 +681,15 @@ def cut_utterance(
 ) -> EditDecision:
     combined = ensure_combined_transcript(project)
     tid, start, end, text = time_range_from_utterance(combined, utterance_index)
+    matched, source_id = False, None
+    matcher = UtteranceRunSourceMatcher.for_project(project)
+    for i, utt in enumerate(combined.utterances):
+        hit, sid = matcher.try_source_id_for(utt.track_id, utt.start, utt.end, utt.text)
+        if i == utterance_index:
+            matched, source_id = hit, sid
+            break
+    multi_take = len([tr for tr in project.transcripts if tr.track_id == tid]) > 1
+    recording_scope = matched and multi_take and lane_has_recording_clips(project, tid, source_id)
     return cut_time_range(
         project,
         tid,
@@ -640,6 +698,8 @@ def cut_utterance(
         reason=f"{NL_UTTERANCE_REASON_PREFIX}{text[:40]}",
         review_required=review_required,
         use_inaudible_opt=use_inaudible_opt,
+        recording_scope=recording_scope,
+        source_id=source_id,
     )
 
 
@@ -649,13 +709,18 @@ def cut_words(
     start_word_index: int,
     end_word_index: int,
     *,
+    source_id: str | None = None,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> EditDecision:
-    transcript = project.transcript_for_track(track_id)
+    transcript = lane_transcript(project, track_id, source_id)
     if not transcript:
         raise ValueError(f"No transcript for track {track_id}")
     start, end = time_range_from_words(transcript, start_word_index, end_word_index)
+    multi_take = len([tr for tr in project.transcripts if tr.track_id == track_id]) > 1
+    recording_scope = multi_take and lane_has_recording_clips(
+        project, track_id, transcript.source_id
+    )
     return cut_time_range(
         project,
         track_id,
@@ -664,6 +729,8 @@ def cut_words(
         reason=NL_WORDS_REASON,
         review_required=review_required,
         use_inaudible_opt=use_inaudible_opt,
+        recording_scope=recording_scope,
+        source_id=transcript.source_id,
     )
 
 

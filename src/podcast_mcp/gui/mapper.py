@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -19,7 +18,7 @@ from podcast_mcp.engines.session_timeline import (
     word_source_span,
 )
 from podcast_mcp.engines.utterance_runs import (
-    transcript_word_runs,
+    UtteranceRunSourceMatcher,
     utterance_runs,
     utterance_speaker,
     utterance_text,
@@ -187,7 +186,7 @@ class _LaneRecordings:
     def __init__(self, project: EpisodeProject) -> None:
         self._project = project
         self._lanes: dict[str, list[_Recording]] = {}
-        self._run_sources: dict[tuple[str, float, float, str], deque[str | None]] | None = None
+        self._run_sources: UtteranceRunSourceMatcher | None = None
 
     def lane(self, track_id: str) -> list[_Recording]:
         cached = self._lanes.get(track_id)
@@ -222,34 +221,23 @@ class _LaneRecordings:
         lane = self.lane(track_id)
         if len(lane) == 1:
             return lane[0]
-        key = (
+        # Rows come in run order, so takes with an identical line (same times, same
+        # text) are told apart by taking their sources in turn.
+        matched, source_id = self._sources().try_source_id_for(
             track_id,
             float(row.get("start", 0.0)),
             float(row.get("end", 0.0)),
             str(row.get("text", "")),
         )
-        # Rows come in run order, so takes with an identical line (same times, same
-        # text) are told apart by taking their sources in turn.
-        queue = self._sources().get(key)
-        if queue:
-            source_id = queue.popleft()
+        if matched:
             match = next((r for r in lane if r.source_id == source_id), None)
             if match is not None:
                 return match
         return _Recording(track_id, self._project.transcript_for_track(track_id))
 
-    def _sources(self) -> dict[tuple[str, float, float, str], deque[str | None]]:
+    def _sources(self) -> UtteranceRunSourceMatcher:
         if self._run_sources is None:
-            sources: dict[tuple[str, float, float, str], deque[str | None]] = {}
-            for run in transcript_word_runs(self._project):
-                key = (
-                    run.track_id,
-                    float(run.words[0].start),
-                    float(run.words[-1].end),
-                    utterance_text(run.words),
-                )
-                sources.setdefault(key, deque()).append(run.source_id)
-            self._run_sources = sources
+            self._run_sources = UtteranceRunSourceMatcher.for_project(self._project)
         return self._run_sources
 
 
@@ -263,10 +251,6 @@ def _mapped_word_index(
     tr = recording.transcript
     words = tr.words if tr is not None else []
     mapped = recording.map_words(timeline, [(w.start, w.end) for w in words])
-    # The Studio word inspector and its store address a word by track and index alone, and
-    # send the first take's ``source_id`` with it (#1476), so another take's words carry no
-    # ``word_index``: they can be seen, followed and sought, never edited from here.
-    addressable = tr is None or tr is project.transcript_for_track(track_id)
     views = [
         _word_view(
             timeline,
@@ -275,7 +259,6 @@ def _mapped_word_index(
             w,
             spans,
             source_id=tr.source_id if tr else None,
-            addressable=addressable,
         )
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
     ]

@@ -43,13 +43,11 @@ import {
   type ReviewOutcome,
   requireCurrentPendingReview,
 } from "../utils/pendingReviewPass";
-import { trackWordSourceId } from "../utils/transcript";
 import { loadBoundaryContext } from "./boundary";
 import { loadDocumentState } from "./project";
 
-/** The take whose words the track's `word_index` counts; omitted when the track has one (#1476). */
-function withLaneSource(trackId: string): { source_id?: string } {
-  const sourceId = trackWordSourceId(useDawStore.getState().project, trackId);
+/** Recording the indexed words belong to; omitted when the take is primary (#1476). */
+function withWordSource(sourceId?: string | null): { source_id?: string } {
   return sourceId == null ? {} : { source_id: sourceId };
 }
 
@@ -651,10 +649,11 @@ export async function correctTranscriptWord(
   wordIndex: number,
   text: string,
   expectedText?: string | null,
+  sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
   return submitTranscriptCorrection(projectPath, "CorrectTranscriptWord", {
     track_id: trackId,
-    ...withLaneSource(trackId),
+    ...withWordSource(sourceId),
     word_index: wordIndex,
     text,
     ...withExpectedText(expectedText),
@@ -668,10 +667,11 @@ export async function correctTranscriptPhrase(
   endWordIndex: number,
   text: string,
   expectedText?: string | null,
+  sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
   return submitTranscriptCorrection(projectPath, "CorrectTranscriptPhrase", {
     track_id: trackId,
-    ...withLaneSource(trackId),
+    ...withWordSource(sourceId),
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
     text,
@@ -685,13 +685,14 @@ export async function setTranscriptWordSuppressed(
   wordIndex: number,
   suppressed: boolean,
   expectedText?: string | null,
+  sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
   const result = await submitDocumentCommand(
     projectPath,
     "SetTranscriptWordSuppressed",
     {
       track_id: trackId,
-      ...withLaneSource(trackId),
+      ...withWordSource(sourceId),
       word_index: wordIndex,
       suppressed,
       ...withExpectedText(expectedText),
@@ -705,13 +706,14 @@ export async function setTranscriptWordAutomatic(
   trackId: string,
   wordIndex: number,
   expectedText?: string | null,
+  sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
   const result = await submitDocumentCommand(
     projectPath,
     "SetTranscriptWordAutomatic",
     {
       track_id: trackId,
-      ...withLaneSource(trackId),
+      ...withWordSource(sourceId),
       word_index: wordIndex,
       ...withExpectedText(expectedText),
     },
@@ -726,13 +728,14 @@ export async function setTranscriptWordsIgnored(
   endWordIndex: number,
   ignored: boolean,
   expectedText?: string | null,
+  sourceId?: string | null,
 ): Promise<HistoryEntryId | null> {
   const result = await submitDocumentCommand(
     projectPath,
     "SetTranscriptWordsIgnored",
     {
       track_id: trackId,
-      ...withLaneSource(trackId),
+      ...withWordSource(sourceId),
       start_word_index: startWordIndex,
       end_word_index: endWordIndex,
       ignored,

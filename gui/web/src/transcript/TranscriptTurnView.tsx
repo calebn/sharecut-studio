@@ -156,6 +156,9 @@ export function TranscriptTurnView({
                       data-transcript-word
                       data-track-id={item.trackId}
                       data-word-index={item.word.word_index}
+                      data-source-id={
+                        item.word.timing_target?.source_id ?? undefined
+                      }
                       {...item.anchorProps}
                       title={item.title}
                       aria-current={item.reviewCurrent ? "true" : undefined}

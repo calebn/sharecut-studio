@@ -41,6 +41,7 @@ export function selectionToWire(
       kind: "transcriptWord",
       track_id: sel.trackId,
       word_index: sel.wordIndex,
+      ...(sel.sourceId != null ? { source_id: sel.sourceId } : {}),
     };
   }
   if (sel.kind === "transcriptRange") {
@@ -145,6 +146,7 @@ function parseWireSelection(
       kind: "transcriptWord",
       trackId: sel.track_id,
       wordIndex: sel.word_index,
+      ...(sel.source_id !== undefined ? { sourceId: sel.source_id } : {}),
     };
   }
   if (

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from podcast_mcp.models import EpisodeProject, TranscriptWord
 
@@ -36,6 +37,11 @@ def utterance_speaker(project: EpisodeProject, track_id: str) -> str:
     """Speaker label a combined utterance on ``track_id`` carries (track speaker, else the track id)."""
     track = project.track_by_id(track_id)
     return (track.speaker if track else None) or track_id
+
+
+def lane_has_recording_clips(project: EpisodeProject, track_id: str, source_id: str | None) -> bool:
+    """True when ``track_id`` has a clip placed for ``source_id``."""
+    return any(clip.track_id == track_id and clip.source_id == source_id for clip in project.clips)
 
 
 def utterance_text(words: Sequence[TranscriptWord]) -> str:
@@ -79,3 +85,38 @@ def transcript_word_runs(project: EpisodeProject) -> list[TranscriptWordRun]:
             )
     out.sort(key=lambda r: r.words[0].start)
     return out
+
+
+def _utterance_run_source_key(
+    track_id: str, start: float, end: float, text: str
+) -> tuple[str, float, float, str]:
+    return track_id, float(start), float(end), str(text)
+
+
+@dataclass
+class UtteranceRunSourceMatcher:
+    """Map combined-utterance rows to ``transcript_word_runs`` take ids in run order."""
+
+    _queues: dict[tuple[str, float, float, str], deque[str | None]] = field(default_factory=dict)
+
+    @classmethod
+    def for_project(cls, project: EpisodeProject) -> UtteranceRunSourceMatcher:
+        queues: dict[tuple[str, float, float, str], deque[str | None]] = {}
+        for run in transcript_word_runs(project):
+            key = _utterance_run_source_key(
+                run.track_id,
+                run.words[0].start,
+                run.words[-1].end,
+                utterance_text(run.words),
+            )
+            queues.setdefault(key, deque()).append(run.source_id)
+        return cls(_queues=queues)
+
+    def try_source_id_for(
+        self, track_id: str, start: float, end: float, text: str
+    ) -> tuple[bool, str | None]:
+        key = _utterance_run_source_key(track_id, start, end, text)
+        queue = self._queues.get(key)
+        if not queue:
+            return False, None
+        return True, queue.popleft()

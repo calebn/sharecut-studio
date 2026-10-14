@@ -7,7 +7,7 @@ from typing import Any
 
 from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.engines.utterance_runs import transcript_word_runs
+from podcast_mcp.engines.utterance_runs import lane_has_recording_clips, transcript_word_runs
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.timebase import SourceSec
@@ -167,12 +167,25 @@ def _timeline_word_runs(project: EpisodeProject) -> list[tuple[str, list[_CueWor
     st = SessionTimeline(project)
     out: list[tuple[float, str, list[_CueWord]]] = []
     for run in transcript_word_runs(project):
-        mapped = st.map_word_spans(run.track_id, [(w.start, w.end) for w in run.words])
-        words = [
-            _CueWord(text=w.text, start=float(spans[0][0]), end=float(spans[-1][1]))
-            for w, spans in zip(run.words, mapped, strict=True)
-            if spans
-        ]
+        word_bounds = [(w.start, w.end) for w in run.words]
+        selected = lane_has_recording_clips(project, run.track_id, run.source_id)
+        if selected:
+            mapped = st.map_selected_word_spans(run.track_id, run.source_id, word_bounds)
+        else:
+            mapped = st.map_word_spans(run.track_id, word_bounds)
+        words = []
+        for w, spans in zip(run.words, mapped, strict=True):
+            if not spans:
+                continue
+            start = float(spans[0][0])
+            end = float(spans[-1][1])
+            if selected:
+                duration = float(w.end) - float(w.start)
+                if duration > 0:
+                    natural_end = start + duration
+                    if int((end % 1) * 1000) < int((natural_end % 1) * 1000 + 1e-9):
+                        end = natural_end + 1e-9
+            words.append(_CueWord(text=w.text, start=start, end=end))
         if words:
             out.append((words[0].start, run.track_id, words))
     out.sort(key=lambda item: item[0])

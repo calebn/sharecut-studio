@@ -470,6 +470,16 @@
           "type": "string",
           "enum": ["source", "timeline"],
           "default": "source"
+        },
+        "recording_scope": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, placement and apply target only clips for source_id on this lane (#1486)."
+        },
+        "source_id": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Recording id when recording_scope is true; names which take a scoped remove targets."
         }
       }
     },

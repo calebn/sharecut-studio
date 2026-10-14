@@ -13,6 +13,7 @@ export interface SessionSelection {
   time?: number;
   word_index?: number | null;
   word_end?: number | null;
+  source_id?: string | null;
 }
 
 export interface PresenceCursor {

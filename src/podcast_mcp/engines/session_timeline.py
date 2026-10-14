@@ -682,6 +682,74 @@ class SessionTimeline:
             return None
         return TimelineSec(timeline_start), TimelineSec(timeline_cursor)
 
+    def exact_selected_source_span(
+        self,
+        track_id: str,
+        source_id: str | None,
+        start: SourceSec,
+        end: SourceSec,
+    ) -> tuple[TimelineSec, TimelineSec] | None:
+        """Like :meth:`exact_source_span`, but only through clips with ``source_id``."""
+        if end <= start:
+            return None
+        idx = self._selected_index(track_id, source_id)
+        if idx is None:
+            return None
+        source_cursor = float(start)
+        timeline_start: float | None = None
+        timeline_cursor: float | None = None
+        for span in _candidates_source(idx, float(start), float(end)):
+            lo = max(float(start), span.source_start)
+            hi = min(float(end), span.source_end)
+            if hi <= lo + _EPS:
+                continue
+            if abs(lo - source_cursor) > _EPS:
+                return None
+            tl_start = span.timeline_start + (lo - span.source_start)
+            if timeline_cursor is not None and abs(tl_start - timeline_cursor) > _EPS:
+                return None
+            if timeline_start is None:
+                timeline_start = tl_start
+            source_cursor = hi
+            timeline_cursor = tl_start + (hi - lo)
+        if (
+            abs(source_cursor - float(end)) > _EPS
+            or timeline_start is None
+            or timeline_cursor is None
+        ):
+            return None
+        placement_cursor = timeline_start
+        recording_clips = [
+            clip
+            for clip in self._recording_clips(track_id)
+            if clip.track_id == track_id and clip.source_id == source_id
+        ]
+        track = self._project.track_by_id(track_id)
+        if track is None:
+            return None
+        media = resolve_under_workspace(
+            self._project,
+            track.media.path if track.media and track.media.path else f"track:{track_id}",
+        )
+        for clip in sorted(recording_clips, key=lambda c: c.timeline_start):
+            lo = max(timeline_start, clip.timeline_start)
+            hi = min(timeline_cursor, clip.timeline_end)
+            if hi <= lo + _EPS:
+                continue
+            if abs(lo - placement_cursor) > _EPS or not same_recording(
+                resolve_under_workspace(self._project, clip_media_key(self._project, clip)),
+                media,
+            ):
+                return None
+            source_at_lo = clip_source_at_timeline(clip, lo)
+            expected_source = float(start) + (lo - timeline_start)
+            if abs(source_at_lo - expected_source) > _EPS:
+                return None
+            placement_cursor = hi
+        if abs(placement_cursor - timeline_cursor) > _EPS:
+            return None
+        return TimelineSec(timeline_start), TimelineSec(timeline_cursor)
+
     def exact_timeline_source_span(
         self, track_id: str, start: TimelineSec, end: TimelineSec, *, on_origin_lane: bool = False
     ) -> tuple[SourceSec, SourceSec] | None:

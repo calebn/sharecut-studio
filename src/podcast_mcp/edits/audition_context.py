@@ -30,7 +30,10 @@ from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_profiles
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
+    clip_source_to_timeline_shift,
+)
 from podcast_mcp.models import EditMode, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import count_noun
@@ -382,9 +385,14 @@ def build_audition_context(
         spans = st.map_timeline_span(tid, TimelineSec(timeline_start), TimelineSec(timeline_end))
         src_mid = st.timeline_to_source(tid, TimelineSec(mid))
         source_at_mid[tid] = float(src_mid) if src_mid is not None else None
-        first = next(iter(clips_for_track(project, tid)), None)
-        if first is not None:
-            alignment_shift[tid] = float(first.timeline_start) - float(first.source_start)
+        clips = clips_for_track(project, tid)
+        clip_at_mid = next(
+            (clip for clip in clips if clip.timeline_start <= mid < clip.timeline_end),
+            None,
+        )
+        if clip_at_mid is not None:
+            first_of_take = next(clip for clip in clips if clip.source_id == clip_at_mid.source_id)
+            alignment_shift[tid] = clip_source_to_timeline_shift(first_of_take)
         words = _words_in_source_spans(project, tid, spans)
         text = " ".join(w.text for w in words).strip()
         mapped_words: list[tuple[float, str]] = []
@@ -1329,10 +1337,11 @@ def _clip_skew_warnings(
 
     ``source_delta_sec`` alone is not desync: tracks aligned with different offsets
     (local recorders) differ by design. Each track's shift at mid (timeline minus
-    source) is compared with its own first clip's shift (its alignment); a session
-    ripple moves every track's shift alike and a track-local punch moves none, so a
-    pair whose shifts moved apart by more than ``skew_warn_sec`` was rippled on one
-    track only (``skewed``).
+    source) is compared with the first clip of the recording playing at mid (that
+    take's alignment), not the first clip on the lane. A session ripple moves every
+    track's shift alike and a track-local punch moves none, so a pair whose shifts
+    moved apart by more than ``skew_warn_sec`` was rippled on one track only
+    (``skewed``). A later take on the same lane is not a ripple.
     """
     pairs: list[dict[str, Any]] = []
     warnings: list[str] = []
