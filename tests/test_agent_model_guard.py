@@ -45,6 +45,7 @@ def test_settings_wire_guard_to_agent_tool() -> None:
         ({"description": "fix bug"}, "deny"),
         ({"description": "implement feature", "model": "opus"}, "deny"),
         ({"description": "implement feature", "model": "fable"}, "deny"),
+        ({"description": "implement feature", "model": "Opus"}, "deny"),
         ({"description": "verify the diff", "model": "opus"}, "allow"),
         ({"description": "hardest task escalation", "model": "fable"}, "allow"),
         ({"description": "implement feature", "model": "sonnet"}, "allow"),
@@ -67,3 +68,12 @@ def test_guard_allows_with_warning_when_jq_missing(tmp_path: Path) -> None:
     )
     assert result.stdout == ""
     assert "jq not found" in result.stderr
+
+
+@needs_jq
+@pytest.mark.parametrize("payload", ["", "not json{", "null", '{"tool_input":"x"}'])
+def test_guard_fails_open_on_unexpected_payload(payload: str) -> None:
+    result = subprocess.run(
+        ["sh", str(GUARD)], input=payload, text=True, capture_output=True, check=True
+    )
+    assert result.stdout == ""
