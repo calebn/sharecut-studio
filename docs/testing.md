@@ -635,6 +635,38 @@ of the check and the file, its loop count and the reason are listed there. Theme
 shared `ui/` primitives belong in Vitest (`expectNoA11yViolations`), not in a
 browser grid.
 
+### Reachability sweep
+
+`gui/web/e2e-compat/reachability-sweep.spec.ts` is the one place that measures
+whether a finger can use the touch surfaces. At the shell boundaries (360, 390,
+767, 768, 820, 1100, 1101 wide, a phone held sideways and an iPad held sideways)
+and at 16 px and 32 px root text it asserts, for every interactive control in
+the shell chrome, the track sheet or inspector, the armed Select range controls
+and Listen, that the control
+
+- is at least 44 CSS px, measured as its layout box (`offsetWidth` and
+  `offsetHeight`, or the label of a checkbox) so a transition or transform
+  cannot shrink it (#1418);
+- sits inside the visual viewport once scrolled to the middle of its scroller;
+- is not under another element, a scrim included, and does not spill out of the
+  region that holds it.
+
+It also holds the editing rail to one row (#1347) and sweeps the Transcript
+Find and replace row and the Pipeline Add term row (#1433) wherever the panel
+has room to show them. `gui/web/e2e/reachability.ts` is the measuring helper. It
+leaves out only the canvas dense targets (fade corners, trim handles, clip
+bodies, the ruler, the deselect strip, the track row's open overlay), which meet
+the floor through the dense-target pattern, the track grip, which has Move
+track up and down in the track sheet, and the status-bar chips, whose floor the
+fixed-height status bar waives by decision. Panel interiors are not swept; each
+finding there is a line on #1445's Ledger. A new control that fails the sweep is
+fixed, or its class is named in that list with the equivalent control that
+replaces it. The selection surfaces themselves are covered at the unit level by
+`gui/web/src/layout/selectionSurface.test.tsx`, which renders every selection
+kind on the phone, tablet and desktop shells and asserts a non-empty body, its
+actions in the one place the shell offers them, and no range control behind a
+sheet's scrim.
+
 Both browser suites currently run serially against shared live project state.
 Do not raise `workers` or enable `fullyParallel` until each worker owns its GUI
 server, project, share registry and output directory. Retries are failure
@@ -1602,7 +1634,9 @@ test; other rows are whole tests.
 | a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a touch tablet gives each lane header's Mute and Solo a 44px target | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| tablet and desktop shells keep every control a finger can use across 768 to 1101 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Reject all asks with the count, then one Undo brings the pending edits back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a long press then a drag selects a word range, and the sheet clears it | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a finger that moves before the hold scrolls and selects nothing | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
