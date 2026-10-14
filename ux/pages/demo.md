@@ -60,6 +60,8 @@ Audio is **symlinked** from `aligned_dialogue/raw` so the demo stays on the same
 
 ![Phone Timeline mode](../assets/screens/phone-timeline.png)
 
+![Phone clip Inspector with numeric source timing and nudge controls](../assets/screens/inspector-numeric-controls.png)
+
 ![Phone Text mode](../assets/screens/phone-text.png)
 
 ![Desktop shell](../assets/screens/desktop-shell.png)
