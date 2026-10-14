@@ -447,11 +447,11 @@ async function undoStaysReachable(
   const levelEdited = [
     { id: "env-a", time: 5, value: 1 },
     { id: "env-edge", time: 10, value: 0.8 },
-    { id: "env-c", time: 16, value: 1.01 },
+    { id: "env-c", time: 16, value: 1.059254 },
     { id: "env-join", time: 40, value: 1.2 },
   ];
   const level = page.getByRole("button", {
-    name: "Envelope point level 0.01 higher",
+    name: "Envelope point level 0.5 dB higher",
     exact: true,
   });
   await level.click();
