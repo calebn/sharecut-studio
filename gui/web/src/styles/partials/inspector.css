@@ -544,7 +544,6 @@ html[data-shell="phone"]
   flex: 1 1 19rem;
 }
 
-/* Label over value: a narrow column, so the four buttons fit beside it. */
 .nudge-row-reading {
   display: flex;
   flex-direction: column;
@@ -565,6 +564,7 @@ html[data-shell="phone"]
 
 .nudge-row-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
 }
 
