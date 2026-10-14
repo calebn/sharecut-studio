@@ -13,6 +13,12 @@ import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { SaveStateDotView } from "./SaveStateDotView";
 import { saveStateOf } from "./saveState";
 
+function focusAttention() {
+  const banner = document.getElementById(ATTENTION_BANNER_ID);
+  banner?.querySelector("details")?.setAttribute("open", "");
+  banner?.focus();
+}
+
 /**
  * The host's project save state as a status light, from the sends this tab has in flight and the
  * offline queue and conflicts the Needs attention banner lists. Share guests
@@ -54,9 +60,7 @@ export function SaveStateDot() {
 
   useEffect(() => {
     if (attention.recoverySelection) {
-      const banner = document.getElementById(ATTENTION_BANNER_ID);
-      banner?.querySelector("details")?.setAttribute("open", "");
-      banner?.focus();
+      focusAttention();
     }
   }, [attention.recoverySelection]);
 
@@ -70,15 +74,10 @@ export function SaveStateDot() {
           : {
               kind: "button",
               activate: () => {
-                if (
-                  projectPath &&
-                  latest?.dismissed &&
-                  showsDismissedOutcome &&
-                  selectRecoveryOutcome(projectPath, latest)
-                ) {
-                  return;
+                if (projectPath && latest?.dismissed && showsDismissedOutcome) {
+                  selectRecoveryOutcome(projectPath, latest);
                 }
-                document.getElementById(ATTENTION_BANNER_ID)?.focus();
+                focusAttention();
               },
             }
       }

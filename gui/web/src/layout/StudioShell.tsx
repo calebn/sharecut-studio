@@ -51,10 +51,12 @@ import { useSelectionSheet } from "./useSelectionSheet";
 function StudioShellAdapter({
   guestShare = false,
   feedbackHostRef,
+  attentionHost,
   loadFailure,
 }: {
   guestShare?: boolean;
   feedbackHostRef?: RefCallback<HTMLDivElement>;
+  attentionHost?: HTMLElement | null;
   loadFailure?: LoadFailure | null;
 }) {
   const importShortcut = displayShortcutFor("media.import") ?? "Menu";
@@ -163,6 +165,7 @@ function StudioShellAdapter({
       <MobileShell
         guestShare={guestShare}
         feedbackHostRef={feedbackHostRef}
+        attentionHost={attentionHost}
         loadFailure={loadFailure}
       />
     );
@@ -244,7 +247,7 @@ function StudioShellAdapter({
                   </div>
                 ) : null}
               </Slot>
-              <GuestAttentionBanner />
+              <GuestAttentionBanner host={attentionHost} />
               <HomeScreenHint />
             </>
           ),

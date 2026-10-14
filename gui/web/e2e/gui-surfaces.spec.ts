@@ -257,7 +257,7 @@ async function statusBarScroll(bar: Locator) {
   }));
 }
 
-test("tablet status bar on a touch pointer holds the failed save light's whole 44pt target", async ({
+test("tablet unreadable save light stays passive and its Retry has a full touch target", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -272,33 +272,55 @@ test("tablet status bar on a touch pointer holds the failed save light's whole 4
     const bar = page.locator("footer.status-bar");
     const dot = bar.locator('[data-save-state="failed"]');
     await expect(dot).toBeVisible();
-    const barBox = await bar.boundingBox();
-    const dotBox = await dot.boundingBox();
-    expect(barBox).not.toBeNull();
-    expect(dotBox).not.toBeNull();
-    expect(barBox!.height).toBeGreaterThanOrEqual(44);
-    expect(dotBox!.height).toBeGreaterThanOrEqual(44);
-    expect(dotBox!.y).toBeGreaterThanOrEqual(barBox!.y - 0.5);
-    expect(dotBox!.y + dotBox!.height).toBeLessThanOrEqual(
-      barBox!.y + barBox!.height + 0.5,
+    await expect(dot).toHaveRole("img");
+    await expect(dot).toHaveAccessibleName(
+      "Saved edits could not be read · Retry to read them",
     );
+    expect(await dot.evaluate((element) => element.tagName)).toBe("SPAN");
     const { scrollHeight, clientHeight } = await statusBarScroll(bar);
-    expect(scrollHeight, "failed bar does not scroll").toBeLessThanOrEqual(
-      clientHeight,
-    );
-    const centreX = dotBox!.x + dotBox!.width / 2;
-    const centreY = dotBox!.y + dotBox!.height / 2;
+    expect(
+      scrollHeight,
+      "passive failed bar does not scroll",
+    ).toBeLessThanOrEqual(clientHeight);
+    const attention = page.getByRole("alert", {
+      name: /Saved edits could not be read/,
+    });
+    await attention.locator("summary").click();
+    const retry = attention.getByRole("button", { name: "Retry", exact: true });
+    const retryBox = await retry.boundingBox();
+    expect(retryBox).not.toBeNull();
+    expect(retryBox!.width).toBeGreaterThanOrEqual(44);
+    expect(retryBox!.height).toBeGreaterThanOrEqual(44);
     for (const offset of [-20, 0, 20]) {
-      const hitsDot = await page.evaluate(
-        ({ x, y }) =>
-          document.elementFromPoint(x, y)?.closest("[data-save-state]") !==
-          null,
-        { x: centreX, y: centreY + offset },
-      );
-      expect(hitsDot, `tap ${offset}px from centre reaches the light`).toBe(
-        true,
-      );
+      expect(
+        await retry.evaluate((element, offset) => {
+          const box = element.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            box.x + box.width / 2,
+            box.y + box.height / 2 + offset,
+          );
+          return hit === element || (hit !== null && element.contains(hit));
+        }, offset),
+        `tap ${offset}px from centre reaches Retry`,
+      ).toBe(true);
     }
+    const reads = await page.evaluateHandle(() => {
+      const reads = { attempts: 0 };
+      indexedDB.open = () => {
+        reads.attempts++;
+        throw new Error("queue remains unreadable");
+      };
+      return reads;
+    });
+    await retry.click();
+    await expect
+      .poll(() => reads.evaluate((reads) => reads.attempts))
+      .toBeGreaterThan(0);
+    await expect(attention).toContainText(
+      "Could not read saved edits on this device.",
+    );
+    await expect(retry).toBeVisible();
+    await reads.dispose();
   } finally {
     await context.close();
   }
