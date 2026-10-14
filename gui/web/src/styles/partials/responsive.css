@@ -437,6 +437,18 @@ html[data-shell="tablet"] {
   margin-bottom: var(--space-3);
 }
 
+@media (pointer: coarse) {
+  .mobile-comment-list-head .linkish {
+    min-block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] .mobile-comment-list-head .linkish {
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+}
+
 .mobile-comment-list-head h2 {
   margin: 0;
   font-size: var(--font-size-body);

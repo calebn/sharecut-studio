@@ -924,12 +924,20 @@ button.save-dot {
   position: relative;
   z-index: var(--z-local-chrome);
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-border);
   background: var(--color-bg-base);
+}
+
+/* The tools sit in their own box so a rail that scrolls sideways does not
+   clip the Undo and Redo hint, which hangs from the rail above it. */
+.editing-tool-rail-tools {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
 }
 
 /* Labels never break inside a button. */
@@ -976,8 +984,11 @@ button.save-dot {
   /* Seven 44px targets share the row at 360px, so the rail trades its
      padding and gaps for the room; Zoom keeps a wider gap from Undo. */
   .editing-tool-rail {
-    gap: var(--space-1);
     padding-inline: var(--space-3);
+  }
+
+  .editing-tool-rail-tools {
+    gap: var(--space-1);
   }
 
   .editing-tool-rail-range {
@@ -991,6 +1002,26 @@ button.save-dot {
 
   .editing-tool-rail-range-label {
     display: none;
+  }
+}
+
+/* Seven touch squares need about 21.5rem. A rail narrower than that, which is
+   every phone at large text, stays one row and scrolls sideways instead of
+   wrapping into rows that eat the lanes (#1347). */
+@container app (max-width: 23rem) {
+  .editing-tool-rail-tools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .editing-tool-rail-tools > *,
+  .editing-tool-rail-tools .ui-control {
+    flex: none;
+  }
+
+  .editing-tool-rail-end {
+    flex-wrap: nowrap;
   }
 }
 
@@ -1473,6 +1504,16 @@ button.save-dot {
   }
 }
 
+/* A touch-size box hangs below the lane's meter, not up over the Solo button
+   above it: the Solo corner it covered took the tap and cleared the light. */
+@media (pointer: coarse) {
+  .track-clip-clear {
+    inset-block: calc(0rem - var(--space-3)) auto;
+    place-items: start end;
+    padding-block: var(--space-3) 0;
+  }
+}
+
 .track-clip-clear:enabled {
   color: var(--color-danger);
 }
@@ -1644,6 +1685,12 @@ button.save-dot {
 
 .range-numeric input[type="number"] {
   inline-size: 6rem;
+}
+
+@media (pointer: coarse) {
+  .range-numeric label {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .range-numeric fieldset {
