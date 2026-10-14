@@ -151,10 +151,10 @@ def pending_preview_warm(
 ):
     """Run a pending preview's whole-episode passes ahead of the first Play around.
 
-    ``background`` is the idle pre-measure: no edit, a lower CPU priority, and no hold on the
-    render lock beyond each stale stem's own render (which waits 2 s, then the client asks
-    again later). The whole-episode true-peak and level passes only read, so a render or
-    playback the user starts meanwhile is not queued behind them.
+    Neither form holds the render lock beyond each stale stem's own render, so a render or
+    approve the user starts meanwhile is not queued behind the warm. ``background`` is the
+    idle pre-measure: no edit, a lower CPU priority, and a 2 s wait for that stem lock (the
+    client asks again later).
     """
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
@@ -163,7 +163,6 @@ def pending_preview_warm(
     from podcast_mcp.util.project_state import (
         BACKGROUND_RENDER_LOCK_TIMEOUT_SEC,
         REQUEST_RENDER_LOCK_TIMEOUT_SEC,
-        render_lock,
     )
 
     require_host(request, token=token, x_podcast_token=x_podcast_token)
@@ -174,12 +173,12 @@ def pending_preview_warm(
                 return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
                     None, lock_timeout=BACKGROUND_RENDER_LOCK_TIMEOUT_SEC
                 )
-        # Warm the mix as it is once the lock is ours: a warm queued behind another reads
-        # what that one recorded, not the mix it was asked about.
-        with render_lock(
-            ProjectWorkspace.open(project_path).project, timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
-        ):
-            return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(edit_id)
+        # The edit's renders read the sources and write content-addressed files atomically,
+        # so a render or approve the user starts meanwhile is not queued behind them; only
+        # each stale stem's own render takes the lock.
+        return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(
+            edit_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+        )
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     except Timeout as exc:
@@ -207,9 +206,15 @@ def pending_preview_audio(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
-        with render_lock(ws.project), ws.transaction():
-            audio = PlayService(ws).play_pending_preview(edit_id, mode=mode, dry_run=True).wav_path
-            return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
+        # A preview already rendered (by the warm) is a file read: it waits for no render,
+        # approve or other holder of the lock.
+        audio = PlayService(ws).pending_preview_cached_wav(edit_id, mode=mode)
+        if audio is None:
+            with render_lock(ws.project), ws.transaction():
+                audio = (
+                    PlayService(ws).play_pending_preview(edit_id, mode=mode, dry_run=True).wav_path
+                )
+        return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
     except RangeChangedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except KeyError as exc:
