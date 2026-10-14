@@ -19,7 +19,7 @@ and its knobs live in the `waveform` block of
 `contracts/timeline-zoom.json` → `waveform` is mirrored at
 `src/podcast_mcp/util/timeline-zoom.json` and in the generated
 `gui/web/src/utils/timelineZoom.generated.ts` (`uv run python scripts/export_timeline_zoom.py`;
-CI's `frontend` job runs it with `--check`).
+CI's `frontend-suite` job runs it with `--check`).
 
 | Key | Value | Used by |
 | --- | --- | --- |
