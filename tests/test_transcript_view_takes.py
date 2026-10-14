@@ -92,7 +92,6 @@ def test_take_rows_carry_their_own_words(tmp_path: Path) -> None:
 
 
 def test_each_take_words_are_addressable_by_source_and_index(tmp_path: Path) -> None:
-    """Every take exposes its index together with the transcript source identity."""
     rows = _view(_two_take_project(tmp_path))
     by_text = {row["text"]: row for row in rows}
     assert by_text["a1"]["words"][0]["word_index"] == 1
