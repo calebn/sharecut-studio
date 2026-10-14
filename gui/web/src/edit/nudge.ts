@@ -65,7 +65,6 @@ export interface NudgeAxis {
   at: (v: number) => number | null;
   /** What moves, for the soft boundaries; null when nothing moves in time. */
   mover: NudgeMover | null;
-  /** Optional signed step transform for domains whose stored unit differs. */
   step?: (value: number, signedStep: number) => number;
 }
 
