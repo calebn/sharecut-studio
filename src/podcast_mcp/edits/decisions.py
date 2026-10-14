@@ -240,6 +240,7 @@ def approve_edits(
     confirm_cut_speech: bool = False,
     allow_review: bool = True,
     held_out: list[HeldEdit] | None = None,
+    asked_out: list[AskedEdits] | None = None,
 ) -> int:
     """Apply the pending edits ``ids``.
 
@@ -249,7 +250,9 @@ def approve_edits(
     speech; the caller's mutation rolls back, so nothing applies. A session remove a peer
     is now speaking over raises :class:`ScopeChangedAtApproval` the same way. With
     ``held_out`` (Approve all) such a remove is instead left pending and reported there,
-    in the clock the list shows, while every other edit applies.
+    in the clock the list shows, while every other edit applies. With ``asked_out`` too,
+    a remove that would cut other speech is also left pending and reported there with its
+    ask, so confirming re-runs only those edits and not the whole batch.
     """
     from podcast_mcp.edits.range_edits import apply_ranges
 
@@ -290,10 +293,11 @@ def approve_edits(
     batch = _source_extents(removes)
     extents = {e.id: SourceExtent(e.track_id, e.start, e.end) for e in removes}
     applied_removes: list[str] = []
-    leaned_on = False
+    partial = held_out is not None
     # Named before any ripple moves anything, so a held cut reads as the list shows it.
     labels = {e.id: cut_label(project, e) for e in removes}
     asked: list[CutSpeechConfirmation] = []
+    asked_ids: list[str] = []
     held: list[CutScopeHold] = []
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
         applied = consume_source_remove(
@@ -307,15 +311,15 @@ def approve_edits(
         )
         if isinstance(applied, CutSpeechConfirmation):
             asked.append(applied)
+            asked_ids.append(edit.id)
+            if partial:
+                batch = tuple(x for x in batch if x != extents[edit.id])
             continue
         if isinstance(applied, CutScopeHold):
             held.append(applied)
-            if held_out is not None:
+            if partial:
                 # Cuts assessed from here on must not count this one's span as chosen.
                 batch = tuple(x for x in batch if x != extents[edit.id])
-                if any(_near(extents[a], extents[edit.id]) for a in applied_removes):
-                    # An earlier cut may have leaned on it to clear speech: refuse as before.
-                    leaned_on = True
             continue
         tl_start, tl_end, track_ids, params = applied
         if not track_ids:
@@ -331,8 +335,18 @@ def approve_edits(
         )
         applied_ids.add(edit.id)
         applied_removes.append(edit.id)
+    # An applied cut beside a left-pending one may have cleared speech on the assumption
+    # that the other removes it: then nothing applies on a guess, as before.
+    leaned_on = any(
+        _near(extents[a], extents[x])
+        for a in applied_removes
+        for x in (*asked_ids, *(h.edit_id for h in held))
+    )
     if asked:
-        raise UnconfirmedCutSpeech(confirmation_for(merge_cut_speech([a.speech for a in asked])))
+        confirmation = confirmation_for(merge_cut_speech([a.speech for a in asked]))
+        if asked_out is None or not partial or leaned_on:
+            raise UnconfirmedCutSpeech(confirmation)
+        asked_out.append(AskedEdits(tuple(asked_ids), confirmation))
     if held:
         error = ScopeChangedAtApproval(
             held,
@@ -376,6 +390,14 @@ def reject_edits(project: EpisodeProject, ids: list[str]) -> int:
     )
     project.edit_decisions = kept
     return removed
+
+
+@dataclass(frozen=True)
+class AskedEdits:
+    """Pending cuts Approve all left for a confirmation, and the ask to show."""
+
+    edit_ids: tuple[str, ...]
+    confirmation: CutSpeechConfirmation
 
 
 @dataclass(frozen=True)

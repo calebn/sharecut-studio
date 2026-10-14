@@ -238,6 +238,45 @@ describe("CutSpeechDialog", () => {
     });
   });
 
+  it("Cut anyway after an Approve all that applied the rest sends only the asked cuts", async () => {
+    const user = userEvent.setup();
+    submit.mockReset();
+    submit
+      .mockResolvedValueOnce({
+        ...ASKED,
+        history_head_id: "a1b2c3d4e5f6",
+        command: { payload: { result: { count: 2, confirm_ids: ["e2"] } } },
+      })
+      .mockResolvedValue({
+        ok: true,
+        command: { payload: { result: { count: 1 } } },
+      });
+    render(<CutSpeechDialog />);
+
+    const outcome = await approveEdits(
+      "/tmp/ep",
+      ["e1", "e2", "e3"],
+      false,
+      true,
+      undefined,
+      true,
+    );
+    expect(outcome).toMatchObject({ asked: true, applied: 2 });
+
+    await user.click(await screen.findByRole("button", { name: "Cut anyway" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(sent(1)).toEqual({
+      type: "ApproveEdits",
+      payload: {
+        ids: ["e2"],
+        allow_review: true,
+        hold_blocked: true,
+        confirm_cut_speech: true,
+      },
+    });
+  });
+
   it.each([false, true])(
     "speech confirmation preserves review authority %s",
     async (allowReview) => {

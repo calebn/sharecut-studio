@@ -20,6 +20,7 @@ import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
 import {
   type BulkReviewAction,
+  bulkReviewAppliedBeforeAskMessage,
   bulkReviewDoneMessage,
   bulkReviewQuestion,
   reviewPassOf,
@@ -110,6 +111,21 @@ export function ImpactPanel() {
           .announceStatus(bulkReviewDoneMessage(action, ids.length, outcome), {
             undo: historyHead,
           });
+      } else if (
+        !queued &&
+        "applied" in outcome &&
+        (outcome.applied ?? 0) > 0
+      ) {
+        // Applied what it could; the cut-speech question covers only the rest.
+        useDawStore
+          .getState()
+          .announceStatus(
+            bulkReviewAppliedBeforeAskMessage(
+              outcome.applied ?? 0,
+              outcome.held ?? [],
+            ),
+            { undo: historyHead },
+          );
       }
     });
     setWorking(null);
