@@ -1,5 +1,8 @@
+import { isShareProjectKey } from "../shareMode";
+import { requestHostDrain } from "../state/drainOfflineQueue";
 import {
   dismissAllConflicts,
+  refreshOfflineAttention,
   useOfflineAttention,
 } from "../state/offlineAttention";
 import { useDaw } from "../state/useDaw";
@@ -20,6 +23,14 @@ export function GuestAttentionBanner() {
         status === "dismissing"
       }
       onDismissAll={() => dismissAllConflicts(projectPath)}
+      onSendNow={
+        isShareProjectKey(projectPath)
+          ? undefined
+          : () => {
+              void requestHostDrain(projectPath);
+            }
+      }
+      onRetry={() => refreshOfflineAttention(projectPath)}
     />
   );
 }

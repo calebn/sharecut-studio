@@ -12,6 +12,7 @@ const quiet: SaveStateInput = {
   refusals: [],
   unreadable: false,
   loaded: true,
+  settling: false,
 };
 
 describe("saveStateOf", () => {
@@ -25,6 +26,12 @@ describe("saveStateOf", () => {
 
   it("is saving while a send is in flight, even with edits already queued", () => {
     expect(saveStateOf({ ...quiet, busy: true, pending: 2 })).toEqual({
+      kind: "saving",
+    });
+  });
+
+  it("stays saving while a finished send's queue has not been read back", () => {
+    expect(saveStateOf({ ...quiet, settling: true })).toEqual({
       kind: "saving",
     });
   });

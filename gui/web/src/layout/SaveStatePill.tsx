@@ -47,6 +47,7 @@ export function SaveStatePill({
             attention.status === "unreadable" ||
             attention.status === "retrying",
           loaded: attention.loaded,
+          settling: attention.settling,
         });
 
   if (!state || (quietWhenRoutine && isRoutine(state))) return null;

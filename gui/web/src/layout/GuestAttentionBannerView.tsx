@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { OfflineConflict } from "../state/offlineStore";
+import { Button } from "../ui/Button";
 import { overflowLabel, plural } from "../utils/format";
 
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
@@ -15,6 +16,10 @@ export interface GuestAttentionBannerViewProps {
   unreadable?: boolean;
   checking?: boolean;
   onDismissAll: () => void;
+  /** Send the queued host edits now. Offered beside a pending count. */
+  onSendNow?: () => void;
+  /** Read the saved edits again. Offered when they could not be read. */
+  onRetry?: () => void;
 }
 
 /** Props-only guest-attention rendering for live state and static catalog cases. */
@@ -22,6 +27,8 @@ export function GuestAttentionBannerView({
   pending,
   conflicts,
   onDismissAll,
+  onSendNow,
+  onRetry,
   unreadable = false,
   checking = false,
 }: GuestAttentionBannerViewProps) {
@@ -56,6 +63,14 @@ export function GuestAttentionBannerView({
             ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
             : ""}
         </span>
+        {(pending > 0 && onSendNow) || (unreadable && onRetry) ? (
+          <span className="guest-attention-actions">
+            {pending > 0 && onSendNow && (
+              <Button onClick={onSendNow}>Send now</Button>
+            )}
+            {unreadable && onRetry && <Button onClick={onRetry}>Retry</Button>}
+          </span>
+        ) : null}
         {conflicts.length > 0 && (
           <button
             type="button"

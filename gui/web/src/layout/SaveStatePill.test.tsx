@@ -68,6 +68,34 @@ describe("SaveStatePill", () => {
     expect(screen.getByText("Saved to project")).toBeInTheDocument();
   });
 
+  it("never reads Saved between a failed send and the queue read that follows it", async () => {
+    render(<SaveStatePill />);
+    await settle();
+    let send!: ReturnType<typeof beginDocumentSend>;
+    act(() => {
+      send = beginDocumentSend(PATH, "cmd-late");
+    });
+    let release!: (count: number) => void;
+    offlineStore.loadHostCommandCount.mockReturnValue(
+      new Promise<number>((resolve) => {
+        release = resolve;
+      }),
+    );
+    act(() => send.finish());
+    expect(screen.queryByText("Saved to project")).not.toBeInTheDocument();
+    expect(screen.getByText("Saving to project…")).toBeInTheDocument();
+    await settle(500);
+    expect(screen.queryByText("Saved to project")).not.toBeInTheDocument();
+    await act(async () => {
+      release(1);
+    });
+    await settle();
+    expect(
+      screen.getByRole("button", { name: "Not saved yet · 1 waiting to send" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Saved to project")).not.toBeInTheDocument();
+  });
+
   it("reads the queue as soon as a send ends, not at the next poll", async () => {
     render(<SaveStatePill />);
     await settle();
