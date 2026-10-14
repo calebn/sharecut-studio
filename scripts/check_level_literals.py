@@ -98,17 +98,19 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("src/podcast_mcp/engines/audio_audit.py", "CLIPPING_MIN_PEAK_DB"): (
         "clipping ceiling: a peak this far under full scale was never clipped"
     ),
-    # Deferred to #1533: a per-window voice reach regressed real ingest (session start moved
-    # 36-48 s on aligned lab tracks), so these keep the fixed gates until a whole-file
-    # reference exists.
+    # Ingest gates that stay fixed on purpose (#1533). A level gate cannot separate a quiet
+    # mic's own voice from another speaker's leakage: on Daniela's quiet track every gate
+    # relative to the file's level (voice reach, speech-3 to speech-21 dB) either missed
+    # her words or admitted 40 s of audio with no word under it, and the offsets that held
+    # the Zoom lab tracks within 1.3% of this fixed gate were not the ones that helped her.
     (
         "src/podcast_mcp/engines/alignment_audit.py",
         "rms_threshold",
-    ): "ingest gate kept fixed until #1533",
+    ): "VAD gate fixed: no level-relative gate beat it on quiet mics (#1533 sweep)",
     (
         "src/podcast_mcp/edits/conversation_align.py",
         "min_rms",
-    ): "ingest gate kept fixed until #1533",
+    ): "acoustic-window gate fixed: no measured reference yet (#1533)",
 }
 
 
