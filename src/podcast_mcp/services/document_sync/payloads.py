@@ -160,7 +160,9 @@ class ApproveEditsPayload(BaseModel):
         description=(
             "Approve all: a cut that cannot apply safely (another speaker is talking "
             "there, say) stays pending and is reported in `held`; every other edit "
-            "applies. Without it one such cut refuses the whole batch."
+            "applies. A cut that would cut other speech also stays pending: the reply "
+            "carries the ask and `confirm_ids`, and confirming sends only those ids. "
+            "Without it one such cut refuses the whole batch."
         ),
     )
 

@@ -195,6 +195,7 @@ function reviewOutcome(
   projectPath: string,
   result: Record<string, unknown>,
   choices?: CutSpeechChoices,
+  narrow?: (confirmIds: string[]) => CutSpeechChoices,
 ): ReviewOutcome {
   if (result.queued === true)
     return {
@@ -204,17 +205,23 @@ function reviewOutcome(
       historyHead: null,
       held: [],
     };
-  if (choices && rippleOutcome(projectPath, result, choices).asked)
+  const command = result.command;
+  const payload = isSuggestionRecord(command) ? command.payload : null;
+  const review = isSuggestionRecord(payload) ? payload.result : null;
+  const confirmIds = confirmIdsOf(review);
+  const asking = choices && confirmIds && narrow ? narrow(confirmIds) : choices;
+  if (asking && rippleOutcome(projectPath, result, asking).asked) {
+    // Approve all applied what it could and asked only about the rest.
+    const applied = isSuggestionRecord(review) ? review.count : null;
     return {
       queued: false,
       asked: true,
       count: null,
-      historyHead: null,
-      held: [],
+      historyHead: replyHistoryHead(result),
+      held: heldOf(review),
+      ...(typeof applied === "number" && applied > 0 ? { applied } : {}),
     };
-  const command = result.command;
-  const payload = isSuggestionRecord(command) ? command.payload : null;
-  const review = isSuggestionRecord(payload) ? payload.result : null;
+  }
   const count = isSuggestionRecord(review) ? review.count : null;
   if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)
     throw new Error("The review reply is missing its affected edit count.");
@@ -225,6 +232,14 @@ function reviewOutcome(
     historyHead: replyHistoryHead(result),
     held: heldOf(review),
   };
+}
+
+/** The edits an Approve all left for "Cut anyway", when it applied the rest. */
+function confirmIdsOf(review: unknown): string[] | null {
+  const ids = isSuggestionRecord(review) ? review.confirm_ids : null;
+  return Array.isArray(ids) && ids.every((id) => typeof id === "string")
+    ? (ids as string[])
+    : null;
 }
 
 /** Cuts Approve all left pending, each with the reason the list can show. */
@@ -256,13 +271,14 @@ export async function approveEdits(
     ...(holdBlocked ? { hold_blocked: true } : {}),
     ...confirmed(confirmCutSpeech),
   });
-  return reviewOutcome(projectPath, result, {
+  const choices = (only: string[]): CutSpeechChoices => ({
     kind: "pending-review",
     review,
     cutAnyway: () =>
-      approveEdits(projectPath, ids, true, allowReview, review, holdBlocked),
+      approveEdits(projectPath, only, true, allowReview, review, holdBlocked),
     leaveGap: null,
   });
+  return reviewOutcome(projectPath, result, choices(ids), choices);
 }
 
 export async function waiveTranscriptRefine(

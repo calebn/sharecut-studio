@@ -98,8 +98,10 @@ export type ReviewOutcome = Readonly<
       queued: false;
       asked: true;
       count: null;
-      historyHead: null;
+      historyHead: HistoryEntryId | null;
       held?: readonly HeldCut[];
+      /** Edits Approve all already applied before asking about the rest. */
+      applied?: number;
     }
   | {
       queued: false;
@@ -109,6 +111,16 @@ export type ReviewOutcome = Readonly<
       held?: readonly HeldCut[];
     }
 >;
+
+/** What Approve all says when it applied part of the batch and is asking about the rest. */
+export function bulkReviewAppliedBeforeAskMessage(
+  applied: number,
+  held: readonly HeldCut[],
+): string {
+  return held.length > 0
+    ? bulkReviewHeldMessage(applied, held)
+    : bulkReviewDoneMessage("approve", applied);
+}
 
 /** "Applied 80, held 6" with the first two held cuts named; the rest stay in the list. */
 export function bulkReviewHeldMessage(

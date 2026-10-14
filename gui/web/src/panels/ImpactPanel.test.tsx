@@ -403,6 +403,27 @@ describe("ImpactPanel bulk review", () => {
     );
   });
 
+  it("announces what Approve all applied while it asks about the rest", async () => {
+    const user = userEvent.setup();
+    answerQuestions(true);
+    vi.mocked(approveEdits).mockResolvedValue({
+      queued: false,
+      asked: true,
+      count: null,
+      historyHead: head,
+      held: [],
+      applied: 2,
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Approved 2 pending edits",
+      ),
+    );
+    expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
+  });
+
   it("names only the first two held cuts when many are held", async () => {
     const user = userEvent.setup();
     answerQuestions(true);
