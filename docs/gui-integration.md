@@ -338,9 +338,11 @@ own undo removes or disables, or that another client's edit removes, falls
 back to a usable current Close. A selection adopted from the agent or a
 followed leader (`remoteSelectionRevision`) is not navigation; no other client's
 selection reaches this tab (see [session-sync.md](session-sync.md) § Transport authority). A sheet opened
-or remounted behind an open modal stays below it in `ui/modalGate`: the modal
-keeps Escape and entry focus, and when it closes without a usable return
-target the sheet's Close takes focus. A host move that detaches a focused
+or remounted behind an open modal or a later non-modal (JoinPopover) stays
+below it in `ui/modalGate`: the inner overlay keeps Escape and entry focus,
+and when it closes without a usable return target the sheet's Close takes
+focus. Restore skips a disabled, inert, or hidden return target. The keymap
+does not run Escape commands while any overlay is open. A host move that detaches a focused
 action without a blur (a modal-covered or stowed host) resumes the toast timer.
 Ordinary body scrolling exposes feedback when a full native label and the card
 cannot fit together. The single Toast pauses its remaining visible lifetime

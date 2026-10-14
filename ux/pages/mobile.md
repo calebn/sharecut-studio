@@ -104,9 +104,11 @@ Escape also cancels an active clip body or chapter/social marker preview.
 Canceled pointer ownership cannot save on later held movement or release.
 Completed edits retain their existing command and Undo behavior.
 
-Use Close or Escape to dismiss an inspector sheet. Tap outside a confirmation
-sheet to dismiss it. Audition modes and export controls are in the compact
-transport Menu on Timeline, Text, or More.
+Use Close or Escape to dismiss an inspector sheet. Escape on the sheet does
+not also clear the timeline selection. If a join popover is open, Escape
+closes that popover first, even if the inspector sheet remounts behind it.
+Tap outside a confirmation sheet to dismiss it. Audition modes and export
+controls are in the compact transport Menu on Timeline, Text, or More.
 
 ## Gestures
 

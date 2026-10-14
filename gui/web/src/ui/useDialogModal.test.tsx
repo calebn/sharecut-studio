@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { type RefObject, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { BottomSheet } from "./BottomSheet";
 import { Dialog } from "./Dialog";
 import { registerFocusHold } from "./focusHold";
@@ -674,10 +675,11 @@ describe("useDialogModal Escape across a remount", () => {
       );
     }
     const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
-    render(<App />);
+    const { container } = render(<App />);
     await settle();
     act(() => api.remount());
     await settle();
+    await expectNoA11yViolations(container);
 
     const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
     env.IS_REACT_ACT_ENVIRONMENT = false;

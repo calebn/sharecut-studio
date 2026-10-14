@@ -449,6 +449,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                       onKeyDown={(event) => {
                         if (event.key === "Escape") {
                           event.preventDefault();
+                          event.stopPropagation();
                           cancelFadeGesture();
                         } else {
                           startKeyFade(edge, event.key);
