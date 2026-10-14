@@ -299,8 +299,11 @@ def _owned_peer_frames(
     peer = project.track_by_id(peer_track_id)
     gain = peer.gain_db if peer else 0.0
     own = levels > DIGITAL_SILENCE_DB + gain
+    peer_reference = _track_voice_db(project, peer_track_id, caches)
     peer_voice = gain + _voice_ref_db(project, peer_track_id, caches)
     for tid in owner_track_ids:
+        if peer_reference is None or _track_voice_db(project, tid, caches) is None:
+            continue
         owner = timeline_frame_levels_db(
             project,
             tid,

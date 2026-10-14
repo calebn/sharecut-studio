@@ -221,6 +221,7 @@ def test_a_balance_gain_on_the_peer_does_not_make_it_dominate(guest_gain_db: flo
 
 
 @pytest.mark.parametrize("peer_gain_db", [0.0, 20.0])
+@pytest.mark.usefixtures("peer_floor")
 def test_owner_dominance_over_peer_frames_reads_the_recordings(peer_gain_db: float):
     """#1549: frame by frame, the owner owns a frame it out-sounds by the dominance margin as
     recorded, whatever balance gain the peer's track carries."""
@@ -244,6 +245,7 @@ def test_owner_dominance_over_peer_frames_reads_the_recordings(peer_gain_db: flo
 
 
 @pytest.mark.parametrize("owner_gain_db", [0.0, 20.0])
+@pytest.mark.usefixtures("peer_floor")
 def test_owner_balance_gain_does_not_make_it_dominate_frames(owner_gain_db: float):
     """#1549: the peer is 1 dB under the owner as recorded, inside the dominance margin. The
     owner's balance gain lifts the level its frames read, but the peer still owns them."""
