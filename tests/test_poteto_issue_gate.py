@@ -242,6 +242,7 @@ def _graphql_forbidden_rest(
     review_pages: list[list[dict[str, Any]]] | None = None,
     issue: dict[str, Any] | None = None,
     comments: list[list[dict[str, Any]]] | None = None,
+    graphql_threads: list[dict[str, Any]] | None = None,
 ) -> Any:
     pr = _rest_pr() if pr is None else pr
     after_pr = pr if after_pr is None else after_pr
@@ -258,7 +259,22 @@ def _graphql_forbidden_rest(
     pr_reads = [pr, after_pr]
 
     def fake_gh_json(*args: str) -> Any:
-        if not args or args[0] != "api" or args[1:2] == ("graphql",):
+        if args[:2] == ("api", "graphql"):
+            if graphql_threads is None:
+                raise RuntimeError(GRAPHQL_403)
+            return {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": graphql_threads,
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            }
+                        }
+                    }
+                }
+            }
+        if not args or args[0] != "api":
             raise RuntimeError(GRAPHQL_403)
         path = args[1]
         if path == "repos/calebn/sharecut-studio/pulls/252":
@@ -277,9 +293,73 @@ def _graphql_forbidden_rest(
 
 
 def test_collect_gate_falls_back_to_rest_when_graphql_returns_403(monkeypatch: Any) -> None:
-    monkeypatch.setattr(gate, "gh_json", _graphql_forbidden_rest())
+    calls: list[tuple[str, ...]] = []
+    inner = _graphql_forbidden_rest(
+        review_pages=[
+            [{"id": 10, "in_reply_to_id": None}, {"id": 20, "in_reply_to_id": None}],
+        ]
+    )
+
+    def fake_gh_json(*args: str) -> Any:
+        calls.append(args)
+        return inner(*args)
+
+    monkeypatch.setattr(gate, "gh_json", fake_gh_json)
+    verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
+    assert verdict["head_sha"] == SHA
+    assert verdict["mergeable"] is False
+    assert "2 unresolved review thread(s)" in verdict["blockers"]
+    assert any(args[:2] == ("api", "graphql") for args in calls)
+    assert any(len(args) > 1 and "/pulls/252/comments" in args[1] for args in calls)
+
+
+def test_collect_gate_resolved_graphql_threads_match_trunk_when_rest_comments_remain(
+    monkeypatch: Any,
+) -> None:
+    rest_comments = [
+        {"id": 1, "in_reply_to_id": None},
+        {"id": 2, "in_reply_to_id": 1},
+        {"id": 3, "in_reply_to_id": None},
+        {"id": 4, "in_reply_to_id": 3},
+        {"id": 5, "in_reply_to_id": None},
+        {"id": 6, "in_reply_to_id": 5},
+        {"id": 7, "in_reply_to_id": None},
+        {"id": 8, "in_reply_to_id": 7},
+        {"id": 9, "in_reply_to_id": None},
+        {"id": 10, "in_reply_to_id": 9},
+    ]
+    monkeypatch.setattr(
+        gate,
+        "gh_json",
+        _graphql_forbidden_rest(
+            graphql_threads=[{"isResolved": True} for _ in range(5)],
+            review_pages=[rest_comments],
+        ),
+    )
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
     assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
+
+
+def test_flatten_check_run_pages_aborts_when_rows_miss_total_count() -> None:
+    first = [_rest_check_run(name) for name in gate.REQUIRED_CHECKS]
+    with pytest.raises(RuntimeError, match="total_count"):
+        gate.flatten_check_run_pages([{"total_count": 5, "check_runs": first}])
+
+
+def test_flatten_check_run_pages_aborts_on_non_dict_rows() -> None:
+    with pytest.raises(RuntimeError, match="not an object"):
+        gate.flatten_check_run_pages([{"total_count": 1, "check_runs": ["bad"]}])
+
+
+def test_collect_gate_incomplete_check_run_pages_are_not_mergeable(monkeypatch: Any) -> None:
+    first = [_rest_check_run(name) for name in gate.REQUIRED_CHECKS]
+    monkeypatch.setattr(
+        gate,
+        "gh_json",
+        _graphql_forbidden_rest(check_pages=[{"total_count": 5, "check_runs": first}]),
+    )
+    with pytest.raises(RuntimeError, match="total_count"):
+        gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
 
 
 def test_collect_gate_paginates_rest_check_runs_and_blocks_pending(
