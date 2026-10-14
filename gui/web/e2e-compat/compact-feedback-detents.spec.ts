@@ -129,6 +129,19 @@ for (const {
         const box = await panel.boundingBox();
         expect(box).not.toBeNull();
         withoutFeedback[detent] = box!.height;
+        if (inspector === "Pending") {
+          const review = panel.locator(".pending-actionbar--docked");
+          await expect(review).toBeVisible();
+          await expect
+            .poll(() =>
+              review.evaluate((element) =>
+                element.parentElement?.parentElement?.classList.contains(
+                  "bottom-sheet-body",
+                ),
+              ),
+            )
+            .toBe(true);
+        }
         if (detent === "half") {
           const slider = page.getByRole("slider", {
             name: "Timeline position",
@@ -325,6 +338,17 @@ for (const {
           expect(geometry.rect.bottom).toBeLessThanOrEqual(
             viewport.height - 34,
           );
+        }
+      }
+      if (inspector === "Pending") {
+        for (const reviewAction of await panel
+          .locator(".pending-actionbar--docked button")
+          .all()) {
+          await reviewAction.scrollIntoViewIfNeeded();
+          const geometry = await controlGeometry(reviewAction);
+          json(info, "pending-review-body-scroll", geometry);
+          expect(geometry.fullyVisible, JSON.stringify(geometry)).toBe(true);
+          expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
         }
       }
       await expect(attention).toHaveClass(/guest-attention--inspector-flow/);
