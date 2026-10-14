@@ -333,7 +333,10 @@ def edit_strip_silence_cmd(
     over_voice_floor_db: float = typer.Option(
         0.0,
         "--over-voice-floor-db",
-        help="Silence is audio under the track's own voice floor plus this (dB).",
+        help=(
+            "Silence is audio under the track's own audibility floor (its voice floor) plus "
+            "this (dB). A track whose voice does not stand out of its room has none to strip."
+        ),
     ),
     min_duration: float = typer.Option(0.5, "--min-duration"),
     inaudible_opt: bool = typer.Option(
