@@ -449,7 +449,8 @@ def _low_audibility(project: EpisodeProject) -> list:
 
 def _one_track_scene(kind: str) -> Callable[[Path], EpisodeProject]:
     """One track: a single word, a steady tone (no room to tell the voice from), digital
-    silence, or a sparse speaker (three bursts in two minutes) with two words on room tone."""
+    silence, or a sparse speaker (``sparse:<share>:<room dB>``: that share of two minutes in
+    0.6 s bursts) with two words on room tone."""
 
     def scene(tmp_path: Path) -> EpisodeProject:
         if kind == "single-word":
@@ -463,8 +464,11 @@ def _one_track_scene(kind: str) -> Callable[[Path], EpisodeProject]:
             audio = np.zeros(2 * RATE)
             words = [("hi", 0.5, 1.0)]
         else:
-            audio = np.random.default_rng(7).normal(0, 10 ** (ROOM_DB / 20), 120 * RATE)
-            real = [(8.0, 8.6), (50.0, 50.6), (99.0, 99.6)]
+            _, share, room_db = kind.split(":")
+            audio = np.random.default_rng(7).normal(0, 10 ** (float(room_db) / 20), 120 * RATE)
+            count = max(1, round((float(share) * 120 - 0.3) / 0.6))
+            starts = np.linspace(8.0, 99.0, count)
+            real = [(float(start), float(start) + 0.6) for start in starts]
             for start, end in real:
                 _voice(audio, start, end, LOUD_DB)
             words = [(f"real{n}", s, e) for n, (s, e) in enumerate(real)]
@@ -472,6 +476,14 @@ def _one_track_scene(kind: str) -> Callable[[Path], EpisodeProject]:
         return _project(tmp_path, {"solo": (audio, words)})
 
     return scene
+
+
+def _sparse_expected(share: float) -> list:
+    count = max(1, round((share * 120 - 0.3) / 0.6))
+    return [(f"real{n}", "audible") for n in range(count)] + [
+        ("ghost0", "inaudible"),
+        ("ghost1", "inaudible"),
+    ]
 
 
 def _solo_audibility(project: EpisodeProject) -> list:
@@ -498,7 +510,13 @@ def _trimmed_token(project: EpisodeProject) -> tuple:
     return round(words[0].start, 1), round(words[0].end, 1)
 
 
-def _asr_scene(*, gated: bool, seconds: float, speech: list[tuple[float, float]]) -> Callable:
+def _asr_scene(
+    *,
+    gated: bool,
+    seconds: float,
+    speech: list[tuple[float, float]],
+    soft: list[tuple[float, float]] = (),
+) -> Callable:
     def scene(tmp_path: Path) -> EpisodeProject:
         audio = (
             np.zeros(round(seconds * RATE))
@@ -507,6 +525,8 @@ def _asr_scene(*, gated: bool, seconds: float, speech: list[tuple[float, float]]
         )
         for start, end in speech:
             _voice(audio, start, end, SPEECH_DB)
+        for start, end in soft:
+            _voice(audio, start, end, SPEECH_DB - 14.0)
         return _project(tmp_path, {"solo": (audio, [])})
 
     return scene
@@ -533,15 +553,24 @@ def _asr_flags(spans: list[tuple[float, float]]) -> Callable[[EpisodeProject], l
 
 
 def _asr_detector(
-    *, gated: bool, seconds: float, speech: list[tuple[float, float]], invented: list
+    *,
+    gated: bool,
+    seconds: float,
+    speech: list[tuple[float, float]],
+    invented: list[tuple[float, float]] = (),
+    soft: list[tuple[float, float]] = (),
+    spans: list[tuple[float, float]] | None = None,
+    expected: list[bool] | None = None,
 ) -> Detector:
-    spans = sorted(speech + invented)
+    """A track and the words the silence filter must flag in it: the ``invented`` ones, or
+    ``expected`` for the given ``spans``."""
+    spans = sorted(speech + list(invented) + list(soft)) if spans is None else spans
     return Detector(
-        _asr_scene(gated=gated, seconds=seconds, speech=speech),
+        _asr_scene(gated=gated, seconds=seconds, speech=speech, soft=soft),
         _asr_flags(spans),
         _equal,
-        [span in invented for span in spans],
-        loudest_db=12.0,
+        [span in invented for span in spans] if expected is None else expected,
+        alone="solo",
     )
 
 
@@ -649,7 +678,6 @@ DETECTORS = {
             ("guest", "charlie", "audible"),
             ("guest", "delta", "audible"),
         ],
-        loudest_db=6.0,
     ),
     "reconciled-transcript": Detector(
         _two_mics_scene,
@@ -663,18 +691,14 @@ DETECTORS = {
             ("long", "audible", False),
             ("end", "audible", False),
         ],
-        loudest_db=6.0,
     ),
-    "low-audibility-scan": Detector(
-        _two_mics_scene, _low_audibility, _equal, [("host", "faint")], loudest_db=6.0
-    ),
+    "low-audibility-scan": Detector(_two_mics_scene, _low_audibility, _equal, [("host", "faint")]),
     "single-word-track": Detector(
         _one_track_scene("single-word"),
         _solo_audibility,
         _equal,
         [("hi", "audible")],
         alone="solo",
-        loudest_db=6.0,
     ),
     "no-contrast-track": Detector(
         _one_track_scene("no-contrast"),
@@ -682,7 +706,6 @@ DETECTORS = {
         _equal,
         [("hi", "audible")],
         alone="solo",
-        loudest_db=6.0,
     ),
     "no-live-audio-track": Detector(
         _one_track_scene("no-live-audio"),
@@ -692,21 +715,21 @@ DETECTORS = {
         alone="solo",
     ),
     "sparse-speaker-reconcile": Detector(
-        _one_track_scene("sparse"),
+        _one_track_scene("sparse:0.03:-68"),
         _solo_audibility,
         _equal,
-        [
-            ("real0", "audible"),
-            ("real1", "audible"),
-            ("real2", "audible"),
-            ("ghost0", "inaudible"),
-            ("ghost1", "inaudible"),
-        ],
+        _sparse_expected(0.03),
         alone="solo",
-        loudest_db=6.0,
+    ),
+    "sparse-speaker-noisy-room": Detector(
+        _one_track_scene("sparse:0.10:-55"),
+        _solo_audibility,
+        _equal,
+        _sparse_expected(0.10),
+        alone="solo",
     ),
     "word-span-trim": Detector(
-        _stretched_token_scene, _trimmed_token, _equal, (1.0, 1.3), alone="solo", loudest_db=6.0
+        _stretched_token_scene, _trimmed_token, _equal, (1.0, 1.3), alone="solo"
     ),
     "asr-silence-ungated": _asr_detector(
         gated=False, seconds=17.0, speech=_SPOKEN, invented=_INVENTED
@@ -719,6 +742,28 @@ DETECTORS = {
     ),
     "asr-silence-too-short-to-learn": _asr_detector(
         gated=False, seconds=1.5, speech=[(0.2, 0.6)], invented=[(1.0, 1.4)]
+    ),
+    "asr-silence-soft-word": _asr_detector(
+        gated=False,
+        seconds=17.0,
+        speech=_SPOKEN,
+        soft=[(15.0, 15.8)],
+        spans=[(15.0, 15.8)],
+        expected=[False],
+    ),
+    "asr-silence-no-live-audio": _asr_detector(
+        gated=True,
+        seconds=4.0,
+        speech=[],
+        spans=[(0.5, 1.0), (2.0, 2.5)],
+        expected=[True, True],
+    ),
+    "asr-silence-no-contrast": _asr_detector(
+        gated=False,
+        seconds=10.0,
+        speech=[],
+        spans=[(1.0, 1.5), (6.0, 6.5)],
+        expected=[False, False],
     ),
 }
 
@@ -733,7 +778,7 @@ def _scalings() -> dict[str, tuple[float | None, Callable[[str], dict[str, float
     for gain in ALL_TRACK_GAINS:
         scalings[f"all{gain:+.0f}dB"] = (
             gain,
-            lambda alone, gain=gain: dict.fromkeys(("host", "guest"), gain),
+            lambda alone, gain=gain: dict.fromkeys(("host", "guest", "solo"), gain),
         )
     scalings["one-track-24dB"] = (None, lambda alone: {alone: -24.0})
     return scalings
