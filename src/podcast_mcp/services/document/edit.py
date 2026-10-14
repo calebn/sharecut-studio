@@ -193,7 +193,7 @@ from podcast_mcp.engines.effect_filters import is_supported_effect, supported_ef
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.history.manager import apply_snapshot_to_project, snapshot_from_project
 from podcast_mcp.history.rollback import RollbackOutcome
-from podcast_mcp.models import EditDecision, EditMode, EpisodeProject
+from podcast_mcp.models import EditDecision, EditMode, EpisodeProject, TrackRole
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
@@ -503,9 +503,7 @@ class EditService:
 
         # The recording's room tone is picked once and stored with the project; the first
         # approve on it pays that here, outside the transaction, and later ones read it.
-        ensure_room_tone_pools(
-            self.ws.project, [e.track_id for e in self.ws.project.edit_decisions if e.id in ids]
-        )
+        self._ensure_room_tone_pools(lambda e: e.id in ids)
         try:
             with batch_scope():
                 return self.ws.mutate(
@@ -525,6 +523,15 @@ class EditService:
                 raise held.for_delivery("saved") from held
             raise
 
+    def _ensure_room_tone_pools(self, wanted: Callable[[EditDecision], bool]) -> None:
+        """Record the pool of each dialogue track a wanted edit sits on, if it has none."""
+        project = self.ws.project
+        dialogue = {t.id for t in project.tracks if t.role == TrackRole.DIALOGUE}
+        ensure_room_tone_pools(
+            project,
+            [e.track_id for e in project.edit_decisions if wanted(e) and e.track_id in dialogue],
+        )
+
     def approve_eligible_tighten(
         self, ids: list[str] | None = None, *, confirm_cut_speech: bool = False
     ) -> dict[str, Any]:
@@ -537,8 +544,14 @@ class EditService:
         """
         from podcast_mcp.edits.tighten_hits import eligible_tighten_ids, is_tighten_reason
 
+        # Before the transaction holds the commit lock: a first pick decodes the recordings.
+        wanted = None if ids is None else set(ids)
+        self._ensure_room_tone_pools(
+            lambda e: (
+                (wanted is None or e.id in wanted) and not e.applied and is_tighten_reason(e.reason)
+            )
+        )
         with self.ws.transaction() as project:
-            wanted = None if ids is None else set(ids)
             listed = [
                 d
                 for d in project.edit_decisions

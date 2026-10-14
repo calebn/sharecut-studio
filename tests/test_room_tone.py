@@ -593,14 +593,18 @@ def test_a_replaced_recording_is_picked_again(tmp_path: Path) -> None:
     assert room_tone.read_room_tone_pool(project, "host") is None
 
 
-def test_a_pool_picked_without_the_voice_detector_is_not_recorded(
+def test_a_pool_is_not_picked_without_the_voice_detector(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.edits import room_tone
 
     project = _project(tmp_path, host=_host_audio())
-    monkeypatch.setattr(room_tone, "_speech_prob", lambda _audio: None)
+    monkeypatch.setattr(room_tone, "_voice_detector_missing", lambda: True)
 
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("no detector: the recording must not be decoded to find that out")
+
+    monkeypatch.setattr(room_tone, "track_floor", refuse)
     assert room_tone.record_room_tone_pool(project, "host") is None
     assert room_tone.read_room_tone_pool(project, "host") is None
 
