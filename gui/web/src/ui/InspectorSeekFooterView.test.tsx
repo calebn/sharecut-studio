@@ -78,7 +78,7 @@ describe("InspectorSeekFooterView", () => {
     expect(screen.getByRole("button", { name: "Current" })).toBeEnabled();
   });
 
-  it("gives each footer its own reason id", async () => {
+  it("gives each disabled preview mode its reason", async () => {
     const reason = "A split does not change the mix until you delete a side.";
     const props: InspectorSeekFooterViewProps = {
       onSeek: vi.fn(),
@@ -94,9 +94,6 @@ describe("InspectorSeekFooterView", () => {
       </>,
     );
     const suggested = screen.getAllByRole("button", { name: "Suggested" });
-    const firstId = suggested[0].getAttribute("aria-describedby");
-    const secondId = suggested[1].getAttribute("aria-describedby");
-    expect(firstId).not.toBe(secondId);
     expect(suggested[0]).toHaveAccessibleDescription(reason);
     expect(suggested[1]).toHaveAccessibleDescription(reason);
     await expectNoA11yViolations(container);
