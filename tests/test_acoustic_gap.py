@@ -53,6 +53,13 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.pipeline.meta import PARAM_FIELDS
+from podcast_mcp.util.progress import (
+    CancelledProgress,
+    RecordingProgress,
+    bind_progress,
+    progress_task,
+)
+from podcast_mcp.util.project_state import render_cancel_scope
 from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 RATE = 16_000
@@ -975,6 +982,15 @@ def test_summary_reports_acoustic_proposals_and_skips_separately() -> None:
         format_tighten_propose_summary(decisions, {"acoustic:breath": 2})
         == "2 proposed (1 filler, 0 pause, 1 acoustic (review), 2 acoustic skipped)"
     )
+    assert format_tighten_propose_summary([], {"word_probe:unavailable": 2}) == (
+        "0 proposed (0 filler, 0 pause, 2 word probe unavailable)"
+    )
+    assert format_tighten_propose_summary([], {"word_probe:failed": 1}) == (
+        "0 proposed (0 filler, 0 pause, 1 word probe failed)"
+    )
+    assert format_tighten_propose_summary(
+        [], {"word_probe:unavailable": 2, "word_probe:failed": 1}
+    ) == ("0 proposed (0 filler, 0 pause, 2 word probe unavailable, 1 word probe failed)")
 
 
 # --- audition hypothesis ------------------------------------------------------------
@@ -1376,6 +1392,98 @@ def test_a_missing_model_counts_only_the_acoustic_proposals_of_a_mixed_run(
         "filler:acoustic",
         "filler:um",
         "pause:trim",
+        "filler:acoustic:risky",
+    ]
+
+
+def test_a_decode_error_on_one_span_keeps_earlier_flags_and_counts_the_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    heard: list[int] = []
+
+    def transcriber(defaults: dict) -> object:
+        def transcribe(samples: np.ndarray, language: str | None) -> str:
+            heard.append(1)
+            if len(heard) == 2:
+                raise RuntimeError("cuda OOM")
+            return "Then..."
+
+        return transcribe
+
+    monkeypatch.setattr("podcast_mcp.edits.tighten.whisper_span_transcriber", transcriber)
+    decisions = _mixed_run()
+    skip_counts: dict[str, int] = {}
+
+    _flag_possible_words(
+        EpisodeProject.model_construct(),
+        {},
+        decisions,
+        {"host": _FlatCache()},
+        skip_counts,
+    )
+
+    assert heard == [1, 1]
+    assert skip_counts == {"word_probe:failed": 1}
+    assert [d.reason for d in decisions] == [
+        "filler:acoustic:possible_word",
+        "filler:um",
+        "pause:trim",
+        "filler:acoustic:risky",
+    ]
+
+
+def test_the_probe_advances_a_named_child_once_per_heard_span() -> None:
+    rec = RecordingProgress()
+    decisions = [
+        _decision("a", 1.0, 1.5, "filler:acoustic", review=True),
+        _decision("b", 2.0, 2.4, "filler:um"),
+        _decision("d", 4.0, 4.2, "filler:acoustic:risky", review=True),
+    ]
+
+    with (
+        bind_progress(rec),
+        progress_task("propose-edits", "Propose", total=1, reporter=rec) as wrap,
+    ):
+        flagged = flag_possible_words(
+            decisions,
+            lambda track, start, end: np.ones(round((end - start) * RATE)),
+            lambda samples, language: "Umm.",
+            {},
+        )
+        assert wrap.total == 1
+        assert wrap.current == 0
+
+    assert flagged == 0
+    child = [e for e in rec.events if e.task_id == "word-probe"]
+    assert any(e.kind == "start" and e.total == 2 for e in child)
+    assert any(e.kind == "update" and e.current == 2 and e.total == 2 for e in child)
+    assert any(e.kind == "end" for e in child)
+    assert not any(e.task_id == "propose-edits" and e.kind == "update" for e in rec.events)
+
+
+def test_cancel_stops_the_probe_after_the_span_already_heard() -> None:
+    heard: list[int] = []
+
+    def transcribe(samples: np.ndarray, language: str | None) -> str:
+        heard.append(1)
+        return "Then..."
+
+    decisions = [
+        _decision("a", 1.0, 1.5, "filler:acoustic", review=True),
+        _decision("d", 4.0, 4.2, "filler:acoustic:risky", review=True),
+    ]
+    with pytest.raises(CancelledProgress):
+        with render_cancel_scope(lambda: len(heard) >= 1):
+            flag_possible_words(
+                decisions,
+                lambda track, start, end: np.ones(round((end - start) * RATE)),
+                transcribe,
+                {},
+            )
+
+    assert heard == [1]
+    assert [d.reason for d in decisions] == [
+        "filler:acoustic:possible_word",
         "filler:acoustic:risky",
     ]
 
