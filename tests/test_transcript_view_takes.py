@@ -91,14 +91,13 @@ def test_take_rows_carry_their_own_words(tmp_path: Path) -> None:
     assert by_text["b4"]["words"][0]["timeline_start"] == 28.0
 
 
-def test_only_the_first_take_words_are_addressable_by_index(tmp_path: Path) -> None:
-    """Word edits resolve (track, word_index) in the lane's first transcript, so a second
-    take's words carry no word_index and cannot be edited onto the wrong take."""
+def test_each_take_words_are_addressable_by_source_and_index(tmp_path: Path) -> None:
+    """Every take exposes its index together with the transcript source identity."""
     rows = _view(_two_take_project(tmp_path))
     by_text = {row["text"]: row for row in rows}
     assert by_text["a1"]["words"][0]["word_index"] == 1
     word = by_text["b1"]["words"][0]
-    assert "word_index" not in word
+    assert word["word_index"] == 1
     assert word["timing_target"] == {"track_id": "vicky", "source_id": "take3", "word_index": 1}
 
 
