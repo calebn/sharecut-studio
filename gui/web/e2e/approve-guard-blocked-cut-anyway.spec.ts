@@ -37,6 +37,8 @@ const ASKED = {
   },
 };
 
+const CONFIRMED = { ok: true, command: { payload: { result: { count: 1 } } } };
+
 test("approving a pending cut a peer speaks over asks Cut anyway, then sends it confirmed", async ({
   page,
 }) => {
@@ -59,7 +61,7 @@ test("approving a pending cut a peer speaks over asks Cut anyway, then sends it 
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(confirmed ? { ok: true } : ASKED),
+        body: JSON.stringify(confirmed ? CONFIRMED : ASKED),
       });
     });
 
