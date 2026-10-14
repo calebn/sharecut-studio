@@ -13,6 +13,7 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
+import { BottomSheet } from "../../ui/BottomSheet";
 import { ClipInspector } from "./ClipInspector";
 
 vi.mock("../../api", () => ({
@@ -374,6 +375,30 @@ describe("ClipInspector fades", () => {
     fireEvent.keyDown(fadeIn, { key: "Escape" });
     expect(fadeIn).toHaveValue("0");
     expect(setClipFade).not.toHaveBeenCalled();
+  });
+
+  it("does not close the inspector sheet when Escape cancels a fade", () => {
+    hydrateClipProject(sampleTrack());
+    const onClose = vi.fn();
+    render(
+      <BottomSheet
+        open
+        onClose={onClose}
+        backgroundPolicy="interactive"
+        title="Inspector"
+      >
+        <ClipInspector clip={clip} />
+      </BottomSheet>,
+    );
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
+    fireEvent.change(fadeIn, { target: { value: "1" } });
+    fireEvent.keyDown(fadeIn, { key: "Escape" });
+    expect(fadeIn).toHaveValue("0");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Inspector" }),
+    ).toBeInTheDocument();
   });
 
   it("commits an ordinary blur once and ignores a completion after project switch", async () => {
