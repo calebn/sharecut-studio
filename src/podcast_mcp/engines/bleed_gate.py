@@ -536,7 +536,8 @@ def _copy_lead(
     for opening, sounded_for in heard.items():
         near = slice(max(0, opening - _ONSET_REACH - frame), opening + frame + 1)
         sounded = min(_ONSET_REACH, sounded_for)
-        reads = sounded + _SYLLABLE_RISE if late_track and sounded_for >= _LATE_OPEN else sounded
+        is_late = late_track and _LATE_OPEN <= sounded_for <= _LATE_OPEN_MAX
+        reads = sounded + _SYLLABLE_RISE if is_late else sounded
         lead[near] = np.maximum(lead[near], reads)
     return lead
 
