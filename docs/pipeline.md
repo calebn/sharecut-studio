@@ -274,14 +274,14 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |
 | `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed (ceiling `1.5`) |
 | `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms frames per scan window (ceiling `600`, ~6 s); a longer gap is scanned in overlapping windows |
-| `tighten.acoustic_gap_filler.word_probe` | `true` | Each proposed acoustic run is heard alone by the project's `transcribe.model`; a run that comes back as a word gains `:possible_word` (still proposed, never auto-applied). A model that is not installed leaves the proposals unlabelled and counts `word_probe:unavailable` |
+| `tighten.acoustic_gap_filler.word_probe` | `true` | Each proposed acoustic run is heard alone by the project's `transcribe.model`; a run that comes back as a word gains `:possible_word` (still proposed, never auto-applied). A model that is not installed leaves the proposals unlabelled and counts `word_probe:unavailable`. A span whose decode fails counts `word_probe:failed` and Propose still returns. Listening reports a named `word-probe` progress child once per heard span. |
 | `tighten.acoustic_gap_filler.vad_backend` | `heuristic` | Breath rejection for each candidate run; `silero` is opt-in and falls back to the heuristic when unavailable |
 
 Ordinary SOURCE REMOVE proposals and their coalesced final rows require complete unique continuous playback geometry. Crossing a prior source hole is a counted `source_geometry` skip. Pauses require positive actual played loss that passes the existing perceptibility rule before shared twins. They retain enough qualified original quiet without adding a replacement pad; strict geometry and effect checks preserve safe automatic eligibility. Automatic apply rechecks the final consumed window and fresh scope per row, excludes held rows from chosen speech, and applies only converged survivors. Saved selected approval and Suggested snapshot approval retain their separate transaction behavior.
 
 Generated REMOVE/MUTE rows start pending. Coalescing touches only the generator's owned IDs, preserves excluded rows exactly, and counts invalid owned singleton or merged groups once. Focus supplies an effective hold sink for direct and pipeline callers; its summary includes held counts. Every selected origin placement must belong to the actual removal's canonical ripple lanes, or the row stays pending with `operation_scope`. Auto-apply discards held trials and restarts from the stable post-MUTE project after each new hold. Only the first complete hold-free survivor copy is adopted.
 
-Propose summaries include `N discourse kept` (`discourse:{token}` skip counts) and, when relevant, `N acoustic (review)` / `N acoustic skipped` (`acoustic:*` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
+Propose summaries include `N discourse kept` (`discourse:{token}` skip counts) and, when relevant, `N acoustic (review)` / `N acoustic skipped` (`acoustic:*` skip counts) / `N word probe unavailable` / `N word probe failed` (`word_probe:*` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
 
 ## Export formats
 

@@ -420,6 +420,8 @@ def propose_edits(
     bare array — breaking vs older list-of-decisions clients). ``operation`` is
     ``propose_edits``. ``skip_counts`` maps ``discourse:{token}`` to kept uses
     and ``backchannel:{phrase}`` to kept acknowledgments (``uh huh``).
+    ``word_probe:unavailable`` is a missing Whisper model; ``word_probe:failed``
+    is a span whose decode raised. The ``summary`` names both.
     ``edit_mode`` is ``ripple`` (default, from ``tighten.edit_mode``) or ``mute``.
     Mute proposes ``EditDecisionType.MUTE`` filler hits and skips pause
     candidates (muting a pause is a no-op). A ``pause:`` trim is shrunk to the air inside

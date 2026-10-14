@@ -33,6 +33,8 @@
     "pipeline_analyze_tool",
     "pipeline_run",
     "precorrect_transcript",
+    "propose-edits",
+    "propose_edits",
     "reconcile_transcript",
     "record.land",
     "record_land_tool",

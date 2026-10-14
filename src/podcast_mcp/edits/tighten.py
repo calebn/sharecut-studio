@@ -46,7 +46,7 @@ def format_tighten_propose_summary(
     decisions: list[EditDecision],
     skip_counts: dict[str, int] | None = None,
 ) -> str:
-    """Human summary for pipeline/CLI/MCP propose output (includes discourse and backchannel skips)."""
+    """Human summary for pipeline/CLI/MCP propose output (includes discourse, backchannel, and word-probe skips)."""
     acoustic = sum(1 for d in decisions if is_acoustic_filler_reason(d.reason))
     laughs = sum(1 for d in decisions if is_likely_laugh_reason(d.reason))
     words = sum(1 for d in decisions if is_possible_word_reason(d.reason))
@@ -68,9 +68,13 @@ def format_tighten_propose_summary(
     word_text = f", {words} possible missed word" if words else ""
     acoustic_text = f", {acoustic} acoustic (review{laugh_text}{word_text})" if acoustic else ""
     acoustic_skip_text = f", {acoustic_skipped} acoustic skipped" if acoustic_skipped else ""
+    unavailable = skips.get("word_probe:unavailable", 0)
+    failed = skips.get("word_probe:failed", 0)
+    probe_text = f", {unavailable} word probe unavailable" if unavailable else ""
+    probe_text += f", {failed} word probe failed" if failed else ""
     return (
         f"{len(decisions)} proposed ({fillers} filler, {pauses} pause"
-        f"{repeat_text}{acoustic_text}{extra}{acoustic_skip_text})"
+        f"{repeat_text}{acoustic_text}{extra}{acoustic_skip_text}{probe_text})"
     )
 
 
@@ -253,6 +257,7 @@ def _flag_possible_words(
             window,
             whisper_span_transcriber(cfg),
             {t.track_id: t.language for t in project.transcripts},
+            skip_counts,
         )
     except WhisperWeightsMissingError:
         skip_counts["word_probe:unavailable"] = acoustic

@@ -26,6 +26,13 @@ from podcast_mcp.edits.tighten_reasons import (
     is_possible_word_reason,
 )
 from podcast_mcp.models import EditDecision
+from podcast_mcp.util.progress import (
+    CancelledProgress,
+    raise_if_cancel_requested,
+    resolve_progress_task,
+)
+from podcast_mcp.util.project_state import current_cancel_check
+from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 WHISPER_SAMPLE_RATE = 16_000
 # Silence either side of the span: a model given a bare burst hears its edges as clicks.
@@ -64,13 +71,18 @@ def flag_possible_words(
     window: Callable[[str, float, float], np.ndarray | None],
     transcribe: SpanTranscriber,
     languages: Mapping[str, str | None],
+    skip_counts: dict[str, int] | None = None,
 ) -> int:
     """Add ``:possible_word`` to each acoustic decision whose span the model hears as a word.
 
     ``window(track_id, start, end)`` returns the track's 16 kHz samples, or ``None`` when
-    there are none to read; ``languages`` maps each track to its transcript's language. Returns how many decisions were flagged.
+    there are none to read; ``languages`` maps each track to its transcript's language.
+    A non-missing decode error on one span increments ``word_probe:failed`` on
+    ``skip_counts`` and leaves the rest of the loop to finish. Returns how many
+    decisions were flagged.
     """
-    flagged = 0
+    counts = skip_counts if skip_counts is not None else {}
+    to_hear: list[tuple[EditDecision, np.ndarray]] = []
     for decision in decisions:
         if not is_acoustic_filler_reason(decision.reason):
             continue
@@ -79,9 +91,36 @@ def flag_possible_words(
         samples = window(decision.track_id, decision.start, decision.end)
         if samples is None or samples.size == 0:
             continue
-        if span_heard_a_word(samples, transcribe, languages.get(decision.track_id)):
-            decision.reason = f"{decision.reason}:{POSSIBLE_WORD_FLAG}"
-            flagged += 1
+        to_hear.append((decision, samples))
+    if not to_hear:
+        return 0
+
+    flagged = 0
+    missing: WhisperWeightsMissingError | None = None
+    with resolve_progress_task(
+        "word-probe",
+        "Listening for missed words",
+        total=len(to_hear),
+    ) as task:
+        task.set_phase("span", "Hearing acoustic runs…")
+        for decision, samples in to_hear:
+            raise_if_cancel_requested(current_cancel_check())
+            try:
+                heard = span_heard_a_word(samples, transcribe, languages.get(decision.track_id))
+            except WhisperWeightsMissingError as exc:
+                missing = exc
+                break
+            except CancelledProgress:
+                raise
+            except Exception:
+                counts["word_probe:failed"] = counts.get("word_probe:failed", 0) + 1
+            else:
+                if heard:
+                    decision.reason = f"{decision.reason}:{POSSIBLE_WORD_FLAG}"
+                    flagged += 1
+            task.advance(1)
+    if missing is not None:
+        raise missing
     return flagged
 
 
