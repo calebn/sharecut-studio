@@ -1,7 +1,9 @@
 /** Plain-language names for a pending edit's type and reason code. */
 
+import type { PendingEditView, TrackView } from "../types/project";
 import { capitalize } from "./format";
 import { type TightenClass, tightenClassOfReason } from "./tightenHits";
+import { clockLabel } from "./time";
 
 const TYPE_LABELS: Record<string, string> = {
   remove: "Cut",
@@ -42,6 +44,19 @@ const TIGHTEN_REASON_LABELS: Record<TightenClass, (tail: string) => string> = {
 
 export function pendingTypeLabel(type: string): string {
   return TYPE_LABELS[type] ?? capitalize(type);
+}
+
+/** Pending-list row: whose cut at which source clock, plus the reason label (toast uses the same clock). */
+export function pendingListRowLabel(
+  edit: PendingEditView,
+  tracks: readonly TrackView[],
+): string {
+  const track = tracks.find((t) => t.id === edit.track_id);
+  const who = track?.speaker ?? track?.label ?? edit.track_id;
+  const kind = edit.reason?.startsWith("pause:") ? "pause trim" : "cut";
+  const at = clockLabel(edit.source_start);
+  const detail = pendingReasonLabel(edit.reason) ?? pendingTypeLabel(edit.type);
+  return `${who}'s ${kind} at ${at} · ${detail}`;
 }
 
 export function pendingReasonLabel(reason: string | null | undefined): string {

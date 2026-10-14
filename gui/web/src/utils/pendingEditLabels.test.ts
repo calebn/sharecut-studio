@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { pendingReasonLabel, pendingTypeLabel } from "./pendingEditLabels";
+import { sampleTrack } from "../test/fixtures";
+import {
+  pendingListRowLabel,
+  pendingReasonLabel,
+  pendingTypeLabel,
+} from "./pendingEditLabels";
 
 describe("pendingTypeLabel", () => {
   it("names the known types and capitalises the rest", () => {
@@ -44,5 +49,37 @@ describe("pendingReasonLabel", () => {
   it("handles a missing reason", () => {
     expect(pendingReasonLabel(null)).toBe("No reason given");
     expect(pendingReasonLabel(undefined)).toBe("No reason given");
+  });
+});
+
+describe("pendingListRowLabel", () => {
+  it("names the cut at the source clock like held-cut toasts", () => {
+    const tracks = [sampleTrack({ id: "host", speaker: "Dani" })];
+    expect(
+      pendingListRowLabel(
+        {
+          id: "e1",
+          track_id: "host",
+          type: "remove",
+          reason: "filler:um",
+          source_start: 1826.1,
+          source_end: 1827,
+          source_start_timeline: null,
+          source_end_timeline: null,
+          timeline_start: null,
+          timeline_end: null,
+          timeline_spans: [],
+          mappable: true,
+          crossfade_ms: null,
+          boundary_mode: null,
+          cut_confidence: null,
+          review_required: true,
+          harsh: false,
+          applied: false,
+          suggest_reason: null,
+        },
+        tracks,
+      ),
+    ).toBe('Dani\'s cut at 30:26.1 · Filler word "um"');
   });
 });

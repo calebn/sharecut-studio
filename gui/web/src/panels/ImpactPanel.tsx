@@ -18,6 +18,7 @@ import { Button, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
+import { pendingListRowLabel } from "../utils/pendingEditLabels";
 import {
   type BulkReviewAction,
   bulkReviewAppliedBeforeAskMessage,
@@ -261,7 +262,7 @@ export function ImpactPanel() {
                   })
                 }
               >
-                {edit.reason ?? edit.type} · {edit.track_id}
+                {pendingListRowLabel(edit, project.tracks)}
               </Button>
             </li>
           ))}
