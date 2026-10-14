@@ -53,7 +53,6 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError, resolve_ffmpeg_pair
-from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import (
     DEVNULL,
