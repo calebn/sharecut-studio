@@ -60,14 +60,14 @@ podcast speaker split --project PATH --track T --enroll "NAME=START:END" … --a
 4. `--apply` makes one undo step: the original lane becomes the first speaker's, each other speaker gets a copy that plays the same media, and each lane is muted where another owns the audio.
 5. Crosstalk flags from speaker embeddings are unreliable on real voices (5% precision on the lab tape), so the default `--crosstalk owner` plays a flagged stretch once, on its likeliest speaker, and keeps the flag on the turn. `--crosstalk both` plays it on two lanes (twice in the mix; doctor reports it as a stacked copy); `--crosstalk lane` moves it to a shared lane. Short backchannels (under 1 s) are the main attribution errors: listen at hand-overs. Hand-overs land in pauses measured on the recording's own levels, and a short reply keeps its whole voiced run when its voice points to its speaker; a hand-over left inside a voiced run (two people with no pause between them) is flagged as crosstalk, so review flagged turns.
 6. Nothing flags a count that is too high (one voice on two lanes). If two lanes carry the same person, undo and rerun with the right count. Enrolling only the speakers you are sure of is fine; the rest are clustered.
-7. Known limitation: a short reply (under about a second) can land on the wrong speaker's lane; listen at hand-overs; you can mute the span on the wrong lane with a range mute, but you can't reopen the right lane by hand yet, so undo the split (`history_undo`) and rerun `podcast speaker split --enroll NAME=START:END` (repeatable per speaker) with more enrollment, dry-run first ([speaker split limitations](../../../docs/multitrack-ingest.md#known-limitations), #1204).
+7. Known limitation: a short reply (under about a second) can land on the wrong speaker's lane; listen at hand-overs. Select the span on the wrong lane and move it to the sibling with **Move to {speaker}** / `podcast speaker move-lane-span` / `speaker_move_lane_span_tool` (one undo). Range mute alone does not reopen the right lane. To try more enrollment instead, undo the split (`history_undo`) and rerun `podcast speaker split --enroll NAME=START:END` (repeatable per speaker), dry-run first ([speaker split limitations](../../../docs/multitrack-ingest.md#known-limitations), #1204).
 8. Then run the pipeline as for any multitrack episode. Details: [multitrack-ingest.md § Split one recording by speaker](../../../docs/multitrack-ingest.md#split-one-recording-by-speaker).
 
 Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). Spec: [docs/progress.md](../../docs/progress.md). Long CLI attribute/gate passes: `--json-progress`.
 
 ## MCP
 
-`speaker_enroll_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, `speaker_gate_track_tool`, `speaker_label_tool`, `speaker_set_count_tool`, `speaker_attribute_tool`, `speaker_split_tool`, `speaker_score_tool`, `speaker_profiles_tool`, `speaker_doctor_tool`
+`speaker_enroll_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, `speaker_gate_track_tool`, `speaker_label_tool`, `speaker_set_count_tool`, `speaker_attribute_tool`, `speaker_split_tool`, `speaker_move_lane_span_tool`, `speaker_score_tool`, `speaker_profiles_tool`, `speaker_doctor_tool`
 
 ## Hand off to audition
 

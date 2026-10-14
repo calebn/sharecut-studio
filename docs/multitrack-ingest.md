@@ -550,7 +550,7 @@ What to do:
 
 - Listen to each lane at hand-overs after `--apply`, as the [speaker attribution skill](../.agents/skills/podcast-speaker-attribution/SKILL.md) says, and use `--dry-run` first to read `low_confidence_sec`.
 - To try more enrollment, undo the split (`history_undo`), then rerun `podcast speaker split --enroll NAME=START:END` (repeatable per speaker), dry-run first. Give several clean spans, each at least a few seconds of only that speaker. This may not move the reply: #1204's tests with whole declared spans still chose the wrong speaker.
-- If a reply stays on the wrong lane, you can mute the span on the wrong lane with a range mute, but you can't reopen the right lane by hand yet, so undo the split and rerun with more enrollment.
+- If a reply stays on the wrong lane, select that span on the wrong lane and use **Move to {speaker}** in range actions (CLI `podcast speaker move-lane-span`, MCP `speaker_move_lane_span_tool`) to mute it there and reopen the sibling lane. One undo step. Range mute alone only silences the wrong lane; it does not reopen the right one.
 
 Reopen #1204 on a user report, or when a method for short utterances passes the actual-run gate named in the block.
 

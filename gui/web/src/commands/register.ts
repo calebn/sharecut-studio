@@ -13,6 +13,7 @@ import { registerHostCommands } from "./host";
 import { registerNavigationCommands } from "./navigation";
 import { registerProjectMediaCommands } from "./projectMedia";
 import { registerRangeCommands } from "./rangeActions";
+import { registerSpeakerMoveLaneSpanCommands } from "./speakerMoveLaneSpan";
 import { registerSpeakerSplitCommands } from "./speakerSplit";
 import { registerTightenCommands } from "./tighten";
 import { registerTrackMixCommands } from "./trackMix";
@@ -33,6 +34,7 @@ export { _resetTrackMutateChainForTests } from "./trackMutation";
 
 export function registerDawCommands(): void {
   registerRangeCommands();
+  registerSpeakerMoveLaneSpanCommands();
   registerNavigationCommands();
   registerPrimaryEditingCommands();
   registerViewCommands();

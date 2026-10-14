@@ -236,6 +236,12 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["silence"],
     when: "hasProject",
   },
+  "range.moveSpeakerLane": {
+    id: "range.moveSpeakerLane",
+    category: "edit",
+    label: "Move range to another speaker lane",
+    when: "hasProject",
+  },
   "range.comment": {
     id: "range.comment",
     category: "edit",

@@ -21,9 +21,10 @@ import uuid
 from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track, new_clip_id
-from podcast_mcp.edits.mute_regions import add_source_mute
+from podcast_mcp.edits.mute_regions import add_source_mute, subtract_source_mute
 from podcast_mcp.edits.timeline_ops import mute_room_tone_fill
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.transcript_sync import rebuild_combined
@@ -41,6 +42,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import SourceSec
 
@@ -52,6 +54,16 @@ LOW_CONFIDENCE = 0.5
 CROSSTALK_LANE_NAME = "crosstalk"
 
 Span = tuple[float, float]
+
+
+@dataclass(frozen=True)
+class LaneSpanMove:
+    """Move nominal source ownership of ``[source_start, source_end)`` between split lanes."""
+
+    from_lane: str
+    to_lane: str
+    source_start: float
+    source_end: float
 
 
 @dataclass(frozen=True)
@@ -67,6 +79,21 @@ class SplitMediaIdentity:
 
     def matches(self, media: MediaAsset) -> bool:
         return media.path == self.path and media.duration_sec == self.duration_sec
+
+
+def _split_lane_ids(split: SpeakerSplit) -> set[str]:
+    lanes = set(split.lanes)
+    if split.crosstalk_lane is not None:
+        lanes.add(split.crosstalk_lane)
+    return lanes
+
+
+def _lane_media_duration(project: EpisodeProject, lane_id: str) -> float:
+    track = project.track_by_id(lane_id)
+    if track is not None and track.media is not None and track.media.duration_sec is not None:
+        return float(track.media.duration_sec)
+    clips = clips_for_track(project, lane_id)
+    return max((clip.source_end for clip in clips), default=0.0)
 
 
 def split_for_track(project: EpisodeProject, track_id: str) -> SpeakerSplit | None:
@@ -161,6 +188,73 @@ def _turn_records(attribution: SpeakerAttribution, lanes: list[str]) -> list[Spe
     ]
 
 
+def _transfer_transcript_words(
+    project: EpisodeProject, from_lane: str, to_lane: str, start: float, end: float
+) -> int:
+    from_transcript = project.transcript_for_track(from_lane)
+    if from_transcript is None:
+        return 0
+    to_transcript = project.transcript_for_track(to_lane)
+    if to_transcript is None:
+        return 0
+    moving: list[TranscriptWord] = []
+    staying: list[TranscriptWord] = []
+    for word in from_transcript.words:
+        mid = (word.start + max(word.end, word.start)) / 2.0
+        if start <= mid < end:
+            moving.append(word)
+        else:
+            staying.append(word)
+    from_transcript.words = staying
+    to_transcript.words = sorted([*to_transcript.words, *moving], key=lambda w: w.start)
+    return len(moving)
+
+
+def move_lane_span(
+    project: EpisodeProject,
+    move: LaneSpanMove,
+    *,
+    fade_ms: int = SPLIT_FADE_MS,
+) -> dict[str, Any]:
+    """Mute ``move`` on ``from_lane`` and reopen the same expanded span on ``to_lane``."""
+    start, end = move.source_start, move.source_end
+    if end <= start + 1e-9:
+        raise CodedValueError("source span must be non-empty", code="speaker_move_lane_span_empty")
+    if move.from_lane == move.to_lane:
+        raise CodedValueError(
+            "source and target lane must differ", code="speaker_move_lane_span_same_lane"
+        )
+    split = split_for_track(project, move.from_lane)
+    siblings = _split_lane_ids(split) if split is not None else set()
+    if split is None or move.from_lane not in siblings or move.to_lane not in siblings:
+        raise CodedValueError(
+            "both lanes must belong to the same speaker split",
+            code="speaker_move_lane_span_not_sibling",
+        )
+    duration = _lane_media_duration(project, move.from_lane)
+    region = _mute_region((start, end), duration, fade_ms)
+    for clip in clips_for_track(project, move.from_lane):
+        add_source_mute(clip, region)
+    for clip in clips_for_track(project, move.to_lane):
+        subtract_source_mute(clip, region.start_s, region.end_s)
+    words_moved = _transfer_transcript_words(project, move.from_lane, move.to_lane, start, end)
+    rebuild_combined(project)
+    record_invalidation(project, track_ids=[move.from_lane, move.to_lane])
+    return {
+        "from_lane": move.from_lane,
+        "to_lane": move.to_lane,
+        "source_start": start,
+        "source_end": end,
+        "mute_region": {
+            "start_s": region.start_s,
+            "end_s": region.end_s,
+            "fade_out_ms": region.fade_out_ms,
+            "fade_in_ms": region.fade_in_ms,
+        },
+        "words_moved": words_moved,
+    }
+
+
 def _split_transcripts(project: EpisodeProject, split: SpeakerSplit, track_id: str) -> None:
     """Give each word to the most likely speaker of the turn holding its midpoint."""
     original = project.transcript_for_source(track_id, None)
@@ -228,8 +322,6 @@ def split_track_by_speaker(
     """
     track, media_path = ensure_splittable(project, track_id)
     if track.media is None or not media_identity.matches(track.media):
-        from podcast_mcp.util.coded_error import CodedValueError
-
         raise CodedValueError(
             "the track's primary media changed while speaker recognition was running",
             code="speaker_split_media_changed",

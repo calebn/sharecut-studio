@@ -6,6 +6,7 @@ import { useDaw } from "../state/useDaw";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { SpeakerLaneMoveActions } from "./SpeakerLaneMoveActions";
 
 export function RangeActions({ sheet = false }: { sheet?: boolean }) {
   const state = useDaw((s) => ({
@@ -138,6 +139,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
           >
             Clear range
           </Button>
+          <SpeakerLaneMoveActions />
         </div>
       ) : null}
       {selection?.kind === "transcriptRange" ? (

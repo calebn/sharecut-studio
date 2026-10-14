@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import Any
 
 from podcast_mcp.edits.speaker_split import (
     LOW_CONFIDENCE,
+    LaneSpanMove,
     SplitMediaIdentity,
     ensure_splittable,
+    move_lane_span,
     split_track_by_speaker,
 )
+from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.speaker_id import (
     SpeakerBackend,
     compare_window,
@@ -36,6 +39,7 @@ from podcast_mcp.util.progress import (
     resolve_progress,
     resolve_progress_task,
 )
+from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
 
@@ -381,6 +385,51 @@ class SpeakerService:
             track = self.ws.project.track_by_id(lane["track_id"])
             if track is not None:
                 schedule_track_waveforms(self.ws.project, track)
+        from podcast_mcp.services.document_sync import after_agent_mutation
+
+        after_agent_mutation(self.ws)
+        return {
+            **result,
+            "history_head_id": self.ws.project.history.head_id(),
+        }
+
+    def move_lane_span(
+        self,
+        from_lane: str,
+        to_lane: str,
+        *,
+        source_start: float | None = None,
+        source_end: float | None = None,
+        timeline_start: float | None = None,
+        timeline_end: float | None = None,
+    ) -> dict[str, Any]:
+        """Move a source span from one speaker-split lane to a sibling lane (one undo step)."""
+        project = self.ws.project
+        if source_start is None or source_end is None:
+            if timeline_start is None or timeline_end is None:
+                raise CodedValueError(
+                    "pass source_start and source_end or timeline_start and timeline_end",
+                    code="speaker_move_lane_span_range_required",
+                )
+            mapped = SessionTimeline(project).map_timeline_span(
+                from_lane,
+                TimelineSec(timeline_start),
+                TimelineSec(timeline_end),
+            )
+            if len(mapped) != 1:
+                raise CodedValueError(
+                    "timeline range must map to one continuous source span on the lane",
+                    code="speaker_move_lane_span_timeline",
+                )
+            source_start, source_end = float(mapped[0][0]), float(mapped[0][1])
+        move = LaneSpanMove(from_lane, to_lane, source_start, source_end)
+        result = self.ws.mutate(
+            f"before move lane span on {from_lane}",
+            f"after move lane span to {to_lane}",
+            lambda p: move_lane_span(p, move),
+            operation="move_lane_span",
+            params=asdict(move),
+        )
         from podcast_mcp.services.document_sync import after_agent_mutation
 
         after_agent_mutation(self.ws)

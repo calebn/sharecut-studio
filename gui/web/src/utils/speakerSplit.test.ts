@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { HistoryEntryId } from "../types/project";
 import {
   parseSplitSpeakersResult,
+  siblingSplitLanes,
   splitSpeakerNames,
   splitSpeakersBlocker,
   splitSpeakersDoneCopy,
@@ -49,6 +50,32 @@ describe("splitSpeakersBlocker", () => {
     [{ ...track, media_path: null }, true, "Import this track's audio first"],
   ])("says why it cannot run: %#", (candidate, canManage, reason) => {
     expect(splitSpeakersBlocker(candidate, canManage)).toBe(reason);
+  });
+});
+
+describe("siblingSplitLanes", () => {
+  const ana = {
+    id: "room",
+    label: "Ana",
+    speaker_split_id: "split_1",
+  } as const;
+  const ben = {
+    id: "room_ben",
+    label: "Ben",
+    speaker_split_id: "split_1",
+  } as const;
+  const other = {
+    id: "call",
+    label: "Call",
+    speaker_split_id: null,
+  } as const;
+
+  it("lists the other tracks of the same split", () => {
+    expect(siblingSplitLanes([ana, ben, other], "room")).toEqual([ben]);
+  });
+
+  it("is empty when the track is not a split lane", () => {
+    expect(siblingSplitLanes([ana, ben, other], "call")).toEqual([]);
   });
 });
 

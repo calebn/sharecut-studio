@@ -2500,7 +2500,8 @@
           "speaker_set_count_tool",
           "speaker_attribute_tool",
           "speaker_gate_track_tool",
-          "speaker_split_tool"
+          "speaker_split_tool",
+          "speaker_move_lane_span_tool"
         ],
         "cli": "podcast speaker",
         "skill": "podcast-speaker-attribution"
@@ -3161,6 +3162,36 @@
         "keyboard_reason": "Context action with explicit range selection"
       },
       "tooltip": "Mute range",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.range.moveSpeakerLaneSpan",
+      "label": "Move speaker lane span",
+      "effect": "project",
+      "service": "SpeakerService.move_lane_span",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject",
+        "host"
+      ],
+      "surfaces": {
+        "command": "range.moveSpeakerLane",
+        "mcp": [
+          "speaker_move_lane_span_tool"
+        ],
+        "cli": "podcast speaker move-lane-span",
+        "gui": [
+          "SpeakerLaneMoveActions"
+        ],
+        "skill": "podcast-speaker-attribution"
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit range selection on one split lane"
+      },
+      "tooltip": "Move range to another speaker lane",
       "presence": {
         "cursor": "none",
         "follow": "none"

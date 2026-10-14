@@ -10,8 +10,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.mute_regions import source_span_is_muted
 from podcast_mcp.edits.speaker_split import (
+    SPLIT_FADE_MS,
+    LaneSpanMove,
     SplitMediaIdentity,
+    _mute_region,
+    move_lane_span,
     owned_spans,
     split_track_by_speaker,
 )
@@ -44,6 +49,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.media import SpeakerService
+from podcast_mcp.util.coded_error import CodedValueError
 
 # Four synthetic voices: harmonic sources at distinct pitches through distinct formants.
 VOICES = (
@@ -630,6 +636,107 @@ def test_words_follow_their_speaker(scripted_ws: ProjectWorkspace) -> None:
     _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
     words = {tr.track_id: [w.text for w in tr.words] for tr in project.transcripts}
     assert words == {"room": ["hello"], "room_ben": ["there"]}
+
+
+def test_move_lane_span_mutes_source_and_reopens_target(scripted_ws: ProjectWorkspace) -> None:
+    project = scripted_ws.project
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    region = _mute_region((1.0, 1.4), 10.0, SPLIT_FADE_MS)
+    move_lane_span(project, LaneSpanMove("room", "room_ben", 1.0, 1.4))
+    ana = next(c for c in project.clips if c.track_id == "room")
+    ben = next(c for c in project.clips if c.track_id == "room_ben")
+    assert any(
+        abs(r.start_s - region.start_s) < 1e-6
+        and abs(r.end_s - region.end_s) < 1e-6
+        and r.fade_out_ms == region.fade_out_ms
+        and r.fade_in_ms == region.fade_in_ms
+        for r in ana.mute_regions
+    )
+    assert not source_span_is_muted(ben.mute_regions, 1.0, 1.4)
+    words = {tr.track_id: [w.text for w in tr.words] for tr in project.transcripts}
+    assert words == {"room": [], "room_ben": ["hello", "there"]}
+
+
+def test_move_lane_span_undo_restores_lanes(scripted_ws: ProjectWorkspace) -> None:
+    project = scripted_ws.project
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    before_ana = [
+        (r.start_s, r.end_s)
+        for r in next(c for c in project.clips if c.track_id == "room").mute_regions
+    ]
+    before_ben = [
+        (r.start_s, r.end_s)
+        for r in next(c for c in project.clips if c.track_id == "room_ben").mute_regions
+    ]
+    before_words = {tr.track_id: [w.text for w in tr.words] for tr in project.transcripts}
+    scripted_ws.mutate(
+        "before move",
+        "after move",
+        lambda p: move_lane_span(p, LaneSpanMove("room", "room_ben", 1.0, 1.4)),
+        operation="move_lane_span",
+    )
+    HistoryService(scripted_ws).undo()
+    ana = next(c for c in scripted_ws.project.clips if c.track_id == "room")
+    ben = next(c for c in scripted_ws.project.clips if c.track_id == "room_ben")
+    assert [(r.start_s, r.end_s) for r in ana.mute_regions] == before_ana
+    assert [(r.start_s, r.end_s) for r in ben.mute_regions] == before_ben
+    words = {tr.track_id: [w.text for w in tr.words] for tr in scripted_ws.project.transcripts}
+    assert words == before_words
+
+
+def test_move_lane_span_service_mcp_and_cli_refuse_invalid_spans(
+    scripted_ws: ProjectWorkspace,
+) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+    from podcast_mcp.mcp.tools.speaker import speaker_move_lane_span_tool
+
+    _split_track(scripted_ws.project, "room", SCRIPTED, names=["Ana", "Ben"])
+    scripted_ws.save()
+    with pytest.raises(CodedValueError) as caught:
+        SpeakerService(scripted_ws).move_lane_span(
+            "room", "room_ben", source_start=1.0, source_end=1.0
+        )
+    assert caught.value.code == "speaker_move_lane_span_empty"
+    with pytest.raises(CodedValueError) as caught:
+        SpeakerService(scripted_ws).move_lane_span("room", "room", source_start=1.0, source_end=1.4)
+    assert caught.value.code == "speaker_move_lane_span_same_lane"
+    with pytest.raises(CodedValueError) as caught:
+        SpeakerService(scripted_ws).move_lane_span(
+            "room", "other", source_start=1.0, source_end=1.4
+        )
+    assert caught.value.code == "speaker_move_lane_span_not_sibling"
+    result = json.loads(
+        speaker_move_lane_span_tool(
+            str(scripted_ws.path),
+            from_lane="room",
+            to_lane="room_ben",
+            source_start=1.0,
+            source_end=1.4,
+        )
+    )
+    assert result["words_moved"] == 1
+    runner = CliRunner()
+    cli = runner.invoke(
+        app,
+        [
+            "speaker",
+            "move-lane-span",
+            "--project",
+            str(scripted_ws.path),
+            "--from-lane",
+            "room_ben",
+            "--to-lane",
+            "room",
+            "--start",
+            "6.5",
+            "--end",
+            "6.9",
+        ],
+    )
+    assert cli.exit_code == 0, cli.output
+    assert json.loads(cli.output)["words_moved"] == 1
 
 
 @pytest.mark.parametrize("mode", ["owner", "lane"])

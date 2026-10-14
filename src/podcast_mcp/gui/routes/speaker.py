@@ -8,7 +8,8 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 
 from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
-from podcast_mcp.gui.schemas import SpeakerSplitRequest
+from podcast_mcp.gui.schemas import SpeakerMoveLaneSpanRequest, SpeakerSplitRequest
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import SpeakerService
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -60,3 +61,29 @@ def speaker_split(
     except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"job": job.snapshot()}
+
+
+@router.post("/api/speaker/move-lane-span")
+def speaker_move_lane_span(
+    body: SpeakerMoveLaneSpanRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Move a timeline range from one speaker-split lane to a sibling lane."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(body.path, request)
+    ws = ProjectWorkspace.open(project_path)
+    try:
+        return SpeakerService(ws).move_lane_span(
+            body.from_lane,
+            body.to_lane,
+            timeline_start=body.timeline_start,
+            timeline_end=body.timeline_end,
+        )
+    except CodedValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+            headers={"X-Sharecut-Error-Code": exc.code},
+        ) from exc

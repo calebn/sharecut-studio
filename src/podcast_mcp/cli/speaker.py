@@ -149,6 +149,24 @@ def _parse_enroll(values: list[str]) -> dict[str, list[tuple[float, float]]]:
     return spans
 
 
+@speaker_app.command("move-lane-span")
+def speaker_move_lane_span_cmd(
+    project: Path = typer.Option(..., "--project"),
+    from_lane: str = typer.Option(..., "--from-lane", help="Lane the span is attributed to now"),
+    to_lane: str = typer.Option(..., "--to-lane", help="Sibling lane to open the span on"),
+    start: float = typer.Option(..., "--start", help="Source start (seconds)"),
+    end: float = typer.Option(..., "--end", help="Source end (seconds)"),
+) -> None:
+    ws = ProjectWorkspace.open(project)
+    result = SpeakerService(ws).move_lane_span(
+        from_lane,
+        to_lane,
+        source_start=start,
+        source_end=end,
+    )
+    typer.echo(json.dumps(result, indent=2))
+
+
 @speaker_app.command("split")
 def speaker_split_cmd(
     project: Path = typer.Option(..., "--project"),
