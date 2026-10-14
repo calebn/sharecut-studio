@@ -65,6 +65,8 @@ def _count_status(counts: dict[str, int], status: str) -> None:
 
 def parse_junit(path: Path, area: str, label: str | None) -> TestAreaSummary:
     root = ET.parse(path).getroot()
+    if _local_name(root.tag) not in {"testsuite", "testsuites"}:
+        raise UnrecognizedReport
     cases = [node for node in root.iter() if _local_name(node.tag) == "testcase"]
     statuses: dict[str, int] = {}
     duration_ms = 0.0
