@@ -53,13 +53,6 @@ type Flow =
   | { kind: "failed"; trackId: string; label: string; reason: string }
   | { kind: "cancelled"; trackId: string; label: string };
 
-/**
- * Host Split speakers dialog: the same `SpeakerService.split_speakers` as MCP
- * `speaker_split_tool` and CLI `podcast speaker split`, run as a job. The flow
- * outlives the dialog: closing it leaves the split running on the Activity
- * chip, and reopening shows its progress or its current result. A project
- * switch stops following the job and returns to the settings.
- */
 export function SplitSpeakersDialog() {
   const {
     trackId,
