@@ -17,7 +17,7 @@ At the bottom of the screen you'll see four tabs. Each one is designed for a spe
 
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand. Timeline clip labels lead with the speaker name when one is set, then show a readable duration such as "Avery · 17m 26s"; narrow labels clip visually while their accessible names keep the full identity.
 
-Select a clip to open its inspector sheet. The two fade sliders preview while you move and save together on release, key release, or leaving the control. The opposite edge stays fixed, and the controls clamp to the track cap and clip length. The selected track's **Track actions** menu holds **Smooth all joins**. Pending timing keeps **Snap to silence** as a separate checked option; turn it off to apply the exact times you entered.
+Select a clip to open its inspector sheet. The two fade sliders preview while you move and save together on release, key release, or leaving the control. Escape on a fade slider cancels the preview and leaves the inspector open. The opposite edge stays fixed, and the controls clamp to the track cap and clip length. The selected track's **Track actions** menu holds **Smooth all joins**. Pending timing keeps **Snap to silence** as a separate checked option; turn it off to apply the exact times you entered.
 
 In Timeline, the time ruler and marker rows stay visible when you scroll through
 tracks. They move with the waveforms when you pan horizontally; the playhead
@@ -104,9 +104,11 @@ Escape also cancels an active clip body or chapter/social marker preview.
 Canceled pointer ownership cannot save on later held movement or release.
 Completed edits retain their existing command and Undo behavior.
 
-Use Close or Escape to dismiss an inspector sheet. Escape on the sheet does
-not also clear the timeline selection. If a join popover is open, Escape
-closes that popover first, even if the inspector sheet remounts behind it.
+Use Close or Escape to dismiss an inspector sheet. Closing the inspector
+clears that clip selection. While the sheet is open, Escape does not also
+run the timeline's clear-selection shortcut. If a join popover is open,
+Escape closes that popover first, even if the inspector sheet remounts
+behind it.
 Tap outside a confirmation sheet to dismiss it. Audition modes and export
 controls are in the compact transport Menu on Timeline, Text, or More.
 
