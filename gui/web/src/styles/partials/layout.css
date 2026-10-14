@@ -1198,6 +1198,25 @@ button.save-dot {
   padding-left: var(--space-5);
 }
 
+/* The grip is a full touch target on a coarse pointer (#1422); the header
+   gutter grows with it so the name keeps clear of the grip. */
+@media (pointer: coarse) {
+  .track-reorder-handle {
+    left: 0;
+    width: var(--touch-min);
+    height: var(--touch-min);
+    line-height: var(--touch-min);
+  }
+
+  .track-header-row:has(.track-reorder-handle) {
+    padding-left: var(--touch-min);
+  }
+
+  .track-header-row.reorderable .track-header-open {
+    left: var(--touch-min);
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .track-reorder-handle:hover {
     opacity: 1;

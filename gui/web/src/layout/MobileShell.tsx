@@ -41,7 +41,7 @@ import { SoloChip } from "../tracks/SoloChip";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
-import { CommandButton, EmptyState, Icon, Timecode } from "../ui";
+import { Button, CommandButton, EmptyState, Icon, Timecode } from "../ui";
 import {
   HOME_SCREEN_HINT,
   offersHomeScreenHint,
@@ -335,9 +335,8 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
       <div className="mobile-comment-list">
         <div className="mobile-comment-list-head">
           <h2>Comments</h2>
-          <button
-            type="button"
-            className="linkish"
+          <Button
+            variant="link"
             onClick={() => {
               runPointerCommand("view.setMobileMode", {
                 mode: "more",
@@ -346,7 +345,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
             }}
           >
             Open all
-          </button>
+          </Button>
         </div>
         {comments.length === 0 ? (
           <EmptyState>No comments yet.</EmptyState>

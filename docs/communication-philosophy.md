@@ -360,6 +360,12 @@ audited finding.
   has invisible hit-area expansion (`::before`/`::after` slop) on
   coarse pointers (every `.ui-control` variant and action pill carries `--touch-min` on a coarse pointer through one rule in `ui.css`, #1315, #1388). Token floor: `--tap-min` ≥ 2.75rem (today 1.5rem in
   `gui/web/src/styles/theme/brand-tokens.css`; #1032 tracks target-size coverage).
+- [ ] Words and speaker labels inside running transcript text (`.utterance-word`,
+  `.utterance-seek`) are inline targets under WCAG 2.5.8's inline exception: they
+  keep the line's natural height and word spacing, a long press opens the word's
+  sheet, and every transcript action has a 44 px equivalent in the inspector or
+  Range actions (#1422). Any other text link or button is a `ui/Button`, never a
+  bare `<button class="linkish">`, so the coarse-pointer floor reaches it.
 - [ ] Dense canvas targets (envelope points, edges of short clips, pending
   handles) may draw smaller than 44 CSS px only through the dense-target
   pattern: the hit area grows invisibly toward 44 px where there is room; a
@@ -631,3 +637,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   "· Refresh" after the mix status, and the pill reads "Updating mix…" while it
   rebuilds. Mod+B stays as "update now". Until the project loads the pill reads
   "Checking mix…" instead of claiming "Mix up to date".
+- 2026-10-14 — Touch floor reaches the stragglers (#1422): the phone Listen **Open all** is a link-variant `ui/Button`, **+ Track** and the track reorder grip are 44 px on a coarse pointer, and the transcript's inline words are named as the inline exception. Canvas edges stay under the dense-target pattern.
