@@ -102,7 +102,7 @@ levels](audio-engineering.md#detection-levels)).
 A test waits on an event or a state, never on a clock: no `time.sleep`, `asyncio.sleep` or
 Playwright `waitForTimeout` (D5, [#1446](https://github.com/calebn/sharecut-studio/issues/1446)). Poll
 a condition, await the signal, or use a locator assertion. `scripts/check_test_waits.py` (run by
-`make lint-py` and `tests/test_test_waits.py`) counts these calls in `tests/` and `gui/web/e2e*`
+`make lint-py`; CI runs it through `tests/test_test_waits.py` in the pytest job) counts these calls in `tests/` and `gui/web/e2e*`
 and compares each file with `contracts/test-wait-allowlist.json`. The list is a ratchet: a file
 may not gain a wait, an unlisted file may not have one, and a file that lost waits must lower its
 count with `python scripts/check_test_waits.py --write`, so the list only shrinks. One more rule for
