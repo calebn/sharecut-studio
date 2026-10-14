@@ -731,6 +731,7 @@ def _rms_for_track_at_timeline(
     *,
     caches: TrackRmsCacheSet | None = None,
     floor_db: float = DIGITAL_SILENCE_DB,
+    recorded_gain: bool = True,
 ) -> float | None:
     cache = caches.get(track_id) if caches else None
     if cache is not None:
@@ -742,7 +743,7 @@ def _rms_for_track_at_timeline(
         if read is None or read[0].size == 0:
             return None
         rms = rms_db(read[0], floor_db=floor_db)
-    return _effective_rms_db(rms, _recorded_gain_db(project, track_id))
+    return _effective_rms_db(rms, _recorded_gain_db(project, track_id) if recorded_gain else 0.0)
 
 
 def timeline_frame_levels_db(
@@ -830,12 +831,10 @@ def _classify_word_audibility(
     return "audible", None
 
 
-def _voice_floors(
-    project: EpisodeProject, track_ids: Collection[str], caches: TrackRmsCacheSet
-) -> dict[str, float]:
-    """Each decoded track's audibility floor in the units its word levels are read in."""
+def _voice_floors(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict[str, float]:
+    """Each decoded track's audibility floor, raw, in the units its word levels are read in."""
     return {
-        tid: cache.profile.audibility_floor_db + _recorded_gain_db(project, tid)
+        tid: cache.profile.audibility_floor_db
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -853,7 +852,9 @@ def _track_levels(
     levels: dict[str, float] = {}
     for tid in track_ids:
         lag = lags.get(tid, 0.0)
-        rms = _rms_for_track_at_timeline(project, tid, t_start + lag, t_end + lag, caches=caches)
+        rms = _rms_for_track_at_timeline(
+            project, tid, t_start + lag, t_end + lag, caches=caches, recorded_gain=False
+        )
         if rms is not None:
             levels[tid] = rms
     return levels
@@ -890,7 +891,7 @@ def compute_word_audibility_map(
     out: list[dict[str, Any]] = []
     all_tracks = dialogue_track_ids(project)
     targets = [track_id] if track_id else all_tracks
-    floors = _voice_floors(project, all_tracks, caches)
+    floors = _voice_floors(all_tracks, caches)
 
     lanes = lanes_transcripts(project, targets)
     total_words = sum(len(lane.transcript.words) for lane in lanes)
