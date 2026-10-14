@@ -243,6 +243,56 @@ def test_owner_dominance_over_peer_frames_reads_the_recordings(peer_gain_db: flo
     assert not got.own.any()
 
 
+@pytest.mark.parametrize("owner_gain_db", [0.0, 20.0])
+def test_owner_balance_gain_does_not_make_it_dominate_frames(owner_gain_db: float):
+    """#1549: the peer is 1 dB under the owner as recorded, inside the dominance margin. The
+    owner's balance gain lifts the level its frames read, but the peer still owns them."""
+    from podcast_mcp.edits.speech_energy_guard import _owned_peer_frames
+
+    p = _two_track()
+    p.tracks[0].gain_db = owner_gain_db
+
+    def frames(project, track_id, start, end, **kw):
+        return np.full(4, -25.0 + owner_gain_db if track_id == "host" else -26.0)
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.timeline_frame_levels_db", side_effect=frames
+    ):
+        got = _owned_peer_frames(
+            p, "guest", 2.0, 2.2, owner_track_ids=["host"], dominance_db=3.0, caches=None
+        )
+    assert got is not None
+    assert got.own.all()
+
+
+@pytest.mark.usefixtures("peer_floor")
+@pytest.mark.parametrize("owner_gain_db", [0.0, 20.0])
+def test_an_owner_balance_gain_does_not_hide_a_dominant_peer(owner_gain_db: float):
+    """#1549: the guest is 15 dB over the host as recorded. The host's balance gain lifts the
+    level the span read gives it above the guest's, but the guest still dominates."""
+    p = _two_track()
+    p.tracks[0].gain_db = owner_gain_db
+
+    def fake_rms(project, track_id, t0, t1, caches=None, floor_db=-80.0):
+        return -20.0 if track_id == "guest" else -35.0 + owner_gain_db
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.measure_timeline_rms_db",
+        side_effect=fake_rms,
+    ):
+        g = assess_cross_track_speech(
+            p,
+            "host",
+            2.0,
+            2.5,
+            defaults={
+                "tighten": {"speech_energy_guard": {"enabled": True, "dominance_db": 3.0}},
+                "analysis": {"heuristics": {}},
+            },
+        )
+    assert g.blocked
+
+
 @pytest.mark.usefixtures("peer_floor")
 def test_resolve_skip_retains_peer_evidence():
     p = _two_track()
