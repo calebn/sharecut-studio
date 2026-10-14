@@ -469,6 +469,17 @@ under Annotate; a corrected word (confidence set to 1.0) leaves the list and
 the walk continues with the nearest flagged word after (Next) or before
 (Previous) it in transcript order, even when an agent batch-corrects several.
 
+**Multi-take word identity (#1486):** a word index belongs to its track and
+recording, `(track_id, source_id, word_index)`. Selection, presence, correction,
+Ignore/Restore, low-confidence navigation, and captions keep that source key;
+an unkeyed transcript is the current primary recording, not a fallback for a
+missing explicit take. `cut_words_tool` and `cut_utterance_tool` resolve the
+selected transcript's source seconds to one current timeline placement and
+recheck that placement when approved. They retain the normal session-ripple
+policy, so a clear-scope cut can also move or remove overlapping lane material.
+Ambiguous or changed source placement is held for review instead of targeting a
+different take.
+
 CLI `podcast transcribe` and MCP `transcribe_track` are the explicit re-transcribe
 path: they run ASR even when a transcript exists (the ASR disk cache still counts),
 replace only the transcripts they produce, keeping other tracks and extra-source

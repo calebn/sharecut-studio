@@ -12,12 +12,13 @@ import numpy as np
 from podcast_mcp.config import DEFAULT_MICRO_FADE_MS, join_micro_fade_ms, load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache, track_level_profile
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.level_profile import file_level_profile
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Track, Transcript
 from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
-from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.tracks import recording_audio_path, track_audio_path
 
 CutMode = Literal["vocal_transcript_guided", "waveform_only"]
 log = logging.getLogger(__name__)
@@ -637,6 +638,7 @@ def optimize_source_cut_range(
     force_enabled: bool | None = None,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
+    source_id: str | None = None,
 ) -> OptimizedCutRange:
     cfg = config or InaudibleCutConfig.from_defaults()
     enabled = _effective_cut_optimization_enabled(cfg, force_enabled)
@@ -659,14 +661,21 @@ def optimize_source_cut_range(
     trailing_extended = False
     silence_absorbed = False
     src: Path | None = None
+    selected_audio_cache = audio_cache if source_id is None else None
     if enabled and mode == "vocal_transcript_guided":
         start = _nearest_word_boundary(project, track_id, start, max_shift, word_index)
         end = _nearest_word_boundary(project, track_id, end, max_shift, word_index)
     if enabled:
         try:
-            src = track_audio_path(project, track_id)
-            start = _snap_boundary_to_waveform(src, start, config=cfg, audio_cache=audio_cache)
-            end = _snap_boundary_to_waveform(src, end, config=cfg, audio_cache=audio_cache)
+            src = (
+                recording_audio_path(project, track_id, source_id)
+                if source_id is not None
+                else track_audio_path(project, track_id)
+            )
+            start = _snap_boundary_to_waveform(
+                src, start, config=cfg, audio_cache=selected_audio_cache
+            )
+            end = _snap_boundary_to_waveform(src, end, config=cfg, audio_cache=selected_audio_cache)
         except Exception as exc:
             log.debug("Could not snap cut boundaries for %s: %s", track_id, exc)
             src = None
@@ -699,8 +708,12 @@ def optimize_source_cut_range(
                 start,
                 end,
                 config=cfg,
-                floor_db=track_level_profile(project, track_id, audio_cache).voice_floor_db,
-                audio_cache=audio_cache,
+                floor_db=(
+                    file_level_profile(src).voice_floor_db
+                    if source_id is not None and src is not None
+                    else track_level_profile(project, track_id, selected_audio_cache).voice_floor_db
+                ),
+                audio_cache=selected_audio_cache,
                 search_until=search_until,
             )
         except Exception as exc:
@@ -715,7 +728,7 @@ def optimize_source_cut_range(
                 src,
                 end,
                 config=cfg,
-                audio_cache=audio_cache,
+                audio_cache=selected_audio_cache,
                 word_index=word_index,
             )
         except Exception as exc:

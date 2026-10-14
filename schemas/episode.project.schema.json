@@ -443,6 +443,8 @@
       "required": ["id", "track_id", "type", "start", "end"],
       "properties": {
         "exact_range": { "anyOf": [{ "$ref": "#/$defs/ExactRangeTarget" }, { "type": "null" }], "default": null },
+        "source_id": { "type": ["string", "null"], "default": null },
+        "source_timeline_span": { "anyOf": [{ "$ref": "#/$defs/RangeInterval" }, { "type": "null" }], "default": null, "description": "Timeline placement witness for a source-aware ordinary transcript cut; does not grant exact-range approval" },
         "id": { "type": "string" },
         "track_id": { "type": "string" },
         "type": { "enum": ["remove", "mute", "split"] },
