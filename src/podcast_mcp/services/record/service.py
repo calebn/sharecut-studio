@@ -15,6 +15,7 @@ from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.collaboration import drop_absolute_path_strings
 from podcast_mcp.services.record.commands import (
+    COMMAND_TYPES,
     RecordAuthzError,
     RecordCommand,
     authorize_record_command,
@@ -61,6 +62,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 LEASE_IN_USE_GRACE_S = 15.0
 _SID_TTL_S = 0.5
 _SEQ = itertools.count(1)
+RECORD_WS_COMMAND_TYPES: frozenset[str] = COMMAND_TYPES | {"Signal"}
 _STORE_LOCK = threading.Lock()
 _AUTHORITIES: dict[str, tuple[threading.RLock, set[tuple[str, str]]]] = {}
 _SID_CACHE: dict[str, tuple[float, str | None]] = {}
@@ -784,6 +786,8 @@ def route_record_ws_message(
         client_seq = int(msg.get("client_seq") or seq)
     except (ValueError, TypeError, OverflowError) as exc:
         raise CodedValueError("invalid client sequence", code="invalid_record_request") from exc
+    if command_type not in RECORD_WS_COMMAND_TYPES:
+        raise CodedValueError("unknown record command type", code="invalid_record_request")
     if command_type == "Signal":
         if not participant_id:
             raise CodedValueError("join_first", code="invalid_record_request")
