@@ -15,7 +15,7 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, get_type_hints
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,7 +33,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.guest_progress import guest_ws_progress_sink
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
-from podcast_mcp.services.record.commands import RecordCommand
+from podcast_mcp.services.record.commands import COMMAND_TYPES, RecordCommand
 from podcast_mcp.services.record.service import (
     RecordSessionService,
     next_record_client_seq,
@@ -396,6 +396,26 @@ def test_every_guest_route_has_a_probe(world: World) -> None:
     assert set(TOOLS) == set(remote_tools.TOOL_HANDLERS)
 
 
+def test_auth_body_share_token_routes_are_in_the_guest_inventory() -> None:
+    from podcast_mcp.gui.routes import auth
+
+    expected = {
+        ("POST", "/auth/magic-link"): "MagicLinkRequest",
+        ("POST", "/auth/agent-credential"): "AgentCredentialRequest",
+    }
+    discovered: dict[tuple[str, str], str] = {}
+    for route in _walk(list(auth.router.routes)):
+        hints = get_type_hints(route.endpoint)
+        for parameter in getattr(route.dependant, "body_params", ()):
+            model = hints.get(parameter.name)
+            fields = getattr(model, "model_fields", {})
+            if "share_token" in fields:
+                for method in route.methods:
+                    discovered[(method, route.path)] = model.__name__
+
+    assert discovered == expected
+
+
 @dataclass(frozen=True)
 class Fault:
     """An exception planted in a site, and what a guest reads when the site raises it."""
@@ -569,53 +589,92 @@ def test_a_fault_in_any_guest_handler_reads_the_fixed_answer(
 
 
 def test_mcp_bridge_maps_a_post_preflight_handler_crash_to_the_guest_error(
-    world: World,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     fault = Fault("crash", lambda: RuntimeError(f"private host path {PLANTED_SECRET}"))
+    token = "share-token-after-preflight"
+    preflight_hits: list[int] = []
+
+    def allowed(_token: str) -> bool:
+        preflight_hits.append(1)
+        return True
+
     since = len(caplog.records)
     with monkeypatch.context() as patch:
+        patch.setattr(remote_mcp, "share_allows_mcp", allowed)
+        patch.setattr(
+            "podcast_mcp.gui.middleware_share_identity.lookup_share",
+            lambda _token, *, kind=None: {"token": _token, "kind": kind or "review"},
+        )
+        patch.setattr(
+            "podcast_mcp.gui.middleware_share_identity.require_share_access", lambda *_args: None
+        )
         hits = _plant(Site(remote_mcp, "handle_mcp_jsonrpc"), fault, patch)
-        response = _client(world).post(
-            f"/mcp/{world.token}/mcp", headers=RELAYED, json=_rpc("tools/list")
+        response = TestClient(create_app(), raise_server_exceptions=False).post(
+            f"/mcp/{token}/mcp", headers=RELAYED, json=_rpc("tools/list")
         )
 
-    assert hits, "post-preflight MCP dispatch was not reached"
-    _assert_private(world, "MCP POST", json.dumps([dict(response.headers), response.text]))
+    assert hits, (
+        f"post-preflight MCP dispatch was not reached: HTTP {response.status_code} {response.text}"
+    )
+    assert preflight_hits == [1]
+    text = json.dumps([dict(response.headers), response.text])
+    assert PLANTED_SECRET not in text and token not in text
     assert response.status_code == 500
     assert response.json() == INTERNAL_ERROR
     assert _logged_secret(caplog, since)
 
 
 def test_share_spa_index_read_crash_uses_the_guest_error_boundary(
-    world: World,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     fault = Fault("crash", lambda: RuntimeError(f"private host path {PLANTED_SECRET}"))
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>studio</html>", encoding="utf-8")
+    token = "share-token-after-preflight"
     real_read_text = Path.read_text
     hits: list[int] = []
 
     def read_text(path: Path, *args: object, **kwargs: object) -> str:
-        if path == world.dist / "index.html":
+        if path == dist / "index.html":
             hits.append(1)
             raise fault.error()
         return real_read_text(path, *args, **kwargs)
 
     since = len(caplog.records)
     monkeypatch.setattr(Path, "read_text", read_text)
-    response = _client(world).get(f"/r/{world.token}", headers=RELAYED)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.lookup_share",
+        lambda _token, *, kind=None: {"token": _token, "kind": kind or "review"},
+    )
+    response = TestClient(create_app(static_dir=dist), raise_server_exceptions=False).get(
+        f"/r/{token}", headers=RELAYED
+    )
 
     assert hits, "share SPA index read was not reached"
-    _assert_private(world, "share SPA index", json.dumps([dict(response.headers), response.text]))
+    text = json.dumps([dict(response.headers), response.text])
+    assert PLANTED_SECRET not in text and token not in text
     assert response.status_code == 500
     assert response.json() == INTERNAL_ERROR
     assert _logged_secret(caplog, since)
 
 
+REVIEW_FRAME_PAYLOADS = {
+    "Presence": json.dumps({"type": "Presence", "client_seq": 1, "playhead_sec": 1.0}),
+    "RosterRequest": json.dumps({"type": "RosterRequest"}),
+}
 IN_SESSION: dict[str, tuple[Site, str | None]] = {
-    "/api/review/{token}/daw/ws": (_review("_handle_guest_presence_frame"), None),
+    **{
+        f"/api/review/{{token}}/daw/ws {frame_type}": (
+            _review("_handle_guest_presence_frame"),
+            payload,
+        )
+        for frame_type, payload in REVIEW_FRAME_PAYLOADS.items()
+    },
     "/api/rec/{token}/ws": (Site(record_share, "RecordSessionService"), None),
     "/api/rec/{token}/ws Join": (
         Site(RecordSessionService, "join"),
@@ -623,6 +682,41 @@ IN_SESSION: dict[str, tuple[Site, str | None]] = {
     ),
 }
 """Faults planted after a socket is admitted: its frame handler, its session, its first command."""
+
+
+def test_each_live_socket_route_has_a_post_admission_probe() -> None:
+    assert {key.split()[0] for key in IN_SESSION} == set(SOCKETS)
+    assert set(REVIEW_FRAME_PAYLOADS) == set(review_share.GUEST_PRESENCE_FRAME_TYPES)
+
+
+RECORD_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
+    "Join": {"display_name": "Guest"},
+    "Leave": {},
+    "Consent": {"accepted": True},
+    "SetMuted": {"muted": False},
+    "HeadphonesAck": {"ok": True},
+    "Heartbeat": {},
+    "Start": {},
+    "Pause": {},
+    "Resume": {},
+    "Stop": {},
+    "RemoveParticipant": {"participant_id": "p1"},
+    "UpdateName": {"display_name": "Guest"},
+    "Comment": {"id": "live-c1", "body": "comment"},
+}
+
+
+def test_record_guest_command_contract_tracks_the_live_command_catalog() -> None:
+    assert set(RECORD_COMMAND_PAYLOADS) == set(COMMAND_TYPES)
+    for command_type in sorted(COMMAND_TYPES):
+        RecordCommand.parse(
+            command_type=command_type,
+            payload=RECORD_COMMAND_PAYLOADS[command_type],
+            client_id="host",
+            role="host",
+            participant_id="p1",
+            client_seq=1,
+        )
 
 
 def _socket_after(client: TestClient, url: str, first: str | None) -> list[object]:
@@ -660,7 +754,7 @@ def test_a_fault_inside_an_admitted_guest_socket_reads_the_fixed_answer(
 
         assert hits, f"{label} never reached {site.name}"
         _assert_private(world, label, json.dumps(seen))
-        if first is not None and fault.coded:
+        if key.startswith("/api/rec/") and first is not None and fault.coded:
             error = {
                 "plane": "record",
                 "type": "Error",
@@ -672,6 +766,43 @@ def test_a_fault_inside_an_admitted_guest_socket_reads_the_fixed_answer(
         else:
             assert seen[-1] == fault.socket_close(), label
         assert _logged_secret(caplog, since) is not fault.coded, label
+
+
+def test_share_spa_hook_fault_falls_back_to_the_static_page_without_leaking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.extensions.loader import load_extensions as real_load
+
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>studio</html>", encoding="utf-8")
+    hits: list[int] = []
+
+    def broken_hook(**_kwargs: object) -> str:
+        hits.append(1)
+        raise RuntimeError(f"private host path {PLANTED_SECRET}")
+
+    def with_broken_hook():
+        registry = real_load()
+        registry._spa_hooks[:] = [broken_hook]
+        return registry
+
+    monkeypatch.setattr("podcast_mcp.gui.server.load_extensions", with_broken_hook)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.lookup_share",
+        lambda token, *, kind=None: {"token": token, "kind": kind or "review"},
+    )
+    token = "share-token-for-hook"
+    response = TestClient(create_app(static_dir=dist), raise_server_exceptions=False).get(
+        f"/r/{token}", headers=RELAYED
+    )
+
+    assert hits == [1]
+    text = json.dumps([dict(response.headers), response.text])
+    assert PLANTED_SECRET not in text and token not in text
+    assert response.status_code == 200
+    assert "studio" in response.text
+    assert response.headers.get("cache-control") == "no-cache"
 
 
 @pytest.mark.parametrize("broken", [MIX_MISSING, PROJECT_GONE])

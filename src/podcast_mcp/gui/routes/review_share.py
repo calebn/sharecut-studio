@@ -708,6 +708,9 @@ class GuestFrameResult:
     reply: dict[str, Any] | None = None
 
 
+GUEST_PRESENCE_FRAME_TYPES = ("Presence", ROSTER_REQUEST)
+
+
 def _handle_guest_presence_frame(
     text: str,
     *,
@@ -728,7 +731,7 @@ def _handle_guest_presence_frame(
     except ValueError:
         log.info("guest presence rejected malformed token=%s", token[:8])
         return GuestFrameResult(seq, malformed + 1, None)
-    if not isinstance(msg, dict) or msg.get("type") not in ("Presence", ROSTER_REQUEST):
+    if not isinstance(msg, dict) or msg.get("type") not in GUEST_PRESENCE_FRAME_TYPES:
         log.info("guest presence rejected type token=%s", token[:8])
         return GuestFrameResult(seq, malformed + 1, None)
     if host_rate_limit_enabled():
