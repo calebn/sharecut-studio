@@ -4,6 +4,7 @@ import { runPointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
+import { AUTO_MIX_PREF_KEY } from "./autoMixPref";
 import { AUTO_MIX_DEBOUNCE_MS, useAutoRefreshMix } from "./useAutoRefreshMix";
 
 vi.mock("../commands/pointer", () => ({ runPointerCommand: vi.fn() }));
@@ -117,6 +118,18 @@ describe("useAutoRefreshMix", () => {
     showProject(volumeChange());
     act(() => vi.advanceTimersByTime(AUTO_MIX_DEBOUNCE_MS));
     expect(runPointerCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it("stays paused while the browser preference is off", () => {
+    window.localStorage.setItem(AUTO_MIX_PREF_KEY, "off");
+    try {
+      renderHook(() => useAutoRefreshMix(true));
+      showProject(edit("e1"));
+      act(() => vi.advanceTimersByTime(AUTO_MIX_DEBOUNCE_MS * 2));
+      expect(runPointerCommand).not.toHaveBeenCalled();
+    } finally {
+      window.localStorage.removeItem(AUTO_MIX_PREF_KEY);
+    }
   });
 
   it("leaves a fresh mix and a disabled hook alone", () => {

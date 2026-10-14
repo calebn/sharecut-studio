@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { e2eBaseURL, e2ePort, repoRoot } from "./e2e/env";
 import { copyUxDemoProject, prepareLiveE2eProject } from "./e2e/liveProject";
 import { e2eRuntimeEnv } from "./e2e/runtimeEnv";
+import { AUTO_MIX_PREF_KEY } from "./src/hooks/autoMixPref";
 
 const e2eInvocationId = `${process.pid}-${e2ePort}`;
 e2eRuntimeEnv(process.env, e2eInvocationId);
@@ -35,6 +36,17 @@ export default defineConfig({
   use: {
     ...devices["Desktop Chrome"],
     baseURL: e2eBaseURL,
+    // Lifecycle audits assert the project file stays untouched; the automatic mix rebuild
+    // (fixtures have no mix) would write a "before render preview" history entry.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: new URL(e2eBaseURL).origin,
+          localStorage: [{ name: AUTO_MIX_PREF_KEY, value: "off" }],
+        },
+      ],
+    },
     trace: "retain-on-failure",
   },
   webServer: {
