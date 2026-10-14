@@ -628,4 +628,26 @@ describe("GuestAttentionBanner", () => {
       screen.queryByRole("button", { name: "Send now" }),
     ).not.toBeInTheDocument();
   });
+
+  it("tells a guest that an uncertain command retries automatically", async () => {
+    offlineStore.loadConflicts.mockResolvedValue([
+      offlineConflict({
+        kind: "unknown",
+        reason: "The server may have applied this edit.",
+        recovery: "retry-same-command",
+      }),
+    ]);
+    useDawStore.getState().hydrate("share:automatic-retry", minimalProject());
+    render(<GuestAttentionBanner />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The app will retry this same command automatically.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Send now" }),
+    ).not.toBeInTheDocument();
+  });
 });
