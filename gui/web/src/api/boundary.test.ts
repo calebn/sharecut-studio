@@ -77,6 +77,32 @@ describe("boundary API", () => {
     });
   });
 
+  it.each([401, 403])(
+    "preserves refusal metadata when a %s response body fails",
+    async (status) => {
+      const response = new Response("", {
+        status,
+        headers: { "X-Sharecut-Error-Code": "authentication_required" },
+      });
+      vi.spyOn(response, "text").mockRejectedValueOnce(
+        new TypeError("Load failed"),
+      );
+      vi.mocked(fetch).mockResolvedValueOnce(response);
+      await expect(
+        loadBoundaryContext(
+          "/tmp/episode.json",
+          { kind: "trim", clip_id: "c1", edge: "out" },
+          [],
+        ),
+      ).rejects.toMatchObject({
+        name: "ApiError",
+        code: "authentication_required",
+        status,
+        message: `Request failed (${status})`,
+      });
+    },
+  );
+
   it("preserves typed authentication refusals", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ detail: "Sign in again." }), {
