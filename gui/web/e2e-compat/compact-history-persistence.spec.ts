@@ -450,10 +450,9 @@ async function undoStaysReachable(
     { id: "env-c", time: 16, value: 1.059254 },
     { id: "env-join", time: 40, value: 1.2 },
   ];
-  const level = page.getByRole("button", {
-    name: "Envelope point level 0.5 dB higher",
-    exact: true,
-  });
+  const level = page
+    .getByRole("group", { name: "Nudge envelope level", exact: true })
+    .getByRole("button", { name: "0.5 dB higher", exact: true });
   await level.click();
   await expect.poll(() => savedEnvelope(page)).toEqual(levelEdited);
   await check("level-saved", headerHistory);
