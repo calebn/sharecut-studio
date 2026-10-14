@@ -353,7 +353,7 @@ def test_host_pending_preview_warm_measures_the_mix_trim_ahead(minimal_project, 
     from podcast_mcp.services.document import PlayService
 
     seed(minimal_project)
-    monkeypatch.setattr(PlayService, "mix_trim_db", lambda self: -4.0)
+    monkeypatch.setattr(PlayService, "mix_trim_db", lambda self, **_k: -4.0)
     monkeypatch.setattr(PlayService, "play_pending_preview", lambda self, *_a, **_k: None)
     response = TestClient(create_app()).post(
         "/api/pending-preview/warm",
@@ -366,34 +366,33 @@ def test_host_pending_preview_warm_measures_the_mix_trim_ahead(minimal_project, 
     }
 
 
-def test_background_warm_runs_at_low_priority_and_waits_only_briefly_for_the_lock(
+def test_background_warm_runs_at_low_priority_and_does_not_hold_the_render_lock(
     minimal_project, monkeypatch
 ):
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.util import process
-    from podcast_mcp.util.project_state import BACKGROUND_RENDER_LOCK_TIMEOUT_SEC
+    from podcast_mcp.util.process import current_niceness
+    from podcast_mcp.util.project_state import (
+        BACKGROUND_RENDER_LOCK_TIMEOUT_SEC,
+        render_lock_held,
+    )
 
     seed(minimal_project)
-    seen: list[int] = []
-    monkeypatch.setattr(
-        PlayService,
-        "warm_pending_preview",
-        lambda self, *_a: seen.append(process._niceness.get()) or {},
-    )
+    seen: list[tuple[int, bool, float | None]] = []
+
+    def warm(self, edit_id=None, *, lock_timeout=None):
+        seen.append((current_niceness(), render_lock_held(self.project), lock_timeout))
+        return {}
+
+    monkeypatch.setattr(PlayService, "warm_pending_preview", warm)
     client = TestClient(create_app())
     params = {"path": str(minimal_project)}
     assert client.post("/api/pending-preview/warm", params=params).status_code == 200
-    assert (
-        client.post(
-            "/api/pending-preview/warm", params={**params, "background": "true"}
-        ).status_code
-        == 200
-    )
-    assert seen == [0, 10]
-    assert 0 < BACKGROUND_RENDER_LOCK_TIMEOUT_SEC <= 5
+    background = {**params, "background": "true"}
+    assert client.post("/api/pending-preview/warm", params=background).status_code == 200
+    assert seen == [(0, True, None), (10, False, BACKGROUND_RENDER_LOCK_TIMEOUT_SEC)]
 
 
 def test_host_pending_preview_warm_requires_host(minimal_project, monkeypatch):

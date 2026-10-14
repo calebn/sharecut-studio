@@ -358,6 +358,16 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
     _assert_same_audio(suggested.wav_path, fresh_suggested)
 
 
+def _touch_stems(project) -> None:
+    """Stand-in stems for tests that fake the measurement: the record needs files to compare."""
+    from podcast_mcp.services.document import play as play_module
+
+    for track_id in play_module.mix_gains(project):
+        path = play_module.stem_path(project, track_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"stem")
+
+
 def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
     minimal_project, monkeypatch
 ) -> None:
@@ -386,6 +396,7 @@ def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
 
     monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
     monkeypatch.setattr(play_module, "_stem_mix_trim_db", measure)
+    _touch_stems(ws.project)
 
     assert PlayService(ws).warm_pending_preview()["trim_db"] == -3.5
     restarted = ProjectWorkspace.open(minimal_project)
@@ -398,6 +409,43 @@ def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
     restarted.save()
     assert PlayService(ProjectWorkspace.open(minimal_project)).mix_trim_db() == -3.5
     assert measured == [0.0, 6.0]
+
+
+def test_a_trim_measured_while_a_stem_was_replaced_is_not_recorded(
+    minimal_project, monkeypatch
+) -> None:
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.services.document import play as play_module
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    passes: list[int] = []
+
+    def measure(stems, ceiling):
+        passes.append(1)
+        if len(passes) == 1:
+            path = stems[0][0]
+            path.write_bytes(path.read_bytes() + b"\0\0")  # a render replaced it mid-pass
+        return -3.5
+
+    monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", measure)
+    _touch_stems(ws.project)
+    play = PlayService(ws)
+    assert play.mix_trim_db() == -3.5
+    assert play.mix_trim_db() == -3.5
+    assert len(passes) == 2  # the first was not recorded, the second was
 
 
 def test_a_damaged_trim_record_is_measured_again(minimal_project, monkeypatch) -> None:
@@ -419,6 +467,7 @@ def test_a_damaged_trim_record_is_measured_again(minimal_project, monkeypatch) -
     )
     monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
     monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args: -2.0)
+    _touch_stems(ws.project)
     PlayService(ws).mix_trim_db()
     (record,) = (ws.project.artifacts_dir() / "play_cache").glob("mix_trim_*.json")
     monkeypatch.setattr(play_module, "_stem_mix_trim_db", lambda *_args: -2.5)
