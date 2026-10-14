@@ -67,16 +67,13 @@ const buildFixture = (page: Page) =>
   buildTouchFixture(page, projectPath, CLIENT_ID);
 const projectJson = (page: Page) => readProject(page, projectPath);
 /**
- * The project's content without `render`: the idle background pre-measure may
- * re-render a stale stem, which clears its render-invalidation journal. That is
- * cache bookkeeping, not an edit the gesture made.
+ * What a gesture could have edited: the clips and the pending edits. The rest of
+ * the project file is bookkeeping the idle background pre-measure may touch when
+ * it re-renders a stale stem (the render journal, saved-at stamps).
  */
 const editedProject = async (page: Page) => {
-  const { render: _render, ...content } = (await projectJson(page)) as Record<
-    string,
-    unknown
-  >;
-  return content;
+  const { clips, pending_edits } = await projectJson(page);
+  return { clips, pending_edits };
 };
 const openTimeline = (page: Page, viewport: ViewportName, theme: Theme) =>
   openTouchTimeline(page, projectPath, viewport, theme);
