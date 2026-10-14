@@ -106,6 +106,19 @@ describe("useAutoRefreshMix", () => {
     expect(runPointerCommand).toHaveBeenCalledTimes(1);
   });
 
+  it("rebuilds again when the same kind of change comes after the mix went fresh", () => {
+    renderHook(() => useAutoRefreshMix(true));
+    const volumeChange = () =>
+      projectWith({ premix: { exists: true, stale_vs_mix: true } }, false);
+    showProject(volumeChange());
+    act(() => vi.advanceTimersByTime(AUTO_MIX_DEBOUNCE_MS));
+    expect(runPointerCommand).toHaveBeenCalledTimes(1);
+    showProject(projectWith({}, false));
+    showProject(volumeChange());
+    act(() => vi.advanceTimersByTime(AUTO_MIX_DEBOUNCE_MS));
+    expect(runPointerCommand).toHaveBeenCalledTimes(2);
+  });
+
   it("leaves a fresh mix and a disabled hook alone", () => {
     const { rerender } = renderHook(({ on }) => useAutoRefreshMix(on), {
       initialProps: { on: true },
