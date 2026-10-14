@@ -560,13 +560,19 @@ def _peer_gap_skips(
     return found, skips
 
 
-def test_peer_copy_of_the_cut_tracks_voice_far_below_it_is_bleed_not_peer_speech(
-    tmp_path: Path,
-) -> None:
-    own = _tone(3.0, 0.8, 1.2, amp=0.2)
-    bleed = _tone(3.0, 0.8, 1.2, amp=0.02)
+def _peer_with_own_speech(copy_amp: float) -> np.ndarray:
+    """The peer's track: a copy of the cut track's voice, and the peer's own speech later on."""
+    return _tone(3.0, 0.8, 1.2, amp=copy_amp) + _tone(3.0, 2.2, 2.8, hz=130.0, amp=0.2)
 
-    found, skips = _peer_gap_skips(tmp_path, own, bleed)
+
+@pytest.mark.parametrize("own_gain", [0.1, 1.0, 4.0])
+def test_peer_copy_of_the_cut_tracks_voice_far_below_it_is_bleed_not_peer_speech(
+    tmp_path: Path, own_gain: float
+) -> None:
+    """The verdict holds when the cut track's file alone is recorded at another gain (#1523)."""
+    own = _tone(3.0, 0.8, 1.2, amp=0.2 * own_gain)
+
+    found, skips = _peer_gap_skips(tmp_path, own, _peer_with_own_speech(0.02))
 
     assert skips == {}
     assert [(round(c.start, 2), round(c.end, 2)) for c in _acoustic(found)] == [(0.78, 1.21)]

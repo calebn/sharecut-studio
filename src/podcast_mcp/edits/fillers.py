@@ -840,13 +840,16 @@ def _peer_voiced_at(
     trails its copy (``PeerCopyLags``), so the peer is read that much later than the span.
     A peer run that sits ``analysis.heuristics.bleed_dominance_db`` or more under the cut
     track's own level over the same sound is that track's voice bleeding onto the peer's mic,
-    the audit's own bleed test seen from the other side (#994): the peer's copy of this
-    track's voice is read against this track that much later too. A quiet or gated cut
+    each level read as dB over its own track's voice (``LevelProfile.path_reference_db``), so a
+    gain change on either file moves nothing (#1523); the audit's own bleed test seen from the other side (#994): the
+    peer's copy of this track's voice is read against this track that much later too. A quiet or gated cut
     track never explains a peer run, so a peer carrying a voice the cut track lost still
     blocks (#945).
     """
     margin = _bleed_dominance_db(defaults)
+    own_voice_db = own_cache.waveform.profile.path_reference_db
     for peer_id, cache in peers.caches.items():
+        peer_voice_db = cache.waveform.profile.path_reference_db
         reach = peers.lags.sec(peer_id, track_id)
         copy = peers.lags.sec(track_id, peer_id)
         lo, hi = start + reach, end + reach
@@ -862,7 +865,7 @@ def _peer_voiced_at(
                 own_cache.window(run[0] + copy, run[1] + copy), floor_db=DIGITAL_SILENCE_DB
             )
             peer_db = rms_db(cache.window(*run), floor_db=DIGITAL_SILENCE_DB)
-            if own_db - peer_db < margin:
+            if (own_db - own_voice_db) - (peer_db - peer_voice_db) < margin:
                 return True
     return False
 
