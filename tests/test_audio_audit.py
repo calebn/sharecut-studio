@@ -27,6 +27,7 @@ from podcast_mcp.engines.audio_audit import (
 )
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
@@ -42,7 +43,14 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
+
+
+def _floor_at(audibility_db: float) -> LevelProfile:
+    """A track profile whose audibility floor is ``audibility_db`` (27 dB under its speech)."""
+    speech = audibility_db + 27.0
+    return LevelProfile(room_db=DIGITAL_SILENCE_DB, speech_db=speech, loud_db=speech + 5.0)
 
 
 def test_analysis_policy_from_defaults():
@@ -91,7 +99,7 @@ def test_list_low_audibility_flags_quiet_word(sample_wav: Path, tmp_path: Path):
 
     with (
         patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-50.0),
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.audibility_floor_db", new=-40.0),
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
     ):
         flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1
@@ -119,7 +127,7 @@ def test_list_low_audibility_reads_the_floor_of_a_track_with_no_decoded_cache(
     ]
     with (
         patch("podcast_mcp.engines.audio_audit.measure_window_rms_db", return_value=-50.0),
-        patch("podcast_mcp.edits.audio_cache.track_audibility_floor_db", return_value=-40.0),
+        patch("podcast_mcp.engines.audio_audit.file_level_profile", return_value=_floor_at(-40.0)),
     ):
         flagged = list_low_audibility_words(project, track_id="host", caches=TrackRmsCacheSet())
     assert [(row["text"], row["rms_db"], row["threshold_db"]) for row in flagged] == [
@@ -654,7 +662,7 @@ def test_analyze_cleanup_matches_separate_scans(tmp_path: Path):
             return_value=-50.0,
         ),
         floors_at(-35.0),
-        patch("podcast_mcp.edits.audio_cache.track_audibility_floor_db", return_value=-35.0),
+        patch("podcast_mcp.engines.audio_audit.file_level_profile", return_value=_floor_at(-35.0)),
     ):
         expected_low = {
             tid: list_low_audibility_words(project, track_id=tid) for tid in ("host", "guest")
@@ -1036,7 +1044,7 @@ def test_list_low_audibility_uses_proc_cache(sample_wav: Path, tmp_path: Path):
     write_stem_hash(project, "host")
     with (
         patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-55.0),
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.audibility_floor_db", new=-40.0),
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
     ):
         flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1
@@ -1154,11 +1162,11 @@ def test_rms_db_edge_cases(monkeypatch):
     from podcast_mcp.engines import audio_audit as aa
     from podcast_mcp.util.dsp import rms_db
 
-    assert rms_db(np.array([], dtype=np.float32)) == -80.0
-    assert rms_db(np.zeros(100, dtype=np.float32)) == -80.0
+    assert rms_db(np.array([], dtype=np.float32)) == DIGITAL_SILENCE_DB
+    assert rms_db(np.zeros(100, dtype=np.float32)) == DIGITAL_SILENCE_DB
     assert rms_db(np.zeros(100, dtype=np.float32), floor_db=-400.0) == -400.0
     cache = aa.TrackRmsCache(np.zeros(16_000, dtype=np.float32), 16_000)
-    assert cache.rms_db(0.0, 0.5) == -80.0
+    assert cache.rms_db(0.0, 0.5) == DIGITAL_SILENCE_DB
     assert cache.rms_db(5.0, 6.0) is None
     monkeypatch.setattr(aa, "load_mono_window", lambda *a, **k: np.array([], dtype=np.float32))
     assert aa.measure_window_rms_db(Path("x.wav"), 0.0, 1.0) is None
@@ -1891,13 +1899,14 @@ def test_cache_set_measures_its_bleed_paths_once() -> None:
         assert caches.bleed_paths("guest") == {}
 
     assert measure.call_count == 1
-    (audio,), kwargs = measure.call_args
+    (audio, references), kwargs = measure.call_args
     assert set(audio) == {"host", "guest"} and kwargs == {"sample_rate": 8000}
+    assert references == {"host": 0.0, "guest": 0.0}
     assert TrackRmsCacheSet().echo_pairs() == []
 
 
 def test_rms_cache_reports_digital_silence_at_the_floor_the_caller_names() -> None:
     cache = TrackRmsCache(np.zeros(16_000, dtype=np.float32), 16_000)
 
-    assert cache.rms_db(0.0, 0.5) == -80.0
-    assert cache.rms_db(0.0, 0.5, floor_db=-200.0) == -200.0
+    assert cache.rms_db(0.0, 0.5) == DIGITAL_SILENCE_DB
+    assert cache.rms_db(0.0, 0.5, floor_db=-400.0) == -400.0

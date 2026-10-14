@@ -5,6 +5,7 @@ import pytest
 
 from podcast_mcp.engines import bleed_echo
 from podcast_mcp.engines.bleed_echo import EchoConfig, echo_pair_profile
+from podcast_mcp.engines.level_profile import track_profile
 
 RATE = 8000
 
@@ -54,14 +55,25 @@ def test_network_scale_copies_have_signed_local_evidence(delay_ms: float) -> Non
     assert all(row.bleed_track_id == "retained" for row in supported)
 
 
+def _profile(source: np.ndarray, bleed: np.ndarray, **kwargs):
+    """Both tracks read at their own voice level, as the bleed path reads them."""
+    src, bld = track_profile(source, RATE), track_profile(bleed, RATE)
+    return echo_pair_profile(
+        source * np.float32(src.voice_gain),
+        bleed * np.float32(bld.voice_gain),
+        sample_rate=RATE,
+        gap_db=bld.path_reference_db - src.path_reference_db,
+        **kwargs,
+    )
+
+
 def test_existing_profile_surfaces_long_delay_without_changing_short_scale_rates() -> None:
     source = _voice(12)
     target = _copy(source, 150.0, 0.15)
     cfg = EchoConfig(measure_long_delays=True)
-    profile = echo_pair_profile(
+    profile = _profile(
         source,
         target,
-        sample_rate=RATE,
         t0=0.0,
         source_track_id="direct",
         bleed_track_id="retained",
@@ -149,10 +161,9 @@ def test_default_short_delay_profile_never_eagerly_measures_long_delays(monkeypa
 
     monkeypatch.setattr(bleed_echo, "measure_long_delay_regions", unexpected)
     source = _voice(26)
-    profile = echo_pair_profile(
+    profile = _profile(
         source,
         _copy(source, 8.0, 0.15),
-        sample_rate=RATE,
         t0=0,
         source_track_id="direct",
         bleed_track_id="retained",

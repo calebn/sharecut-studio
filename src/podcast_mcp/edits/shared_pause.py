@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from podcast_mcp.edits.audio_cache import LEVEL_FRAME_SEC
+from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.source_spans import source_span_timeline_bounds

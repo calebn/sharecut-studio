@@ -43,7 +43,7 @@ import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.dsp import bool_runs, frame_rms_db_stream, rms_db
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
 from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import track_audio_path
@@ -53,7 +53,6 @@ log = logging.getLogger(__name__)
 FRAME_SEC = 0.01
 # Silero's rate. Levels see up to 8 kHz, where hiss and sibilance sit.
 SAMPLE_RATE = 16000
-DIGITAL_SILENCE_DB = -200.0
 FLOOR_PERCENTILE = 10.0
 SPEECH_PERCENTILE = 90.0
 # Every frame of a quiet run sits within this of the floor.

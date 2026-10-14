@@ -9,10 +9,9 @@ from typing import Any
 
 import numpy as np
 
-from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.dsp import bool_runs
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs
 
 
 @dataclass(frozen=True)
@@ -112,7 +111,7 @@ def timeline_floor_hops(
 ) -> list[tuple[float, float]]:
     """Measure, on shared ``hop_ms`` timeline hops, how far the loudest lane is over its floor.
 
-    Each lane is read against its own voice floor (``TrackRmsCache.voice_floor_db``), so a
+    Each lane is read against its own voice floor (``LevelProfile.voice_floor_db``), so a
     hop is quiet (at or under 0 dB) when no lane holds a voice, at any recording level.
     A hop with no measurement of some lane is ``inf``: missing evidence is never quiet.
 
@@ -144,7 +143,7 @@ def timeline_floor_hops(
             if rms is None or not isfinite(rms):
                 over = inf
                 break
-            over = max(over, rms - cache.voice_floor_db)
+            over = max(over, rms - cache.profile.voice_floor_db)
         out.append((t, over))
         t = t1
     return out

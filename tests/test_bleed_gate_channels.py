@@ -17,10 +17,12 @@ import pytest
 from podcast_mcp.engines.align import read_wav_mono_window
 from podcast_mcp.engines.bleed_gate import (
     EVIDENCE_RATE,
+    _at_voice_level,
     _channels_are_one_signal,
     _lane_signals,
     build_bleed_gate_plan,
 )
+from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.engines.ungated_audio import load_wav_channels_window, raw_timeline_samples
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -78,7 +80,7 @@ def test_dual_mono_lane_is_judged_once_on_its_mixdown(tmp_path: Path) -> None:
     plan = build_bleed_gate_plan(project, "host")
     assert plan.attenuation_spans == DUAL_MONO_SPANS
     assert plan.protected_spans == DUAL_MONO_PROTECTED
-    assert (plan.reduction, plan.bed_db, plan.reasons) == ("mute", -90.0, ())
+    assert (plan.reduction, plan.bed_db, plan.reasons) == ("mute", LEVEL_FLOOR_DB, ())
 
 
 def _tag_layout(path: Path, mask: int, own_channel: int) -> None:
@@ -179,8 +181,8 @@ def test_lossy_dual_mono_is_judged_once_like_wav_dual_mono(
     assert len(signals) == 1
     np.testing.assert_allclose(
         signals[0],
-        raw_timeline_samples(project, "host", sample_rate=EVIDENCE_RATE),
-        atol=1e-6,
+        _at_voice_level(raw_timeline_samples(project, "host", sample_rate=EVIDENCE_RATE)),
+        atol=1e-5,
     )
     assert any(
         start <= 5.0 and end >= 5.3
@@ -233,7 +235,7 @@ def test_codec_noise_far_under_the_signal_is_one_signal() -> None:
 def test_identical_channels_are_judged_at_ffmpegs_mono_level(
     tmp_path: Path, layout: str, mask: int, channels: int
 ) -> None:
-    """The gate's absolute floors were set on ffmpeg's mono decode, whatever the layout's matrix."""
+    """The lane's voice level is read on ffmpeg's mono decode, whatever the layout's matrix."""
     project = _talking_over(tmp_path, own=(QUIET_UH_HUH,))
     host = tmp_path / "raw" / "host.wav"
     mono = _read_pcm(host).astype(np.float64) / 32767
@@ -258,7 +260,7 @@ def test_identical_channels_are_judged_at_ffmpegs_mono_level(
         check=True,
         capture_output=True,
     ).stdout
-    np.testing.assert_array_equal(signal, np.frombuffer(decoded, dtype=np.float32))
+    np.testing.assert_array_equal(signal, _at_voice_level(np.frombuffer(decoded, dtype=np.float32)))
 
 
 def _gated_speech(seed: int, seconds: int = 40) -> np.ndarray:

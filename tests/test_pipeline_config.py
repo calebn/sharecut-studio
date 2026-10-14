@@ -507,6 +507,7 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
                             "recommendation": "raise HPF",
                         },
                         "noise_floor_db": -40.0,
+                        "voice_db": -15.0,
                         "flat_factor": 2.0,
                         "peak_count": 1,
                     },
@@ -544,7 +545,8 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     by_code = {r["code"]: r for r in result["reasons"]}
     assert by_code["noise_floor"]["evidence"] == {
         "noise_floor_db": -40.0,
-        "threshold_db": -50.0,
+        "voice_db": -15.0,
+        "under_voice_db": 35.0,
     }
     assert by_code["gate_overreach"]["evidence"]["risk"] == "high"
     assert by_code["gate_overreach"]["evidence"]["issue_count"] == 1

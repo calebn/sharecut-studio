@@ -36,9 +36,11 @@ def _stepped() -> dict[str, np.ndarray]:
     return audio
 
 
-def _from(mic: np.ndarray, lag_sec: float) -> list[BleedPair]:
-    """The lane's voice copied onto ``mic``, steady at about ``lag_sec``."""
-    return [BleedPair(mic, lane_talks=True, lag_sec=lag_sec)]
+def _from(mic: np.ndarray, lag_sec: float, audio: dict[str, np.ndarray]) -> list[BleedPair]:
+    """Audra's voice copied onto Caleb's ``mic``, steady at about ``lag_sec``."""
+    references = bh.references(audio)
+    gap = references["caleb"] - references["audra"]
+    return [BleedPair(mic, lane_talks=True, lag_sec=lag_sec, other_over_lane_db=gap)]
 
 
 def _clips(ws: ProjectWorkspace, track_id: str) -> list[tuple[str, float, float, float]]:
@@ -55,7 +57,7 @@ def test_latency_step_at_a_silence_is_two_segments() -> None:
 
     found = lag_segments(
         levels["audra"],
-        _from(levels["caleb"], 0.14),
+        _from(levels["caleb"], 0.14, audio),
         heard=levels["audra"],
         heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,
@@ -103,7 +105,7 @@ def test_a_step_is_judged_against_its_merged_neighbours() -> None:
 
     found = lag_segments(
         levels["audra"],
-        _from(levels["caleb"], 0.15),
+        _from(levels["caleb"], 0.15, audio),
         heard=levels["audra"],
         heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,
@@ -135,7 +137,7 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
 
     found = lag_segments(
         levels["audra"],
-        _from(levels["caleb"], 0.15),
+        _from(levels["caleb"], 0.15, audio),
         heard=levels["audra"],
         heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,
@@ -144,9 +146,9 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
     assert found is not None
     segments = found.segments
     assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000), s.frames) for s in segments] == [
-        (0.0, 140, 8646),
+        (0.0, 140, 8645),
         (121.7, 220, 169),
-        (137.7, 140, 3017),
+        (137.7, 140, 3016),
     ]
     assert _worst_error_ms(segments, direct, latency) <= 20.0
 
@@ -178,7 +180,7 @@ def _lone_phrase_lane(
     caleb += np.where(inside, noise, 0.0) * rng.standard_normal(t.size)
     audio = {"audra": bh.relatency(dry["audra"], latency), "caleb": caleb}
     levels = bh.levels(audio)
-    return _from(levels["caleb"], 0.15), levels, bh.peaks(audio)
+    return _from(levels["caleb"], 0.15, audio), levels, bh.peaks(audio)
 
 
 def test_a_lone_phrase_after_a_pause_keeps_the_lag_its_own_speech_shows() -> None:
@@ -263,7 +265,7 @@ def test_a_blip_is_noise_and_an_easing_is_a_step() -> None:
 
     # The click is drawn on the envelopes; its RMS frames stand in for its peaks.
     found = lag_segments(
-        source, _from(mic, 0.15), heard=source, heard_peak=source, deadband_sec=0.02
+        source, _from(mic, 0.15, audio), heard=source, heard_peak=source, deadband_sec=0.02
     )
 
     assert found is not None
@@ -287,7 +289,14 @@ def test_steps_show_through_the_other_voice_on_the_lane_mic() -> None:
 
     found = lag_segments(
         levels["audra"],
-        [BleedPair(levels["caleb"], lane_talks=False, lag_sec=0.15)],
+        [
+            BleedPair(
+                levels["caleb"],
+                lane_talks=False,
+                lag_sec=0.15,
+                other_over_lane_db=bh.references(audio)["caleb"] - bh.references(audio)["audra"],
+            )
+        ],
         heard=levels["audra"],
         heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,
@@ -297,7 +306,7 @@ def test_steps_show_through_the_other_voice_on_the_lane_mic() -> None:
     segments = found.segments
     assert [(round(s.start_sec, 2), s.shift_sec, s.gap_sec) for s in segments] == [
         (0.0, -0.12, None),
-        (114.05, -0.2, (111.015, 117.08)),
+        (114.05, -0.2, (111.015, 117.075)),
     ]
 
 
@@ -332,7 +341,7 @@ def test_a_step_never_skips_a_peak_the_rms_gate_misses() -> None:
 
     found = lag_segments(
         levels["audra"],
-        _from(levels["caleb"], 0.14),
+        _from(levels["caleb"], 0.14, audio),
         heard=levels["audra"],
         heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,
@@ -372,7 +381,7 @@ def test_the_step_cost_is_chosen_per_recording() -> None:
 
     found = lag_segments(
         levels["audra"],
-        _from(levels["caleb"], 0.15),
+        _from(levels["caleb"], 0.15, audio),
         heard=levels["audra"],
         heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,
@@ -392,7 +401,7 @@ def test_jitter_inside_the_deadband_is_one_segment() -> None:
     assert (
         lag_segments(
             levels["audra"],
-            _from(levels["caleb"], 0.12),
+            _from(levels["caleb"], 0.12, audio),
             heard=levels["audra"],
             heard_peak=bh.peaks(audio)["audra"],
             deadband_sec=0.02,
@@ -426,7 +435,7 @@ def _pieces(
     copy = levels["caleb"] + noise_db * rng.standard_normal(levels["caleb"].size)
     found = lag_segments(
         lane,
-        _from(copy, 0.14),
+        _from(copy, 0.14, audio),
         heard=lane,
         heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,

@@ -10,7 +10,7 @@ clicks and room tone never form a run).
 ``edits.join_speech`` measures the same phenomenon at existing clip splices with a
 floor relative to the window's loud frames. Proposal spans can be many seconds of
 dead air with no loud frame to anchor to, so the caller passes the track's own
-voice floor (``TrackAudioCache.voice_floor_db``).
+voice floor (``LevelProfile.voice_floor_db``).
 """
 
 from __future__ import annotations

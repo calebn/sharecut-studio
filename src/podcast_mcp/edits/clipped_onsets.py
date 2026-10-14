@@ -79,7 +79,6 @@ from podcast_mcp.edits.bleed_latency import (
     FRAME_SEC,
     HOP_SEC,
     MAX_LAG_SEC,
-    OPEN_DB,
     TOLERANCE_SEC,
     measure_pair,
 )
@@ -88,9 +87,11 @@ from podcast_mcp.edits.conversation_align import LATENCY_RATE
 from podcast_mcp.engines.envelope_lag import (
     LEVEL_FLOOR_DB,
     MIN_CORRELATION,
+    PEER_OPEN_DB,
     level_envelope_db,
     shift_correlations,
 )
+from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.ungated_audio import raw_timeline_samples
 from podcast_mcp.models import EpisodeProject, TimelineComment, TrackRole, TranscriptWord
@@ -143,10 +144,15 @@ _PUNCTUATION = ' .,;:!?"“”'
 
 @dataclass(frozen=True)
 class Levels:
-    """Timeline level envelopes per lane: the bleed-latency grid and the attack grid."""
+    """Timeline level envelopes per lane: the bleed-latency grid and the attack grid.
+
+    Each lane is read at its own voice level; ``references`` holds each lane's
+    ``LevelProfile.path_reference_db``, which puts two lanes back as recorded.
+    """
 
     grid: Mapping[str, np.ndarray]
     attack: Mapping[str, np.ndarray]
+    references: Mapping[str, float]
 
 
 @dataclass(frozen=True)
@@ -157,6 +163,7 @@ class CopyPath:
     mic_track_id: str
     lag_sec: float
     coupling_db: float
+    mic_over_source_db: float
 
 
 @dataclass(frozen=True)
@@ -251,21 +258,24 @@ def _at_lag(env: np.ndarray, lag: int) -> np.ndarray:
     return out
 
 
-def copy_paths(levels: Mapping[str, np.ndarray]) -> list[CopyPath]:
+def copy_paths(levels: Levels) -> list[CopyPath]:
     """Every ordered pair of timeline envelopes whose copy sits at one measured lag."""
     paths: list[CopyPath] = []
-    for source, mic in itertools.permutations(levels, 2):
-        count = min(levels[source].size, levels[mic].size)
-        own, other = levels[source][:count], levels[mic][:count]
-        pair = measure_pair(own, other, source_track_id=source, mic_track_id=mic)
+    grid, references = levels.grid, levels.references
+    for source, mic in itertools.permutations(grid, 2):
+        count = min(grid[source].size, grid[mic].size)
+        own, other = grid[source][:count], grid[mic][:count]
+        gap = references[mic] - references[source]
+        pair = measure_pair(
+            own, other, source_track_id=source, mic_track_id=mic, mic_over_source_db=gap
+        )
         if pair.lag_sec is None:
             continue
         copy = _at_lag(other, round(pair.lag_sec / HOP_SEC))
-        used = (own > OPEN_DB) & (own - copy >= DOMINANCE_DB)
+        used = (own > PEER_OPEN_DB) & (own - copy >= DOMINANCE_DB + gap)
         if used.any():
-            paths.append(
-                CopyPath(source, mic, pair.lag_sec, float(np.median(copy[used] - own[used])))
-            )
+            coupling = float(np.median(copy[used] - own[used]))
+            paths.append(CopyPath(source, mic, pair.lag_sec, coupling, gap))
     return paths
 
 
@@ -299,7 +309,10 @@ def _copied_openings(
         threshold = peak + path.coupling_db - SPEECH_DROP_DB
         if threshold <= floors[path.mic_track_id] + OPEN_MARGIN_DB:
             continue
-        if np.median(head - copy[first : first + head.size]) < DOMINANCE_DB:
+        if (
+            np.median(head - copy[first : first + head.size])
+            < DOMINANCE_DB + path.mic_over_source_db
+        ):
             continue
         speech = first + int(np.argmax(head >= peak - SPEECH_DROP_DB)) - lag
         start = max(lo, speech - bridge)
@@ -552,15 +565,19 @@ def timeline_levels(project: EpisodeProject, lanes: list[str]) -> Levels:
     sources: dict = {}
     grid: dict[str, np.ndarray] = {}
     attack: dict[str, np.ndarray] = {}
+    references: dict[str, float] = {}
     for lane in lanes:
         samples = raw_timeline_samples(project, lane, sources=sources, sample_rate=LATENCY_RATE)
+        profile = track_profile(samples, LATENCY_RATE)
+        references[lane] = profile.path_reference_db
+        samples = samples * np.float32(profile.voice_gain)
         grid[lane] = level_envelope_db(
             samples, sample_rate=LATENCY_RATE, frame_sec=FRAME_SEC, hop_sec=HOP_SEC
         )
         attack[lane] = level_envelope_db(
             samples, sample_rate=LATENCY_RATE, frame_sec=ATTACK_FRAME_SEC, hop_sec=ATTACK_HOP_SEC
         )
-    return Levels(grid, attack)
+    return Levels(grid, attack, references)
 
 
 def flag_clipped_word_starts(
@@ -584,7 +601,7 @@ def flag_clipped_word_starts(
         except (OSError, ValueError, wave.Error, subprocess.CalledProcessError) as exc:
             log.debug("clipped word starts skipped: %s", exc)
             return OnsetReport()
-        leads = copy_leads(levels, copy_paths(levels.grid), tolerance_sec=tolerance)
+        leads = copy_leads(levels, copy_paths(levels), tolerance_sec=tolerance)
     report = OnsetReport()
     moved: dict[int, float] = {}
     for lead in leads:

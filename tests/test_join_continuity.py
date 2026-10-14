@@ -88,7 +88,7 @@ def test_hot_onset_scores() -> None:
     left = 0.05 * np.sin(2 * np.pi * 200 * np.arange(n) / sr)
     right = np.zeros(n)
     right[: n // 4] = 0.8
-    _, hits = score_splice_samples(left, right, sample_rate=sr, config=_cfg())
+    _, hits = score_splice_samples(left, right, sample_rate=sr, config=_cfg().at_voice_floor(-42.0))
     onset = next(h for h in hits if h.name == "onset_collision")
     assert onset.score > 0.3
 

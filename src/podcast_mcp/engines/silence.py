@@ -21,11 +21,15 @@ class SilenceInterval:
 def detect_silence(
     audio_path: Path,
     *,
-    threshold_db: float = -40.0,
+    threshold_db: float,
     min_duration_sec: float = 0.5,
     ffmpeg: str | None = None,
 ) -> list[SilenceInterval]:
-    """Find silence intervals in source media time using FFmpeg silencedetect."""
+    """Find silence intervals in source media time using FFmpeg silencedetect.
+
+    ``threshold_db`` is a dBFS level of this file; callers read it from the recording's
+    ``LevelProfile`` so silence means the same at any recording gain.
+    """
     noise = threshold_db
     dur = min_duration_sec
     filt = f"silencedetect=noise={noise}dB:d={dur}"

@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB, speech_level_db
 from podcast_mcp.edits.room_model import (
     Room,
     RoomBasis,
@@ -22,7 +21,8 @@ from podcast_mcp.edits.room_model import (
     smoothed,
     speaks,
 )
-from podcast_mcp.util.dsp import LOW_BAND, SPEECH_BAND
+from podcast_mcp.engines.level_profile import speech_level_db
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, LOW_BAND, SPEECH_BAND
 
 RATE = 16_000
 LEAST = least_spread(RATE)

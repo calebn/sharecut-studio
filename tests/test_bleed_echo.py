@@ -10,6 +10,7 @@ import pytest
 
 from podcast_mcp.engines import bleed_echo
 from podcast_mcp.engines.bleed_echo import EchoConfig, echo_pair_profile, echo_profiles
+from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -40,6 +41,28 @@ def _speech_like(seconds: float, *, seed: int, gaps: bool = True) -> np.ndarray:
     return (0.2 * out / (np.max(np.abs(out)) or 1.0)).astype(np.float32)
 
 
+def _at_voice(samples: np.ndarray) -> tuple[np.ndarray, float]:
+    """A track as the bleed path reads it: at its own voice level, and that level."""
+    profile = track_profile(samples, RATE)
+    return samples * np.float32(profile.voice_gain), profile.path_reference_db
+
+
+def _pair(source: np.ndarray, bleed: np.ndarray, **kwargs):
+    (src, src_voice), (bld, bld_voice) = _at_voice(source), _at_voice(bleed)
+    return echo_pair_profile(src, bld, sample_rate=RATE, gap_db=bld_voice - src_voice, **kwargs)
+
+
+def _risk_pairs(tracks: dict[str, np.ndarray]):
+    from podcast_mcp.engines.bleed_echo import echo_risk_pairs
+
+    read = {tid: _at_voice(samples) for tid, samples in tracks.items()}
+    return echo_risk_pairs(
+        {tid: r[0] for tid, r in read.items()},
+        {tid: r[1] for tid, r in read.items()},
+        sample_rate=RATE,
+    )
+
+
 def _delayed_copy(source: np.ndarray, *, delay_samples: int, gain_db: float) -> np.ndarray:
     gain = 10 ** (gain_db / 20.0)
     out = np.zeros_like(source)
@@ -52,10 +75,9 @@ def test_delayed_attenuated_copy_is_an_echo_risk_with_its_lag_and_level() -> Non
     bleed = _delayed_copy(source, delay_samples=64, gain_db=-14.0)  # 8.0 ms at 8 kHz
     bleed += _speech_like(20.0, seed=9, gaps=False) * 0.002
     cfg = EchoConfig()
-    profile = echo_pair_profile(
+    profile = _pair(
         source,
         bleed,
-        sample_rate=RATE,
         t0=100.0,
         source_track_id="a",
         bleed_track_id="b",
@@ -112,9 +134,7 @@ def test_same_pitch_independent_voices_beat_no_null() -> None:
     a = _wandering_voice(1, 118.0, 0.2)
     b = _wandering_voice(5, 118.0, 0.05)
     cfg = EchoConfig()
-    profile = echo_pair_profile(
-        a, b, sample_rate=RATE, t0=0.0, source_track_id="a", bleed_track_id="b", config=cfg
-    )
+    profile = _pair(a, b, t0=0.0, source_track_id="a", bleed_track_id="b", config=cfg)
     assert profile.copy_frames >= cfg.min_copy_frames
     assert profile.null_consistent_rate is not None
     assert profile.p_value is not None and profile.p_value > cfg.null_p_max
@@ -137,9 +157,7 @@ def test_unrelated_quiet_speech_is_not_an_echo_risk() -> None:
     source = _speech_like(20.0, seed=1)
     other = _speech_like(20.0, seed=2) * 0.2
     cfg = EchoConfig()
-    profile = echo_pair_profile(
-        source, other, sample_rate=RATE, t0=0.0, source_track_id="a", bleed_track_id="b", config=cfg
-    )
+    profile = _pair(source, other, t0=0.0, source_track_id="a", bleed_track_id="b", config=cfg)
     assert profile.echo_risk(cfg) is False
     assert profile.consistent_frames < cfg.min_consistent_frames
 
@@ -147,9 +165,7 @@ def test_unrelated_quiet_speech_is_not_an_echo_risk() -> None:
 def test_gated_silence_never_dominates() -> None:
     source = _speech_like(5.0, seed=1)
     silent = np.zeros_like(source)
-    profile = echo_pair_profile(
-        source, silent, sample_rate=RATE, t0=0.0, source_track_id="a", bleed_track_id="b"
-    )
+    profile = _pair(source, silent, t0=0.0, source_track_id="a", bleed_track_id="b")
     assert profile.dominated_frames == 0
     assert profile.copy_frames == 0
     assert profile.lag_ms is None
@@ -283,17 +299,16 @@ def test_audition_context_marks_the_echo_check_skipped_on_stale_stems(
 def test_echo_risk_pairs_flags_only_the_measured_direction() -> None:
     """Reconcile's whole-track measurement: the mic that carries a delayed copy is the
     bleed side of one directed pair, and independent voices produce no pair (#774)."""
-    from podcast_mcp.engines.bleed_echo import echo_risk_pairs
 
     host = _speech_like(20.0, seed=3)
     guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
     remote = _speech_like(20.0, seed=5)
-    flagged = echo_risk_pairs({"host": host, "guest": guest, "remote": remote}, sample_rate=RATE)
+    flagged = _risk_pairs({"host": host, "guest": guest, "remote": remote})
     assert [(p.source_track_id, p.bleed_track_id) for p in flagged] == [("host", "guest")]
     assert flagged[0].lag_ms == pytest.approx(3.0, abs=0.25)
     assert flagged[0].span_start == 0.0
     assert flagged[0].span_end == pytest.approx(20.0, abs=0.01)
-    assert echo_risk_pairs({"host": host, "remote": remote}, sample_rate=RATE) == []
+    assert _risk_pairs({"host": host, "remote": remote}) == []
 
 
 def test_audition_context_exposes_long_delay_without_claiming_owner_absence(tmp_path, monkeypatch):

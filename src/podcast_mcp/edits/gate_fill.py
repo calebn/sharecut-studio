@@ -421,7 +421,7 @@ def _comfort_noise(
     if floor.speech_db is None:
         return "no speech above its noise"
     loop = _synthesise(noise.psd, noise.nfft, holes.sample_rate)
-    noise_db = rms_db(loop, floor_db=-200.0)
+    noise_db = rms_db(loop)
     if noise_db > floor.speech_db - MIN_BELOW_SPEECH_DB:
         return (
             f"its noise ({noise_db:.1f} dBFS) sits near its speech ({floor.speech_db:.1f} dBFS), "
@@ -454,7 +454,7 @@ def _room_tone_bed(
     samples = load_mono_window(
         bed.path, start_sec=0.0, duration_sec=bed.end, sample_rate=holes.sample_rate
     )
-    return FillLoop(samples=samples, level_db=rms_db(samples, floor_db=-200.0), noise_db=None)
+    return FillLoop(samples=samples, level_db=rms_db(samples), noise_db=None)
 
 
 # Tried in order; the first that yields a loop fills the track. None reads another track.

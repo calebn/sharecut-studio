@@ -1,4 +1,5 @@
-"""Level helpers of ``edits/audio_cache.py``: the room floor, the speech level, band levels."""
+"""Level helpers: the room floor, the speech level and the track profile (``engines/level_profile.py``),
+and the band levels of ``edits/audio_cache.py``."""
 
 from __future__ import annotations
 
@@ -8,18 +9,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.audio_cache import (
-    DIGITAL_SILENCE_DB,
-    BandLevels,
-    build_track_audio_caches,
+from podcast_mcp.edits.audio_cache import BandLevels, build_track_audio_caches, track_level_profile
+from podcast_mcp.engines import level_profile as level_profile_module
+from podcast_mcp.engines.level_profile import (
+    SILENT,
+    LevelProfile,
     level_profile,
     room_floor_db,
     speech_level_db,
-    track_voice_floor_db,
 )
-from podcast_mcp.engines import audio_audit
 from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
-from podcast_mcp.util.dsp import LOW_BAND, SPEECH_BAND, frame_band_filtered_db
+from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, LOW_BAND, SPEECH_BAND, frame_band_filtered_db
 
 RATE = 16_000
 
@@ -59,10 +59,34 @@ def test_a_whole_track_profile_reads_the_room_over_every_frame_digital_silence_i
         ]
     )
 
-    assert level_profile(samples, RATE) == pytest.approx((0.001, 0.1, 0.1))
-    assert level_profile(samples, RATE, whole_track=True) == pytest.approx(
-        (1e-10, 0.1, 0.1), abs=1e-8
+    local = level_profile(samples, RATE)
+    whole = level_profile(samples, RATE, whole_track=True)
+    assert local is not None and whole is not None
+    assert (local.room_db, local.speech_db, local.loud_db) == pytest.approx((-60.0, -20.0, -20.0))
+    assert (whole.room_db, whole.speech_db, whole.loud_db) == pytest.approx(
+        (DIGITAL_SILENCE_DB, -20.0, -20.0)
     )
+
+
+def test_a_whole_track_profile_reads_it_a_minute_at_a_time() -> None:
+    from podcast_mcp.util.dsp import frame_rms_db
+
+    # 150 s: three chunks, the last one partial.
+    rng = np.random.default_rng(4)
+    samples = rng.standard_normal(150 * RATE) * np.repeat(rng.uniform(0.001, 0.2, 1500), 1600)
+    levels = frame_rms_db(samples.astype(np.float32), 160, 160)
+
+    profile = level_profile(samples.astype(np.float32), RATE)
+
+    assert profile is not None
+    assert [profile.room_db, profile.speech_db, profile.loud_db] == pytest.approx(
+        np.percentile(levels, (10, 90, 99))
+    )
+
+
+def test_a_local_profile_needs_half_a_second_of_live_audio() -> None:
+    assert level_profile(np.zeros(RATE, dtype=np.float32), RATE) is None
+    assert level_profile(np.full(int(0.4 * RATE), 0.01, dtype=np.float32), RATE) is None
 
 
 def _signal(seconds: float) -> np.ndarray:
@@ -179,31 +203,59 @@ def test_a_caller_with_no_decode_reads_the_floor_the_cached_proposals_did(tmp_pa
     project = _decoded_project(tmp_path, "host", _speech_over_room())
     cache = build_track_audio_caches(project, ["host"])["host"]
 
-    assert track_voice_floor_db(project, "host") == pytest.approx(cache.voice_floor_db)
-    assert track_voice_floor_db(project, "host", cache) == cache.voice_floor_db
-    assert cache.voice_floor_db == pytest.approx(cache.speech_db - 27.0)
+    assert track_level_profile(project, "host") == cache.profile
+    assert track_level_profile(project, "host", cache) is cache.profile
+    assert cache.profile.voice_floor_db == pytest.approx(cache.profile.speech_db - 27.0)
 
 
-def test_the_floor_of_a_track_is_decoded_once_per_audio_file(tmp_path, monkeypatch) -> None:
+def test_the_profile_of_a_track_is_decoded_once_per_audio_file(tmp_path, monkeypatch) -> None:
     project = _decoded_project(tmp_path, "memo", _speech_over_room())
     reads = []
-    real = audio_audit.TrackRmsCache.from_timeline_stem
+    real = level_profile_module.load_mono_full
 
     def counting(*args, **kwargs):
         reads.append(args)
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(audio_audit.TrackRmsCache, "from_timeline_stem", counting)
+    monkeypatch.setattr(level_profile_module, "load_mono_full", counting)
 
-    first = track_voice_floor_db(project, "host")
-    second = track_voice_floor_db(project, "host")
+    first = track_level_profile(project, "host")
+    second = track_level_profile(project, "host")
+    caches = build_track_audio_caches(project, ["host"])
 
-    assert first == second
+    assert first == second == caches["host"].profile
     assert len(reads) == 1
 
 
 def test_a_track_with_no_live_audio_has_every_frame_quiet(tmp_path) -> None:
     project = _decoded_project(tmp_path, "silent", np.zeros(2 * RATE))
 
-    assert track_voice_floor_db(project, "host") == np.inf
-    assert build_track_audio_caches(project, ["host"])["host"].speech_db == -np.inf
+    assert track_level_profile(project, "host").voice_floor_db == np.inf
+    assert build_track_audio_caches(project, ["host"])["host"].profile.speech_db == -np.inf
+
+
+def test_a_track_with_no_live_audio_judges_every_frame_quiet_and_reads_as_recorded() -> None:
+    assert (SILENT.voice_floor_db, SILENT.audibility_floor_db, SILENT.voice_reach_db) == (
+        np.inf,
+        np.inf,
+        np.inf,
+    )
+    assert SILENT.voice_gain == 1.0
+
+
+def test_a_track_without_contrast_judges_nothing_inaudible() -> None:
+    """A steady tone: its loudest frames sit within 6 dB of its room."""
+    flat = LevelProfile(room_db=-30.0, speech_db=-27.0, loud_db=-26.0)
+    assert flat.audibility_floor_db == -np.inf
+    assert flat.voice_reach_db == -np.inf
+
+
+def test_a_sparse_speakers_voice_is_read_from_the_loudest_frames() -> None:
+    """Under a tenth of the time talking: the speech level is the room, so the voice and the
+    reach a stretch must clear come from the loudest frames."""
+    sparse = LevelProfile(room_db=-70.0, speech_db=-66.0, loud_db=-20.0)
+    assert sparse.voice_db == -26.0
+    assert sparse.voice_floor_db == -64.0
+    assert sparse.voice_reach_db == -47.0
+    dense = LevelProfile(room_db=-70.0, speech_db=-18.0, loud_db=-13.0)
+    assert dense.voice_db == -18.0

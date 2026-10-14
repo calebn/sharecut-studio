@@ -330,7 +330,11 @@ def edit_strip_silence_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str | None = typer.Option(None, "--track"),
     speaker: str | None = typer.Option(None, "--speaker"),
-    threshold_db: float = typer.Option(-40.0, "--threshold-db"),
+    over_voice_floor_db: float = typer.Option(
+        0.0,
+        "--over-voice-floor-db",
+        help="Silence is audio under the track's own voice floor plus this (dB).",
+    ),
     min_duration: float = typer.Option(0.5, "--min-duration"),
     inaudible_opt: bool = typer.Option(
         True,
@@ -342,7 +346,7 @@ def edit_strip_silence_cmd(
     result = EditService(ws).strip_silence(
         track_id=track,
         speaker=speaker,
-        threshold_db=threshold_db,
+        over_voice_floor_db=over_voice_floor_db,
         min_duration_sec=min_duration,
         use_inaudible_opt=inaudible_opt,
     )

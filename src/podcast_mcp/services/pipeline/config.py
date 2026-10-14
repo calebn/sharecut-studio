@@ -103,8 +103,10 @@ def transcribe_run_config(
 FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
 TIGHTEN_STEPS = ("analyze_fillers_pauses", "tighten_from_transcript")
 
-# Analyze flags a track whose astats noise floor is above this (dBFS).
-NOISE_FLOOR_WARN_DB = -50.0
+# Analyze flags a track whose astats noise floor sits within this of the track's own voice
+# level (-50 dBFS against the lab tape's -15.3 dBFS voice level), so a quieter recording of
+# the same room reads the same.
+NOISE_FLOOR_UNDER_VOICE_DB = 35.0
 
 # Analyze flags a dialogue source whose share of digital-silence blocks (from
 # engines.asr_silence.peak_envelope) is at or above this as a gated stem, and
@@ -662,7 +664,12 @@ def suggest_pipeline_tuning(
                 effects["noise_reduction"] = copy.deepcopy(presets["noise_reduction"])
 
         noise_floor = health.get("noise_floor_db")
-        if isinstance(noise_floor, (int, float)) and noise_floor > NOISE_FLOOR_WARN_DB:
+        voice = health.get("voice_db")
+        if (
+            isinstance(noise_floor, (int, float))
+            and isinstance(voice, (int, float))
+            and noise_floor > voice - NOISE_FLOOR_UNDER_VOICE_DB
+        ):
             reasons.append(
                 _reason(
                     "noise_floor",
@@ -670,7 +677,11 @@ def suggest_pipeline_tuning(
                         f"{tid}: elevated noise floor ({noise_floor} dB) - "
                         "consider noise_reduction or rnnoise preset"
                     ),
-                    {"noise_floor_db": noise_floor, "threshold_db": NOISE_FLOOR_WARN_DB},
+                    {
+                        "noise_floor_db": noise_floor,
+                        "voice_db": voice,
+                        "under_voice_db": NOISE_FLOOR_UNDER_VOICE_DB,
+                    },
                     track_id=tid,
                 )
             )

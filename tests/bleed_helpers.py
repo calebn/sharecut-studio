@@ -10,6 +10,7 @@ import numpy as np
 
 from podcast_mcp.edits.bleed_latency import FRAME_SEC, HOP_SEC
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, level_envelope_db
+from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.dsp import frame_peak_db
@@ -67,9 +68,21 @@ def tracks(
     return out
 
 
+def at_voice_level(samples: np.ndarray) -> np.ndarray:
+    """``samples`` read as the bleed path reads a track: its voice level at 0 dB."""
+    return samples * track_profile(samples, RATE).voice_gain
+
+
+def references(audio: dict[str, np.ndarray]) -> dict[str, float]:
+    """Each track's ``LevelProfile.path_reference_db``, which puts two read tracks back as recorded."""
+    return {name: track_profile(samples, RATE).path_reference_db for name, samples in audio.items()}
+
+
 def levels(audio: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     return {
-        name: level_envelope_db(samples, sample_rate=RATE, frame_sec=FRAME_SEC, hop_sec=HOP_SEC)
+        name: level_envelope_db(
+            at_voice_level(samples), sample_rate=RATE, frame_sec=FRAME_SEC, hop_sec=HOP_SEC
+        )
         for name, samples in audio.items()
     }
 
@@ -78,7 +91,7 @@ def peaks(audio: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     """Each frame's sample peak (dB) on the :func:`levels` grid."""
     frame, hop = round(FRAME_SEC * RATE), round(HOP_SEC * RATE)
     return {
-        name: np.maximum(frame_peak_db(samples, frame, hop), LEVEL_FLOOR_DB)
+        name: np.maximum(frame_peak_db(at_voice_level(samples), frame, hop), LEVEL_FLOOR_DB)
         for name, samples in audio.items()
     }
 

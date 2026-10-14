@@ -25,6 +25,10 @@ from podcast_mcp.services.document.history import HistoryService
 from podcast_mcp.services.pipeline.service import PipelineService
 
 
+def _solve(tracks: dict[str, np.ndarray]):
+    return measure_bleed_latency(bh.levels(tracks), "caleb", references=bh.references(tracks))
+
+
 def _summary(solution) -> dict[str, tuple[float | None, str, str]]:
     return {
         t.track_id: (
@@ -43,7 +47,7 @@ def test_late_track_recovered_from_its_bleed_on_two_mics() -> None:
         gated=("audra",),
     )
 
-    solution = measure_bleed_latency(bh.levels(tracks), "caleb")
+    solution = measure_bleed_latency(bh.levels(tracks), "caleb", references=bh.references(tracks))
 
     assert _summary(solution) == {
         "caleb": (0.0, "reference", "keep"),
@@ -63,7 +67,7 @@ def test_conflicting_pairs_flag_the_track_instead_of_shifting_it() -> None:
     # copy on Audra's mic is on time: no single latency explains both pairs.
     tracks = bh.tracks(bleed={"caleb": {"audra": 0.3}, "audra": {"caleb": 0.0}})
 
-    solution = measure_bleed_latency(bh.levels(tracks), "caleb")
+    solution = measure_bleed_latency(bh.levels(tracks), "caleb", references=bh.references(tracks))
 
     assert _summary(solution) == {
         "caleb": (0.0, "conflict", "flag"),
@@ -81,7 +85,7 @@ def test_drifting_lag_is_flagged_not_solved() -> None:
     late = (0.02 + 0.12 * index / index.size) * bh.RATE
     tracks["audra"] = np.interp(index - late, index, tracks["audra"], left=0.0)
 
-    solution = measure_bleed_latency(bh.levels(tracks), "caleb")
+    solution = measure_bleed_latency(bh.levels(tracks), "caleb", references=bh.references(tracks))
 
     assert _summary(solution) == {
         "caleb": (0.0, "reference", "keep"),
@@ -100,7 +104,7 @@ def test_copy_whose_delay_jumps_between_windows_is_scattered() -> None:
         part = slice(i * window, (i + 1) * window)
         tracks["caleb"][part] += 0.1 * bh.delay(voices["audra"], delay)[part]
 
-    solution = measure_bleed_latency(bh.levels(tracks), "caleb")
+    solution = measure_bleed_latency(bh.levels(tracks), "caleb", references=bh.references(tracks))
 
     pair = next(
         p for p in solution.pairs if p.source_track_id == "audra" and p.mic_track_id == "caleb"
@@ -113,11 +117,7 @@ def test_loudspeaker_loop_on_one_pair_is_proposed_never_applied() -> None:
     # Lana is on time; her voice reaches Caleb's room mic through a loudspeaker 300 ms
     # later. A copy that arrives after the direct sound does not prove latency.
     outcomes = [
-        _summary(
-            measure_bleed_latency(
-                bh.levels(bh.tracks(bleed={"caleb": {"lana": 0.3}}, seed=seed)), "caleb"
-            )
-        )["lana"]
+        _summary(_solve(bh.tracks(bleed={"caleb": {"lana": 0.3}}, seed=seed)))["lana"]
         for seed in range(20)
     ]
 
@@ -127,9 +127,7 @@ def test_loudspeaker_loop_on_one_pair_is_proposed_never_applied() -> None:
 def test_copy_later_on_every_mic_is_still_only_proposed() -> None:
     # A remote voice played into two rooms arrives late on both mics by the same delay,
     # so agreeing pairs cannot tell a loudspeaker from latency.
-    solution = measure_bleed_latency(
-        bh.levels(bh.tracks(bleed={"caleb": {"lana": 0.3}, "audra": {"lana": 0.3}})), "caleb"
-    )
+    solution = _solve(bh.tracks(bleed={"caleb": {"lana": 0.3}, "audra": {"lana": 0.3}}))
 
     lana = solution.track("lana")
     assert lana is not None
@@ -142,7 +140,7 @@ def test_copy_later_on_every_mic_is_still_only_proposed() -> None:
 
 
 def test_no_bleed_abstains() -> None:
-    solution = measure_bleed_latency(bh.levels(bh.tracks(bleed={}, gated=bh.SPEAKERS)), "caleb")
+    solution = _solve(bh.tracks(bleed={}, gated=bh.SPEAKERS))
 
     assert _summary(solution) == {
         "caleb": (0.0, "reference", "keep"),

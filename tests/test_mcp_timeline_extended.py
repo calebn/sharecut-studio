@@ -229,7 +229,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
 
         strip = json.loads(
             mcp_timeline.strip_silence_tool(
-                path, track_id="host", threshold_db=-35.0, min_duration_sec=0.4
+                path, track_id="host", over_voice_floor_db=3.0, min_duration_sec=0.4
             )
         )
         fill = json.loads(mcp_timeline.fill_with_room_tone_tool(path, speaker="Host"))
@@ -266,7 +266,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     svc.strip_silence.assert_called_once_with(
         track_id="host",
         speaker=None,
-        threshold_db=-35.0,
+        over_voice_floor_db=3.0,
         min_duration_sec=0.4,
         use_inaudible_opt=None,
     )
@@ -449,7 +449,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
     svc.strip_silence.assert_called_once_with(
         track_id=None,
         speaker="Host",
-        threshold_db=-40.0,
+        over_voice_floor_db=0.0,
         min_duration_sec=0.5,
         use_inaudible_opt=True,
     )

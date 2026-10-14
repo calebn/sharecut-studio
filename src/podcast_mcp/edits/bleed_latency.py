@@ -28,13 +28,12 @@ from typing import Any, Literal
 
 import numpy as np
 
-from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, envelope_lag
+from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, PEER_OPEN_DB, envelope_lag
 
 FRAME_SEC = 0.03
 HOP_SEC = 0.005
 MAX_LAG_SEC = 0.5
 WINDOW_SEC = 30.0
-OPEN_DB = -60.0
 DOMINANCE_DB = 6.0
 MIN_WINDOW_FRAMES = 100
 MIN_SUPPORTED_WINDOWS = 5
@@ -176,12 +175,15 @@ def measure_pair(
     *,
     source_track_id: str,
     mic_track_id: str,
+    mic_over_source_db: float,
     tolerance_sec: float = TOLERANCE_SEC,
     deadband_sec: float = DEADBAND_SEC,
 ) -> PairLag:
     """Windowed lag of ``source``'s level envelope behind its copy in ``mic``'s.
 
-    Frames count where the source is open within reach and out-levels the mic by
+    Each envelope is read at its own track's voice level (``LevelProfile.voice_gain``), and
+    ``mic_over_source_db`` is the mic's reference level less the source's. Frames count
+    where the source is open within reach and out-levels the mic, as recorded, by
     ``DOMINANCE_DB``: the source talks and the mic carries only its copy. The
     neighbourhood maximum keeps that mask the same at every candidate lag. A window
     counts when it settles (:func:`_settled`); the lag is their median and drift is a
@@ -193,7 +195,7 @@ def measure_pair(
     floor = np.full(reach, LEVEL_FLOOR_DB)
     padded = np.concatenate([floor, source[:count], floor])
     near = np.lib.stride_tricks.sliding_window_view(padded, 2 * reach + 1).max(axis=1)
-    mask = (near > OPEN_DB) & (near - mic[:count] >= DOMINANCE_DB)
+    mask = (near > PEER_OPEN_DB) & (near - mic[:count] >= DOMINANCE_DB + mic_over_source_db)
     step = round(WINDOW_SEC / HOP_SEC)
     rows: list[tuple[float, float]] = []
     for first in range(reach, count - reach, step):
@@ -323,8 +325,13 @@ def measure_bleed_latency(
     reference_track_id: str,
     settings: LatencySettings = DEFAULT_SETTINGS,
     moved: Mapping[str, float] | None = None,
+    *,
+    references: Mapping[str, float],
 ) -> LatencySolution:
     """Every ordered pair of level envelopes (``HOP_SEC`` grid), then the per-track solve.
+
+    Each envelope is read at its track's voice level; ``references`` holds each track's
+    ``LevelProfile.path_reference_db``, so a pair compares its two tracks as recorded.
 
     ``moved`` is how far each envelope was shifted later from where its lane sits (a
     planned move, measured near its target). Lags and latencies are reported where the
@@ -340,6 +347,7 @@ def measure_bleed_latency(
             levels[m],
             source_track_id=s,
             mic_track_id=m,
+            mic_over_source_db=references[m] - references[s],
             tolerance_sec=settings.tolerance_sec,
             deadband_sec=settings.deadband_sec,
         )

@@ -10,6 +10,7 @@ from podcast_mcp.edits.clips_ops import (
 from podcast_mcp.edits.inaudible_cuts import recommend_micro_fades
 from podcast_mcp.edits.ranges import merge_timeline_ranges, subtract_ranges_from_intervals
 from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
+from podcast_mcp.engines.level_profile import file_level_profile
 from podcast_mcp.engines.silence import SilenceInterval, detect_silence
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
@@ -50,12 +51,15 @@ def strip_silence(
     project: EpisodeProject,
     track_id: str,
     *,
-    threshold_db: float = -40.0,
+    over_voice_floor_db: float = 0.0,
     min_duration_sec: float = 0.5,
     keep_padding_sec: float = 0.05,
     use_inaudible_opt: bool | None = None,
 ) -> dict:
     """Rebuild a track from speech islands between detected silences.
+
+    Silence is audio under the recording's own voice floor (``LevelProfile.voice_floor_db``)
+    plus ``over_voice_floor_db``, so the same recording at any gain keeps the same islands.
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored: strip
     keeps speech islands as-is (no ``optimize_source_cut_range``). Micro-fades
@@ -78,7 +82,7 @@ def strip_silence(
     probe = FFmpegEngine().probe(src)
     silences = detect_silence(
         src,
-        threshold_db=threshold_db,
+        threshold_db=file_level_profile(src).voice_floor_db + over_voice_floor_db,
         min_duration_sec=min_duration_sec,
     )
     kept = _kept_source_ranges(probe.duration_sec, silences, keep_padding_sec)

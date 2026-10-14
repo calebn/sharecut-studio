@@ -13,7 +13,7 @@ second half of the word. :func:`voice_end` walks forward from a kept word's end 
 its first quiet frame, and :func:`voice_onset` walks back from the next kept word's
 start, so a cut never starts or ends inside either word's voice.
 
-Both walks read quiet against the track's own levels (:attr:`TrackAudioCache.voice_floor_db`), not
+Both walks read quiet against the track's own levels (:attr:`LevelProfile.voice_floor_db`), not
 a fixed dBFS floor. Tighten reads raw, unnormalized tracks: with the lab host track
 scaled by -12 dB, a fixed -42 dBFS floor ended 487 of its 739 kept words' voices
 more than 20 ms early, back inside the words. A dip that misses the floor still ends
@@ -149,7 +149,7 @@ def _frames(cache: TrackAudioCache, t0: float, t1: float) -> np.ndarray:
 
 
 def _walk_breaks(cache: TrackAudioCache, levels: np.ndarray) -> np.ndarray:
-    quiet_db = cache.voice_floor_db
+    quiet_db = cache.profile.voice_floor_db
     return _voice_breaks(
         levels, quiet_db, valley_max_db=quiet_db + _VALLEY_SLACK_DB, depth_db=_VALLEY_DEPTH_DB
     )
@@ -160,7 +160,7 @@ def voice_onset(cache: TrackAudioCache, word_start: float, floor: float) -> floa
 
     The word is a filler a cut starts at, or the kept word a cut must end before.
     The walk stops at the first frame where the voice breaks (under
-    :attr:`TrackAudioCache.voice_floor_db`, or a valley near it); the onset is the start of the frame
+    :attr:`LevelProfile.voice_floor_db`, or a valley near it); the onset is the start of the frame
     after it. It does not bridge short dips the way voiced runs do: the "ss" of
     "digress." falls under the floor for only 20 ms before the owner-approved "uh" at
     706.02 on the lab tape. ``word_start`` comes back when the voice begins at or
@@ -236,7 +236,7 @@ def voice_separates(cache: TrackAudioCache, word_end: float, end: float) -> bool
     """
     levels, first, last, _ = _frames_from_word_end(cache, word_end, end)
     breaks = _voice_breaks(
-        levels, cache.voice_floor_db, valley_max_db=math.inf, depth_db=_SEPARATION_DEPTH_DB
+        levels, cache.profile.voice_floor_db, valley_max_db=math.inf, depth_db=_SEPARATION_DEPTH_DB
     )
     return bool(breaks[first:last].any())
 
@@ -248,7 +248,7 @@ def next_onset(cache: TrackAudioCache, filler_end: float, end: float) -> Onset |
     Times are frame starts on the absolute 10 ms grid, so the returned onset is never
     later than the sound it marks.
     """
-    quiet_db = cache.voice_floor_db
+    quiet_db = cache.profile.voice_floor_db
     burst_floor_db = quiet_db - _BURST_FLOOR_UNDER_VOICE_FLOOR_DB
     sr = int(cache.waveform.sample_rate)
     frame = max(1, round(sr * FRAME_SEC))
