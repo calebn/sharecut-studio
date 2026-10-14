@@ -15,7 +15,7 @@ root, edit = sys.argv[1], sys.argv[2]
 ws = ProjectWorkspace.open(root)
 svc = PlayService(ws)
 
-t = time.perf_counter(); svc.mix_trim_db(); print(f"mix_trim_db (cold) {time.perf_counter()-t:.2f}s")
+t = time.perf_counter(); svc.warm_pending_preview(None); print(f"warm (mix trim + level profiles, both rates) {time.perf_counter()-t:.2f}s")
 t = time.perf_counter(); svc.mix_trim_db(); print(f"mix_trim_db (warm) {time.perf_counter()-t:.2f}s")
 t = time.perf_counter(); svc._mix_key(); print(f"_mix_key {time.perf_counter()-t:.2f}s")
 t = time.perf_counter()
@@ -34,7 +34,7 @@ wrap(P, "render_track_segment"); wrap(P, "snapshot_project"); wrap(P, "apply_for
 wrap(P, "resolve_pending_preview")
 
 pr = cProfile.Profile(); t = time.perf_counter(); pr.enable()
-svc.play_pending_preview(edit, mode="ab", dry_run=True)
+svc.play_pending_preview(edit, mode="ab", dry_run=True, rerender=True)
 pr.disable(); print(f"play_pending_preview ab (cold) {time.perf_counter()-t:.2f}s")
 for k, v in timings.items(): print(f"  {k}: n={len(v)} total={sum(v):.2f}s max={max(v):.2f}s")
 st = pstats.Stats(pr)
