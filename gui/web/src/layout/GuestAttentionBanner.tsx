@@ -9,7 +9,6 @@ import {
 import { useDaw } from "../state/useDaw";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
-/** Pending host edits and command outcomes from IndexedDB. */
 export function GuestAttentionBanner() {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const { pending, conflicts, status } = useOfflineAttention(projectPath);
