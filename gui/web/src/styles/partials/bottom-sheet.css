@@ -81,7 +81,8 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   height: min(50%, 26.25rem);
 }
 
-.bottom-sheet--half:has(.modifier-inspector) {
+.bottom-sheet--half:has(.modifier-inspector),
+.bottom-sheet--half:has(.range-actions--sheet) {
   height: min(75%, 32rem);
 }
 
@@ -183,7 +184,8 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
     height: min(45%, 17.5rem);
   }
 
-  .bottom-sheet--half:has(.modifier-inspector) {
+  .bottom-sheet--half:has(.modifier-inspector),
+  .bottom-sheet--half:has(.range-actions--sheet) {
     height: min(70%, 22rem);
   }
 }
@@ -321,12 +323,15 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   overflow: visible;
 }
 
-.bottom-sheet:has(.modifier-inspector) {
+.bottom-sheet:has(.modifier-inspector),
+.bottom-sheet:has(.range-actions--sheet) {
   overflow: auto;
 }
 
 .bottom-sheet:has(.modifier-inspector) .bottom-sheet-body,
-.bottom-sheet:has(.modifier-inspector) .bottom-sheet-body > :not(.inspector) {
+.bottom-sheet:has(.modifier-inspector) .bottom-sheet-body > :not(.inspector),
+.bottom-sheet:has(.range-actions--sheet) .bottom-sheet-body,
+.bottom-sheet:has(.range-actions--sheet) .bottom-sheet-body > :not(.inspector) {
   flex: 0 0 auto;
   min-height: auto;
   overflow: visible;
