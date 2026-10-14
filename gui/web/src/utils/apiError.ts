@@ -29,7 +29,6 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
-/** A load or command that hit `withAbortTimeout` and the server never answered. */
 export function isServerTimeoutError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === "TimeoutError") {
     return true;
@@ -75,9 +74,7 @@ export async function readApiError(res: Response): Promise<string> {
     if (body && typeof body === "object") {
       message = nestedApiMessage(body, MAX_MESSAGE_DEPTH);
     }
-  } catch {
-    // not JSON
-  }
+  } catch {}
   const display = message ?? text.trim();
   if (/host offline/i.test(display)) {
     return HOST_OFFLINE_MESSAGE;

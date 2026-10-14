@@ -21,7 +21,6 @@ import { usePhoneToastDock } from "./toastDock";
 
 const SHEET = '.bottom-sheet[role="dialog"]';
 
-/** The Close of the sheet hosting the toast, or of the open sheet when the toast floats above it. */
 function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
   if (modalShortcuts() !== null) return null;
   const closes = host
@@ -32,14 +31,6 @@ function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
   return isValidFocusTarget(close) ? close : null;
 }
 
-/**
- * The visible twin of `announceStatus`. The shell's polite live region already
- * speaks the same string, so this toast does not announce. Undo names the
- * history entry the change recorded and shows only while that entry is the
- * head this tab sees, or while the tab still shows the head it had when the
- * change was announced (the reply can beat the project's own update); the server refuses the undo (`history_stale`) if another
- * edit landed first, so Undo never reverses someone else's change.
- */
 export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const { toast, headId } = useDaw((s) => ({
     toast: s.feedbackToast,

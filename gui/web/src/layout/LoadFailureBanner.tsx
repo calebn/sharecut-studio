@@ -3,15 +3,9 @@ import { Button } from "../ui/Button";
 export type LoadFailure = {
   message: string;
   onRetry: () => void;
-  /** A warm reload is retrying while the episode stays open. */
   recovering?: boolean;
 };
 
-/**
- * The first load of the transcript and history failed. It lives in the shell's
- * banner row: the touch shells are fixed to the viewport and would cover a
- * banner placed above them.
- */
 export function LoadFailureBanner({
   failure,
 }: {
