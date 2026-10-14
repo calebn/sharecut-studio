@@ -240,7 +240,7 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(alert);
   });
 
-  it("shows the save state in the status row, in Listen and Timeline", async () => {
+  it("shows Saved in Listen, and in Timeline only once a save needs the host", async () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <MobileShell />
@@ -249,9 +249,10 @@ describe("MobileShell", () => {
     const pill = await screen.findByText("Saved to project");
     expect(pill.closest(".mobile-status-row")).not.toBeNull();
     act(() => useDawStore.getState().setMobileMode("timeline"));
+    expect(container.querySelector("[data-save-state]")).toBeNull();
     expect(
-      container.querySelector(".mobile-status-row [data-save-state='saved']"),
-    ).not.toBeNull();
+      container.querySelector(".mobile-status-row")?.childElementCount,
+    ).toBe(0);
   });
 
   it("says edits are not saved yet and offers Send now when they wait offline", async () => {
@@ -265,6 +266,10 @@ describe("MobileShell", () => {
       name: "Not saved yet · 2 waiting to send",
     });
     expect(pill.closest(".mobile-status-row")).not.toBeNull();
+    act(() => useDawStore.getState().setMobileMode("timeline"));
+    expect(
+      screen.getByRole("button", { name: "Not saved yet · 2 waiting to send" }),
+    ).toBeInTheDocument();
   });
 
   it("provides exactly one project heading in every phone mode", async () => {

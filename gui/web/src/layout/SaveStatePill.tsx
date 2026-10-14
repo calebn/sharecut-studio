@@ -18,12 +18,20 @@ import {
   saveStateOf,
 } from "./saveState";
 
+const isRoutine = (state: SaveState) =>
+  state.kind === "saving" || state.kind === "saved";
+
 /**
  * The host's project save state, from the sends this tab has in flight and the
  * offline queue and conflicts the Needs attention banner lists. Share guests
  * see none: their edits go through the review link.
  */
-export function SaveStatePill() {
+export function SaveStatePill({
+  quietWhenRoutine = false,
+}: {
+  /** Show only a save that needs the host, so the row adds no height while all is well. */
+  quietWhenRoutine?: boolean;
+}) {
   const { projectPath, announceStatus } = useDaw((s) => ({
     projectPath: s.projectPath,
     announceStatus: s.announceStatus,
@@ -55,7 +63,7 @@ export function SaveStatePill() {
     if (line) announceStatus(line, { toast: false });
   });
 
-  if (!state) return null;
+  if (!state || (quietWhenRoutine && isRoutine(state))) return null;
   return (
     <SaveStatePillView
       state={state}

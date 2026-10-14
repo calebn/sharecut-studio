@@ -625,7 +625,7 @@ function MobileShellAdapter({
         status: (
           <>
             <RecordTransportChip />
-            <SaveStatePill />
+            <SaveStatePill quietWhenRoutine={mobileMode !== "listen"} />
             <SoloChip />
           </>
         ),

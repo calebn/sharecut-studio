@@ -289,7 +289,8 @@ html[data-shell="tablet"] {
 }
 
 /* The status row sticks while it carries a live recording, Solo on, or a save
-   that needs the host (waiting or failed); a quiet saved line scrolls away. */
+   that needs the host (waiting or failed). The pill is not drawn outside Listen
+   while saved or saving, so the row adds no height there. */
 .mobile-status-row:has(
   .record-rec-chip,
   .solo-chip,
