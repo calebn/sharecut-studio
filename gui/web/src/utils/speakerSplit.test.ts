@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { HistoryEntryId } from "../types/project";
+import type {
+  ExactRangeTarget,
+  HistoryEntryId,
+  ProjectView,
+} from "../types/project";
 import {
   parseSplitSpeakersResult,
   siblingSplitLanes,
+  speakerLaneMoveTarget,
   splitSpeakerNames,
   splitSpeakersBlocker,
   splitSpeakersDoneCopy,
@@ -76,6 +81,49 @@ describe("siblingSplitLanes", () => {
 
   it("is empty when the track is not a split lane", () => {
     expect(siblingSplitLanes([ana, ben, other], "call")).toEqual([]);
+  });
+});
+
+describe("speakerLaneMoveTarget", () => {
+  const tracks = [
+    { id: "room", label: "Ana", speaker_split_id: "split_1" },
+    { id: "room_ben", label: "Ben", speaker_split_id: "split_1" },
+    { id: "call", label: "Call", speaker_split_id: null },
+  ];
+  const project = { tracks } as ProjectView;
+
+  it("keeps a single-lane split-range interval", () => {
+    const target: ExactRangeTarget = {
+      kind: "exact_range",
+      track_ids: ["room"],
+      intervals: [{ start: 1, end: 1.4 }],
+      clips: [],
+      media_seals: {},
+    };
+    expect(speakerLaneMoveTarget(project, target)).toEqual({
+      fromLaneId: "room",
+      interval: { start: 1, end: 1.4 },
+    });
+  });
+
+  it("is null when the range is not one split lane", () => {
+    const twoTracks: ExactRangeTarget = {
+      kind: "exact_range",
+      track_ids: ["room", "room_ben"],
+      intervals: [{ start: 1, end: 1.4 }],
+      clips: [],
+      media_seals: {},
+    };
+    const unsplit: ExactRangeTarget = {
+      kind: "exact_range",
+      track_ids: ["call"],
+      intervals: [{ start: 1, end: 1.4 }],
+      clips: [],
+      media_seals: {},
+    };
+    expect(speakerLaneMoveTarget(project, twoTracks)).toBeNull();
+    expect(speakerLaneMoveTarget(project, unsplit)).toBeNull();
+    expect(speakerLaneMoveTarget(null, twoTracks)).toBeNull();
   });
 });
 

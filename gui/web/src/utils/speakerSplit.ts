@@ -32,10 +32,9 @@ export function splitSpeakersBlocker(
 }
 
 /** Sibling speaker-split tracks of `trackId`, or none when it is not a split lane. */
-export function siblingSplitLanes(
-  tracks: readonly TrackView[],
-  trackId: string,
-): TrackView[] {
+export function siblingSplitLanes<
+  T extends Pick<TrackView, "id" | "speaker_split_id">,
+>(tracks: readonly T[], trackId: string): T[] {
   const track = tracks.find((candidate) => candidate.id === trackId);
   if (!track?.speaker_split_id) {
     return [];

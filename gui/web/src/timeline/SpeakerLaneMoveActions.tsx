@@ -15,8 +15,10 @@ export function SpeakerLaneMoveActions() {
     projectPath: s.projectPath,
     selection: s.selection,
     rangeBusy: s.rangeBusy,
+    joinMutationInFlight: s.joinMutationInFlight,
   }));
-  const { project, projectPath, selection, rangeBusy } = state;
+  const { project, projectPath, selection, rangeBusy, joinMutationInFlight } =
+    state;
   const resolution = project
     ? resolveSelectionRange(project, selection)
     : { targets: [], reason: null };
@@ -28,25 +30,25 @@ export function SpeakerLaneMoveActions() {
   if (!siblings.length) return null;
   const host = canManageProjects(projectPath);
   const stale =
-    target && project && !rangeIsCurrent(project, target)
+    target && !rangeIsCurrent(project, target)
       ? "Selected audio changed. Select the range again."
       : null;
   return (
-    <div className="speaker-lane-move-actions">
+    <>
       {siblings.map((lane) => {
         const label = lane.label || lane.id;
         const reason = stale
           ? stale
           : !host
-            ? "Only the host can move speaker-lane attribution"
-            : rangeBusy
+            ? "Only the host can move a reply between speaker tracks"
+            : rangeBusy || joinMutationInFlight
               ? BUSY_REASON
               : null;
         return (
           <Button
             key={lane.id}
             type="button"
-            className="ui-control"
+            className="ui-control--compact"
             disabledReason={reason ?? undefined}
             onClick={() =>
               void executePointerCommand("range.moveSpeakerLane", {
@@ -58,6 +60,6 @@ export function SpeakerLaneMoveActions() {
           </Button>
         );
       })}
-    </div>
+    </>
   );
 }

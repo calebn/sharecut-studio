@@ -600,6 +600,8 @@ Select range is armed), so the bar never sits under the sheet's scrim and the
 sheet is never empty.
 
 Timeline and transcript ranges share **Play, Cut, Mute, Comment, Bounce**.
+A range on exactly one speaker-split track also offers **Move to {speaker}**
+for each sibling (host only).
 Transcript passages retain pauses between selected words and map unique split
 or moved fragments to their destination lanes. Choose an occurrence for repeated
 recordings. Ambiguous repeated split fragments require timeline selection.

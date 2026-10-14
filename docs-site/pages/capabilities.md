@@ -130,7 +130,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Play range | session | `range.play` | — (Context action with explicit range selection) | — | `RangeActions` | — | — | — | — | none · none |
 | Cut range | project | `range.cut` | — (Context action with explicit range selection) | — | `RangeActions` | `propose_range_cut_tool` | `podcast edit propose-range-cut` | — | — | none · none |
 | Mute range | project | `range.mute` | — (Context action with explicit range selection) | — | `RangeActions` | `propose_range_mute_tool` | — | — | — | none · none |
-| Move speaker lane span | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `SpeakerLaneMoveActions` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
+| Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `SpeakerLaneMoveActions` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
 | Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `RangeActions` | `add_comment_tool` | `podcast comment add` | — | — | none · none |
 | Bounce range | project | `range.bounce` | — (Context action with explicit range selection) | — | `RangeActions` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
 | Select a range | view | `range.arm` | — (Context action with explicit range selection) | — | `EditingToolRail`, `transport.menu` | — | — | — | — | none · none |

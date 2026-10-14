@@ -140,7 +140,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |
-| Move range to another speaker lane | `range.moveSpeakerLane` | Project loaded |  |
+| Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. Range actions show Move to {speaker} on one split lane |
 | Comment on range | `range.comment` | Project loaded |  |
 | Bounce selected range | `range.bounce` | Project loaded |  |
 | Select a range | `range.arm` | Project loaded |  |
