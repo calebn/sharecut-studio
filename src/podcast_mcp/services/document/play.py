@@ -30,7 +30,7 @@ from podcast_mcp.edits.pending_preview import (
     resolve_pending_preview,
 )
 from podcast_mcp.edits.ripple import plan_trim
-from podcast_mcp.edits.room_tone import record_room_tone_pool
+from podcast_mcp.edits.room_tone import record_room_tone_pool, room_tone_pool_digest
 from podcast_mcp.edits.timeline_ops import roll_clip_join, trim_clip_edge
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
@@ -1809,6 +1809,7 @@ class PlayService:
                     self.project.transcript_data.model_dump_json().encode()
                 ).hexdigest(),
                 "defaults": self._defaults,
+                "room_tone_pool": room_tone_pool_digest(self.project),
             },
             sort_keys=True,
         )
