@@ -63,6 +63,7 @@ class AcousticGapConfig:
     max_run_sec: float = MAX_RUN_SEC_CEIL
     max_frames: int = MAX_FRAMES_CEIL
     vad_backend: str = "heuristic"
+    word_probe: bool = True
 
     @classmethod
     def from_tighten(cls, tighten: dict[str, Any] | None) -> AcousticGapConfig:
@@ -91,6 +92,7 @@ class AcousticGapConfig:
                 )
             ),
             vad_backend=("silero" if raw.get("vad_backend") == "silero" else "heuristic"),
+            word_probe=bool(raw.get("word_probe", base.word_probe)),
         )
 
 

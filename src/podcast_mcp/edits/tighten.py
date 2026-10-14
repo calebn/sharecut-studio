@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.edits.audio_cache import build_track_audio_caches
+import numpy as np
+
+from podcast_mcp.edits.acoustic_gap import AcousticGapConfig
+from podcast_mcp.edits.acoustic_word import (
+    WHISPER_SAMPLE_RATE,
+    flag_possible_words,
+    whisper_span_transcriber,
+)
+from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.fillers import (
     _add_acoustic_candidates,
     _apply_analyzed_cut,
@@ -24,11 +33,13 @@ from podcast_mcp.edits.tighten_reasons import (
     RESTART_REASON_PREFIX,
     is_acoustic_filler_reason,
     is_likely_laugh_reason,
+    is_possible_word_reason,
     is_review_only_reason,
 )
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 
 def format_tighten_propose_summary(
@@ -38,6 +49,7 @@ def format_tighten_propose_summary(
     """Human summary for pipeline/CLI/MCP propose output (includes discourse and backchannel skips)."""
     acoustic = sum(1 for d in decisions if is_acoustic_filler_reason(d.reason))
     laughs = sum(1 for d in decisions if is_likely_laugh_reason(d.reason))
+    words = sum(1 for d in decisions if is_possible_word_reason(d.reason))
     fillers = sum(1 for d in decisions if (d.reason or "").startswith("filler:")) - acoustic
     pauses = sum(1 for d in decisions if (d.reason or "").startswith("pause:"))
     repetitions = sum(
@@ -53,7 +65,8 @@ def format_tighten_propose_summary(
     extra += f", {backchannels} backchannel kept" if backchannels else ""
     repeat_text = f", {repetitions} repetition/restart" if repetitions else ""
     laugh_text = f", {laughs} likely laugh" if laughs else ""
-    acoustic_text = f", {acoustic} acoustic (review{laugh_text})" if acoustic else ""
+    word_text = f", {words} possible missed word" if words else ""
+    acoustic_text = f", {acoustic} acoustic (review{laugh_text}{word_text})" if acoustic else ""
     acoustic_skip_text = f", {acoustic_skipped} acoustic skipped" if acoustic_skipped else ""
     return (
         f"{len(decisions)} proposed ({fillers} filler, {pauses} pause"
@@ -208,9 +221,40 @@ def propose_tighten_edits(
             skip_counts=skip_counts,
             merge_ids=proposed_ids,
         )
+    this_run = [e for e in working.edit_decisions if e.id in proposed_ids]
+    _flag_possible_words(project, cfg, this_run, audio_caches, skip_counts)
     project.edit_decisions = working.edit_decisions
-    this_run = [e for e in project.edit_decisions if e.id in proposed_ids]
     return TightenProposal(decisions=this_run, skip_counts=dict(skip_counts))
+
+
+def _flag_possible_words(
+    project: EpisodeProject,
+    cfg: dict[str, Any],
+    decisions: list[EditDecision],
+    audio_caches: Mapping[str, TrackAudioCache],
+    skip_counts: dict[str, int],
+) -> None:
+    """Mark acoustic proposals the project's Whisper hears as a word (``:possible_word``)."""
+    if not AcousticGapConfig.from_tighten(cfg.get("tighten")).word_probe:
+        return
+    if not any(is_acoustic_filler_reason(d.reason) for d in decisions):
+        return
+
+    def window(track_id: str, start: float, end: float) -> np.ndarray | None:
+        cache = audio_caches.get(track_id)
+        if cache is None or int(cache.waveform.sample_rate) != WHISPER_SAMPLE_RATE:
+            return None
+        return cache.window(start, end)
+
+    try:
+        flag_possible_words(
+            decisions,
+            window,
+            whisper_span_transcriber(cfg),
+            {t.track_id: t.language for t in project.transcripts},
+        )
+    except WhisperWeightsMissingError:
+        skip_counts["word_probe:unavailable"] = len(decisions)
 
 
 def apply_tighten_decisions(project: EpisodeProject) -> int:

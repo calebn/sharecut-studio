@@ -21,10 +21,18 @@ const REASON_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+/** Reason-flag suffixes on an acoustic hit, most cautious first; mirrors `ACOUSTIC_KIND_FLAGS` in `tighten_reasons.py`. */
+const ACOUSTIC_FLAG_LABELS: readonly (readonly [string, string])[] = [
+  ["possible_word", "Possible missed word"],
+  ["likely_laugh", "Likely laugh"],
+];
+
 /** One label per tighten class; a new class in `tightenHits` fails to type-check until it has one. */
 const TIGHTEN_REASON_LABELS: Record<TightenClass, (tail: string) => string> = {
   filler: (tail) => {
-    if (tail.split(":").includes("likely_laugh")) return "Likely laugh";
+    const flags = tail.split(":");
+    const flagged = ACOUSTIC_FLAG_LABELS.find(([flag]) => flags.includes(flag));
+    if (flagged) return flagged[1];
     return tail === "acoustic" ? "Filler sound" : `Filler word "${tail}"`;
   },
   pause: (tail) => (tail ? `Long pause (${tail})` : "Long pause"),

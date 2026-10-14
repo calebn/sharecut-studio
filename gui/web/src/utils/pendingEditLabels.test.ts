@@ -25,6 +25,11 @@ describe("pendingReasonLabel", () => {
     ["filler:acoustic", "Filler sound"],
     ["filler:acoustic:likely_laugh", "Likely laugh"],
     ["filler:acoustic:likely_laugh:risky", "Likely laugh"],
+    ["filler:acoustic:possible_word", "Possible missed word"],
+    [
+      "filler:acoustic:likely_laugh:possible_word:risky",
+      "Possible missed word",
+    ],
     ["filler:um", 'Filler word "um"'],
     ["pause:1.2s", "Long pause (1.2s)"],
     ["pause:", "Long pause"],

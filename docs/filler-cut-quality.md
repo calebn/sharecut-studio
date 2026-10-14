@@ -713,10 +713,13 @@ evidence:
 - Owner (2026-10-13): keeping laughter is usually good, though at times it can make another speaker hard to hear
 - Owner (2026-10-13) accepted common podcast-editing practice as the basis without citations: keep laughter, lower a laugh that covers another speaker on that speaker's own track, lower or shorten breaths rather than remove them all, cut false starts, keep some hesitations for rhythm
 - Owner (2026-10-13): a user who wants a quick result applies the suggested actions in bulk instead of reviewing each one, and can change any single decision later; bulk apply is "as low risk as labeling cause it's not permanent"
+- Owner (2026-10-13), #1062 scope: a word-like acoustic span is labelled "possible missed word" with default Leave, not rejected, so the label can never hide a proposal
 - Owner (2026-10-13): the pipeline applies the suggested actions by default, "it's low risk and could potentially save the user a lot of time"
 enforced-by:
 - tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
+- tests/test_acoustic_gap.py::test_a_span_the_model_hears_as_a_word_is_flagged_held_and_named_in_the_summary
+- tests/test_acoustic_gap.py::test_a_span_the_model_hears_as_a_hesitation_is_proposed_unflagged
 enforcement: pending #1434
 -->
 
@@ -742,6 +745,7 @@ Default action by kind:
 | Laugh | Leave | When it overlaps another speaker's words on another track, Lower on the laughing track for the overlap. |
 | Backchannel (`mm-hmm`) | Leave | Lower when it covers another speaker, as for a laugh. |
 | Playful vocal phrase | Leave | |
+| Possible missed word | Leave | An acoustic span the project's Whisper hears, alone, as a word. Detection is by listening, not by shape (§ Key parameters reference, "A possible missed word is flagged"). A real word is never cut by a default action. |
 
 The rules that follow from it:
 
@@ -771,7 +775,7 @@ The rules that follow from it:
    table and to its one table-driven test. Owner verdicts on clips are evidence
    for the defaults, never targets to tune a threshold against.
 
-Shipped today: none of this table. Hard fillers, backchannels and acoustic gap
+Shipped today: the labels "Likely laugh" (#1365) and "Possible missed word" (#1062), not the table. Hard fillers, backchannels and acoustic gap
 runs behave as described elsewhere in this doc. #1434 builds the table and its
 checks; until it lands, this block records the target.
 
@@ -1075,6 +1079,34 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   before the rule, 70 with forced-aligner word times (8 flagged) and 37 with Whisper times
   (5 flagged), and none is eligible for Apply eligible; ripple proposals (14 and 4) are
   identical and none is flagged. This is the first slice of the non-speech sound policy tracked in #1434.
+- **A possible missed word is flagged, not dropped** (#1062, `edits/acoustic_word.py`). An
+  acoustic run is voiced audio the transcript has no word for. Most runs are hesitations, but
+  some are real words the ASR dropped ("Then...", "Here"), and cutting one loses speech. After
+  analysis, each surviving acoustic proposal's span, padded with 0.3 s of silence each side, is
+  heard alone by the project's own `transcribe.model` (no VAD, no earlier text, a disfluency
+  prompt so a hesitation is written down as one). A result holding a token that is not a
+  hesitation, laugh, backchannel or breath (`um`, `uh`, `mm-hmm`, `ha ha`) is a **possible
+  missed word**: the reason gains `:possible_word` (`filler:acoustic:possible_word`, after
+  `:likely_laugh` when both apply), the Tighten row reads "Possible missed word", and
+  `propose_edits` counts it ("1 acoustic (review, 1 possible missed word)"). Like every
+  review flag it never hides a proposal, is never auto-applied, and is skipped by Apply
+  eligible; the suggested action is Leave. A shape test (voiced length, spectral motion)
+  cannot do this job: on the lab tape a drawn-out "Then" (0.98 s) moves less than several
+  "umm", and backchannels move as much as words. `tighten.acoustic_gap_filler.word_probe:
+  false` turns the listening off; a Whisper model that is not installed leaves the proposals
+  unlabelled and counts `word_probe:unavailable`. Lab (2026-10-13, #1062; oracle: the #1024
+  classification, Whisper `base.en` on each span with the disfluency prompt, so the probe model
+  and the oracle differ): proposal counts are identical before and after in all four variants
+  (mute 58 and 91, ripple 27 and 54, Whisper and forced-aligner word times); of 17 oracle
+  words, 15 were flagged; of 107 non-words, 15 were flagged (12 backchannels, whose default is
+  Leave anyway). The two missed words were a clipped "And" and a "Um, that, uh, that's what"
+  the oracle itself heard from a 0.2 s span. Holdout (podcast_111, a 5-minute excerpt, mute): 6
+  acoustic proposals, 2 oracle words (1 flagged, the miss a hesitation with a word fragment), 4
+  non-words, 0 false flags. The model is the oracle's cousin, not ground truth, so these are
+  agreement counts and the threshold-free design has nothing to tune against the tape.
+  Cost: one Whisper decode per surviving acoustic proposal. Measured on a machine at load
+  27 to 57 and `nice` 10, `large-v3-turbo` took a median 8 to 10 s per span (71 spans in 11 to 15
+  minutes) and `base` 0.7 s; an idle machine is not measured, so treat these as an upper bound.
   A peer run is not peer speech when it is the cut track's own voice bleeding
   onto the peer's mic (#994). The run's RMS is compared with the cut track's RMS
   over the same frames, and a peer at least `analysis.heuristics.bleed_dominance_db`
