@@ -263,9 +263,9 @@ def _mapped_word_index(
     tr = recording.transcript
     words = tr.words if tr is not None else []
     mapped = recording.map_words(timeline, [(w.start, w.end) for w in words])
-    # Word edits address a word by track and index and resolve it in the lane's first
-    # transcript, so another take's words carry no ``word_index``: they can be seen,
-    # followed and sought, never edited by an index that would land on the wrong take.
+    # The Studio word inspector and its store address a word by track and index alone, and
+    # send the first take's ``source_id`` with it (#1476), so another take's words carry no
+    # ``word_index``: they can be seen, followed and sought, never edited from here.
     addressable = tr is None or tr is project.transcript_for_track(track_id)
     views = [
         _word_view(

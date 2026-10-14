@@ -73,10 +73,17 @@ def transcript_correct_cmd(
         "--expected-text",
         help="Word text you read at --word-index; refuse the fix if it changed meanwhile (#650).",
     ),
+    source: str | None = typer.Option(
+        None,
+        "--source",
+        help="Recording id whose words --word-index counts; required on a multi-take track.",
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     try:
-        EditService(ws).correct_word(track, word_index, text, expected_text=expected_text)
+        EditService(ws).correct_word(
+            track, word_index, text, expected_text=expected_text, source_id=source
+        )
     except TranscriptTextChangedError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
@@ -98,6 +105,11 @@ def transcript_correct_phrase_cmd(
             "changed meanwhile (#650)."
         ),
     ),
+    source: str | None = typer.Option(
+        None,
+        "--source",
+        help="Recording id whose words --word-index counts; required on a multi-take track.",
+    ),
 ) -> None:
     """Replace a word range's text in one undo step.
 
@@ -107,7 +119,12 @@ def transcript_correct_phrase_cmd(
     """
     ws = ProjectWorkspace.open(project)
     EditService(ws).correct_phrase(
-        track, start_word_index, end_word_index, text, expected_text=expected_text
+        track,
+        start_word_index,
+        end_word_index,
+        text,
+        expected_text=expected_text,
+        source_id=source,
     )
     typer.echo("Corrected.")
 
@@ -209,6 +226,11 @@ def transcript_suppress_word_cmd(
         "--expected-text",
         help="Word text you read at --word-index; refuse the change if it changed meanwhile (#744).",
     ),
+    source: str | None = typer.Option(
+        None,
+        "--source",
+        help="Recording id whose words --word-index counts; required on a multi-take track.",
+    ),
 ) -> None:
     """Suppress, unsuppress, or return to automatic one per-track word (text only; audio unchanged)."""
     if automatic and suppressed is not None:
@@ -217,13 +239,16 @@ def transcript_suppress_word_cmd(
         )
     ws = ProjectWorkspace.open(project)
     if automatic:
-        result = EditService(ws).set_word_automatic(track, word_index, expected_text=expected_text)
+        result = EditService(ws).set_word_automatic(
+            track, word_index, expected_text=expected_text, source_id=source
+        )
     else:
         result = EditService(ws).set_word_suppressed(
             track,
             word_index,
             suppressed if suppressed is not None else True,
             expected_text=expected_text,
+            source_id=source,
         )
     typer.echo(json.dumps(result, indent=2))
 

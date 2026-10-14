@@ -4,6 +4,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
+from podcast_mcp.engines.lane_words import lane_transcript
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.text import collapse_whitespace, has_meaningful_text
@@ -12,19 +13,22 @@ T = TypeVar("T")
 
 
 def run_user_transcript_edit(
-    project: EpisodeProject, track_id: str, edit: Callable[[EpisodeProject], T]
+    project: EpisodeProject,
+    track_id: str,
+    edit: Callable[[EpisodeProject], T],
+    source_id: str | None = None,
 ) -> T:
-    """Run a person's or agent's edit on ``track_id``'s transcript and flag it ``user_edited``.
+    """Run a person's or agent's edit on one transcript of ``track_id`` and flag it ``user_edited``.
 
-    Flags only the transcript the edit functions resolve (``transcript_for_track``) and only
+    Flags only the transcript the edit functions resolve (``lane_transcript``) and only
     when its words changed. Automated passes (precorrect, reconcile, speaker attribution,
     audio-quality and bleed suppression) call the edit functions directly and stay unflagged:
     re-running the pipeline re-derives them.
     """
-    tr = project.transcript_for_track(track_id)
+    tr = lane_transcript(project, track_id, source_id)
     before = list(tr.words) if tr is not None else []
     result = edit(project)
-    after = project.transcript_for_track(track_id)
+    after = lane_transcript(project, track_id, source_id)
     if after is not None and after.words != before:
         after.user_edited = True
     return result
@@ -42,6 +46,7 @@ def require_word_text(
     start_word_index: int,
     end_word_index: int,
     expected_text: str | None,
+    source_id: str | None = None,
 ) -> None:
     """Raise ``TranscriptTextChangedError`` unless words ``start..end`` still read ``expected_text``.
 
@@ -54,7 +59,7 @@ def require_word_text(
         return
     if start_word_index < 0 or end_word_index < start_word_index:
         return  # malformed request, not staleness: the guarded edit raises its usual ValueError
-    tr = project.transcript_for_track(track_id)
+    tr = lane_transcript(project, track_id, source_id)
     if tr is not None and end_word_index < len(tr.words):
         current = " ".join(w.text for w in tr.words[start_word_index : end_word_index + 1])
         if collapse_whitespace(current) == collapse_whitespace(expected_text):
@@ -69,8 +74,10 @@ def require_word_text(
     )
 
 
-def _require_transcript(project: EpisodeProject, track_id: str) -> Transcript:
-    transcript = project.transcript_for_track(track_id)
+def _require_transcript(
+    project: EpisodeProject, track_id: str, source_id: str | None = None
+) -> Transcript:
+    transcript = lane_transcript(project, track_id, source_id)
     if transcript is None:
         raise CodedValueError(f"no transcript for track {track_id!r}", code="transcript_not_found")
     return transcript
@@ -95,8 +102,9 @@ def correct_word(
     track_id: str,
     word_index: int,
     new_text: str,
+    source_id: str | None = None,
 ) -> None:
-    correct_transcript_word(_require_transcript(project, track_id), word_index, new_text)
+    correct_transcript_word(_require_transcript(project, track_id, source_id), word_index, new_text)
     rebuild_combined(project)
 
 
@@ -125,9 +133,13 @@ def correct_phrase(
     start_word_index: int,
     end_word_index: int,
     new_text: str,
+    source_id: str | None = None,
 ) -> None:
     correct_transcript_phrase(
-        _require_transcript(project, track_id), start_word_index, end_word_index, new_text
+        _require_transcript(project, track_id, source_id),
+        start_word_index,
+        end_word_index,
+        new_text,
     )
     rebuild_combined(project)
 
@@ -216,13 +228,14 @@ def set_word_suppressed(
     track_id: str,
     word_index: int,
     suppressed: bool,
+    source_id: str | None = None,
 ) -> dict:
     """Toggle suppressed on one per-track word and rebuild combined transcript.
 
     A direct call locks the word (#768): later reconcile passes leave it alone
     instead of recomputing audibility over the decision.
     """
-    tr = _require_transcript(project, track_id)
+    tr = _require_transcript(project, track_id, source_id)
     _require_word_index(tr, word_index)
     w = tr.words[word_index]
     tr.words[word_index] = w.model_copy(
@@ -231,6 +244,7 @@ def set_word_suppressed(
     rebuild_combined(project)
     return {
         "track_id": track_id,
+        "source_id": tr.source_id,
         "word_index": word_index,
         "suppressed": tr.words[word_index].suppressed,
         "text": tr.words[word_index].text,
@@ -241,6 +255,7 @@ def set_word_automatic(
     project: EpisodeProject,
     track_id: str,
     word_index: int,
+    source_id: str | None = None,
 ) -> dict:
     """Clear ``audibility_locked`` on one word; ``suppressed`` is untouched (#824).
 
@@ -249,12 +264,13 @@ def set_word_automatic(
     honoring the stale explicit decision forever. Does not rebuild the combined
     transcript: ``suppressed`` does not change here, only its later reconcile.
     """
-    tr = _require_transcript(project, track_id)
+    tr = _require_transcript(project, track_id, source_id)
     _require_word_index(tr, word_index)
     w = tr.words[word_index]
     tr.words[word_index] = w.model_copy(update={"audibility_locked": False})
     return {
         "track_id": track_id,
+        "source_id": tr.source_id,
         "word_index": word_index,
         "suppressed": tr.words[word_index].suppressed,
         "audibility_locked": tr.words[word_index].audibility_locked,
@@ -268,19 +284,20 @@ def set_words_ignored(
     start_word_index: int,
     end_word_index: int,
     ignored: bool,
+    source_id: str | None = None,
 ) -> dict:
     """Toggle ``ignored`` on ``[start_word_index, end_word_index]`` (#633).
 
     Text-and-audio hide, not text-only suppression: the combined transcript is not
     rebuilt, since ignored words stay in the transcript text (only muted at render).
 
-    Resolves the transcript with ``transcript_for_track`` — the track-level one
-    ``gui/mapper.py`` maps ``word_index`` from. Render (``IgnoredWordRegions``)
-    applies a transcript's ignored spans only to clips whose ``source_id``
-    resolves to it via ``transcript_for_source``, so an extra source's clip on a
-    multi-source track is never muted by another source's word times.
+    ``source_id`` names the take whose words ``word_index`` counts (required on a
+    multi-take lane). Render (``IgnoredWordRegions``) applies a transcript's ignored
+    spans only to clips whose ``source_id`` resolves to it via ``transcript_for_source``,
+    so an extra source's clip on a multi-source track is never muted by another
+    source's word times.
     """
-    tr = _require_transcript(project, track_id)
+    tr = _require_transcript(project, track_id, source_id)
     _require_word_range(tr, start_word_index, end_word_index)
 
     changed = 0
@@ -291,6 +308,7 @@ def set_words_ignored(
             changed += 1
     return {
         "track_id": track_id,
+        "source_id": tr.source_id,
         "start_word_index": start_word_index,
         "end_word_index": end_word_index,
         "ignored": ignored,

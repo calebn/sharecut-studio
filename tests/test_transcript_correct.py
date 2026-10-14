@@ -159,6 +159,7 @@ def test_set_word_automatic_clears_lock_leaves_suppressed() -> None:
     out = set_word_automatic(p, "host", 1)
     assert out == {
         "track_id": "host",
+        "source_id": None,
         "word_index": 1,
         "suppressed": True,
         "audibility_locked": False,
@@ -200,6 +201,7 @@ def test_set_words_ignored_range() -> None:
     out = set_words_ignored(p, "host", 1, 2, True)
     assert out == {
         "track_id": "host",
+        "source_id": None,
         "start_word_index": 1,
         "end_word_index": 2,
         "ignored": True,

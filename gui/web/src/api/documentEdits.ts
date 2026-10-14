@@ -43,10 +43,17 @@ import {
   type ReviewOutcome,
   requireCurrentPendingReview,
 } from "../utils/pendingReviewPass";
+import { trackWordSourceId } from "../utils/transcript";
 import { loadBoundaryContext } from "./boundary";
 import { loadDocumentState } from "./project";
 
 /** Wire shape for a guarded transcript command's optional stale-text guard. */
+/** The take whose words the track's `word_index` counts; omitted when the track has one (#1476). */
+function withLaneSource(trackId: string): { source_id?: string } {
+  const sourceId = trackWordSourceId(useDawStore.getState().project, trackId);
+  return sourceId == null ? {} : { source_id: sourceId };
+}
+
 function withExpectedText(expectedText?: string | null): {
   expected_text?: string;
 } {
@@ -647,6 +654,7 @@ export async function correctTranscriptWord(
 ): Promise<HistoryEntryId | null> {
   return submitTranscriptCorrection(projectPath, "CorrectTranscriptWord", {
     track_id: trackId,
+    ...withLaneSource(trackId),
     word_index: wordIndex,
     text,
     ...withExpectedText(expectedText),
@@ -663,6 +671,7 @@ export async function correctTranscriptPhrase(
 ): Promise<HistoryEntryId | null> {
   return submitTranscriptCorrection(projectPath, "CorrectTranscriptPhrase", {
     track_id: trackId,
+    ...withLaneSource(trackId),
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
     text,
@@ -682,6 +691,7 @@ export async function setTranscriptWordSuppressed(
     "SetTranscriptWordSuppressed",
     {
       track_id: trackId,
+      ...withLaneSource(trackId),
       word_index: wordIndex,
       suppressed,
       ...withExpectedText(expectedText),
@@ -701,6 +711,7 @@ export async function setTranscriptWordAutomatic(
     "SetTranscriptWordAutomatic",
     {
       track_id: trackId,
+      ...withLaneSource(trackId),
       word_index: wordIndex,
       ...withExpectedText(expectedText),
     },
@@ -721,6 +732,7 @@ export async function setTranscriptWordsIgnored(
     "SetTranscriptWordsIgnored",
     {
       track_id: trackId,
+      ...withLaneSource(trackId),
       start_word_index: startWordIndex,
       end_word_index: endWordIndex,
       ignored,
