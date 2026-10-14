@@ -38,11 +38,12 @@ export function usePendingMixWarm(enabled: boolean): void {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const attempt = (left: number, delay: number) => {
-      timer = setTimeout(async () => {
-        const done = await warmPendingPreview(projectPath, null);
-        if (!done && !cancelled && left > 1) {
-          attempt(left - 1, PENDING_MIX_WARM_RETRY_MS);
-        }
+      timer = setTimeout(() => {
+        void warmPendingPreview(projectPath, null).then((done) => {
+          if (!done && !cancelled && left > 1) {
+            attempt(left - 1, PENDING_MIX_WARM_RETRY_MS);
+          }
+        });
       }, delay);
     };
     attempt(PENDING_MIX_WARM_ATTEMPTS, PENDING_MIX_WARM_DEBOUNCE_MS);
