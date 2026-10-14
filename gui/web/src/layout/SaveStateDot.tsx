@@ -1,4 +1,4 @@
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { isShareProjectKey } from "../shareMode";
 import {
   documentActivityBusy,
@@ -52,7 +52,7 @@ export function SaveStateDot() {
         latest.reason === state.reason &&
         latest.recovery === state.recovery));
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (attention.recoverySelection) {
       const banner = document.getElementById(ATTENTION_BANNER_ID);
       banner?.querySelector("details")?.setAttribute("open", "");

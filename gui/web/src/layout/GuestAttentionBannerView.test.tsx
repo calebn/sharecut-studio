@@ -1,9 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { offlineConflict } from "../test/fixtures";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
+
+afterEach(() => vi.useRealTimers());
 
 function expandDetails() {
   fireEvent.click(screen.getByText("Details"));
@@ -40,8 +43,79 @@ describe("GuestAttentionBannerView", () => {
     ).toBeVisible();
   });
 
+  it("keeps attention before app controls and removes each portal on unmount", () => {
+    vi.useFakeTimers();
+    const originalChildren = [...document.body.children];
+    const first = render(
+      <StrictMode>
+        <GuestAttentionBannerView
+          pending={1}
+          conflicts={[]}
+          onDismissAll={vi.fn()}
+        />
+        <button type="button">Transport</button>
+      </StrictMode>,
+    );
+    const second = render(
+      <StrictMode>
+        <GuestAttentionBannerView
+          pending={2}
+          conflicts={[]}
+          onDismissAll={vi.fn()}
+        />
+      </StrictMode>,
+    );
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    const summary = screen.getAllByText("Details")[0];
+    expect(
+      summary.compareDocumentPosition(
+        screen.getByRole("button", { name: "Transport" }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    first.unmount();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    second.unmount();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(
+      [...document.body.children].filter(
+        (child) => !originalChildren.includes(child),
+      ),
+    ).toEqual([first.container, second.container]);
+  });
+
+  it("removes an open disclosure when attention disappears and starts closed next time", () => {
+    const { rerender } = render(
+      <GuestAttentionBannerView
+        pending={1}
+        conflicts={[]}
+        onDismissAll={vi.fn()}
+      />,
+    );
+    expandDetails();
+    expect(screen.getByText("Details").parentElement).toHaveAttribute("open");
+    rerender(
+      <GuestAttentionBannerView
+        pending={0}
+        conflicts={[]}
+        onDismissAll={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Details")).not.toBeInTheDocument();
+    rerender(
+      <GuestAttentionBannerView
+        pending={1}
+        conflicts={[]}
+        onDismissAll={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Details").parentElement).not.toHaveAttribute(
+      "open",
+    );
+  });
+
   it("shows pending-only state with no dismiss button", async () => {
-    const { container } = render(
+    const { baseElement } = render(
       <GuestAttentionBannerView
         pending={2}
         conflicts={[]}
@@ -52,7 +126,7 @@ describe("GuestAttentionBannerView", () => {
     expect(
       screen.queryByRole("button", { name: "Dismiss all" }),
     ).not.toBeInTheDocument();
-    await expectNoA11yViolations(container);
+    await expectNoA11yViolations(baseElement);
   });
 
   it("shows pending and conflicts, lists items and dismisses", async () => {
@@ -67,7 +141,7 @@ describe("GuestAttentionBannerView", () => {
         reason: "Clip was already trimmed",
       }),
     ];
-    const { container } = render(
+    const { baseElement } = render(
       <GuestAttentionBannerView
         pending={1}
         conflicts={conflicts}
@@ -88,7 +162,7 @@ describe("GuestAttentionBannerView", () => {
     expect(items[1].textContent).toContain("TrimClip");
     await userEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
     expect(onDismissAll).toHaveBeenCalledTimes(1);
-    await expectNoA11yViolations(container);
+    await expectNoA11yViolations(baseElement);
   });
 
   it("lists only the first 5 of 7 conflicts plus a +2 more item", () => {
@@ -129,7 +203,7 @@ describe("GuestAttentionBannerView", () => {
   });
 
   it("renders unreadable saved work accessibly and withholds dismissal", async () => {
-    const { container, rerender } = render(
+    const { baseElement, rerender } = render(
       <GuestAttentionBannerView
         pending={0}
         conflicts={[]}
@@ -141,7 +215,7 @@ describe("GuestAttentionBannerView", () => {
       /Saved edits could not be read/,
     );
     expandDetails();
-    await expectNoA11yViolations(container);
+    await expectNoA11yViolations(baseElement);
     rerender(
       <GuestAttentionBannerView
         pending={2}
@@ -162,11 +236,11 @@ describe("GuestAttentionBannerView", () => {
     ).toHaveAccessibleDescription(
       "Saved edits could not be read. Dismissal is unavailable.",
     );
-    await expectNoA11yViolations(container);
+    await expectNoA11yViolations(baseElement);
   });
 
   it("retains visible values while checking and admits dismissal afterward", async () => {
-    const { container, rerender } = render(
+    const { baseElement, rerender } = render(
       <GuestAttentionBannerView
         pending={2}
         conflicts={[offlineConflict()]}
@@ -181,7 +255,7 @@ describe("GuestAttentionBannerView", () => {
       "aria-disabled",
       "true",
     );
-    await expectNoA11yViolations(container);
+    await expectNoA11yViolations(baseElement);
     rerender(
       <GuestAttentionBannerView
         pending={2}
@@ -207,7 +281,7 @@ describe("GuestAttentionBannerView", () => {
 
   it("offers Send now beside pending edits and calls it", async () => {
     const onSendNow = vi.fn();
-    const { container } = render(
+    const { baseElement } = render(
       <GuestAttentionBannerView
         pending={2}
         conflicts={[]}
@@ -221,7 +295,7 @@ describe("GuestAttentionBannerView", () => {
     expect(
       screen.queryByRole("button", { name: "Retry" }),
     ).not.toBeInTheDocument();
-    await expectNoA11yViolations(container);
+    await expectNoA11yViolations(baseElement);
   });
 
   it("offers Retry when saved edits are unreadable and calls it", async () => {

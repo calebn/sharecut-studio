@@ -12,10 +12,10 @@ export function isTypingTarget(el: EventTarget | null): boolean {
   );
 }
 
-/** Let Space/Enter activate a focused native button before the DAW keymap. */
 export function isButtonActivation(e: KeyboardEvent): boolean {
   return (
-    e.target instanceof HTMLButtonElement &&
+    e.target instanceof HTMLElement &&
+    e.target.matches("button, summary") &&
     !hasCommandModifier(e) &&
     (e.key === " " || e.key === "Enter")
   );

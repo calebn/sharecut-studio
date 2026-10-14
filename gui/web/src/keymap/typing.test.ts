@@ -17,24 +17,27 @@ const mods = (
 });
 
 describe("isButtonActivation", () => {
-  it("reserves bare Space and Enter for focused native buttons", () => {
-    const button = document.createElement("button");
-    for (const key of [" ", "Enter"]) {
-      const event = new KeyboardEvent("keydown", { key });
-      Object.defineProperty(event, "target", { value: button });
-      expect(isButtonActivation(event)).toBe(true);
-    }
-    const modifiedEvent = new KeyboardEvent("keydown", {
-      key: " ",
-      ctrlKey: true,
-    });
-    Object.defineProperty(modifiedEvent, "target", { value: button });
-    expect(isButtonActivation(modifiedEvent)).toBe(false);
+  it.each(["button", "summary"])(
+    "reserves bare Space and Enter for focused native %s controls",
+    (tag) => {
+      const button = document.createElement(tag);
+      for (const key of [" ", "Enter"]) {
+        const event = new KeyboardEvent("keydown", { key });
+        Object.defineProperty(event, "target", { value: button });
+        expect(isButtonActivation(event)).toBe(true);
+      }
+      const modifiedEvent = new KeyboardEvent("keydown", {
+        key: " ",
+        ctrlKey: true,
+      });
+      Object.defineProperty(modifiedEvent, "target", { value: button });
+      expect(isButtonActivation(modifiedEvent)).toBe(false);
 
-    expect(isButtonActivation(new KeyboardEvent("keydown", { key: " " }))).toBe(
-      false,
-    );
-  });
+      expect(
+        isButtonActivation(new KeyboardEvent("keydown", { key: " " })),
+      ).toBe(false);
+    },
+  );
 });
 
 describe("hasCommandModifier", () => {
