@@ -378,3 +378,21 @@ def test_an_explicit_low_audibility_list_touches_only_the_named_take(tmp_path: P
     assert take2 is not None and take3 is not None
     assert [w.suppressed for w in take2.words] == [True, False]
     assert not any(w.suppressed for w in take3.words)
+
+
+def test_a_word_that_starts_before_its_clip_is_placed_where_it_plays(tmp_path: Path) -> None:
+    project = _cut_project(
+        tmp_path,
+        [Clip(id="v", track_id="host", source_start=5.0, source_end=10.0, timeline_start=0.0)],
+        [Clip(id="d", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)],
+    )
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="x", start=4.9, end=5.3)]),
+        Transcript(track_id="guest", words=[TranscriptWord(text="x", start=0.0, end=0.3)]),
+    ]
+
+    (host,) = lane_transcripts(project, "host")
+    windowed = overlap_duplicate_report(project, audibility=[], start_sec=0.0)
+
+    assert host.session_span(4.9, 5.3) == pytest.approx((0.0, 0.3))
+    assert len(windowed["pairs"]) == 1
