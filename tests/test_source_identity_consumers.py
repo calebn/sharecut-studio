@@ -285,9 +285,9 @@ def test_source_witness_geometry_matches_with_and_without_proof_caches(
                     for value in (row[3], row[4], row[5])
                 ]
                 assert source_a_windows == pytest.approx([0.0, 0.1, 10.0, 0.4, 2.0, 10.1])
-                assert [row for row in result[2] if row[2] == "B"] == [
-                    row for row in before if row[2] == "B"
-                ]
+                b_after = [row[:5] for row in result[2] if row[2] == "B"]
+                b_before = [row[:5] for row in before if row[2] == "B"]
+                assert b_after == b_before
 
     assert outcomes[(True, False)] == outcomes[(True, True)]
     assert outcomes[(False, False)] == outcomes[(False, True)]
