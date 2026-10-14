@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
@@ -84,6 +84,89 @@ describe("Inspector clip lookup", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("c1").length).toBeGreaterThan(0);
     expect(screen.getByText(/0\.200–0\.800 s/)).toBeInTheDocument();
+  });
+
+  it("resets a transcript draft when primary switches to a recording named primary", () => {
+    useDawStore.getState().hydrate(
+      "/tmp/ep",
+      minimalProject({
+        tracks: [track("host")],
+        transcript: {
+          utterances: [
+            {
+              track_id: "host",
+              source_id: null,
+              speaker: "Host",
+              start: 0,
+              end: 1,
+              text: "primary word",
+              mappable: true,
+              timeline_start: 0,
+              timeline_end: 1,
+              words: [
+                {
+                  text: "primary word",
+                  start: 0,
+                  end: 1,
+                  timeline_start: 0,
+                  timeline_end: 1,
+                  word_index: 0,
+                  confidence: 0.9,
+                },
+              ],
+            },
+            {
+              track_id: "host",
+              source_id: "primary",
+              speaker: "Host",
+              start: 0,
+              end: 1,
+              text: "recording word",
+              mappable: true,
+              timeline_start: 0,
+              timeline_end: 1,
+              words: [
+                {
+                  text: "recording word",
+                  start: 0,
+                  end: 1,
+                  timeline_start: 0,
+                  timeline_end: 1,
+                  word_index: 0,
+                  confidence: 0.9,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    useDawStore.getState().setSelection({
+      kind: "transcriptWord",
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 0,
+    });
+    render(<Inspector />);
+
+    const correction = screen.getByLabelText("Corrected text");
+    expect(correction).toHaveValue("primary word");
+    fireEvent.change(correction, { target: { value: "primary draft" } });
+    act(() => {
+      useDawStore.getState().setSelection({
+        kind: "transcriptWord",
+        trackId: "host",
+        sourceId: "primary",
+        wordIndex: 0,
+      });
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "recording word" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Corrected text")).toHaveValue(
+      "recording word",
+    );
   });
 
   it.each([

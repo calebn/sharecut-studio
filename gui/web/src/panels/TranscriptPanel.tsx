@@ -1105,7 +1105,11 @@ export function TranscriptPanel() {
       {dockWordEditor && selection?.kind === "transcriptWord" ? (
         <div className="transcript-docked-editor">
           <TranscriptWordInspector
-            key={`${selection.trackId}:${selection.sourceId ?? "primary"}:${selection.wordIndex}`}
+            key={JSON.stringify([
+              selection.trackId,
+              selection.sourceId ?? null,
+              selection.wordIndex,
+            ])}
             trackId={selection.trackId}
             sourceId={selection.sourceId}
             wordIndex={selection.wordIndex}
@@ -1377,7 +1381,11 @@ export function TranscriptPanel() {
                     editor:
                       editingThis && wordIndex != null ? (
                         <InlineWordEditor
-                          key={`${u.track_id}:${sourceId ?? "primary"}:${wordIndex}`}
+                          key={JSON.stringify([
+                            u.track_id,
+                            sourceId ?? null,
+                            wordIndex,
+                          ])}
                           trackId={u.track_id}
                           sourceId={sourceId}
                           wordIndex={wordIndex}

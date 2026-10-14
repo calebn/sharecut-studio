@@ -175,7 +175,11 @@ export function TranscriptFindReplace() {
           >
             {preview.matches.slice(0, shown).map((match) => (
               <li
-                key={`${match.track_id}:${match.source_id ?? "primary"}:${match.start_word_index}`}
+                key={JSON.stringify([
+                  match.track_id,
+                  match.source_id ?? null,
+                  match.start_word_index,
+                ])}
               >
                 <strong>
                   {project?.tracks.find((track) => track.id === match.track_id)
