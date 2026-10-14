@@ -6,7 +6,7 @@ const meta: Meta<typeof SaveStateDotView> = {
   title: "Templates/SaveStateDotView",
   component: SaveStateDotView,
   tags: ["autodocs"],
-  args: { onShowAttention: fn() },
+  args: { attention: { kind: "button", activate: fn() } },
   decorators: [
     (Story) => (
       <div className="status-bar">
@@ -33,14 +33,19 @@ export const Saving: Story = {
 };
 
 export const WaitingToSend: Story = {
-  args: { state: { kind: "waiting", count: 3 } },
+  args: {
+    state: { kind: "waiting", count: 3 },
+    attention: { kind: "button", activate: fn() },
+  },
   play: async ({ args, canvasElement }) => {
     await userEvent.click(
       within(canvasElement).getByRole("button", {
         name: "Not saved yet · 3 waiting to send",
       }),
     );
-    await expect(args.onShowAttention).toHaveBeenCalledOnce();
+    if (args.attention.kind === "button") {
+      await expect(args.attention.activate).toHaveBeenCalledOnce();
+    }
   },
 };
 
@@ -51,9 +56,13 @@ export const Refused: Story = {
       cause: "refused",
       reason: "Envelope changed since this edit was queued",
     },
+    attention: { kind: "passive" },
   },
 };
 
 export const Unreadable: Story = {
-  args: { state: { kind: "failed", cause: "unreadable" } },
+  args: {
+    state: { kind: "failed", cause: "unreadable" },
+    attention: { kind: "passive" },
+  },
 };

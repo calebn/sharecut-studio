@@ -8,7 +8,10 @@ import type { SaveState } from "./saveState";
 function setup(state: SaveState) {
   const onShowAttention = vi.fn();
   const view = render(
-    <SaveStateDotView state={state} onShowAttention={onShowAttention} />,
+    <SaveStateDotView
+      state={state}
+      attention={{ kind: "button", activate: onShowAttention }}
+    />,
   );
   return { ...view, onShowAttention };
 }
@@ -33,9 +36,27 @@ describe("SaveStateDotView", () => {
     const { rerender, container } = setup({ kind: "saving" });
     expect(container.firstElementChild).toHaveAttribute("aria-busy", "true");
     rerender(
-      <SaveStateDotView state={{ kind: "saved" }} onShowAttention={vi.fn()} />,
+      <SaveStateDotView
+        state={{ kind: "saved" }}
+        attention={{ kind: "button", activate: vi.fn() }}
+      />,
     );
     expect(container.firstElementChild).not.toHaveAttribute("aria-busy");
+  });
+
+  it("keeps an active failure truthful without an extra activation control", () => {
+    const { container } = render(
+      <SaveStateDotView
+        state={{ kind: "failed", cause: "refused", reason: "The clip moved" }}
+        attention={{ kind: "passive" }}
+      />,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "Save failed · The clip moved. Edit and submit again.",
+      }),
+    ).toBeInTheDocument();
+    expect(container.querySelector("button")).not.toBeInTheDocument();
   });
 
   it.each([

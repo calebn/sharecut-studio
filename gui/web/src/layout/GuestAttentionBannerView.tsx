@@ -57,6 +57,23 @@ export function GuestAttentionBannerView({
     0,
     conflicts.length - ATTENTION_LISTED_CONFLICTS,
   );
+  const attentionCount = pending + conflicts.length;
+  const countLabel = [
+    pending > 0 ? `${pending} pending` : "",
+    conflicts.length > 0
+      ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const alertLabel = [
+    "Needs attention",
+    countLabel,
+    unreadable ? "Saved edits could not be read" : "",
+    dismissFailed ? "Dismissal failed" : "",
+  ]
+    .filter(Boolean)
+    .join(". ");
 
   return (
     <div
@@ -64,87 +81,95 @@ export function GuestAttentionBannerView({
       className="guest-attention"
       role="alert"
       tabIndex={-1}
+      aria-label={alertLabel}
     >
       <div className="guest-attention-head">
-        <strong>Needs attention</strong>
-        <span>
-          {pending > 0 ? `${pending} pending` : ""}
-          {pending > 0 && conflicts.length > 0 ? ", " : ""}
-          {conflicts.length > 0
-            ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
-            : ""}
+        <strong>Attention</strong>
+        <span role="img" aria-label={countLabel || alertLabel}>
+          {attentionCount || "!"}
         </span>
-        {(pending > 0 && onSendNow) ||
-        ((unreadable || dismissFailed) && onRetry) ? (
-          <span className="guest-attention-actions">
-            {pending > 0 && onSendNow && (
-              <Button onClick={onSendNow}>Send now</Button>
-            )}
-            {(unreadable || dismissFailed) && onRetry && (
-              <Button onClick={onRetry}>Retry</Button>
-            )}
-          </span>
-        ) : null}
-        {conflicts.length > 0 && canDismiss && (
-          <button
-            type="button"
-            className="guest-attention-dismiss"
-            aria-disabled={dismissUnavailable || undefined}
-            aria-describedby={dismissUnavailable ? dismissReasonId : undefined}
-            title={dismissUnavailable ? dismissReason : undefined}
-            onClick={onDismissAll}
-          >
-            Dismiss all
-          </button>
-        )}
-        {conflicts.length > 0 && dismissUnavailable && (
-          <span id={dismissReasonId} className="sr-only">
-            {dismissReason}
-          </span>
-        )}
-      </div>
-      <ul className="guest-attention-list">
-        {unreadable && (
-          <li>
-            Could not read saved edits on this device. Your saved edits have
-            been kept.
-          </li>
-        )}
-        {dismissFailed && (
-          <li>Dismissal failed. Your saved outcomes have been kept.</li>
-        )}
-        {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => (
-          <li key={c.command.command_id}>
-            <code>{c.command.type}</code>: {c.reason}{" "}
-            {c.kind === "refused" ? (
-              <span>Edit the change and submit it again.</span>
-            ) : c.recovery === "inspect-history" ? (
-              <span>
-                {guest
-                  ? "Ask the project owner to inspect History before trying this action again."
-                  : "Inspect History before trying this action again."}
+        <details className="guest-attention-details">
+          <summary aria-label="View attention details and recovery actions">
+            Details
+          </summary>
+          <div className="guest-attention-details-content">
+            {(pending > 0 && onSendNow) ||
+            ((unreadable || dismissFailed) && onRetry) ? (
+              <span className="guest-attention-actions">
+                {pending > 0 && onSendNow && (
+                  <Button onClick={onSendNow}>Send now</Button>
+                )}
+                {(unreadable || dismissFailed) && onRetry && (
+                  <Button onClick={onRetry}>Retry</Button>
+                )}
               </span>
-            ) : (
-              <span>The app will retry this same command automatically.</span>
+            ) : null}
+            {conflicts.length > 0 && canDismiss && (
+              <button
+                type="button"
+                className="guest-attention-dismiss"
+                aria-disabled={dismissUnavailable || undefined}
+                aria-describedby={
+                  dismissUnavailable ? dismissReasonId : undefined
+                }
+                title={dismissUnavailable ? dismissReason : undefined}
+                onClick={onDismissAll}
+              >
+                Dismiss all
+              </button>
             )}
-          </li>
-        ))}
-        {onInspectHistory &&
-          conflicts.some(
-            (conflict) =>
-              conflict.kind === "unknown" &&
-              conflict.recovery === "inspect-history",
-          ) && (
-            <li>
-              <Button onClick={onInspectHistory}>Inspect History</Button>
-            </li>
-          )}
-        {hiddenConflicts > 0 && (
-          <li key="more" className="guest-attention-more">
-            {overflowLabel(hiddenConflicts)}
-          </li>
-        )}
-      </ul>
+            {conflicts.length > 0 && dismissUnavailable && (
+              <span id={dismissReasonId} className="sr-only">
+                {dismissReason}
+              </span>
+            )}
+            <ul className="guest-attention-list">
+              {unreadable && (
+                <li>
+                  Could not read saved edits on this device. Your saved edits
+                  have been kept.
+                </li>
+              )}
+              {dismissFailed && (
+                <li>Dismissal failed. Your saved outcomes have been kept.</li>
+              )}
+              {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => (
+                <li key={c.command.command_id}>
+                  <code>{c.command.type}</code>: {c.reason}{" "}
+                  {c.kind === "refused" ? (
+                    <span>Edit the change and submit it again.</span>
+                  ) : c.recovery === "inspect-history" ? (
+                    <span>
+                      {guest
+                        ? "Ask the project owner to inspect History before trying this action again."
+                        : "Inspect History before trying this action again."}
+                    </span>
+                  ) : (
+                    <span>
+                      The app will retry this same command automatically.
+                    </span>
+                  )}
+                </li>
+              ))}
+              {onInspectHistory &&
+                conflicts.some(
+                  (conflict) =>
+                    conflict.kind === "unknown" &&
+                    conflict.recovery === "inspect-history",
+                ) && (
+                  <li>
+                    <Button onClick={onInspectHistory}>Inspect History</Button>
+                  </li>
+                )}
+              {hiddenConflicts > 0 && (
+                <li key="more" className="guest-attention-more">
+                  {overflowLabel(hiddenConflicts)}
+                </li>
+              )}
+            </ul>
+          </div>
+        </details>
+      </div>
     </div>
   );
 }

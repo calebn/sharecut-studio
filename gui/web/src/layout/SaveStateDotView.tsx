@@ -1,21 +1,22 @@
 import { type SaveState, saveStateText } from "./saveState";
 
+type AttentionControl =
+  | { kind: "passive" }
+  | { kind: "button"; activate: () => void };
+
 type Props = {
   state: SaveState;
-  /** Waiting or failed: take the person to the Needs attention banner. */
-  onShowAttention: () => void;
+  attention: AttentionControl;
 };
 
-/**
- * The project's save state as a status light. Colour is never the only cue:
- * saved is a solid circle, saving a ring, waiting a hollow circle and failed a
- * square. Waiting and failed are buttons that go to the Needs attention banner,
- * which carries the text and the actions.
- */
-export function SaveStateDotView({ state, onShowAttention }: Props) {
+export function SaveStateDotView({ state, attention }: Props) {
   const text = saveStateText(state);
   const className = "save-dot";
-  if (state.kind === "saving" || state.kind === "saved") {
+  if (
+    state.kind === "saving" ||
+    state.kind === "saved" ||
+    (state.kind === "failed" && attention.kind === "passive")
+  ) {
     return (
       <span
         role="img"
@@ -34,7 +35,7 @@ export function SaveStateDotView({ state, onShowAttention }: Props) {
       data-save-state={state.kind}
       aria-label={text}
       title={text}
-      onClick={onShowAttention}
+      onClick={attention.kind === "button" ? attention.activate : undefined}
     />
   );
 }
