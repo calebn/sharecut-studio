@@ -11,6 +11,7 @@ vi.mock("../api", () => ({
   waitForBootstrapJob: (...args: unknown[]) => waitForBootstrapJob(...args),
 }));
 
+import { BUSY_REASON } from "../ui/disabledReason";
 import { WordAlignerStatus } from "./WordAlignerStatus";
 
 describe("WordAlignerStatus", () => {
@@ -18,7 +19,6 @@ describe("WordAlignerStatus", () => {
     render(
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -41,7 +41,6 @@ describe("WordAlignerStatus", () => {
           size: "~360 MB",
           pin_mismatch: true,
         }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -76,7 +75,6 @@ describe("WordAlignerStatus", () => {
     render(
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
-        disabled={false}
         retiming={false}
         onDownloaded={onDownloaded}
         onRetime={vi.fn()}
@@ -100,7 +98,6 @@ describe("WordAlignerStatus", () => {
     render(
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -126,7 +123,6 @@ describe("WordAlignerStatus", () => {
     render(
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -151,7 +147,6 @@ describe("WordAlignerStatus", () => {
     render(
       <WordAlignerStatus
         status={{ ok: true, opt_in: true, size: "~360 MB" }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={onRetime}
@@ -168,7 +163,7 @@ describe("WordAlignerStatus", () => {
     const { rerender } = render(
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
-        disabled={true}
+        disabledReason={BUSY_REASON}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -181,7 +176,7 @@ describe("WordAlignerStatus", () => {
     rerender(
       <WordAlignerStatus
         status={{ ok: true, opt_in: true, size: "~360 MB" }}
-        disabled={true}
+        disabledReason={BUSY_REASON}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -205,7 +200,6 @@ describe("WordAlignerStatus", () => {
           reason:
             "unavailable: word aligner 'onnx-base' is not downloaded (podcast bootstrap --component word-aligner)",
         }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -237,7 +231,6 @@ describe("WordAlignerStatus", () => {
           blocked: false,
           reason: "on by default: word aligner 'onnx-base' is installed",
         }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={onRetime}
@@ -263,7 +256,6 @@ describe("WordAlignerStatus", () => {
           blocked: false,
           reason: "off: transcribe.forced_alignment.enabled is false",
         }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -279,7 +271,6 @@ describe("WordAlignerStatus", () => {
     const { container } = render(
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -292,7 +283,6 @@ describe("WordAlignerStatus", () => {
     const { container } = render(
       <WordAlignerStatus
         status={{ ok: true, opt_in: true, size: "~360 MB" }}
-        disabled={false}
         retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
@@ -305,7 +295,7 @@ describe("WordAlignerStatus", () => {
     const { container } = render(
       <WordAlignerStatus
         status={{ ok: true, opt_in: true, size: "~360 MB" }}
-        disabled={true}
+        disabledReason={BUSY_REASON}
         retiming={true}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}

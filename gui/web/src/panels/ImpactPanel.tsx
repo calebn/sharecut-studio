@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useMemo } from "react";
 import { approveEdits, rejectEdits } from "../api";
 import { askConfirm } from "../feedback/ask";
 import { useProjectMutation } from "../hooks/useProjectMutation";
@@ -15,6 +15,7 @@ import {
   appliedRecordOnTimeline,
 } from "../timeline/appliedEditTicks";
 import { Button, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
 import {
@@ -28,7 +29,6 @@ const REVIEW_FORBIDDEN_REASON =
   "Only the host or an Editor can review suggestions.";
 
 export function ImpactPanel() {
-  const reviewReasonId = useId();
   const { project, projectPath, shareCapabilities, setSelection } = useDaw(
     (s) => ({
       project: s.project,
@@ -179,24 +179,32 @@ export function ImpactPanel() {
           <div className="impact-bulk-actions">
             <Button
               variant="primary"
-              disabled={busy || !canReviewAll}
-              aria-describedby={canReviewAll ? undefined : reviewReasonId}
+              disabledReason={
+                busy
+                  ? BUSY_REASON
+                  : canReviewAll
+                    ? undefined
+                    : REVIEW_FORBIDDEN_REASON
+              }
               onClick={() => void runBulk("approve")}
             >
               Approve all ({reviewRequired.length})
             </Button>
             <Button
-              disabled={busy || !canReviewAll}
-              aria-describedby={canReviewAll ? undefined : reviewReasonId}
+              disabledReason={
+                busy
+                  ? BUSY_REASON
+                  : canReviewAll
+                    ? undefined
+                    : REVIEW_FORBIDDEN_REASON
+              }
               onClick={() => void runBulk("reject")}
             >
               Reject all ({reviewRequired.length})
             </Button>
           </div>
           {canReviewAll ? null : (
-            <p id={reviewReasonId} className="impact-bulk-reason">
-              {REVIEW_FORBIDDEN_REASON}
-            </p>
+            <p className="impact-bulk-reason">{REVIEW_FORBIDDEN_REASON}</p>
           )}
         </div>
       )}

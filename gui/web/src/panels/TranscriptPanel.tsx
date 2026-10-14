@@ -84,6 +84,8 @@ import {
   transcriptActiveKey,
 } from "./transcriptActive";
 
+const WORDS_LOADING_REASON = "Wait for the transcript words to load.";
+
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
 
@@ -957,22 +959,16 @@ export function TranscriptPanel() {
               {hostEditable && (
                 <ToggleButton
                   pressed={intent === "correct"}
-                  disabled={!wordsHydrated}
+                  disabledReason={
+                    wordsHydrated ? undefined : WORDS_LOADING_REASON
+                  }
                   className="transcript-follow-btn transcript-correct-btn"
-                  title={
-                    wordsHydrated
-                      ? capabilityTooltip("daw.transcript.correct", {
-                          pressed: intent === "correct",
-                        })
-                      : "Loading transcript words…"
-                  }
-                  aria-label={
-                    wordsHydrated
-                      ? capabilityTooltip("daw.transcript.correct", {
-                          pressed: intent === "correct",
-                        })
-                      : "Loading transcript words…"
-                  }
+                  title={capabilityTooltip("daw.transcript.correct", {
+                    pressed: intent === "correct",
+                  })}
+                  aria-label={capabilityTooltip("daw.transcript.correct", {
+                    pressed: intent === "correct",
+                  })}
                   onClick={() =>
                     setIntent((v) => (v === "correct" ? "navigate" : "correct"))
                   }
@@ -999,8 +995,12 @@ export function TranscriptPanel() {
                 <CommandButton
                   commandId="transcript.ignoreWords"
                   className="transcript-follow-btn"
-                  disabled={
-                    !wordsHydrated || selection?.kind !== "transcriptRange"
+                  disabledReason={
+                    !wordsHydrated
+                      ? WORDS_LOADING_REASON
+                      : selection?.kind !== "transcriptRange"
+                        ? "Select words to ignore or restore them."
+                        : undefined
                   }
                   aria-label={capabilityTooltip("daw.transcript.ignore", {
                     pressed: selectionIgnored,

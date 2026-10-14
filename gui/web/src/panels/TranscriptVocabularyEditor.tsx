@@ -262,7 +262,13 @@ export function TranscriptVocabularyEditor({
                   />
                   <Button
                     type="submit"
-                    disabled={!draft || saving || !input[field].trim()}
+                    disabledReason={
+                      !draft || saving
+                        ? BUSY_REASON
+                        : !input[field].trim()
+                          ? `Type a ${copy.noun} to add.`
+                          : undefined
+                    }
                   >
                     Add {copy.noun}
                   </Button>
@@ -301,7 +307,15 @@ export function TranscriptVocabularyEditor({
         </p>
       )}
       <Button
-        disabled={!changed || saving || promptOverflow}
+        disabledReason={
+          saving
+            ? BUSY_REASON
+            : promptOverflow
+              ? "Remove terms or guest names to fit the Whisper prompt."
+              : !changed
+                ? "Change the vocabulary to save."
+                : undefined
+        }
         aria-describedby="vocabulary-prompt-budget"
         onClick={() => void save()}
       >
@@ -319,7 +333,13 @@ export function TranscriptVocabularyEditor({
         <p role="status">
           Transcript needs re-transcription to use this vocabulary.{" "}
           <Button
-            disabled={busy || saving || changed}
+            disabledReason={
+              busy || saving
+                ? BUSY_REASON
+                : changed
+                  ? "Save the vocabulary first."
+                  : undefined
+            }
             onClick={() => void retranscribe()}
           >
             Re-transcribe

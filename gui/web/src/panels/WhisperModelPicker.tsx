@@ -193,7 +193,13 @@ export function WhisperDownloadDialog({
         </Button>
         <Button
           type="button"
-          disabled={busy || pending == null}
+          disabledReason={
+            busy
+              ? BUSY_REASON
+              : pending == null
+                ? "Choose a model first."
+                : undefined
+          }
           onClick={() => {
             if (pending) {
               onDefer(pending.modelId);
