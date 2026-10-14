@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   type SaveState,
   type SaveStateInput,
-  saveStateAnnouncement,
   saveStateOf,
   saveStateText,
 } from "./saveState";
@@ -69,33 +68,5 @@ describe("saveStateText", () => {
   ];
   it.each(cases)("%j reads %s", (state, text) => {
     expect(saveStateText(state)).toBe(text);
-  });
-});
-
-describe("saveStateAnnouncement", () => {
-  const waiting: SaveState = { kind: "waiting", count: 2 };
-  it("stays silent for routine saving and saved", () => {
-    expect(saveStateAnnouncement({ kind: "saved" }, { kind: "saving" })).toBe(
-      "",
-    );
-    expect(saveStateAnnouncement({ kind: "saving" }, { kind: "saved" })).toBe(
-      "",
-    );
-    expect(saveStateAnnouncement(null, { kind: "saved" })).toBe("");
-  });
-
-  it("speaks a problem when it arrives, once", () => {
-    expect(saveStateAnnouncement({ kind: "saving" }, waiting)).toBe(
-      "Not saved yet · 2 waiting to send",
-    );
-    expect(saveStateAnnouncement(waiting, { kind: "waiting", count: 3 })).toBe(
-      "",
-    );
-  });
-
-  it("speaks the recovery from a problem", () => {
-    expect(saveStateAnnouncement(waiting, { kind: "saved" })).toBe(
-      "Saved to project",
-    );
   });
 });
