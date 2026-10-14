@@ -949,6 +949,10 @@ For audio, pipeline and DAW behaviour that the Tier A fixtures are too small to 
   - **Transcription:** use `--source excerpt` (~2 min) for ASR checks. Full-length live ASR, and any full `pipeline run`, goes through `$LAB/scripts/with-asr-lock.sh`, so parallel lanes don't transcribe 3 × 28 min at once.
   - **Alignment / word boundaries:** see [Lab tape: alignment testing grounds](#lab-tape-alignment-testing-grounds).
 
+### Holdout recordings (owner catalogue)
+
+A rule written against the lab tape must also be run on a recording that did not guide it. The owner's back catalogue supplies the holdout set (private, local only, never committed). Which sessions are development and which are holdout is in [fixture-catalog.md](fixture-catalog.md#source-sessions-provenance-and-developmentholdout-status); the first run, its metamorphic checks (gain, offset, track reorder), the bounded threshold sweep and the commands are in [holdout-evaluation.md](holdout-evaluation.md). It is on-demand, never per-PR CI. Do not tune a threshold on a holdout recording: a recording that guides a fix moves to development in the fixture catalog in the same PR.
+
 ### Large-project browser profile (opt-in)
 
 Issue #29 has a disposable performance fixture rather than committed media.
