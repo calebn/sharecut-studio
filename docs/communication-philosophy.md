@@ -296,8 +296,10 @@ the empty state, not a separate discovery task.
   Adjust boundary dialog saves nothing while it loads, so a hung load says
   "The server didn't answer. Try again." and offers **Try again**, which loads
   the controls in place with the same "Preparing boundary controls…" progress.
-  A stale load keeps **Reload boundary**; an error a second attempt cannot fix
-  offers neither. The banner over a project whose transcript and history never
+  A network failure says "The boundary couldn't load. Check your connection and
+  try again." and also offers **Try again**. A stale load keeps **Reload boundary**;
+  an error a second attempt cannot fix offers neither. Both recovery actions move
+  focus to progress, then to the boundary control when it is ready. The banner over a project whose transcript and history never
   loaded says "Could not load transcript and history. The server didn't
   answer." with a **Retry** button.
 - **Form errors are wired, not just shown.** `Field` sets
@@ -583,6 +585,9 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   Clipped feedback pauses its remaining visible lifetime.
 - 2026-10-12 Hung boundary load (#1211). The Adjust boundary dialog says "The
   server didn't answer. Try again." because nothing was being saved.
+- 2026-10-14 Boundary network recovery (#1391). Network failures offer **Try
+  again**. Retry and reload keep focus inside the dialog through progress and
+  recovery.
 - 2026-10-13 Hung boundary load (#1314). The dialog now offers **Try again**
   beside that message instead of only Close.
 - 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sit in

@@ -36,6 +36,68 @@ describe("boundary API", () => {
     );
   });
 
+  it.each(["Load failed", "Failed to fetch"])(
+    "projects network failure %s as a retryable load error",
+    async (message) => {
+      vi.mocked(fetch).mockRejectedValueOnce(new TypeError(message));
+      await expect(
+        loadBoundaryContext(
+          "/tmp/episode.json",
+          { kind: "trim", clip_id: "c1", edge: "out" },
+          [],
+        ),
+      ).rejects.toMatchObject({
+        name: "ApiError",
+        code: "network_error",
+        status: null,
+        message:
+          "The boundary couldn't load. Check your connection and try again.",
+      });
+    },
+  );
+
+  it("projects a network failure while reading the response body", async () => {
+    const response = new Response("", { status: 200 });
+    vi.spyOn(response, "json").mockRejectedValueOnce(
+      new TypeError("Load failed"),
+    );
+    vi.mocked(fetch).mockResolvedValueOnce(response);
+    await expect(
+      loadBoundaryContext(
+        "/tmp/episode.json",
+        { kind: "trim", clip_id: "c1", edge: "out" },
+        [],
+      ),
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      code: "network_error",
+      status: null,
+      message:
+        "The boundary couldn't load. Check your connection and try again.",
+    });
+  });
+
+  it("preserves typed authentication refusals", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Sign in again." }), {
+        status: 401,
+        headers: { "X-Sharecut-Error-Code": "authentication_required" },
+      }),
+    );
+    await expect(
+      loadBoundaryContext(
+        "/tmp/episode.json",
+        { kind: "trim", clip_id: "c1", edge: "out" },
+        [],
+      ),
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      code: "authentication_required",
+      status: 401,
+      message: "Sign in again.",
+    });
+  });
+
   it("sends expected visible geometry and parses the host context", async () => {
     const geometry = [
       {

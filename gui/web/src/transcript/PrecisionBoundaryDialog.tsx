@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -21,7 +22,7 @@ import { useDaw } from "../state/useDaw";
 import type { EditBoundaryView } from "../types/project";
 import { Button, Dialog, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage, isRetryLater } from "../utils/apiError";
 
 type LoadAction = "reload" | "retry" | null;
 
@@ -109,8 +110,14 @@ function isTimeout(error: unknown): boolean {
 }
 
 function loadAction(error: unknown): LoadAction {
-  if (isStale(error)) return "reload";
-  return isTimeout(error) ? "retry" : null;
+  if (error instanceof ApiError && error.status === 409) return "reload";
+  return isTimeout(error) ||
+    isRetryLater(error) ||
+    (error instanceof ApiError &&
+      error.status === null &&
+      error.code === "network_error")
+    ? "retry"
+    : null;
 }
 
 function ghostCoverage(
@@ -157,6 +164,10 @@ export function PrecisionBoundaryDialog({
   const mounted = useRef(false);
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
+  const reloadFocus = useRef<number | null>(null);
+  const progressRef = useRef<HTMLParagraphElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const errorRef = useRef<HTMLDivElement | null>(null);
   const ownerId = useId();
   const valueId = useId();
   const openingEpoch = useRef(useDawStore.getState().projectEpoch);
@@ -185,6 +196,21 @@ export function PrecisionBoundaryDialog({
       useDawStore.getState().projectEpoch === projectEpoch,
     [projectEpoch, projectPath],
   );
+
+  useLayoutEffect(() => {
+    if (!open || !valid() || reloadFocus.current !== generation.current) return;
+    if (state.kind === "loading") {
+      progressRef.current?.focus();
+      return;
+    }
+    reloadFocus.current = null;
+    if (document.activeElement !== document.body) return;
+    if (state.kind === "editing") inputRef.current?.focus();
+    else if (state.kind === "load-error") {
+      const error = errorRef.current;
+      (error?.querySelector("button") ?? error)?.focus();
+    }
+  }, [open, state.kind, valid]);
 
   const loadContext = useCallback(
     (signal: AbortSignal) =>
@@ -420,6 +446,7 @@ export function PrecisionBoundaryDialog({
   const reload = () => {
     stopPreview();
     const loadGeneration = generation.current;
+    reloadFocus.current = loadGeneration;
     setState({ kind: "loading" });
     const controller = new AbortController();
     request.current = controller;
@@ -489,9 +516,11 @@ export function PrecisionBoundaryDialog({
           <Button onClick={onClose}>Close</Button>
         </div>
       ) : state.kind === "loading" ? (
-        <p role="status">Preparing boundary controls…</p>
+        <p role="status" tabIndex={-1} ref={progressRef}>
+          Preparing boundary controls…
+        </p>
       ) : state.kind === "load-error" ? (
-        <div className="precision-boundary-error">
+        <div className="precision-boundary-error" tabIndex={-1} ref={errorRef}>
           <InlineError message={state.message} />
           {state.action ? (
             <Button onClick={reload}>
@@ -525,6 +554,7 @@ export function PrecisionBoundaryDialog({
               −1 ms
             </Button>
             <input
+              ref={inputRef}
               id={valueId}
               type="number"
               min={limits?.min}

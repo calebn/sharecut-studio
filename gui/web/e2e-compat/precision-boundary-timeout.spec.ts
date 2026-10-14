@@ -26,6 +26,7 @@ async function proveHungLoad(
   browserName: string,
   testInfo: TestInfo,
   name: keyof typeof VIEWPORTS,
+  failure: "timeout" | "network" | "stale" = "timeout",
 ): Promise<void> {
   test.setTimeout(180_000);
   const viewport = VIEWPORTS[name];
@@ -65,21 +66,32 @@ async function proveHungLoad(
     await page.route("**/api/boundary/context*", (route) => {
       loads += 1;
       if (loads > 1) void retryMayAnswer.then(() => route.continue());
+      else if (failure === "network") void route.abort("failed");
+      else if (failure === "stale")
+        void route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "The boundary changed. Reload it." }),
+        });
     });
     await page.clock.install();
     await mark.click();
     const dialog = page.getByRole("dialog", { name: "Adjust boundary" });
-    await expect(dialog.getByRole("status")).toHaveText(
-      "Preparing boundary controls…",
-    );
-    await page.clock.fastForward(DOCUMENT_COMMAND_TIMEOUT_MS);
+    if (failure === "timeout") {
+      await expect(dialog.getByRole("status")).toHaveText(
+        "Preparing boundary controls…",
+      );
+      await page.clock.fastForward(DOCUMENT_COMMAND_TIMEOUT_MS);
+    }
     await expect(dialog.getByRole("alert")).toHaveText(
-      "The server didn't answer. Try again.",
+      failure === "timeout"
+        ? "The server didn't answer. Try again."
+        : failure === "network"
+          ? "The boundary couldn't load. Check your connection and try again."
+          : "The boundary changed. Reload it.",
     );
-    await expect(
-      dialog.getByRole("button", { name: "Reload boundary" }),
-    ).toBeHidden();
-    const tryAgain = dialog.getByRole("button", { name: "Try again" });
+    const action = failure === "stale" ? "Reload boundary" : "Try again";
+    const tryAgain = dialog.getByRole("button", { name: action });
     await expect(tryAgain).toBeVisible();
     if (name === "phone") {
       const box = await tryAgain.boundingBox();
@@ -92,23 +104,25 @@ async function proveHungLoad(
       await setTheme(page, theme);
       await expectPageAxeClean(page);
       await page.screenshot({
-        path: `${shots}/${browserName}-${name}-${theme}.png`,
+        path: `${shots}/${browserName}-${name}-${failure}-${theme}.png`,
       });
     }
 
+    await tryAgain.focus();
     await tryAgain.click();
     await expect(dialog.getByRole("alert")).toBeHidden();
     await expect(dialog.getByRole("status")).toHaveText(
       "Preparing boundary controls…",
     );
+    await expect(dialog.getByRole("status")).toBeFocused();
     answerRetry();
-    await expect(dialog.getByRole("spinbutton")).toBeVisible();
+    await expect(dialog.getByRole("spinbutton")).toBeFocused();
     expect(loads).toBe(2);
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme);
       await expectPageAxeClean(page);
       await page.screenshot({
-        path: `${shots}/${browserName}-${name}-${theme}-recovered.png`,
+        path: `${shots}/${browserName}-${name}-${failure}-${theme}-recovered.png`,
       });
     }
   } finally {
@@ -135,3 +149,12 @@ test("desktop: a boundary load the server never answers says to try again and re
 }, testInfo) => {
   await proveHungLoad(page, browserName, testInfo, "desktop");
 });
+
+for (const failure of ["network", "stale"] as const) {
+  test(`desktop: ${failure} boundary load keeps focus through recovery`, async ({
+    page,
+    browserName,
+  }, testInfo) => {
+    await proveHungLoad(page, browserName, testInfo, "desktop", failure);
+  });
+}
