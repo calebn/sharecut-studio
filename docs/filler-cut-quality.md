@@ -1088,10 +1088,10 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   prompt so a hesitation is written down as one). A result holding a token that is not a
   hesitation, laugh, backchannel or breath (`um`, `uh`, `mm-hmm`, `ha ha`) is a **possible
   missed word**: the reason gains `:possible_word` (`filler:acoustic:possible_word`, after
-  `:likely_laugh` when both apply), the Tighten row reads "Possible missed word", and
+  `:likely_laugh` when both apply), the pending edit's inspector subtitle and timeline overlay title read "Possible missed word", and
   `propose_edits` counts it ("1 acoustic (review, 1 possible missed word)"). Like every
   review flag it never hides a proposal, is never auto-applied, and is skipped by Apply
-  eligible; the suggested action is Leave. A shape test (voiced length, spectral motion)
+  eligible while Avoid harsh cuts is on (the default); the target action is Leave (#1434). A shape test (voiced length, spectral motion)
   cannot do this job: on the lab tape a drawn-out "Then" (0.98 s) moves less than several
   "umm", and backchannels move as much as words. `tighten.acoustic_gap_filler.word_probe:
   false` turns the listening off; a Whisper model that is not installed leaves the proposals
@@ -1109,12 +1109,21 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   27 to 57 and `nice` 10, `large-v3-turbo` took a median 8 to 10 s per span (71 spans in 11 to 15
   minutes) and `base` 0.7 s; an idle machine is not measured, so treat these as an upper bound.
   Model choice (2026-10-14, lab tape rebuilt on a 4-core cloud machine at load 2 to 3, `nice` 10,
-  oracle rebuilt on the same spans, four variants): `large-v3-turbo` flagged 15 of 23 oracle words
-  and 13 of 107 non-words (12 backchannels); `base` flagged 11 of 23 and 6 of 107 (3
-  backchannels). A propose with the probe cost about 8 to 9 s per span with `large-v3-turbo` and
-  1.5 s with `base`. The default stays the project's `transcribe.model`: the label exists to
-  catch a dropped word, a false flag on a backchannel costs nothing (the default is Leave), and a
-  second probe-only model would need its own download and docs.
+  oracle rebuilt on the same spans). The span sets differ from the run above (74 ripple proposals
+  where it had 54), so these counts do not extend it. Over 131 acoustic spans in the four
+  variants, `large-v3-turbo` flagged 16 of 24 oracle words and 13 of 107 non-words, and `base`
+  flagged 11 of 24 and 6 of 107. Turbo's false flags were 6 "mm-hmm" and 3 "mmm" hums, plus 2
+  "umm", 1 "uh" and 1 "hmm", whose target action in the table is Cut; base's were 2 laughs, 2
+  "umm", 1 "uhh" and 1 "mm-hmm". The oracle shares the probe's prompt and padding, the four
+  variants reuse one recording and 24 words is a small sample, so this is agreement, not
+  accuracy. Cost is the propose wall time with the probe minus without, per acoustic span, and
+  includes the model load. In the mute variants it was about 8 to 9 s with `large-v3-turbo` and
+  1.5 s with `base`. The ripple deltas (10 to 12 s and 0.4 to 4 s) are noise, because the first
+  ripple run built the audio caches. Turbo's cost at load 2 to 3 matches the load 27 to 57 figure
+  above, so that figure was not inflated by load. The default stays the project's
+  `transcribe.model`: the label exists to catch a dropped word, turbo's recall is 67% against
+  46%, and a second probe-only model would need its own download, setting and docs. The price is
+  that a hard filler flagged by mistake moves from the target Cut to Leave.
   A peer run is not peer speech when it is the cut track's own voice bleeding
   onto the peer's mic (#994). The run's RMS is compared with the cut track's RMS
   over the same frames, and a peer at least `analysis.heuristics.bleed_dominance_db`
