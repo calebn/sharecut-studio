@@ -485,14 +485,9 @@ def test_edit_approve_warns_for_stale_edit(minimal_project, edit_type):
         ["edit", "approve", "--project", str(project), "--ids", "stale-edit"],
     )
 
-    if edit_type == EditDecisionType.REMOVE:
-        assert result.exit_code == 1
-        assert "cut_scope_changed" in result.stderr
-        assert project.read_bytes() == before
-    else:
-        assert result.exit_code == 0
-        assert "Approved 0 edit(s)." in result.stdout
-        assert "no edits were approved" in result.stderr
+    assert result.exit_code == 1
+    assert "edit_span_not_played" in result.stderr
+    assert project.read_bytes() == before
     assert [decision.id for decision in load_project(project).edit_decisions] == ["stale-edit"]
 
 

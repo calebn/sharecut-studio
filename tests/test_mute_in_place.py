@@ -44,6 +44,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 
 
@@ -1057,7 +1058,7 @@ def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, samp
     assert listed["tracks"]["host"][0]["mute_regions"][0]["start_s"] == pytest.approx(0.2)
 
 
-def test_apply_mute_skips_archive_when_nothing_written(tmp_path, sample_wav):
+def test_approving_an_unplayed_mute_is_refused_and_writes_nothing(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
     project.edit_decisions = [
         EditDecision(
@@ -1071,7 +1072,9 @@ def test_apply_mute_skips_archive_when_nothing_written(tmp_path, sample_wav):
             applied=False,
         )
     ]
-    assert approve_edits(project, ["miss"]) == 0
+    with pytest.raises(CodedValueError) as refused:
+        approve_edits(project, ["miss"])
+    assert refused.value.code == "edit_span_not_played"
     assert [decision.id for decision in project.edit_decisions] == ["miss"]
     assert project.editorial.edit_log == []
     host = next(c for c in project.clips if c.track_id == "host")
