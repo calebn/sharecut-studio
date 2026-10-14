@@ -1,7 +1,7 @@
 """One contract over every guest surface: no host path or secret leaves, a crash reads the same.
 
-Every route the app serves under a share ``{token}``, both guest sockets and every remote MCP
-tool is probed. Each probe names the call inside its own handler where a fault is planted, so a
+Every route the app serves under a share ``{token}``, both guest sockets (at admission and once
+admitted) and every remote MCP tool is probed. Each probe names the call inside its own handler where a fault is planted, so a
 leak in that handler's own error path fails here. The sweep also breaks a real share two ways
 (the frozen review mix is gone, the project file is gone) under folder names that hold
 apostrophes, quotes, ``?``, spaces and non-ASCII, and reads every answer for a word of the
@@ -564,6 +564,66 @@ def test_a_fault_in_any_guest_handler_reads_the_fixed_answer(
         assert hits, f"{label} never reached {site.name}"
         _assert_private(world, label, json.dumps(out))
         assert out == {"jsonrpc": "2.0", "id": 1, "result": fault.tool_result(tool)}, label
+        assert _logged_secret(caplog, since) is not fault.coded, label
+
+
+IN_SESSION: dict[str, tuple[Site, str | None]] = {
+    "/api/review/{token}/daw/ws": (_review("_handle_guest_presence_frame"), None),
+    "/api/rec/{token}/ws": (Site(record_share, "RecordSessionService"), None),
+    "/api/rec/{token}/ws Join": (
+        Site(RecordSessionService, "join"),
+        json.dumps({"type": "Record", "command_type": "Join", "client_seq": 1, "payload": {}}),
+    ),
+}
+"""Faults planted after a socket is admitted: its frame handler, its session, its first command."""
+
+
+def _socket_after(client: TestClient, url: str, first: str | None) -> list[object]:
+    """Like ``_socket``, but sends ``first`` before the malformed frames."""
+    seen: list[object] = []
+    try:
+        with client.websocket_connect(url, headers=RELAYED) as sock:
+            if first is not None:
+                sock.send_text(first)
+            for _ in range(GUEST_MALFORMED_LIMIT + 1):
+                sock.send_text("{")
+            while True:
+                seen.append(sock.receive_json())
+    except WebSocketDisconnect as closed:
+        seen.append([closed.code, closed.reason])
+    return seen
+
+
+@pytest.mark.parametrize("fault_name", PLANTED_FAULTS)
+def test_a_fault_inside_an_admitted_guest_socket_reads_the_fixed_answer(
+    fault_name: str,
+    world: World,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fault = _faults(world.workspace / "episode.project.json")[fault_name]
+    client = _client(world)
+
+    for key, (site, first) in sorted(IN_SESSION.items()):
+        label = f"{fault_name} WS {key}"
+        since = len(caplog.records)
+        with monkeypatch.context() as patch:
+            hits = _plant(site, fault, patch)
+            seen = _socket_after(client, _expand(key.split()[0], world), first)
+
+        assert hits, f"{label} never reached {site.name}"
+        _assert_private(world, label, json.dumps(seen))
+        if first is not None and fault.coded:
+            error = {
+                "plane": "record",
+                "type": "Error",
+                "code": "invalid_state",
+                "detail": GENERIC_GUEST_MESSAGE,
+                "error_code": "file_gone",
+            }
+            assert error in seen, label
+        else:
+            assert seen[-1] == fault.socket_close(), label
         assert _logged_secret(caplog, since) is not fault.coded, label
 
 
