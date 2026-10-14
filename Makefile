@@ -154,6 +154,7 @@ typecheck:
 # Use `uv run` only — `cmd || fallback` would treat lint failures as "tool missing".
 lint-py:
 	uv run ruff check src tests scripts
+	uv run python scripts/check_level_literals.py
 	uv run bandit -c pyproject.toml -r src -ll
 	uv run vulture
 	uv run deptry .
