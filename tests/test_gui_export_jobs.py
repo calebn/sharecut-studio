@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager
@@ -25,10 +24,7 @@ def test_start_bounce_returns_paths_on_terminal_snapshot(minimal_project, monkey
     mgr = PipelineJobManager()
     job = mgr.start_bounce(Path(minimal_project), formats=["wav"])
     assert job.kind == "bounce"
-    for _ in range(50):
-        if job.status in ("ok", "error"):
-            break
-        time.sleep(0.05)
+    mgr.wait(job, timeout=2.5)
     assert job.status == "ok"
     snap = job.snapshot()
     assert snap["kind"] == "bounce"
@@ -57,10 +53,7 @@ def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(
     mgr = PipelineJobManager()
     job = mgr.start_export(Path(minimal_project))
     assert job.kind == "export"
-    for _ in range(50):
-        if job.status in ("ok", "error"):
-            break
-        time.sleep(0.05)
+    mgr.wait(job, timeout=2.5)
     assert job.status == "ok"
     result = job.snapshot()["result"]
     assert result["paths"][0].endswith("demo.wav")
@@ -106,20 +99,14 @@ def test_status_includes_recent_finished_jobs(minimal_project, monkeypatch) -> N
     )
     mgr = PipelineJobManager()
     first = mgr.start_bounce(Path(minimal_project), formats=["wav"])
-    for _ in range(50):
-        if first.status in ("ok", "error", "cancelled"):
-            break
-        time.sleep(0.05)
+    mgr.wait(first, timeout=2.5)
     assert first.status == "ok"
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.export_audio",
         lambda self, formats=None, **_k: [Path("/tmp/ep.wav")],
     )
     second = mgr.start_export(Path(minimal_project))
-    for _ in range(50):
-        if second.status in ("ok", "error", "cancelled"):
-            break
-        time.sleep(0.05)
+    mgr.wait(second, timeout=2.5)
     st = mgr.status()
     ids = {row["id"] for row in st["jobs"]}
     assert first.id in ids
@@ -190,10 +177,7 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
 
     monkeypatch.setattr("podcast_mcp.services.media.bounce.BounceService.bounce", fake_bounce)
     job = mgr.start_bounce(Path(minimal_project), formats=["wav"])
-    for _ in range(50):
-        if job.status in ("ok", "error", "cancelled"):
-            break
-        time.sleep(0.05)
+    mgr.wait(job, timeout=2.5)
     assert job.status == "cancelled"
     assert job.message == "Bounce cancelled"
     assert job.result is not None

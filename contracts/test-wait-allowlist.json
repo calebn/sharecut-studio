@@ -45,7 +45,6 @@
     "tests/test_guest_ws_common.py": 13,
     "tests/test_guest_ws_workers.py": 2,
     "tests/test_gui_api.py": 16,
-    "tests/test_gui_export_jobs.py": 5,
     "tests/test_gui_speaker_split.py": 3,
     "tests/test_job_events.py": 2,
     "tests/test_model_manifest.py": 1,
