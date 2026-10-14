@@ -315,8 +315,11 @@ holds every app shortcut (`ui/modalGate.ts`), as the native `confirm()` did:
 Escape closes the dialog and does not also clear the selection, and Mod+Z,
 Space or Delete do nothing behind it, so an in-app confirm over the Inspector
 neither undoes nor removes anything while it asks. An open peek sheet also
-holds Escape (it does not also clear the selection). A remounted Inspector
-sheet stays under a still-open JoinPopover. Typing, Tab and Enter inside
+holds Escape: `hasOpenOverlay()` skips keymap `edit.clearSelection`.
+Inspector dismiss still clears the clip selection. A remounted Inspector
+sheet stays under a still-open JoinPopover. Clip Inspector fade Escape
+stops propagation and cancels the fade preview, so the sheet stays open.
+Typing, Tab and Enter inside
 the dialog stay native. A modal can hand on named shortcuts; the Record room
 hands on M for a live marker. On close, focus returns to the control that
 opened it (`ui/pressedControl.ts`: the focused control, or the one just

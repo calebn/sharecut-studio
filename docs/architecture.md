@@ -268,7 +268,9 @@ modal above every non-modal, and ranks remount-stable peek sheets below later
 non-modals (JoinPopover), so a sheet opened or remounted behind a modal or
 popover takes neither Escape nor entry focus; it takes entry focus when the
 inner overlay closes without a usable return target. The keymap skips Escape
-commands while any overlay is open. `Toast` re-reads
+commands while any overlay is open (`hasOpenOverlay()` skips
+`edit.clearSelection`). Clip Inspector fade Escape stops propagation and
+cancels the fade preview, so the sheet stays open. `Toast` re-reads
 `document.activeElement` after each commit, so a host move that detaches a
 focused action without a blur resumes its timer. Store announcements and command authority
 remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).
