@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -207,6 +208,10 @@ def test_gate_collection_rechecks_head_after_network_reads(monkeypatch: Any) -> 
 
 
 GRAPHQL_403 = "GraphQL: Resource not accessible by integration"
+GH_PREFIXED_403 = "gh: GraphQL: Resource not accessible by integration"
+GH_FIELD_PATH_403 = (
+    "gh: GraphQL: Resource not accessible by integration (repository.pullRequest.reviewThreads)"
+)
 
 
 def _rest_pr(*, sha: str = SHA, mergeable_state: str = "clean") -> dict[str, Any]:
@@ -292,25 +297,61 @@ def _graphql_forbidden_rest(
     return fake_gh_json
 
 
-def test_collect_gate_falls_back_to_rest_when_graphql_returns_403(monkeypatch: Any) -> None:
+def _completed(
+    stdout: str = "", stderr: str = "", returncode: int = 0
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(["gh"], returncode, stdout, stderr)
+
+
+def _gh_run_through_json(
+    fake_gh_json: Any, *, graphql_stderr: str, calls: list[tuple[str, ...]]
+) -> Any:
+    def fake_run(command: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        args = tuple(command[1:])
+        calls.append(args)
+        if args[:2] == ("api", "graphql"):
+            return _completed(stderr=graphql_stderr, returncode=1)
+        try:
+            payload = fake_gh_json(*args)
+        except RuntimeError as exc:
+            return _completed(stderr=str(exc), returncode=1)
+        return _completed(stdout=json.dumps(payload), returncode=0)
+
+    return fake_run
+
+
+def _assert_prefixed_graphql_403_uses_rest(monkeypatch: Any, stderr: str) -> None:
     calls: list[tuple[str, ...]] = []
     inner = _graphql_forbidden_rest(
         review_pages=[
             [{"id": 10, "in_reply_to_id": None}, {"id": 20, "in_reply_to_id": None}],
         ]
     )
-
-    def fake_gh_json(*args: str) -> Any:
-        calls.append(args)
-        return inner(*args)
-
-    monkeypatch.setattr(gate, "gh_json", fake_gh_json)
+    monkeypatch.setattr(
+        gate.subprocess, "run", _gh_run_through_json(inner, graphql_stderr=stderr, calls=calls)
+    )
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
     assert verdict["head_sha"] == SHA
     assert verdict["mergeable"] is False
     assert "2 unresolved review thread(s)" in verdict["blockers"]
     assert any(args[:2] == ("api", "graphql") for args in calls)
     assert any(len(args) > 1 and "/pulls/252/comments" in args[1] for args in calls)
+
+
+def test_collect_gate_falls_back_to_rest_when_graphql_returns_403(monkeypatch: Any) -> None:
+    _assert_prefixed_graphql_403_uses_rest(monkeypatch, GH_PREFIXED_403)
+
+
+def test_collect_gate_falls_back_to_rest_when_gh_prefixes_graphql_403(
+    monkeypatch: Any,
+) -> None:
+    _assert_prefixed_graphql_403_uses_rest(monkeypatch, GH_PREFIXED_403)
+
+
+def test_collect_gate_falls_back_to_rest_when_gh_suffixes_graphql_403_field_path(
+    monkeypatch: Any,
+) -> None:
+    _assert_prefixed_graphql_403_uses_rest(monkeypatch, GH_FIELD_PATH_403)
 
 
 def test_collect_gate_resolved_graphql_threads_match_trunk_when_rest_comments_remain(
