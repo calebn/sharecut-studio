@@ -481,8 +481,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Mute range",
   },
   "daw.range.moveSpeakerLaneSpan": {
-    label: "Move speaker lane span",
-    tooltip: "Move range to another speaker lane",
+    label: "Move to speaker",
+    tooltip: "Move the range to another speaker track",
   },
   "daw.range.comment": {
     label: "Comment on range",

@@ -110,4 +110,55 @@ describe("range action bar and phone sheet", () => {
     expect(useDawStore.getState().playheadSec).toBe(9);
     expect(useDawStore.getState().followingClientId).toBe("agent");
   });
+  it("offers Move to the sibling speaker track", () => {
+    const ana = sampleTrack({
+      id: "room",
+      label: "Ana",
+      speaker_split_id: "split_1",
+      range_media_seal: "room",
+    });
+    const ben = sampleTrack({
+      id: "room_ben",
+      label: "Ben",
+      speaker_split_id: "split_1",
+      range_media_seal: "room_ben",
+    });
+    const splitProject = minimalProject({
+      tracks: [ana, ben],
+      clips: {
+        tracks: {
+          room: [
+            clipRow({
+              track_id: "room",
+              timeline_start: 0,
+              timeline_end: 10,
+              source_start: 0,
+              source_end: 10,
+            }),
+          ],
+          room_ben: [
+            clipRow({
+              track_id: "room_ben",
+              timeline_start: 0,
+              timeline_end: 10,
+              source_start: 0,
+              source_end: 10,
+            }),
+          ],
+        },
+        clip_count: 2,
+      },
+    });
+    const splitTarget = makeRangeTarget(
+      splitProject,
+      [{ start: 1, end: 1.4 }],
+      ["room"],
+    )!;
+    useDawStore.setState({
+      project: splitProject,
+      selection: { kind: "range", target: splitTarget },
+    });
+    render(<RangeActions />);
+    expect(screen.getByRole("button", { name: "Move to Ben" })).toBeVisible();
+  });
 });

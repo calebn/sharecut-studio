@@ -103,6 +103,7 @@ to UX partners; for UI copy, this table wins.
 | Implied mute | A track silent only because you soloed another track. Its row, lane and clips go grey like a saved mute; its M and identity stripe are dashed, because it is never saved | "auto-muted", "muted by solo" |
 | No mix yet | The status when no mix is rendered (never rendered, or a failed render left none) and Full mix is silent. It replaces "Mix out of date" in the one status pill, chip and Menu item, with "· Refresh" only on a share that can refresh by hand. The host's mix updates on its own, and the pill reads "Updating mix…" while it does. A guest reads it without an action | "No preview", "No premix", a second pill beside "Mix out of date" |
 | Split speakers | Turn one recording of several people into one track per speaker. Every track plays the same audio and goes quiet where someone else talks, so together they sound like the original. The host gives the speaker count; the dialog opens from the track inspector or the command palette. Undo puts the single track back | "diarize", "separate speakers", "demix", "unmix" |
+| Move to {speaker} | Range action on one speaker-split track. It mutes the selected span here and reopens it on the named sibling track. Host only. One undo | "reattribute", "move clip", "swap speakers" |
 | Overlapping speech | Two or more people talking at once in a split. It plays once, on the track of the speaker heard most, and the dialog says how long it lasts | "crosstalk" and "bleed" in UI copy (bleed is microphone leakage, a different thing) |
 | Listen for | The result of a split names what to listen to before relying on the tracks: overlapping speech and unsure stretches | "warnings" |
 | Unsure stretch | Time in a split where the speaker is unclear. The dialog says how long and asks the host to listen there before relying on the tracks | "low confidence" in UI copy (that term is for transcript words) |
@@ -590,6 +591,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   Safari too; the toast steps off the control just pressed.
 
 - 2026-10-12 Split speakers (#1095 phase 2): the track inspector's **Split speakers…** opens a dialog for the speaker count and optional names, shows progress with **Cancel split**, then the new tracks, what to listen for and one **Undo split**. Added "Split speakers", "Overlapping speech" and "Unsure stretch"; the empty-session coach and the phone hint tell people with one recording of everyone where to go.
+- 2026-10-14 Move to speaker (#1341). Range actions on one speaker-split track offer **Move to {speaker}** for each sibling. It mutes the span here and reopens it there. One undo.
 
 - 2026-10-09 Compact feedback (#1205). The header stays outside the single
   content scroller. Feedback and native fields share ordinary scroll order.

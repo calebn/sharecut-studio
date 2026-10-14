@@ -3169,7 +3169,7 @@
     },
     {
       "id": "daw.range.moveSpeakerLaneSpan",
-      "label": "Move speaker lane span",
+      "label": "Move to speaker",
       "effect": "project",
       "service": "SpeakerService.move_lane_span",
       "industry_standard_key": false,
@@ -3191,7 +3191,7 @@
       "omit": {
         "keyboard_reason": "Context action with explicit range selection on one split lane"
       },
-      "tooltip": "Move range to another speaker lane",
+      "tooltip": "Move the range to another speaker track",
       "presence": {
         "cursor": "none",
         "follow": "none"

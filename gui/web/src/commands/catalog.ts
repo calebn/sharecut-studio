@@ -239,8 +239,12 @@ export const COMMANDS: Record<string, CommandDef> = {
   "range.moveSpeakerLane": {
     id: "range.moveSpeakerLane",
     category: "edit",
-    label: "Move range to another speaker lane",
+    label: "Move to speaker",
+    keywords: ["lane", "split", "attribution"],
     when: "hasProject",
+    paletteRunnable: false,
+    notes:
+      "Args: { toLaneId }. Range actions show Move to {speaker} on one split lane",
   },
   "range.comment": {
     id: "range.comment",

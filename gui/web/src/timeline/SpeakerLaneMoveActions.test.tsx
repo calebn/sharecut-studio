@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { moveSpeakerLaneSpan } from "../api/speakerMoveLaneSpan";
 import { clearRegisteredCommands } from "../commands/execute";
@@ -80,6 +80,7 @@ beforeEach(() => {
     shareCapabilities: null,
     selection: { kind: "range", target },
     rangeBusy: false,
+    joinMutationInFlight: false,
     projectEpoch: 1,
   });
 });
@@ -87,8 +88,17 @@ beforeEach(() => {
 describe("SpeakerLaneMoveActions", () => {
   it("offers a sibling lane control and passes axe", async () => {
     const { container } = render(<SpeakerLaneMoveActions />);
-    expect(screen.getByRole("button", { name: "Move to Ben" })).toBeVisible();
+    const button = screen.getByRole("button", { name: "Move to Ben" });
+    expect(button).toBeVisible();
     await expectNoA11yViolations(container);
+    fireEvent.click(button);
+    await waitFor(() => expect(moveSpeakerLaneSpan).toHaveBeenCalled());
+    expect(moveSpeakerLaneSpan).toHaveBeenCalledWith("/tmp/ep", {
+      fromLane: "room",
+      toLane: "room_ben",
+      timelineStart: 1,
+      timelineEnd: 1.4,
+    });
   });
   it("moves the selected range through the host API", async () => {
     const result = await runMoveSpeakerLaneSpan("room_ben");

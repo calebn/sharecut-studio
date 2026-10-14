@@ -13,6 +13,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Track** | One speaker mic (or music bed) |
 | **Clip** | A kept stretch of audio on the session |
 | **Split speakers** | One recording of several people becomes one track per speaker. Every track plays the same audio and goes quiet where someone else talks, so together they sound like the original. The host says how many speakers there are; the result names overlapping speech and unsure stretches to listen to, and Undo puts the single track back |
+| **Move to {speaker}** | After Split speakers, a selected span on the wrong track can be moved to the named sibling. It goes quiet here and plays there. Undo restores both |
 | **Pending cut** | A suggested remove not yet approved |
 | **Approve / Reject** | Commit or discard a pending cut |
 | **Ripple / Leave a gap** | The two edit modes for trim, delete, cut and paste. Ripple closes or opens the time on every speaker's track, so everyone stays in sync; Leave a gap leaves silence (or pastes over) and moves nothing else |

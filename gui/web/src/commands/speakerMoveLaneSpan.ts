@@ -1,6 +1,7 @@
+import { replyHistoryHead } from "../api/documentEdits";
 import { moveSpeakerLaneSpan } from "../api/speakerMoveLaneSpan";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
-import { resolveSelectionRange } from "../edit/rangeSelection";
+import { rangeIsCurrent, resolveSelectionRange } from "../edit/rangeSelection";
 import { canManageProjects } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { errorMessage } from "../utils/apiError";
@@ -11,38 +12,50 @@ import {
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
+const HOST_REASON = "Only the host can move a reply between speaker tracks";
+
 export async function runMoveSpeakerLaneSpan(
   toLaneId: string,
 ): Promise<ExecuteResult> {
   const state = useDawStore.getState();
   if (!canManageProjects(state.projectPath)) {
-    return {
-      status: "disabled",
-      reason: "Only the host can move speaker-lane attribution",
-    };
+    return { status: "disabled", reason: HOST_REASON };
   }
   const resolved = state.project
     ? resolveSelectionRange(state.project, state.selection)
     : { targets: [], reason: "Open a project" };
   const target = resolved.targets.length === 1 ? resolved.targets[0]! : null;
   const move = speakerLaneMoveTarget(state.project, target);
-  if (!move || !state.projectPath || state.rangeBusy) {
+  const sibling =
+    state.project && move
+      ? siblingSplitLanes(state.project.tracks, move.fromLaneId).find(
+          (track) => track.id === toLaneId,
+        )
+      : undefined;
+  const reason = !state.project
+    ? "Open a project"
+    : state.rangeBusy
+      ? "Range action in progress"
+      : state.joinMutationInFlight
+        ? "Wait for the join edit"
+        : !target
+          ? (resolved.reason ?? "Select a range on one speaker track")
+          : !move
+            ? "Select a range on one speaker track"
+            : !rangeIsCurrent(state.project, target)
+              ? "Selected audio changed. Select the range again."
+              : !sibling
+                ? "Choose a sibling speaker track"
+                : null;
+  if (reason || !move || !sibling || !state.projectPath) {
     return {
       status: "disabled",
-      reason:
-        resolved.reason ??
-        "Select a range on one speaker-split lane to move it",
+      reason: reason ?? "Select a range on one speaker track",
     };
-  }
-  const sibling = siblingSplitLanes(
-    state.project!.tracks,
-    move.fromLaneId,
-  ).find((track) => track.id === toLaneId);
-  if (!sibling) {
-    return { status: "disabled", reason: "Choose a lane in the same split" };
   }
   state.setRangeBusy(true);
   const epoch = state.projectEpoch;
+  const selection = state.selection;
   try {
     const result = await moveSpeakerLaneSpan(state.projectPath, {
       fromLane: move.fromLaneId,
@@ -50,23 +63,30 @@ export async function runMoveSpeakerLaneSpan(
       timelineStart: move.interval.start,
       timelineEnd: move.interval.end,
     });
-    if (useDawStore.getState().projectEpoch !== epoch) return { status: "ok" };
+    const live = useDawStore.getState();
+    if (live.projectEpoch !== epoch) return { status: "ok" };
     await refreshDocumentProject(state.projectPath);
+    const after = useDawStore.getState();
+    if (after.projectEpoch !== epoch) return { status: "ok" };
+    if (after.selection === selection) after.setSelection(null);
     const label = sibling.label || sibling.id;
-    useDawStore
-      .getState()
-      .announceStatus(`Moved range to ${label}. Use Undo to restore it.`, {
-        undo: result.history_head_id,
-      });
+    after.announceStatus(
+      `Moved the range to ${label}. Use Undo to restore it.`,
+      {
+        undo: replyHistoryHead({ history_head_id: result.history_head_id }),
+      },
+    );
     return { status: "ok" };
   } catch (error) {
-    const reason = errorMessage(error);
-    if (useDawStore.getState().projectEpoch === epoch)
-      useDawStore.getState().announceStatus(reason);
-    return { status: "disabled", reason };
+    const message = errorMessage(error);
+    if (useDawStore.getState().projectEpoch === epoch) {
+      useDawStore.getState().announceStatus(message);
+    }
+    return { status: "disabled", reason: message, announced: true };
   } finally {
-    if (useDawStore.getState().projectEpoch === epoch)
+    if (useDawStore.getState().projectEpoch === epoch) {
       useDawStore.getState().setRangeBusy(false);
+    }
   }
 }
 
@@ -77,7 +97,7 @@ export function registerSpeakerMoveLaneSpanCommands(): void {
     if (!toLaneId) {
       return {
         status: "disabled",
-        reason: "Choose a lane to move the range to",
+        reason: "Choose a speaker track to move the range to",
       };
     }
     return runMoveSpeakerLaneSpan(toLaneId);

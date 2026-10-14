@@ -9,7 +9,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from typer.testing import CliRunner
 
+from podcast_mcp.cli.main import app
 from podcast_mcp.edits.mute_regions import source_span_is_muted
 from podcast_mcp.edits.speaker_split import (
     SPLIT_FADE_MS,
@@ -32,6 +34,7 @@ from podcast_mcp.engines.speaker_split import (
 )
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.ungated_audio import load_mono_full
+from podcast_mcp.mcp.tools.speaker import speaker_move_lane_span_tool
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -684,14 +687,23 @@ def test_move_lane_span_undo_restores_lanes(scripted_ws: ProjectWorkspace) -> No
     assert words == before_words
 
 
+def test_move_lane_span_maps_a_timeline_window_to_source(
+    scripted_ws: ProjectWorkspace,
+) -> None:
+    project = scripted_ws.project
+    next(c for c in project.clips if c.track_id == "room").timeline_start = 5.0
+    _split_track(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    result = SpeakerService(scripted_ws).move_lane_span(
+        "room", "room_ben", timeline_start=6.0, timeline_end=6.4
+    )
+    assert result["source_start"] == pytest.approx(1.0)
+    assert result["source_end"] == pytest.approx(1.4)
+    assert result["words_moved"] == 1
+
+
 def test_move_lane_span_service_mcp_and_cli_refuse_invalid_spans(
     scripted_ws: ProjectWorkspace,
 ) -> None:
-    from typer.testing import CliRunner
-
-    from podcast_mcp.cli.main import app
-    from podcast_mcp.mcp.tools.speaker import speaker_move_lane_span_tool
-
     _split_track(scripted_ws.project, "room", SCRIPTED, names=["Ana", "Ben"])
     scripted_ws.save()
     with pytest.raises(CodedValueError) as caught:
