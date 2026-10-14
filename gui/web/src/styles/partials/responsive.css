@@ -315,28 +315,46 @@ html[data-shell="tablet"] {
   padding-block: var(--space-3);
 }
 
-/* Outside Listen the light alone adds no row height: it sits in the corner of
-   the mode body and its 44pt target reaches down and right from there. */
-.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip)) {
+/* Outside Listen a light that needs nothing from the person adds no row
+   height. It sits in the corner of the mode body and takes no taps, so it can
+   never cover the control under it. Waiting and failed are tappable and a
+   banner is already up, so they keep a real row sized to the 44pt target. */
+.mobile-status-row--overlay:not(
+  :has(
+    .record-rec-chip,
+    .solo-chip,
+    .save-dot[data-save-state="waiting"],
+    .save-dot[data-save-state="failed"]
+  )
+) {
   position: sticky;
   top: 0;
   z-index: var(--z-shell-status);
   block-size: 0;
   padding: 0;
   overflow: visible;
+  pointer-events: none;
 }
 
-.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip)) .save-dot {
+.mobile-status-row--overlay:not(
+    :has(
+      .record-rec-chip,
+      .solo-chip,
+      .save-dot[data-save-state="waiting"],
+      .save-dot[data-save-state="failed"]
+    )
+  )
+  .save-dot {
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: 0;
 }
 
-.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip))
-  .save-dot::after {
-  inset: 0 auto auto 0;
-  inline-size: var(--touch-min);
-  block-size: var(--touch-min);
+.mobile-status-row:has(
+  .save-dot[data-save-state="waiting"],
+  .save-dot[data-save-state="failed"]
+) {
+  min-block-size: var(--touch-min);
 }
 
 /* The phone's two Solo on chips: the status row and the Mix sheet. */

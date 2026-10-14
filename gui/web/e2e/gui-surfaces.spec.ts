@@ -214,6 +214,34 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
   });
 }
 
+test("phone save light outside Listen takes no tap meant for the control under it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  const dot = page.locator("[data-save-state]");
+  await expect(dot).toHaveAttribute("data-save-state", "saved");
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  for (const mode of ["Timeline", "Text", "More"]) {
+    await nav.getByRole("button", { name: mode, exact: true }).click();
+    const box = await dot.boundingBox();
+    expect(box).not.toBeNull();
+    const hitsDot = await page.evaluate(
+      ({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest("[data-save-state]") !== null,
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 },
+    );
+    expect(hitsDot, `${mode} save light is tap-through`).toBe(false);
+  }
+  await nav.getByRole("button", { name: "More", exact: true }).click();
+  await page
+    .locator(".mobile-more-list")
+    .getByRole("button", { name: "Comments", exact: true })
+    .click();
+  await page.getByRole("button", { name: "← More", exact: true }).click();
+  await expect(page.locator(".mobile-more-list")).toBeVisible();
+});
+
 test("phone pipeline step parameters trap focus, close on Escape, and restore the trigger", async ({
   page,
 }) => {
