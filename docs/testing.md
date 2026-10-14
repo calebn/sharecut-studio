@@ -235,6 +235,7 @@ A web-only or docs-only diff cannot move Python coverage, so every PR that chang
 The required checks report on every PR:
 
 - `pytest` plans its own scope in a step, so it never skips.
+- `gitleaks-history` runs on every PR in `secret-scan.yml`.
 - `frontend-suite` and the browser matrix skip at job level only when the `changes` job does not request GUI work.
 - The required `frontend` and `frontend-e2e` aggregates always run. Both use the same fail-closed contract over the planner result, its exact `gui` output, and the corresponding workload result:
 
@@ -249,7 +250,6 @@ cancelled workloads, and unexpected skips therefore block the required aggregate
 The repository merge helper still requires literal `SUCCESS` from `pytest`,
 `frontend`, `frontend-e2e`, and `gitleaks-history` on the exact PR head. It rejects
 missing contexts, arbitrary `SKIPPED` checks, API errors, and moved heads.
-- `gitleaks-history` runs on every PR in `secret-scan.yml`.
 
 Regressions in skipped areas surface on the next `main` push or nightly run. Check the nightly `test` run before trusting `main`.
 
