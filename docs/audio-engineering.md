@@ -165,7 +165,8 @@ gate relative to the file's level (voice reach, or speech minus 3 to 21 dB) kept
 without admitting up to 40 s of audio with no word under it, and the offsets that held the Zoom
 lab tracks within 1.3% of the fixed gate did not help her; a level gate cannot tell a quiet
 mic's voice from another speaker's leakage. The replacement is to drop the other speaker's
-copy before gating (the leak paths of #1548), not a better level. Ingest no longer estimates the session start from speech onsets (#1533): two speakers'
+copy before gating (the leak paths of #1548), not a better level (sweep: #1533, window 60-150 s on Daniela's tracks and the lab Zoom tracks).
+Ingest no longer estimates the session start from speech onsets (#1533): two speakers'
 first words are not one event, and a level that follows the audio read a later speaker as a
 late recorder (+36 to +48 s on aligned lab tracks).
 The ffmpeg filter graph and the delivery loudness targets set render levels, not detection thresholds, and are not scanned.
