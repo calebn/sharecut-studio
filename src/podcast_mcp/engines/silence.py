@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from pathlib import Path
 
-from podcast_mcp.util.binaries import resolve_ffmpeg
-from podcast_mcp.util.process import run
+import numpy as np
+
+from podcast_mcp.engines.level_profile import LEVEL_FRAME_SEC
 
 
 @dataclass(frozen=True)
@@ -18,44 +17,22 @@ class SilenceInterval:
         return max(0.0, self.end - self.start)
 
 
-def detect_silence(
-    audio_path: Path,
-    *,
-    threshold_db: float,
-    min_duration_sec: float = 0.5,
-    ffmpeg: str | None = None,
+def quiet_intervals(
+    levels_db: np.ndarray, *, under_db: float, min_duration_sec: float = 0.5
 ) -> list[SilenceInterval]:
-    """Find silence intervals in source media time using FFmpeg silencedetect.
+    """Runs of 10 ms frame levels (:func:`~podcast_mcp.engines.level_profile.frame_levels_db`)
+    under ``under_db`` lasting at least ``min_duration_sec``, in source seconds.
 
-    ``threshold_db`` is a dBFS level of this file; callers read it from the recording's
-    ``LevelProfile`` so silence means the same at any recording gain.
+    ``under_db`` is a floor read from the same frames' ``LevelProfile``, so a frame is
+    compared with the measure the floor was read from (frame RMS, not sample peaks) and
+    silence means the same at any recording gain.
     """
-    noise = threshold_db
-    dur = min_duration_sec
-    filt = f"silencedetect=noise={noise}dB:d={dur}"
-    cmd = [
-        ffmpeg or resolve_ffmpeg(),
-        "-i",
-        str(audio_path),
-        "-af",
-        filt,
-        "-f",
-        "null",
-        "-",
+    quiet = np.concatenate(([False], np.asarray(levels_db) < under_db, [False]))
+    edges = np.flatnonzero(np.diff(quiet.astype(np.int8)))
+    per_sec = round(1 / LEVEL_FRAME_SEC)
+    min_frames = min_duration_sec * per_sec
+    return [
+        SilenceInterval(start=a / per_sec, end=b / per_sec)
+        for a, b in zip(edges[::2], edges[1::2], strict=True)
+        if b - a >= min_frames - 1e-9
     ]
-    r = run(cmd, capture_output=True, text=True)
-    text = (r.stderr or "") + (r.stdout or "")
-    intervals: list[SilenceInterval] = []
-    start: float | None = None
-    for line in text.splitlines():
-        m_start = re.search(r"silence_start:\s*([\d.]+)", line)
-        if m_start:
-            start = float(m_start.group(1))
-            continue
-        m_end = re.search(r"silence_end:\s*([\d.]+)", line)
-        if m_end and start is not None:
-            end = float(m_end.group(1))
-            if end > start:
-                intervals.append(SilenceInterval(start=start, end=end))
-            start = None
-    return intervals

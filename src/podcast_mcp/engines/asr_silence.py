@@ -314,7 +314,7 @@ class TrackEnergy:
 
     The gate only reads span RMS, so frames replace samples: a 28-minute track is 0.7 MB
     instead of 54 MB, and the decode streams so nothing larger than one chunk is resident.
-    The profile is the recording's own (``file_level_profile``), the one every stage reads.
+    The profile is the recording's own (``file_level_profile``), read from these same frames.
     """
 
     frames_db: np.ndarray
@@ -330,7 +330,8 @@ class TrackEnergy:
         frames_db = frame_rms_db_stream(chunks, frame, frame).astype(np.float32)
         if frames_db.size == 0:
             raise NoAudioDecodedError(path)
-        return cls(frames_db=frames_db, profile=file_level_profile(path))
+        profile = file_level_profile(path, sample_rate=LEVEL_SAMPLE_RATE, levels=frames_db)
+        return cls(frames_db=frames_db, profile=profile)
 
     def level_db(self, start: float, end: float) -> float | None:
         """RMS over ``[start, end)`` source seconds from the frames it covers; None past the end."""

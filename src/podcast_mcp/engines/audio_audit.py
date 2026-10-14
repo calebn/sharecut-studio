@@ -40,7 +40,6 @@ from podcast_mcp.engines.lane_words import (
     word_timeline_window,
 )
 from podcast_mcp.engines.level_profile import (
-    PROFILE_SAMPLE_RATE,
     LevelProfile,
     file_level_profile,
     track_profile,
@@ -300,7 +299,7 @@ class TrackRmsCache:
         cls, path: Path, *, sample_rate: int = _RMS_SAMPLE_RATE
     ) -> TrackRmsCache:
         samples = load_mono_full(path, sample_rate=sample_rate)
-        profile = file_level_profile(path, samples if sample_rate == PROFILE_SAMPLE_RATE else None)
+        profile = file_level_profile(path, samples, sample_rate=sample_rate)
         return cls(samples=samples, sample_rate=sample_rate, recording_profile=profile)
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
@@ -1084,7 +1083,9 @@ def list_low_audibility_words(
                         path = track_audio_path(project, tid)
                         rms = measure_window_rms_db(path, w.start, w.end)
                         if floor_db is None:
-                            floor_db = file_level_profile(path).audibility_floor_db
+                            floor_db = file_level_profile(
+                                path, sample_rate=_RMS_SAMPLE_RATE
+                            ).audibility_floor_db
                     except Exception:
                         done += 1
                         _tick()

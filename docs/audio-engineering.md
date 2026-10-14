@@ -93,13 +93,19 @@ A recording's gain moves every dBFS level in it, so no detector compares a level
 fixed dBFS value. Each track has one `LevelProfile` (`engines/level_profile.py`): its
 room (the 10th percentile of its 10 ms frames), its speech level (the 90th percentile of
 the live frames) and its loud level (the 99th). `file_level_profile` measures it once per
-audio file revision, and every stage that reads the file reads that one profile
-(`TrackRmsCache.profile`, `TrackAudioCache.profile`, the ASR evidence gate's
-`TrackEnergy.profile`). Every threshold is an offset from it:
+audio file revision and sample rate, and every stage that reads the file at that rate
+reads that one profile (`TrackRmsCache.profile`, `TrackAudioCache.profile`, the ASR
+evidence gate's `TrackEnergy.profile`). A floor is read at the rate of the frames it is
+compared with, because band-limiting lowers white room tone more than voice (about
+3.5 dB lower at 8 kHz than at 16 kHz): the ASR silence filter, reconcile's 8 kHz caches
+and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
+`recording_profile` read 16 kHz. Every threshold is an offset from it:
 
 - The voice floor, `max(S - 27 dB, R + 6 dB)`, and the audibility floor and voice reach
   read from it. Tighten, reconcile, the ASR silence filter and its aligner evidence gate,
-  word spans, joins, prosody segments and strip-silence all read these. Prosody's
+  word spans, joins, prosody segments and strip-silence all read these. Strip silence
+  compares the 16 kHz 10 ms frame levels the floor was read from (`frame_levels_db`), not
+  ffmpeg `silencedetect`'s sample peaks (`engines/silence.quiet_intervals`). Prosody's
   word-less segmentation reads the profile of its own energy pass, so it adds no decode.
 - The voice level, `max(S, L - 6 dB)`: the speech level, or for a speaker who talks under
   a tenth of the time (whose speech level is room tone) 6 dB under the loud level. A
@@ -867,8 +873,10 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   `suggest_handoff_cut_tool` to move the cut to a silence.
 - **`echo_risk`** — `engines/bleed_echo.py` profiles every directed pair of dialogue
   mics over up to 600 s of **fresh** timeline stems centred on the window (the audio
-  the listener hears, one clock for every track). In 50 ms frames where speaker A is
-  above -40 dBFS, mic B is open (above -60 dBFS) and at least 6 dB quieter, the
+  the listener hears, one clock for every track). Each stem is read at its own voice
+  level (`LevelProfile.voice_gain`). In 50 ms frames where speaker A is within 25 dB of
+  its voice level, mic B is open (within 45 dB of its own; on the lab tape, whose median
+  voice level is −15.3 dBFS, about -40 and -60 dBFS) and at least 6 dB quieter, the
   normalised cross-correlation peak over ±40 ms marks B as carrying a copy of A when
   it reaches 0.25; the copies' lags are clustered in half-millisecond bins and the
   copies within ±1.5 ms of the most common lag are the *consistent* ones. Chance
@@ -1072,7 +1080,7 @@ enforced-by:
 supersedes: D-bleed-attenuate-everywhere
 -->
 
-`analysis.heuristics.bleed_handling` picks how the gate reduces a copy. `auto` (default) mutes it on a lane gated to digital silence between words and turns it down by `bleed_attenuation_db` (20 dB) on a lane whose room bed stays above the 16-bit floor once turned down. A hard gate on a lane with a room bed makes the bed vanish. `mute` and `attenuate` override `auto` for every lane.
+`analysis.heuristics.bleed_handling` picks how the gate reduces a copy. `auto` (default) mutes it on a lane gated to digital silence between words and turns it down by `bleed_attenuation_db` (20 dB) on a lane whose room bed stays above the gate's level floor (75 dB under the lane's voice level) once turned down. `bleed_bed_db` is dB relative to the lane's voice level. A hard gate on a lane with a room bed makes the bed vanish. `mute` and `attenuate` override `auto` for every lane.
 
 ### Superseded decision: Turn bleed down 20 dB on every lane
 

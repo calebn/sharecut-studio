@@ -25,7 +25,7 @@ from podcast_mcp.edits.comments import (
 )
 from podcast_mcp.edits.edit_log import archive_timeline_op, list_applied_edits
 from podcast_mcp.edits.strip_silence import _kept_source_ranges, strip_silence
-from podcast_mcp.engines.silence import SilenceInterval, detect_silence
+from podcast_mcp.engines.silence import SilenceInterval
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -280,7 +280,7 @@ def test_strip_silence_no_media_and_relative_path(tmp_path, sample_wav):
     ]
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(
-            "podcast_mcp.edits.strip_silence.detect_silence",
+            "podcast_mcp.edits.strip_silence.quiet_intervals",
             lambda *a, **k: [
                 SilenceInterval(start=0.5, end=1.0),
                 SilenceInterval(start=1.5, end=1.8),
@@ -291,28 +291,9 @@ def test_strip_silence_no_media_and_relative_path(tmp_path, sample_wav):
     assert result["silence_intervals"] == 2
 
 
-def test_silence_interval_duration_and_orphan_end(tmp_path, sample_wav, monkeypatch):
+def test_silence_interval_duration() -> None:
     assert SilenceInterval(start=1.0, end=0.5).duration == 0.0
     assert SilenceInterval(start=1.0, end=3.0).duration == 2.0
-
-    def fake_run(cmd, capture_output=True, text=True):
-        class R:
-            stdout = ""
-            stderr = (
-                "silence_end: 1.0\n"
-                "silence_start: 2.0\n"
-                "silence_end: 1.5\n"  # end < start → skipped
-                "silence_start: 3.0\n"
-                "silence_end: 4.0\n"
-            )
-
-        return R()
-
-    monkeypatch.setattr("podcast_mcp.engines.silence.run", fake_run)
-    monkeypatch.setattr("podcast_mcp.engines.silence.resolve_ffmpeg", lambda: "ffmpeg")
-    ivs = detect_silence(sample_wav, threshold_db=-50.0)
-    assert len(ivs) == 1
-    assert ivs[0].start == 3.0
 
 
 def test_comments_validation_edges(minimal_project):

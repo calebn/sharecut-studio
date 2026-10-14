@@ -14,6 +14,7 @@ from podcast_mcp.engines import level_profile as level_profile_module
 from podcast_mcp.engines.level_profile import (
     SILENT,
     LevelProfile,
+    file_level_profile,
     level_profile,
     room_floor_db,
     speech_level_db,
@@ -259,3 +260,21 @@ def test_a_sparse_speakers_voice_is_read_from_the_loudest_frames() -> None:
     assert sparse.voice_reach_db == -47.0
     dense = LevelProfile(room_db=-70.0, speech_db=-18.0, loud_db=-13.0)
     assert dense.voice_db == -18.0
+
+
+def test_a_floor_is_read_at_the_rate_of_the_frames_it_is_compared_with(tmp_path) -> None:
+    """White room tone reads lower once band-limited to 8 kHz; each rate keeps its own floor."""
+    rng = np.random.default_rng(5)
+    room = rng.standard_normal(4 * RATE) * 0.003
+    t = np.arange(RATE) / RATE
+    room[RATE : 2 * RATE] += 0.1 * np.sin(2 * np.pi * 150 * t)
+    project = _decoded_project(tmp_path, "rates", room)
+    path = tmp_path / "raw" / "rates.wav"
+
+    at_8k = file_level_profile(path, sample_rate=8000)
+    at_16k = file_level_profile(path)
+    cache_8k = build_track_audio_caches(project, ["host"])["host"].jump
+
+    assert at_8k.room_db < at_16k.room_db - 2.0
+    assert cache_8k.profile == at_8k
+    assert file_level_profile(path, levels=np.zeros(1), sample_rate=8000) is at_8k
