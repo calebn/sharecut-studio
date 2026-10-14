@@ -18,6 +18,37 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 | `lab_bleed` | `tests/fixtures/lab_bleed/` | ~0.9 MB, 11 short clips | Owner listening labels | Reviewed real-microphone bleed mutes (`test_lab_bleed_fixtures.py`) |
 | `lab_tighten` | `tests/fixtures/lab_tighten/` | ~1.7 MB, 2 × 25 s × 3 tracks | Seeded faster-whisper `base` ASR labels plus a separate owner-verdict table for the clips heard | Real fillers, backchannels and pauses for Tighten Find hits; openable projects (`test_lab_tighten_fixtures.py`) |
 
+### Source sessions: provenance and development/holdout status
+
+A rule written against one recording must be checked on a different one. Group
+every excerpt and every transformation of one original session together: more
+clips from the same session do not add an independent recording condition. A
+recording that guides a fix becomes **development** material from then on.
+Only a recording that has never guided a rule, threshold or fixture stays
+**holdout**. Change a row's status in the same PR that lets the recording guide
+a fix.
+
+| Source session | Fixtures and uses | Conditions and people | Rights | Status |
+|----------------|-------------------|-----------------------|--------|--------|
+| Sharecut Podcast Lab (private `calebn/sharecut-podcast-lab`, rev `3b414c4c`) | `lab_bleed`, `lab_tighten`, the Lab runs behind `word_onset.py` and `breath_detect.py` constants | One 2026 Zoom call: three gated per-participant tracks (Caleb, Audra, Lana), real bleed on Caleb's mic | Owner-authorized short clips; the full tape stays private | **Development** (thresholds cite it; every Lab excerpt is the same session) |
+| LibriSpeech `dev-clean` utterances `1988-147956-0023`, `5338-24640-0003`, `6241-61943-0003` | `word_boundary`, `aligned_dialogue`, `sharecut_ux_demo` (same audio) | Read audiobook speech, three speakers, no conversation, no breath labels | CC BY 4.0 | **Development** |
+| Mini LibriSpeech `dev-clean-2` utterances | `asr_gold` | Read speech, WER pin only | CC BY 4.0 | **Development** |
+| AMI meeting `ES2002a` word labels | `ami_bleed_60s` (labels real, audio synthetic) | Meeting overlap timings on generated tones | CC BY 4.0 | **Development** (synthetic audio) |
+| Generated audio | `synthetic_bleed_60s`, `word_boundary_synthetic`, `audition_defects`, `join_continuity` | Tones and injected defects, no session | n/a | **Synthetic** (never counts as an independent session) |
+| Owner catalogue `podcast_111` (2024) | None committed. Local holdout copy only. | Two Zoom per-participant mono exports, gated, 2 speakers | Owner holds the rights | **Holdout** |
+| Owner catalogue `podcast_030` (2020) | None committed. Local holdout copy only. | One stereo room recorder file, in person, 16-bit, floor near -52 dBFS | Owner holds the rights | **Holdout** |
+| Owner catalogue `podcast_016` (2019) | None committed. Local holdout copy only. | Two mono 24-bit raws, quiet guest about 7 dB under the host, almost no bleed | Owner holds the rights | **Holdout** |
+| Owner catalogue `podcast_073` (2021) | None committed. Local holdout copy only. | Three hot gated `_bip` bounces, already edited by the owner | Owner holds the rights | **Holdout, reserved, not yet run** (edited input, so it cannot test content cuts) |
+
+The four owner-catalogue episodes are the #1273 holdout set. Their audio is
+private: it contains guests' voices and is never committed, uploaded or pasted.
+The owner holds the rights to the whole back catalogue, which satisfies the
+commercial-use gate that the public corpus candidates (Open Yap, AMI, DiPCo)
+would otherwise have to pass. Work only on copies, recreate them from the
+owner's source with the sha256 manifest, and delete scratch projects after
+use. Do not tune a threshold on these recordings. The first evaluation and its
+results are in [holdout-evaluation.md](holdout-evaluation.md).
+
 ### Regenerate
 
 ```bash
