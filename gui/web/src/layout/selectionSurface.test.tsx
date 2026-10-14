@@ -328,22 +328,22 @@ describe("selection surfaces reach every kind on every shell", () => {
       }
     });
 
-    it(`an agent range over a clip is never behind a scrim on the ${shell} shell, and Select range reaches it`, () => {
+    it(`an agent range over a clip stays ${shell === "phone" ? "out of the bar" : "in the bar"} on the ${shell} shell, and an armed Select range moves it into ${shell === "desktop" ? "the bar" : "the sheet"}`, () => {
       const { container } = mount(shell);
       act(() =>
         useDawStore.setState({ sessionRegion: { start_sec: 4, end_sec: 9 } }),
       );
       select(SELECTIONS.clip);
-      const home =
-        shell === "desktop"
-          ? container.querySelector(".daw-shell-transport")
-          : sheet();
-      if (shell === "desktop") {
-        expect(home?.contains(rangeRegions()[0]!)).toBe(true);
-      } else {
+      const bar = container.querySelector(".daw-shell-transport");
+      if (shell === "phone") {
         expect(rangeRegions()).toEqual([]);
+      } else {
+        expect(bar?.contains(rangeRegions()[0]!)).toBe(true);
+      }
+      if (shell !== "desktop") {
         act(() => useDawStore.getState().setRangeArmed(true));
       }
+      const home = shell === "desktop" ? bar : sheet();
       const regions = rangeRegions();
       expect(regions).toHaveLength(1);
       expect(home?.contains(regions[0]!)).toBe(true);
