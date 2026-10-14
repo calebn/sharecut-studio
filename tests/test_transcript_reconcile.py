@@ -143,6 +143,7 @@ def test_extracted_reconcile_word_exact_contract() -> None:
         "suppress": [
             {
                 "track_id": "host",
+                "source_id": None,
                 "word_index": 0,
                 "text": "bleed",
                 "start": 1.0,
@@ -156,6 +157,7 @@ def test_extracted_reconcile_word_exact_contract() -> None:
         "reattribute": [
             {
                 "track_id": "host",
+                "source_id": None,
                 "word_index": 0,
                 "text": "bleed",
                 "start": 1.0,

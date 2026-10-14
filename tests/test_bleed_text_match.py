@@ -255,8 +255,8 @@ def test_text_match_min_overlap_skips_short_overlap(tmp_path: Path) -> None:
 
 def test_word_confidence_defaults_when_missing(tmp_path: Path) -> None:
     project = _two_track_project(tmp_path)
-    assert _word_confidence(project, "missing", 0) == 1.0
-    assert _word_confidence(project, "host", 99) == 1.0
+    assert _word_confidence(project, ("missing", None, 0)) == 1.0
+    assert _word_confidence(project, ("host", None, 99)) == 1.0
 
 
 def test_text_match_min_dominance_ignored_when_rms_missing(tmp_path: Path) -> None:

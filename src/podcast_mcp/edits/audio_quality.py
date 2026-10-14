@@ -19,6 +19,7 @@ from podcast_mcp.engines.audio_audit import (
     recommend_boundary_fades,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.lane_words import requested_word_keys, transcript_word_key, word_key
 from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -245,15 +246,15 @@ def suppress_low_audibility_words(
     """
     explicit = word_keys is not None
     if word_keys is not None:
-        targets = {(str(item["track_id"]), int(item["word_index"])) for item in word_keys}
+        targets = requested_word_keys(project, word_keys)
     else:
         flagged = list_low_audibility_words(project, track_id=track_id)
-        targets = {(f["track_id"], f["word_index"]) for f in flagged}
+        targets = {word_key(f) for f in flagged}
 
     count = 0
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
-            if (tr.track_id, i) not in targets:
+            if transcript_word_key(tr, i) not in targets:
                 continue
             if explicit:
                 tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})
@@ -287,12 +288,6 @@ def _filter_rows_by_time(
     if end_sec is not None:
         out = [r for r in out if r.get("start", 0) < end_sec]
     return out
-
-
-def _word_key_set(items: list[dict[str, Any]] | None) -> set[tuple[str, int]]:
-    if not items:
-        return set()
-    return {(str(item["track_id"]), int(item["word_index"])) for item in items}
 
 
 def bleed_words(
@@ -341,7 +336,7 @@ def suppress_bleed_words(
     reporter = resolve_progress(progress)
     explicit = word_keys is not None
     if word_keys is not None:
-        targets = _word_key_set(word_keys)
+        targets = requested_word_keys(project, word_keys)
     else:
         flagged = bleed_words(
             project,
@@ -351,11 +346,11 @@ def suppress_bleed_words(
             end_sec=end_sec,
             progress=reporter,
         )
-        targets = {(f["track_id"], f["word_index"]) for f in flagged}
+        targets = {word_key(f) for f in flagged}
 
-    targets -= _word_key_set(exclude_word_keys)
+    targets -= requested_word_keys(project, exclude_word_keys)
     already_suppressed = {
-        (tr.track_id, i)
+        transcript_word_key(tr, i)
         for tr in project.transcripts
         for i, w in enumerate(tr.words)
         if w.suppressed
@@ -366,7 +361,7 @@ def suppress_bleed_words(
         # the heuristic preview must too, or it lists a word apply then leaves
         # alone (#781/#791's preview == apply rule, #802 review).
         locked_unsuppressed = {
-            (tr.track_id, i)
+            transcript_word_key(tr, i)
             for tr in project.transcripts
             for i, w in enumerate(tr.words)
             if w.audibility_locked and not w.suppressed
@@ -378,11 +373,12 @@ def suppress_bleed_words(
         if track_id and tr.track_id != track_id:
             continue
         for i, w in enumerate(tr.words):
-            if (tr.track_id, i) not in targets:
+            if transcript_word_key(tr, i) not in targets:
                 continue
             candidates.append(
                 {
                     "track_id": tr.track_id,
+                    "source_id": tr.source_id,
                     "word_index": i,
                     "text": w.text,
                     "start": w.start,
@@ -403,7 +399,7 @@ def suppress_bleed_words(
     count = 0
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
-            if (tr.track_id, i) not in targets or w.suppressed:
+            if transcript_word_key(tr, i) not in targets or w.suppressed:
                 continue
             if explicit:
                 tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})

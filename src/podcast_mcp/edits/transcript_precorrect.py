@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
 
+from podcast_mcp.edits.bleed_text_match import pair_word, pair_word_key
 from podcast_mcp.edits.transcript_correct import apply_transcript_corrections
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
@@ -312,15 +313,11 @@ def run_cross_track_sync(
         progress=progress,
     ) as task:
         for idx, pair in enumerate(candidates):
-            tr_a = project.transcript_for_track(pair["track_a"])
-            tr_b = project.transcript_for_track(pair["track_b"])
-            if tr_a and pair["word_index_a"] < len(tr_a.words):
-                wa = tr_a.words[pair["word_index_a"]]
+            if (wa := pair_word(project, pair_word_key(pair, "a"))) is not None:
                 pair["confidence_a"] = _word_confidence(wa)
                 pair.setdefault("end_a", wa.end)
                 pair.setdefault("start_a", wa.start)
-            if tr_b and pair["word_index_b"] < len(tr_b.words):
-                wb = tr_b.words[pair["word_index_b"]]
+            if (wb := pair_word(project, pair_word_key(pair, "b"))) is not None:
                 pair["confidence_b"] = _word_confidence(wb)
                 pair.setdefault("end_b", wb.end)
                 pair.setdefault("start_b", wb.start)
@@ -351,16 +348,18 @@ def run_cross_track_sync(
                 continue
 
             if winner == pair["track_a"]:
-                loser_track, loser_idx = pair["track_b"], pair["word_index_b"]
+                loser = pair_word_key(pair, "b")
                 source_text = pair["text_a"]
                 loser_start = pair["start_b"]
             else:
-                loser_track, loser_idx = pair["track_a"], pair["word_index_a"]
+                loser = pair_word_key(pair, "a")
                 source_text = pair["text_b"]
                 loser_start = pair["start_a"]
+            loser_track, loser_source, loser_idx = loser
 
             tr = project.transcript_for_track(loser_track)
-            if not tr or loser_idx >= len(tr.words):
+            # Corrections address a lane's first transcript; a later take's word waits.
+            if not tr or tr.key != (loser_track, loser_source) or loser_idx >= len(tr.words):
                 continue
             loser_word = tr.words[loser_idx]
             if _in_skip_span(loser_start, ctx) or _is_filler(loser_word.text, ctx):
