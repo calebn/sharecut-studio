@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.services.share_auth.passwords import hash_password, verify_password
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA
 
 _SCHEMA = """
@@ -163,9 +164,11 @@ class ShareIdentityStore:
         """Merge by verified email; attach Google/GitHub subject to one users row."""
         email_n = email.strip().lower()
         if not email_n:
-            raise ValueError("email required")
+            raise CodedValueError("email required", code="auth_email_required")
         if provider not in {"google", "github"}:
-            raise ValueError(f"unsupported provider {provider!r}")
+            raise CodedValueError(
+                f"unsupported provider {provider!r}", code="auth_provider_unsupported"
+            )
         # Column names are fixed per provider (never user input).
         if provider == "google":
             select_by_sub = "SELECT * FROM users WHERE google_sub = ?"
@@ -310,7 +313,7 @@ class ShareIdentityStore:
                 (share_token, email.strip().lower()),
             )
         else:
-            raise ValueError("email or user_id required")
+            raise CodedValueError("email or user_id required", code="auth_identity_required")
         self._conn.commit()
         return cur.rowcount > 0
 

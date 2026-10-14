@@ -4,11 +4,14 @@ from pathlib import Path
 
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.timebase import TimelineSec
 
 
-class TimelineMapError(ValueError):
-    pass
+class TimelineMapError(CodedError, ValueError):
+    """A timeline position that maps to no source audio; the message says which."""
+
+    code = "timeline_unmappable"
 
 
 def _source_media_path(project: EpisodeProject, track_id: str) -> Path:

@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.diagnostics_bundle_contract import (
     MAX_BUNDLE_BYTES,
     BundlePreview,
@@ -20,7 +21,9 @@ def _read_bundle(path: Path) -> bytes:
     with path.open("rb") as source:
         data = source.read(MAX_BUNDLE_BYTES + 1)
     if len(data) > MAX_BUNDLE_BYTES:
-        raise ValueError("diagnostics bundle must be at most 5 MiB")
+        raise CodedValueError(
+            "diagnostics bundle must be at most 5 MiB", code="report_bundle_too_large"
+        )
     return data
 
 
@@ -39,18 +42,20 @@ def report_relay_url() -> str:
         or parsed.username
         or parsed.password
     ):
-        raise ValueError("report relay is not configured")
+        raise CodedValueError("report relay is not configured", code="report_relay_not_configured")
     if parsed.scheme != "https" and not (
         parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
     ):
-        raise ValueError("report relay must use HTTPS")
+        raise CodedValueError("report relay must use HTTPS", code="report_relay_not_https")
     return url
 
 
 def submit_bundle(path: Path, *, description: str) -> dict[str, str]:
     url = report_relay_url()
     if not 10 <= len(description.strip()) <= 4000:
-        raise ValueError("description must be 10-4000 characters")
+        raise CodedValueError(
+            "description must be 10-4000 characters", code="report_description_length"
+        )
     data = _read_bundle(path)
     validate_diagnostics_bundle(data)
     with httpx.Client(timeout=30.0, follow_redirects=False) as client:
@@ -65,17 +70,21 @@ def submit_bundle(path: Path, *, description: str) -> dict[str, str]:
     response.raise_for_status()
     result = response.json()
     if result.get("status") != "queued" or not isinstance(result.get("status_url"), str):
-        raise ValueError("report relay returned an invalid response")
+        raise CodedValueError(
+            "report relay returned an invalid response", code="report_relay_response_invalid"
+        )
     status_url = result["status_url"]
     if not status_url.startswith(f"{url}/api/reports/"):
-        raise ValueError("report relay returned an invalid status URL")
+        raise CodedValueError(
+            "report relay returned an invalid status URL", code="report_relay_status_url_invalid"
+        )
     return {"status": "queued", "status_url": status_url}
 
 
 def get_report_status(status_url: str) -> dict[str, str | None]:
     url = report_relay_url()
     if not status_url.startswith(f"{url}/api/reports/"):
-        raise ValueError("invalid report status URL")
+        raise CodedValueError("invalid report status URL", code="report_status_url_invalid")
     with httpx.Client(timeout=10.0, follow_redirects=False) as client:
         response = client.get(status_url)
     response.raise_for_status()
@@ -86,5 +95,7 @@ def get_report_status(status_url: str) -> dict[str, str | None]:
         issue_url is not None
         and (not isinstance(issue_url, str) or not issue_url.startswith("https://github.com/"))
     ):
-        raise ValueError("report relay returned an invalid status")
+        raise CodedValueError(
+            "report relay returned an invalid status", code="report_relay_status_invalid"
+        )
     return {"status": status, "issue_url": issue_url}

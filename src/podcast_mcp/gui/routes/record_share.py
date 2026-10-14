@@ -16,7 +16,7 @@ from starlette.websockets import WebSocketState
 
 from podcast_mcp.edits.share_capabilities import CAP_JOIN, CAP_MONITOR, has_capability
 from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
-from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
+from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     admit_guest_ws,
     guest_ws_reject,
@@ -63,10 +63,8 @@ log = logging.getLogger(__name__)
 def get_record_bootstrap(token: str) -> dict[str, Any]:
     row = check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "read")
-    try:
+    with guest_boundary(log, "record bootstrap"):
         return record_bootstrap(row)
-    except Exception as exc:
-        raise guest_http_error(exc, logger=log, operation="record bootstrap") from exc
 
 
 @router.get("/api/rec/{token}/features")
@@ -401,12 +399,10 @@ def get_record_upload_status(
 ) -> dict[str, Any]:
     check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "read")
-    try:
+    with guest_boundary(log, "record upload"):
         uploader, session, session_id, _ws = _guest_upload_ctx(token)
         pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
         return uploader.status(session_id=session_id, participant_id=pid)
-    except Exception as exc:
-        raise guest_http_error(exc, logger=log, operation="record upload") from exc
 
 
 @router.post("/api/rec/{token}/upload")
@@ -429,7 +425,7 @@ async def post_record_upload(
 ):
     check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "mutate")
-    try:
+    with guest_boundary(log, "record upload"):
         uploader, session, session_id, ws = _guest_upload_ctx(token)
         pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
         _require_guest_upload_consent(session, pid, kind, take_index)
@@ -458,8 +454,6 @@ async def post_record_upload(
             kind=kind,
             before_ingest=before_ingest,
         )
-    except Exception as exc:
-        raise guest_http_error(exc, logger=log, operation="record upload") from exc
 
 
 @router.delete("/api/rec/{token}/upload")
@@ -471,7 +465,7 @@ def delete_record_upload(
 ) -> dict[str, Any]:
     check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "mutate")
-    try:
+    with guest_boundary(log, "record upload"):
         uploader, session, session_id, _ws = _guest_upload_ctx(token)
         pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
         parsed = parse_upload_kind(kind)
@@ -479,5 +473,3 @@ def delete_record_upload(
             raise CodedValueError("only room_tone can be revoked", code="record_upload_refused")
         uploader.revoke_room_tone(session_id, pid)
         return {"revoked": True, "kind": UPLOAD_KIND_ROOM_TONE}
-    except Exception as exc:
-        raise guest_http_error(exc, logger=log, operation="record upload") from exc

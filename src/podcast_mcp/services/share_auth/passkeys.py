@@ -11,6 +11,7 @@ import secrets
 from typing import Any
 
 from podcast_mcp.services.share_auth.store import ShareIdentityStore
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _b64url(data: bytes) -> str:
@@ -67,7 +68,10 @@ def finish_registration(
     """
     ch = store.take_webauthn_challenge(challenge, purpose="register")
     if ch is None or ch.get("user_id") != user["id"]:
-        raise ValueError("invalid or expired registration challenge")
+        raise CodedValueError(
+            "invalid or expired registration challenge",
+            code="passkey_registration_challenge_invalid",
+        )
     test_mode = os.environ.get("PODCAST_WEBAUTHN_TEST_MODE", "1") == "1"
     if not test_mode and attestation_object and client_data_json:
         _verify_registration_webauthn(
@@ -120,12 +124,15 @@ def finish_authentication(
 ) -> dict[str, Any]:
     ch = store.take_webauthn_challenge(challenge, purpose="authenticate")
     if ch is None:
-        raise ValueError("invalid or expired authentication challenge")
+        raise CodedValueError(
+            "invalid or expired authentication challenge",
+            code="passkey_authentication_challenge_invalid",
+        )
     pk = store.get_passkey(credential_id)
     if pk is None:
-        raise ValueError("unknown passkey")
+        raise CodedValueError("unknown passkey", code="passkey_unknown")
     if ch.get("user_id") and ch["user_id"] != pk["user_id"]:
-        raise ValueError("passkey does not match challenge user")
+        raise CodedValueError("passkey does not match challenge user", code="passkey_user_mismatch")
     test_mode = os.environ.get("PODCAST_WEBAUTHN_TEST_MODE", "1") == "1"
     if not test_mode and authenticator_data and client_data_json and signature:
         _verify_authentication_webauthn(
@@ -141,19 +148,19 @@ def finish_authentication(
         # Deterministic HMAC proof for hosts without the webauthn package:
         # client sends signature = hex(hmac_sha256(public_key, challenge)).
         if not signature:
-            raise ValueError("signature required")
+            raise CodedValueError("signature required", code="passkey_signature_required")
         expected = hmac.new(
             pk["public_key_b64"].encode("utf-8"),
             challenge.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()
         if not hmac.compare_digest(expected, signature):
-            raise ValueError("invalid passkey signature")
+            raise CodedValueError("invalid passkey signature", code="passkey_signature_invalid")
     if sign_count:
         store.update_passkey_sign_count(credential_id, sign_count)
     user = store.get_user(pk["user_id"])
     if user is None:  # pragma: no cover - FK keeps passkey.user_id valid
-        raise ValueError("user missing for passkey")
+        raise CodedValueError("user missing for passkey", code="passkey_user_missing")
     return user
 
 

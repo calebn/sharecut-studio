@@ -11,6 +11,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.commands import DocumentCommand, DocumentCommandType
 from podcast_mcp.services.document_sync.payloads import validate_payload
 from podcast_mcp.services.document_sync.service import DocumentSyncService
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def submit_host_document_command(
@@ -34,7 +35,7 @@ def submit_host_document_command(
     )
     if command_id is not None:
         if not command_id:
-            raise ValueError("command_id must be nonempty")
+            raise CodedValueError("command_id must be nonempty", code="command_id_empty")
         cmd.command_id = command_id
     return svc.submit(cmd)
 

@@ -46,6 +46,7 @@ from podcast_mcp.services.session_sync.snapshot import (
     flatten_for_api,
     wire_snapshot,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.keyed_lock import KeyedLocks
 
 _SEQ = itertools.count(1)
@@ -445,7 +446,9 @@ class SessionSyncService:
     def submit(self, command: SyncCommand) -> dict[str, Any]:
         """Append command, materialize snapshot, fanout. Idempotent on client_seq."""
         if command.client_seq is not None and command.client_seq <= 0:
-            raise ValueError("explicit client_seq must be positive")
+            raise CodedValueError(
+                "explicit client_seq must be positive", code="sync_client_seq_invalid"
+            )
         store = self.store
         if command.type == "Ack":
             ack_seq = int(command.payload.get("acked_server_seq") or 0)

@@ -10,6 +10,7 @@ from podcast_mcp.services.session_sync import (
     SessionSyncService,
     normalize_presence_playhead,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 _VALID_MODES = frozenset({"mix", "fx", "raw"})
 
@@ -31,7 +32,9 @@ class SessionControlService:
     ) -> dict[str, Any]:
         sec = normalize_presence_playhead(playhead_sec)
         if sec is None:
-            raise ValueError("playhead_sec must be a finite number >= 0")
+            raise CodedValueError(
+                "playhead_sec must be a finite number >= 0", code="playhead_invalid"
+            )
         payload: dict[str, Any] = {"playhead_sec": sec}
         if selection is not None:
             payload["selection"] = selection
@@ -49,7 +52,9 @@ class SessionControlService:
 
     def set_mode(self, mode: str) -> dict[str, Any]:
         if mode not in _VALID_MODES:
-            raise ValueError(f"mode must be one of {sorted(_VALID_MODES)}")
+            raise CodedValueError(
+                f"mode must be one of {sorted(_VALID_MODES)}", code="audition_mode_unknown"
+            )
         source = {"mix": "premix", "fx": "processed", "raw": "track"}.get(mode)
         return self._sync.submit_control("SetMode", {"audition_mode": mode, "source": source})[
             "snapshot"
@@ -67,9 +72,11 @@ class SessionControlService:
         start = normalize_presence_playhead(start_sec)
         end = normalize_presence_playhead(end_sec)
         if start is None or end is None:
-            raise ValueError("start_sec and end_sec must be finite numbers >= 0")
+            raise CodedValueError(
+                "start_sec and end_sec must be finite numbers >= 0", code="range_invalid"
+            )
         if end <= start:
-            raise ValueError("end_sec must be after start_sec")
+            raise CodedValueError("end_sec must be after start_sec", code="range_end_before_start")
         payload: dict[str, Any] = {
             "start_sec": start,
             "end_sec": end,

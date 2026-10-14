@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 
 @dataclass(frozen=True)
 class OAuthClientConfig:
@@ -46,7 +48,9 @@ def _parse_google_json(data: dict[str, Any]) -> tuple[str, str]:
     cid = str(data.get("client_id") or "")
     secret = str(data.get("client_secret") or "")
     if not cid or not secret:
-        raise ValueError("google oauth JSON missing client_id/client_secret")
+        raise CodedValueError(
+            "google oauth JSON missing client_id/client_secret", code="oauth_credentials_incomplete"
+        )
     return cid, secret
 
 

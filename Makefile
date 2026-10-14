@@ -157,6 +157,7 @@ lint-py:
 	uv run bandit -c pyproject.toml -r src -ll
 	uv run vulture
 	uv run deptry .
+	uv run python scripts/check_coded_errors.py
 
 format-py:
 	uv run ruff format src tests scripts

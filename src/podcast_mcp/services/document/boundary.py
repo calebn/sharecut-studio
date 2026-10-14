@@ -138,9 +138,9 @@ def boundary_context(
     if not all(
         math.isfinite(value) for value in (lo, hi, position.source_sec, position.timeline_sec)
     ):
-        raise ValueError("boundary bounds must be finite")
+        raise CodedValueError("boundary bounds must be finite", code="boundary_bounds_not_finite")
     if lo > hi:
-        raise ValueError("boundary has no legal range")
+        raise CodedValueError("boundary has no legal range", code="boundary_no_legal_range")
     geometry = [ClipGeometry.from_clip(c) for c in clips]
     if expected_geometry is not None and geometry != expected_geometry:
         raise DocumentConflictError("boundary changed; reload its current position")

@@ -13,6 +13,7 @@ from podcast_mcp.services.share_auth.oauth_credentials import (
     load_github_oauth,
     load_google_oauth,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 _GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 _GOOGLE_CODE_EXCHANGE_URL = "https://oauth2.googleapis.com/token"
@@ -66,7 +67,7 @@ def authorization_url(
             "code_challenge_method": "S256",
         }
         return f"{_GITHUB_AUTH}?{urlencode(params)}", cfg
-    raise ValueError(f"unsupported provider {provider!r}")
+    raise CodedValueError(f"unsupported provider {provider!r}", code="oauth_provider_unsupported")
 
 
 def exchange_code(
@@ -159,7 +160,7 @@ def exchange_code(
             "display_name": str(user.get("name") or user.get("login") or email),
         }
 
-    raise ValueError(f"unsupported provider {provider!r}")
+    raise CodedValueError(f"unsupported provider {provider!r}", code="oauth_provider_unsupported")
 
 
 def _default_post(url: str, **kwargs: Any) -> dict[str, Any]:  # pragma: no cover

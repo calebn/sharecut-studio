@@ -31,6 +31,7 @@ from podcast_mcp.pipeline.meta import (
     step_noop_reason,
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, STEP_NAMES
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dicts import deep_merge, get_by_path
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 
@@ -83,9 +84,10 @@ def transcribe_run_config(
     ``force`` and ``retime_words`` together raise ``ValueError``.
     """
     if force and retime_words:
-        raise ValueError(
+        raise CodedValueError(
             "retime_words re-times stored transcripts without Whisper; it cannot be combined "
-            "with force (force_transcribe / --force re-runs Whisper on every track)"
+            "with force (force_transcribe / --force re-runs Whisper on every track)",
+            code="pipeline_retime_with_force",
         )
     if not force and not retime_words:
         return config
@@ -858,9 +860,10 @@ def _require_known_presets(
     """Raise ``ValueError`` naming the first of ``names`` that is not a known effect preset."""
     for name in names:
         if name not in known_presets:
-            raise ValueError(
+            raise CodedValueError(
                 f"unknown effect preset: {name!r} (in {assignment!r}); "
-                f"known: {', '.join(sorted(known_presets))}"
+                f"known: {', '.join(sorted(known_presets))}",
+                code="pipeline_effect_preset_unknown",
             )
 
 
@@ -870,7 +873,10 @@ def _require_known_mapping_leaves(
     """Raise ``ValueError`` naming the first leaf of a ``path={...}`` value missing from ``defaults``."""
     for leaf_path, _leaf in _config_leaves(value, path):
         if not _defaults_have_path(defaults, leaf_path):
-            raise ValueError(f"unknown pipeline config key: {leaf_path!r} (in {assignment!r})")
+            raise CodedValueError(
+                f"unknown pipeline config key: {leaf_path!r} (in {assignment!r})",
+                code="pipeline_config_key_unknown",
+            )
 
 
 def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
@@ -889,28 +895,45 @@ def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for assignment in assignments:
         if "=" not in assignment:
-            raise ValueError(f"expected path=value, got {assignment!r}")
+            raise CodedValueError(
+                f"expected path=value, got {assignment!r}", code="pipeline_assignment_malformed"
+            )
         path, _, raw_value = assignment.partition("=")
         path = path.strip()
         if not path:
-            raise ValueError(f"empty config key in {assignment!r}")
+            raise CodedValueError(
+                f"empty config key in {assignment!r}", code="pipeline_config_key_empty"
+            )
         parts = path.split(".")
         if not all(parts):
-            raise ValueError(f"empty path segment in {assignment!r}")
+            raise CodedValueError(
+                f"empty path segment in {assignment!r}", code="pipeline_config_path_empty_segment"
+            )
         top = parts[0]
         if top not in ALLOWED_CONFIG_TOP_KEYS:
-            raise ValueError(f"unknown pipeline config key: {top!r} (in {assignment!r})")
+            raise CodedValueError(
+                f"unknown pipeline config key: {top!r} (in {assignment!r})",
+                code="pipeline_config_key_unknown",
+            )
         if top != "effects" and not _defaults_have_path(defaults, path):
-            raise ValueError(f"unknown pipeline config key: {path!r}")
+            raise CodedValueError(
+                f"unknown pipeline config key: {path!r}", code="pipeline_config_key_unknown"
+            )
         if top == "effects" and len(parts) > 1:
             _require_known_presets([parts[1]], known_presets, assignment)
         try:
             value = yaml.safe_load(raw_value) if raw_value else None
         except yaml.YAMLError as exc:
-            raise ValueError(f"invalid value for {path!r}: {raw_value!r} ({exc})") from exc
+            raise CodedValueError(
+                f"invalid value for {path!r}: {raw_value!r}",
+                code="pipeline_config_value_invalid",
+            ) from exc
         if top == "effects" and len(parts) == 1:
             if not isinstance(value, Mapping):
-                raise ValueError(f"effects must be a mapping of preset names (in {assignment!r})")
+                raise CodedValueError(
+                    f"effects must be a mapping of preset names (in {assignment!r})",
+                    code="pipeline_effects_not_mapping",
+                )
             _require_known_presets([str(k) for k in value], known_presets, assignment)
         if top != "effects" and isinstance(value, Mapping):
             _require_known_mapping_leaves(defaults, path, value, assignment)

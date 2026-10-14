@@ -23,6 +23,7 @@ from podcast_mcp.models.episode import (
     RangeInterval,
 )
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import has_meaningful_text
 
 JoinInMode = Literal["fade", "crossfade", "cut"]
@@ -927,7 +928,9 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
     """Validate a payload dict for a known command type; return dumped dict."""
     model = _PAYLOAD_BY_TYPE.get(command_type)
     if model is None:
-        raise ValueError(f"unknown document command: {command_type}")
+        raise CodedValueError(
+            f"unknown document command: {command_type}", code="document_command_unknown"
+        )
     validated = model.model_validate(payload or {})
     out = validated.model_dump(mode="python")
     if "extracts" in out and isinstance(out["extracts"], list):

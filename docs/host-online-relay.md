@@ -756,6 +756,7 @@ with private paths and path-free diagnostic secrets.
 - **Remote MCP**: disabled by default; requires `PODCAST_REMOTE_MCP=1` on the host and
   explicit `mcp` capability on the share token. Tools are **capability-filtered** (guest
   parity), not the full host stdio MCP registry.
+- **Guest refusals are typed** (#1444): `scripts/check_coded_errors.py` keeps bare `PermissionError` / `ValueError` out of `services/`, so every refusal a guest can reach is a `CodedError`. Guest HTTP routes project it through `guest_boundary` and WebSockets through `guest_ws_error` (`gui/routes/guest_errors.py`); share-capability denials are `CodedPermissionError(code="share_capability_required")`. Path redaction is defense in depth behind that.
 - **Remote MCP errors** (#1182, #1327): a guest sees an exception's text only for a refusal (a
   `CodedError` or a busy lock), and only through `CodedError.guest_message()`: the fixed,
   path-free text the raise site gave (`guest_message=`), else the message itself when it names

@@ -9,6 +9,7 @@ from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.track_media import resolve_workspace_raw_audio
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EpisodeService
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _unique_track_id(ws: ProjectWorkspace, preferred: str) -> str:
@@ -26,7 +27,7 @@ def add_track(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     if p.get("track_id") is not None:
         track_id = slug_track_id(str(p["track_id"]))
         if ws.project.track_by_id(track_id) is not None:
-            raise ValueError(f"track already exists: {track_id}")
+            raise CodedValueError(f"track already exists: {track_id}", code="track_already_exists")
     else:
         preferred = str(p["label"]) if p.get("label") is not None else "track"
         track_id = _unique_track_id(ws, preferred)

@@ -89,14 +89,12 @@ def internal_error(req_id: Any) -> dict[str, Any]:
     return _error(req_id, -32603, INTERNAL_ERROR)
 
 
-def _is_capability_denial(exc: PermissionError) -> bool:
-    # Share capability checks raise ``PermissionError(message)``, written for the guest. The
-    # OS raises one with an errno and the host path it could not open: that is a crash.
-    # Any other coded refusal (``tool_refusal``) reports its own guest message and code.
+def _capability_denial(exc: BaseException) -> str | None:
+    """The guest text of a share capability denial (JSON-RPC ``-32003``), else ``None``."""
     refusal = coded_cause(exc)
-    if refusal is not None:
-        return refusal.code == _CAPABILITY_REQUIRED_CODE
-    return exc.errno is None
+    if refusal is not None and refusal.code == _CAPABILITY_REQUIRED_CODE:
+        return refusal.guest_message()
+    return None
 
 
 # The tool-result fields guests have always received (no SDK-only extras such as resultType).
@@ -129,8 +127,9 @@ def handle_mcp_jsonrpc(
     try:
         ctx = resolve_remote_mcp_context(token)
     except PermissionError as exc:
-        if _is_capability_denial(exc):
-            return _error(req_id, -32003, str(exc))
+        denial = _capability_denial(exc)
+        if denial is not None:
+            return _error(req_id, -32003, denial)
         refusal = tool_refusal(exc, for_guest=True)
         if refusal is None:
             logger.error("Resolving a guest MCP share failed", exc_info=exc)
@@ -220,8 +219,9 @@ def _tool_failure(req_id: Any, name: str, exc: Exception) -> dict[str, Any]:
         return _error(req_id, -32602, str(exc))
     if isinstance(exc, InvalidToolArgumentsError):
         return _error(req_id, -32602, str(exc), data={"error_code": exc.code})
-    if isinstance(exc, PermissionError) and _is_capability_denial(exc):
-        return _error(req_id, -32003, str(exc))
+    denial = _capability_denial(exc)
+    if denial is not None:
+        return _error(req_id, -32003, denial)
     refusal = tool_refusal(exc, for_guest=True)
     if refusal is None:
         logger.error("Guest tool %r failed", name, exc_info=exc)

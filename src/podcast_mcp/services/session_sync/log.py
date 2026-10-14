@@ -15,6 +15,7 @@ from weakref import WeakValueDictionary
 
 from podcast_mcp.services.session_sync.commands import presence_color_index
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.sqlite_tx import immediate_transaction
 
 _TABLE_PREFIX_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -107,7 +108,7 @@ def _validate_table_prefix(prefix: str) -> str:
     if prefix == "":
         return prefix
     if not _TABLE_PREFIX_RE.fullmatch(prefix):
-        raise ValueError(f"invalid table_prefix: {prefix!r}")
+        raise CodedValueError(f"invalid table_prefix: {prefix!r}", code="sync_table_prefix_invalid")
     return prefix
 
 
@@ -149,7 +150,7 @@ CREATE TABLE IF NOT EXISTS {p}clients (
 def _table(prefix: str, name: str) -> str:
     ident = prefix + name
     if ident != name and not _TABLE_PREFIX_RE.fullmatch(ident):
-        raise ValueError(f"invalid table name: {ident!r}")
+        raise CodedValueError(f"invalid table name: {ident!r}", code="sync_table_name_invalid")
     return ident
 
 
@@ -249,7 +250,10 @@ def _cached_sync_store(
         create=create,
     )
     if store is not None and store.enforce_command_ids != enforce_command_ids:
-        raise ValueError("conflicting command ID policy for cached sync store")
+        raise CodedValueError(
+            "conflicting command ID policy for cached sync store",
+            code="sync_command_id_policy_conflict",
+        )
     return store
 
 

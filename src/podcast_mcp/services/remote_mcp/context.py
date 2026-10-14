@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from podcast_mcp.edits.share_capabilities import share_author
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import open_share_workspace, share_allows_mcp
+from podcast_mcp.util.coded_error import CodedPermissionError
 
 _current: ContextVar[RemoteMcpContext | None] = ContextVar("remote_mcp_context", default=None)
 
@@ -31,7 +32,7 @@ class RemoteMcpContext:
 def resolve_remote_mcp_context(token: str) -> RemoteMcpContext:
     """Resolve share → workspace; require ``mcp`` capability."""
     if not share_allows_mcp(token):
-        raise PermissionError("share does not allow mcp")
+        raise CodedPermissionError("share does not allow mcp", code="share_capability_required")
     row, ws = open_share_workspace(token)
     caps = list(row.get("capabilities") or [])
     return RemoteMcpContext(token=token, capabilities=caps, workspace=ws, author=share_author(row))

@@ -15,6 +15,7 @@ from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_cancel_scope, render_lock
 from podcast_mcp.util.text import count_noun
@@ -190,7 +191,10 @@ class PipelineService:
     def set_envelope(self, track_id: str, points: list[dict]) -> int:
         def mutate(p) -> int:
             if p.track_by_id(track_id) is None:
-                raise ValueError(f"Volume envelope track {track_id!r} no longer exists")
+                raise CodedValueError(
+                    f"Volume envelope track {track_id!r} no longer exists",
+                    code="envelope_track_missing",
+                )
             validate_envelope_point_times(p, track_id, points, timeline_duration_sec(p))
             pts = [
                 AutomationPoint(

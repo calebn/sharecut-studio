@@ -10,6 +10,7 @@ from podcast_mcp.edits.decisions import PendingEditBaseline
 from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
@@ -137,7 +138,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     if clip_ids is None and p.get("clip_id") is not None:
         clip_ids = [p["clip_id"]]
     if not clip_ids:
-        raise ValueError("clip_id or clip_ids required")
+        raise CodedValueError("clip_id or clip_ids required", code="clip_ids_required")
     reason = str(p["reason"]) if p.get("reason") is not None else None
     return EditService(ws).delete_clips(
         [str(c) for c in clip_ids],
@@ -168,7 +169,7 @@ def move_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 def move_clips(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     raw = p.get("clips") or []
     if not isinstance(raw, list):
-        raise ValueError("clips must be a list")
+        raise CodedValueError("clips must be a list", code="clips_not_list")
     clips = [dict(x) if not isinstance(x, dict) else x for x in raw]
     return EditService(ws).move_clips(clips)
 
@@ -176,7 +177,7 @@ def move_clips(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 def paste_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     extracts = p.get("extracts") or []
     if not isinstance(extracts, list):
-        raise ValueError("extracts must be a list")
+        raise CodedValueError("extracts must be a list", code="extracts_not_list")
     return EditService(ws).paste_segment(
         float(p["insert_at"]),
         float(p["duration"]),

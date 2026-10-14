@@ -12,7 +12,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 
 log = logging.getLogger(__name__)
 
@@ -209,7 +209,9 @@ class HistoryService:
         to_idx = history.cursor if to_index is None else to_index
         from_idx = to_idx - 1 if from_index is None else from_index
         if from_idx < 0 or to_idx < 0 or from_idx >= len(entries) or to_idx >= len(entries):
-            raise ValueError("history diff index out of range")
+            raise CodedValueError(
+                "history diff index out of range", code="history_index_out_of_range"
+            )
         before = self._mgr._read_snapshot(self.ws.project, entries[from_idx])
         after = self._mgr._read_snapshot(self.ws.project, entries[to_idx])
         raw = diff_snapshots(before, after)

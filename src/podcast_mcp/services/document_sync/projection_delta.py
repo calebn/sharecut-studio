@@ -5,6 +5,8 @@ from collections import Counter
 from difflib import SequenceMatcher
 from typing import Any
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 ROOTS = frozenset(
     [
         "project_path",
@@ -82,7 +84,9 @@ MEMBERS = {
 
 def split(view: dict[str, Any]) -> dict[tuple[str, str | None], Any]:
     if set(view) - ROOTS:
-        raise ValueError(f"Unknown projection fields: {set(view) - ROOTS}")
+        raise CodedValueError(
+            f"Unknown projection fields: {set(view) - ROOTS}", code="projection_fields_unknown"
+        )
     sections: dict[tuple[str, str | None], Any] = {}
     for root, value in view.items():
         if root not in GROUPS or value is None:

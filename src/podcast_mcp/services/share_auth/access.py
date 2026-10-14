@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.util.coded_error import CodedValueError
+
 GENERAL_ACCESS_LINK = "link"
 GENERAL_ACCESS_RESTRICTED = "restricted"
 _KNOWN = frozenset({GENERAL_ACCESS_LINK, GENERAL_ACCESS_RESTRICTED})
@@ -12,7 +14,10 @@ _KNOWN = frozenset({GENERAL_ACCESS_LINK, GENERAL_ACCESS_RESTRICTED})
 def normalize_general_access(value: str | None) -> str:
     key = str(value or GENERAL_ACCESS_LINK).strip().lower()
     if key not in _KNOWN:
-        raise ValueError(f"unknown general_access {value!r}; expected link or restricted")
+        raise CodedValueError(
+            f"unknown general_access {value!r}; expected link or restricted",
+            code="general_access_invalid",
+        )
     return key
 
 

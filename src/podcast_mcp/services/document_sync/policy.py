@@ -17,7 +17,7 @@ from podcast_mcp.services.document_sync.capabilities import (
     edit_commands_allowed,
     suggestions_allowed,
 )
-from podcast_mcp.util.coded_error import CodedPermissionError
+from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
 
 # Commands that can create a pending edit; ``_apply`` stamps the submitter's author.
 AUTHORED_COMMANDS: frozenset[str] = frozenset(
@@ -118,4 +118,6 @@ def structural_mode_from_payload(payload: dict) -> StructuralMutationMode:
     try:
         return StructuralMutationMode(str(raw))
     except ValueError as exc:
-        raise ValueError(f"invalid _structural_mode: {raw!r}") from exc
+        raise CodedValueError(
+            f"invalid _structural_mode: {raw!r}", code="structural_mode_invalid"
+        ) from exc
