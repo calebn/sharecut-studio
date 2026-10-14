@@ -161,6 +161,47 @@ def test_edit_service_persists_resized_source_geometry(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("snap", "requested_range"),
+    [(False, (2.1, 2.3)), (True, (0.1, 0.3))],
+)
+def test_edit_service_resize_does_not_retarget_another_source_occurrence(
+    tmp_path: Path, monkeypatch, snap: bool, requested_range: tuple[float, float]
+) -> None:
+    project = _two_take_project()
+    project.meta.workspace_dir = str(tmp_path)
+    project.clips[1].source_end = 1.0
+    project.clips[2].source_start = 2.0
+    project.clips[2].source_end = 3.0
+    project.clips[2].timeline_start = 30.0
+    selected = project.transcript_for_source("host", "B")
+    assert selected is not None
+    selected.words[0].end = 0.3
+    decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
+    assert decision.source_timeline_span is not None
+    assert (
+        decision.source_timeline_span.start,
+        decision.source_timeline_span.end,
+    ) == pytest.approx((10.1, 10.3))
+    if snap:
+        monkeypatch.setattr(
+            "podcast_mcp.edits.decisions.optimize_source_cut_range",
+            lambda *_args, **_kwargs: SimpleNamespace(
+                start=2.1, end=2.3, mode="waveform_only", confidence=0.9
+            ),
+        )
+    path = save_project(project, tmp_path / "episode.project.json")
+    before = path.read_bytes()
+
+    with pytest.raises(ScopeChangedAtApproval):
+        EditService(ProjectWorkspace.open(path)).update_pending(
+            decision.id, start=requested_range[0], end=requested_range[1], snap=snap
+        )
+
+    assert path.read_bytes() == before
+    assert load_project(path).edit_decisions[0] == decision
+
+
 @pytest.mark.parametrize("stale_geometry", ["moved", "duplicate", "uncovered"])
 def test_pending_source_remove_resize_keeps_geometry_holds(stale_geometry: str) -> None:
     project = _two_take_project()
