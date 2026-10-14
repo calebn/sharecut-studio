@@ -366,6 +366,36 @@ def test_host_pending_preview_warm_measures_the_mix_trim_ahead(minimal_project, 
     }
 
 
+def test_background_warm_runs_at_low_priority_and_waits_only_briefly_for_the_lock(
+    minimal_project, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.util import process
+    from podcast_mcp.util.project_state import BACKGROUND_RENDER_LOCK_TIMEOUT_SEC
+
+    seed(minimal_project)
+    seen: list[int] = []
+    monkeypatch.setattr(
+        PlayService,
+        "warm_pending_preview",
+        lambda self, *_a: seen.append(process._niceness.get()) or {},
+    )
+    client = TestClient(create_app())
+    params = {"path": str(minimal_project)}
+    assert client.post("/api/pending-preview/warm", params=params).status_code == 200
+    assert (
+        client.post(
+            "/api/pending-preview/warm", params={**params, "background": "true"}
+        ).status_code
+        == 200
+    )
+    assert seen == [0, 10]
+    assert 0 < BACKGROUND_RENDER_LOCK_TIMEOUT_SEC <= 5
+
+
 def test_host_pending_preview_warm_requires_host(minimal_project, monkeypatch):
     from fastapi.testclient import TestClient
 

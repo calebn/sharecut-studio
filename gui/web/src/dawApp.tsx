@@ -12,6 +12,7 @@ import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
 import { useBladeCut } from "./hooks/useBladeCut";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { useHostSync } from "./hooks/useHostSync";
+import { usePendingMixWarm } from "./hooks/usePendingMixWarm";
 import { usePipelineJob } from "./hooks/usePipelineJob";
 import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
@@ -118,6 +119,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     guestSyncEnabled,
   });
   useAutoRefreshMix(syncEnabled);
+  usePendingMixWarm(syncEnabled);
   usePointerType();
   usePressedControl();
 

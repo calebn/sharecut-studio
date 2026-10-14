@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -47,5 +48,7 @@ def run_parallel(
     if workers <= 1:
         return [fn(item) for item in items]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(fn, item) for item in items]
+        # Each task runs in a copy of the caller's context, so a context-scoped setting
+        # (a lower process priority) reaches the pool's threads.
+        futures = [pool.submit(contextvars.copy_context().run, fn, item) for item in items]
         return [f.result() for f in futures]

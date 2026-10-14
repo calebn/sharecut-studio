@@ -68,7 +68,7 @@ export function PendingPreviewFooter({
   useEffect(() => {
     if (!canPlay) return;
     const timer = setTimeout(
-      () => warmPendingPreview(projectPath, edit.id),
+      () => void warmPendingPreview(projectPath, edit.id),
       1500,
     );
     return () => clearTimeout(timer);

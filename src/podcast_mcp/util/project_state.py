@@ -28,6 +28,8 @@ RENDER_LOCK_TIMEOUT_SEC = 3600.0
 # MCP timeline tools wait this long for the render lock (a cancelled request stops the wait
 # sooner), then RenderBusyError.
 REQUEST_RENDER_LOCK_TIMEOUT_SEC = 30.0
+# The idle pre-measure gives way to any render that holds the lock.
+BACKGROUND_RENDER_LOCK_TIMEOUT_SEC = 2.0
 RENDER_LOCK_POLL_SEC = 0.5
 
 #: Shared across every adapter that maps a busy lock to a structured error (#488): the
