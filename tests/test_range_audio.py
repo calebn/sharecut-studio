@@ -366,7 +366,37 @@ def test_host_pending_preview_warm_measures_the_mix_trim_ahead(minimal_project, 
     }
 
 
-def test_background_warm_runs_at_low_priority_and_does_not_hold_the_render_lock(
+def test_a_preview_the_warm_rendered_is_served_without_a_render_or_the_lock(
+    minimal_project, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.edits.range_edits import edit_selected_range
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.models import save_project
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.util import project_state
+
+    ws, target, _raw = seed(minimal_project)
+    edit_selected_range(
+        ws.project, target, "cut", propose=True, reason="guest:suggest", action_id="proposal"
+    )
+    save_project(ws.project)
+    client = TestClient(create_app())
+    params = {"path": str(minimal_project), "edit_id": "proposal", "mode": "ab"}
+    assert client.get("/api/pending-preview", params=params).status_code == 200  # renders it
+
+    def refuse(*_a, **_k):
+        raise AssertionError("a rendered preview must not render or take the lock again")
+
+    monkeypatch.setattr(PlayService, "play_pending_preview", refuse)
+    monkeypatch.setattr(project_state, "render_lock", refuse)
+    response = client.get("/api/pending-preview", params=params)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "audio/wav"
+
+
+def test_warms_do_not_hold_the_render_lock_and_the_background_one_runs_at_low_priority(
     minimal_project, monkeypatch
 ):
     from fastapi.testclient import TestClient
@@ -376,6 +406,7 @@ def test_background_warm_runs_at_low_priority_and_does_not_hold_the_render_lock(
     from podcast_mcp.util.process import current_niceness
     from podcast_mcp.util.project_state import (
         BACKGROUND_RENDER_LOCK_TIMEOUT_SEC,
+        REQUEST_RENDER_LOCK_TIMEOUT_SEC,
         render_lock_held,
     )
 
@@ -392,7 +423,10 @@ def test_background_warm_runs_at_low_priority_and_does_not_hold_the_render_lock(
     assert client.post("/api/pending-preview/warm", params=params).status_code == 200
     background = {**params, "background": "true"}
     assert client.post("/api/pending-preview/warm", params=background).status_code == 200
-    assert seen == [(0, True, None), (10, False, BACKGROUND_RENDER_LOCK_TIMEOUT_SEC)]
+    assert seen == [
+        (0, False, REQUEST_RENDER_LOCK_TIMEOUT_SEC),
+        (10, False, BACKGROUND_RENDER_LOCK_TIMEOUT_SEC),
+    ]
 
 
 def test_host_pending_preview_warm_requires_host(minimal_project, monkeypatch):
