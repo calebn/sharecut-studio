@@ -6,9 +6,6 @@ participates in application runtime pair selection.
 Explicit commands win, followed by a declared desktop bundle, native Homebrew,
 a complete PATH directory, and the existing source-use cache. Selection runs
 bounded version probes and never downloads tools.
-Successful pair admission is reused within a process only while selectors,
-search precedence, and candidate executable identities remain unchanged; failed
-admission is never cached.
 """
 
 from __future__ import annotations
@@ -85,7 +82,6 @@ def _path_identity(path: Path) -> tuple[object, ...]:
 
 
 def _admission_cache_key(ffmpeg: str | None, ffprobe: str | None) -> tuple[object, ...]:
-    """Fingerprint selectors, search precedence, and candidate binary identities."""
     path_value = environ.get("PATH", os.defpath)
     bundle = environ.get("PODCAST_MCP_FFMPEG_BUNDLE")
     selectors = (
@@ -269,11 +265,6 @@ def resolve_ffmpeg_pair(
     *,
     force_refresh: bool = False,
 ) -> FFmpegPair:
-    """Admit a supported pair once while selectors and binaries stay unchanged.
-
-    ``force_refresh`` performs live version probes even when admission is cached.
-    Only a successful refreshed pair is written to the cache.
-    """
     with _PAIR_CACHE_LOCK:
         key = _admission_cache_key(ffmpeg, ffprobe)
         if not force_refresh:
