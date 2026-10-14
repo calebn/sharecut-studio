@@ -42,6 +42,7 @@ from podcast_mcp.engines.mastering import (
 )
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.mix_spans import quiet_spans
+from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.models import (
     AutomationEnvelope,
     EditDecision,
@@ -400,8 +401,8 @@ class FFmpegEngine:
     ) -> Generator[np.ndarray, None, None]:
         """Decode *path* downmixed to mono at ``sample_rate`` as 1-D float32 chunks.
 
-        The streaming counterpart of ``engines.audio_audit.load_mono_full`` (the same
-        ffmpeg ``-ac 1 -ar`` conversion, so the concatenated chunks equal its array) for
+        The streaming counterpart of ``engines.ungated_audio.load_mono_full`` (the same
+        channel-mean mono downmix, so the concatenated chunks equal its array) for
         callers that must not hold a whole multi-hour track. Chunks are ``chunk_frames``
         long (the last may be shorter). Same process lifetime, watchdog and error
         reporting as :meth:`stream_pcm_f32`; arguments are validated eagerly.
@@ -523,7 +524,11 @@ class FFmpegEngine:
         ]
         seek = MediaSeek.at(start_sec or 0.0)
         argv += [*seek.input_args(), "-i", str(path), *seek.output_args(duration_sec)]
-        argv += ["-f", "f32le", "-ac", str(channels), "-ar", str(sample_rate), "pipe:1"]
+        argv += ["-f", "f32le"]
+        if channels == 1:
+            argv += [*ffmpeg_mono_mean_layout(path), "-ar", str(sample_rate), "pipe:1"]
+        else:
+            argv += ["-ac", str(channels), "-ar", str(sample_rate), "pipe:1"]
         return argv
 
     @staticmethod

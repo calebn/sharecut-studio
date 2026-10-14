@@ -6,6 +6,7 @@ import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.media_probe import probe_media
+from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -57,7 +58,7 @@ def _decode_f32_uncached(
 
 
 def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:
-    return _decode_f32(path, sample_rate, ffmpeg, ["-ac", "1"])
+    return _decode_f32(path, sample_rate, ffmpeg, ffmpeg_mono_mean_layout(path))
 
 
 def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
