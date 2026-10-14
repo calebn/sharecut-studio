@@ -48,8 +48,8 @@ class LaneTranscript:
 
     ``placement_source_id`` is the clips' ``source_id`` (the transcript of implicit
     primary media can stand for an explicit source of the same recording).
-    ``session_time`` moves a source second onto the session clock through the clip that
-    plays it, so words of different recordings and tracks compare in one clock.
+    ``session_span`` moves a word onto the session clock through the clip that plays
+    its start, so words of different recordings and tracks compare in one clock.
     """
 
     transcript: Transcript
@@ -68,19 +68,28 @@ class LaneTranscript:
     def placed(self) -> bool:
         return bool(self.placements)
 
-    def session_time(self, source_sec: float) -> float:
-        """``source_sec`` through the longest clip that plays it.
+    def session_offset(self, source_sec: float) -> float:
+        """The session-clock offset of the longest clip that plays ``source_sec``.
 
         A second played twice (a cold-open teaser and the main take) reads through the
         longer placement; a cut-away second reads through the recording's longest clip.
         With no clips the source clock is the session clock.
         """
         if not self.placements:
-            return source_sec
+            return 0.0
         playing = [
             p for p in self.placements if p.source_start <= source_sec < p.source_end
         ] or self.placements
-        return source_sec + max(playing, key=lambda p: p.length).offset
+        return max(playing, key=lambda p: p.length).offset
+
+    def session_span(self, start: float, end: float) -> tuple[float, float]:
+        """A word on the session clock, both edges through the clip that plays its start.
+
+        One offset for the whole word: a word ending at a cut keeps its length instead
+        of reading its end through the next clip.
+        """
+        offset = self.session_offset(start)
+        return start + offset, end + offset
 
 
 def lane_transcripts(project: EpisodeProject, track_id: str) -> list[LaneTranscript]:
