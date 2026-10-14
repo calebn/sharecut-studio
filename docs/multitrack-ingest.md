@@ -202,6 +202,11 @@ Generic **audio-only** importer for a folder of per-speaker files (Zoom / Rivers
 ```bash
 podcast ingest import "/path/to/export" --out ingest.yaml
 # optional: --speaker audioJohnSmith….m4a="John Smith" --dry-run --json
+# two takes of one mic (a restarted recording): give both files the same label,
+#   --speaker take1.wav="Vicky" --speaker take2.wav="Vicky"
+# and ingest.yaml gets one speaker with both `sources`, in file order. Only
+# explicit --speaker labels merge; labels the scan derives that collide still
+# get a numeric suffix ("Host", "Host 2").
 ```
 
 MCP: `ingest_import_folder_tool`. Then continue with suggest → consolidate → verify (or pipeline `align_tracks`) as below.
