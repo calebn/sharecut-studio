@@ -245,17 +245,26 @@ export function TransportBar({
     </SegmentedControl>
   );
 
-  const refreshHint = mayRefresh
-    ? `Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
-    : null;
+  // The host's mix rebuilds on its own (useAutoRefreshMix); the command stays as "update now".
+  const autoMix = mayRefresh && mayManage;
+  const refreshShortcut = displayShortcutFor("render.refreshMix") ?? "the Menu";
+  const refreshHint = !mayRefresh
+    ? null
+    : autoMix
+      ? `Updates on its own. ${refreshShortcut} updates it now.`
+      : `Click or ${refreshShortcut} to refresh mix.`;
+  const refreshBusyLabel = autoMix ? "Updating mix…" : "Refreshing…";
   const staleTitle = joinSentences([breakdown?.summary, refreshHint]);
   const mixLabel = breakdown?.stale
     ? staleMixLabel(breakdown)
     : MIX_FRESH_LABEL;
-  const mixPillText = mayRefresh ? `${mixLabel} · Refresh` : mixLabel;
+  const mixPillText =
+    mayRefresh && !autoMix ? `${mixLabel} · Refresh` : mixLabel;
   const staleAria = renderPreviewBusy
-    ? "Refreshing mix preview"
-    : `${joinSentences([mixLabel, breakdown?.detail, mayRefresh ? "Refresh mix" : null])}.`;
+    ? autoMix
+      ? "Updating mix"
+      : "Refreshing mix preview"
+    : `${joinSentences([mixLabel, breakdown?.detail, mayRefresh ? (autoMix ? "Updates on its own" : "Refresh mix") : null])}.`;
   const setStaleHighlight = (on: boolean) => {
     setHighlightStaleRender(on);
   };
@@ -595,7 +604,7 @@ export function TransportBar({
               onFocus={() => setStaleHighlight(true)}
               onBlur={() => setStaleHighlight(false)}
             >
-              {renderPreviewBusy ? "Refreshing…" : mixPillText}
+              {renderPreviewBusy ? refreshBusyLabel : mixPillText}
             </CommandMenuItem>
           ) : (
             <p className="transport-menu-note">{mixLabel}</p>
@@ -680,7 +689,7 @@ export function TransportBar({
               }
             }}
           >
-            {renderPreviewBusy ? "Refreshing…" : mixPillText}
+            {renderPreviewBusy ? refreshBusyLabel : mixPillText}
           </CommandButton>
         ) : null}
         {!collapsed && !stale ? <Pill tone="ok">{MIX_FRESH_LABEL}</Pill> : null}

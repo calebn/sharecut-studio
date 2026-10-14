@@ -626,7 +626,26 @@ The vocabulary editor shows the draft Whisper prompt character budget before Sav
 
 **Modes:** Batch (`unattended: true`) waives align and refine when policy allows; Leave-gates keeps those gates — clear via skill/CLI (`podcast align done` / `podcast transcript refine-done`), then resume From step. Ambient agent presence is optional UX only (MCP is pull).
 
-**Mix out of date UX:** Transport **Mix out of date** pill (hover/focus) highlights **cause regions** from `render.invalidations[]` (timeline bands for cuts/clips; header chips + light lane edge for whole-track FX/gain/mute). Premix → Mix audition cue; reconcile → StatusBar **Reconcile**. Host or Docs Editor may **click** the pill or press **Mod+B** (`render.refreshMix`) to rebuild stems/premix (clears per-track invalidations when stems go fresh). The wide-bar pill is one pill for everyone, which keeps the transport within 1280px: **Mix out of date** (hosts and Editors read **· Refresh** after it), or **No mix yet** when nothing is rendered, whether it was never rendered or a failed render left none (the guest wording has no Refresh, since a guest cannot take it); Full mix's tooltip and description add that Full mix is silent until the mix is refreshed; the refresh action is in its tooltip, its accessible name (…“Refresh mix.”), **Mod+B**, and the collapsed Menu's **Mix out of date · Refresh** item. Viewers and Commenters get the same hover highlight only, and their pill's name omits “Refresh mix”. Refresh start/result is announced via a polite StatusBar live region (`statusAnnouncement`). Invalidations are diagnostic (what changed since last fresh stem); stems remain whole-artifact.
+#### Decision: The mix rebuilds itself
+
+<!-- decision
+id: D-mix-rebuilds-itself
+status: accepted
+date: 2026-10-13
+decided-by: calebn
+evidence:
+- #1468 owner, opening a real episode in Studio: "That step should be done automatically each time there is a change that causes it, it should never be waiting for me to click it."
+enforced-by:
+- gui/web/src/hooks/useAutoRefreshMix.test.tsx::rebuilds a mix that an edit left behind, with no click, after the debounce
+- gui/web/src/hooks/useAutoRefreshMix.test.tsx::rebuilds once for a burst of edits
+- gui/web/src/hooks/useAutoRefreshMix.test.tsx::waits for a running rebuild, then rebuilds for the newer change
+- gui/web/src/hooks/useAutoRefreshMix.test.tsx::does not retry a state the rebuild already tried and could not clear
+- gui/web/src/layout/TransportBar.stale.test.tsx::highlights timeline on hover and refreshes on click for host
+-->
+
+Any change that leaves the mix behind (opening a project with no mix, an edit, a gain, mute or FX change, an alignment move) starts a rebuild on its own in the host's Studio (`useAutoRefreshMix`), 1.5 s after the last change, so a burst of edits rebuilds once. It is the same single-flight `render.refreshMix` the manual command runs: it waits for a running rebuild or pipeline slot job, then rebuilds for the newer change, and it does not retry a state it already tried and could not clear. Playback keeps using live per-track audio or the last good mix while it runs, and the transport pill reads **Updating mix…** while it does. A successful automatic rebuild is silent; a failed one announces the failure as the manual command does. **Mod+B** stays as "update now" and is never needed. Docs Editors on a share keep the manual **Refresh** (their host's Studio rebuilds when it is open), and a stale transcript alone does not trigger it.
+
+**Mix out of date UX:** Transport **Mix out of date** pill (hover/focus) highlights **cause regions** from `render.invalidations[]` (timeline bands for cuts/clips; header chips + light lane edge for whole-track FX/gain/mute). Premix → Mix audition cue; reconcile → StatusBar **Reconcile**. Host or Docs Editor may **click** the pill or press **Mod+B** (`render.refreshMix`) to rebuild stems/premix (clears per-track invalidations when stems go fresh). The wide-bar pill is one pill for everyone, which keeps the transport within 1280px: **Mix out of date** (Docs Editors on a share read **· Refresh** after it; the host's mix updates on its own and the pill reads **Updating mix…** while it does), or **No mix yet** when nothing is rendered, whether it was never rendered or a failed render left none (the guest wording has no Refresh, since a guest cannot take it); Full mix's tooltip and description add that Full mix is silent until the mix is refreshed; the refresh action is in its tooltip, its accessible name (…“Refresh mix.”), **Mod+B**, and the collapsed Menu's **Mix out of date · Refresh** item. Viewers and Commenters get the same hover highlight only, and their pill's name omits “Refresh mix”. Refresh start/result is announced via a polite StatusBar live region (`statusAnnouncement`). Invalidations are diagnostic (what changed since last fresh stem); stems remain whole-artifact.
 
 A project with no source media or timeline clips stays **Mix up to date** despite empty-track creation invalidations; it does not show an audio error for the absent premix. The project view includes a non-sensitive `has_source_audio` track flag so guest shares still identify playable media after local media paths are redacted, including when source duration is unknown. Opening a different project resets per-project transport and error state; refreshing the same project preserves it. A refresh started for an earlier project cannot apply its result to the currently open project or clear that project's refresh progress.
 
@@ -932,7 +951,7 @@ transport preview; Bounce captures a detached target with ordinary configuration
 The idle desktop inspector collapses and restores when an inspector object is
 selected. **Edits in removed audio** in the footer opens Impact, where every
 pending item remains selectable. The transport holds the single mix freshness
-cue (**Mix out of date · Refresh** for hosts); the footer retains transcript,
+cue (**Mix out of date**, which hosts never have to click); the footer retains transcript,
 pending, comment and job status. Select/Blade remain visible with disabled reasons.
 
 Exact pending GUI previews use the same rendered pending preview as every other pending edit, preserving each island and the gaps between them. Target comparison ignores JSON object property order from the server while preserving every sealed value and ordered array. The adapter discards prepared audio, and says so inline, if the edit (exact target, or an ordinary edit's bounds), mix, project, or playback permission changes before it arrives, or the edit is approved or rejected meanwhile. Exact pending titles carry Cut/Mute without a duplicate Type fact, keeping the timeline intervals and selected track value above the phone preview footer. Review reasons for guests without `edit` remain readable beside the disabled controls on desktop and phone; pending labels wrap so their full identity and status stay visible. Exact proposal review controls are enabled for the host and `edit` guests and remain visible with a disabled reason for other guests; source timing and snap controls are absent. Applied exact Cut/Mute ticks retain every recorded timeline edge, including holes and repeated-source occurrences, rather than falling back to the first matching source clock.

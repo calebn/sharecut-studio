@@ -8,6 +8,7 @@ import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { AskDialog } from "./feedback/AskDialog";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpDialog } from "./home/HelpDialog";
+import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
 import { useBladeCut } from "./hooks/useBladeCut";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { useHostSync } from "./hooks/useHostSync";
@@ -116,6 +117,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     hostSyncEnabled: syncEnabled,
     guestSyncEnabled,
   });
+  useAutoRefreshMix(syncEnabled);
   usePointerType();
   usePressedControl();
 

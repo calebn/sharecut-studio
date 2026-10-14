@@ -757,10 +757,10 @@ describe("TransportBar wide layout", () => {
       useDawStore.getState().setAudioError(NO_PREVIEW_ERROR);
     });
     const pill = screen.getByRole("button", {
-      name: "No mix yet. Refresh mix.",
+      name: "No mix yet. Updates on its own.",
     });
-    expect(pill).toHaveTextContent(/^No mix yet · Refresh$/);
-    expect(screen.queryByText("Mix out of date · Refresh")).toBeNull();
+    expect(pill).toHaveTextContent(/^No mix yet$/);
+    expect(screen.queryByText("Mix out of date")).toBeNull();
     expect(document.querySelector(".audio-error")).toBeNull();
     expect(container.querySelectorAll(".pill")).toHaveLength(1);
     expect(fullMix()).toHaveAttribute(
@@ -773,9 +773,7 @@ describe("TransportBar wide layout", () => {
     expect(
       screen.getByText("Full mix is silent until you refresh the mix."),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("menuitem", { name: "No mix yet · Refresh" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "No mix yet" })).toBeTruthy();
   });
 
   it("tells a guest there is no mix without offering a refresh", async () => {
