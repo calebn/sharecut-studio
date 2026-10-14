@@ -632,7 +632,9 @@ describe("MobileShell", () => {
     await user.click(screen.getByRole("button", { name: "More" }));
     await user.click(screen.getByRole("button", { name: "Impact" }));
     await user.click(
-      screen.getByRole("button", { name: "guest:suggest · host" }),
+      screen.getByRole("button", {
+        name: /host's cut at 0:01.0 · Suggested by guest/i,
+      }),
     );
 
     expect(useDawStore.getState().selection).toEqual({
