@@ -268,6 +268,11 @@ export type OfflineAttentionData = {
   conflicts: OfflineConflict[];
 };
 
+export type DismissalResult = {
+  pending: number;
+  conflicts: OfflineConflict[];
+};
+
 function readOfflineAttention(
   queueKeyValue: string,
   conflictKeyValue: string,
@@ -733,7 +738,8 @@ function dismissOfflineOutcomes(
   queueKeyValue: string,
   conflictKeyValue: string,
   captured: readonly OfflineConflict[],
-): Promise<void> {
+  countPending: boolean,
+): Promise<DismissalResult> {
   const identities = new Set(captured.map(outcomeIdentity));
   return openDb().then(
     (db) =>
@@ -744,6 +750,7 @@ function dismissOfflineOutcomes(
         const conflictRequest = store.get(conflictKeyValue);
         let queue: QueuedCommand[] | undefined;
         let conflicts: OfflineConflict[] | undefined;
+        let result: DismissalResult | undefined;
         let written = false;
         const write = () => {
           if (written || queue === undefined || conflicts === undefined) return;
@@ -783,6 +790,10 @@ function dismissOfflineOutcomes(
             );
             return !capturedRefusal;
           });
+          result = {
+            pending: countPending ? nextQueue.length : 0,
+            conflicts: nextConflicts,
+          };
           try {
             store.put(parseCommandList(nextQueue), queueKeyValue);
             store.put(parseConflictList(nextConflicts), conflictKeyValue);
@@ -811,7 +822,11 @@ function dismissOfflineOutcomes(
         };
         tx.oncomplete = () => {
           db.close();
-          resolve();
+          if (result === undefined) {
+            reject(new Error("Dismissal completed without a snapshot"));
+          } else {
+            resolve(result);
+          }
         };
         tx.onabort = () => {
           db.close();
@@ -828,18 +843,24 @@ function dismissOfflineOutcomes(
 export function dismissConflicts(
   token: string,
   captured: readonly OfflineConflict[],
-): Promise<void> {
-  return dismissOfflineOutcomes(queueKey(token), conflictKey(token), captured);
+): Promise<DismissalResult> {
+  return dismissOfflineOutcomes(
+    queueKey(token),
+    conflictKey(token),
+    captured,
+    false,
+  );
 }
 
 export function dismissHostConflicts(
   projectPath: string,
   captured: readonly OfflineConflict[],
-): Promise<void> {
+): Promise<DismissalResult> {
   return dismissOfflineOutcomes(
     hostQueueKey(projectPath),
     hostConflictKey(projectPath),
     captured,
+    true,
   );
 }
 

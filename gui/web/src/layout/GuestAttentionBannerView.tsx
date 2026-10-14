@@ -13,6 +13,7 @@ export interface GuestAttentionBannerViewProps {
   /** Count of host edits queued but not yet applied. */
   pending: number;
   conflicts: readonly OfflineConflict[];
+  canDismiss?: boolean;
   guest?: boolean;
   unreadable?: boolean;
   dismissFailed?: boolean;
@@ -30,6 +31,7 @@ export interface GuestAttentionBannerViewProps {
 export function GuestAttentionBannerView({
   pending,
   conflicts,
+  canDismiss = true,
   guest = false,
   onDismissAll,
   onSendNow,
@@ -83,7 +85,7 @@ export function GuestAttentionBannerView({
             )}
           </span>
         ) : null}
-        {conflicts.length > 0 && (
+        {conflicts.length > 0 && canDismiss && (
           <button
             type="button"
             className="guest-attention-dismiss"
