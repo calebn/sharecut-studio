@@ -49,3 +49,18 @@ def test_held_labels_name_the_cut_where_the_list_shows_it(tmp_path):
     EditService(ws).approve(["held", "ok-a", "ok-b"], held_out=held)
     assert [h.edit_id for h in held] == ["held"]
     assert held[0].label == "Host's cut at 0:01.2"
+
+
+def test_a_cut_beside_a_held_one_refuses_the_batch_as_before(tmp_path):
+    # ok-near sits next to the held cut, so it may have cleared speech on the
+    # assumption that the held one removes it; nothing may apply on a guess.
+    project = _project(tmp_path)
+    _hole(project)
+    project.edit_decisions = [_cut("ok-near", 1.7, 2.0), _cut("held", 1.2, 1.6)]
+    mark_refine_done(project, notes="Known synthetic transcript fixture; no real-project test")
+    ws = ProjectWorkspace.open(save_project(project))
+    before = ws.path.read_bytes()
+    held: list = []
+    with pytest.raises(ScopeChangedAtApproval):
+        EditService(ws).approve(["ok-near", "held"], held_out=held)
+    assert ws.path.read_bytes() == before
