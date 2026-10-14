@@ -539,15 +539,13 @@ class FFmpegEngine:
         expected_duration_sec: float | None = None,
     ) -> Generator[np.ndarray, None, None]:
         if expected_duration_sec is not None:
-            argv = [
-                argv[0],
-                "-progress",
-                "pipe:2",
-                *argv[1:-1],
-                "-af",
-                "asetpts=PTS-STARTPTS",
-                argv[-1],
-            ]
+            body = list(argv[1:-1])
+            try:
+                af_idx = body.index("-af")
+                body[af_idx + 1] = f"{body[af_idx + 1]},asetpts=PTS-STARTPTS"
+            except ValueError:
+                body += ["-af", "asetpts=PTS-STARTPTS"]
+            argv = [argv[0], "-progress", "pipe:2", *body, argv[-1]]
         with tempfile.TemporaryFile() as err:
             proc = popen(argv, stdout=PIPE, stderr=err)
             timed_out = threading.Event()
