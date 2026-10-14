@@ -59,6 +59,11 @@ def make_rule(
     ("pattern", "path", "expected"),
     [
         ("ux/pages/", "ux/pages/a/b.md", True),
+        ("src/podcast_mcp/cli/", "src/podcast_mcp/clips/ops.py", False),
+        ("src/podcast_mcp/cli/", "src/podcast_mcp/cli/commands.py", True),
+        ("src/podcast_mcp/cli/", "src/podcast_mcp/cli", False),
+        ("src/podcast_mcp/cli", "src/podcast_mcp/cli", True),
+        ("src/podcast_mcp/cli", "src/podcast_mcp/cli/commands.py", False),
         ("gui/web/src/*.ts", "gui/web/src/a/b.ts", False),
         ("**/*.test.*", "StatusBar.test.tsx", True),
         ("**/*.test.*", "gui/web/src/layout/StatusBar.test.tsx", True),
