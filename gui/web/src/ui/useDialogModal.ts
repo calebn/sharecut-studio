@@ -121,7 +121,8 @@ export function useDialogModal({
         mode === "sheet" &&
         active instanceof HTMLElement &&
         panel.contains(active) &&
-        isValidFocusTarget(active)
+        isValidFocusTarget(active) &&
+        active.closest(".pending-actionbar-host, .pending-actionbar")
       ) {
         return;
       }

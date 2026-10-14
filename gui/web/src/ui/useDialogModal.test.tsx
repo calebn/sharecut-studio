@@ -8,6 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import {
   type RefObject,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -766,6 +767,69 @@ describe("useDialogModal unfocusable return target", () => {
       expect(document.activeElement).not.toBe(badge);
     },
   );
+});
+
+describe("useDialogModal new sheet Close vs deferred entry", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("takes Close after deferred in-panel first entry", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.set(++nextFrame, callback);
+      return nextFrame;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+      frames.delete(id);
+    });
+    function DeferredEntry() {
+      const addRef = useRef<HTMLButtonElement>(null);
+      useEffect(() => {
+        const previous = document.activeElement;
+        const id = requestAnimationFrame(() => {
+          const active = document.activeElement;
+          if (active !== previous && active !== document.body) return;
+          addRef.current?.focus();
+        });
+        return () => cancelAnimationFrame(id);
+      }, []);
+      return (
+        <button ref={addRef} type="button">
+          Add point
+        </button>
+      );
+    }
+    function Sheet() {
+      const panelRef = useRef<HTMLDivElement>(null);
+      const closeRef = useRef<HTMLButtonElement>(null);
+      useDialogModal({
+        open: true,
+        onClose: vi.fn(),
+        panelRef,
+        initialFocusRef: closeRef,
+        mode: "sheet",
+      });
+      return (
+        <div ref={panelRef} role="dialog" aria-label="Inspector">
+          <button ref={closeRef} type="button">
+            Close ordinary sheet
+          </button>
+          <DeferredEntry />
+        </div>
+      );
+    }
+    render(<Sheet />);
+    const pending = [...frames.values()];
+    frames.clear();
+    act(() => {
+      for (const frame of pending) frame(0);
+    });
+    expect(
+      screen.getByRole("button", { name: "Close ordinary sheet" }),
+    ).toHaveFocus();
+  });
 });
 
 describe("useDialogModal remount close restore", () => {
