@@ -396,9 +396,7 @@ def test_a_preview_the_warm_rendered_is_served_without_a_render_or_the_lock(
     assert response.headers["content-type"] == "audio/wav"
 
 
-def test_warms_do_not_hold_the_render_lock_and_run_at_low_priority(
-    minimal_project, monkeypatch
-):
+def test_warms_do_not_hold_the_render_lock_and_run_at_low_priority(minimal_project, monkeypatch):
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
