@@ -4,6 +4,7 @@ import { canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import { mixRebuildKey } from "../utils/staleRender";
+import { autoMixPaused } from "./autoMixPref";
 import { useStaleRenderBreakdown } from "./useStaleRenderBreakdown";
 
 /** Quiet time after the last change before the mix rebuilds, so a burst of edits rebuilds once. */
@@ -42,7 +43,7 @@ export function useAutoRefreshMix(enabled: boolean): void {
       attempted.current = null;
       return;
     }
-    if (!allowed || renderBusy || slotBusy) {
+    if (!allowed || renderBusy || slotBusy || autoMixPaused()) {
       return;
     }
     const last = attempted.current;
