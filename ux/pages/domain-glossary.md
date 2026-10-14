@@ -101,6 +101,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Mix-minus** | Monitor plays remotes only (shipped) | Web Audio speaker bus + WebRTC mesh | Record lobby / live room |
 | **Consent gate** | Per-person step before any full-quality recording audio is written (shipped) | `record_snapshot` in `sync.db` | Record lobby |
 | **Take** | One Start→Stop; lands sequentially | `takes[]` in record snapshot | Record room; timeline after landing |
+| **Lane recording** | A second clip on a dialogue lane from another file. Its words live in that recording's transcript (`source_id`); captions, search, cut-by-utterance, and Studio word commands address that take, not the first clip on the lane | `transcripts[].source_id`, `clips[].source_id`, `edit_decisions[].recording_scope` | Transcript chips; captions; cut utterance |
 | **Pause** | Host stops the recording clock; monitor stays live; paused time collapses | `pauses[]` in record snapshot | Record room (PAUSED) |
 | **Producer** | Joins to listen and comment; not recorded | record role `producer`; "Not recorded" roster group | Record room roster |
 | **Live marker (comment)** | Comment added during recording (`M` → `body` `"Marker"`); not a chapter marker | session sync until landing → `review.comments[]` | Record room; then Listen / Comments; stored with its record command in one step, so a failed marker never half-applies |
