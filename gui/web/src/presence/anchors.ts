@@ -25,7 +25,6 @@ export function presenceAnchor(
   return [kind, ...clean].join(":").slice(0, 96);
 }
 
-/** Compact stable identity for a transcript word, including its take. */
 export function transcriptWordPresenceAnchor(
   trackId: string,
   sourceId: string | null,

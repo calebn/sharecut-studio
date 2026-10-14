@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.edits.decisions import approve_edits
+from podcast_mcp.edits.pending_preview import _timeline_span
 from podcast_mcp.edits.transcript_cuts import cut_text_match, cut_words, search_transcript
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.export.transcript import combined_transcript_markdown
@@ -105,11 +106,15 @@ def test_pending_cut_projection_uses_selected_placement_and_marks_stale() -> Non
 
     assert row["mappable"] is True
     assert row["timeline_spans"] == [{"start": 10.1, "end": 10.4}]
+    assert row["source_start_timeline"] == pytest.approx(10.1)
+    assert _timeline_span(project, decision) == (10.1, 10.4, True)
 
     project.clips[1].timeline_start = 11.0
     stale = map_pending_edits_to_timeline(project, [decision])[0]
 
     assert stale["mappable"] is False
+    assert stale["timeline_spans"] == []
+    assert _timeline_span(project, decision) == (0.0, 0.0, False)
 
 
 def test_combined_markdown_uses_each_take_placement_and_drops_unplaced_or_suppressed_words() -> (
@@ -152,6 +157,7 @@ def test_source_cut_absorbs_trailing_silence_using_selected_source_profile(monke
         lambda _path, _start, end, **_kwargs: (end, False),
     )
     monkeypatch.setattr(inaudible_cuts, "file_level_profile", lambda _path: selected_profile)
+    monkeypatch.setattr(inaudible_cuts, "_next_word_start_at_or_after", lambda *_args: 1.6)
     monkeypatch.setattr(
         inaudible_cuts,
         "track_level_profile",
@@ -175,5 +181,5 @@ def test_source_cut_absorbs_trailing_silence_using_selected_source_profile(monke
     )
 
     assert thresholds == [selected_profile.voice_floor_db - 3.0]
-    assert result.end == pytest.approx(1.1)
+    assert result.end == pytest.approx(1.2)
     assert result.details["absorb_trailing_silence"] is True

@@ -587,6 +587,7 @@ def test_play_transcript_query_removed_timeline_mcp(tmp_path):
     path = mcp_server.episode_create(str(ws))
     match = TranscriptMatch(
         track_id="host",
+        source_id=None,
         start=1.0,
         end=2.0,
         text="gone",

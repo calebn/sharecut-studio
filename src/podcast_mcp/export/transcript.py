@@ -94,14 +94,24 @@ def _timeline_utterances(project: EpisodeProject) -> list[_TimelineUtterance]:
     combined = ensure_combined_transcript(project)
     st = SessionTimeline(project)
     out: list[_TimelineUtterance] = []
-    by_track: dict[str, list[tuple[SourceSec, SourceSec]]] = {}
     for u in combined.utterances:
-        by_track.setdefault(u.track_id, []).append((SourceSec(u.start), SourceSec(u.end)))
-    mapped = {
-        track_id: iter(st.map_source_spans(track_id, spans)) for track_id, spans in by_track.items()
-    }
-    for u in combined.utterances:
-        spans = next(mapped[u.track_id])
+        transcript = project.transcript_for_source(u.track_id, u.source_id)
+        lane_clips = [clip for clip in project.clips if clip_plays_lane(project, clip, u.track_id)]
+        if not lane_clips and u.source_id is None:
+            spans = st.map_source_span(u.track_id, SourceSec(u.start), SourceSec(u.end))
+        else:
+            placements = {
+                clip.source_id
+                for clip in lane_clips
+                if transcript is not None
+                and (
+                    project.transcript_for_source(u.track_id, clip.source_id) is transcript
+                    or (transcript is None and u.source_id is None and clip.source_id is None)
+                )
+            }
+            spans = st.map_placements_source_span(
+                u.track_id, placements, SourceSec(u.start), SourceSec(u.end)
+            )
         if not spans:
             continue
         out.append(

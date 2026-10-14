@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from podcast_mcp.edits.timeline_span import map_source_span_fields
+from podcast_mcp.edits.timeline_span import map_source_span_fields, source_remove_timeline_spans
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EditDecisionType, EpisodeProject
 from podcast_mcp.util.coded_error import CodedKeyError
@@ -48,6 +48,15 @@ def _timeline_span(project: EpisodeProject, edit: EditDecision) -> tuple[float, 
         start = float(edit.start)
         end = float(edit.end)
         return start, end, True
+    if (
+        type_val == EditDecisionType.REMOVE.value
+        and edit.timebase == "source"
+        and (edit.source_id is not None or edit.source_timeline_span is not None)
+    ):
+        spans = source_remove_timeline_spans(project, edit)
+        if spans is None:
+            return 0.0, 0.0, False
+        return spans[0]["start"], spans[-1]["end"], True
     timeline = SessionTimeline(project)
     mappable, _spans, mapped_start, mapped_end = map_source_span_fields(
         timeline, edit.track_id, edit.start, edit.end

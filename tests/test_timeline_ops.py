@@ -424,7 +424,7 @@ def test_move_resolve_falls_back_to_search_and_rejects_unmapped() -> None:
         _resolve_move_match(p, "zzznomatchzzz", label="source")
     with pytest.raises(ValueError, match="removed timeline"):
         _tightest_timeline_match(
-            [TranscriptMatch(track_id="host", start=0.0, end=1.0, text="x")],
+            [TranscriptMatch(track_id="host", source_id=None, start=0.0, end=1.0, text="x")],
             label="source",
             query="x",
         )
