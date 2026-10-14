@@ -267,7 +267,8 @@ focused action, including when a peer edit removes it. `ui/modalGate` keeps a
 modal above every non-modal, and ranks remount-stable peek sheets below later
 non-modals (JoinPopover), so a sheet opened or remounted behind a modal or
 popover takes neither Escape nor entry focus; it takes entry focus when the
-inner overlay closes without a usable return target. The keymap skips Escape
+inner overlay closes without a usable return target. A remounted inspector
+does not steal focus from a docked waiver field. The keymap skips Escape
 commands while any overlay is open (`hasOpenOverlay()` skips
 `edit.clearSelection`). Clip Inspector fade Escape stops propagation and
 cancels the fade preview, so the sheet stays open. `Toast` re-reads

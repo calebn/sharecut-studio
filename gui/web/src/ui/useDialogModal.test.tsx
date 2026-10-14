@@ -6,7 +6,13 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type RefObject, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { flushSync } from "react-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -764,6 +770,82 @@ describe("useDialogModal unfocusable return target", () => {
 
 describe("useDialogModal remount close restore", () => {
   const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+
+  it("keeps waiver-draft focus when a keyed inspector remounts under a docked actionbar", async () => {
+    let api = { remount: () => undefined as void };
+    function App() {
+      const [generation, setGeneration] = useState(0);
+      const hostRef = useRef<HTMLDivElement | null>(null);
+      const lastFocusRef = useRef<HTMLElement | null>(null);
+      if (hostRef.current == null) {
+        const host = document.createElement("div");
+        host.className = "pending-actionbar";
+        const reason = document.createElement("textarea");
+        reason.setAttribute("aria-label", "Waiver reason");
+        reason.value = "Reviewed every flagged transcript word";
+        host.append(reason);
+        hostRef.current = host;
+      }
+      api = { remount: () => setGeneration((n) => n + 1) };
+      useLayoutEffect(() => {
+        const host = hostRef.current;
+        if (!host) return;
+        const remember = (event: FocusEvent) => {
+          if (
+            event.target instanceof HTMLElement &&
+            host.contains(event.target)
+          ) {
+            lastFocusRef.current = event.target;
+          }
+        };
+        host.addEventListener("focusin", remember);
+        return () => host.removeEventListener("focusin", remember);
+      }, []);
+      useLayoutEffect(() => {
+        const host = hostRef.current;
+        const chrome = document.querySelector<HTMLElement>(
+          ".bottom-sheet-chrome",
+        );
+        if (!host || !chrome || host.parentElement === chrome) return;
+        const active = document.activeElement;
+        const focusedInHost =
+          active instanceof HTMLElement && host.contains(active)
+            ? active
+            : null;
+        const remembered =
+          lastFocusRef.current && host.contains(lastFocusRef.current)
+            ? lastFocusRef.current
+            : null;
+        chrome.append(host);
+        const restore = focusedInHost ?? remembered;
+        if (restore?.isConnected) restore.focus({ preventScroll: true });
+      });
+      useLayoutEffect(() => () => hostRef.current?.remove(), []);
+      return (
+        <>
+          <button type="button">Timeline control</button>
+          <BottomSheet
+            key={generation}
+            open
+            onClose={() => undefined}
+            backgroundPolicy="interactive"
+            title="Inspector"
+          >
+            <button type="button">Inspector field</button>
+          </BottomSheet>
+        </>
+      );
+    }
+    render(<App />);
+    await settle();
+    const reason = screen.getByRole("textbox", { name: "Waiver reason" });
+    act(() => reason.focus());
+    act(() => api.remount());
+    await settle();
+    const moved = screen.getByRole("textbox", { name: "Waiver reason" });
+    expect(moved).toHaveValue("Reviewed every flagged transcript word");
+    expect(moved).toHaveFocus();
+  });
 
   it("returns focus to the timeline control when a sheet remounts closed", async () => {
     let api = {

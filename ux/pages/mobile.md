@@ -108,7 +108,9 @@ Use Close or Escape to dismiss an inspector sheet. Closing the inspector
 clears that clip selection. While the sheet is open, Escape does not also
 run the timeline's clear-selection shortcut. If a join popover is open,
 Escape closes that popover first, even if the inspector sheet remounts
-behind it.
+behind it. A compact-to-regular inspector remount keeps a waiver reason
+field focused.
+
 Tap outside a confirmation sheet to dismiss it. Audition modes and export
 controls are in the compact transport Menu on Timeline, Text, or More.
 

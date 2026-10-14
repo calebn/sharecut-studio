@@ -341,7 +341,8 @@ selection reaches this tab (see [session-sync.md](session-sync.md) § Transport 
 or remounted behind an open modal or a later non-modal (JoinPopover) stays
 below it in `ui/modalGate`: the inner overlay keeps Escape and entry focus,
 and when it closes without a usable return target the sheet's Close takes
-focus. Restore skips a disabled, inert, or hidden return target. The keymap
+focus. Restore skips a disabled, inert, or hidden return target. A remounted
+inspector does not steal focus from a docked waiver field. The keymap
 does not run Escape commands while any overlay is open (`hasOpenOverlay()`
 skips `edit.clearSelection`). Clip Inspector fade Escape stops
 propagation and cancels the fade preview, so the sheet stays open. A host move that detaches a focused
