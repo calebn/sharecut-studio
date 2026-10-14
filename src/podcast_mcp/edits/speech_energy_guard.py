@@ -606,9 +606,10 @@ def _peer_voice_in_span(
     if reach == math.inf:
         return False
     if reach == -math.inf:
-        reach = _session_voice_reach_db(project, peer_track_id, caches)
-        if reach is None:
+        session_reach = _session_voice_reach_db(project, peer_track_id, caches)
+        if session_reach is None:
             return None
+        reach = session_reach
     return bool((levels >= reach).any())
 
 
@@ -623,9 +624,10 @@ def _peer_voice_in_mean(
     if reach == math.inf:
         return False
     if reach == -math.inf:
-        reach = _session_voice_reach_db(project, peer_track_id, caches)
-        if reach is None:
+        session_reach = _session_voice_reach_db(project, peer_track_id, caches)
+        if session_reach is None:
             return None
+        reach = session_reach
     return rms >= reach
 
 
