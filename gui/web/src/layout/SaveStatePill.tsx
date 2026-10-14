@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { isShareProjectKey } from "../shareMode";
 import {
   documentActivityBusy,
@@ -12,11 +12,7 @@ import {
 import { useDaw } from "../state/useDaw";
 import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { SaveStatePillView } from "./SaveStatePillView";
-import {
-  type SaveState,
-  saveStateAnnouncement,
-  saveStateOf,
-} from "./saveState";
+import { type SaveState, saveStateOf } from "./saveState";
 
 const isRoutine = (state: SaveState) =>
   state.kind === "saving" || state.kind === "saved";
@@ -32,10 +28,7 @@ export function SaveStatePill({
   /** Show only a save that needs the host, so the row adds no height while all is well. */
   quietWhenRoutine?: boolean;
 }) {
-  const { projectPath, announceStatus } = useDaw((s) => ({
-    projectPath: s.projectPath,
-    announceStatus: s.announceStatus,
-  }));
+  const projectPath = useDaw((s) => s.projectPath);
   const guest = isShareProjectKey(projectPath);
   const busy = useSyncExternalStore(subscribeDocumentActivity, () =>
     documentActivityBusy(projectPath),
@@ -55,13 +48,6 @@ export function SaveStatePill({
             attention.status === "retrying",
           loaded: attention.loaded,
         });
-
-  const previous = useRef<SaveState | null>(null);
-  useEffect(() => {
-    const line = saveStateAnnouncement(previous.current, state);
-    previous.current = state;
-    if (line) announceStatus(line, { toast: false });
-  });
 
   if (!state || (quietWhenRoutine && isRoutine(state))) return null;
   return (

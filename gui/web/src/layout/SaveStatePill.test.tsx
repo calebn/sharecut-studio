@@ -122,18 +122,6 @@ describe("SaveStatePill", () => {
     expect(screen.getByText("Saved to project")).toBeInTheDocument();
   });
 
-  it("speaks a problem and its recovery, not routine saves", async () => {
-    offlineStore.loadHostCommandCount.mockResolvedValue(1);
-    render(<SaveStatePill />);
-    await settle();
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Not saved yet · 1 waiting to send",
-    );
-    offlineStore.loadHostCommandCount.mockResolvedValue(0);
-    await settle(2000);
-    expect(useDawStore.getState().statusAnnouncement).toBe("Saved to project");
-  });
-
   it("shows nothing to a share guest and reads no host queue", async () => {
     useDawStore.getState().hydrate("share:tok-1448", minimalProject(), null);
     const { container } = render(<SaveStatePill />);

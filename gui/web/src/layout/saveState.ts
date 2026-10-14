@@ -68,19 +68,3 @@ export function saveStateText(state: SaveState): string {
         : SAVE_PILL_COPY.unreadable;
   }
 }
-
-/**
- * What a screen reader hears when the state changes. Routine saving and saved
- * stay silent; a problem is spoken, and so is the recovery from one.
- */
-export function saveStateAnnouncement(
-  previous: SaveState | null,
-  next: SaveState | null,
-): string {
-  if (!next || previous?.kind === next.kind) return "";
-  if (next.kind === "waiting" || next.kind === "failed") {
-    return saveStateText(next);
-  }
-  const troubled = previous?.kind === "waiting" || previous?.kind === "failed";
-  return troubled && next.kind === "saved" ? SAVE_PILL_COPY.saved : "";
-}
