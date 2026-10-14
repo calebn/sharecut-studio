@@ -17,7 +17,6 @@ import { isValidFocusTarget } from "./focusTarget";
 /** How long a toast stays up while not hovered or focused. */
 export const TOAST_MS = 8000;
 
-/** Undo must stay reachable longer than a plain status toast. */
 export const TOAST_UNDO_MS = 60_000;
 
 function subscribeToFocus(notify: () => void): () => void {

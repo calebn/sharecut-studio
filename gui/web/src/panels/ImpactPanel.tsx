@@ -52,7 +52,6 @@ export function ImpactPanel() {
     useQueuedReviewNotice(projectPath);
   const appliedRecords = project?.applied_edits.records;
   const clipsByTrack = project?.clips.tracks;
-  // One projection pass per document change, not per render (records × tracks × clips).
   const onTimelineIds = useMemo(() => {
     const ids = new Set<string>();
     if (!appliedRecords || !clipsByTrack) {
@@ -104,14 +103,7 @@ export function ImpactPanel() {
     await run(async () => {
       const outcome =
         action === "approve"
-          ? await approveEdits(
-              projectPath,
-              ids,
-              false,
-              true,
-              review,
-              true,
-            )
+          ? await approveEdits(projectPath, ids, false, true, review, true)
           : await rejectEdits(projectPath, ids);
       const { queued } = outcome;
       setQueued(queued);
