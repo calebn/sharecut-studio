@@ -23,10 +23,19 @@ export interface QueueAdmission {
   hadPredecessor: boolean;
 }
 
-export interface OfflineConflict {
-  command: QueuedCommand;
-  reason: string;
-}
+export type OfflineConflict =
+  | {
+      command: QueuedCommand;
+      kind: "refused";
+      reason: string;
+      recovery: "edit-and-resubmit";
+    }
+  | {
+      command: QueuedCommand;
+      kind: "unknown";
+      reason: string;
+      recovery: "retry-same-command" | "inspect-history";
+    };
 
 /** Persisted guest snapshot for offline reload (project + optional proxy manifest). */
 export interface OfflineSnapshot {
@@ -211,11 +220,151 @@ function parseConflictList(value: unknown): OfflineConflict[] {
     if (!isRecord(conflict) || typeof conflict.reason !== "string") {
       throw new Error("Invalid saved conflict");
     }
-    return {
-      command: parseQueuedCommand(conflict.command),
-      reason: conflict.reason,
-    };
+    const command = parseQueuedCommand(conflict.command);
+    const kind = conflict.kind ?? "refused";
+    if (kind === "refused") {
+      const recovery = conflict.recovery ?? "edit-and-resubmit";
+      if (recovery !== "edit-and-resubmit") {
+        throw new Error("Invalid saved conflict outcome");
+      }
+      return {
+        command,
+        reason: conflict.reason,
+        kind,
+        recovery,
+      };
+    }
+    if (kind === "unknown") {
+      const recovery = conflict.recovery ?? "inspect-history";
+      if (recovery !== "retry-same-command" && recovery !== "inspect-history") {
+        throw new Error("Invalid saved conflict outcome");
+      }
+      return {
+        command,
+        reason: conflict.reason,
+        kind,
+        recovery,
+      };
+    }
+    throw new Error("Invalid saved conflict outcome");
   });
+}
+
+export type OfflineAttentionData = {
+  pending: number;
+  conflicts: OfflineConflict[];
+};
+
+function readOfflineAttention(
+  queueKeyValue: string,
+  conflictKeyValue: string,
+  countPending: boolean,
+): Promise<OfflineAttentionData> {
+  const dbPromise = openDb();
+  return dbPromise.then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, "readonly");
+        const store = tx.objectStore(STORE);
+        const queueRequest = store.get(queueKeyValue);
+        const conflictRequest = store.get(conflictKeyValue);
+        let queue: QueuedCommand[] | undefined;
+        let conflicts: OfflineConflict[] | undefined;
+        const finish = () => {
+          if (queue === undefined || conflicts === undefined) return;
+          resolve({ pending: countPending ? queue.length : 0, conflicts });
+        };
+        queueRequest.onsuccess = () => {
+          try {
+            queue = parseCommandList(queueRequest.result);
+            finish();
+          } catch (error) {
+            reject(error);
+          }
+        };
+        conflictRequest.onsuccess = () => {
+          try {
+            conflicts = parseConflictList(conflictRequest.result);
+            finish();
+          } catch (error) {
+            reject(error);
+          }
+        };
+        tx.oncomplete = () => db.close();
+        tx.onabort = () => {
+          db.close();
+          reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+        };
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
+        };
+      }),
+  );
+}
+
+function settleOfflineOutcome(
+  queueKeyValue: string,
+  conflictKeyValue: string,
+  commandId: string,
+  outcome: OfflineConflict | null,
+  removeFromQueue: boolean,
+): Promise<void> {
+  return openDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, "readwrite");
+        const store = tx.objectStore(STORE);
+        const queueRequest = store.get(queueKeyValue);
+        const conflictRequest = store.get(conflictKeyValue);
+        let queue: QueuedCommand[] | undefined;
+        let conflicts: OfflineConflict[] | undefined;
+        let written = false;
+        const write = () => {
+          if (written || queue === undefined || conflicts === undefined) return;
+          written = true;
+          const nextQueue = removeFromQueue
+            ? queue.filter((command) => command.command_id !== commandId)
+            : queue;
+          const nextConflicts = conflicts.filter(
+            (conflict) => conflict.command.command_id !== commandId,
+          );
+          if (outcome) nextConflicts.push(outcome);
+          store.put(parseCommandList(nextQueue), queueKeyValue);
+          store.put(parseConflictList(nextConflicts), conflictKeyValue);
+        };
+        queueRequest.onsuccess = () => {
+          try {
+            queue = parseCommandList(queueRequest.result);
+            write();
+          } catch (error) {
+            reject(error);
+            tx.abort();
+          }
+        };
+        conflictRequest.onsuccess = () => {
+          try {
+            conflicts = parseConflictList(conflictRequest.result);
+            write();
+          } catch (error) {
+            reject(error);
+            tx.abort();
+          }
+        };
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onabort = () => {
+          db.close();
+          reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+        };
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
+        };
+      }),
+  );
 }
 
 async function updateStoredList<Item, Result>(
@@ -539,6 +688,58 @@ export function addHostConflict(
   conflict: OfflineConflict,
 ): Promise<void> {
   return addToConflictList(hostConflictKey(projectPath), conflict);
+}
+
+/** Read the host queue and outcomes from one IndexedDB snapshot. */
+export function loadHostAttention(
+  projectPath: string,
+): Promise<OfflineAttentionData> {
+  return readOfflineAttention(
+    hostQueueKey(projectPath),
+    hostConflictKey(projectPath),
+    true,
+  );
+}
+
+/** Read a guest's outcomes from the same snapshot as its queue. */
+export function loadGuestAttention(
+  token: string,
+): Promise<OfflineAttentionData> {
+  return readOfflineAttention(queueKey(token), conflictKey(token), false);
+}
+
+/** Atomically settle a host send and retain or remove its attention outcome. */
+export function settleHostCommandOutcome(
+  projectPath: string,
+  commandId: string,
+  outcome: OfflineConflict | null,
+  removeFromQueue: boolean,
+): Promise<void> {
+  return withHostQueueLock(projectPath, () =>
+    settleOfflineOutcome(
+      hostQueueKey(projectPath),
+      hostConflictKey(projectPath),
+      commandId,
+      outcome,
+      removeFromQueue,
+    ),
+  );
+}
+
+/** Atomically settle a guest send and retain or remove its attention outcome. */
+export function settleGuestCommandOutcome(
+  token: string,
+  commandId: string,
+  outcome: OfflineConflict | null,
+  removeFromQueue: boolean,
+): Promise<void> {
+  return settleOfflineOutcome(
+    queueKey(token),
+    conflictKey(token),
+    commandId,
+    outcome,
+    removeFromQueue,
+  );
 }
 
 /** Drop the host conflicts `superseded` matches, e.g. an earlier refused correction of a word just corrected (#746). */

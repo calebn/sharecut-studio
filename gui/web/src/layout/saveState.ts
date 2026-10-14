@@ -1,4 +1,5 @@
 import { SAVE_STATE_COPY } from "../record/saveStatus";
+import type { OfflineConflict } from "../state/offlineStore";
 
 /** What a host can say about the last change, derived from the send and queue state. */
 export type SaveState =
@@ -6,6 +7,11 @@ export type SaveState =
   | { kind: "saved" }
   | { kind: "waiting"; count: number }
   | { kind: "failed"; cause: "refused"; reason: string }
+  | {
+      kind: "unknown";
+      reason: string;
+      recovery: "retry-same-command" | "inspect-history";
+    }
   | { kind: "failed"; cause: "unreadable" };
 
 export type SaveStateInput = {
@@ -14,7 +20,7 @@ export type SaveStateInput = {
   /** Edits in the offline queue, not yet applied. */
   pending: number;
   /** Reasons for the edits the server refused, newest last. */
-  refusals: readonly string[];
+  conflicts: readonly OfflineConflict[];
   /** The saved edits on this device could not be read. */
   unreadable: boolean;
   /** A read of the queue has succeeded at least once. */
@@ -33,12 +39,16 @@ export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
   if (!input.loaded) return null;
-  if (input.refusals.length > 0) {
+  const latestOutcome = input.conflicts.at(-1);
+  if (latestOutcome?.kind === "unknown") {
     return {
-      kind: "failed",
-      cause: "refused",
-      reason: input.refusals[input.refusals.length - 1],
+      kind: "unknown",
+      reason: latestOutcome.reason,
+      recovery: latestOutcome.recovery,
     };
+  }
+  if (latestOutcome?.kind === "refused") {
+    return { kind: "failed", cause: "refused", reason: latestOutcome.reason };
   }
   if (input.pending > 0) return { kind: "waiting", count: input.pending };
   return { kind: "saved" };
@@ -48,7 +58,6 @@ export const SAVE_DOT_COPY = {
   saving: SAVE_STATE_COPY.saving,
   saved: SAVE_STATE_COPY.saved,
   waiting: (count: number) => `Not saved yet · ${count} waiting to send`,
-  failed: "Save failed",
 } as const;
 
 /** The dot's accessible name and tooltip. */
@@ -61,6 +70,12 @@ export function saveStateText(state: SaveState): string {
     case "waiting":
       return SAVE_DOT_COPY.waiting(state.count);
     case "failed":
-      return SAVE_DOT_COPY.failed;
+      return state.cause === "refused"
+        ? `Save failed · ${state.reason}. Edit and submit again.`
+        : "Saved edits could not be read · Retry to read them";
+    case "unknown":
+      return state.recovery === "inspect-history"
+        ? `Outcome unknown · ${state.reason}. Inspect History before trying again.`
+        : `Outcome unknown · ${state.reason}. Retry the same edit.`;
   }
 }

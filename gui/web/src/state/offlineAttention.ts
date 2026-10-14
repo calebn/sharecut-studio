@@ -7,10 +7,8 @@ import {
 import {
   clearConflicts,
   clearHostConflicts,
-  loadCommandQueue,
-  loadConflicts,
-  loadHostCommandCount,
-  loadHostConflicts,
+  loadGuestAttention,
+  loadHostAttention,
   type OfflineConflict,
 } from "./offlineStore";
 
@@ -51,16 +49,78 @@ type Source = {
 };
 
 const sources = new Map<string, Source>();
+const volatileOutcomes = new Map<string, OfflineConflict[]>();
 
 function read(projectPath: string): Promise<[number, OfflineConflict[]]> {
   const token = shareTokenFromKey(projectPath);
-  const queue = token
-    ? loadCommandQueue(token).then(() => 0)
-    : loadHostCommandCount(projectPath);
-  const conflicts = token
-    ? loadConflicts(token)
-    : loadHostConflicts(projectPath);
-  return Promise.all([queue, conflicts]);
+  const stored = token
+    ? loadGuestAttention(token)
+    : loadHostAttention(projectPath);
+  return stored.then(({ pending, conflicts }) => {
+    const byCommand = new Map(
+      conflicts.map((conflict) => [conflict.command.command_id, conflict]),
+    );
+    for (const conflict of volatileOutcomes.get(projectPath) ?? []) {
+      byCommand.set(conflict.command.command_id, conflict);
+    }
+    return [pending, [...byCommand.values()]] as [number, OfflineConflict[]];
+  });
+}
+
+function withVolatileOutcomes(
+  projectPath: string,
+  conflicts: readonly OfflineConflict[],
+): OfflineConflict[] {
+  const byCommand = new Map(
+    conflicts.map((conflict) => [conflict.command.command_id, conflict]),
+  );
+  for (const conflict of volatileOutcomes.get(projectPath) ?? []) {
+    byCommand.set(conflict.command.command_id, conflict);
+  }
+  return [...byCommand.values()];
+}
+
+/** Keep an outcome visible in this tab when IndexedDB cannot record it. */
+export function recordVolatileOutcome(
+  projectPath: string,
+  conflict: OfflineConflict,
+): void {
+  const current = volatileOutcomes.get(projectPath) ?? [];
+  volatileOutcomes.set(projectPath, [
+    ...current.filter(
+      (item) => item.command.command_id !== conflict.command.command_id,
+    ),
+    conflict,
+  ]);
+  const source = sources.get(projectPath);
+  if (source) {
+    set(source, {
+      conflicts: withVolatileOutcomes(projectPath, source.snapshot.conflicts),
+    });
+  }
+}
+
+/** Clear the tab-local fallback after the same command gets a durable outcome. */
+export function clearVolatileOutcome(
+  projectPath: string,
+  commandId: string,
+): void {
+  const remaining = (volatileOutcomes.get(projectPath) ?? []).filter(
+    (item) => item.command.command_id !== commandId,
+  );
+  if (remaining.length) volatileOutcomes.set(projectPath, remaining);
+  else volatileOutcomes.delete(projectPath);
+  const source = sources.get(projectPath);
+  if (source) {
+    set(source, {
+      conflicts: withVolatileOutcomes(
+        projectPath,
+        source.snapshot.conflicts.filter(
+          (item) => item.command.command_id !== commandId,
+        ),
+      ),
+    });
+  }
 }
 
 function set(source: Source, patch: Partial<AttentionSnapshot>): void {
@@ -83,7 +143,7 @@ function refresh(projectPath: string, source: Source): void {
       if (reading !== source.generation) return;
       set(source, {
         pending,
-        conflicts,
+        conflicts: withVolatileOutcomes(projectPath, conflicts),
         status: "ready",
         loaded: true,
         settling: documentActivityBusy(projectPath),
@@ -165,6 +225,7 @@ export function dismissAllConflicts(projectPath: string): void {
   (token ? clearConflicts(token) : clearHostConflicts(projectPath))
     .then(() => {
       if (clearing === source.generation) {
+        volatileOutcomes.delete(projectPath);
         set(source, { conflicts: [], status: "ready" });
       }
     })

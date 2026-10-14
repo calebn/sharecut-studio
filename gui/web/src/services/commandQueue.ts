@@ -35,7 +35,7 @@ import {
   noteSaveLanded,
   trackEditSave,
 } from "../state/documentSendOrder";
-import type { QueuedCommand } from "../state/offlineStore";
+import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import {
   requestGuestDrainLazy,
   requestHostDrainLazy,
@@ -69,6 +69,60 @@ export type HistoryCommandType = "UndoHistory" | "RedoHistory";
 
 export function isHistoryCommand(type: string): type is HistoryCommandType {
   return type === "UndoHistory" || type === "RedoHistory";
+}
+
+function commandOutcome(
+  command: QueuedCommand,
+  kind: OfflineConflict["kind"],
+  reason: string,
+  replayable = false,
+): OfflineConflict {
+  return kind === "refused"
+    ? { command, kind, reason, recovery: "edit-and-resubmit" }
+    : {
+        command,
+        kind,
+        reason,
+        recovery:
+          isHistoryCommand(command.type) || !replayable
+            ? "inspect-history"
+            : "retry-same-command",
+      };
+}
+
+async function settleCommandOutcome(
+  projectPath: string,
+  command: QueuedCommand,
+  outcome: OfflineConflict | null,
+  removeFromQueue: boolean,
+): Promise<void> {
+  const token = shareTokenFromKey(projectPath);
+  const store = await import("../state/offlineStore");
+  try {
+    if (token) {
+      await store.settleGuestCommandOutcome(
+        token,
+        command.command_id,
+        outcome,
+        removeFromQueue,
+      );
+    } else {
+      await store.settleHostCommandOutcome(
+        projectPath,
+        command.command_id,
+        outcome,
+        removeFromQueue,
+      );
+    }
+    const attention = await import("../state/offlineAttention");
+    attention.clearVolatileOutcome(projectPath, command.command_id);
+  } catch {
+    const attention = await import("../state/offlineAttention");
+    if (outcome) {
+      attention.recordVolatileOutcome(projectPath, outcome);
+      if (removeFromQueue) throw new Error(outcome.reason);
+    } else attention.clearVolatileOutcome(projectPath, command.command_id);
+  }
 }
 
 interface DocumentCommandBody {
@@ -329,24 +383,45 @@ async function submitLiveHistoryIntent(
           role: "guest",
         });
       } catch {
+        await settleCommandOutcome(
+          projectPath,
+          cmd,
+          commandOutcome(
+            cmd,
+            "unknown",
+            "Undo or Redo may have been applied. Check History before trying again.",
+          ),
+          true,
+        );
         throw new Error(
           "Undo or Redo may have been applied. Check History before trying again.",
         );
       }
       if (!reply.ok) {
-        try {
-          await queue.removeQueuedCommand(token, identity.command_id);
-        } catch {}
-        if (reply.status >= 500) {
+        if (reply.status >= 500 || isRetryLater(reply.failure)) {
+          await settleCommandOutcome(
+            projectPath,
+            cmd,
+            commandOutcome(
+              cmd,
+              "unknown",
+              "Undo or Redo may have been applied. Check History before trying again.",
+            ),
+            true,
+          );
           throw new Error(
             "Undo or Redo may have been applied. Check History before trying again.",
           );
         }
+        await settleCommandOutcome(
+          projectPath,
+          cmd,
+          commandOutcome(cmd, "refused", reply.failure.message),
+          true,
+        );
         throw reply.failure;
       }
-      try {
-        await queue.removeQueuedCommand(token, identity.command_id);
-      } catch {}
+      await settleCommandOutcome(projectPath, cmd, null, true);
       const data = reply.data;
       if (useDawStore.getState().projectPath === projectPath) {
         applyDocumentResult(data, scope);
@@ -390,18 +465,45 @@ async function submitLiveHistoryIntent(
         role: "viewer",
       });
     } catch {
+      await settleCommandOutcome(
+        projectPath,
+        cmd,
+        commandOutcome(
+          cmd,
+          "unknown",
+          "Undo or Redo may have been applied. Check History before trying again.",
+        ),
+        true,
+      );
       throw new Error(
         "Undo or Redo may have been applied. Check History before trying again.",
       );
     }
     if (!reply.ok) {
-      if (reply.status >= 500) {
+      if (reply.status >= 500 || isRetryLater(reply.failure)) {
+        await settleCommandOutcome(
+          projectPath,
+          cmd,
+          commandOutcome(
+            cmd,
+            "unknown",
+            "Undo or Redo may have been applied. Check History before trying again.",
+          ),
+          true,
+        );
         throw new Error(
           "Undo or Redo may have been applied. Check History before trying again.",
         );
       }
+      await settleCommandOutcome(
+        projectPath,
+        cmd,
+        commandOutcome(cmd, "refused", reply.failure.message),
+        true,
+      );
       throw reply.failure;
     }
+    await settleCommandOutcome(projectPath, cmd, null, true);
     if (useDawStore.getState().projectPath === projectPath) {
       applyDocumentResult(reply.data, scope);
     }
@@ -508,33 +610,79 @@ async function submitGuestDocumentCommand(
     // time. The command stays queued and replays on reconnect, so the
     // caller keeps its optimistic value.
     if (opts.replaying) {
+      await settleCommandOutcome(
+        projectPath,
+        {
+          ...bodyBase,
+          structural_mode,
+          created_at: Date.now(),
+        },
+        commandOutcome(
+          {
+            ...bodyBase,
+            structural_mode,
+            created_at: Date.now(),
+          },
+          "unknown",
+          "The server may have applied this edit. Retrying will reuse the same command.",
+          admitted.persisted,
+        ),
+        false,
+      );
       throw err;
     }
-    return queuedResult(command_id, client_seq);
+    const outcome = commandOutcome(
+      {
+        ...bodyBase,
+        structural_mode,
+        created_at: Date.now(),
+      },
+      "unknown",
+      "The server may have applied this edit. Retrying will reuse the same command.",
+      admitted.persisted,
+    );
+    await settleCommandOutcome(projectPath, outcome.command, outcome, false);
+    if (admitted.persisted) return queuedResult(command_id, client_seq);
+    throw err;
   }
   if (!reply.ok) {
     const failure = reply.failure;
-    if (opts.replaying && isRetryLater(failure)) {
-      // Nobody awaits a replay: keep it queued for the next drain.
+    if (isRetryLater(failure) || reply.status >= 500) {
+      const cmd = {
+        ...bodyBase,
+        structural_mode,
+        created_at: Date.now(),
+      };
+      const outcome = commandOutcome(
+        cmd,
+        "unknown",
+        "The server may have applied this edit. Retrying will reuse the same command.",
+        admitted.persisted,
+      );
+      await settleCommandOutcome(projectPath, cmd, outcome, false);
+      if (opts.replaying) throw failure;
+      if (admitted.persisted) return queuedResult(command_id, client_seq);
       throw failure;
     }
-    if (reply.status === 409 || opts.replaying) {
-      // Record it, so the banner says why the edit was dropped.
-      await guestQueue.addConflict(token, {
-        command: { ...bodyBase, structural_mode, created_at: Date.now() },
-        reason: failure.message,
-      });
-    }
-    // The caller reports a live refusal now. Replaying it later would
-    // overwrite newer edits, as on the host. The drain
-    // (`replayQueuedCommands`) skips past a permanent rejection, so it
-    // must be dequeued before this throws.
-    await guestQueue.removeQueuedCommand(token, command_id);
+    const cmd = {
+      ...bodyBase,
+      structural_mode,
+      created_at: Date.now(),
+    };
+    await settleCommandOutcome(
+      projectPath,
+      cmd,
+      commandOutcome(cmd, "refused", failure.message),
+      true,
+    );
     throw failure;
   }
-  try {
-    await guestQueue.removeQueuedCommand(token, command_id);
-  } catch {}
+  await settleCommandOutcome(
+    projectPath,
+    { ...bodyBase, structural_mode, created_at: Date.now() },
+    null,
+    true,
+  );
   const data = reply.data;
   if (useDawStore.getState().projectPath === projectPath) {
     applyDocumentResult(data, body.scope);
@@ -647,46 +795,89 @@ async function submitHostDocumentCommand(
     });
   } catch (err) {
     if (enqueueResult.persisted) {
+      const cmd: QueuedCommand = {
+        command_id,
+        client_id: bodyBase.client_id,
+        client_seq,
+        type,
+        payload: bodyBase.payload,
+        structural_mode: opts.structural_mode,
+        created_at: Date.now(),
+      };
+      const outcome = commandOutcome(
+        cmd,
+        "unknown",
+        "The server may have applied this edit. Retrying will reuse the same command.",
+        true,
+      );
+      await settleCommandOutcome(projectPath, cmd, outcome, false);
       return queuedResult(command_id, client_seq);
     }
+    const cmd: QueuedCommand = {
+      command_id,
+      client_id: bodyBase.client_id,
+      client_seq,
+      type,
+      payload: bodyBase.payload,
+      structural_mode: opts.structural_mode,
+      created_at: Date.now(),
+    };
+    await settleCommandOutcome(
+      projectPath,
+      cmd,
+      commandOutcome(
+        cmd,
+        "unknown",
+        "The server may have applied this edit. Check the project before submitting it again.",
+      ),
+      false,
+    );
     throw err;
   }
   if (!reply.ok) {
     const { failure, status } = reply;
-    const detail = failure.message;
-    if (status < 500) {
-      if (opts.replaying && isRetryLater(failure)) {
-        // A rate limit (429) or timeout (408) on a replay: nobody awaits it,
-        // so keep it queued for the next drain, as the guest path does.
-        throw failure;
-      }
-      // Any other 4xx will never succeed on retry. The drain
-      // (`replayQueuedCommands`) skips past it, so it must be dequeued
-      // before this throws. Record 409s, and any rejected replay (nobody is
-      // awaiting it), so the banner says why it was dropped.
-      if (status === 409 || opts.replaying) {
-        await hostQueue.addHostConflict(projectPath, {
-          command: { ...bodyBase, created_at: Date.now() },
-          reason: detail,
-        });
-      }
-      if (enqueueResult.persisted) {
-        await hostQueue.removeHostQueuedCommand(projectPath, command_id);
-      }
+    const cmd: QueuedCommand = {
+      command_id,
+      client_id: bodyBase.client_id,
+      client_seq,
+      type,
+      payload: bodyBase.payload,
+      structural_mode: opts.structural_mode,
+      created_at: Date.now(),
+    };
+    if (isRetryLater(failure) || status >= 500) {
+      const outcome = commandOutcome(
+        cmd,
+        "unknown",
+        "The server may have applied this edit. Retrying will reuse the same command.",
+        enqueueResult.persisted,
+      );
+      await settleCommandOutcome(projectPath, cmd, outcome, false);
+      if (enqueueResult.persisted) return queuedResult(command_id, client_seq);
+      throw failure;
     }
-    if (status >= 500 && enqueueResult.persisted) {
-      return queuedResult(command_id, client_seq);
-    }
+    await settleCommandOutcome(
+      projectPath,
+      cmd,
+      commandOutcome(cmd, "refused", failure.message),
+      enqueueResult.persisted,
+    );
     throw failure;
   }
-  if (enqueueResult.persisted && !opts.replaying) {
-    // The server already committed. Failed local cleanup must not invite a new edit.
-    try {
-      await hostQueue.removeHostQueuedCommand(projectPath, command_id);
-    } catch {
-      // A later idempotent replay will clean up this same command identity.
-    }
-  }
+  await settleCommandOutcome(
+    projectPath,
+    {
+      command_id,
+      client_id: bodyBase.client_id,
+      client_seq,
+      type,
+      payload: bodyBase.payload,
+      structural_mode: opts.structural_mode,
+      created_at: Date.now(),
+    },
+    null,
+    enqueueResult.persisted && !opts.replaying,
+  );
   const data = reply.data;
   if (useDawStore.getState().projectPath === projectPath) {
     applyDocumentResult(data, body.scope);

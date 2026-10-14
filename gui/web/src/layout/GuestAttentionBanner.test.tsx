@@ -7,14 +7,33 @@ import { GuestAttentionBanner } from "./GuestAttentionBanner";
 const drain = vi.hoisted(() => ({ requestHostDrain: vi.fn() }));
 vi.mock("../state/drainOfflineQueue", () => drain);
 
-const offlineStore = vi.hoisted(() => ({
-  clearConflicts: vi.fn(),
-  clearHostConflicts: vi.fn(),
-  loadConflicts: vi.fn(),
-  loadCommandQueue: vi.fn(),
-  loadHostCommandCount: vi.fn(),
-  loadHostConflicts: vi.fn(),
-}));
+const offlineStore = vi.hoisted(() => {
+  const state = {
+    clearConflicts: vi.fn(),
+    clearHostConflicts: vi.fn(),
+    loadConflicts: vi.fn(),
+    loadCommandQueue: vi.fn(),
+    loadHostCommandCount: vi.fn(),
+    loadHostConflicts: vi.fn(),
+  };
+  return {
+    ...state,
+    loadHostAttention: vi.fn(async (path: string) => {
+      const [pending, conflicts] = await Promise.all([
+        state.loadHostCommandCount(path),
+        state.loadHostConflicts(path),
+      ]);
+      return { pending, conflicts };
+    }),
+    loadGuestAttention: vi.fn(async (token: string) => {
+      const [, conflicts] = await Promise.all([
+        state.loadCommandQueue(token),
+        state.loadConflicts(token),
+      ]);
+      return { pending: 0, conflicts };
+    }),
+  };
+});
 
 vi.mock("../state/offlineStore", () => offlineStore);
 
@@ -128,6 +147,22 @@ describe("GuestAttentionBanner", () => {
     expect(
       screen.getByRole("button", { name: "Dismiss all" }),
     ).toBeInTheDocument();
+  });
+
+  it("opens History for an Undo outcome whose result is unknown", async () => {
+    const conflict = offlineConflict({
+      kind: "unknown",
+      reason: "Undo or Redo may have been applied.",
+      recovery: "inspect-history",
+      command: { type: "UndoHistory" },
+    });
+    offlineStore.loadHostConflicts.mockResolvedValue([conflict]);
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    render(<GuestAttentionBanner />);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    fireEvent.click(screen.getByRole("button", { name: "Inspect History" }));
+    expect(useDawStore.getState().moreDestination).toBe("history");
   });
 
   it("shows unreadable guest queued edits without changing the guest pending count", async () => {

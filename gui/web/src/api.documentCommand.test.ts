@@ -4,6 +4,8 @@ const loadHostCommandQueue = vi.fn();
 const enqueueHostCommand = vi.fn();
 const removeHostQueuedCommand = vi.fn();
 const addHostConflict = vi.fn();
+const settleHostCommandOutcome = vi.fn();
+const settleGuestCommandOutcome = vi.fn();
 const enqueueCommand = vi.fn();
 const removeQueuedCommand = vi.fn();
 const addConflict = vi.fn();
@@ -32,6 +34,8 @@ vi.mock("./state/offlineStore", () => ({
   enqueueHostCommand,
   removeHostQueuedCommand,
   addHostConflict,
+  settleHostCommandOutcome,
+  settleGuestCommandOutcome,
   enqueueCommand,
   removeQueuedCommand,
   addConflict,
@@ -52,6 +56,8 @@ describe("host document command queue", () => {
     });
     removeHostQueuedCommand.mockResolvedValue(undefined);
     addHostConflict.mockResolvedValue(undefined);
+    settleHostCommandOutcome.mockResolvedValue(undefined);
+    settleGuestCommandOutcome.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -111,16 +117,15 @@ describe("host document command queue", () => {
       fade_out_ms: 1,
       expected: { fade_in_ms: 1, fade_out_ms: 0 },
     });
-    expect(addHostConflict).toHaveBeenCalledWith(
+    expect(settleHostCommandOutcome).toHaveBeenCalledWith(
       "/tmp/episode.project.json",
+      command.command_id,
       expect.objectContaining({
+        kind: "refused",
         reason: "This clip changed. Nothing was saved. Adjust the fade again.",
         command: expect.objectContaining({ payload: command.payload }),
       }),
-    );
-    expect(removeHostQueuedCommand).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
-      command.command_id,
+      true,
     );
   });
 
@@ -156,14 +161,16 @@ describe("host document command queue", () => {
         payload,
       },
     );
-    expect(addConflict).toHaveBeenCalledWith(
+    expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
       "fade",
+      "saved-fade",
       expect.objectContaining({
+        kind: "refused",
         command: expect.objectContaining({ payload }),
         reason: "Adjust the fade again.",
       }),
+      true,
     );
-    expect(removeQueuedCommand).toHaveBeenCalledWith("fade", "saved-fade");
   });
 
   it("accepts queued comment creation and patches without a false failure", async () => {
@@ -457,9 +464,11 @@ describe("host document command queue", () => {
           },
         ),
       ).rejects.toBeTruthy();
-      expect(addHostConflict).toHaveBeenCalledWith(
+      expect(settleHostCommandOutcome).toHaveBeenCalledWith(
         path,
+        "mine",
         expect.objectContaining({
+          kind: "refused",
           command: expect.objectContaining({
             command_id: "mine",
             client_id: "original-client",
@@ -468,6 +477,7 @@ describe("host document command queue", () => {
             payload: { chained: true },
           }),
         }),
+        true,
       );
     });
 
@@ -530,7 +540,7 @@ describe("host document command queue", () => {
     });
 
     it.each([429, 503])(
-      "drops a live guest command refused with %i, so it never replays",
+      "keeps a live guest command with unknown outcome %i for same-id replay",
       async (status) => {
         vi.stubGlobal(
           "fetch",
@@ -540,9 +550,17 @@ describe("host document command queue", () => {
 
         await expect(
           submitDocumentCommand("share:tok", "SetTrackFader", fader),
-        ).rejects.toThrow();
-        expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId());
-        expect(addConflict).not.toHaveBeenCalled();
+        ).resolves.toMatchObject({ queued: true });
+        expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
+          "tok",
+          queuedId(),
+          expect.objectContaining({
+            kind: "unknown",
+            recovery: "retry-same-command",
+          }),
+          false,
+        );
+        expect(removeQueuedCommand).not.toHaveBeenCalled();
       },
     );
 
@@ -562,7 +580,12 @@ describe("host document command queue", () => {
         }),
       ).rejects.toThrow();
       expect(removeQueuedCommand).not.toHaveBeenCalled();
-      expect(addConflict).not.toHaveBeenCalled();
+      expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
+        "tok",
+        "replay-command",
+        expect.objectContaining({ kind: "unknown" }),
+        false,
+      );
     });
 
     it("records a refused replay before dropping it", async () => {
@@ -580,11 +603,12 @@ describe("host document command queue", () => {
           client_seq: 9,
         }),
       ).rejects.toThrow();
-      expect(addConflict).toHaveBeenCalledWith(
+      expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
         "tok",
-        expect.objectContaining({ reason: "no edit" }),
+        "replay-command",
+        expect.objectContaining({ kind: "refused", reason: "no edit" }),
+        true,
       );
-      expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId());
     });
 
     it("keeps a command whose request never arrived queued, not failed", async () => {
@@ -600,6 +624,12 @@ describe("host document command queue", () => {
         submitDocumentCommand("share:tok", "SetTrackFader", fader),
       ).resolves.toMatchObject({ queued: true });
       expect(removeQueuedCommand).not.toHaveBeenCalled();
+      expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
+        "tok",
+        queuedId(),
+        expect.objectContaining({ kind: "unknown" }),
+        false,
+      );
     });
 
     it("rethrows a replay whose request never arrived, rather than returning queued", async () => {
@@ -620,7 +650,12 @@ describe("host document command queue", () => {
         }),
       ).rejects.toThrow("network down");
       expect(removeQueuedCommand).not.toHaveBeenCalled();
-      expect(addConflict).not.toHaveBeenCalled();
+      expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
+        "tok",
+        "replay-command",
+        expect.objectContaining({ kind: "unknown" }),
+        false,
+      );
     });
 
     it("doesn't apply a reply after the guest switched projects", async () => {
@@ -670,7 +705,12 @@ describe("host document command queue", () => {
       },
     );
     expect(calls).toEqual(["enqueue", "fetch"]);
-    expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId);
+    expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
+      "tok",
+      queuedId,
+      null,
+      true,
+    );
   });
 
   it("keeps a host replay queued after a server failure", async () => {
@@ -718,8 +758,13 @@ describe("host document command queue", () => {
             replaying: true,
           },
         ),
-      ).rejects.toMatchObject({ status });
-      expect(addHostConflict).not.toHaveBeenCalled();
+      ).resolves.toMatchObject({ queued: true });
+      expect(settleHostCommandOutcome).toHaveBeenCalledWith(
+        "/tmp/episode.project.json",
+        "limited",
+        expect.objectContaining({ kind: "unknown" }),
+        false,
+      );
       expect(removeHostQueuedCommand).not.toHaveBeenCalled();
     },
   );
@@ -832,7 +877,12 @@ describe("host document command queue", () => {
 
     expect(result).toEqual({ ok: true });
     expect(calls).toEqual(["enqueue", "fetch"]);
-    expect(removeHostQueuedCommand).toHaveBeenCalledOnce();
+    expect(settleHostCommandOutcome).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      expect.any(String),
+      null,
+      true,
+    );
   });
 
   it("returns queued for a server failure without losing the durable command", async () => {
@@ -849,6 +899,12 @@ describe("host document command queue", () => {
 
     expect(result.queued).toBe(true);
     expect(removeHostQueuedCommand).not.toHaveBeenCalled();
+    expect(settleHostCommandOutcome).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      expect.any(String),
+      expect.objectContaining({ kind: "unknown" }),
+      false,
+    );
   });
 
   it.each([false, true])(
@@ -1201,12 +1257,11 @@ describe("host document command queue", () => {
     await expect(
       submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
     ).rejects.toThrow("network down");
-    expect(addHostConflict).toHaveBeenCalledWith(
+    expect(settleHostCommandOutcome).toHaveBeenCalledWith(
       "/tmp/episode.project.json",
-      expect.objectContaining({
-        outcome: "unknown",
-        reason: expect.any(String),
-      }),
+      expect.any(String),
+      expect.objectContaining({ kind: "unknown", reason: expect.any(String) }),
+      false,
     );
   });
 
@@ -1220,9 +1275,11 @@ describe("host document command queue", () => {
     await expect(
       submitDocumentCommand("share:guest-refusal", "SetTrackMeta"),
     ).rejects.toThrow("bad payload");
-    expect(addConflict).toHaveBeenCalledWith(
+    expect(settleGuestCommandOutcome).toHaveBeenCalledWith(
       "guest-refusal",
-      expect.objectContaining({ outcome: "refused", reason: "bad payload" }),
+      expect.any(String),
+      expect.objectContaining({ kind: "refused", reason: "bad payload" }),
+      true,
     );
   });
 
@@ -1236,8 +1293,7 @@ describe("host document command queue", () => {
     await expect(
       submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
     ).rejects.toThrow("stale revision");
-    expect(addHostConflict).toHaveBeenCalledOnce();
-    expect(removeHostQueuedCommand).toHaveBeenCalledOnce();
+    expect(settleHostCommandOutcome).toHaveBeenCalledOnce();
   });
 
   it("records a rejected replay so a dropped queued edit is visible", async () => {
@@ -1262,13 +1318,14 @@ describe("host document command queue", () => {
         },
       ),
     ).rejects.toMatchObject({ status: 422 });
-    expect(addHostConflict).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
-      expect.objectContaining({ reason: "expected_points missing" }),
-    );
-    expect(removeHostQueuedCommand).toHaveBeenCalledWith(
+    expect(settleHostCommandOutcome).toHaveBeenCalledWith(
       "/tmp/episode.project.json",
       "rejected-replay",
+      expect.objectContaining({
+        kind: "refused",
+        reason: "expected_points missing",
+      }),
+      true,
     );
   });
 
@@ -1282,9 +1339,11 @@ describe("host document command queue", () => {
     await expect(
       submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
     ).rejects.toThrow("bad payload");
-    expect(addHostConflict).toHaveBeenCalledWith(
+    expect(settleHostCommandOutcome).toHaveBeenCalledWith(
       "/tmp/episode.project.json",
-      expect.objectContaining({ reason: "bad payload" }),
+      expect.any(String),
+      expect.objectContaining({ kind: "refused", reason: "bad payload" }),
+      true,
     );
   });
 

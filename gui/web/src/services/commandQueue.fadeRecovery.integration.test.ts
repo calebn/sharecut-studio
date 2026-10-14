@@ -10,25 +10,49 @@ import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import { clipRow, minimalProject } from "../test/fixtures";
 import { submitQueuedDocumentCommand } from "./commandQueue";
 
-const { queues, conflicts, remove, enqueue, addConflict } = vi.hoisted(() => {
-  const queues = new Map<string, QueuedCommand[]>();
-  const conflicts = new Map<string, OfflineConflict[]>();
-  const remove = async (key: string, id: string) => {
-    queues.set(
-      key,
-      (queues.get(key) ?? []).filter((row) => row.command_id !== id),
-    );
-  };
-  const enqueue = async (key: string, command: QueuedCommand) => {
-    await remove(key, command.command_id);
-    queues.set(key, [...(queues.get(key) ?? []), command]);
-    return { persisted: true, hadPredecessor: false };
-  };
-  const addConflict = async (key: string, conflict: OfflineConflict) => {
-    conflicts.set(key, [...(conflicts.get(key) ?? []), conflict]);
-  };
-  return { queues, conflicts, remove, enqueue, addConflict };
-});
+const { queues, conflicts, remove, enqueue, addConflict, settle } = vi.hoisted(
+  () => {
+    const queues = new Map<string, QueuedCommand[]>();
+    const conflicts = new Map<string, OfflineConflict[]>();
+    const remove = async (key: string, id: string) => {
+      queues.set(
+        key,
+        (queues.get(key) ?? []).filter((row) => row.command_id !== id),
+      );
+    };
+    const enqueue = async (key: string, command: QueuedCommand) => {
+      await remove(key, command.command_id);
+      queues.set(key, [...(queues.get(key) ?? []), command]);
+      return { persisted: true, hadPredecessor: false };
+    };
+    const addConflict = async (key: string, conflict: OfflineConflict) => {
+      conflicts.set(key, [...(conflicts.get(key) ?? []), conflict]);
+    };
+    const settle = async (
+      key: string,
+      id: string,
+      outcome: OfflineConflict | null,
+      removeFromQueue: boolean,
+    ) => {
+      if (removeFromQueue) await remove(key, id);
+      if (outcome)
+        conflicts.set(key, [
+          ...(conflicts.get(key) ?? []).filter(
+            (row) => row.command.command_id !== id,
+          ),
+          outcome,
+        ]);
+      else
+        conflicts.set(
+          key,
+          (conflicts.get(key) ?? []).filter(
+            (row) => row.command.command_id !== id,
+          ),
+        );
+    };
+    return { queues, conflicts, remove, enqueue, addConflict, settle };
+  },
+);
 vi.mock("../state/offlineStore", () => ({
   enqueueHostCommand: enqueue,
   enqueueCommand: enqueue,
@@ -36,6 +60,8 @@ vi.mock("../state/offlineStore", () => ({
   removeQueuedCommand: remove,
   addHostConflict: addConflict,
   addConflict,
+  settleHostCommandOutcome: settle,
+  settleGuestCommandOutcome: settle,
 }));
 
 const refusal = "This clip changed. Nothing was saved. Adjust the fade again.";
@@ -130,10 +156,12 @@ function expectRefused(path: string, posted: unknown[]) {
     },
   ]);
   expect(queues.get(keyFor(path))).toEqual([]);
-  expect(conflicts.get(keyFor(path))).toEqual([
+  expect(conflicts.get(keyFor(path))).toMatchObject([
     {
       command: { ...command, created_at: expect.any(Number) },
+      kind: "refused",
       reason: refusal,
+      recovery: "edit-and-resubmit",
     },
   ]);
 }

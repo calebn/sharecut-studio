@@ -38,6 +38,17 @@ vi.mock("./offlineStore", () => ({
     if (conflictReadFailure) throw new Error("Invalid saved conflict");
     hostConflicts.push(conflict);
   },
+  settleHostCommandOutcome: async (
+    path: string,
+    id: string,
+    outcome: OfflineConflict | null,
+    remove: boolean,
+  ) => {
+    if (conflictReadFailure && outcome)
+      throw new Error("Invalid saved conflict");
+    if (outcome) hostConflicts.push(outcome);
+    if (remove) hostQueues.set(path, without(hostQueues.get(path), [id]));
+  },
   loadCommandQueue: async (token: string) => [
     ...(guestQueues.get(token) ?? []),
   ],
@@ -62,6 +73,17 @@ vi.mock("./offlineStore", () => ({
   addConflict: async (_token: string, conflict: OfflineConflict) => {
     if (conflictReadFailure) throw new Error("Invalid saved conflict");
     guestConflicts.push(conflict);
+  },
+  settleGuestCommandOutcome: async (
+    token: string,
+    id: string,
+    outcome: OfflineConflict | null,
+    remove: boolean,
+  ) => {
+    if (conflictReadFailure && outcome)
+      throw new Error("Invalid saved conflict");
+    if (outcome) guestConflicts.push(outcome);
+    if (remove) guestQueues.set(token, without(guestQueues.get(token), [id]));
   },
 }));
 
@@ -126,10 +148,12 @@ describe("host drain against the real submit layer", () => {
     await drain();
 
     expect(posted).toEqual(["a", "bad", "c"]);
-    expect(hostConflicts).toEqual([
+    expect(hostConflicts).toMatchObject([
       {
         command: { ...rec("bad", 2), created_at: expect.any(Number) },
+        kind: "refused",
         reason: "refused",
+        recovery: "edit-and-resubmit",
       },
     ]);
     expect(ids(hostQueues.get(PATH))).toEqual([]);
@@ -146,11 +170,14 @@ describe("host drain against the real submit layer", () => {
     conflictReadFailure = false;
     await drain();
     expect(posted).toEqual(["bad", "bad", "next"]);
-    expect(hostConflicts[0].command).toMatchObject({
-      client_id: "tab-1",
-      command_id: "bad",
-      client_seq: 1,
-      structural_mode: "apply",
+    expect(hostConflicts[0]).toMatchObject({
+      kind: "refused",
+      command: {
+        client_id: "tab-1",
+        command_id: "bad",
+        client_seq: 1,
+        structural_mode: "apply",
+      },
     });
     expect(ids(hostQueues.get(PATH))).toEqual([]);
   });
@@ -164,7 +191,9 @@ describe("host drain against the real submit layer", () => {
       await drain();
 
       expect(posted).toEqual(["a", "held"]);
-      expect(hostConflicts).toEqual([]);
+      expect(hostConflicts).toMatchObject([
+        { kind: "unknown", command: { command_id: "held" } },
+      ]);
       expect(ids(hostQueues.get(PATH))).toEqual(["held", "c"]);
     },
   );
@@ -190,10 +219,12 @@ describe("guest drain against the real submit layer", () => {
     await drain();
 
     expect(posted).toEqual(["a", "bad", "c"]);
-    expect(guestConflicts).toEqual([
+    expect(guestConflicts).toMatchObject([
       {
         command: { ...rec("bad", 2), created_at: expect.any(Number) },
+        kind: "refused",
         reason: "refused",
+        recovery: "edit-and-resubmit",
       },
     ]);
     expect(ids(guestQueues.get(TOKEN))).toEqual([]);
@@ -210,11 +241,14 @@ describe("guest drain against the real submit layer", () => {
     conflictReadFailure = false;
     await drain();
     expect(posted).toEqual(["bad", "bad", "next"]);
-    expect(guestConflicts[0].command).toMatchObject({
-      client_id: "tab-1",
-      command_id: "bad",
-      client_seq: 1,
-      structural_mode: "apply",
+    expect(guestConflicts[0]).toMatchObject({
+      kind: "refused",
+      command: {
+        client_id: "tab-1",
+        command_id: "bad",
+        client_seq: 1,
+        structural_mode: "apply",
+      },
     });
     expect(ids(guestQueues.get(TOKEN))).toEqual([]);
   });
@@ -228,7 +262,9 @@ describe("guest drain against the real submit layer", () => {
       await drain();
 
       expect(posted).toEqual(["a", "held"]);
-      expect(guestConflicts).toEqual([]);
+      expect(guestConflicts).toMatchObject([
+        { kind: "unknown", command: { command_id: "held" } },
+      ]);
       expect(ids(guestQueues.get(TOKEN))).toEqual(["held", "c"]);
     },
   );

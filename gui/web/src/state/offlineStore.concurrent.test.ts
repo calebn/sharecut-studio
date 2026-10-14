@@ -133,7 +133,9 @@ const refused = (id: string, label = id): OfflineConflict => ({
     payload: { label },
     created_at: 1,
   },
+  kind: "refused",
   reason: `refused ${id}`,
+  recovery: "edit-and-resubmit",
 });
 
 const ids = (conflicts: OfflineConflict[]) =>

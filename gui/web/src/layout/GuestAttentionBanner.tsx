@@ -1,4 +1,5 @@
 import { isShareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { requestHostDrain } from "../state/drainOfflineQueue";
 import {
   dismissAllConflicts,
@@ -31,6 +32,9 @@ export function GuestAttentionBanner() {
             }
       }
       onRetry={() => refreshOfflineAttention(projectPath)}
+      onInspectHistory={() =>
+        useDawStore.getState().setMoreDestination("history")
+      }
     />
   );
 }
