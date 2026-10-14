@@ -15,6 +15,7 @@ from typing import Any
 
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.timebase import SourceSec
 
@@ -31,20 +32,29 @@ def transcript_word_key(transcript: Transcript, index: int) -> WordKey:
 
 
 @dataclass(frozen=True)
+class _Placement:
+    source_start: float
+    source_end: float
+    offset: float
+
+    @property
+    def length(self) -> float:
+        return self.source_end - self.source_start
+
+
+@dataclass(frozen=True)
 class LaneTranscript:
     """One placed recording's transcript on a lane.
 
     ``placement_source_id`` is the clips' ``source_id`` (the transcript of implicit
     primary media can stand for an explicit source of the same recording).
-    ``session_offset`` moves this recording's source clock onto the session clock,
-    read at its earliest placement, so words of different recordings and tracks
-    compare in one clock.
+    ``session_time`` moves a source second onto the session clock through the clip that
+    plays it, so words of different recordings and tracks compare in one clock.
     """
 
     transcript: Transcript
     placement_source_id: str | None
-    placed: bool
-    session_offset: float
+    placements: tuple[_Placement, ...]
 
     @property
     def track_id(self) -> str:
@@ -54,8 +64,23 @@ class LaneTranscript:
     def key(self) -> TranscriptKey:
         return self.transcript.key
 
+    @property
+    def placed(self) -> bool:
+        return bool(self.placements)
+
     def session_time(self, source_sec: float) -> float:
-        return source_sec + self.session_offset
+        """``source_sec`` through the longest clip that plays it.
+
+        A second played twice (a cold-open teaser and the main take) reads through the
+        longer placement; a cut-away second reads through the recording's longest clip.
+        With no clips the source clock is the session clock.
+        """
+        if not self.placements:
+            return source_sec
+        playing = [
+            p for p in self.placements if p.source_start <= source_sec < p.source_end
+        ] or self.placements
+        return source_sec + max(playing, key=lambda p: p.length).offset
 
 
 def lane_transcripts(project: EpisodeProject, track_id: str) -> list[LaneTranscript]:
@@ -66,16 +91,12 @@ def lane_transcripts(project: EpisodeProject, track_id: str) -> list[LaneTranscr
         if transcript.key in seen:
             continue
         seen.add(transcript.key)
-        clips = [c for c in project.clips if c.track_id == track_id and c.source_id == source_id]
-        first = min(clips, key=lambda c: c.timeline_start, default=None)
-        out.append(
-            LaneTranscript(
-                transcript=transcript,
-                placement_source_id=source_id,
-                placed=bool(clips),
-                session_offset=first.timeline_start - first.source_start if first else 0.0,
-            )
+        placements = tuple(
+            _Placement(c.source_start, c.source_end, c.timeline_start - c.source_start)
+            for c in project.clips
+            if c.track_id == track_id and c.source_id == source_id
         )
+        out.append(LaneTranscript(transcript, source_id, placements))
     return out
 
 
@@ -115,8 +136,9 @@ def requested_word_keys(
         if "source_id" not in item:
             candidates = [tr for tr in project.transcripts if tr.track_id == tid]
             if len(candidates) > 1:
-                raise ValueError(
-                    f"track {tid!r} has {len(candidates)} transcripts; give each word's source_id"
+                raise CodedValueError(
+                    f"track {tid!r} has {len(candidates)} transcripts; give each word's source_id",
+                    code="word_source_required",
                 )
             source_id = candidates[0].source_id if candidates else None
         else:

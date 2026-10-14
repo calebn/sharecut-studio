@@ -997,7 +997,9 @@ def edit_suppress_bleed_cmd(
         help="Preview candidates without applying (default applies suppressions)",
     ),
     words_json: str | None = typer.Option(
-        None, "--words-json", help="JSON array of {track_id, word_index}"
+        None,
+        "--words-json",
+        help="JSON array of {track_id, source_id?, word_index}; source_id is required on a multi-take lane",
     ),
     exclude_words_json: str | None = typer.Option(
         None, "--exclude-words-json", help="JSON array of word keys to skip"
