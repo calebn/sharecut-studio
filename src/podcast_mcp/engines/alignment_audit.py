@@ -43,8 +43,6 @@ class WaveformRenderResult:
 
 @dataclass
 class VADWindowRMSCache:
-    """Suggestion-scoped RMS values for exact, successfully decoded VAD windows."""
-
     values: dict[tuple[object, ...], float | None] = field(default_factory=dict)
 
     @staticmethod
