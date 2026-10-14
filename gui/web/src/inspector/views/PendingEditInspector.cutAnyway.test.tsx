@@ -86,7 +86,10 @@ describe("approving a filler a peer speaks over", () => {
     clearRegisteredCommands();
     registerDawCommands();
     submit.mockReset();
-    submit.mockResolvedValueOnce(ASKED).mockResolvedValue({ ok: true });
+    submit.mockResolvedValueOnce(ASKED).mockResolvedValue({
+      ok: true,
+      command: { payload: { result: { count: 1 } } },
+    });
     useDawStore.getState().hydrate("/tmp/ep.json", {
       ...minimalProject(),
       pending_edits: [guardBlockedFiller],
