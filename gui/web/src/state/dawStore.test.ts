@@ -496,6 +496,22 @@ describe("dawStore clip multi-select", () => {
     });
     expect(useDawStore.getState().selectedClipIds).toEqual(["c1", "g1"]);
   });
+
+  it("replaces the old clip highlight when an agent selection is adopted", () => {
+    useDawStore.getState().selectClip("c1", "host");
+    useDawStore.getState().applyAgentSession(
+      agentSession({
+        selection: { kind: "clip", id: "g1", track_id: "guest" },
+        agent_selection_seq: 1,
+      }),
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "clip",
+      id: "g1",
+      trackId: "guest",
+    });
+    expect(useDawStore.getState().selectedClipIds).toEqual(["g1"]);
+  });
 });
 
 describe("dawStore follow presence", () => {
