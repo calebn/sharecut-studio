@@ -102,6 +102,19 @@ async def test_mcp_progress_sink_preserves_accepted_payload_when_closed() -> Non
     assert queue.empty()
 
 
+def test_guest_mcp_parent_end_after_nested_fail_does_not_snap() -> None:
+    ctx = GuestMcpProgressContext("pt-nested-fail")
+    ctx.start("propose-edits", "Propose edits")
+    ctx.start("word-probe", "Listening for missed words", total=4)
+    ctx.fail("word-probe", message="whisper weights missing")
+    ctx.end("propose-edits", message="done")
+    last = ctx.notifications[-1]["params"]
+    assert last["progress"] != last["total"]
+    assert last["message"] != "done"
+    assert last["progress"] == 0.0
+    assert last["total"] == 4.0
+
+
 def test_scrub_guest_progress_text_drops_host_paths_and_caps_length():
     assert scrub_guest_progress_text("guest_get_project") == "guest_get_project"
     assert scrub_guest_progress_text("   ") is None

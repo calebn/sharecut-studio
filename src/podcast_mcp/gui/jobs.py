@@ -353,13 +353,15 @@ class _JobProgressReporter(ElapsedProgressMixin):
             return
         now = time.monotonic()
         short = _gui_fail_message(message, phase)
+        owns = self._owns_units(task_id)
         with self._job._lock:
             if short is not None:
                 self._job.message = short
-                self._job.error = short
-            if self._job.kind == "agent" and self._owns_units(task_id):
+                if owns:
+                    self._job.error = short
+            if self._job.kind == "agent" and owns:
                 self._job.status = "error"
-            if self._job.steps and self._job.steps[-1].status == "running":
+            if owns and self._job.steps and self._job.steps[-1].status == "running":
                 self._job.steps[-1].status = "error"
                 self._job.steps[-1].error = short
                 self._job.steps[-1].finished_at = now
