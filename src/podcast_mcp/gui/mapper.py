@@ -177,8 +177,6 @@ class _Recording:
 
 
 class _LaneRecordings:
-    """Resolve each combined row from its persisted ``(track_id, source_id)`` identity."""
-
     def __init__(self, project: EpisodeProject) -> None:
         self._project = project
         self._lanes: dict[str, list[_Recording]] = {}
@@ -219,8 +217,6 @@ class _LaneRecordings:
         if len(lane) == 1 and lane[0].transcript is transcript:
             return lane[0]
         if not any(clip_plays_lane(self._project, clip, track_id) for clip in self._project.clips):
-            # Preserve the established implicit-primary media mapping when the lane
-            # has no explicit placements at all. A deleted secondary source stays unmapped.
             if transcript is not None and transcript.source_id is None:
                 return _Recording(track_id, transcript)
         placements = frozenset(

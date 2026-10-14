@@ -64,8 +64,6 @@ def _with_timeline_spans(project: EpisodeProject, match: TranscriptMatch) -> Tra
 
 
 def ensure_combined_transcript(project: EpisodeProject) -> CombinedTranscript:
-    # Per-source transcripts are authoritative; combined utterances are a projection.
-    # Rebuild at this boundary so source identity cannot be lost in an old cache.
     if project.transcripts:
         from podcast_mcp.engines import TranscriptionEngine
 
@@ -813,7 +811,6 @@ def _cut_transcript_source_range(
     review_required: bool,
     use_inaudible_opt: bool | None,
 ) -> EditDecision:
-    """Stage an ordinary cut using the selected recording's source clock."""
     transcript = _cut_transcript_for_source(project, track_id, source_id)
     if transcript is None:
         raise ValueError(f"No transcript for track {track_id} source {source_id}")

@@ -565,9 +565,6 @@ class EditDecision(BaseModel):
     track_ids: list[str] | None = None
     # Clock for start/end. remove/mute are source; blade split is timeline.
     timebase: str = "source"
-    # Transcript cuts keep their chosen recording identity through ordinary source
-    # removal approval. The timeline span is a stale-placement witness, not an exact
-    # range authorization or a replacement for session/track cut scope.
     source_id: str | None = None
     source_timeline_span: RangeInterval | None = None
     exact_range: ExactRangeTarget | None = None
