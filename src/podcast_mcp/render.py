@@ -9,6 +9,7 @@ from podcast_mcp.engines.reconciliation_state import (
     audio_state_fingerprint,
     mark_reconciliation_fresh,
     mark_reconciliation_stale,
+    reconciliation_is_stale,
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.pipeline import PipelineRunner
@@ -31,6 +32,8 @@ def rerender_preview(
     reconcile_before_gate = should_reconcile and any(
         track.transcript_gate for track in project.tracks
     )
+    reconcile_fingerprint_at_start = audio_state_fingerprint(project) if should_reconcile else None
+    run_reconcile = bool(should_reconcile and reconciliation_is_stale(project))
     reconciliation_result: dict | None = None
     reconciled_fingerprint: str | None = None
     with resolve_progress_task(
@@ -40,7 +43,7 @@ def rerender_preview(
         prefer_parent=True,
         progress=progress,
     ) as task:
-        if reconcile_before_gate:
+        if reconcile_before_gate and run_reconcile:
             reconciliation_result = maybe_auto_reconcile(
                 project, force=True, policy=policy, progress=None
             )
@@ -53,18 +56,25 @@ def rerender_preview(
         premix = premix_path(project)
         edit_count = sum(1 for e in project.edit_decisions if e.applied)
         if should_reconcile:
-            if not reconcile_before_gate:
+            if run_reconcile and not reconcile_before_gate:
                 reconciliation_result = maybe_auto_reconcile(
                     project,
                     force=True,
                     policy=policy,
                     progress=None,
                 )
-            elif reconciled_fingerprint == audio_state_fingerprint(project):
+            elif run_reconcile and reconciled_fingerprint == audio_state_fingerprint(project):
                 mark_reconciliation_fresh(project)
             if reconciliation_result is not None:
                 reconciliation_result["stale"] = project.reconciliation_stale
-            task.advance(1, message="Reconciled transcript", total=3)
+            elif (
+                not run_reconcile
+                and reconcile_fingerprint_at_start is not None
+                and audio_state_fingerprint(project) == reconcile_fingerprint_at_start
+            ):
+                mark_reconciliation_fresh(project)
+            message = "Reconciled transcript" if run_reconcile else "Reconciliation up to date"
+            task.advance(1, message=message, total=3)
         else:
             mark_reconciliation_stale(project)
             task.advance(1, message="Skipped reconciliation", total=3)

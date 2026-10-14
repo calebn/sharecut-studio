@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as transport from "../api/documentTransport";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -44,6 +45,18 @@ describe("solo commands", () => {
     expect(await execute("track.clearSolo")).toEqual({ status: "ok" });
     expect(useDawStore.getState().soloTracks).toEqual({});
     expect(announced()).toBe("Solo off. Every track plays again.");
+  });
+
+  it("does not call the render API when solo toggles", async () => {
+    const hostFetch = vi.spyOn(transport, "hostFetch").mockResolvedValue(
+      new Response("{}"),
+    );
+    await execute("track.soloToggle", { trackId: "host" });
+    const renderCalls = hostFetch.mock.calls.filter(([path]) =>
+      String(path).includes("render-preview"),
+    );
+    expect(renderCalls).toHaveLength(0);
+    hostFetch.mockRestore();
   });
 
   it("explains why Clear solo does nothing when no track is soloed", async () => {
