@@ -79,7 +79,7 @@ def test_every_update_is_weekly_grouped_and_conventional() -> None:
 
 def test_frontend_job_runs_nonblocking_prod_audit_after_install() -> None:
     workflow = load_github_yaml(TEST_WORKFLOW)
-    job = workflow["jobs"]["frontend"]
+    job = workflow["jobs"]["frontend-suite"]
     assert job["defaults"]["run"]["working-directory"] == "gui/web"
 
     steps = job["steps"]
@@ -96,7 +96,7 @@ def test_frontend_job_runs_nonblocking_prod_audit_after_install() -> None:
 
 
 def test_frontend_audit_failure_is_written_to_job_summary() -> None:
-    steps = load_github_yaml(TEST_WORKFLOW)["jobs"]["frontend"]["steps"]
+    steps = load_github_yaml(TEST_WORKFLOW)["jobs"]["frontend-suite"]["steps"]
     run_commands = [step.get("run") for step in steps]
     assert AUDIT_COMMAND in run_commands, f"frontend job must run {AUDIT_COMMAND}"
     audit_index = run_commands.index(AUDIT_COMMAND)

@@ -14,6 +14,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         "pytest",
         "pytest-python-floor",
         "frontend",
+        "frontend-suite",
         "frontend-e2e-suites",
         "frontend-e2e",
     }
@@ -36,7 +37,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         assert install["with"] == {"extras": extras}
     frontend_python = next(
         step
-        for step in jobs["frontend"]["steps"]
+        for step in jobs["frontend-suite"]["steps"]
         if step.get("uses", "").startswith("actions/setup-python@")
     )
     assert "cache" not in frontend_python["with"]
