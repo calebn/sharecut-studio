@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type { ClipRow, TrackView } from "../types/project";
-import { Inspector } from "./Inspector";
+import { Inspector, SheetInspector } from "./Inspector";
 
 vi.mock("../api", () => ({
   applyFadeRecommendations: vi.fn(),
@@ -155,5 +155,56 @@ describe("Inspector clip lookup", () => {
     render(<Inspector />);
     expect(screen.getByText("Editing volume envelope")).toBeTruthy();
     expect(screen.getByLabelText("Envelope point")).toHaveValue("late");
+  });
+});
+
+describe("SheetInspector", () => {
+  beforeEach(() => {
+    useDawStore.getState().hydrate(
+      "/tmp/ep",
+      minimalProject({
+        tracks: [track("host"), track("guest")],
+        clips: {
+          clip_count: 1,
+          tracks: {
+            host: [],
+            guest: [clip("c1", "guest", 4)],
+          },
+        },
+      }),
+    );
+  });
+
+  it("shows range actions without empty inspector while range is armed with no selection", () => {
+    useDawStore.setState({ selection: null, rangeArmed: true });
+    render(
+      <div className="bottom-sheet-body">
+        <SheetInspector />
+      </div>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Cancel range selection" }),
+    ).toBeVisible();
+    expect(screen.queryByText(/Click a clip/)).toBeNull();
+  });
+
+  it("dual-mounts range actions above the inspector when something else is selected", () => {
+    useDawStore.setState({
+      rangeArmed: true,
+      selection: { kind: "clip", id: "c1", trackId: "guest" },
+    });
+    render(
+      <div className="bottom-sheet-body">
+        <SheetInspector />
+      </div>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Cancel range selection" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: "guest clip, 00:04.000 to 00:06.000",
+      }),
+    ).toBeInTheDocument();
   });
 });

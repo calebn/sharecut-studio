@@ -655,6 +655,16 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
         await phone
           .getByRole("button", { name: "Select range", exact: true })
           .click();
+        await expect(
+          phone.getByRole("button", {
+            name: "Cancel range selection",
+            exact: true,
+          }),
+        ).toBeVisible();
+        await expect(phone.locator(".range-actions--sheet")).toHaveCSS(
+          "overflow-y",
+          "visible",
+        );
         const body = phone.locator('[data-clip-id="first-copy"] .clip-hit');
         const bounds = await body.boundingBox();
         expect(bounds).toBeTruthy();
