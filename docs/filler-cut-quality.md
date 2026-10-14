@@ -117,31 +117,28 @@ uses only complete frames within current peer-lane playback coverage. Real
 clip gaps and time before a shifted clip supply no reference frames. Digital
 zeros recorded inside a clip and owner-dominated raw frames remain eligible.
 Detection and own speech-level frames, whole-span means, and unread spans retain
-their existing meaning. Missing room reference uses the existing mean fallback.
-The mean fallback (#1306, #1373) holds a peer's whole-span mean to
-`TrackRmsCache.voice_reach_db` (`voice_reach_from_profile`, `edits/audio_cache.py`): the peer's
-audibility floor, no lower than 27 dB (`VOICE_FLOOR_UNDER_SPEECH_DB`) under its loudest frames, so
-a sparse speaker whose 90th percentile is room tone does not put the floor under the room. A peer
-with no live audio never speaks. A peer whose loudest frames show no contrast with its room has
-no voice level of its own, so it is held to the median voice reach of the session's other
-tracks, and with none to read it against it speaks only when its mean is `dominance_db` or more over
-the owner's own mean in the span (a flat track as loud as the owner's is no voice, a flat track over a
-silent owner is one). There is no fixed dBFS level and no
-`tighten.speech_energy_guard.min_other_rms_db` setting; the same recording at +12, 0, -12, -24
-and -36 dB names the same speaking peers (`tests/test_tighten_gain_invariance.py`, including a
-sparse speaker, unequal per-track gains, and two voices of one pitch told apart by level)
+their existing meaning. Missing room reference uses the peer fallback below.
+When frame calibration is unavailable, the peer fallback (#1306, #1373, #1419) reads the
+peer's own 10 ms level frames on the tighten grid (`LEVEL_FRAME_SEC` in `edits/audio_cache.py`).
+That grid subdivides the 40–100 ms windows from the generality audit; one frame at or above the
+peer's reach counts as voice. Reach is `TrackRmsCache.voice_reach_db` (`voice_reach_from_profile`):
+the audibility floor, no lower than 27 dB (`VOICE_FLOOR_UNDER_SPEECH_DB`) under its loudest frames.
+A peer with no live audio never speaks. A peer with no contrast between its loudest frames and its
+room has no voice level of its own, so reach is the median voice reach of the session's other
+dialogue lanes that can be read; lanes whose media is missing are skipped instead of failing the
+cut. Once voice is decided from the peer's own frames or reach, owner-dominance across tracks does
+not veto it. If frames cannot be read at all, the span's whole-span mean is compared to the same
+reach (not owner level). Only when reach itself cannot be resolved does the legacy rule apply: the
+peer speaks when its mean is `dominance_db` or more over the owner's mean in the span. There is no
+fixed dBFS level and no `tighten.speech_energy_guard.min_other_rms_db` setting; the same recording
+at +12, 0, -12, -24 and -36 dB names the same speaking peers (`tests/test_tighten_gain_invariance.py`).
 
-Whole-span RMS values remain diagnostics. If fine frames cannot be read or the
-local reference has no speech/room contrast, the existing mean threshold and
-owner-dominance rule normally decide. This keeps continuous hot activity protected;
-steady noise raised above the mean threshold can still block without usable
-contrast. When live owner-dominated reference frames are present and raw R is
-strictly above S, the guard conservatively blocks if the decision interval has
-non-silent undominated activity. Dense bleed therefore cannot hide a brief quiet
-peer remark through a whole-span dominance fallback. This can also warn for quiet
-room noise after an owner stops, because these levels cannot distinguish that
-noise from quiet independent speech. Sparse owner activity over stationary quiet
-noise does not qualify merely because `R + 6 dB` exceeds S. Readable digital silence
+Whole-span RMS values remain diagnostics for the calibrated path. When live owner-dominated
+reference frames are present and raw R is strictly above S, the guard conservatively blocks if the
+decision interval has non-silent undominated activity. Dense bleed therefore cannot hide a brief quiet
+peer remark once frame fallback applies. This can also warn for quiet room noise after an owner stops,
+because these levels cannot distinguish that noise from quiet independent speech. Sparse owner activity
+over stationary quiet noise does not qualify merely because `R + 6 dB` exceeds S. Readable digital silence
 and entirely owner-dominated bleed stay clear.
 Unreadable whole-span audio retains the unsuppressed voiced-word fallback.
 This guard's local reference is separate from the 27 dB kept-word voice walks

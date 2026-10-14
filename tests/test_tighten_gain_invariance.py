@@ -452,10 +452,13 @@ def test_a_same_pitch_peer_is_detected_by_its_own_reach_not_owner_dominance(
 
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
-def test_a_quiet_peer_word_inside_a_long_span_is_not_averaged_away(
+def test_frame_fallback_finds_quiet_peer_in_long_span_when_calibration_missing(
     tmp_path: Path, cached: bool
 ) -> None:
-    """Frame evidence must find a peer word 15 dB down inside a 3 s pause."""
+    """When calibration is unavailable, 10 ms frames must hear a 1 s word 15 dB down in a 3 s pause.
+
+    Whole-span mean on trunk reads silent here; this pins the frame fallback (#1419).
+    """
     host = _room(11, gated=False)
     _voice(host, 1.0, 5.5, SPEECH_DB + 4.0)
     _voice(host, 9.5, 14.0, SPEECH_DB + 4.0)
@@ -465,16 +468,58 @@ def test_a_quiet_peer_word_inside_a_long_span_is_not_averaged_away(
     for gain in (0.0, *LEVELS_DB):
         project = _project(tmp_path / str(gain), gain, gated=False, tracks=tracks)
         caches = build_track_rms_caches(project) if cached else None
-        levels = measure_peer_speech(
-            project,
-            [_PEER_SPAN],
-            owner_track_ids=["host"],
-            peer_track_ids=["guest"],
-            defaults=_GUARD_ON,
-            caches=caches,
-        )
+        with patch(
+            "podcast_mcp.edits.speech_energy_guard._peer_speaks_near_span", return_value=None
+        ):
+            levels = measure_peer_speech(
+                project,
+                [_PEER_SPAN],
+                owner_track_ids=["host"],
+                peer_track_ids=["guest"],
+                defaults=_GUARD_ON,
+                caches=caches,
+            )
         assert levels is not None
         assert levels.speaking == ("guest",), gain
+
+
+def test_session_reach_skips_dialogue_lane_with_missing_media(tmp_path: Path) -> None:
+    """A flat peer's session median must not fail when another dialogue lane has no file (#1419)."""
+    import math
+
+    from podcast_mcp.edits.speech_energy_guard import _session_voice_reach_db
+
+    host_audio, host_words = _host(gated=False)
+    guest = np.random.default_rng(4).normal(0, 0.001, SECONDS * RATE)
+    project = _project(
+        tmp_path,
+        0.0,
+        gated=False,
+        tracks=(
+            ("host", (host_audio, host_words)),
+            ("guest", (guest, [])),
+        ),
+    )
+    project.timeline.tracks.append(
+        Track(
+            id="bender",
+            label="bender",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/bender.wav", duration_sec=float(SECONDS)),
+        )
+    )
+    project.timeline.clips.append(
+        Clip(
+            id="c_bender",
+            track_id="bender",
+            source_start=0.0,
+            source_end=float(SECONDS),
+            timeline_start=0.0,
+        )
+    )
+    caches = build_track_rms_caches(project)
+    reach = _session_voice_reach_db(project, "guest", caches)
+    assert reach is not None and math.isfinite(reach)
 
 
 def test_sparse_ungated_peer_reach_clamp_is_gain_invariant(tmp_path: Path) -> None:

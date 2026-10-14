@@ -581,7 +581,9 @@ def _peer_voice_in_span(
 ) -> bool | None:
     """Whether any frame in ``span`` on the peer reaches its own voice level.
 
-    Where no frame-by-frame calibration can be made, each :data:`LEVEL_FRAME_SEC` window is
+    Uses the tighten level grid (:data:`LEVEL_FRAME_SEC`, 10 ms frames stepped by the same
+    hop). That grid subdivides the 40–100 ms windows from the generality audit; one frame at
+    or above reach is enough. Where no frame-by-frame calibration can be made, each frame is
     held to the level the peer's voice reaches
     (:func:`~podcast_mcp.edits.audio_cache.voice_reach_from_profile`). A peer with no live
     audio never speaks. A peer whose loudest frames show no contrast with its room has no
@@ -596,6 +598,7 @@ def _peer_voice_in_span(
         span[1],
         frame_sec=LEVEL_FRAME_SEC,
         hop_sec=LEVEL_FRAME_SEC,
+        caches=caches,
     )
     if levels is None or not levels.size:
         return None
