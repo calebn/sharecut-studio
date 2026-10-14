@@ -28,7 +28,6 @@ from typing import Any, Final, Literal, overload
 from pydantic import BaseModel
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ripple import RippleRemoval, ripple_track_ids
 from podcast_mcp.edits.speech_energy_guard import (
     guard_min_overlap_sec,
@@ -37,7 +36,7 @@ from podcast_mcp.edits.speech_energy_guard import (
     speech_words_in,
 )
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
-from podcast_mcp.engines.session_timeline import clip_source_to_timeline_shift
+from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     CutSpeech,
     CutSpeechTrack,
@@ -46,7 +45,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
-from podcast_mcp.util.timebase import clock_label
+from podcast_mcp.util.timebase import SourceSec, clock_label
 
 CUT_SPEECH_REASON: Final = "cuts_other_speech"
 CUT_ANYWAY_LABEL: Final = "Cut anyway"
@@ -84,6 +83,7 @@ class SourceExtent:
     track_id: str
     start: float
     end: float
+    source_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -132,20 +132,24 @@ def _chosen_on_timeline(
     project: EpisodeProject, track_id: str, chosen: Sequence[SourceExtent], start: float, end: float
 ) -> list[tuple[float, float]]:
     """Where ``track_id``'s ``chosen`` source spans sit inside timeline ``[start, end)`` now."""
-    spans = [(e.start, e.end) for e in chosen if e.track_id == track_id]
-    if not spans:
-        return []
+    timeline = SessionTimeline(project)
     out: list[tuple[float, float]] = []
-    for clip in clips_for_track(project, track_id):
-        if clip.timeline_end <= start or clip.timeline_start >= end:
+    for extent in chosen:
+        if extent.track_id != track_id:
             continue
-        shift = clip_source_to_timeline_shift(clip)
-        for lo, hi in spans:
-            a = max(lo + shift, clip.timeline_start, start)
-            b = min(hi + shift, clip.timeline_end, end)
-            if b > a:
-                out.append((a, b))
-    return out
+        source_ids = project.equivalent_source_ids(track_id, extent.source_id)
+        mapped = timeline.map_placements_source_span(
+            track_id,
+            source_ids,
+            SourceSec(extent.start),
+            SourceSec(extent.end),
+        )
+        for tl_start, tl_end in mapped:
+            lo = max(float(tl_start), start)
+            hi = min(float(tl_end), end)
+            if hi > lo:
+                out.append((lo, hi))
+    return merge_intervals(out, gap=1e-6)
 
 
 def _windows(start: float, end: float) -> list[tuple[float, float]]:

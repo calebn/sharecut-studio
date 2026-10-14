@@ -17,7 +17,8 @@ from podcast_mcp.models.words_revision import (
     words_revision,
 )
 from podcast_mcp.util.batch_scope import scoped
-from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError
+from podcast_mcp.util.media_identity import same_recording
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
 _T = TypeVar("_T")
@@ -1144,6 +1145,31 @@ class EpisodeProject(BaseModel):
 
     def source_by_id(self, source_id: str) -> SourceRecording | None:
         return next((s for s in self.sources if s.id == source_id), None)
+
+    def equivalent_source_ids(self, track_id: str, source_id: str | None) -> frozenset[str | None]:
+        """Every ``source_id`` on ``track_id`` that names the same recording file."""
+        from podcast_mcp.engines.session_timeline import clip_plays_lane
+        from podcast_mcp.util.tracks import recording_audio_path
+
+        try:
+            target = recording_audio_path(self, track_id, source_id)
+        except CodedKeyError:
+            return frozenset({source_id})
+        equivalent: set[str | None] = set()
+        for clip in self.clips:
+            if not clip_plays_lane(self, clip, track_id):
+                continue
+            sid = clip.source_id
+            try:
+                media = recording_audio_path(self, track_id, sid)
+            except CodedKeyError:
+                continue
+            if same_recording(media, target):
+                equivalent.add(sid)
+        if not equivalent:
+            return frozenset({source_id})
+        equivalent.add(source_id)
+        return frozenset(equivalent)
 
     def transcript_by_key(self, key: TranscriptKey) -> Transcript | None:
         """The transcript whose identity is exactly ``(track_id, source_id)``."""
