@@ -9,5 +9,5 @@ def floors_at(floor_db: float):
     """Give every dialogue track this audibility floor, with no audio to measure it from."""
     return patch(
         "podcast_mcp.engines.audio_audit._voice_floors",
-        new=lambda track_ids, caches: dict.fromkeys(track_ids, floor_db),
+        new=lambda track_ids, caches, offsets: dict.fromkeys(track_ids, floor_db),
     )

@@ -122,8 +122,12 @@ and `TrackEnergy` read an 8 kHz profile; tighten's waveform cache and
   Reconcile's evidence is each track before its effects chain
   (`build_reconciliation_caches(..., unprocessed=True)`): a compressor's threshold is an
   absolute level, so a processed stem moves less than the recording's gain does (#1495).
-  Its levels and floors are raw too: a track's balance gain (`Track.gain_db`) is a listening
-  choice, and adding it made a quiet mic's copy outrank the loud mic's own words.
+  Its levels are compared on a voice scale: each track's levels and floors lose one fixed
+  offset, its own voice level (`LevelProfile.path_reference_db`), so every mic's own speaker
+  sits at 0 dB. Raw levels cannot be compared across mics (a call recording can carry a
+  speaker 12 dB hotter than that speaker's own quiet mic), and a balance gain
+  (`Track.gain_db`) is a listening choice. The offset is a constant of the recording, not a
+  gain on the audio, and it moves with the file's gain.
 - Digital silence (`util.dsp.DIGITAL_SILENCE_DB`) reads the same at any gain.
 
 The bleed path's offsets were dBFS levels set on the lab tape, whose tracks' median voice
