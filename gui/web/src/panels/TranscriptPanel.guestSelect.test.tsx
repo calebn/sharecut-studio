@@ -142,6 +142,7 @@ describe("guest transcript Select follows share capabilities", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptRange",
       trackId: "host",
+      sourceId: null,
       startWordIndex: 0,
       endWordIndex: 0,
     });

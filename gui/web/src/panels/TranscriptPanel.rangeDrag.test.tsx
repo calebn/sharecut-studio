@@ -72,6 +72,7 @@ const range = (start: number, end: number) =>
   ({
     kind: "transcriptRange",
     trackId: "host",
+    sourceId: null,
     startWordIndex: start,
     endWordIndex: end,
   }) as const;
@@ -113,6 +114,7 @@ describe("TranscriptPanel touch range drag", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptRange",
       trackId: "guest-lane",
+      sourceId: null,
       startWordIndex: 21,
       endWordIndex: 21,
     });
@@ -120,6 +122,7 @@ describe("TranscriptPanel touch range drag", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptRange",
       trackId: "guest-lane",
+      sourceId: null,
       startWordIndex: 21,
       endWordIndex: 22,
     });
@@ -138,6 +141,7 @@ describe("TranscriptPanel touch range drag", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptRange",
       trackId: "guest-lane",
+      sourceId: null,
       startWordIndex: 21,
       endWordIndex: 21,
     });
@@ -146,6 +150,7 @@ describe("TranscriptPanel touch range drag", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptRange",
       trackId: "guest-lane",
+      sourceId: null,
       startWordIndex: 21,
       endWordIndex: 22,
     });
@@ -210,6 +215,7 @@ describe("TranscriptPanel touch range drag", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptRange",
       trackId: "guest-lane",
+      sourceId: null,
       startWordIndex: 21,
       endWordIndex: 21,
     });
@@ -318,6 +324,7 @@ describe("TranscriptPanel touch range drag", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "transcriptWord",
       trackId: "host",
+      sourceId: null,
       wordIndex: 2,
     });
   });
