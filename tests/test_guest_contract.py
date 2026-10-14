@@ -439,6 +439,7 @@ def _faults(host_path: Path) -> dict[str, Fault]:
             coded=True,
         ),
         "crash": Fault("crash", lambda: RuntimeError(f"{host_path} {PLANTED_SECRET}")),
+        "value_error": Fault("value_error", lambda: ValueError(f"{host_path} {PLANTED_SECRET}")),
         "os_error": Fault(
             "os_error", lambda: PermissionError(13, f"denied {PLANTED_SECRET}", str(host_path))
         ),
@@ -448,7 +449,7 @@ def _faults(host_path: Path) -> dict[str, Fault]:
     }
 
 
-PLANTED_FAULTS = ("coded_path", "crash", "os_error", "key_error")
+PLANTED_FAULTS = ("coded_path", "crash", "os_error", "key_error", "value_error")
 
 
 def _plant(site: Site, fault: Fault, monkeypatch: pytest.MonkeyPatch) -> list[int]:
@@ -565,6 +566,52 @@ def test_a_fault_in_any_guest_handler_reads_the_fixed_answer(
         _assert_private(world, label, json.dumps(out))
         assert out == {"jsonrpc": "2.0", "id": 1, "result": fault.tool_result(tool)}, label
         assert _logged_secret(caplog, since) is not fault.coded, label
+
+
+def test_mcp_bridge_maps_a_post_preflight_handler_crash_to_the_guest_error(
+    world: World,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fault = Fault("crash", lambda: RuntimeError(f"private host path {PLANTED_SECRET}"))
+    since = len(caplog.records)
+    with monkeypatch.context() as patch:
+        hits = _plant(Site(remote_mcp, "handle_mcp_jsonrpc"), fault, patch)
+        response = _client(world).post(
+            f"/mcp/{world.token}/mcp", headers=RELAYED, json=_rpc("tools/list")
+        )
+
+    assert hits, "post-preflight MCP dispatch was not reached"
+    _assert_private(world, "MCP POST", json.dumps([dict(response.headers), response.text]))
+    assert response.status_code == 500
+    assert response.json() == INTERNAL_ERROR
+    assert _logged_secret(caplog, since)
+
+
+def test_share_spa_index_read_crash_uses_the_guest_error_boundary(
+    world: World,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fault = Fault("crash", lambda: RuntimeError(f"private host path {PLANTED_SECRET}"))
+    real_read_text = Path.read_text
+    hits: list[int] = []
+
+    def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path == world.dist / "index.html":
+            hits.append(1)
+            raise fault.error()
+        return real_read_text(path, *args, **kwargs)
+
+    since = len(caplog.records)
+    monkeypatch.setattr(Path, "read_text", read_text)
+    response = _client(world).get(f"/r/{world.token}", headers=RELAYED)
+
+    assert hits, "share SPA index read was not reached"
+    _assert_private(world, "share SPA index", json.dumps([dict(response.headers), response.text]))
+    assert response.status_code == 500
+    assert response.json() == INTERNAL_ERROR
+    assert _logged_secret(caplog, since)
 
 
 IN_SESSION: dict[str, tuple[Site, str | None]] = {
