@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from podcast_mcp.gui.routes.guest_errors import guest_http_error
+from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
 from podcast_mcp.services.collaboration import share_allows_mcp
 from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
@@ -186,7 +186,8 @@ async def mcp_bridge(token: str, request: Request) -> Any:
 
     # On the guest MCP pool, like the SSE path (iter_mcp_sse): a tool call may wait on
     # project_commit_lock / render_lock and must stall neither the event loop nor host routes.
-    response = await run_guest_mcp_call(lambda: handle_mcp_jsonrpc(token, body))
+    with guest_boundary(log, "MCP POST"):
+        response = await run_guest_mcp_call(lambda: handle_mcp_jsonrpc(token, body))
     if response is None:
         return Response(status_code=202)
     return JSONResponse(response, media_type="application/json")

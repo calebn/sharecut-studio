@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.services.share_auth import (
     SESSION_COOKIE,
     authorization_url,
@@ -247,8 +248,9 @@ def auth_password_login(body: PasswordLoginRequest, response: Response) -> dict[
 
 @router.post("/auth/magic-link")
 def auth_magic_link(body: MagicLinkRequest, request: Request) -> dict[str, Any]:
-    store = get_identity_store()
-    raw = store.create_magic_link(body.email, share_token=body.share_token)
+    with guest_boundary(log, "magic link"):
+        store = get_identity_store()
+        raw = store.create_magic_link(body.email, share_token=body.share_token)
     origin = str(request.base_url).rstrip("/")
     q = urlencode({"token": raw, "next": body.next or "/"})
     link = f"{origin}/auth/magic-link/consume?{q}"
@@ -336,14 +338,15 @@ def passkey_login_finish(body: PasskeyAuthFinish, response: Response) -> dict[st
 @router.post("/auth/agent-credential")
 def mint_agent_credential(body: AgentCredentialRequest, request: Request) -> dict[str, Any]:
     """Mint a user-bound agent token for Restricted share MCP (same role/ACL)."""
-    store = get_identity_store()
-    user = store.resolve_session(request.cookies.get(SESSION_COOKIE))
-    if not user:
-        raise HTTPException(status_code=401, detail="sign in required")
-    acl = store.acl_allows(body.share_token, user["id"])
-    if acl is None:
-        raise HTTPException(status_code=403, detail="not on share ACL")
-    raw = store.mint_agent_credential(body.share_token, user["id"], ttl_hours=body.ttl_hours)
+    with guest_boundary(log, "agent credential"):
+        store = get_identity_store()
+        user = store.resolve_session(request.cookies.get(SESSION_COOKIE))
+        if not user:
+            raise HTTPException(status_code=401, detail="sign in required")
+        acl = store.acl_allows(body.share_token, user["id"])
+        if acl is None:
+            raise HTTPException(status_code=403, detail="not on share ACL")
+        raw = store.mint_agent_credential(body.share_token, user["id"], ttl_hours=body.ttl_hours)
     return {
         "token": raw,
         "share_token": body.share_token,

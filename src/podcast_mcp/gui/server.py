@@ -406,7 +406,7 @@ def create_app(
                 return _serve_share_spa(token, request, kind="record")
 
             def _serve_share_spa(token: str, request: Request, *, kind: str) -> Any:
-                from podcast_mcp.gui.routes.guest_errors import guest_http_error
+                from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error
                 from podcast_mcp.services.collaboration import lookup_share
 
                 try:
@@ -416,7 +416,8 @@ def create_app(
                 except Exception as exc:
                     raise guest_http_error(exc, logger=log, operation="share page") from exc
                 index_path = static_root / "index.html"
-                index_html = index_path.read_text(encoding="utf-8")
+                with guest_boundary(log, "share page"):
+                    index_html = index_path.read_text(encoding="utf-8")
                 for hook in registry.spa_hooks:
                     try:
                         body = hook(

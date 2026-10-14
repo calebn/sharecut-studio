@@ -290,6 +290,43 @@ def test_magic_link_and_agent_credential(
     assert ok.status_code == 200
 
 
+def test_body_share_token_auth_faults_use_the_generic_guest_error(
+    identity_store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.share_auth import SESSION_COOKIE
+
+    secret = "private-identity-store-path-do-not-leak"
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    monkeypatch.setattr("podcast_mcp.gui.routes.auth.get_identity_store", lambda: identity_store)
+
+    def fail(*_args, **_kwargs):
+        raise ValueError(f"identity store failed at {secret}")
+
+    monkeypatch.setattr(identity_store, "create_magic_link", fail)
+    magic = client.post(
+        "/auth/magic-link",
+        json={"email": "fault@example.com", "share_token": "private-share-token"},
+    )
+    assert magic.status_code == 500
+    assert magic.json() == {"detail": "internal error"}
+    assert secret not in magic.text and "private-share-token" not in magic.text
+
+    user = identity_store.create_or_get_email_user("agent@example.com")
+    client.cookies.set(SESSION_COOKIE, identity_store.create_session(user["id"]))
+    monkeypatch.setattr(identity_store, "acl_allows", fail)
+    agent = client.post("/auth/agent-credential", json={"share_token": "private-share-token"})
+    assert agent.status_code == 500
+    assert agent.json() == {"detail": "internal error"}
+    assert secret not in agent.text and "private-share-token" not in agent.text
+
+    monkeypatch.setattr(identity_store, "acl_allows", lambda *_args: {"role": "editor"})
+    monkeypatch.setattr(identity_store, "mint_agent_credential", fail)
+    agent_mint = client.post("/auth/agent-credential", json={"share_token": "private-share-token"})
+    assert agent_mint.status_code == 500
+    assert agent_mint.json() == {"detail": "internal error"}
+    assert secret not in agent_mint.text and "private-share-token" not in agent_mint.text
+
+
 def test_passkey_register_and_login(identity_store: ShareIdentityStore) -> None:
     user = identity_store.create_or_get_email_user(
         "pk@example.com", password="password1", email_verified=True
