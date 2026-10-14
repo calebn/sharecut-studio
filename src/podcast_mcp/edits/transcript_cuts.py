@@ -461,8 +461,20 @@ def add_remove_decision(
         record_suggested_cut_speech(project, decision)
     staged = project.model_copy(deep=True)
     staged.edit_decisions.append(decision)
-    joining_ids = _joining_remove_ids(staged.edit_decisions, decision.id, merge_gap_sec=0.05)
-    coalesce_edits(staged, track_id=track_id, defaults=cfg, merge_ids=joining_ids)
+    complete_primary_witness = source_aware and source_id is None
+    joining_ids = _joining_remove_ids(
+        staged.edit_decisions,
+        decision.id,
+        merge_gap_sec=0.05,
+        allow_primary_witness_completion=complete_primary_witness,
+    )
+    coalesce_edits(
+        staged,
+        track_id=track_id,
+        defaults=cfg,
+        merge_ids=joining_ids,
+        allow_primary_witness_completion=complete_primary_witness,
+    )
     same_id = [row for row in staged.edit_decisions if row.id == decision.id]
     candidates = same_id or [
         row
@@ -478,7 +490,12 @@ def add_remove_decision(
     return survivor
 
 
-def _same_merge_identity(left: EditDecision, right: EditDecision) -> bool:
+def _same_merge_identity(
+    left: EditDecision,
+    right: EditDecision,
+    *,
+    allow_primary_witness_completion: bool = False,
+) -> bool:
     return (
         left.track_id == right.track_id
         and left.type == right.type
@@ -487,7 +504,14 @@ def _same_merge_identity(left: EditDecision, right: EditDecision) -> bool:
         and left.author == right.author
         and left.applied == right.applied
         and left.source_id == right.source_id
-        and (left.source_timeline_span is not None) == (right.source_timeline_span is not None)
+        and (
+            (left.source_timeline_span is not None) == (right.source_timeline_span is not None)
+            or (
+                allow_primary_witness_completion
+                and left.source_id is None
+                and right.source_id is None
+            )
+        )
         and left.boundary_mode == right.boundary_mode
         and left.cut_speech == right.cut_speech
         and left.exact_range is None
@@ -506,7 +530,10 @@ def _ordinary_remove_survivor(row: EditDecision, requested: EditDecision) -> boo
 
 
 def _merge_groups(
-    rows: Sequence[EditDecision], *, merge_gap_sec: float
+    rows: Sequence[EditDecision],
+    *,
+    merge_gap_sec: float,
+    allow_primary_witness_completion: bool = False,
 ) -> tuple[tuple[EditDecision, ...], ...]:
     by_key: dict[tuple[str, EditDecisionType], list[EditDecision]] = {}
     for row in rows:
@@ -520,7 +547,9 @@ def _merge_groups(
         for row in ordered[1:]:
             if (
                 row.start <= hull.end + merge_gap_sec
-                and _same_merge_identity(hull, row)
+                and _same_merge_identity(
+                    hull, row, allow_primary_witness_completion=allow_primary_witness_completion
+                )
                 and not _keeps_independent_review(hull, row)
             ):
                 hull.end = max(hull.end, row.end)
@@ -535,9 +564,17 @@ def _merge_groups(
 
 
 def _joining_remove_ids(
-    rows: Sequence[EditDecision], new_id: str, *, merge_gap_sec: float
+    rows: Sequence[EditDecision],
+    new_id: str,
+    *,
+    merge_gap_sec: float,
+    allow_primary_witness_completion: bool = False,
 ) -> set[str]:
-    for group in _merge_groups(rows, merge_gap_sec=merge_gap_sec):
+    for group in _merge_groups(
+        rows,
+        merge_gap_sec=merge_gap_sec,
+        allow_primary_witness_completion=allow_primary_witness_completion,
+    ):
         if any(row.id == new_id for row in group):
             return {row.id for row in group}
     raise RuntimeError("source remove has no coalescing group")
@@ -551,11 +588,15 @@ def coalesce_edits(
     defaults: dict[str, Any] | None = None,
     skip_counts: dict[str, int] | None = None,
     merge_ids: set[str] | None = None,
+    allow_primary_witness_completion: bool = False,
 ) -> int:
     """Merge overlapping/adjacent same-track REMOVE/MUTE decisions with matching boundary modes.
 
     A merged cut that any padded cut went into is padded again from the merged span
     (``defaults`` supplies the pacing rule; see :func:`_merged_pad_sec`).
+
+    Interactive primary transcript cuts may complete a missing placement witness;
+    the merged source interval is still mapped and validated before publication.
     """
     if merge_ids == set():
         return 0
@@ -577,7 +618,11 @@ def coalesce_edits(
         require_source_remove,
     )
 
-    for rows in _merge_groups(owned, merge_gap_sec=merge_gap_sec):
+    for rows in _merge_groups(
+        owned,
+        merge_gap_sec=merge_gap_sec,
+        allow_primary_witness_completion=allow_primary_witness_completion,
+    ):
         if skip_counts is None:
             for row in rows:
                 if (
@@ -596,7 +641,7 @@ def coalesce_edits(
         merged_count += len(group) - 1
         if len(group) > 1:
             survivor.replace_gap_sec = _merged_pad_sec(project, group, defaults)
-            if survivor.source_timeline_span is not None:
+            if any(row.source_timeline_span is not None for row in group):
                 timeline = SessionTimeline(project)
                 has_lane_clips = any(
                     clip_plays_lane(project, clip, survivor.track_id) for clip in project.clips
