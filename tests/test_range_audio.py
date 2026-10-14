@@ -360,7 +360,10 @@ def test_host_pending_preview_warm_measures_the_mix_trim_ahead(minimal_project, 
         params={"path": str(minimal_project), "edit_id": "proposal"},
     )
     assert response.status_code == 200, response.text
-    assert response.json() == {"trim_db": -4.0}
+    assert response.json() == {
+        "trim_db": -4.0,
+        "sides": {"current": "ready", "suggested": "ready", "ab": "ready"},
+    }
 
 
 def test_host_pending_preview_warm_requires_host(minimal_project, monkeypatch):

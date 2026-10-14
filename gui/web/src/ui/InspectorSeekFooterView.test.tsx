@@ -29,7 +29,9 @@ describe("InspectorSeekFooterView", () => {
         playDisabledReason="Preparing full mix preview"
       />,
     );
-    const play = screen.getByRole("button", { name: "Preparing preview… 7s" });
+    const play = screen.getByRole("button", {
+      name: "Preparing this preview… 7s",
+    });
     expect(play).toHaveAttribute("aria-busy", "true");
     expect(container.querySelector(".pipeline-pulse")).not.toBeNull();
     await expectNoA11yViolations(container);

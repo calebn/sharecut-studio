@@ -148,7 +148,7 @@ function setup({
 
 const playButton = () =>
   screen.getByRole("button", {
-    name: /^(Play around|Preparing preview… \d+s)$/,
+    name: /^(Play around|Preparing this preview… \d+s)$/,
   });
 
 async function settle() {
@@ -234,7 +234,7 @@ describe("pending preview footer", () => {
         await vi.advanceTimersByTimeAsync(3100);
       });
       expect(
-        screen.getByRole("button", { name: "Preparing preview… 3s" }),
+        screen.getByRole("button", { name: "Preparing this preview… 3s" }),
       ).toHaveAttribute("aria-busy", "true");
       await act(async () => {
         finish(wavResponse(1.25));

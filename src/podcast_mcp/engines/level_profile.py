@@ -283,6 +283,9 @@ def file_level_profile(
 
 # Bump when ``profile_from_levels`` or its whole-track framing changes what it returns.
 _RECORD_REV = 1
+# A record is a few bytes, but every edit to a recording leaves one behind. Eviction goes by
+# write time, so the cap sits well over tracks x sample rates: a long-lived record stays.
+_RECORDS_KEPT = 256
 
 
 def _read_record(path: Path) -> LevelProfile | None:
@@ -307,6 +310,13 @@ def _write_record(path: Path, profile: LevelProfile) -> None:
         write_text_atomic(path, json.dumps(vars(profile)))
     except OSError:
         log.debug("level profile record not written to %s", path, exc_info=True)
+        return
+    try:
+        stale = sorted(path.parent.glob("*.json"), key=lambda p: p.stat().st_mtime)
+        for old in stale[:-_RECORDS_KEPT]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        log.debug("level profile records not pruned in %s", path.parent, exc_info=True)
 
 
 def recording_profile(project: EpisodeProject, track_id: str) -> LevelProfile:

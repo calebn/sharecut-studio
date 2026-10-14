@@ -118,8 +118,8 @@ const warmed = new Map<string, string>();
 /**
  * Ask the host to do a pending edit's slow work (mix headroom, track levels and
  * the Current / Suggested / A/B renders) before the first Play around, once per
- * edit and mix. Best effort: a
- * failure leaves the click to pay for them.
+ * edit and mix. Best effort: a refused or failed warm is asked again, and
+ * until it lands the click pays for what is left.
  */
 export function warmPendingPreview(projectPath: string, editId: string): void {
   const state = useDawStore.getState();
@@ -135,7 +135,13 @@ export function warmPendingPreview(projectPath: string, editId: string): void {
       const response = await hostFetch(`/api/pending-preview/warm?${query}`, {
         method: "POST",
       });
-      if (!response.ok && warmed.get(key) === mix) warmed.delete(key);
+      const failed =
+        !response.ok ||
+        Object.values(
+          ((await response.json()) as { sides?: Record<string, string> })
+            .sides ?? {},
+        ).includes("failed");
+      if (failed && warmed.get(key) === mix) warmed.delete(key);
     } catch {
       if (warmed.get(key) === mix) warmed.delete(key);
     }

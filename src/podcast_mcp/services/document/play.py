@@ -17,6 +17,7 @@ from collections import OrderedDict
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from filelock import Timeout
 
@@ -1705,12 +1706,16 @@ class PlayService:
         _write_mix_trim_record(record, trim)
         return trim
 
-    def warm_pending_preview(self, edit_id: str | None = None) -> float:
+    def warm_pending_preview(self, edit_id: str | None = None) -> dict[str, Any]:
         """Do a pending preview's slow work now, so the first Play around is a cached file.
 
         That is the mix trim and each track's whole-track level profile (which approving
         the edit on a snapshot reads for the Suggested side), then, for ``edit_id``, the
         Current / Suggested / A/B renders themselves.
+
+        Returns the trim and each pre-rendered side's status (``ready``, ``unavailable`` for an
+        edit that cannot be previewed that way, ``failed`` for a render that errored), so the
+        caller can retry a failure instead of taking it for done.
         """
         from podcast_mcp.edits.audio_cache import (
             JUMP_SAMPLE_RATE,
@@ -1727,13 +1732,19 @@ class PlayService:
                     track_level_profile(self.project, track.id, sample_rate=rate, record=True)
                 except (OSError, ValueError, KeyError):
                     log.debug("level profile warm skipped for %s", track.id, exc_info=True)
+        sides: dict[str, str] = {}
         if edit_id is not None:
             for mode in _PENDING_SIDES:
                 try:
                     self.play_pending_preview(edit_id, mode=mode, dry_run=True)
-                except (CodedValueError, KeyError, ValueError, OSError):
-                    log.debug("pending %s warm skipped for %s", mode, edit_id, exc_info=True)
-        return trim
+                    sides[mode] = "ready"
+                except (CodedValueError, KeyError, ValueError):
+                    log.debug("pending %s not warmed for %s", mode, edit_id, exc_info=True)
+                    sides[mode] = "unavailable"
+                except OSError:
+                    log.warning("pending %s warm failed for %s", mode, edit_id, exc_info=True)
+                    sides[mode] = "failed"
+        return {"trim_db": trim, "sides": sides}
 
     def _mix_trim_record_path(self, gains: dict[str, float], ceiling: float) -> Path:
         key = json.dumps(

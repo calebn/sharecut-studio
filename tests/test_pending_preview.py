@@ -387,7 +387,7 @@ def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
     monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
     monkeypatch.setattr(play_module, "_stem_mix_trim_db", measure)
 
-    assert PlayService(ws).warm_pending_preview() == -3.5
+    assert PlayService(ws).warm_pending_preview()["trim_db"] == -3.5
     restarted = ProjectWorkspace.open(minimal_project)
     assert PlayService(restarted).mix_trim_db() == -3.5
     assert len(measured) == 1
@@ -527,3 +527,50 @@ def test_a_transcript_change_does_not_reuse_a_cached_pending_render(minimal_proj
         )
     ]
     assert play.pending_preview_cached_wav("cut", mode="suggested") is None
+
+
+def test_warm_reports_each_side_and_marks_a_render_failure(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            review_required=True,
+            applied=False,
+        ),
+    )
+    play = PlayService(ws)
+    assert play.warm_pending_preview("cut")["sides"] == {
+        "current": "ready",
+        "suggested": "ready",
+        "ab": "ready",
+    }
+    assert play.warm_pending_preview("missing")["sides"] == {
+        "current": "unavailable",
+        "suggested": "unavailable",
+        "ab": "unavailable",
+    }
+
+    def broken(self, *_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(PlayService, "play_pending_preview", broken)
+    assert set(play.warm_pending_preview("cut")["sides"].values()) == {"failed"}
+
+
+def test_level_profile_records_keep_only_the_newest(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import level_profile
+
+    monkeypatch.setattr(level_profile, "_RECORDS_KEPT", 3)
+    records = tmp_path / "level_profiles"
+    for index in range(6):
+        level_profile._write_record(
+            records / f"{index}.json", level_profile.LevelProfile(-60.0, -30.0, -12.0)
+        )
+    assert len(list(records.glob("*.json"))) == 3

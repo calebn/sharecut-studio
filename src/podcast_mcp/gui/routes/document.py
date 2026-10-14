@@ -152,13 +152,17 @@ def pending_preview_warm(
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService
-    from podcast_mcp.util.project_state import render_lock
+    from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC, render_lock
 
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    ws = ProjectWorkspace.open(resolve_project(path, request))
+    project_path = resolve_project(path, request)
     try:
-        with render_lock(ws.project):
-            return {"trim_db": PlayService(ws).warm_pending_preview(edit_id)}
+        # Warm the mix as it is once the lock is ours: a warm queued behind another reads
+        # what that one recorded, not the mix it was asked about.
+        with render_lock(
+            ProjectWorkspace.open(project_path).project, timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
+        ):
+            return PlayService(ProjectWorkspace.open(project_path)).warm_pending_preview(edit_id)
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     except Timeout as exc:
