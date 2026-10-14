@@ -107,6 +107,16 @@ describe("TransportBar stale refresh", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it("says Checking mix until the project has loaded, never Mix up to date", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={null}>
+        <TransportBar />
+      </DawProvider>,
+    );
+    expect(screen.getByText("Checking mix…")).toBeInTheDocument();
+    expect(screen.queryByText("Mix up to date")).toBeNull();
+  });
+
   it("allows refresh for Docs Editor share", async () => {
     const key = shareProjectKey("editTok");
     useDawStore.getState().hydrate(key, staleProject(), "edit", ["edit"]);
