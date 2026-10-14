@@ -473,7 +473,7 @@ test("a Commenter suggests a cut for host review and sees the approved cut", asy
         await expect(guestApprove).toBeDisabled();
         await expect(guestApprove).toHaveAttribute(
           "title",
-          "Only the host or an Editor can review exact range proposals",
+          "Only the host or an Editor can review exact range proposals.",
         );
         await expect(guestReject).toBeDisabled();
         await guestInspector
