@@ -27,6 +27,7 @@ from podcast_mcp.services.media.ingest import (
     verify_result_to_dict,
     write_alignment_report,
 )
+from podcast_mcp.util.binaries import FFmpegPair
 
 
 def _ingest_manifest(tmp_path: Path, sample_wav: Path) -> tuple[Path, IngestManifest]:
@@ -374,6 +375,10 @@ def test_suggest_alignment_for_manifest(tmp_path: Path, sample_wav: Path) -> Non
             "podcast_mcp.services.media.ingest.check_drift",
             return_value=drift,
         ),
+        patch(
+            "podcast_mcp.services.media.ingest.resolve_ffmpeg_pair",
+            return_value=FFmpegPair("/fake/ffmpeg", "/fake/ffprobe", (9, 0, 2), "explicit"),
+        ),
     ):
         result = suggest_alignment_for_manifest(
             manifest,
@@ -405,6 +410,10 @@ def test_suggest_alignment_for_manifest_no_waveforms(
         patch(
             "podcast_mcp.services.media.ingest.check_drift",
             return_value=DriftReport(0.0, 0.0, 0.0, None),
+        ),
+        patch(
+            "podcast_mcp.services.media.ingest.resolve_ffmpeg_pair",
+            return_value=FFmpegPair("/fake/ffmpeg", "/fake/ffprobe", (9, 0, 2), "explicit"),
         ),
     ):
         result = suggest_alignment_for_manifest(
@@ -462,6 +471,10 @@ def test_suggest_alignment_scores_all_non_reference_guests(
         patch(
             "podcast_mcp.services.media.ingest.check_drift",
             return_value=DriftReport(0.0, 0.0, 0.0, None),
+        ),
+        patch(
+            "podcast_mcp.services.media.ingest.resolve_ffmpeg_pair",
+            return_value=FFmpegPair("/fake/ffmpeg", "/fake/ffprobe", (9, 0, 2), "explicit"),
         ),
     ):
         result = suggest_alignment_for_manifest(

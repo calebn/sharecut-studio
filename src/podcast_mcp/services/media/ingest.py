@@ -11,6 +11,7 @@ from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.conversation_align import ingest_alignment_meta_key
 from podcast_mcp.edits.track_media import apply_full_span_media
 from podcast_mcp.engines.alignment_audit import (
+    VADWindowRMSCache,
     check_drift,
     render_comparison_waveforms,
     simultaneous_speech_sec,
@@ -46,8 +47,9 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.waveform import schedule_track_waveforms
+from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
 
 
@@ -468,16 +470,51 @@ def suggest_alignment_for_manifest(
 ) -> SuggestResult:
     groups = manifest.resolve_sources(audio_dir)
     ref_name = manifest.reference_speaker_name()
-    ref_path = next(p[0] for n, p in groups if n == ref_name)
-    guests = [(n, p[0]) for n, p in groups if n != ref_name]
+    ref_path = next(paths[0] for name, paths in groups if name == ref_name)
+    guests = [(name, paths[0]) for name, paths in groups if name != ref_name]
     if not guests:
         raise CodedValueError(
             "ingest suggest requires at least one non-reference speaker",
             code="ingest_suggest_needs_speaker",
         )
-
-    ref_start = _manual_session_start(manifest, ref_name)
     candidates_raw = _frange(sweep_start_min, sweep_start_max, sweep_step)
+    with resolve_progress_task(
+        "ingest.suggest",
+        "Suggesting ingest alignment",
+        prefer_parent=True,
+    ) as progress:
+        return _suggest_alignment_for_manifest(
+            manifest,
+            audio_dir,
+            ref_name=ref_name,
+            ref_path=ref_path,
+            guests=guests,
+            candidates_raw=candidates_raw,
+            analysis_start_sec=analysis_start_sec,
+            analysis_duration_sec=analysis_duration_sec,
+            waveform_top_n=waveform_top_n,
+            diag_dir=diag_dir,
+            progress=progress,
+            rms_cache=VADWindowRMSCache(),
+        )
+
+
+def _suggest_alignment_for_manifest(
+    manifest: IngestManifest,
+    audio_dir: Path,
+    *,
+    ref_name: str,
+    ref_path: Path,
+    guests: list[tuple[str, Path]],
+    candidates_raw: list[float],
+    analysis_start_sec: float,
+    analysis_duration_sec: float,
+    waveform_top_n: int,
+    diag_dir: Path | None,
+    progress: ProgressTask,
+    rms_cache: VADWindowRMSCache,
+) -> SuggestResult:
+    ref_start = _manual_session_start(manifest, ref_name)
     out_dir = diag_dir or (workspace_artifacts_dir(audio_dir.parent) / "alignment")
 
     session_starts: dict[str, float] = {ref_name: ref_start}
@@ -486,17 +523,50 @@ def suggest_alignment_for_manifest(
     waveform_paths: list[str] = []
     drift_warning: str | None = None
     primary_guest = guests[0][0]
+    progress.set_phase("preflight", "Checking the selected FFmpeg/FFprobe pair…")
+    ffmpeg_pair = resolve_ffmpeg_pair()
+    progress.set_phase("candidate_scoring", "Scoring session-start candidates…")
 
-    for guest_name, guest_path in guests:
-        scored = sweep_session_starts(
-            ref_path,
-            guest_path,
-            candidates_raw,
-            session_start_reference=ref_start,
-            window_start_sec=analysis_start_sec,
-            window_duration_sec=analysis_duration_sec,
-        )
+    for guest_index, (guest_name, guest_path) in enumerate(guests, 1):
+        progress.set_phase("candidate_scoring", f"Scoring {guest_name} candidates…")
+        with progress.child(
+            f"ingest.suggest.candidates.{guest_index}",
+            f"Scoring {guest_name} session-start candidates",
+            total=len(candidates_raw),
+        ) as scoring_progress:
+            scoring_progress.set_phase(
+                "candidate_scoring",
+                f"Scoring guest {guest_index}/{len(guests)}: {guest_name}",
+            )
+
+            def report_candidate(
+                index: int,
+                _score,
+                guest_name: str = guest_name,
+                guest_index: int = guest_index,
+                scoring_progress: ProgressTask = scoring_progress,
+            ) -> None:
+                scoring_progress.advance(
+                    1,
+                    message=(
+                        f"Scored {guest_name} candidate {index}/{len(candidates_raw)} "
+                        f"(guest {guest_index}/{len(guests)})"
+                    ),
+                )
+
+            scored = sweep_session_starts(
+                ref_path,
+                guest_path,
+                candidates_raw,
+                session_start_reference=ref_start,
+                window_start_sec=analysis_start_sec,
+                window_duration_sec=analysis_duration_sec,
+                rms_cache=rms_cache,
+                ffmpeg_pair=ffmpeg_pair,
+                on_candidate_complete=report_candidate,
+            )
         best_start = scored[0].session_start_in_file_sec if scored else 0.0
+        progress.set_phase("content_offsets", f"Estimating {guest_name} content offset…")
         content_align = sweep_content_offset(
             ref_path,
             guest_path,
@@ -504,12 +574,18 @@ def suggest_alignment_for_manifest(
             session_start_source=best_start,
             window_start_sec=analysis_start_sec,
             window_duration_sec=analysis_duration_sec,
+            rms_cache=rms_cache,
+            ffmpeg_pair=ffmpeg_pair,
         )
         session_starts[guest_name] = best_start
         content_offsets[guest_name] = content_align
 
         guest_candidates: list[SuggestCandidate] = []
         for s in scored[: max(waveform_top_n, 1)]:
+            progress.set_phase(
+                "content_offsets",
+                f"Estimating {guest_name} candidate offsets…",
+            )
             ca = sweep_content_offset(
                 ref_path,
                 guest_path,
@@ -517,6 +593,8 @@ def suggest_alignment_for_manifest(
                 session_start_source=s.session_start_in_file_sec,
                 window_start_sec=analysis_start_sec,
                 window_duration_sec=analysis_duration_sec,
+                rms_cache=rms_cache,
+                ffmpeg_pair=ffmpeg_pair,
             )
             guest_candidates.append(
                 SuggestCandidate(
@@ -531,6 +609,7 @@ def suggest_alignment_for_manifest(
         # for backward-compatible SuggestResult.shape; all guests still get starts.
         if guest_name == primary_guest:
             suggest_candidates = guest_candidates
+            progress.set_phase("drift", "Checking alignment drift…")
             drift = check_drift(
                 ref_path,
                 guest_path,
@@ -539,9 +618,12 @@ def suggest_alignment_for_manifest(
                 window_duration_sec=min(analysis_duration_sec, 60.0),
                 window_a_start=analysis_start_sec,
                 window_b_start=max(analysis_start_sec + analysis_duration_sec, 240.0),
+                rms_cache=rms_cache,
+                ffmpeg_pair=ffmpeg_pair,
             )
             drift_warning = drift.warning
             if waveform_top_n > 0:
+                progress.set_phase("waveforms", "Rendering alignment comparison waveforms…")
                 for cand in guest_candidates[:waveform_top_n]:
                     sub = out_dir / f"sweep_{guest_name}_{int(cand.session_start_in_file_sec)}"
                     tracks = [
@@ -561,6 +643,7 @@ def suggest_alignment_for_manifest(
                     if wf.stack_path:
                         waveform_paths.append(str(wf.stack_path))
 
+    progress.set_phase("finalizing", "Preparing suggested manifest fragment…")
     yaml_snippet = _yaml_snippet_for_manifest(
         manifest, session_starts, content_offsets, primary_guest
     )

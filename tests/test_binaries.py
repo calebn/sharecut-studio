@@ -61,7 +61,7 @@ def test_unsupported_release_fails_before_return(tmp_path, version):
 
 def test_unequal_releases_fail(tmp_path):
     paths = executable_pair(tmp_path / "explicit", "9.0.2", "9.0.3")
-    with pytest.raises(FFmpegPairResolutionError, match="match"):
+    with pytest.raises(FFmpegPairResolutionError, match=r"match"):
         resolve_ffmpeg_pair(*map(str, paths))
 
 
@@ -72,6 +72,93 @@ def test_supported_pair_records_release_and_source(tmp_path, version, expected):
     assert pair.version == expected
     assert pair.source == "explicit"
     assert (pair.ffmpeg, pair.ffprobe) == tuple(map(str, paths))
+
+
+def test_successful_pair_admission_is_cached_until_binary_identity_changes(tmp_path, monkeypatch):
+    paths = executable_pair(tmp_path / "explicit", "9.0.2")
+    calls = []
+
+    def version(argv, **kwargs):
+        calls.append(argv)
+        name = Path(argv[0]).stem
+        return subprocess.CompletedProcess(argv, 0, f"{name} version 9.0.2\n", "")
+
+    monkeypatch.setattr("podcast_mcp.util.binaries.run", version)
+    first = resolve_ffmpeg_pair(*map(str, paths))
+    assert resolve_ffmpeg_pair(*map(str, paths)) == first
+    assert len(calls) == 2
+
+    paths[0].write_text("#!/bin/sh\nprintf 'ffmpeg version 9.0.2 changed\\n'\n")
+    paths[0].chmod(0o755)
+    changed = resolve_ffmpeg_pair(*map(str, paths))
+    assert changed == first
+    assert len(calls) == 4
+
+
+def test_new_earlier_path_pair_invalidates_automatic_admission(tmp_path, monkeypatch):
+    earlier = tmp_path / "earlier"
+    earlier.mkdir()
+    later = executable_pair(tmp_path / "later", "9.0.2")
+    monkeypatch.setenv("PATH", os.pathsep.join((str(earlier), str(later[0].parent))))
+    calls = []
+
+    def version(argv, **kwargs):
+        calls.append(argv)
+        name = Path(argv[0]).stem
+        return subprocess.CompletedProcess(argv, 0, f"{name} version 9.0.2\n", "")
+
+    monkeypatch.setattr("podcast_mcp.util.binaries.run", version)
+    initial = resolve_ffmpeg_pair()
+    assert initial.ffmpeg == str(later[0])
+    earlier_pair = executable_pair(earlier, "9.0.2")
+    updated = resolve_ffmpeg_pair()
+    assert updated.ffmpeg == str(earlier_pair[0])
+    assert len(calls) == 4
+
+
+def test_failed_pair_admission_is_not_cached(tmp_path, monkeypatch):
+    paths = executable_pair(tmp_path / "explicit", "9.0.2")
+    calls = []
+
+    def flaky(argv, **kwargs):
+        calls.append(argv)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(argv, 1, "", "unavailable")
+        name = Path(argv[0]).stem
+        return subprocess.CompletedProcess(argv, 0, f"{name} version 9.0.2\n", "")
+
+    monkeypatch.setattr("podcast_mcp.util.binaries.run", flaky)
+    with pytest.raises(FFmpegPairResolutionError):
+        resolve_ffmpeg_pair(*map(str, paths))
+    assert resolve_ffmpeg_pair(*map(str, paths)).version == (9, 0, 2)
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize("provided", ["ffmpeg", "ffprobe"])
+def test_inferred_sibling_identity_invalidates_explicit_pair_cache(tmp_path, monkeypatch, provided):
+    paths = executable_pair(tmp_path / "outside-path", "9.0.2")
+    monkeypatch.setenv("PATH", "")
+    calls = []
+
+    def version(argv, **kwargs):
+        calls.append(argv)
+        name = Path(argv[0]).stem
+        text = Path(argv[0]).read_text()
+        release = "8.0.1" if "8.0.1" in text else "9.0.2"
+        return subprocess.CompletedProcess(argv, 0, f"{name} version {release}\n", "")
+
+    monkeypatch.setattr("podcast_mcp.util.binaries.run", version)
+    command = paths[0] if provided == "ffmpeg" else paths[1]
+    first = resolve_ffmpeg_pair(**{provided: str(command)})
+    assert first.version == (9, 0, 2)
+
+    sibling = paths[1] if provided == "ffmpeg" else paths[0]
+    sibling.write_text(f"#!/bin/sh\nprintf '{sibling.stem} version 8.0.1\\n'\n")
+    sibling.chmod(0o755)
+    with pytest.raises(FFmpegPairResolutionError, match="match"):
+        resolve_ffmpeg_pair(**{provided: str(command)})
+    assert sum(call[0] == str(sibling) for call in calls) == 2
+    assert len(calls) == (4 if provided == "ffmpeg" else 3)
 
 
 @pytest.mark.parametrize("suffix", ["1ubuntu1", "essentials_build"])

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from podcast_mcp.engines.transcript_align import (
     offset_turn_taking_score,
     overlap_duration,
 )
+from podcast_mcp.util.binaries import FFmpegPair
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips
 from podcast_mcp.util.process import CalledProcessError
 
@@ -39,6 +41,30 @@ class WaveformRenderResult:
     sweep_paths: list[Path] = field(default_factory=list)
 
 
+@dataclass
+class VADWindowRMSCache:
+    """Suggestion-scoped RMS values for exact, successfully decoded VAD windows."""
+
+    values: dict[tuple[object, ...], float | None] = field(default_factory=dict)
+
+    @staticmethod
+    def file_identity(path: Path) -> tuple[object, ...] | None:
+        absolute = path.absolute()
+        try:
+            stat = absolute.stat()
+        except OSError:
+            return None
+        return (
+            str(absolute),
+            str(absolute.resolve()),
+            stat.st_dev,
+            stat.st_ino,
+            stat.st_size,
+            stat.st_mtime_ns,
+            stat.st_ctime_ns,
+        )
+
+
 def vad_speech_intervals(
     path: Path,
     *,
@@ -48,28 +74,49 @@ def vad_speech_intervals(
     rms_threshold: float = 0.015,
     min_run_sec: float = 0.2,
     sample_rate: int = 8000,
+    rms_cache: VADWindowRMSCache | None = None,
+    ffmpeg: str | None = None,
 ) -> list[tuple[float, float]]:
     """Energy-based speech intervals relative to ``start_sec`` on the file."""
     if duration_sec <= 0:
         return []
     n_chunks = max(1, int(duration_sec / chunk_sec))
     loud: list[bool] = []
+    file_identity = rms_cache.file_identity(path) if rms_cache is not None else None
+    cacheable = rms_cache is not None and file_identity is not None
+    cache_values = rms_cache.values if cacheable and rms_cache is not None else None
     for i in range(n_chunks):
         t = start_sec + i * chunk_sec
+        chunk_duration = min(chunk_sec, start_sec + duration_sec - t)
+        cache_key = (
+            file_identity,
+            t,
+            chunk_duration,
+            sample_rate,
+        )
+        if cache_values is not None and cache_key in cache_values:
+            rms = cache_values[cache_key]
+            loud.append(rms is not None and rms >= rms_threshold)
+            continue
         try:
             window = load_mono_window(
                 path,
                 start_sec=t,
-                duration_sec=min(chunk_sec, start_sec + duration_sec - t),
+                duration_sec=chunk_duration,
                 sample_rate=sample_rate,
+                ffmpeg=ffmpeg,
             )
         except AudioWindowUnavailableError:
             # Past EOF on short files: retain prior speech and stop decoding. (#146)
             break
-        if window.size == 0:
+        if not window.size:
+            if cache_values is not None:
+                cache_values[cache_key] = None
             loud.append(False)
             continue
         rms = float(np.sqrt(np.mean(window**2)))
+        if cache_values is not None:
+            cache_values[cache_key] = rms
         loud.append(rms >= rms_threshold)
 
     # The old merge joined loud chunks separated by exactly one quiet chunk.
@@ -100,6 +147,8 @@ def score_session_start_candidate(
     window_start_sec: float = 0.0,
     window_duration_sec: float = 90.0,
     content_align_source: float = 0.0,
+    rms_cache: VADWindowRMSCache | None = None,
+    ffmpeg_pair: FFmpegPair | None = None,
 ) -> SessionStartScore:
     ref_file_start = file_time_for_session(session_start_reference, window_start_sec, 0.0)
     src_file_start = file_time_for_session(
@@ -109,11 +158,15 @@ def score_session_start_candidate(
         reference_path,
         start_sec=ref_file_start,
         duration_sec=window_duration_sec,
+        rms_cache=rms_cache,
+        ffmpeg=ffmpeg_pair.ffmpeg if ffmpeg_pair else None,
     )
     src_iv = vad_speech_intervals(
         source_path,
         start_sec=src_file_start,
         duration_sec=window_duration_sec,
+        rms_cache=rms_cache,
+        ffmpeg=ffmpeg_pair.ffmpeg if ffmpeg_pair else None,
     )
     overlap = simultaneous_speech_sec(ref_iv, src_iv)
     peak: float | None = None
@@ -126,6 +179,7 @@ def score_session_start_candidate(
             analysis_start_sec=ref_file_start,
             analysis_duration_sec=min(window_duration_sec, 60.0),
             max_lag_sec=30.0,
+            ffmpeg=ffmpeg_pair.ffmpeg if ffmpeg_pair else None,
         )
         peak = result.correlation_peak
     except (ValueError, CalledProcessError):
@@ -146,19 +200,26 @@ def sweep_session_starts(
     window_start_sec: float = 0.0,
     window_duration_sec: float = 90.0,
     content_align_source: float = 0.0,
+    rms_cache: VADWindowRMSCache | None = None,
+    ffmpeg_pair: FFmpegPair | None = None,
+    on_candidate_complete: Callable[[int, SessionStartScore], None] | None = None,
 ) -> list[SessionStartScore]:
-    scores = [
-        score_session_start_candidate(
+    scores: list[SessionStartScore] = []
+    for index, candidate in enumerate(candidate_starts, 1):
+        score = score_session_start_candidate(
             reference_path,
             source_path,
-            session_start_source=c,
+            session_start_source=candidate,
             session_start_reference=session_start_reference,
             window_start_sec=window_start_sec,
             window_duration_sec=window_duration_sec,
             content_align_source=content_align_source,
+            rms_cache=rms_cache,
+            ffmpeg_pair=ffmpeg_pair,
         )
-        for c in candidate_starts
-    ]
+        scores.append(score)
+        if on_candidate_complete is not None:
+            on_candidate_complete(index, score)
     return sorted(scores, key=lambda s: s.simultaneous_speech_sec)
 
 
@@ -172,13 +233,25 @@ def sweep_content_offset(
     window_duration_sec: float = 90.0,
     max_offset_sec: float = 60.0,
     step_sec: float = 0.5,
+    rms_cache: VADWindowRMSCache | None = None,
+    ffmpeg_pair: FFmpegPair | None = None,
 ) -> float:
     ref_file = file_time_for_session(session_start_reference, window_start_sec, 0.0)
     src_file = file_time_for_session(session_start_source, window_start_sec, 0.0)
     ref_iv = vad_speech_intervals(
-        reference_path, start_sec=ref_file, duration_sec=window_duration_sec
+        reference_path,
+        start_sec=ref_file,
+        duration_sec=window_duration_sec,
+        rms_cache=rms_cache,
+        ffmpeg=ffmpeg_pair.ffmpeg if ffmpeg_pair else None,
     )
-    src_iv = vad_speech_intervals(source_path, start_sec=src_file, duration_sec=window_duration_sec)
+    src_iv = vad_speech_intervals(
+        source_path,
+        start_sec=src_file,
+        duration_sec=window_duration_sec,
+        rms_cache=rms_cache,
+        ffmpeg=ffmpeg_pair.ffmpeg if ffmpeg_pair else None,
+    )
     if not ref_iv or not src_iv:
         return 0.0
     result = offset_turn_taking_score(
@@ -200,8 +273,10 @@ def check_drift(
     window_a_start: float = 0.0,
     window_b_start: float = 240.0,
     max_offset_sec: float = 60.0,
+    rms_cache: VADWindowRMSCache | None = None,
+    ffmpeg_pair: FFmpegPair | None = None,
 ) -> DriftReport:
-    eng = FFmpegEngine()
+    eng = FFmpegEngine(_admitted_pair=ffmpeg_pair) if ffmpeg_pair else FFmpegEngine()
     min_duration = min(
         eng.probe(reference_path).duration_sec,
         eng.probe(source_path).duration_sec,
@@ -214,6 +289,8 @@ def check_drift(
         window_start_sec=window_a_start,
         window_duration_sec=window_duration_sec,
         max_offset_sec=max_offset_sec,
+        rms_cache=rms_cache,
+        ffmpeg_pair=ffmpeg_pair,
     )
     if window_b_start + window_duration_sec > min_duration:
         return DriftReport(
@@ -230,6 +307,8 @@ def check_drift(
         window_start_sec=window_b_start,
         window_duration_sec=window_duration_sec,
         max_offset_sec=max_offset_sec,
+        rms_cache=rms_cache,
+        ffmpeg_pair=ffmpeg_pair,
     )
     drift = abs(off_b - off_a)
     warning = None

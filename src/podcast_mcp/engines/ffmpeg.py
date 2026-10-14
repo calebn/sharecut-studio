@@ -51,7 +51,7 @@ from podcast_mcp.models import (
     Track,
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
-from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
+from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError, resolve_ffmpeg_pair
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import (
@@ -346,8 +346,14 @@ def _pcm_decode_error(code: int, timed_out: bool, timeout_sec: float, err: IO[by
 
 
 class FFmpegEngine:
-    def __init__(self, ffmpeg: str | None = None, ffprobe: str | None = None) -> None:
-        pair = resolve_ffmpeg_pair(ffmpeg, ffprobe)
+    def __init__(
+        self,
+        ffmpeg: str | None = None,
+        ffprobe: str | None = None,
+        *,
+        _admitted_pair: FFmpegPair | None = None,
+    ) -> None:
+        pair = _admitted_pair or resolve_ffmpeg_pair(ffmpeg, ffprobe)
         self.ffmpeg = pair.ffmpeg
         self.ffprobe = pair.ffprobe
         self.source = pair.source
