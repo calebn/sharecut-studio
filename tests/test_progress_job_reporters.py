@@ -79,7 +79,7 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         boot,
         "resolve_ffmpeg_pair",
-        lambda: (_ for _ in ()).throw(FFmpegPairResolutionError("missing pair")),
+        lambda **_kwargs: (_ for _ in ()).throw(FFmpegPairResolutionError("missing pair")),
     )
     assert boot.component_status()["components"]["ffmpeg"]["ok"] is False
 
@@ -90,7 +90,9 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     ff.chmod(0o755)
     fp.chmod(0o755)
     monkeypatch.setattr(
-        boot, "resolve_ffmpeg_pair", lambda: FFmpegPair(str(ff), str(fp), (9, 0, 2), "explicit")
+        boot,
+        "resolve_ffmpeg_pair",
+        lambda **_kwargs: FFmpegPair(str(ff), str(fp), (9, 0, 2), "explicit"),
     )
     assert boot.component_status()["components"]["ffmpeg"]["ok"] is True
 
