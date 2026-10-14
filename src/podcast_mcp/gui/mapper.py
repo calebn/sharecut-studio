@@ -216,9 +216,14 @@ class _LaneRecordings:
         lane = self.lane(track_id)
         if len(lane) == 1 and lane[0].transcript is transcript:
             return lane[0]
-        if not any(clip_plays_lane(self._project, clip, track_id) for clip in self._project.clips):
-            if transcript is not None and transcript.source_id is None:
-                return _Recording(track_id, transcript)
+        if (
+            transcript is not None
+            and transcript.source_id is None
+            and not any(
+                clip_plays_lane(self._project, clip, track_id) for clip in self._project.clips
+            )
+        ):
+            return _Recording(track_id, transcript)
         placements = frozenset(
             clip.source_id
             for clip in self._project.clips

@@ -311,9 +311,9 @@ def add_remove_decision(
     has_lane_clips = any(clip_plays_lane(project, clip, track_id) for clip in project.clips)
     timeline = SessionTimeline(project)
     initial_spans = (
-        timeline.map_placements_source_span(track_id, {source_id}, start, end)
+        timeline.map_placements_source_span(track_id, {source_id}, SourceSec(start), SourceSec(end))
         if source_aware and selected_clips
-        else timeline.map_source_span(track_id, start, end)
+        else timeline.map_source_span(track_id, SourceSec(start), SourceSec(end))
         if source_aware and source_id is None and not has_lane_clips
         else []
     )
@@ -348,7 +348,7 @@ def add_remove_decision(
     cfg = defaults if defaults is not None else load_defaults()
     # Pace from the requested span first so waveform snap cannot pull a boundary
     # onto the next word and then room-tone-expand across real dialogue.
-    pacing_kwargs = {"defaults": cfg, "cut_kind": "nl"}
+    pacing_kwargs: dict[str, Any] = {"defaults": cfg, "cut_kind": "nl"}
     if source_aware:
         pacing_kwargs["transcript"] = transcript
     paced = apply_filler_pacing(project, track_id, start, end, **pacing_kwargs)
@@ -357,7 +357,7 @@ def add_remove_decision(
             "cut would leave flanking words closer than min_gap_after_filler_sec; "
             "widen the retained gap or leave this hesitation in"
         )
-    optimizer_kwargs = {"force_enabled": use_inaudible_opt}
+    optimizer_kwargs: dict[str, Any] = {"force_enabled": use_inaudible_opt}
     if source_aware:
         optimizer_kwargs.update(
             source_id=source_id,

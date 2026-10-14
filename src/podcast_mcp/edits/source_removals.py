@@ -186,6 +186,7 @@ def inspect_source_remove_placement(
     if pause and edit.scope == "track":
         return CutScopeHold(edit.id, (), "stored_track_pause")
     timeline = SessionTimeline(project)
+    span: tuple[TimelineSec, TimelineSec] | None
     if edit.source_timeline_span is not None:
         lane_clips = [c for c in project.clips if clip_plays_lane(project, c, edit.track_id)]
         if lane_clips:
