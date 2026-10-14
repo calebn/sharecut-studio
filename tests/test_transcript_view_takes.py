@@ -1,0 +1,130 @@
+"""Transcript view of a lane recorded as two takes: each row plays only where its take does."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from podcast_mcp.engines.transcribe import TranscriptionEngine
+from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline
+from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole, Transcript, TranscriptWord
+
+
+def _words(prefix: str, starts: list[float], **kw: object) -> list[TranscriptWord]:
+    return [
+        TranscriptWord(text=f"{prefix}{n}", start=s, end=s + 0.4, confidence=0.9, **kw)
+        for n, s in enumerate(starts)
+    ]
+
+
+def _two_take_project(tmp_path: Path) -> EpisodeProject:
+    """Take 2 plays at 0-10 s from its own 0-10 s; take 3 at 10-30 s from its own 0-20 s."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id=tid, label=tid, role=TrackRole.DIALOGUE, speaker=tid) for tid in ("vicky", "dani")
+    ]
+    project.clips = [
+        Clip(
+            id="c2",
+            track_id="vicky",
+            source_id="take2",
+            source_start=0.0,
+            source_end=10.0,
+            timeline_start=0.0,
+        ),
+        Clip(
+            id="c3",
+            track_id="vicky",
+            source_id="take3",
+            source_start=0.0,
+            source_end=20.0,
+            timeline_start=10.0,
+        ),
+        Clip(id="cd", track_id="dani", source_start=0.0, source_end=30.0, timeline_start=0.0),
+    ]
+    project.transcripts = [
+        Transcript(track_id="vicky", source_id="take2", words=_words("a", [1.0, 4.5])),
+        Transcript(
+            track_id="vicky", source_id="take3", words=_words("b", [1.0, 4.5, 8.0, 12.0, 18.0])
+        ),
+        Transcript(track_id="dani", words=_words("d", [16.0])),
+    ]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    return project
+
+
+def _view(project: EpisodeProject, *, include_words: bool = True) -> list[dict]:
+    assert project.combined_transcript is not None
+    mapped = map_transcript_utterances_to_timeline(
+        project, project.combined_transcript.model_dump(), include_words=include_words
+    )
+    assert mapped is not None
+    return mapped["utterances"]
+
+
+def test_each_take_row_maps_only_through_its_own_clips(tmp_path: Path) -> None:
+    rows = _view(_two_take_project(tmp_path))
+    spans = {row["text"]: [(s["start"], s["end"]) for s in row["timeline_spans"]] for row in rows}
+    # Before: a0 also lit up at 11 s (take 3's clip plays source 1 s there), b0 at 1 s.
+    assert spans["a0"] == [(1.0, 1.4)]
+    assert spans["b0"] == [(11.0, 11.4)]
+    assert spans["b3"] == [(22.0, 22.4)]
+
+
+def test_take_rows_carry_their_own_words(tmp_path: Path) -> None:
+    rows = _view(_two_take_project(tmp_path))
+    by_text = {row["text"]: row for row in rows}
+    # Before: take 3's rows listed take 2's words, and rows past take 2's last word none.
+    for text in ("a0", "a1", "b0", "b1", "b2", "b3", "b4"):
+        words = by_text[text]["words"]
+        assert [w["text"] for w in words] == [text]
+        source_id = "take2" if text.startswith("a") else "take3"
+        assert words[0]["timing_target"]["source_id"] == source_id
+    assert by_text["b4"]["words"][0]["timeline_start"] == 28.0
+
+
+def test_rows_run_in_playback_order(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+    for include_words in (True, False):
+        rows = _view(project, include_words=include_words)
+        # Before: source order put take 3 (source clock from 0) among take 2's rows and
+        # Dani's 16 s row before take 3's 22 s row only by accident of source time.
+        assert [row["text"] for row in rows] == ["a0", "a1", "b0", "b1", "d0", "b2", "b3", "b4"]
+        starts = [row["timeline_start"] for row in rows]
+        assert starts == sorted(starts)
+
+
+def test_cut_away_row_keeps_its_place_after_the_row_before(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+    # Cut take 3's source 7-9 s (b2) away: its row stays after b1, not at the top.
+    project.clips[1] = project.clips[1].model_copy(update={"source_end": 7.0})
+    project.clips.append(
+        Clip(
+            id="c3b",
+            track_id="vicky",
+            source_id="take3",
+            source_start=9.0,
+            source_end=20.0,
+            timeline_start=17.0,
+        )
+    )
+    rows = _view(project)
+    texts = [row["text"] for row in rows]
+    b2 = next(row for row in rows if row["text"] == "b2")
+    assert b2["mappable"] is False
+    assert texts.index("b2") == texts.index("b1") + 1
+
+
+def test_edge_suppressed_word_attaches_within_its_own_take(tmp_path: Path) -> None:
+    project = _two_take_project(tmp_path)
+    take3 = project.transcripts[1]
+    take3.words[1] = take3.words[1].model_copy(update={"suppressed": True})
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    rows = _view(project)
+    owners = {
+        row["text"]: row.get("edge_suppressed_word_indices", [])
+        for row in rows
+        if row["track_id"] == "vicky"
+    }
+    # b1 (take 3 word 1) is suppressed and attaches to a take 3 row, never to take 2's.
+    assert owners["a0"] == [] and owners["a1"] == []
+    assert sum(1 in v for k, v in owners.items() if k.startswith("b")) == 1

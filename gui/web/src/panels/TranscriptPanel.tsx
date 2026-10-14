@@ -1172,6 +1172,9 @@ export function TranscriptPanel() {
               const flatIndex = turn.startIndex + j;
               const unmapped = !isMappedUtterance(u);
               const uttActive = !unmapped && active.utterances.has(flatIndex);
+              // Follow scrolls to the first active utterance (the pinned one),
+              // not whichever overlapping row rendered last.
+              const followed = uttActive && flatIndex === activeIndex;
               const words = wordsForUtterance(u);
               const runsByLastPos = hostEditable
                 ? new Map(
@@ -1190,7 +1193,7 @@ export function TranscriptPanel() {
                 active: uttActive,
                 unmapped,
                 suppressedOnly: Boolean(u.suppressed_only),
-                activeRef: bindActiveRef(uttActive && !activeWord),
+                activeRef: bindActiveRef(followed && !activeWord),
                 words: words.map((w, wi) => {
                   const afterWordIndex = flatWordIndex;
                   flatWordIndex += 1;
@@ -1293,7 +1296,7 @@ export function TranscriptPanel() {
                     suspectHallucination: suspectChip,
                     prominent,
                     interactive: wordInteractive,
-                    activeRef: bindActiveRef(wActive),
+                    activeRef: bindActiveRef(followed && wActive),
                     anchorProps: wordAnchor,
                     title:
                       [
