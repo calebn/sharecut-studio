@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
@@ -291,6 +292,95 @@ def test_ingest_consolidate_cmd(minimal_project, tmp_path, sample_wav):
     assert "cross_speaker_offsets_sec" in result.stdout
     svc.consolidate_to_dialogue_tracks.assert_called_once()
     svc.apply_consolidated_tracks.assert_called_once_with(fake)
+
+
+@pytest.mark.parametrize("align_mode", ["auto", "audio"])
+def test_ingest_consolidate_places_audio_offsets_on_session_clock(
+    minimal_project: Path, tmp_path: Path, align_mode: str
+) -> None:
+    import numpy as np
+
+    from podcast_mcp.models import load_project
+
+    sample_rate = 8000
+    offset_sec = 3
+    audio_dir = tmp_path / "offset-audio"
+    audio_dir.mkdir()
+    reference = (
+        np.random.default_rng(1465)
+        .integers(-12000, 12000, size=20 * sample_rate, dtype=np.int16)
+        .astype("<i2", copy=False)
+    )
+
+    def write_wav(path: Path, frames: bytes) -> None:
+        with wave.open(str(path), "wb") as writer:
+            writer.setnchannels(1)
+            writer.setsampwidth(2)
+            writer.setframerate(sample_rate)
+            writer.writeframes(frames)
+
+    ref_path = audio_dir / "ref.wav"
+    early_path = audio_dir / "guest_early.wav"
+    late_path = audio_dir / "guest_late.wav"
+    write_wav(ref_path, reference.tobytes())
+    write_wav(early_path, b"\0\0" * offset_sec * sample_rate + reference.tobytes())
+    write_wav(late_path, reference[offset_sec * sample_rate :].tobytes())
+    manifest = tmp_path / "offset-ingest.yaml"
+    manifest.write_text(
+        """session:
+  reference_speaker: Ref
+speakers:
+  - name: Ref
+    sources: [ref.wav]
+    session_start_in_file_sec: 0
+  - name: Guest Early
+    sources: [guest_early.wav]
+    session_start_in_file_sec: 0
+  - name: Guest Late
+    sources: [guest_late.wav]
+    session_start_in_file_sec: 0
+""",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "ingest",
+            "consolidate",
+            "--audio-dir",
+            str(audio_dir),
+            "--manifest",
+            str(manifest),
+            "--project",
+            str(minimal_project),
+            "--analysis-start",
+            "5",
+            "--analysis-duration",
+            "10",
+            "--align-mode",
+            align_mode,
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    project = load_project(minimal_project)
+    clips = {clip.track_id: clip for clip in project.clips}
+    early = clips["guest_early"]
+    late = clips["guest_late"]
+    offsets_start = result.stdout.index("{", result.stdout.index("Consolidated"))
+    report = json.loads(result.stdout[offsets_start:])
+    assert report["cross_speaker_offsets_sec"]["Guest Early"] == pytest.approx(3.0, abs=0.01)
+    assert report["cross_speaker_offsets_sec"]["Guest Late"] == pytest.approx(-3.0, abs=0.01)
+    assert (early.source_start, early.source_end, early.timeline_start) == pytest.approx(
+        (3.0, 23.0, 0.0), abs=0.01
+    )
+    assert (late.source_start, late.source_end, late.timeline_start) == pytest.approx(
+        (0.0, 17.0, 3.0), abs=0.01
+    )
+    assert project.meta.ingest_alignment is not None
+    assert project.meta.ingest_alignment["Guest Early"].content_align_sec == -3.0
+    assert project.meta.ingest_alignment["Guest Late"].content_align_sec == 3.0
 
 
 # --- edit subcommands not covered elsewhere ---
