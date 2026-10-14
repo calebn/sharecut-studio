@@ -438,7 +438,9 @@ the lanes play now, not a rendered stem from before an earlier approval, and a s
 cut that a peer is speaking over is not turned into a track-local punch: with no
 recorded speech it applies nothing and says why (`cut_scope_changed`). Speech that another remove in
 the same batch cuts counts as chosen (`also_chosen`), so approving both speakers'
-overlapping fillers together does not ask. A Commenter's ripple delete
+overlapping fillers together does not ask. Batch extents use the track's primary
+recording and any alias `source_id` that names the same file on another lane
+(`clip_plays_lane`), not only clips parked on that track row. A Commenter's ripple delete
 suggestion also records the speech on the pending decision (`cut_speech`) when it is
 suggested; a confirmed approval of it ripples as suggested instead of falling back to
 a punch. A generated filler or an NL cut that a peer is speaking over waits the same way
