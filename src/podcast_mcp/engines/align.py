@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.engines.media_seek import MediaSeek
+from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_RMS
 from podcast_mcp.util.pcm_stream import no_audio_decoded_message
@@ -296,8 +297,7 @@ def load_mono_window(
         "-i",
         str(path),
         *seek.output_args(max(0.1, duration_sec)),
-        "-ac",
-        "1",
+        *ffmpeg_mono_mean_layout(path),
         "-ar",
         str(sample_rate),
         "-f",
