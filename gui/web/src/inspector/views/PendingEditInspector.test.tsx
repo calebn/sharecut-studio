@@ -20,8 +20,10 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
   COMMENTER_CAPABILITIES,
+  clipRow,
   minimalProject,
   sampleComment,
+  sampleTrack,
   wavResponse,
 } from "../../test/fixtures";
 import type { PendingEditView } from "../../types/project";
@@ -223,6 +225,71 @@ describe("PendingEditInspector", () => {
     expect(screen.getByRole("heading", { name: "Ask" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy();
     await expectNoA11yViolations(container);
+  });
+
+  it("adds timing steps and disables both while a source draft is dirty", async () => {
+    const clip = clipRow({
+      id: "host-clip",
+      track_id: "host",
+      source_start: 0,
+      source_end: 60,
+      timeline_start: 0,
+      timeline_end: 60,
+    });
+    const project = minimalProject({
+      tracks: [sampleTrack({ id: "host" })],
+      clips: { tracks: { host: [clip] }, clip_count: 1 },
+      pending_edits: [sessionCut],
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    render(<PendingEditInspector edit={sessionCut} />);
+    const start = screen.getByRole("textbox", { name: "Source start" });
+    const group = screen.getByRole("group", { name: "Nudge source start" });
+    const later = within(group).getByRole("button", { name: "10 ms later" });
+    await waitFor(() => expect(later).toBeEnabled());
+    fireEvent.change(start, { target: { value: "0:10.100" } });
+    expect(later).toBeDisabled();
+    expect(
+      within(screen.getByRole("group", { name: "Nudge source end" })).getByRole(
+        "button",
+        { name: "100 ms later" },
+      ),
+    ).toBeDisabled();
+  });
+
+  it("saves one existing pending command for one timing-step click", async () => {
+    const clip = clipRow({
+      id: "host-clip",
+      track_id: "host",
+      source_start: 0,
+      source_end: 60,
+      timeline_start: 0,
+      timeline_end: 60,
+    });
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        clips: { tracks: { host: [clip] }, clip_count: 1 },
+        pending_edits: [sessionCut],
+      }),
+    );
+    render(<PendingEditInspector edit={sessionCut} />);
+    const button = within(
+      screen.getByRole("group", { name: "Nudge source start" }),
+    ).getByRole("button", { name: "10 ms later" });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+    await waitFor(() => expect(updatePendingEdit).toHaveBeenCalledTimes(1));
+    expect(updatePendingEdit).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "ed1",
+      10.01,
+      12,
+      false,
+      undefined,
+      expectedBaseline(sessionCut),
+    );
   });
 
   it("defaults a mute to Suggested", () => {

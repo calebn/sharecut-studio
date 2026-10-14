@@ -350,11 +350,11 @@ describe("InspectorPeek nudges", () => {
 
   it("stops at a hard limit and saves nothing when nothing moved", async () => {
     open(POINT);
-    fireEvent.pointerDown(button("Envelope point level 0.1 higher"), {
+    fireEvent.pointerDown(button("Envelope point level 0.5 dB higher"), {
       button: 0,
     });
     advance(2000);
-    fireEvent.pointerUp(button("Envelope point level 0.1 higher"));
+    fireEvent.pointerUp(button("Envelope point level 0.5 dB higher"));
     await flush();
     expect(api.setEnvelope.mock.calls.map((c) => c[2])).toEqual([
       [{ id: "e1", time: 9.75, value: 1.5 }],

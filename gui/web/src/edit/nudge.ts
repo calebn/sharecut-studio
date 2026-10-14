@@ -19,6 +19,7 @@ import type {
   PendingEditView,
   ProjectView,
 } from "../types/project";
+import { dbToLinear, FADER_MIN_DB, linearToDb } from "../utils/audio";
 import {
   clampEnvelopeValue,
   findVolumeEnvelope,
@@ -64,6 +65,8 @@ export interface NudgeAxis {
   at: (v: number) => number | null;
   /** What moves, for the soft boundaries; null when nothing moves in time. */
   mover: NudgeMover | null;
+  /** Optional signed step transform for domains whose stored unit differs. */
+  step?: (value: number, signedStep: number) => number;
 }
 
 /** How each kind of field reads, steps and announces itself. */
@@ -114,8 +117,8 @@ export const NUDGE_KINDS: Record<
     ripples: false,
   },
   "envelope-level": {
-    steps: [0.01, 0.1],
-    unit: "",
+    steps: [0.5, 0.5],
+    unit: "dB",
     ways: ["lower", "higher"],
     format: (v) => `${v.toFixed(2)}×`,
     saved: "Envelope point saved",
@@ -269,6 +272,12 @@ export function nudgeAxis(
           clamp: clampEnvelopeValue,
           at: () => null,
           mover: null,
+          step: (value, signedDb) =>
+            value === 0
+              ? signedDb > 0
+                ? dbToLinear(FADER_MIN_DB + signedDb)
+                : 0
+              : dbToLinear(linearToDb(value) + signedDb),
         };
       }
       const lo =
@@ -304,7 +313,7 @@ export function nudgeStep(
   delta: number,
   held: boolean,
 ): { value: number; stop: NudgeStop | null } {
-  const wanted = tidy(value + delta);
+  const wanted = tidy(axis.step ? axis.step(value, delta) : value + delta);
   const next = tidy(axis.clamp(wanted));
   if (Math.abs(next - value) < SAME) return { value, stop: { kind: "limit" } };
   const from = axis.at(value);

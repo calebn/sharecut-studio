@@ -103,7 +103,7 @@ describe("ClipInspector presentation", () => {
     const buttons = [...container.querySelectorAll("button")].map(
       (button) => button.textContent,
     );
-    expect(buttons).toEqual([
+    expect(buttons.slice(-4)).toEqual([
       "Delete",
       "Ripple delete",
       "Seek join",
@@ -113,6 +113,42 @@ describe("ClipInspector presentation", () => {
       screen.getByLabelText("Fade in ms").compareDocumentPosition(destructive) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
+  });
+
+  it("shows numeric source edges with 44px-step controls and protects a dirty trim draft", () => {
+    hydrateClipProject(sampleTrack({ speaker: "Host" }));
+    render(<ClipInspector clip={clip} />);
+    const start = screen.getByRole("spinbutton", { name: "Source start" });
+    const startGroup = screen.getByRole("group", {
+      name: "Nudge source start",
+    });
+    const later = within(startGroup).getByRole("button", {
+      name: "10 ms later",
+    });
+    expect(start).toHaveValue(0);
+    expect(later).toBeEnabled();
+    fireEvent.change(start, { target: { value: "0.25" } });
+    expect(later).toBeDisabled();
+    expect(screen.getByRole("spinbutton", { name: "Source end" })).toHaveValue(
+      2,
+    );
+    expect(
+      screen.getByRole("button", { name: "Apply source start" }),
+    ).toBeEnabled();
+  });
+
+  it("rejects a typed source edge outside the minimum-span bounds", async () => {
+    hydrateClipProject(sampleTrack({ speaker: "Host" }));
+    render(<ClipInspector clip={clip} />);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Source start" }), {
+      target: { value: "2" },
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply source start" }),
+    );
+    expect(
+      screen.getByText(/must be between 0 and 1\.95 seconds/),
+    ).toBeVisible();
   });
 });
 

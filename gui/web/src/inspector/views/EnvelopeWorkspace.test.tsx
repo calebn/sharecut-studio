@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
@@ -101,6 +107,20 @@ describe("EnvelopeWorkspace", () => {
       trackId: "host",
       pointId: next[0]!.id,
     });
+  });
+  it("saves one existing envelope command for a half-dB nudge", async () => {
+    hydrate([{ id: "late", time: 5, value: 0.5 }], "late");
+    mount();
+    await userEvent.click(
+      screen.getByRole("button", { name: "0.5 dB higher" }),
+    );
+    await waitFor(() => expect(setEnvelope).toHaveBeenCalledTimes(1));
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [{ id: "late", time: 5, value: 0.529627 }],
+      [{ id: "late", time: 5, value: 0.5 }],
+    );
   });
   it("sends the raw unsorted origin and edits the exact ID", async () => {
     mount();

@@ -5,6 +5,8 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
+import type { NudgeField } from "../../edit/nudge";
+import { NUDGE_KINDS } from "../../edit/nudge";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
@@ -13,6 +15,7 @@ import { focusHeld } from "../../ui/focusHold";
 import { isValidFocusTarget } from "../../ui/focusTarget";
 import { modalShortcuts } from "../../ui/modalGate";
 import { ModifierInspector } from "../ModifierInspector";
+import type { useNudgeRun } from "../useNudgeRun";
 
 export type EnvelopeError = {
   target: "time" | "level" | "form";
@@ -27,6 +30,9 @@ export type EnvelopeForm = {
   notice?: string;
 };
 export type EnvelopeWorkspaceViewProps = {
+  trackId?: string;
+  nudgeRun?: ReturnType<typeof useNudgeRun>;
+  nudgeActive?: boolean;
   trackName: string;
   points: readonly AutomationPoint[];
   pointId: string | null;
@@ -48,6 +54,68 @@ export type EnvelopeWorkspaceViewProps = {
   touch?: boolean;
 };
 
+function NudgeRow({
+  field,
+  value,
+  label,
+  run,
+  disabled,
+}: {
+  field: NudgeField;
+  value: number;
+  label: string;
+  run: ReturnType<typeof useNudgeRun>;
+  disabled: boolean;
+}) {
+  const kind = NUDGE_KINDS[field.kind];
+  const [small, large] = kind.steps;
+  const deltas =
+    field.kind === "envelope-level"
+      ? [-small, small]
+      : [-large, -small, small, large];
+  const unit = field.kind === "envelope-time" ? "ms" : kind.unit;
+  return (
+    <div className="nudge-row envelope-nudge-row">
+      <span className="nudge-row-reading">
+        <span className="nudge-row-label">{label}</span>
+        <output className="nudge-row-value">
+          {field.kind === "envelope-time"
+            ? `${value.toFixed(3)} s`
+            : `${value.toFixed(2)}×`}
+        </output>
+      </span>
+      <div
+        className="nudge-row-buttons"
+        role="group"
+        aria-label={`Nudge envelope ${label.toLowerCase()}`}
+      >
+        {deltas.map((delta) => (
+          <button
+            key={delta}
+            type="button"
+            className="ui-control nudge-button"
+            aria-label={`${field.kind === "envelope-time" ? Math.round(Math.abs(delta) * 1000) : Math.abs(delta)} ${unit} ${kind.ways[delta < 0 ? 0 : 1]}`}
+            disabled={
+              disabled ||
+              (field.kind === "envelope-level" && value === 0 && delta < 0)
+            }
+            {...run.buttonProps(
+              field,
+              delta,
+              `Envelope point ${label.toLowerCase()}`,
+            )}
+          >
+            {delta < 0 ? "−" : "+"}
+            {field.kind === "envelope-time"
+              ? Math.round(Math.abs(delta) * 1000)
+              : Math.abs(delta)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const {
     trackName,
@@ -58,6 +126,8 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
     busy,
     error,
     collisionId,
+    trackId,
+    nudgeRun,
   } = props;
   const id = useId();
   const workspace = useRef<HTMLDivElement>(null);
@@ -70,6 +140,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const priorForm = useRef(form != null);
   const initialFocus = useRef(false);
   const formKind = form?.kind ?? null;
+  const controlsBusy = busy || props.nudgeActive === true;
   useEffect(() => {
     const returningFromForm = priorForm.current && !formKind;
     priorForm.current = formKind != null;
@@ -119,13 +190,15 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const cancelOnEscape = (
     event: Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation">,
   ) => {
-    if (event.key === "Escape" && form && !busy) {
+    if (event.key === "Escape" && form && !controlsBusy) {
       event.preventDefault();
       event.stopPropagation();
       props.onCancel();
     }
   };
   const selected = points.find((point) => point.id === pointId);
+  const nudgeDisabled =
+    busy || form != null || !editable || nudgeRun?.saving === true;
   return (
     <ModifierInspector
       badge="Volume envelope"
@@ -135,7 +208,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       primaryActions={[
         {
           label: "Done",
-          disabledReason: busy ? BUSY_REASON : undefined,
+          disabledReason: controlsBusy ? BUSY_REASON : undefined,
           onClick: props.onDone,
         },
       ]}
@@ -166,7 +239,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               ref={select}
               onFocus={(event) => focusAndReveal(event.currentTarget)}
               value={selected?.id ?? ""}
-              disabled={busy || form != null}
+              disabled={controlsBusy || form != null}
               onChange={(event) => props.onSelect(event.target.value)}
             >
               <option value="" disabled>
@@ -189,14 +262,14 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
           <div className="envelope-workspace-actions">
             <Button
               ref={add}
-              disabledReason={busy ? BUSY_REASON : undefined}
+              disabledReason={controlsBusy ? BUSY_REASON : undefined}
               onClick={props.onAdd}
             >
               Add point
             </Button>
             {selected && (
               <Button
-                disabledReason={busy ? BUSY_REASON : undefined}
+                disabledReason={controlsBusy ? BUSY_REASON : undefined}
                 onClick={props.onEdit}
               >
                 Edit point
@@ -205,7 +278,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
             {selected && (
               <Button
                 variant="danger"
-                disabledReason={busy ? BUSY_REASON : undefined}
+                disabledReason={controlsBusy ? BUSY_REASON : undefined}
                 onClick={props.onDelete}
               >
                 {points.length === 1
@@ -220,6 +293,27 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
             Removing this envelope returns automation to 1.00×. Track volume and
             effects stay unchanged.
           </p>
+        )}
+        {selected && !form && trackId && nudgeRun && (
+          <section
+            className="envelope-numeric-controls"
+            aria-label="Selected envelope point values"
+          >
+            <NudgeRow
+              field={{ kind: "envelope-time", trackId, pointId: selected.id }}
+              value={selected.time}
+              label="Time"
+              run={nudgeRun}
+              disabled={nudgeDisabled}
+            />
+            <NudgeRow
+              field={{ kind: "envelope-level", trackId, pointId: selected.id }}
+              value={selected.value}
+              label="Level"
+              run={nudgeRun}
+              disabled={nudgeDisabled}
+            />
+          </section>
         )}
         {form && (
           <form
@@ -247,7 +341,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
                 inputMode="decimal"
                 onFocus={(event) => focusAndReveal(event.currentTarget)}
                 value={form.time}
-                disabled={busy}
+                disabled={controlsBusy}
                 onChange={(event) =>
                   props.onChange({ ...form, time: event.target.value })
                 }
@@ -271,7 +365,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
                 inputMode="decimal"
                 onFocus={(event) => focusAndReveal(event.currentTarget)}
                 value={form.level}
-                disabled={busy}
+                disabled={controlsBusy}
                 onChange={(event) =>
                   props.onChange({ ...form, level: event.target.value })
                 }
@@ -286,13 +380,13 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               <Button
                 type="submit"
                 variant="primary"
-                disabledReason={busy ? BUSY_REASON : undefined}
+                disabledReason={controlsBusy ? BUSY_REASON : undefined}
                 onKeyDown={cancelOnEscape}
               >
                 Save point
               </Button>
               <Button
-                disabledReason={busy ? BUSY_REASON : undefined}
+                disabledReason={controlsBusy ? BUSY_REASON : undefined}
                 onClick={props.onCancel}
                 onKeyDown={cancelOnEscape}
               >

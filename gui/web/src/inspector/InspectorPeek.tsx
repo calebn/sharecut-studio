@@ -76,6 +76,7 @@ function NudgeRow({
   const kind = NUDGE_KINDS[row.field.kind];
   const value = nudgeAxis(project, row.field)?.value;
   const [small, large] = kind.steps;
+  const deltas = [...new Set([-large, -small, small, large])];
   const bump: NudgeBump | null =
     run.bump?.key === nudgeKey(row.field) ? run.bump : null;
   const label = (delta: number) =>
@@ -99,12 +100,15 @@ function NudgeRow({
         role="group"
         aria-label={`Nudge ${row.name.toLowerCase()}`}
       >
-        {[-large, -small, small, large].map((delta) => (
+        {deltas.map((delta) => (
           <button
             key={delta}
             type="button"
             className="ui-control nudge-button"
             aria-label={label(delta)}
+            disabled={
+              row.field.kind === "envelope-level" && value === 0 && delta < 0
+            }
             {...run.buttonProps(row.field, delta, row.name)}
           >
             {stepText(delta)}
