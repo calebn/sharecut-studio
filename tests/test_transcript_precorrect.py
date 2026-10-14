@@ -1421,3 +1421,42 @@ def test_glossary_pass_fixes_the_take_that_holds_the_match() -> None:
     assert report["count"] == 1
     assert [w.text for w in p.transcripts[0].words] == ["hello"]
     assert [w.text for w in p.transcripts[1].words] == ["x", "the"]
+
+
+@_HOST_GUEST_MEASURED
+def test_cross_track_sync_fixes_first_take_of_a_lane_with_only_explicit_takes() -> None:
+    p, ctx = _two_track_words()
+    guest = p.transcripts[1]
+    guest.source_id = "takeA"
+    p.transcripts.append(
+        Transcript(
+            track_id="guest",
+            source_id="takeB",
+            words=[TranscriptWord(text="other", start=40.0, end=40.4)],
+        )
+    )
+    pair = {
+        "track_a": "host",
+        "source_a": None,
+        "word_index_a": 0,
+        "text_a": "truth",
+        "start_a": 1.0,
+        "status_a": "audible",
+        "track_b": "guest",
+        "source_b": "takeA",
+        "word_index_b": 0,
+        "text_b": "trooth",
+        "start_b": 1.1,
+        "status_b": "bleed",
+        "overlap_sec": 0.4,
+        "text_match": False,
+    }
+    with patch(
+        "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
+        return_value={"pairs": [pair]},
+    ):
+        report = run_cross_track_sync(p, ctx, dry_run=False)
+
+    assert report["count"] == 1
+    assert guest.words[0].text == "truth"
+    assert p.transcripts[2].words[0].text == "other"
