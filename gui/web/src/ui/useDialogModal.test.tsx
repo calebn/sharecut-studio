@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { type RefObject, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BottomSheet } from "./BottomSheet";
@@ -635,5 +635,216 @@ describe("useDialogModal Escape across a remount", () => {
 
     expect(screen.queryByRole("dialog", { name: "Remove?" })).toBeNull();
     expect(sheetCloses).not.toHaveBeenCalled();
+  });
+
+  it("closes the later non-modal popover when the sheet beneath it remounts", async () => {
+    const sheetCloses = vi.fn();
+    const popoverCloses = vi.fn();
+    let api = { remount: () => undefined as void };
+    function Peek({ onClose }: { onClose: () => void }) {
+      const panelRef = useRef<HTMLDivElement>(null);
+      useDialogModal({
+        open: true,
+        onClose,
+        panelRef,
+        mode: "sheet",
+      });
+      return (
+        <div ref={panelRef} role="dialog" aria-label="Join">
+          <button type="button">Fade</button>
+        </div>
+      );
+    }
+    function App() {
+      const [generation, setGeneration] = useState(0);
+      api = { remount: () => setGeneration((n) => n + 1) };
+      return (
+        <>
+          <BottomSheet
+            key={generation}
+            open
+            onClose={sheetCloses}
+            backgroundPolicy="interactive"
+            title="Inspector"
+          >
+            <button type="button">Inspector field</button>
+          </BottomSheet>
+          <Peek onClose={popoverCloses} />
+        </>
+      );
+    }
+    const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+    render(<App />);
+    await settle();
+    act(() => api.remount());
+    await settle();
+
+    const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    env.IS_REACT_ACT_ENVIRONMENT = false;
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    env.IS_REACT_ACT_ENVIRONMENT = true;
+
+    expect(popoverCloses).toHaveBeenCalledOnce();
+    expect(sheetCloses).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDialogModal unfocusable return target", () => {
+  const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+
+  it.each(["disabled", "inert", "hidden"] as const)(
+    "falls back off a %s return target instead of leaving focus on body",
+    async (invalid) => {
+      let api = { closePeek: () => undefined as void };
+      function Peek({
+        onClose,
+        returnFocusRef,
+      }: {
+        onClose: () => void;
+        returnFocusRef: RefObject<HTMLElement | null>;
+      }) {
+        const panelRef = useRef<HTMLDivElement>(null);
+        useDialogModal({
+          open: true,
+          onClose,
+          panelRef,
+          mode: "sheet",
+          returnFocusRef,
+        });
+        return (
+          <div ref={panelRef} role="dialog" aria-label="Join">
+            <button type="button">Fade</button>
+          </div>
+        );
+      }
+      function App() {
+        const returnRef = useRef<HTMLButtonElement>(null);
+        const [peek, setPeek] = useState(true);
+        api = { closePeek: () => setPeek(false) };
+        return (
+          <>
+            <button type="button" ref={returnRef}>
+              Join badge
+            </button>
+            <BottomSheet
+              open
+              onClose={() => undefined}
+              backgroundPolicy="interactive"
+              title="Inspector"
+            >
+              <button type="button">Inspector field</button>
+            </BottomSheet>
+            {peek ? (
+              <Peek onClose={() => setPeek(false)} returnFocusRef={returnRef} />
+            ) : null}
+          </>
+        );
+      }
+      render(<App />);
+      await settle();
+      const badge = screen.getByRole("button", { name: "Join badge" });
+      if (invalid === "disabled") badge.disabled = true;
+      if (invalid === "inert") badge.setAttribute("inert", "");
+      if (invalid === "hidden") badge.hidden = true;
+      act(() => screen.getByRole("button", { name: "Fade" }).focus());
+      act(() => api.closePeek());
+      await settle();
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).not.toBe(badge);
+    },
+  );
+});
+
+describe("useDialogModal remount close restore", () => {
+  const settle = () => act(() => new Promise((r) => setTimeout(r, 50)));
+
+  it("returns focus to the timeline control when a sheet remounts closed", async () => {
+    let api = {
+      remountClosed: () => undefined as void,
+    };
+    function App() {
+      const [generation, setGeneration] = useState(0);
+      const [open, setOpen] = useState(true);
+      api = {
+        remountClosed: () => {
+          setGeneration((n) => n + 1);
+          setOpen(false);
+        },
+      };
+      return (
+        <>
+          <button type="button">Timeline control</button>
+          {open ? (
+            <BottomSheet
+              key={generation}
+              open
+              onClose={() => setOpen(false)}
+              backgroundPolicy="interactive"
+              title="Track"
+            >
+              <button type="button">Mute</button>
+            </BottomSheet>
+          ) : null}
+        </>
+      );
+    }
+    render(<App />);
+    await settle();
+    act(() => screen.getByRole("button", { name: "Timeline control" }).focus());
+    act(() => api.remountClosed());
+    await settle();
+    expect(screen.queryByRole("dialog", { name: "Track" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Timeline control" }),
+    ).toHaveFocus();
+  });
+
+  it("does not leave focus on body after closing a confirm that survived rotation", async () => {
+    let api = {
+      rotate: () => undefined as void,
+      closeConfirm: () => undefined as void,
+    };
+    function App() {
+      const [epoch, setEpoch] = useState(0);
+      const [confirming, setConfirming] = useState(true);
+      api = {
+        rotate: () => setEpoch((n) => n + 1),
+        closeConfirm: () => setConfirming(false),
+      };
+      return (
+        <>
+          <button type="button">Timeline control</button>
+          <BottomSheet
+            key={epoch}
+            open
+            onClose={() => undefined}
+            backgroundPolicy="interactive"
+            title="Inspector"
+          >
+            <button type="button">Remove track</button>
+          </BottomSheet>
+          <Dialog
+            open={confirming}
+            onClose={() => setConfirming(false)}
+            title="Remove the guest track?"
+          >
+            <p>Its clips go too.</p>
+          </Dialog>
+        </>
+      );
+    }
+    render(<App />);
+    await settle();
+    act(() => api.rotate());
+    await settle();
+    act(() => api.closeConfirm());
+    await settle();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(
+      screen.queryByRole("dialog", { name: "Remove the guest track?" }),
+    ).toBeNull();
   });
 });

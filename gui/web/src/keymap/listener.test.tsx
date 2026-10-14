@@ -14,6 +14,7 @@ import { AskDialog } from "../feedback/AskDialog";
 import { askConfirm, askText } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
+import { BottomSheet } from "../ui/BottomSheet";
 import { Dialog } from "../ui/Dialog";
 import { useDawKeymapListener } from "./listener";
 
@@ -88,6 +89,29 @@ it("leaves Escape to an open modal dialog instead of also clearing the selection
       expect.anything(),
     ),
   );
+});
+
+it("leaves Escape to an open sheet instead of also clearing the selection", async () => {
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  useDawStore.setState({ selection: { kind: "chapter", id: "c1", time: 1 } });
+  render(
+    <>
+      <KeymapHost />
+      <BottomSheet
+        open
+        onClose={onClose}
+        backgroundPolicy="interactive"
+        title="Inspector"
+      >
+        <button type="button">Inspector field</button>
+      </BottomSheet>
+    </>,
+  );
+  await user.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(execute)).not.toHaveBeenCalled();
+  expect(useDawStore.getState().selection).not.toBeNull();
 });
 
 it("gives a focused button native Space activation but keeps canvas Space for transport", async () => {
