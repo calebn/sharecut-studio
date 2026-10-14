@@ -203,7 +203,15 @@ describe("host drain against the real submit layer", () => {
       rec("next", 2),
     ]);
     const posted = stubServer({});
+    conflictReadFailure = true;
 
+    await drain();
+
+    expect(posted).toEqual([]);
+    expect(ids(hostQueues.get(PATH))).toEqual(["undo", "next"]);
+    expect(hostConflicts).toEqual([]);
+
+    conflictReadFailure = false;
     await drain();
 
     expect(posted).toEqual(["next"]);
@@ -297,7 +305,15 @@ describe("guest drain against the real submit layer", () => {
       rec("next", 2),
     ]);
     const posted = stubServer({});
+    conflictReadFailure = true;
 
+    await drain();
+
+    expect(posted).toEqual([]);
+    expect(ids(guestQueues.get(TOKEN))).toEqual(["undo", "next"]);
+    expect(guestConflicts).toEqual([]);
+
+    conflictReadFailure = false;
     await drain();
 
     expect(posted).toEqual(["next"]);

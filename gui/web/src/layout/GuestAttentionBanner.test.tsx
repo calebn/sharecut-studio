@@ -165,6 +165,26 @@ describe("GuestAttentionBanner", () => {
     expect(useDawStore.getState().moreDestination).toBe("history");
   });
 
+  it("gives guests a reachable History recovery instruction", async () => {
+    const conflict = offlineConflict({
+      kind: "unknown",
+      reason: "Undo or Redo may have been applied.",
+      recovery: "inspect-history",
+      command: { type: "UndoHistory" },
+    });
+    offlineStore.loadConflicts.mockResolvedValue([conflict]);
+    useDawStore.getState().hydrate("share:tok-sample", minimalProject());
+    render(<GuestAttentionBanner />);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Ask the project owner to inspect History before trying this action again.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Inspect History" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows unreadable guest queued edits without changing the guest pending count", async () => {
     offlineStore.loadCommandQueue.mockRejectedValue(
       new Error("Invalid saved command"),

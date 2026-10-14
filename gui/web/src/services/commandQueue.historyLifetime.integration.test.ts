@@ -132,10 +132,9 @@ describe("history command lifetime at queue admission", () => {
     },
   );
 
-  it.each(["UndoHistory", "RedoHistory"] as const)(
-    "keeps a live %s reservation when its unknown outcome cannot be saved",
-    async (type) => {
-      const route = type === "UndoHistory" ? "host" : "guest";
+  it.each(["host", "guest"] as const)(
+    "keeps a live %s Undo reservation when its unknown outcome cannot be saved",
+    async (route) => {
       const path =
         route === "host"
           ? "/tmp/history-unknown-host.json"
@@ -218,9 +217,6 @@ describe("history command lifetime at queue admission", () => {
       const { replayQueuedCommands } = await import(
         "../state/drainOfflineQueue"
       );
-      const settle = vi.fn(async () => {
-        throw new Error("cleanup unavailable");
-      });
       const source = {
         path: "/tmp/history-replay.json",
         load: async () => [
@@ -233,18 +229,21 @@ describe("history command lifetime at queue admission", () => {
             created_at: 1,
           },
         ],
-        settle,
       };
 
-      await expect(replayQueuedCommands(source)).rejects.toThrow(
-        "cleanup unavailable",
-      );
-      await expect(replayQueuedCommands(source)).rejects.toThrow(
-        "cleanup unavailable",
-      );
+      await replayQueuedCommands(source);
+
       expect(fetchSpy).not.toHaveBeenCalled();
-      expect(settle).toHaveBeenNthCalledWith(1, [`history-${type}`]);
-      expect(settle).toHaveBeenNthCalledWith(2, [`history-${type}`]);
+      expect(queue.settleHostCommandOutcome).toHaveBeenCalledWith(
+        "/tmp/history-replay.json",
+        `history-${type}`,
+        expect.objectContaining({
+          command: expect.objectContaining({ command_id: `history-${type}` }),
+          kind: "unknown",
+          recovery: "inspect-history",
+        }),
+        true,
+      );
     },
   );
 

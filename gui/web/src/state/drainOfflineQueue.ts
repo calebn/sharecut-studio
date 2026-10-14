@@ -3,10 +3,9 @@ import {
   askIfReplayHeldBack,
   clearSupersededCorrectionConflicts,
 } from "../api/documentEdits";
-import { isHistoryCommand } from "../services/commandQueue";
+import { reconcileCommandBeforeReplay } from "../services/commandQueue";
 import { shareProjectKey } from "../shareMode";
 import { isPermanentRejection } from "../utils/apiError";
-import { withCommandSendOwnership } from "./commandSendOwnership";
 import {
   documentSendDone,
   documentSendsFinished,
@@ -32,7 +31,7 @@ export interface ReplaySource {
   path: string;
   /** The persisted records, in replay order. */
   load: () => Promise<QueuedCommand[]>;
-  /** Send, skip or stop at `cmd` (default: send). */
+  /** Check queue membership and in-flight sends before replay. */
   gate?: (cmd: QueuedCommand) => Promise<ReplayGate>;
   /** Runs once when the pass ends, even after a stop, with the committed ids in order. */
   settle?: (completed: string[]) => Promise<void>;
@@ -41,8 +40,8 @@ export interface ReplaySource {
 /**
  * The one ordered-replay driver for both offline queues. Ordinary records are
  * re-sent with their original identity (`command_id`, `client_id`,
- * `client_seq`) and `replaying: true`; history records are discarded without
- * sending. A permanent rejection
+ * `client_seq`) and `replaying: true`; history records are settled as
+ * inspect-only uncertainty without sending. A permanent rejection
  * (`isPermanentRejection`: a 4xx other than 408 / 429) is skipped. That is
  * only safe because both submit layers (`services/commandQueue.ts`) have
  * already recorded it as a conflict and dequeued it before they throw;
@@ -64,11 +63,9 @@ export async function replayQueuedCommands(
     const gate = source.gate ? await source.gate(cmd) : "send";
     if (gate === "stop") break;
     if (gate === "skip") continue;
-    if (isHistoryCommand(cmd.type)) {
-      await withCommandSendOwnership(source.path, "shared", async () => {});
-      completed.push(cmd.command_id);
-      continue;
-    }
+    const outcomeGate = await reconcileCommandBeforeReplay(source.path, cmd);
+    if (outcomeGate === "stop") break;
+    if (outcomeGate === "skip") continue;
     try {
       const result = await submitDocumentCommand(
         source.path,
@@ -198,7 +195,8 @@ function queueReplaySource(ns: QueueNamespace): ReplaySource {
           return "stop";
         }
       }
-      return present && !present.has(cmd.command_id) ? "skip" : "send";
+      if (present && !present.has(cmd.command_id)) return "skip";
+      return "send";
     },
     // One persisted update replaces N full-array rewrites on a long replay.
     settle: (completed) => ns.remove(completed),
