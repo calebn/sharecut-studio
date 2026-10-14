@@ -20,7 +20,7 @@ from podcast_mcp.edits.inaudible_cuts import (
 )
 from podcast_mcp.edits.strip_silence import strip_silence
 from podcast_mcp.edits.transcript_cuts import cut_time_range
-from podcast_mcp.engines.level_profile import SILENT
+from podcast_mcp.engines.level_profile import SILENT, file_level_profile
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -599,7 +599,9 @@ def test_absorb_trailing_silence_extends_to_breath_floor(tmp_path: Path) -> None
         absorb_trailing_silence_max_sec=2.0,
         absorb_trailing_silence_quiet_over_floor_db=-2.0,
     )
-    new_end, absorbed = _absorb_trailing_silence(p, "host", wav, 1.5, config=cfg, sample_rate=sr)
+    new_end, absorbed = _absorb_trailing_silence(
+        p, "host", wav, 1.5, level_profile=file_level_profile(wav), config=cfg, sample_rate=sr
+    )
     assert absorbed is True
     assert new_end == pytest.approx(2.4, abs=0.02)
 
@@ -648,7 +650,9 @@ def test_absorb_trailing_silence_skips_distant_next_word(tmp_path: Path) -> None
         absorb_trailing_silence_max_sec=2.0,
         absorb_trailing_silence_retain_sec=0.4,
     )
-    new_end, absorbed = _absorb_trailing_silence(p, "host", wav, 1.0, config=cfg, sample_rate=sr)
+    new_end, absorbed = _absorb_trailing_silence(
+        p, "host", wav, 1.0, level_profile=file_level_profile(wav), config=cfg, sample_rate=sr
+    )
     assert absorbed is False
     assert new_end == 1.0
 
@@ -700,7 +704,9 @@ def test_absorb_trailing_silence_skips_when_gap_not_quiet(tmp_path: Path) -> Non
         absorb_trailing_silence_retain_sec=0.4,
         absorb_trailing_silence_quiet_over_floor_db=-3.0,
     )
-    new_end, absorbed = _absorb_trailing_silence(p, "host", wav, 1.0, config=cfg, sample_rate=sr)
+    new_end, absorbed = _absorb_trailing_silence(
+        p, "host", wav, 1.0, level_profile=file_level_profile(wav), config=cfg, sample_rate=sr
+    )
     assert absorbed is False
     assert new_end == 1.0
 
@@ -745,10 +751,14 @@ def test_absorb_trailing_silence_disabled_and_no_next_word(tmp_path: Path) -> No
         )
     ]
     disabled = InaudibleCutConfig(absorb_trailing_silence=False)
-    end, ok = _absorb_trailing_silence(p, "host", wav, 0.5, config=disabled)
+    end, ok = _absorb_trailing_silence(
+        p, "host", wav, 0.5, level_profile=file_level_profile(wav), config=disabled
+    )
     assert ok is False and end == 0.5
     enabled = InaudibleCutConfig(absorb_trailing_silence=True)
-    end2, ok2 = _absorb_trailing_silence(p, "host", wav, 1.8, config=enabled)
+    end2, ok2 = _absorb_trailing_silence(
+        p, "host", wav, 1.8, level_profile=file_level_profile(wav), config=enabled
+    )
     assert ok2 is False and end2 == 1.8
     assert _region_is_quiet(
         wav, 0.5, 0.505, quiet_db=-40, hop_ms=10, sample_rate=sr, audio_cache=None

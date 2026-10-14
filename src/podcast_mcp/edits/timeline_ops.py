@@ -373,7 +373,7 @@ def _exact_phrase_match(project: EpisodeProject, query: str) -> TranscriptMatch 
             src_start = float(words[i].start)
             src_end = float(words[i + len(q_words) - 1].end)
             tl_start, tl_end = _timeline_span_for_source(
-                project, transcript.track_id, src_start, src_end
+                project, transcript.track_id, transcript.source_id, src_start, src_end
             )
             if tl_start is None or tl_end is None:
                 continue
@@ -383,6 +383,7 @@ def _exact_phrase_match(project: EpisodeProject, query: str) -> TranscriptMatch 
             best_len = span
             best = TranscriptMatch(
                 track_id=transcript.track_id,
+                source_id=transcript.source_id,
                 start=src_start,
                 end=src_end,
                 text=" ".join(w.text for w in words[i : i + len(q_words)]),

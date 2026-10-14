@@ -12,7 +12,7 @@ import numpy as np
 from podcast_mcp.config import DEFAULT_MICRO_FADE_MS, join_micro_fade_ms, load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache, track_level_profile
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.engines.level_profile import file_level_profile
+from podcast_mcp.engines.level_profile import LevelProfile, file_level_profile
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Track, Transcript
 from podcast_mcp.util.dsp import clamp
@@ -583,6 +583,7 @@ def _absorb_trailing_silence(
     path: Path,
     cut_end: float,
     *,
+    level_profile: LevelProfile,
     config: InaudibleCutConfig,
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
@@ -605,10 +606,7 @@ def _absorb_trailing_silence(
     if gap <= retain + 0.02 or gap > max_gap:
         return cut_end, False
     target = next_start - retain
-    quiet_db = (
-        track_level_profile(project, track_id, audio_cache).voice_floor_db
-        + config.absorb_trailing_silence_quiet_over_floor_db
-    )
+    quiet_db = level_profile.voice_floor_db + config.absorb_trailing_silence_quiet_over_floor_db
     if not _region_is_quiet(
         path,
         cut_end,
@@ -701,18 +699,20 @@ def optimize_source_cut_range(
     # (within trailing_energy_extend_ms); chew into the next token only when
     # that window is still hot.
     if enabled and mode == "vocal_transcript_guided" and src is not None:
+        profile: LevelProfile | None = None
         try:
             search_until = _next_word_start_at_or_after(project, track_id, end, word_index)
+            profile = (
+                file_level_profile(src)
+                if source_id is not None
+                else track_level_profile(project, track_id, selected_audio_cache)
+            )
             end, trailing_extended = _extend_end_past_trailing_energy(
                 src,
                 start,
                 end,
                 config=cfg,
-                floor_db=(
-                    file_level_profile(src).voice_floor_db
-                    if source_id is not None and src is not None
-                    else track_level_profile(project, track_id, selected_audio_cache).voice_floor_db
-                ),
+                floor_db=profile.voice_floor_db,
                 audio_cache=selected_audio_cache,
                 search_until=search_until,
             )
@@ -721,19 +721,21 @@ def optimize_source_cut_range(
             trailing_extended = False
         if end <= start + 1e-4:
             end = max(orig_end, start + 0.01)
-        try:
-            end, silence_absorbed = _absorb_trailing_silence(
-                project,
-                track_id,
-                src,
-                end,
-                config=cfg,
-                audio_cache=selected_audio_cache,
-                word_index=word_index,
-            )
-        except Exception as exc:
-            log.debug("Could not absorb trailing silence for %s: %s", track_id, exc)
-            silence_absorbed = False
+        if profile is not None:
+            try:
+                end, silence_absorbed = _absorb_trailing_silence(
+                    project,
+                    track_id,
+                    src,
+                    end,
+                    level_profile=profile,
+                    config=cfg,
+                    audio_cache=selected_audio_cache,
+                    word_index=word_index,
+                )
+            except Exception as exc:
+                log.debug("Could not absorb trailing silence for %s: %s", track_id, exc)
+                silence_absorbed = False
         if end <= start + 1e-4:
             end = max(orig_end, start + 0.01)
     shifted_start_ms = (start - orig_start) * 1000.0

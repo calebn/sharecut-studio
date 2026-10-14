@@ -16,7 +16,6 @@ from podcast_mcp.edits.edit_reasons import (
 from podcast_mcp.edits.filler_pacing import paced_pad_for_span
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex, optimize_source_cut_range
 from podcast_mcp.edits.tighten_reasons import is_review_only_reason
-from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.models import (
     CombinedTranscript,
@@ -33,6 +32,7 @@ from podcast_mcp.util.timebase import SourceSec
 @dataclass
 class TranscriptMatch:
     track_id: str
+    source_id: str | None
     start: float
     end: float
     text: str
@@ -47,15 +47,39 @@ class TranscriptMatch:
 def _timeline_span_for_source(
     project: EpisodeProject,
     track_id: str,
+    source_id: str | None,
     src_start: float,
     src_end: float,
 ) -> tuple[float | None, float | None]:
-    """Map a source-clock span to session timeline (None if fully cut away)."""
-    return source_span_timeline_bounds(SessionTimeline(project), track_id, src_start, src_end)
+    """Map a source-clock span through only the selected recording's placements."""
+    timeline = SessionTimeline(project)
+    lane_clips = [c for c in project.clips if clip_plays_lane(project, c, track_id)]
+    if not lane_clips and source_id is None:
+        spans = timeline.map_source_span(track_id, SourceSec(src_start), SourceSec(src_end))
+    else:
+        placements = {
+            clip.source_id
+            for clip in lane_clips
+            if (
+                project.transcript_for_source(track_id, clip.source_id)
+                is project.transcript_for_source(track_id, source_id)
+                or (
+                    project.transcript_for_source(track_id, source_id) is None
+                    and source_id is None
+                    and clip.source_id is None
+                )
+            )
+        }
+        spans = timeline.map_placements_source_span(
+            track_id, placements, SourceSec(src_start), SourceSec(src_end)
+        )
+    return (float(spans[0][0]), float(spans[-1][1])) if spans else (None, None)
 
 
 def _with_timeline_spans(project: EpisodeProject, match: TranscriptMatch) -> TranscriptMatch:
-    tl_start, tl_end = _timeline_span_for_source(project, match.track_id, match.start, match.end)
+    tl_start, tl_end = _timeline_span_for_source(
+        project, match.track_id, match.source_id, match.start, match.end
+    )
     if match.timeline_start is None:
         match.timeline_start = tl_start
     if match.timeline_end is None:
@@ -103,6 +127,7 @@ def search_transcript(
                     project,
                     TranscriptMatch(
                         track_id=utt.track_id,
+                        source_id=utt.source_id,
                         start=utt.start,
                         end=utt.end,
                         text=utt.text,
@@ -137,6 +162,7 @@ def search_transcript(
                             project,
                             TranscriptMatch(
                                 track_id=transcript.track_id,
+                                source_id=transcript.source_id,
                                 start=words[i].start,
                                 end=words[j].end,
                                 text=chunk,
@@ -302,7 +328,7 @@ def add_remove_decision(
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
 
     transcript = _cut_transcript_for_source(project, track_id, source_id) if source_aware else None
-    if source_aware and transcript is None:
+    if source_aware and transcript is None and source_id is not None:
         raise ValueError(f"No transcript for track {track_id} source {source_id}")
     selected_clips = any(
         clip_plays_lane(project, clip, track_id) and clip.source_id == source_id
@@ -359,10 +385,9 @@ def add_remove_decision(
         )
     optimizer_kwargs: dict[str, Any] = {"force_enabled": use_inaudible_opt}
     if source_aware:
-        optimizer_kwargs.update(
-            source_id=source_id,
-            word_index=CutWordIndex.from_transcript(transcript, track_id),
-        )
+        optimizer_kwargs.update(source_id=source_id)
+        if transcript is not None:
+            optimizer_kwargs["word_index"] = CutWordIndex.from_transcript(transcript, track_id)
     opt = optimize_source_cut_range(project, track_id, paced.start, paced.end, **optimizer_kwargs)
     # Keep room-tone pad intent; clamp optimized bounds inside the paced window.
     # Trailing-energy may extend past ``paced.end`` only when the next ASR token
@@ -740,9 +765,10 @@ def cut_text_match(
     decisions: list[EditDecision] = []
     for m in selected:
         decisions.append(
-            cut_time_range(
+            _cut_transcript_source_range(
                 project,
                 m.track_id,
+                m.source_id,
                 m.start,
                 m.end,
                 reason=f"{NL_MATCH_REASON_PREFIX}{query[:40]}",
@@ -812,7 +838,7 @@ def _cut_transcript_source_range(
     use_inaudible_opt: bool | None,
 ) -> EditDecision:
     transcript = _cut_transcript_for_source(project, track_id, source_id)
-    if transcript is None:
+    if transcript is None and source_id is not None:
         raise ValueError(f"No transcript for track {track_id} source {source_id}")
     return add_remove_decision(
         project,

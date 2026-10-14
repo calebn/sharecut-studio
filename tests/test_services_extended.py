@@ -1979,6 +1979,7 @@ def test_play_resolve_source_with_mocked_search(minimal_project, sample_wav) -> 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     match = TranscriptMatch(
         track_id="host",
+        source_id=None,
         start=1.0,
         end=2.0,
         text="podcast",

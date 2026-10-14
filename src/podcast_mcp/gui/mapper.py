@@ -12,7 +12,11 @@ from podcast_mcp.edits.tighten_hits import (
     is_listen_one_by_one_hit,
     join_risk_from_decision,
 )
-from podcast_mcp.edits.timeline_span import map_source_span_fields, timeline_span_dicts
+from podcast_mcp.edits.timeline_span import (
+    map_source_span_fields,
+    source_remove_timeline_spans,
+    timeline_span_dicts,
+)
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_plays_lane,
@@ -23,7 +27,14 @@ from podcast_mcp.engines.utterance_runs import (
     utterance_speaker,
     utterance_text,
 )
-from podcast_mcp.models import AppliedEditRecord, Clip, EditDecision, EpisodeProject, Transcript
+from podcast_mcp.models import (
+    AppliedEditRecord,
+    Clip,
+    EditDecision,
+    EditDecisionType,
+    EpisodeProject,
+    Transcript,
+)
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
@@ -66,17 +77,35 @@ def map_pending_edits_to_timeline(
             source_start_timeline = None
             source_end_timeline = None
         else:
-            mappable, timeline_spans, timeline_start, timeline_end = map_source_span_fields(
-                timeline, decision.track_id, decision.start, decision.end
+            source_scoped = (
+                type_val == EditDecisionType.REMOVE.value
+                and decision.timebase == "source"
+                and (decision.source_id is not None or decision.source_timeline_span is not None)
             )
+            if source_scoped:
+                projected = source_remove_timeline_spans(project, decision)
+                timeline_spans = projected or []
+                mappable = projected is not None
+                timeline_start = timeline_spans[0]["start"] if timeline_spans else None
+                timeline_end = timeline_spans[-1]["end"] if timeline_spans else None
+            else:
+                mappable, timeline_spans, timeline_start, timeline_end = map_source_span_fields(
+                    timeline, decision.track_id, decision.start, decision.end
+                )
             source_start = decision.start
             source_end = decision.end
-            start_point = timeline.source_to_timeline(
-                decision.track_id, SourceSec(float(source_start))
-            )
-            end_point = timeline.source_to_timeline(decision.track_id, SourceSec(float(source_end)))
-            source_start_timeline = float(start_point) if start_point is not None else None
-            source_end_timeline = float(end_point) if end_point is not None else None
+            if source_scoped:
+                source_start_timeline = timeline_start
+                source_end_timeline = timeline_end
+            else:
+                start_point = timeline.source_to_timeline(
+                    decision.track_id, SourceSec(float(source_start))
+                )
+                end_point = timeline.source_to_timeline(
+                    decision.track_id, SourceSec(float(source_end))
+                )
+                source_start_timeline = float(start_point) if start_point is not None else None
+                source_end_timeline = float(end_point) if end_point is not None else None
         preview = preview_window_for_edit(project, decision)
         sound_info = sound_label_and_action(decision.reason)
         rows.append(
