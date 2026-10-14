@@ -132,7 +132,9 @@ describe("ImpactPanel transcript refine recovery", () => {
         "Only the host or an Editor can review suggestions.",
       );
       expect(
-        screen.getByText("Only the host or an Editor can review suggestions."),
+        screen
+          .getAllByText("Only the host or an Editor can review suggestions.")
+          .find((el) => !el.hidden),
       ).toBeVisible();
       expect(approveEdits).not.toHaveBeenCalled();
     },

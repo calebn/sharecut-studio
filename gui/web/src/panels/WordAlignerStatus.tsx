@@ -5,6 +5,7 @@ import type {
   PipelineForcedAlignment,
 } from "../types/pipeline";
 import { Button, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 
 export const WORD_ALIGNER_COMPONENT = "word-aligner";
 
@@ -30,7 +31,7 @@ export function WordAlignerStatus({
   status,
   alignment,
   reasonId,
-  disabled,
+  disabledReason,
   retiming,
   onDownloaded,
   onRetime,
@@ -40,7 +41,8 @@ export function WordAlignerStatus({
   alignment?: PipelineForcedAlignment;
   /** Id for the status text, so the Precise word boundaries checkbox can be described by it. */
   reasonId?: string;
-  disabled: boolean;
+  /** Why both actions are unavailable (a run, a save or a re-time is in flight); omit when they are available. */
+  disabledReason?: string;
   /** True while a Re-time words request is starting (busy label + aria-busy, like the download). */
   retiming: boolean;
   onDownloaded: () => void;
@@ -62,7 +64,7 @@ export function WordAlignerStatus({
   if (!ok) {
     action = (
       <Button
-        disabled={disabled || busy}
+        disabledReason={disabledReason ?? (busy ? BUSY_REASON : undefined)}
         aria-busy={busy || undefined}
         onClick={() => void onDownload()}
       >
@@ -72,7 +74,7 @@ export function WordAlignerStatus({
   } else if (canRetime) {
     action = (
       <Button
-        disabled={disabled}
+        disabledReason={disabledReason}
         aria-busy={retiming || undefined}
         onClick={onRetime}
       >

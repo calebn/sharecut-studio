@@ -15,6 +15,7 @@ import { useVirtualRows } from "../hooks/useVirtualRows";
 import { useDaw } from "../state/useDaw";
 import type { HistoryDiff, HistoryGroup } from "../types/project";
 import { Button, InlineError } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { plural } from "../utils/format";
 import { historyGroupKey } from "../utils/historyGroupKey";
@@ -172,13 +173,25 @@ export function HistoryPanel() {
       <div className="history-toolbar">
         <div className="history-toolbar-actions">
           <Button
-            disabled={busy || !can_undo}
+            disabledReason={
+              busy
+                ? BUSY_REASON
+                : !can_undo
+                  ? "Make an edit to undo it."
+                  : undefined
+            }
             onClick={() => void runHistoryAction("undo")}
           >
             Undo
           </Button>
           <Button
-            disabled={busy || !can_redo}
+            disabledReason={
+              busy
+                ? BUSY_REASON
+                : !can_redo
+                  ? "Undo an edit first to redo it."
+                  : undefined
+            }
             onClick={() => void runHistoryAction("redo")}
           >
             Redo
