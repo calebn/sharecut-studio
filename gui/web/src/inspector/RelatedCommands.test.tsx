@@ -17,7 +17,12 @@ describe("relatedCommandsFor", () => {
   it("returns commands for clip selection", () => {
     const cmds = relatedCommandsFor({ kind: "clip", id: "c1", trackId: "t1" });
     expect(cmds).toEqual([
-      { commandId: "edit.copy", args: {}, respectWhen: true },
+      {
+        commandId: "edit.copy",
+        args: {},
+        respectWhen: true,
+        whenReason: "Select a clip or word to copy.",
+      },
     ]);
   });
 
