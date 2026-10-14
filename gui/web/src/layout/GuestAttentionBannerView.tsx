@@ -88,7 +88,24 @@ export function GuestAttentionBannerView({
         <span role="img" aria-label={countLabel || alertLabel}>
           {attentionCount || "!"}
         </span>
-        <details className="guest-attention-details">
+        <details
+          className="guest-attention-details"
+          onToggle={(event) => {
+            const content = event.currentTarget.querySelector<HTMLElement>(
+              ".guest-attention-details-content",
+            );
+            if (!content || typeof content.showPopover !== "function") return;
+            if (event.currentTarget.open && !content.matches(":popover-open")) {
+              content.setAttribute("popover", "manual");
+              content.showPopover();
+            } else if (
+              !event.currentTarget.open &&
+              content.matches(":popover-open")
+            ) {
+              content.hidePopover();
+            }
+          }}
+        >
           <summary aria-label="View attention details and recovery actions">
             Details
           </summary>

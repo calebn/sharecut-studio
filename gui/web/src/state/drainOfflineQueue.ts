@@ -38,21 +38,9 @@ export interface ReplaySource {
 }
 
 /**
- * The one ordered-replay driver for both offline queues. Ordinary records are
- * re-sent with their original identity (`command_id`, `client_id`,
- * `client_seq`) and `replaying: true`; history records are settled as
- * inspect-only uncertainty without sending. A permanent rejection
- * (`isPermanentRejection`: a 4xx other than 408 / 429) is skipped. That is
- * only safe because both submit layers (`services/commandQueue.ts`) have
- * already recorded it as a conflict and dequeued it before they throw;
- * `drainOfflineQueue.integration.test.ts` pins this. Anything else
- * (transport error, 408 / 429, 5xx, a replay the submit layer left queued)
- * stays queued and stops the pass, so no later edit overtakes it. A landed
- * CorrectTranscriptWord / CorrectTranscriptPhrase also clears earlier
- * refused corrections of the same word from Needs attention
- * (clearSupersededCorrectionConflicts), as the live path does. A ripple the
- * host held back because it cuts other speech opens the cut-speech prompt
- * (askIfReplayHeldBack), as the live path does.
+ * Replays queued records in order with their original identities. History
+ * commands remain inspect-only. Uncertain submissions stay queued and stop
+ * the pass so later edits cannot overtake them.
  */
 export async function replayQueuedCommands(
   source: ReplaySource,

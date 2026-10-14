@@ -228,6 +228,114 @@ for (const {
         "Can't undo: the project changed since. Nothing was undone.",
       );
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      const attention = page.getByRole("alert", {
+        name: "Needs attention. 1 conflict",
+      });
+      await expect(attention).toBeVisible();
+      const details = attention.locator("details");
+      const summary = details.locator("summary");
+      await expect(summary).toHaveAccessibleName(
+        "View attention details and recovery actions",
+      );
+      await summary.focus();
+      await page.keyboard.press("Enter");
+      await expect(details).toHaveAttribute("open", "");
+      await expect(summary).toBeInViewport();
+      const reason = details.locator(".guest-attention-list > li").first();
+      await expect(reason).toContainText("Project changed");
+      await expect(reason).toContainText(
+        "Edit the change and submit it again.",
+      );
+      await expect(
+        attention.getByRole("button", { name: "Dismiss all", exact: true }),
+      ).toBeVisible();
+      const disclosureGeometry = await details.evaluate((element) => {
+        const rect = (target: Element) => {
+          const box = target.getBoundingClientRect();
+          return {
+            left: box.left,
+            right: box.right,
+            top: box.top,
+            bottom: box.bottom,
+            width: box.width,
+            height: box.height,
+          };
+        };
+        const summary = element.querySelector("summary");
+        const content = element.querySelector(
+          ".guest-attention-details-content",
+        );
+        const reason = element.querySelector(".guest-attention-list > li");
+        const dismiss = element.querySelector(".guest-attention-dismiss");
+        if (!summary || !content || !reason || !dismiss) {
+          throw new Error("expanded attention disclosure is incomplete");
+        }
+        const reasonRect = reason.getBoundingClientRect();
+        const reasonHit = document.elementFromPoint(
+          reasonRect.left + reasonRect.width / 2,
+          reasonRect.top + reasonRect.height / 2,
+        );
+        const dismissRect = dismiss.getBoundingClientRect();
+        const dismissHit = document.elementFromPoint(
+          dismissRect.left + dismissRect.width / 2,
+          dismissRect.top + dismissRect.height / 2,
+        );
+        return {
+          viewport: { width: innerWidth, height: innerHeight },
+          summary: rect(summary),
+          content: rect(content),
+          reason: rect(reason),
+          dismiss: rect(dismiss),
+          reasonHit: reason === reasonHit || reason.contains(reasonHit),
+          dismissHit: dismiss === dismissHit || dismiss.contains(dismissHit),
+          summaryFocused: document.activeElement === summary,
+        };
+      });
+      for (const target of [
+        disclosureGeometry.summary,
+        disclosureGeometry.content,
+        disclosureGeometry.reason,
+        disclosureGeometry.dismiss,
+      ]) {
+        expect(target.left).toBeGreaterThanOrEqual(0);
+        expect(target.right).toBeLessThanOrEqual(
+          disclosureGeometry.viewport.width,
+        );
+        expect(target.top).toBeGreaterThanOrEqual(0);
+        expect(target.bottom).toBeLessThanOrEqual(
+          disclosureGeometry.viewport.height,
+        );
+      }
+      expect(disclosureGeometry.reasonHit).toBe(true);
+      expect(disclosureGeometry.dismissHit).toBe(true);
+      expect(disclosureGeometry.summaryFocused).toBe(true);
+      await summary.press("Enter");
+      await expect(details).not.toHaveAttribute("open", "");
+      await expect
+        .poll(() =>
+          details
+            .locator(".guest-attention-details-content")
+            .evaluate((element) => element.matches(":popover-open")),
+        )
+        .toBe(false);
+      await summary.click();
+      await expect(details).toHaveAttribute("open", "");
+      await expect
+        .poll(() =>
+          details
+            .locator(".guest-attention-details-content")
+            .evaluate((element) => element.matches(":popover-open")),
+        )
+        .toBe(true);
+      await summary.click();
+      await expect(details).not.toHaveAttribute("open", "");
+      await expect
+        .poll(() =>
+          details
+            .locator(".guest-attention-details-content")
+            .evaluate((element) => element.matches(":popover-open")),
+        )
+        .toBe(false);
       const withFeedback: Record<string, number> = {};
       for (const detent of ["half", "full"] as const) {
         if (detent === "full")

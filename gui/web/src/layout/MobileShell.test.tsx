@@ -14,7 +14,12 @@ import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject, recordSnapshot, sampleTrack } from "../test/fixtures";
+import {
+  minimalProject,
+  offlineConflict,
+  recordSnapshot,
+  sampleTrack,
+} from "../test/fixtures";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
@@ -234,7 +239,12 @@ describe("MobileShell", () => {
   it("shows queued host commands in the attention banner", async () => {
     offlineStore.loadHostAttention.mockResolvedValue({
       pending: 1,
-      conflicts: [],
+      conflicts: [
+        offlineConflict({
+          command: { type: "UndoHistory" },
+          reason: "Project changed",
+        }),
+      ],
     });
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
@@ -242,9 +252,21 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
 
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Needs attention");
-    expect(alert).toHaveTextContent("1 pending");
+    const alert = await screen.findByRole("alert", {
+      name: "Needs attention. 1 pending, 1 conflict",
+    });
+    expect(within(alert).getByText("Attention", { exact: true })).toBeVisible();
+    const details = within(alert).getByText("Details", { exact: true });
+    expect(details).toHaveAttribute(
+      "aria-label",
+      "View attention details and recovery actions",
+    );
+    await userEvent.click(details);
+    expect(alert).toHaveTextContent("Project changed");
+    expect(alert).toHaveTextContent("Edit the change and submit it again.");
+    expect(
+      within(alert).getByRole("button", { name: /^Send now$/ }),
+    ).toBeVisible();
     expect(container.querySelector(".daw-shell")).toHaveClass(
       "daw-shell--attention",
     );

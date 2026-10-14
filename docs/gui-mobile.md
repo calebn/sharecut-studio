@@ -632,7 +632,21 @@ height still applies when it is larger than that minimum.
 
 Do **not** bring phone bottom-nav or CapCut fixed playhead to desktop.
 
-Host offline command attention occupies its own shell row on phone, tablet, and desktop; queued host edits stay visible while reconnect/replay is pending, and conflict rows can be dismissed. The share-mode label remains guest-only.
+### Decision: Expanded host attention overlays its compact row
+
+<!-- decision
+id: D-attention-details-overlay
+status: accepted
+date: 2026-10-14
+decided-by: calebn
+evidence:
+- PR #1520 production Chromium comparison at 390×844/root32 and 844×390/root16 and root32 showed in-flow disclosure growth obscuring shell space
+- The bounded overlay kept the summary, refusal reason and recovery control visible without changing the shell row or sheet detent sizes
+enforced-by:
+- gui/web/e2e-compat/compact-feedback-detents.spec.ts::feedback preserves selected half and full geometry and permitted ruler and lane room
+-->
+
+Host offline command attention occupies its own shell row on phone, tablet, and desktop; queued host edits stay visible while reconnect/replay is pending, and conflict rows can be dismissed. Opening **Details** overlays a viewport-bounded panel below the compact row, so the explanation and recovery controls stay visible without resizing the shell or its inspector detents. The share-mode label remains guest-only.
 
 ## Testing
 
