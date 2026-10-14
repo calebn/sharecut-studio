@@ -14,6 +14,8 @@ A track's profile is measured once per audio file revision and sample rate
 
 from __future__ import annotations
 
+import json
+import logging
 import math
 import threading
 from dataclasses import dataclass
@@ -23,9 +25,13 @@ import numpy as np
 
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, db_to_amplitude, frame_rms_db_stream
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import track_audio_path
+
+log = logging.getLogger(__name__)
 
 LEVEL_FRAME_SEC = 0.01
 PROFILE_SAMPLE_RATE = 16000
@@ -235,8 +241,14 @@ def file_level_profile(
     *,
     sample_rate: int = PROFILE_SAMPLE_RATE,
     levels: np.ndarray | None = None,
+    record_dir: Path | None = None,
+    write_record: bool = False,
 ) -> LevelProfile:
     """The whole-track profile of the audio file at ``path``, measured once per file revision and rate.
+
+    With ``record_dir``, a measurement recorded there by an earlier process is read back, and
+    ``write_record`` records this one: planning and preview paths read but leave the
+    project's files as they found them.
 
     Read from its mono audio at ``sample_rate``: a floor is measured at the rate of the
     frames it is compared with, since band-limiting a track lowers its room tone (white
@@ -250,14 +262,51 @@ def file_level_profile(
         known = _FILE_PROFILES.get(key)
     if known is not None:
         return known
-    if levels is None:
-        if samples is None:
-            samples = load_mono_full(resolved, sample_rate=sample_rate)
-        levels = frame_levels_db(samples, sample_rate)
-    profile = profile_from_levels(levels, whole_track=True) or SILENT
+    record = (
+        record_dir / f"{short_digest(json.dumps([_RECORD_REV, *map(str, key)]))}.json"
+        if record_dir
+        else None
+    )
+    profile = _read_record(record) if record else None
+    if profile is None:
+        if levels is None:
+            if samples is None:
+                samples = load_mono_full(resolved, sample_rate=sample_rate)
+            levels = frame_levels_db(samples, sample_rate)
+        profile = profile_from_levels(levels, whole_track=True) or SILENT
+    if record and write_record:
+        _write_record(record, profile)
     with _FILE_PROFILES_LOCK:
         _FILE_PROFILES[key] = profile
     return profile
+
+
+# Bump when ``profile_from_levels`` or its whole-track framing changes what it returns.
+_RECORD_REV = 1
+
+
+def _read_record(path: Path) -> LevelProfile | None:
+    """A recorded measurement survives a restart: it costs a pass over the whole file."""
+    try:
+        values = json.loads(path.read_text(encoding="utf-8"))
+        profile = LevelProfile(
+            *(float(values[name]) for name in ("room_db", "speech_db", "loud_db"))
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return (
+        profile if profile.live and all(math.isfinite(v) for v in vars(profile).values()) else None
+    )
+
+
+def _write_record(path: Path, profile: LevelProfile) -> None:
+    if not profile.live or not all(math.isfinite(v) for v in vars(profile).values()):
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(path, json.dumps(vars(profile)))
+    except OSError:
+        log.debug("level profile record not written to %s", path, exc_info=True)
 
 
 def recording_profile(project: EpisodeProject, track_id: str) -> LevelProfile:

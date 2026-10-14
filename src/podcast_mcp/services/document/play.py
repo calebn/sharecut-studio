@@ -61,6 +61,7 @@ from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import schedule_stem_waveforms
 from podcast_mcp.services.session_sync import publish_agent_play
+from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
@@ -149,6 +150,28 @@ def _stem_mix_trim_db(stems: tuple[tuple[Path, float, str], ...], ceiling_db: fl
 
     The stem hash (``track_render_hash``) keys the cache on the stem's content."""
     return FFmpegEngine().peak_trim_db([(path, gain) for path, gain, _hash in stems], ceiling_db)
+
+
+def _read_mix_trim_record(path: Path) -> float | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))["trim_db"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not -120 <= value <= 0:
+        return None
+    return float(value)
+
+
+def _write_mix_trim_record(path: Path, trim_db: float) -> None:
+    """Keep the newest few records: each is tiny, and an old mix never returns."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(path, json.dumps({"trim_db": trim_db}))
+        stale = sorted(path.parent.glob("mix_trim_*.json"), key=lambda p: p.stat().st_mtime)[:-8]
+        for old in stale:
+            old.unlink(missing_ok=True)
+    except OSError:
+        log.debug("mix trim record not written to %s", path, exc_info=True)
 
 
 @dataclass
@@ -1650,9 +1673,10 @@ class PlayService:
     def mix_trim_db(self) -> float:
         """The headroom trim ``premix.hash`` would record for the current mix, without mixing.
 
-        A fresh premix already records it. Otherwise the premix's own ``peak_trim_db``
-        measures the current stems (rendering any that are stale), cached in memory by the
-        stems' hashes, gains and the ceiling.
+        A fresh premix already records it. Otherwise the trim is read from the on-disk record
+        of an earlier measurement of the same stems, gains and ceiling. Only a mix never
+        measured renders its stale stems and measures their true peak over the whole episode,
+        a pass that scales with episode length; it is recorded for the next preview.
         """
         gains = mix_gains(self.project)
         if not gains:
@@ -1663,16 +1687,67 @@ class PlayService:
             recorded = read_premix_trim_db(self.project)
             if recorded is not None:
                 return recorded
+        ceiling = mix_peak_ceiling_db(self._defaults)
+        record = self._mix_trim_record_path(gains, ceiling)
+        cached = _read_mix_trim_record(record)
+        if cached is not None:
+            return cached
         for track_id in gains:
             if not stem_is_fresh(self.project, track_id):
                 self.ensure_stem(track_id)
-        return _stem_mix_trim_db(
+        trim = _stem_mix_trim_db(
             tuple(
                 (stem_path(self.project, track_id), gain, track_render_hash(self.project, track_id))
                 for track_id, gain in gains.items()
             ),
-            mix_peak_ceiling_db(self._defaults),
+            ceiling,
         )
+        _write_mix_trim_record(record, trim)
+        return trim
+
+    def warm_pending_preview(self, edit_id: str | None = None) -> float:
+        """Do a pending preview's slow work now, so the first Play around is a cached file.
+
+        That is the mix trim and each track's whole-track level profile (which approving
+        the edit on a snapshot reads for the Suggested side), then, for ``edit_id``, the
+        Current / Suggested / A/B renders themselves.
+        """
+        from podcast_mcp.edits.audio_cache import (
+            JUMP_SAMPLE_RATE,
+            WAVEFORM_SAMPLE_RATE,
+            track_level_profile,
+        )
+
+        trim = self.mix_trim_db()
+        for track in self.project.tracks:
+            if track.media is None:
+                continue
+            for rate in (WAVEFORM_SAMPLE_RATE, JUMP_SAMPLE_RATE):
+                try:
+                    track_level_profile(self.project, track.id, sample_rate=rate, record=True)
+                except (OSError, ValueError, KeyError):
+                    log.debug("level profile warm skipped for %s", track.id, exc_info=True)
+        if edit_id is not None:
+            for mode in _PENDING_SIDES:
+                try:
+                    self.play_pending_preview(edit_id, mode=mode, dry_run=True)
+                except (CodedValueError, KeyError, ValueError, OSError):
+                    log.debug("pending %s warm skipped for %s", mode, edit_id, exc_info=True)
+        return trim
+
+    def _mix_trim_record_path(self, gains: dict[str, float], ceiling: float) -> Path:
+        key = json.dumps(
+            {
+                "ceiling": ceiling,
+                "rev": MIX_SEMANTICS_REV,
+                "stems": {
+                    track_id: [gain, track_render_hash(self.project, track_id)]
+                    for track_id, gain in gains.items()
+                },
+            },
+            sort_keys=True,
+        )
+        return self.project.artifacts_dir() / "play_cache" / f"mix_trim_{short_digest(key)}.json"
 
     def _pending_window_path(self, window: PendingPreviewWindow, side: str) -> Path:
         edit = next(e for e in self.project.edit_decisions if e.id == window.edit_id)
@@ -1681,6 +1756,10 @@ class PlayService:
                 "window": [window.play_start, window.play_end],
                 "edit": edit.model_dump(mode="json"),
                 "mix": self._mix_key(),
+                # The Suggested side re-optimizes the cut against every track's words.
+                "transcripts": hashlib.sha256(
+                    self.project.transcript_data.model_dump_json().encode()
+                ).hexdigest(),
                 "defaults": self._defaults,
             },
             sort_keys=True,
