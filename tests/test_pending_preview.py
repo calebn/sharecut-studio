@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import functools
 import json
 import math
 import wave
@@ -360,12 +361,14 @@ def test_a_fader_change_previews_both_sides_at_the_premix_trim_without_mixing_on
 
 def _touch_stems(project) -> None:
     """Stand-in stems for tests that fake the measurement: the record needs files to compare."""
+    from podcast_mcp.engines.play_audit import write_stem_hash
     from podcast_mcp.services.document import play as play_module
 
     for track_id in play_module.mix_gains(project):
         path = play_module.stem_path(project, track_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"stem")
+        write_stem_hash(project, track_id)
 
 
 def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
@@ -395,7 +398,7 @@ def test_the_mix_trim_is_measured_once_per_mix_and_survives_a_restart(
         return -3.5
 
     monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
-    monkeypatch.setattr(play_module, "_stem_mix_trim_db", measure)
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", functools.lru_cache(maxsize=8)(measure))
     _touch_stems(ws.project)
 
     assert PlayService(ws).warm_pending_preview()["trim_db"] == -3.5
@@ -440,7 +443,8 @@ def test_a_trim_measured_while_a_stem_was_replaced_is_not_recorded(
         return -3.5
 
     monkeypatch.setattr(play_module, "stem_is_fresh", lambda *_args: True)
-    monkeypatch.setattr(play_module, "_stem_mix_trim_db", measure)
+    # Memoized like the real one: the torn measurement must not come back from the cache.
+    monkeypatch.setattr(play_module, "_stem_mix_trim_db", functools.lru_cache(maxsize=8)(measure))
     _touch_stems(ws.project)
     play = PlayService(ws)
     assert play.mix_trim_db() == -3.5
