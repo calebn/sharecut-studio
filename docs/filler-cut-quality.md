@@ -145,7 +145,8 @@ same speaking peers (the detectors' one gain contract, `tests/test_tighten_gain_
 runs it at 0, -12 and -24 dB and with one track 24 dB down, with a sparse guest 20 dB under the
 host; two voices of one pitch are told apart by level).
 A peer that has a voice level of its own is read at its loudest 100 ms window in the span
-(never below its span mean), not at the span mean, and the owner is read the same way, so a
+(never below its span mean), not at the span mean, and the owner is read the same way in those spans (a peer without a voice level of its own stays on
+the means for both), so a
 short peer word inside a long cut is not diluted by the silence around it; noise under the
 voice reach still never reads as a voice (#1419). A dialogue lane with no readable file is
 skipped, not an error, when the session median reach is built.
