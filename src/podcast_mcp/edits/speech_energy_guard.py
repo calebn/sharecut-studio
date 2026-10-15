@@ -570,6 +570,9 @@ def _peer_speaks_near_span(
 # A track whose voice level sits this far under the session's loudest voice carries residue,
 # not a microphone. Relative, so the guard decides the same at any recording level (#1549).
 _RESIDUE_UNDER_LOUDEST_DB = 40.0
+# Contrast dialogue mics may sit just under the residue band after per-track level change;
+# keep ``path_reference_db`` through this extra headroom so tighten proposals stay fixed (#1529).
+_CONTRAST_MIC_RESIDUE_HEADROOM_DB = 12.0
 
 
 def _gain_db(project: EpisodeProject, track_id: str) -> float:
@@ -617,8 +620,9 @@ def _voice_refs(
     side of a comparison only is not a scale (#1495, #1549). A track with no contrast whose
     voice sits ``_RESIDUE_UNDER_LOUDEST_DB`` under the session's
     loudest carries residue, not a mic, and is read as recorded: scaled up by its own residue
-    level it would out-sound every speaker. A quieter dialogue recording with contrast keeps
-    ``path_reference_db`` so tightening does not move when one track alone is scaled (#1529).
+    level it would out-sound every speaker. A contrast dialogue mic within that band plus
+    ``_CONTRAST_MIC_RESIDUE_HEADROOM_DB`` keeps ``path_reference_db`` so tightening does not
+    move when one track alone is scaled (#1529).
     """
     tracks = list(dict.fromkeys(track_ids))
     references = {tid: _track_voice_db(project, tid, caches) for tid in tracks}
@@ -636,9 +640,11 @@ def _voice_refs(
 
     def reference_db(track_id: str, reference: float) -> float:
         profile = profiles[track_id]
-        if profile.has_contrast:
-            return reference
         if reference > loudest - _RESIDUE_UNDER_LOUDEST_DB:
+            return reference
+        if profile.has_contrast and reference > loudest - (
+            _RESIDUE_UNDER_LOUDEST_DB + _CONTRAST_MIC_RESIDUE_HEADROOM_DB
+        ):
             return reference
         return 0.0
 
