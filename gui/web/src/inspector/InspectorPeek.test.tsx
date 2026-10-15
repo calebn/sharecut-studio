@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyDocumentSnapshot,
+  mergeGuestActionDone,
   mergeReturnedComment,
 } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
@@ -459,6 +460,60 @@ describe("InspectorPeek nudges", () => {
     ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
   });
 
+  it.each(["returned comment", "guest action"] as const)(
+    "keeps a %s merge when a repeated envelope preview is hidden",
+    async (kind) => {
+      const origin = structuredClone(project);
+      origin.comments = [
+        sampleComment({
+          id: "c1",
+          body: "Before",
+          action_items: [
+            {
+              id: "a1",
+              text: "Review",
+              done: false,
+              completed_at: null,
+              completed_by: null,
+            },
+          ],
+        }),
+      ];
+      open(POINT, origin);
+      const plus = button("Envelope point level 0.5 dB higher");
+      fireEvent.pointerDown(plus, { button: 0 });
+      if (kind === "returned comment")
+        mergeReturnedComment({ ...origin.comments[0]!, body: "Published" });
+      else mergeGuestActionDone("c1", "a1", true);
+      advance(600);
+
+      expect(
+        useDawStore
+          .getState()
+          .project!.envelopes.find((envelope) => envelope.track_id === "host")
+          ?.points,
+      ).not.toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+      act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+      act(() => useDawStore.getState().setLayerVisible("showLevels", true));
+      fireEvent.pointerUp(plus);
+      fireEvent.click(plus, { detail: 1 });
+      await flush();
+
+      const shown = useDawStore.getState().project!;
+      expect(api.setEnvelope).not.toHaveBeenCalled();
+      expect(
+        shown.envelopes.find((envelope) => envelope.track_id === "host")
+          ?.points,
+      ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+      expect(shown.comments[0]?.body).toBe(
+        kind === "returned comment" ? "Published" : "Before",
+      );
+      expect(shown.comments[0]?.action_items[0]?.done).toBe(
+        kind === "guest action",
+      );
+    },
+  );
+
   it("keeps a newer authoritative envelope when hiding a stale preview", async () => {
     open(POINT);
     const plus = button("Envelope point level 0.5 dB higher");
@@ -478,6 +533,100 @@ describe("InspectorPeek nudges", () => {
         .project!.envelopes.find((envelope) => envelope.track_id === "host")
         ?.points,
     ).toEqual([{ id: "e1", time: 9.75, value: 0.75 }]);
+  });
+
+  it.each(["pointer", "key"] as const)(
+    "keeps a newer authoritative envelope after a %s repeat and hide",
+    async (input) => {
+      open(POINT);
+      const plus = button("Envelope point level 0.5 dB higher");
+      if (input === "pointer") fireEvent.pointerDown(plus, { button: 0 });
+      else fireEvent.keyDown(plus, { key: "Enter" });
+      const fresh = structuredClone(project);
+      fresh.envelopes[0]!.points[0]!.value = 0.75;
+      applyDocumentSnapshot({ server_seq: 1, project: fresh });
+      if (input === "pointer") advance(600);
+      else fireEvent.keyDown(plus, { key: "Enter", repeat: true });
+
+      act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+      act(() => useDawStore.getState().setLayerVisible("showLevels", true));
+      if (input === "pointer") fireEvent.pointerUp(plus);
+      else fireEvent.keyUp(plus, { key: "Enter" });
+      if (input === "pointer") fireEvent.click(plus, { detail: 1 });
+      await flush();
+
+      expect(api.setEnvelope).not.toHaveBeenCalled();
+      expect(
+        useDawStore
+          .getState()
+          .project!.envelopes.find((envelope) => envelope.track_id === "host")
+          ?.points,
+      ).toEqual([{ id: "e1", time: 9.75, value: 0.75 }]);
+    },
+  );
+
+  it("does not let an active envelope repeat write into a new project lifetime", async () => {
+    open(POINT);
+    const plus = button("Envelope point level 0.5 dB higher");
+    fireEvent.pointerDown(plus, { button: 0 });
+    const fresh = structuredClone(project);
+    fresh.envelopes[0]!.points[0]!.value = 0.75;
+    act(() => useDawStore.getState().hydrate("/tmp/other.json", fresh, null));
+    advance(600);
+
+    act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+    act(() => useDawStore.getState().setLayerVisible("showLevels", true));
+    fireEvent.pointerUp(plus);
+    fireEvent.click(plus, { detail: 1 });
+    await flush();
+
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(useDawStore.getState().projectPath).toBe("/tmp/other.json");
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "e1", time: 9.75, value: 0.75 }]);
+  });
+
+  it("keeps a replacement curve at the same sequence before a key repeat", async () => {
+    open(POINT);
+    const plus = button("Envelope point level 0.5 dB higher");
+    fireEvent.keyDown(plus, { key: "Enter" });
+    const fresh = structuredClone(project);
+    fresh.envelopes[0]!.points[0]!.value = 0.75;
+    applyDocumentSnapshot({ project: fresh });
+    fireEvent.keyDown(plus, { key: "Enter", repeat: true });
+
+    act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+    act(() => useDawStore.getState().setLayerVisible("showLevels", true));
+    fireEvent.keyUp(plus, { key: "Enter" });
+    await flush();
+
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(useDawStore.getState().project!.envelopes[0]!.points).toEqual([
+      { id: "e1", time: 9.75, value: 0.75 },
+    ]);
+  });
+
+  it("relinquishes an envelope preview when a new sequence retains its curve", async () => {
+    open(POINT);
+    const plus = button("Envelope point level 0.5 dB higher");
+    fireEvent.pointerDown(plus, { button: 0 });
+    applyDocumentSnapshot({
+      server_seq: 1,
+      project: useDawStore.getState().project!,
+    });
+    advance(600);
+    fireEvent.pointerUp(plus);
+    fireEvent.click(plus, { detail: 1 });
+    await flush();
+
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(useDawStore.getState().project!.envelopes[0]!.points).toEqual([
+      { id: "e1", time: 9.75, value: 1.059254 },
+    ]);
   });
 
   it("keeps an accepted envelope save pending when the layer is hidden", async () => {
