@@ -1001,3 +1001,28 @@ The visually hidden detent range keeps the grabber as its visible focus
 indicator. Visibility observation follows
 the same feedback card through compact and floating hosts, so both presentations
 pause the single remaining lifetime when the whole card is clipped.
+
+## Decision: Auto precision jog pad on touch
+
+<!-- decision
+id: D-touch-precision-jog
+status: accepted
+date: 2026-10-15
+decided-by: calebn
+evidence:
+- #1184 owner phone test: Auto precision with the jog pad
+- #1184 owner decision: remove lens and grip variants and the precision lab
+enforced-by:
+- gui/web/src/timeline/precision/precisionDecision.test.ts::goes into precision for a target narrower than the finger
+- gui/web/src/timeline/precision/precisionSession.test.ts::moves one 10 ms step for 1 px at full speed
+- gui/web/e2e-compat/precision-drag.spec.ts::${variant}: moves a trim end exactly one 10 ms step and saves it
+-->
+
+On touch only, a long press arms a fade, trim, pending edge or envelope
+point. `decidePrecision` chooses **direct** drag (with pointer ballistics:
+slower finger motion moves finer steps) when one step is at least 4 px on
+screen, or when the target and its neighbours are wider than a finger;
+otherwise it opens the **jog pad** in the drawer's place. The pad maps finger
+travel to timeline steps; sliding up while dragging slows the gain. **Done**
+or a tap outside commits; a second finger cancels. Clip bodies, crossfade
+grips and other targets keep the existing touch grammar drag.
