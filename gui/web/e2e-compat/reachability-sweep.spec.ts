@@ -79,7 +79,6 @@ const LANDSCAPES: readonly Cell[] = [
     width: 1180,
     height: 620,
     rootPx: 16,
-    rows: true,
   },
 ];
 
