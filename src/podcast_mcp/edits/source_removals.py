@@ -424,9 +424,9 @@ def record_suggested_cut_speech(project: EpisodeProject, decision: EditDecision)
     Approval then asks to confirm that speech (Cut anyway) instead of holding the cut
     as changed.
     """
-    span = inspect_source_remove_placement(project, decision)
-    if span is None:
+    if decision.type != EditDecisionType.REMOVE:
         return
+    span = inspect_source_remove_placement(project, decision)
     if isinstance(span, CutScopeHold):
         return
     decision.cut_speech = assess_cut_speech(
