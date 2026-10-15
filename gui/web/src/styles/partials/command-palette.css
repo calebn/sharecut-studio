@@ -864,3 +864,21 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   outline: none;
   box-shadow: inset 0 0 0 var(--focus-ring-width) var(--color-accent);
 }
+
+.split-speakers-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.split-speakers-sample {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.split-speakers-sample-range {
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
+}

@@ -19,6 +19,10 @@ export type SplitSpeakersStage =
       count: string;
       /** One entry per speaker; blank means "Speaker N". */
       names: readonly string[];
+      /** One optional voice sample per speaker, as the timeline seconds it covers. */
+      samples: ReadonlyArray<{ startSec: number; endSec: number } | null>;
+      /** Why the current selection cannot be a voice sample, or null when it can. */
+      sampleReason: string | null;
       blocker: string | null;
       countError: string | null;
       speakerReadiness:
@@ -63,6 +67,10 @@ export type SplitSpeakersDialogViewProps = {
   stage: SplitSpeakersStage;
   onCountChange: (count: string) => void;
   onNameChange: (index: number, name: string) => void;
+  /** Keep the current selection as this speaker's voice sample. */
+  onMarkSample: (index: number) => void;
+  onClearSample: (index: number) => void;
+  onListenSample: (index: number) => void;
   onSplit: () => void;
   onCancelSplit: () => void;
   onUndo: () => void;
@@ -124,6 +132,9 @@ function SplitSpeakersForm({
   trackLabel,
   onCountChange,
   onNameChange,
+  onMarkSample,
+  onClearSample,
+  onListenSample,
   countRef,
 }: SplitSpeakersDialogViewProps & {
   countRef: RefObject<HTMLInputElement | null>;
@@ -189,20 +200,63 @@ function SplitSpeakersForm({
           <p id={namesHintId} className="ui-field-hint">
             Blank names become Speaker 1, 2, and so on, in the order they talk.
           </p>
+          <p className="ui-field-hint">
+            If tracks come out wrong, select a few seconds of one person talking
+            on the timeline, then choose Use selection under that speaker.
+          </p>
           <div className="split-speakers-name-grid">
-            {Array.from({ length: shown }, (_, i) => (
-              <Field key={i} label={`Speaker ${i + 1}`}>
-                {(control) => (
-                  <input
-                    {...control}
-                    type="text"
-                    autoComplete="off"
-                    value={stage.names[i] ?? ""}
-                    onChange={(e) => onNameChange(i, e.target.value)}
-                  />
-                )}
-              </Field>
-            ))}
+            {Array.from({ length: shown }, (_, i) => {
+              const sample = stage.samples[i] ?? null;
+              const label = stage.names[i]?.trim() || `Speaker ${i + 1}`;
+              return (
+                <div key={i} className="split-speakers-name-cell">
+                  <Field label={`Speaker ${i + 1}`}>
+                    {(control) => (
+                      <input
+                        {...control}
+                        type="text"
+                        autoComplete="off"
+                        value={stage.names[i] ?? ""}
+                        onChange={(e) => onNameChange(i, e.target.value)}
+                      />
+                    )}
+                  </Field>
+                  <div className="split-speakers-sample">
+                    {sample ? (
+                      <>
+                        <span className="split-speakers-sample-range">
+                          Voice sample {formatTimeShort(sample.startSec)} ·{" "}
+                          {formatTimeShort(sample.endSec - sample.startSec)}
+                        </span>
+                        <Button
+                          type="button"
+                          aria-label={`Listen to ${label}'s voice sample`}
+                          onClick={() => onListenSample(i)}
+                        >
+                          Listen
+                        </Button>
+                        <Button
+                          type="button"
+                          aria-label={`Clear ${label}'s voice sample`}
+                          onClick={() => onClearSample(i)}
+                        >
+                          Clear
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        aria-label={`Use selection as ${label}'s voice`}
+                        disabledReason={stage.sampleReason ?? undefined}
+                        onClick={() => onMarkSample(i)}
+                      >
+                        Use selection
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </fieldset>
       )}
@@ -318,6 +372,12 @@ function SplitSpeakersOutcome({
             ))}
           </ul>
         </section>
+      ) : null}
+      {stage.canUndo ? (
+        <p className="export-dialog-note">
+          Two tracks sound like the same person? Undo the split and run it again
+          with a voice sample marked for each speaker.
+        </p>
       ) : null}
       {stage.undoError ? (
         <InlineError message={`Undo failed: ${stage.undoError}`} />

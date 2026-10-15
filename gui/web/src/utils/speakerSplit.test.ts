@@ -3,6 +3,7 @@ import type {
   ExactRangeTarget,
   HistoryEntryId,
   ProjectView,
+  Selection,
 } from "../types/project";
 import {
   parseSplitSpeakersResult,
@@ -11,8 +12,10 @@ import {
   splitSpeakerNames,
   splitSpeakersBlocker,
   splitSpeakersDoneCopy,
+  splitSpeakersEnrollment,
   splitSpeakersListenNotes,
   splitSpeakersRequestBlocker,
+  voiceSampleFromSelection,
 } from "./speakerSplit";
 
 const result = {
@@ -234,5 +237,88 @@ describe("split copy", () => {
         low_confidence_sec: 0,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("voice samples", () => {
+  const clip = (over: object) => ({
+    id: "c",
+    track_id: "room",
+    source_start: 4,
+    source_end: 64,
+    timeline_start: 10,
+    timeline_end: 70,
+    ...over,
+  });
+  const projectWith = (...clips: object[]) =>
+    ({ clips: { tracks: { room: clips } } }) as unknown as ProjectView;
+  const range = (start: number, end: number, tracks = ["room"]): Selection =>
+    ({
+      kind: "range",
+      target: {
+        kind: "exact_range",
+        intervals: [{ start, end }],
+        track_ids: tracks,
+        clips: [],
+        media_seals: {},
+      },
+    }) as Selection;
+
+  it("maps the selected timeline range to recording seconds", () => {
+    const got = voiceSampleFromSelection(
+      projectWith(clip({})),
+      range(12, 18),
+      "room",
+    );
+    expect(got.reason).toBeNull();
+    expect(got.sample?.sourceStart).toBeCloseTo(6);
+    expect(got.sample?.sourceEnd).toBeCloseTo(12);
+  });
+
+  it.each([
+    [null, "Select a timeline or transcript range"],
+    [range(12, 12.5), "Select at least 1 second"],
+    [range(12, 18, ["other"]), "Select the range on the track being split"],
+    [range(100, 110), "Select audio that is on the track"],
+  ])("refuses %# with a reason", (selection, reason) => {
+    const got = voiceSampleFromSelection(
+      projectWith(clip({})),
+      selection,
+      "room",
+    );
+    expect(got.sample).toBeNull();
+    expect(got.reason).toContain(reason);
+  });
+
+  it("refuses a range that crosses a cut", () => {
+    const got = voiceSampleFromSelection(
+      projectWith(
+        clip({ timeline_end: 15, source_end: 9 }),
+        clip({
+          id: "d",
+          timeline_start: 15,
+          timeline_end: 70,
+          source_start: 30,
+        }),
+      ),
+      range(12, 18),
+      "room",
+    );
+    expect(got.reason).toBe(
+      "The range crosses a cut. Select within one stretch.",
+    );
+  });
+
+  it("builds the enrollment for the speakers that have a sample", () => {
+    const sample = { sourceStart: 6, sourceEnd: 12 } as never;
+    expect(splitSpeakersEnrollment(["Ana", "Ben"], [null, sample])).toEqual({
+      Ben: [[6, 12]],
+    });
+    expect(splitSpeakersEnrollment(["Ana", "Ben"], [])).toBeNull();
+    expect(splitSpeakersEnrollment(null, [sample])).toBeNull();
+  });
+
+  it("asks for names when a sample needs one", () => {
+    expect(splitSpeakerNames([], 2, true)).toEqual(["Speaker 1", "Speaker 2"]);
   });
 });

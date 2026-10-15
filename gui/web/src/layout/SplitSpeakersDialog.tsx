@@ -7,6 +7,7 @@ import {
   startSplitSpeakersJob,
 } from "../api";
 import { executePointerCommand } from "../commands/pointer";
+import { runRangeAction } from "../commands/rangeActions";
 import { seekTransport } from "../commands/seek";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
@@ -20,20 +21,28 @@ import {
   type SplitSpeakersResult,
   splitSpeakerNames,
   splitSpeakersDoneCopy,
+  splitSpeakersEnrollment,
   splitSpeakersRequestBlocker,
+  type VoiceSample,
+  voiceSampleFromSelection,
 } from "../utils/speakerSplit";
 import {
   SplitSpeakersDialogView,
   type SplitSpeakersStage,
 } from "./SplitSpeakersDialogView";
 
-type Settings = { count: string; names: string[] };
+type Settings = {
+  count: string;
+  names: string[];
+  /** One optional voice sample per speaker, by position. */
+  samples: Array<VoiceSample | null>;
+};
 type SpeakerReadiness =
   | "checking"
   | "available"
   | "unavailable"
   | "check_failed";
-const DEFAULT_SETTINGS: Settings = { count: "2", names: [] };
+const DEFAULT_SETTINGS: Settings = { count: "2", names: [], samples: [] };
 
 /** What the split is doing; the live job snapshot comes from the store. */
 type Flow =
@@ -68,6 +77,7 @@ export function SplitSpeakersDialog() {
     projectPath,
     activityJob,
     headId,
+    selection,
   } = useDaw((s) => ({
     trackId: s.splitSpeakersTrackId,
     setTrackId: s.setSplitSpeakersTrackId,
@@ -76,6 +86,7 @@ export function SplitSpeakersDialog() {
     projectPath: s.projectPath,
     activityJob: s.activityJob,
     headId: s.project?.history?.head_id ?? null,
+    selection: s.selection,
   }));
   const [flow, setFlow] = useState<Flow>({ kind: "configure" });
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -131,10 +142,15 @@ export function SplitSpeakersDialog() {
     : flow.label;
 
   const count = settings.count.trim() === "" ? null : Number(settings.count);
+  const hasSamples =
+    count != null &&
+    settings.samples.slice(0, count).some((sample) => sample != null);
   const names =
     count != null && Number.isInteger(count)
-      ? splitSpeakerNames(settings.names, count)
+      ? splitSpeakerNames(settings.names, count, hasSamples)
       : null;
+  const enrollment = splitSpeakersEnrollment(names, settings.samples);
+  const currentSample = voiceSampleFromSelection(project, selection, trackId);
 
   async function finish(
     job: PipelineJobSnapshot,
@@ -209,6 +225,7 @@ export function SplitSpeakersDialog() {
         trackId,
         speakerCount: count,
         names,
+        enrollment,
       });
       jobId = job.id;
       if (scope.signal.aborted) {
@@ -299,6 +316,15 @@ export function SplitSpeakersDialog() {
           kind: "configure",
           count: settings.count,
           names: settings.names,
+          samples: settings.samples.map((sample) =>
+            sample
+              ? {
+                  startSec: sample.target.intervals[0]!.start,
+                  endSec: sample.target.intervals[0]!.end,
+                }
+              : null,
+          ),
+          sampleReason: currentSample.reason,
           blocker: splitSpeakersRequestBlocker(count, names),
           countError: splitSpeakersRequestBlocker(count, null),
           speakerReadiness,
@@ -395,6 +421,30 @@ export function SplitSpeakersDialog() {
           return { ...s, names: next };
         })
       }
+      onMarkSample={(index) => {
+        if (currentSample.sample == null) return;
+        const sample = currentSample.sample;
+        setSettings((s) => {
+          const samples = [...s.samples];
+          samples[index] = sample;
+          return { ...s, samples };
+        });
+      }}
+      onClearSample={(index) =>
+        setSettings((s) => {
+          const samples = [...s.samples];
+          samples[index] = null;
+          return { ...s, samples };
+        })
+      }
+      onListenSample={(index) => {
+        const sample = settings.samples[index];
+        if (!sample) return;
+        useDawStore
+          .getState()
+          .setSelection({ kind: "range", target: sample.target });
+        void runRangeAction("play");
+      }}
       onSplit={() => void onSplit()}
       onCancelSplit={() => void onCancelSplit()}
       onUndo={() => void onUndo()}

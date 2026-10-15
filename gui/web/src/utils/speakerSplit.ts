@@ -1,11 +1,14 @@
 import { joinNames } from "../edit/cutSpeech";
+import { resolveSelectionRange } from "../edit/rangeSelection";
 import type {
   ExactRangeTarget,
   HistoryEntryId,
   ProjectView,
+  Selection,
   TrackView,
 } from "../types/project";
 import { formatTimeShort } from "./time";
+import { clipsForTrack, timelinePointToSource } from "./timebase";
 
 /** Bounds the host's speaker count (the server enforces the same range). */
 export const MIN_SPLIT_SPEAKERS = 2;
@@ -167,13 +170,83 @@ export function parseSplitSpeakersResult(
   };
 }
 
-/** Names to send: what was typed, "Speaker N" for blanks, null when nothing was typed. */
+/** A few seconds of one speaker, kept as the exact range that was selected. */
+export type VoiceSample = {
+  /** The selection as it was when marked, so Listen can play it again. */
+  target: ExactRangeTarget;
+  /** The same seconds on the recording's own clock, which is what enrollment takes. */
+  sourceStart: number;
+  sourceEnd: number;
+};
+
+/** A sample shorter than this is too little to recognise a voice by. */
+export const MIN_VOICE_SAMPLE_SEC = 1;
+/** Float noise allowed between a range's length on the timeline and on the recording. */
+const SAMPLE_EDGE_EPS_SEC = 1e-3;
+
+/**
+ * The selected range as a voice sample of `trackId`, or why it cannot be one.
+ * Enrollment spans are source seconds (`TOOL_TIMEBASE.speaker_split_tool`), so the
+ * timeline range is mapped through the track's clip.
+ */
+export function voiceSampleFromSelection(
+  project: ProjectView | null,
+  selection: Selection,
+  trackId: string | null,
+): { sample: VoiceSample; reason: null } | { sample: null; reason: string } {
+  const none = (reason: string) => ({ sample: null, reason });
+  if (!project || trackId == null) return none("Open a project");
+  const { targets, reason } = resolveSelectionRange(project, selection);
+  const target = targets.length === 1 ? targets[0]! : null;
+  if (!target) return none(reason ?? "Select a range on the timeline first");
+  if (target.intervals.length !== 1)
+    return none("Select one stretch of the track");
+  if (!target.track_ids.includes(trackId))
+    return none("Select the range on the track being split");
+  const { start, end } = target.intervals[0]!;
+  if (end - start < MIN_VOICE_SAMPLE_SEC)
+    return none(
+      `Select at least ${MIN_VOICE_SAMPLE_SEC} second of one person talking`,
+    );
+  const clips = clipsForTrack(project.clips?.tracks, trackId);
+  const sourceStart = timelinePointToSource(clips, start);
+  const lastInside = timelinePointToSource(clips, end - SAMPLE_EDGE_EPS_SEC);
+  if (sourceStart == null || lastInside == null)
+    return none("Select audio that is on the track");
+  const sourceEnd = lastInside + SAMPLE_EDGE_EPS_SEC;
+  const ms = (sec: number) => Math.round(sec * 1000) / 1000;
+  if (Math.abs(sourceEnd - sourceStart - (end - start)) > SAMPLE_EDGE_EPS_SEC)
+    return none("The range crosses a cut. Select within one stretch.");
+  return {
+    sample: { target, sourceStart: ms(sourceStart), sourceEnd: ms(sourceEnd) },
+    reason: null,
+  };
+}
+
+/** `{name: [[start, end]]}` in source seconds for the speakers that have a sample. */
+export function splitSpeakersEnrollment(
+  names: readonly string[] | null,
+  samples: ReadonlyArray<VoiceSample | null | undefined>,
+): Record<string, Array<[number, number]>> | null {
+  const out: Record<string, Array<[number, number]>> = {};
+  names?.forEach((name, i) => {
+    const sample = samples[i];
+    if (sample) out[name] = [[sample.sourceStart, sample.sourceEnd]];
+  });
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * Names to send: what was typed, "Speaker N" for blanks, null when nothing was typed.
+ * A sample belongs to a name, so `named` asks for names even when none were typed.
+ */
 export function splitSpeakerNames(
   typed: readonly string[],
   count: number,
+  named = false,
 ): string[] | null {
   const names = Array.from({ length: count }, (_, i) => typed[i]?.trim() ?? "");
-  if (names.every((name) => name === "")) {
+  if (!named && names.every((name) => name === "")) {
     return null;
   }
   return names.map((name, i) => name || `Speaker ${i + 1}`);

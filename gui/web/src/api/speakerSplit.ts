@@ -19,6 +19,8 @@ export type SplitSpeakersRequest = {
   speakerCount: number;
   /** One name per speaker, or null to let the server number them. */
   names: string[] | null;
+  /** Each named speaker's voice sample in recording seconds, or null for none. */
+  enrollment: Record<string, Array<[number, number]>> | null;
 };
 
 export async function startSplitSpeakersJob(
@@ -33,6 +35,7 @@ export async function startSplitSpeakersJob(
       track_id: request.trackId,
       speaker_count: request.speakerCount,
       names: request.names,
+      enrollment: request.enrollment,
     }),
   });
   if (!res.ok) throw await readApiFailure(res);
