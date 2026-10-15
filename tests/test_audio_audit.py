@@ -486,12 +486,8 @@ def test_short_word_audibility_uses_loudest_frame(tmp_path: Path):
             return_value=-45.0,
         ),
     ):
-        peak = _track_levels(
-            project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.06
-        )
-        mean = _track_levels(
-            project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.2
-        )
+        peak = _track_levels(project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.06)
+        mean = _track_levels(project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.2)
     assert peak["host"] == pytest.approx(-8.0)
     assert mean["host"] == pytest.approx(-15.0)
 
@@ -518,7 +514,11 @@ def test_short_word_map_audible_when_peak_reaches_voice_floor(tmp_path: Path):
     ]
     profile = LevelProfile(room_db=-60.0, speech_db=-30.0, loud_db=-28.0)
     caches = TrackRmsCacheSet(
-        caches={"host": TrackRmsCache(samples=np.zeros(48_000, dtype=np.float32), recording_profile=profile)}
+        caches={
+            "host": TrackRmsCache(
+                samples=np.zeros(48_000, dtype=np.float32), recording_profile=profile
+            )
+        }
     )
     with (
         patch(

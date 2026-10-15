@@ -1012,8 +1012,7 @@ def _track_levels(
 ) -> dict[str, float]:
     """Each track's level for a timeline window on the voice scale, a lagged source read later."""
     use_peak = (
-        word_dur is not None
-        and _MIN_WORD_RMS_DUR_SEC < word_dur <= _SHORT_WORD_AUDIBILITY_MAX_SEC
+        word_dur is not None and _MIN_WORD_RMS_DUR_SEC < word_dur <= _SHORT_WORD_AUDIBILITY_MAX_SEC
     )
     levels: dict[str, float] = {}
     for tid in track_ids:
