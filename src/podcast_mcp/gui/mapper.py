@@ -838,12 +838,6 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
             if shared_transcript and cutaway_end > cutaway_start + 1e-9:
                 assert left_transcript is not None
                 active_words = left_transcript.words
-                archived_words = [entry.word for entry in left_transcript.archived_words]
-                word_spans = timeline.map_selected_word_spans(
-                    track_id,
-                    left.source_id,
-                    [(w.start, w.end) for w in [*active_words, *archived_words]],
-                )
                 preview_words = [
                     (index, ordinal, word)
                     for index, (ordinal, word) in enumerate(
@@ -854,6 +848,23 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                     (len(active_words) + index, entry.ordinal, entry.word)
                     for index, entry in enumerate(left_transcript.archived_words)
                 )
+                # Only words that reach into this cutaway are mapped: the rest are skipped
+                # below, and mapping a whole transcript per edit point is quadratic.
+                in_cutaway = [
+                    (word_index, word)
+                    for word_index, _ordinal, word in preview_words
+                    if float(word_source_span(word.start, word.end)[1]) > cutaway_start
+                    and float(word.start) < cutaway_end
+                ]
+                mapped_spans = timeline.map_selected_word_spans(
+                    track_id,
+                    left.source_id,
+                    [(word.start, word.end) for _index, word in in_cutaway],
+                )
+                word_spans = {
+                    word_index: spans
+                    for (word_index, _word), spans in zip(in_cutaway, mapped_spans, strict=True)
+                }
                 for word_index, _ordinal, word in sorted(
                     preview_words, key=lambda row: (row[2].start, row[1], row[0])
                 ):

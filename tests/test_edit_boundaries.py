@@ -310,3 +310,47 @@ def test_map_edit_boundaries_skips_track_end_without_neighbor(minimal_project):
         ),
     ]
     assert map_edit_boundaries(ws.project) == []
+
+
+def test_map_edit_boundaries_maps_only_the_words_that_reach_each_cutaway(
+    minimal_project, monkeypatch
+):
+    """Mapping a whole transcript per edit point made Undo on a long episode quadratic (#1535)."""
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=400.0),
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=20.0, source_end=30.0, timeline_start=10.0),
+        Clip(id="c3", track_id="host", source_start=50.0, source_end=60.0, timeline_start=20.0),
+    ]
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text=f"w{i}", start=float(i), end=float(i) + 0.5) for i in range(100)
+            ],
+        )
+    ]
+    asked: list[list[tuple[float, float]]] = []
+    real = SessionTimeline.map_selected_word_spans
+
+    def spy(self, track_id, source_id, words):
+        asked.append(list(words))
+        return real(self, track_id, source_id, words)
+
+    monkeypatch.setattr(SessionTimeline, "map_selected_word_spans", spy)
+    joins = map_edit_boundaries(ws.project)
+
+    assert [[w["text"] for w in j["cutaway_word_ids"]] for j in joins] == [
+        [f"w{i}" for i in range(10, 20)],
+        [f"w{i}" for i in range(30, 50)],
+    ]
+    # Each edit point asked about its own cutaway (10 and 20 words), not all 100.
+    assert [len(words) for words in asked] == [10, 20]
