@@ -401,7 +401,7 @@ describe("StudioShell tablet peek", () => {
       </DawProvider>,
     );
 
-    const alert = await screen.findByRole("alert", {
+    const alert = await screen.findByRole("region", {
       name: "Needs attention. 1 pending, 1 conflict",
     });
     expect(within(alert).getByText("Attention", { exact: true })).toBeVisible();

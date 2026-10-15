@@ -131,7 +131,7 @@ for (const delivery of ["409", "abort-replay"] as const)
       } else {
         await expect.poll(() => hostOfflineQueueCount(page, p)).toBe(1);
         await expect(
-          page.getByRole("alert", {
+          page.getByRole("region", {
             name: /^Needs attention\. 1 pending(?:,|$)/,
           }),
         ).toBeVisible();

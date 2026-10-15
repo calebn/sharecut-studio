@@ -303,8 +303,28 @@ export function dismissAllConflicts(projectPath: string): void {
       }
     })
     .catch(() => {
-      if (clearing === source.generation)
-        set(source, { status: "dismiss-failed" });
+      if (clearing !== source.generation) return;
+      const reading = ++source.generation;
+      set(source, { status: "dismiss-failed" });
+      read(projectPath)
+        .then(([pending, conflicts]) => {
+          if (reading !== source.generation) return;
+          set(source, {
+            pending,
+            conflicts: withVolatileOutcomes(projectPath, conflicts),
+            status: "dismiss-failed",
+            loaded: true,
+            settling: documentActivityBusy(projectPath),
+          });
+        })
+        .catch(() => {
+          if (reading === source.generation) {
+            set(source, {
+              status: "dismiss-failed",
+              settling: documentActivityBusy(projectPath),
+            });
+          }
+        });
     });
 }
 

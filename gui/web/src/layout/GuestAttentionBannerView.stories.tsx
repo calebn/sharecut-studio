@@ -31,7 +31,7 @@ export const PendingHostEdits: Story = {
   args: { pending: 2 },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement.ownerDocument.body).getByRole("alert", {
+      within(canvasElement.ownerDocument.body).getByRole("region", {
         name: "Needs attention. 2 pending",
       }),
     ).toBeInTheDocument();
@@ -53,7 +53,7 @@ export const Conflicts: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(
-      within(canvasElement.ownerDocument.body).getByRole("alert", {
+      within(canvasElement.ownerDocument.body).getByRole("region", {
         name: "Needs attention. 2 conflicts",
       }),
     );
@@ -76,7 +76,7 @@ export const PendingAndConflict: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement.ownerDocument.body).getByRole("alert", {
+      within(canvasElement.ownerDocument.body).getByRole("region", {
         name: "Needs attention. 1 pending, 1 conflict",
       }),
     ).toBeInTheDocument();
@@ -93,7 +93,7 @@ export const PhoneManyConflicts: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(
-      within(canvasElement.ownerDocument.body).getByRole("alert", {
+      within(canvasElement.ownerDocument.body).getByRole("region", {
         name: "Needs attention. 7 conflicts",
       }),
     );

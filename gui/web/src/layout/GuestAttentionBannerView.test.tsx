@@ -69,7 +69,7 @@ describe("GuestAttentionBannerView", () => {
         />
       </StrictMode>,
     );
-    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.getAllByRole("region", { name: /Needs attention/ })).toHaveLength(2);
     const summary = screen.getAllByLabelText(
       "View attention details and recovery actions",
     )[0];
@@ -79,9 +79,9 @@ describe("GuestAttentionBannerView", () => {
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     first.unmount();
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: /Needs attention/ })).toHaveLength(1);
     second.unmount();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /Needs attention/ })).not.toBeInTheDocument();
     expect(vi.getTimerCount()).toBe(0);
     expect(
       [...document.body.children].filter(
@@ -142,7 +142,7 @@ describe("GuestAttentionBannerView", () => {
       </StrictMode>,
     );
     expect(nextHost).toContainElement(details);
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: /Needs attention/ })).toHaveLength(1);
     unmount();
     expect(nextHost).toBeEmptyDOMElement();
     nextHost.remove();
@@ -217,7 +217,7 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(/2 pending/);
     expect(
       screen.queryByRole("button", { name: "Dismiss all" }),
     ).not.toBeInTheDocument();
@@ -243,7 +243,7 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={onDismissAll}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveAccessibleName(
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(
       /1 pending, 2 conflicts/,
     );
     expandDetails();
@@ -278,7 +278,7 @@ describe("GuestAttentionBannerView", () => {
     for (const item of items.slice(0, 5)) {
       expect(item).not.toHaveClass("guest-attention-more");
     }
-    expect(screen.getByRole("alert")).toHaveAccessibleName(/7 conflicts/);
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(/7 conflicts/);
   });
 
   it("shows no more item when exactly 5 conflicts fit", () => {
@@ -306,7 +306,7 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveAccessibleName(
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(
       /Saved edits could not be read/,
     );
     expandDetails();
@@ -319,7 +319,7 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveAccessibleName(
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(
       /2 pending, 1 conflict/,
     );
     expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
@@ -343,7 +343,7 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveAccessibleName(
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(
       /2 pending, 1 conflict/,
     );
     expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
@@ -371,7 +371,7 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 conflict/);
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(/1 conflict/);
   });
 
   it("offers Send now beside pending edits and calls it", async () => {
