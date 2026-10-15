@@ -225,6 +225,8 @@ Select a track and choose **Add volume envelope** or **Edit volume envelope**
 to open its point list without creating automation. **Add point** and
 **Edit point** open numeric drafts (on touch, focus lands on the form heading, so a phone's keyboard stays down until you tap a field; a time past the end of the timeline is refused with a message under the field); Cancel or form Escape discards them.
 Save and Delete are undoable; removing the last point restores unity automation.
+Saving the first point creates a flat envelope at its level, with anchors at the
+timeline start and end. A point at either endpoint keeps its own ID as that anchor.
 Points keep their IDs when time sorting changes. If the envelope changes while
 a draft is open, saving is refused and **Discard draft and reload points**
 loads the current list. Shares can view the workspace, but editing is host-only.
