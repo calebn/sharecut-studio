@@ -970,3 +970,58 @@ def test_cross_lane_stack_tolerance_at_nonzero_timeline_position(
     assert [(row["track_ids"], row["clip_ids"]) for row in report["stacked_clips"]] == (
         [(("host", "guest"), ("host", "guest"))] if stacked else []
     )
+
+
+def _parked_project(tmp_path, n_clips: int) -> EpisodeProject:
+    p = EpisodeProject.create("st_resolver", str(tmp_path / "ws"))
+    p.timeline.tracks = [
+        Track(id=tid, label=tid, media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=900.0))
+        for tid in ("host", "guest")
+    ]
+    p.sources = [
+        SourceRecording(id="src_host", path="raw/host.wav", duration_sec=900.0),
+        SourceRecording(id="src_guest", path="raw/guest.wav", duration_sec=900.0),
+    ]
+    p.timeline.clips = [
+        Clip(
+            id=f"c{i}",
+            # Half sit on the other lane than the recording they play.
+            track_id="guest" if i % 2 else "host",
+            source_start=float(i),
+            source_end=float(i) + 0.5,
+            timeline_start=float(i),
+            source_id="src_host",
+        )
+        for i in range(n_clips)
+    ]
+    return p
+
+
+def test_origin_resolver_agrees_with_the_per_clip_answer(tmp_path):
+    from podcast_mcp.engines.session_timeline import origin_resolver
+
+    p = _parked_project(tmp_path, 6)
+    p.timeline.clips.append(
+        Clip(id="plain", track_id="guest", source_start=0.0, source_end=1.0, timeline_start=0.0)
+    )
+    origin = origin_resolver(p)
+    assert [origin(c) for c in p.clips] == ["host"] * 6 + ["guest"]
+    assert [origin_track_id_for_clip(p, c) for c in p.clips] == ["host"] * 6 + ["guest"]
+
+
+def test_indexing_resolves_each_recording_once_not_once_per_clip(tmp_path, monkeypatch):
+    from podcast_mcp.engines import session_timeline as module
+
+    calls: list[str] = []
+    real = module.resolve_under_workspace
+
+    def counting(project, stored):
+        calls.append(stored)
+        return real(project, stored)
+
+    monkeypatch.setattr(module, "resolve_under_workspace", counting)
+    p = _parked_project(tmp_path, 400)
+    st = SessionTimeline(p)
+    assert st.source_to_timeline("host", SourceSec(1.0)) == pytest.approx(1.0)
+    # Two tracks' media plus the one source: constant in the clip count.
+    assert len(calls) == 3

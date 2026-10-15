@@ -25,6 +25,7 @@ from podcast_mcp.services.document_sync import (
     parse_view_projection,
 )
 from podcast_mcp.services.media import TranscriptService
+from podcast_mcp.util.batch_scope import batch_scope
 
 __all__ = [
     "VIEW_PROJECTION_QUERY_DESCRIPTION",
@@ -280,11 +281,12 @@ def dump_project_projection(
             }
         else:
             hist = history if history is not None else HistoryService(ws).list_entries()
-            transcript = map_transcript_utterances_to_timeline(
-                ws.project,
-                _raw_transcript(ws),
-                include_words=True,
-            )
+            with batch_scope():
+                transcript = map_transcript_utterances_to_timeline(
+                    ws.project,
+                    _raw_transcript(ws),
+                    include_words=True,
+                )
             base = {
                 "transcript": transcript,
                 "history": hist,
@@ -295,7 +297,9 @@ def dump_project_projection(
         if proj is ViewProjection.TRANSCRIPT_AUDIO:
             return _freshness_patch(ws, base)
         return base
-    return build_project_view(ws, projection=proj, history=history).model_dump()
+    # A view build is read-only, so each recording's path is resolved once, not per clip.
+    with batch_scope():
+        return build_project_view(ws, projection=proj, history=history).model_dump()
 
 
 def projection_dependencies(
