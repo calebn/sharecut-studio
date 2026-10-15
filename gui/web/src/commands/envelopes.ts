@@ -35,6 +35,12 @@ export function registerEnvelopeCommands(): void {
     if (!project.tracks.some((track) => track.id === trackId)) {
       return { status: "disabled", reason: "That track is gone" };
     }
+    if (!state.layers.showLevels) {
+      return {
+        status: "disabled",
+        reason: "Show the volume envelope before adding a point",
+      };
+    }
     const time = clampToSession(raw, project.timeline_duration_sec);
     const origin = (
       findVolumeEnvelope(project.envelopes, trackId)?.points ?? []
@@ -64,7 +70,6 @@ export function registerEnvelopeCommands(): void {
     }
     const live = useDawStore.getState();
     if (live.projectEpoch !== projectEpoch) return { status: "ok" };
-    live.setLayerVisible("showLevels", true);
     live.setSelection({ kind: "envelopePoint", trackId, pointId: point.id });
     live.announceStatus(`Envelope point added at ${formatTime(time)}`);
     return { status: "ok" };

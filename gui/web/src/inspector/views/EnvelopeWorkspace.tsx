@@ -46,6 +46,7 @@ export function EnvelopeWorkspace({
     shareCapabilities,
     projectEpoch,
     selectFromInspector,
+    layers,
     pointerKind,
   } = useDaw((state) => ({
     project: state.project,
@@ -54,6 +55,7 @@ export function EnvelopeWorkspace({
     shareCapabilities: state.shareCapabilities,
     projectEpoch: state.projectEpoch,
     selectFromInspector: state.selectFromInspector,
+    layers: state.layers,
     pointerKind: state.pointerKind,
   }));
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -64,6 +66,7 @@ export function EnvelopeWorkspace({
   const lock = useRef(false);
   const mounted = useMountedRef();
   const editable = canEditEnvelopes(projectPath, guestMode, shareCapabilities);
+  const levelsVisible = layers.showLevels;
   const track = project?.tracks.find((item) => item.id === trackId);
   const points = sortedVolumePoints(project?.envelopes, trackId);
   const rawPoints = () =>
@@ -97,7 +100,8 @@ export function EnvelopeWorkspace({
     );
   };
   const start = (kind: "add" | "edit") => {
-    if (!editable || lock.current) return;
+    if (!editable || !useDawStore.getState().layers.showLevels || lock.current)
+      return;
     const origin = rawPoints();
     const selected = origin.find((point) => point.id === pointId);
     if (kind === "edit" && !selected) return;
@@ -142,7 +146,13 @@ export function EnvelopeWorkspace({
     origin: AutomationPoint[],
     selectedId: string | null,
   ) => {
-    if (!editable || lock.current || !targetCurrent()) return;
+    if (
+      !editable ||
+      !useDawStore.getState().layers.showLevels ||
+      lock.current ||
+      !targetCurrent()
+    )
+      return;
     if (!sameEnvelopePoints(rawPoints(), origin)) {
       setError({
         target: "form",
@@ -173,7 +183,8 @@ export function EnvelopeWorkspace({
     }
   };
   const save = () => {
-    if (!draft || lock.current) return;
+    if (!draft || !useDawStore.getState().layers.showLevels || lock.current)
+      return;
     const { form, origin } = draft;
     const time = Number(form.time);
     const value = Number(form.level);
@@ -232,7 +243,8 @@ export function EnvelopeWorkspace({
     void commit(next, origin, point.id);
   };
   const remove = () => {
-    if (lock.current || !pointId) return;
+    if (!useDawStore.getState().layers.showLevels || lock.current || !pointId)
+      return;
     const origin = (
       findVolumeEnvelope(project?.envelopes, trackId)?.points ?? []
     ).map((point) => ({ ...point }));
@@ -250,6 +262,7 @@ export function EnvelopeWorkspace({
       points={points}
       pointId={pointId}
       editable={editable}
+      levelsVisible={levelsVisible}
       form={draft?.form ?? null}
       busy={busy || nudgeRun.saving}
       error={error}
@@ -282,6 +295,10 @@ export function EnvelopeWorkspace({
             );
           }
         });
+      }}
+      onToggleLevels={() => {
+        const state = useDawStore.getState();
+        state.setLayerVisible("showLevels", !state.layers.showLevels);
       }}
     />
   );

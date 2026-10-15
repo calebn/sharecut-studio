@@ -44,6 +44,7 @@ describe("TrackInspector", () => {
       .getState()
       .hydrate("/tmp/ep.json", minimalProject({ tracks: [hostTrack] }));
     useDawStore.setState({ splitSpeakersReview: null });
+    useDawStore.getState().setLayerVisible("showLevels", false);
   });
 
   afterEach(() => {
@@ -60,6 +61,31 @@ describe("TrackInspector", () => {
     ).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Track role" })).toBeVisible();
     await expectNoA11yViolations(container);
+  });
+
+  it("starts with the envelope hidden and changes visibility without changing the project", async () => {
+    const user = userEvent.setup();
+    expect(useDawStore.getInitialState().layers.showLevels).toBe(false);
+    const project = useDawStore.getState().project;
+    render(<TrackInspector track={hostTrack} effects={[]} />);
+
+    const show = screen.getByRole("button", {
+      name: "Show volume envelope",
+    });
+    await user.click(show);
+    expect(useDawStore.getState().layers.showLevels).toBe(true);
+    expect(useDawStore.getState().project).toBe(project);
+
+    await user.click(
+      screen.getByRole("button", { name: "Hide volume envelope" }),
+    );
+    expect(useDawStore.getState().layers.showLevels).toBe(false);
+    expect(useDawStore.getState().project).toBe(project);
+
+    await user.click(
+      screen.getByRole("button", { name: "Add volume envelope" }),
+    );
+    expect(useDawStore.getState().layers.showLevels).toBe(false);
   });
 
   it("applies SetTrackMeta locally before the command resolves and reverts on failure", async () => {

@@ -84,6 +84,11 @@ export const PhoneEmpty: Story = {
   globals: recordMobileViewport.globals,
   args: { points: [] },
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelector(".envelope-overlay")).toBeNull();
+    const overlay = canvasElement.querySelector(".envelope-overlay");
+    await expect(overlay?.querySelector("polyline")).toHaveAttribute(
+      "points",
+      "0,25.333333333333336 640,25.333333333333336",
+    );
+    await expect(overlay?.querySelectorAll("circle")).toHaveLength(0);
   },
 };

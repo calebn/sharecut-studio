@@ -406,7 +406,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     userZoomed: false,
     layers: {
       showEdits: true,
-      showLevels: true,
+      showLevels: false,
       showMarkers: true,
       showComments: true,
       showSilence: true,

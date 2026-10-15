@@ -53,6 +53,9 @@ async function withGuestEnvelope(
       await openHostShare(page, projectPath);
       await openEnvelopeTrackDetails(page, track.label, receipts);
       await page
+        .getByRole("button", { name: "Show volume envelope", exact: true })
+        .click();
+      await page
         .getByRole("button", { name: "Add volume envelope", exact: true })
         .click();
       await page
@@ -87,6 +90,12 @@ async function withGuestEnvelope(
         );
         try {
           await openEnvelopeTrackDetails(guest, track.label, receipts);
+          await guest
+            .getByRole("button", {
+              name: "Show volume envelope",
+              exact: true,
+            })
+            .click();
           await body({
             guest,
             token,
@@ -248,13 +257,12 @@ test("editor share edits a volume envelope point", async ({
       const response = await saved;
       expect(response.status()).toBe(200);
       expect(requests.map((command) => command.type)).toEqual(["SetEnvelope"]);
+      const expected = baseline.points.map((point) =>
+        point.id === pointId ? { ...point, value: 0.5 } : point,
+      );
       await expect
-        .poll(() =>
-          envelopeSnapshot(projectPath, track.id).points.map(
-            (point) => point.value,
-          ),
-        )
-        .toEqual([0.5]);
+        .poll(() => envelopeSnapshot(projectPath, track.id).points)
+        .toEqual(expected);
       receipts.push({
         checkpoint: "editor-envelope-edit-accepted",
         observation: {

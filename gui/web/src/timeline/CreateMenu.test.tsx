@@ -24,6 +24,7 @@ function open(
   projectPath: string,
   shareCapabilities: string[] | null = null,
   tracks = [sampleTrack({ id: "host" })],
+  showLevels = true,
 ) {
   useDawStore.setState({
     projectPath,
@@ -31,6 +32,7 @@ function open(
     guestMode: shareCapabilities ? "edit" : null,
     project: minimalProject({ tracks }),
   });
+  useDawStore.getState().setLayerVisible("showLevels", showLevels);
   return render(
     <CreateMenu
       view={view}
@@ -136,6 +138,19 @@ describe("CreateMenu", () => {
       atTime: 12.5,
       trackId: "host",
     });
+  });
+
+  it("requires the volume envelope to be visible before adding a point", () => {
+    open("/tmp/ep.project.json", null, undefined, false);
+    const envelope = screen.getByRole("menuitem", {
+      name: /Add envelope point/,
+    });
+    expect(envelope).toHaveAttribute("aria-disabled", "true");
+    expect(envelope).toHaveAccessibleDescription(
+      "Show the volume envelope before adding a point",
+    );
+    fireEvent.click(envelope);
+    expect(runPointerCommand).not.toHaveBeenCalled();
   });
 
   it("lets an editor link add envelope points", () => {

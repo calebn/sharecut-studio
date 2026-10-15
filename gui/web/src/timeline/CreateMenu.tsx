@@ -53,18 +53,22 @@ interface Item {
 
 function items(place: CreatePlace): Item[] {
   const ctx = buildCommandContext();
-  const { project, selectedTrackIds } = useDawStore.getState();
+  const { project, selectedTrackIds, layers } = useDawStore.getState();
   return CREATE_ENTRIES.map((entry) => {
     const args = entry.args(place);
     const gate = evaluateWhen(COMMANDS[entry.command].when, ctx);
+    const hiddenEnvelope =
+      entry.command === "envelope.addPoint" && !layers.showLevels;
     return {
       entry,
       args,
       reason: !gate.ok
         ? gate.reason
-        : args
-          ? null
-          : "Hold on a track to add a point",
+        : hiddenEnvelope
+          ? "Show the volume envelope before adding a point"
+          : args
+            ? null
+            : "Hold on a track to add a point",
       note:
         entry.id === "split"
           ? bladeCutNote(project?.tracks ?? [], selectedTrackIds)
