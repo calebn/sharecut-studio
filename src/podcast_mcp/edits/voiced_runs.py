@@ -21,7 +21,13 @@ from collections.abc import Sequence
 import numpy as np
 
 from podcast_mcp.engines.audio_audit import TrackRmsCache
-from podcast_mcp.util.dsp import autocorr_peak, bool_runs, bridge_short_dips, frame_rms_db, voicing_probes
+from podcast_mcp.util.dsp import (
+    autocorr_peak,
+    bool_runs,
+    bridge_short_dips,
+    frame_rms_db,
+    voicing_probes,
+)
 
 VoicedRun = tuple[float, float]
 """Half-open ``(start, end)`` in source seconds, quantized to the 10 ms frame grid."""
@@ -64,9 +70,7 @@ def audible_runs(
     return [(t0 + i * hop / sr, t0 + ((j - 1) * hop + frame) / sr) for i, j in bool_runs(active)]
 
 
-def _quiet_speech_f0_hz(
-    samples: np.ndarray, sample_rate: int, *, interior: bool
-) -> list[float]:
+def _quiet_speech_f0_hz(samples: np.ndarray, sample_rate: int, *, interior: bool) -> list[float]:
     frame = max(1, round(sample_rate * PROBE_SEC))
     hop = max(1, round(sample_rate * HOP_SEC))
     f0_hz: list[float] = []
