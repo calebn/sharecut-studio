@@ -263,15 +263,24 @@ for (const {
                   receipts,
                 ),
             );
-            const point = first.command.payload.points![0]!;
-            expect(point).toEqual({
-              id: expect.stringMatching(/\S/),
-              time: 0,
-              value: 1,
-            });
+            const initialPoints = first.command.payload.points!;
+            const point = initialPoints[0]!;
+            expect(initialPoints).toEqual([
+              {
+                id: expect.stringMatching(/\S/),
+                time: 0,
+                value: 1,
+              },
+              {
+                id: expect.stringMatching(/\S/),
+                time: 60,
+                value: 1,
+              },
+            ]);
+            expect(initialPoints[1]!.id).not.toBe(point.id);
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual([point]);
+              .toEqual(initialPoints);
             const saved = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(origin, saved, track.id);
             const select = page.getByRole("combobox", {
@@ -311,9 +320,13 @@ for (const {
                   receipts,
                 ),
             );
-            expect(changed.command.payload.points).toEqual([
-              { ...point, time: 2, value: 0.75 },
-            ]);
+            expect(changed.command.payload.points).toEqual(
+              saved.points.map((savedPoint) =>
+                savedPoint.id === point.id
+                  ? { ...savedPoint, time: 2, value: 0.75 }
+                  : savedPoint,
+              ),
+            );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(changed.command.payload.points);
