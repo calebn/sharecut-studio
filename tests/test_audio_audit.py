@@ -462,6 +462,82 @@ def test_sandwiched_zero_duration_deferred_not_suppressed(tmp_path: Path):
     assert any("what" in (u.text or "") for u in merged.utterances)
 
 
+def test_short_word_audibility_uses_loudest_frame(tmp_path: Path):
+    """A 40–100 ms word is not judged by span-mean RMS alone (#1594)."""
+    from podcast_mcp.engines.audio_audit import _track_levels
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    caches = TrackRmsCacheSet(
+        caches={
+            "host": TrackRmsCache(
+                samples=np.zeros(16_000, dtype=np.float32),
+                recording_profile=LevelProfile(room_db=-60.0, speech_db=-30.0, loud_db=-28.0),
+            )
+        }
+    )
+    offsets = {"host": -30.0}
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit.timeline_frame_levels_db",
+            return_value=np.array([-38.0]),
+        ),
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            return_value=-45.0,
+        ),
+    ):
+        peak = _track_levels(
+            project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.06
+        )
+        mean = _track_levels(
+            project, ["host"], 1.0, 1.06, {}, caches, offsets, word_dur=0.2
+        )
+    assert peak["host"] == pytest.approx(-8.0)
+    assert mean["host"] == pytest.approx(-15.0)
+
+
+def test_short_word_map_audible_when_peak_reaches_voice_floor(tmp_path: Path):
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
+    ]
+    project.timeline.clips = [
+        Clip(
+            id="c1",
+            track_id="host",
+            source_start=0.0,
+            source_end=3.0,
+            timeline_start=0.0,
+        )
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="to", start=1.0, end=1.06, confidence=1.0)],
+        )
+    ]
+    profile = LevelProfile(room_db=-60.0, speech_db=-30.0, loud_db=-28.0)
+    caches = TrackRmsCacheSet(
+        caches={"host": TrackRmsCache(samples=np.zeros(48_000, dtype=np.float32), recording_profile=profile)}
+    )
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit.timeline_frame_levels_db",
+            return_value=np.array([-38.0]),
+        ),
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            return_value=-45.0,
+        ),
+        patch(
+            "podcast_mcp.engines.audio_audit.build_track_rms_caches",
+            return_value=caches,
+        ),
+    ):
+        rows = compute_word_audibility_map(project, track_id="host")
+    assert rows[0]["audibility_status"] == "audible"
+
+
 def test_anomalous_word_duration_deferred_skips_mean_rms(tmp_path: Path):
     project = EpisodeProject.create("ep", str(tmp_path))
     project.timeline.tracks = [
