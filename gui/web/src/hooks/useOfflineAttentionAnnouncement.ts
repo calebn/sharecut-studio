@@ -27,7 +27,6 @@ function attentionAnnouncement(input: Input): string | null {
   });
 }
 
-/** Speaks queue and conflict changes in the shell polite live region (#1540). */
 export function useOfflineAttentionAnnouncement(input: Input): void {
   const announceStatus = useDaw((s) => s.announceStatus);
   const last = useRef<string | null>(null);
