@@ -614,11 +614,14 @@ def _voice_refs(
     (``LevelProfile.path_reference_db``), whenever the compared tracks all have a recording of
     their own to read. Otherwise (a track with no media reads its clips' sources, which have
     no voice level of their own; an unreadable file), all are read as recorded: a scale on one
-    side of a comparison only is not a scale (#1495, #1549). A track whose voice sits
-    ``_RESIDUE_UNDER_LOUDEST_DB`` under the session's loudest carries residue, not a mic, and
-    is read as recorded: scaled up by its own residue level it would out-sound every speaker.
+    side of a comparison only is not a scale (#1495, #1549). A track with no contrast whose
+    voice sits ``_RESIDUE_UNDER_LOUDEST_DB`` under the session's
+    loudest carries residue, not a mic, and is read as recorded: scaled up by its own residue
+    level it would out-sound every speaker. A quieter dialogue recording with contrast keeps
+    ``path_reference_db`` so tightening does not move when one track alone is scaled (#1529).
     """
     tracks = list(dict.fromkeys(track_ids))
+    profiles = {tid: _peer_profile(project, tid, caches) for tid in tracks}
     references = {tid: _track_voice_db(project, tid, caches) for tid in tracks}
     if any(reference is None for reference in references.values()):
         return dict.fromkeys(tracks, 0.0)
@@ -630,8 +633,17 @@ def _voice_refs(
         ),
         default=0.0,
     )
+
+    def reference_db(track_id: str, reference: float) -> float:
+        profile = profiles[track_id]
+        if profile.has_contrast:
+            return reference
+        if reference > loudest - _RESIDUE_UNDER_LOUDEST_DB:
+            return reference
+        return 0.0
+
     return {
-        tid: reference if reference > loudest - _RESIDUE_UNDER_LOUDEST_DB else 0.0
+        tid: reference_db(tid, reference)
         for tid, reference in references.items()
         if reference is not None
     }

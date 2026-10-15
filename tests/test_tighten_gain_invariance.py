@@ -23,7 +23,7 @@ import pytest
 from bleed_helpers import DURATION_SEC, delay, spurts, voices
 from bleed_helpers import RATE as BLEED_RATE
 from podcast_mcp.edits.silence_islands import suggest_handoff_cut
-from podcast_mcp.edits.speech_energy_guard import measure_peer_speech
+from podcast_mcp.edits.speech_energy_guard import _voice_refs, measure_peer_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.word_spans import WordSpanCaps, trim_implausible_words
 from podcast_mcp.engines.asr_options import AsrOptions
@@ -784,6 +784,48 @@ def _scalings() -> dict[str, tuple[float | None, Callable[[str], dict[str, float
 
 
 SCALINGS = _scalings()
+
+
+def _tighten_signature(project: EpisodeProject, *, edit_mode: str = "ripple") -> tuple:
+    proposal = propose_tighten_edits(project, _tighten_defaults(edit_mode), intensity="medium")
+    decisions = sorted(
+        (d.track_id, d.reason, round(d.start, 3), round(d.end, 3), d.review_required)
+        for d in proposal.decisions
+    )
+    return decisions, dict(proposal.skip_counts)
+
+
+@pytest.mark.parametrize(
+    ("detector_name", "edit_mode", "alone", "gain_db"),
+    [
+        ("tighten-ripple-gated", "ripple", "host", -12.0),
+        ("tighten-mute", "mute", "host", -12.0),
+        ("tighten-ripple-gated", "ripple", "guest", -12.0),
+    ],
+)
+def test_tighten_proposals_match_when_one_track_is_12db_quieter(
+    tmp_path: Path, detector_name: str, edit_mode: str, alone: str, gain_db: float
+) -> None:
+    """Proposal clocks, reasons and skip counts stay fixed when one dialogue track is scaled (#1529)."""
+    detector = DETECTORS[detector_name]
+    base = detector.scene(tmp_path / "base")
+    scaled = _scaled(detector.scene(tmp_path / "scaled"), {alone: gain_db})
+    want_decisions, want_skips = _tighten_signature(base, edit_mode=edit_mode)
+    got_decisions, got_skips = _tighten_signature(scaled, edit_mode=edit_mode)
+    assert got_skips == want_skips
+    assert len(got_decisions) == len(want_decisions)
+    for got, want in zip(got_decisions, want_decisions, strict=True):
+        assert got[:2] == want[:2] and got[4] == want[4]
+        assert got[2] == pytest.approx(want[2], abs=FRAME_SEC + 1e-6)
+        assert got[3] == pytest.approx(want[3], abs=FRAME_SEC + 1e-6)
+
+
+def test_a_quiet_contrast_mic_keeps_its_voice_reference(tmp_path: Path) -> None:
+    """Do not treat a quieter dialogue recording as bleed residue (#1529)."""
+    project = _tighten_scene(tmp_path, gated=False)
+    refs = _voice_refs(project, ["host", "guest"], caches=None)
+    assert refs["guest"] != 0.0
+    assert refs["host"] != 0.0
 
 
 @pytest.mark.parametrize("scaling", SCALINGS)

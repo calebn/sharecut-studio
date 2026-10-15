@@ -16,6 +16,7 @@ from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, ripple_remove_c
 from podcast_mcp.edits.source_removals import CutScopeHold, consume_source_remove
 from podcast_mcp.edits.speech_energy_guard import (
     ResolvedCutScope,
+    _voice_refs,
     assess_cross_track_speech,
     measure_peer_speech,
     resolve_cut_scope,
@@ -161,6 +162,28 @@ def test_assess_blocks_when_other_track_hot():
     assert g.blocked
     assert g.blocking_track_ids == ("guest",)
     assert g.action == "review"
+
+
+def test_voice_refs_keep_a_quiet_contrast_mic_on_path_reference() -> None:
+    """#1529: a dialogue track recorded much quieter than the host is not bleed residue."""
+    project = _two_track()
+    host_profile = LevelProfile(room_db=-55.0, speech_db=-28.0, loud_db=-26.0)
+    guest_profile = LevelProfile(room_db=-80.0, speech_db=-75.0, loud_db=-73.0)
+    assert host_profile.has_contrast and guest_profile.has_contrast
+
+    def profile(_project: EpisodeProject, track_id: str, _caches: object) -> LevelProfile:
+        return host_profile if track_id == "host" else guest_profile
+
+    def voice_db(_project: EpisodeProject, track_id: str, _caches: object) -> float:
+        return profile(_project, track_id, _caches).path_reference_db
+
+    with (
+        patch("podcast_mcp.edits.speech_energy_guard._peer_profile", side_effect=profile),
+        patch("podcast_mcp.edits.speech_energy_guard._track_voice_db", side_effect=voice_db),
+    ):
+        refs = _voice_refs(project, ["host", "guest"], caches=None)
+    assert refs["guest"] == guest_profile.path_reference_db
+    assert refs["guest"] < host_profile.path_reference_db - 40.0
 
 
 @pytest.mark.usefixtures("peer_floor")
