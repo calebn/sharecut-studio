@@ -154,6 +154,12 @@ def edit_apply_suggested_cmd(
     override: list[str] = typer.Option(
         [], "--override", help="ID=ACTION (cut, shorten, lower or leave) for one sound; repeatable"
     ),
+    revise: bool = typer.Option(
+        False,
+        "--revise",
+        help="Change sounds of the latest batch: step back to before it and apply it again "
+        "with --override on top, as one undo step (takes no --ids)",
+    ),
 ) -> None:
     """Apply every pending sound's suggested action in one undo step."""
     overrides: dict[str, str] = {}
@@ -164,7 +170,7 @@ def edit_apply_suggested_cmd(
         overrides[edit_id] = action
     ws = ProjectWorkspace.open(project)
     id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
-    result = EditService(ws).apply_suggested_actions(id_list, overrides=overrides)
+    result = EditService(ws).apply_suggested_actions(id_list, overrides=overrides, revise=revise)
     typer.echo(result["summary"])
 
 

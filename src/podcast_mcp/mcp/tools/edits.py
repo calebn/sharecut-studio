@@ -370,6 +370,7 @@ def apply_suggested_actions_tool(
     project_path: str,
     ids: list[str] | None = None,
     overrides: dict[str, str] | None = None,
+    revise: bool = False,
 ) -> str:
     """Apply every pending sound's own suggested action in one undo step.
 
@@ -381,9 +382,15 @@ def apply_suggested_actions_tool(
     ``leave`` dismisses the proposal and keeps the audio. ``overrides`` maps a decision id to
     another action for that sound. Returns ``applied`` by action, ``cut_over_speaker``,
     ``held`` (ids still pending) and a ``summary`` sentence.
+
+    To change one sound after the batch (say a cut to leave) without undoing the rest, call
+    again with ``revise=true`` and ``overrides={id: action}`` and no ``ids``: it steps back
+    to before the latest batch (which must still be the latest edit) and applies it again
+    with that change, as one undo step. Otherwise it refuses with
+    ``no_suggested_batch_to_revise``.
     """
     ws = ProjectWorkspace.open(project_path)
-    result = EditService(ws).apply_suggested_actions(ids, overrides=overrides)
+    result = EditService(ws).apply_suggested_actions(ids, overrides=overrides, revise=revise)
     agent_mutated(ws)
     return to_json(result)
 

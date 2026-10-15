@@ -232,6 +232,23 @@ class HistoryManager:
         self._store.commit(project)
         return self.status(project)
 
+    def tip_entry_index(self, project: EpisodeProject, operation: str) -> int | None:
+        """Index of the newest ``operation`` entry when the cursor sits at the tip and only
+        preview renders follow it, else None (the caller's change is not the latest edit)."""
+        history = self._load_index(project)
+        if history.cursor != len(history.entries) - 1:
+            return None
+        for index in range(len(history.entries) - 1, -1, -1):
+            entry = history.entries[index]
+            if entry.operation == operation:
+                return index
+            if entry.operation != "render_preview":
+                return None
+        return None
+
+    def entry(self, project: EpisodeProject, index: int) -> HistoryEntry:
+        return self._load_index(project).entries[index]
+
     def status(self, project: EpisodeProject) -> HistoryStatus:
         history = self._load_index(project)
         label = None

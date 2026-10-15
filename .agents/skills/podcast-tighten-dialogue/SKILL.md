@@ -137,7 +137,10 @@ returns the same hits, under the same ids, each run. An Ask thread
    would hold for another speaker is applied as the session ripple across every
    dialogue track and counted in `cut_over_speaker`; a pause trim whose join
    still needs review stays pending and is named in `held`. Do not filter hits
-   yourself.
+   yourself. To change one sound afterward (say a cut to leave) without undoing
+   the rest, call it again with `revise=true` (`--revise`) and `overrides` for
+   that sound and no ids: it steps back to before the batch, which must still be
+   the latest edit, and applies it again as one undo step.
    Use `apply_edits` / `podcast apply-edits` only after explicit sign-off on the
    whole batch — not as the default on a real episode.
    After approving, `render_preview` and run **`audition_context_tool` on every
