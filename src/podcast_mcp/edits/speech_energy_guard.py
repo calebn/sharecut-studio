@@ -621,7 +621,6 @@ def _voice_refs(
     ``path_reference_db`` so tightening does not move when one track alone is scaled (#1529).
     """
     tracks = list(dict.fromkeys(track_ids))
-    profiles = {tid: _peer_profile(project, tid, caches) for tid in tracks}
     references = {tid: _track_voice_db(project, tid, caches) for tid in tracks}
     if any(reference is None for reference in references.values()):
         return dict.fromkeys(tracks, 0.0)
@@ -633,6 +632,7 @@ def _voice_refs(
         ),
         default=0.0,
     )
+    profiles = {tid: _peer_profile(project, tid, caches) for tid in tracks}
 
     def reference_db(track_id: str, reference: float) -> float:
         profile = profiles[track_id]
