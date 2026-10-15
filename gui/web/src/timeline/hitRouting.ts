@@ -551,9 +551,9 @@ export function attachHitRouting(
       router.choose(index, source.pointerType);
       return;
     }
-    const routed = targetOf(element);
-    const usePrecision = routed?.kind !== "envelope-point";
-    grab(element, source, candidate, anchor, at, { usePrecision });
+    // Chooser chip rest-to-grab uses the touch grammar (ripple readout, cut-speech
+    // dialog, xy envelope drag), not Auto precision (#1184).
+    grab(element, source, candidate, anchor, at, { usePrecision: false });
   };
   /** The open chooser's finger is now `finger`; a new anchor restarts its timers. */
   const setFinger = (finger: ChipFinger, source: PointerEvent) => {

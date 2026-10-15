@@ -1018,9 +1018,9 @@ enforced-by:
 - gui/web/e2e-compat/precision-drag.spec.ts::jog: moves a trim end exactly one 10 ms step and saves it
 -->
 
-On the phone shell only (`daw-shell--phone`), a long press arms a fade or
-trim. Envelope points and pending start/end handles (including chooser
-chip rest-to-grab on an envelope) keep the existing xy armed drag only (no
+On the phone shell only (`daw-shell--phone`), a direct long press arms a fade
+or trim handle on the timeline. Envelope points, pending start/end handles,
+and every chooser chip rest-to-grab keep the existing touch grammar drag (no
 jog pad). `decidePrecision` chooses **direct** drag (with pointer ballistics:
 slower finger motion moves finer steps) when one step is at least 4 px on
 screen, or when the target and its neighbours are wider than a finger;
