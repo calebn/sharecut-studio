@@ -318,12 +318,10 @@ test("jog: a ripple over the guest's speech asks first, and Leave a gap keeps it
   );
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);
-  await expect(page.locator(".precision-jog")).toBeVisible();
-  await finger.up();
-  await jog(page, finger, 6 * pps);
+  await finger.slide({ x: chip.x + 6 * pps, y: chip.y }, 12, 30);
   await expect(page.locator(".trim-readout")).toContainText("Ripple");
-  await frame(page, info, `precision-jog-ripple-preview-${browserName}`);
-  await page.getByRole("button", { name: "Done" }).click();
+  await frame(page, info, `precision-ripple-preview-${browserName}`);
+  await finger.up();
   const dialog = page.getByRole("dialog", { name: "Cut guest's speech too?" });
   await expect(dialog).toBeVisible();
   await frame(page, info, `precision-jog-cut-speech-asked-${browserName}`);
