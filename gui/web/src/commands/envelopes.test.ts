@@ -23,9 +23,11 @@ describe("envelope.addPoint", () => {
         envelopes: [],
       }),
     );
+    useDawStore.getState().setLayerVisible("showLevels", false);
   });
 
   it("saves a flat first-point shape through the registered command and selects the submitted ID", async () => {
+    useDawStore.getState().setLayerVisible("showLevels", true);
     const result = await execute(
       "envelope.addPoint",
       { trackId: "host", atTime: 4 },
@@ -51,5 +53,22 @@ describe("envelope.addPoint", () => {
       trackId: "host",
       pointId: points[1]!.id,
     });
+    expect(useDawStore.getState().layers.showLevels).toBe(true);
+  });
+
+  it("refuses to create a point while the volume envelope is hidden", async () => {
+    const result = await execute(
+      "envelope.addPoint",
+      { trackId: "host", atTime: 4 },
+      { skipWhen: true },
+    );
+
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "Show the volume envelope before adding a point",
+    });
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(useDawStore.getState().project?.envelopes).toEqual([]);
+    expect(useDawStore.getState().layers.showLevels).toBe(false);
   });
 });

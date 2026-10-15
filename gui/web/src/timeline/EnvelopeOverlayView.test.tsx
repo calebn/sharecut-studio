@@ -443,9 +443,14 @@ describe("EnvelopeOverlayView", () => {
     expect(line.split(" ")).toHaveLength(4);
   });
 
-  it("renders nothing for an empty points array", () => {
+  it("renders only a unity baseline for an empty points array", () => {
     const { container } = renderView({ points: [] });
-    expect(container).toBeEmptyDOMElement();
+    const line = container.querySelector("polyline");
+    expect(line?.getAttribute("points")).toBe(
+      "0,25.333333333333336 200,25.333333333333336",
+    );
+    expect(container.querySelectorAll("circle")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /Envelope point/ })).toBeNull();
   });
 
   it("skips selection after a commit that resolves once unmounted", async () => {

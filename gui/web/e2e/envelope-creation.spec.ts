@@ -56,6 +56,9 @@ async function openWorkspace(
   await page
     .getByRole("button", { name: "Add volume envelope", exact: true })
     .click();
+  await page
+    .getByRole("button", { name: "Show volume envelope", exact: true })
+    .click();
   await expect(
     page.getByText("Editing volume envelope", { exact: true }),
   ).toBeVisible();
@@ -152,6 +155,60 @@ for (const core of [
               .click();
             await expect(
               page.getByText("Editing volume envelope", { exact: true }),
+            ).toBeVisible();
+            await expect(
+              page.getByRole("button", { name: "Add point", exact: true }),
+            ).toBeDisabled();
+            await expect(
+              page.getByRole("button", {
+                name: "Show volume envelope",
+                exact: true,
+              }),
+            ).toBeVisible();
+            const layer = page.getByRole("checkbox", {
+              name: "Volume envelope",
+              exact: true,
+            });
+            await expect(layer).not.toBeChecked();
+            await page
+              .getByRole("button", {
+                name: "Show volume envelope",
+                exact: true,
+              })
+              .click();
+            await expect(layer).toBeChecked();
+            const unity = page.locator(".envelope-overlay").first();
+            await expect(unity).toBeVisible();
+            await expect(unity.locator("polyline")).toHaveAttribute(
+              "points",
+              /\S/,
+            );
+            await expect(unity.locator("circle")).toHaveCount(0);
+            await expect(
+              page.getByRole("button", { name: "Add point", exact: true }),
+            ).toBeEnabled();
+            await page
+              .getByRole("button", {
+                name: "Hide volume envelope",
+                exact: true,
+              })
+              .click();
+            await expect(layer).not.toBeChecked();
+            await expect(page.locator(".envelope-overlay")).toHaveCount(0);
+            await expect(
+              page.getByRole("button", { name: "Add point", exact: true }),
+            ).toBeDisabled();
+            expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
+            expect(observer.commands).toEqual([]);
+            await page
+              .getByRole("button", {
+                name: "Show volume envelope",
+                exact: true,
+              })
+              .click();
+            await expect(layer).toBeChecked();
+            await expect(
+              page.locator(".envelope-overlay").first(),
             ).toBeVisible();
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
             expect(observer.commands).toEqual([]);
@@ -289,6 +346,12 @@ for (const core of [
             await openEnvelopeTrackDetails(page, track.label, receipts);
             await page
               .getByRole("button", {
+                name: "Show volume envelope",
+                exact: true,
+              })
+              .click();
+            await page
+              .getByRole("button", {
                 name: "Edit volume envelope",
                 exact: true,
               })
@@ -312,6 +375,24 @@ for (const core of [
               .toEqual(expected.filter((item) => item.id !== point!.id));
             const remaining = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(edited, remaining, track.id);
+            const remainingPoint = remaining.points[0]!;
+            const deletedRemaining = await acceptedEnvelopeCommand(
+              page,
+              "SetEnvelope",
+              () =>
+                page
+                  .getByRole("button", { name: "Delete point", exact: true })
+                  .click(),
+            );
+            await expect
+              .poll(() => envelopeSnapshot(projectPath, track.id).points)
+              .toEqual(
+                remaining.points.filter(
+                  (item) => item.id !== remainingPoint.id,
+                ),
+              );
+            const onePoint = envelopeSnapshot(projectPath, track.id);
+            expectEnvelopeMutation(remaining, onePoint, track.id);
             observer.stage("final-removal-and-undo");
             const removed = await acceptedEnvelopeCommand(
               page,
@@ -328,7 +409,7 @@ for (const core of [
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual([]);
             const empty = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(remaining, empty, track.id);
+            expectEnvelopeMutation(onePoint, empty, track.id);
             expect(removed.command.payload.points).toEqual([]);
             await screenshot(page, info, "removed-envelope-empty-workspace");
             const undoRemoval = await acceptedEnvelopeCommand(
@@ -338,26 +419,32 @@ for (const core of [
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(expected.filter((item) => item.id !== point!.id));
+              .toEqual(
+                remaining.points.filter(
+                  (item) => item.id !== remainingPoint.id,
+                ),
+              );
             expect(
               envelopeSnapshot(projectPath, track.id).history?.cursor,
-            ).toBe(remaining.history?.cursor);
+            ).toBe(onePoint.history?.cursor);
             expect(
               observer.commands.filter(
                 (command) => command.type === "SetEnvelope",
               ),
-            ).toHaveLength(5);
+            ).toHaveLength(6);
             receipts.push({
               checkpoint: "edit-reopen-delete-final-removal",
               observation: {
                 second,
                 moved,
                 deleted,
+                deletedRemaining,
                 removed,
                 undoRemoval,
                 two,
                 edited,
                 remaining,
+                onePoint,
                 empty,
               },
             });

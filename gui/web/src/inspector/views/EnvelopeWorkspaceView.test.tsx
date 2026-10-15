@@ -16,6 +16,7 @@ const props: EnvelopeWorkspaceViewProps = {
   points: [],
   pointId: null,
   editable: true,
+  levelsVisible: true,
   form: { kind: "add", pointId: "new", time: "-1", level: "1" },
   busy: false,
   error: null,
@@ -29,6 +30,7 @@ const props: EnvelopeWorkspaceViewProps = {
   onDelete: vi.fn(),
   onReload: vi.fn(),
   onDone: vi.fn(),
+  onToggleLevels: vi.fn(),
 };
 
 const rect = (top: number, height: number): DOMRect => ({

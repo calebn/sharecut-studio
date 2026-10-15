@@ -37,6 +37,7 @@ export type EnvelopeWorkspaceViewProps = {
   points: readonly AutomationPoint[];
   pointId: string | null;
   editable: boolean;
+  levelsVisible: boolean;
   form: EnvelopeForm | null;
   busy: boolean;
   error: EnvelopeError | null;
@@ -50,6 +51,7 @@ export type EnvelopeWorkspaceViewProps = {
   onDelete: () => void;
   onReload: () => void;
   onDone: () => void;
+  onToggleLevels: () => void;
   /** Touch input: opening the form must not raise the software keyboard. */
   touch?: boolean;
 };
@@ -122,6 +124,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
     points,
     pointId,
     editable,
+    levelsVisible,
     form,
     busy,
     error,
@@ -141,6 +144,11 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const initialFocus = useRef(false);
   const formKind = form?.kind ?? null;
   const controlsBusy = busy || props.nudgeActive === true;
+  const pointDisabledReason = controlsBusy
+    ? BUSY_REASON
+    : levelsVisible
+      ? undefined
+      : "Show the volume envelope before changing points.";
   useEffect(() => {
     const returningFromForm = priorForm.current && !formKind;
     priorForm.current = formKind != null;
@@ -198,7 +206,11 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   };
   const selected = points.find((point) => point.id === pointId);
   const nudgeDisabled =
-    busy || form != null || !editable || nudgeRun?.saving === true;
+    busy ||
+    form != null ||
+    !editable ||
+    !levelsVisible ||
+    nudgeRun?.saving === true;
   return (
     <ModifierInspector
       badge="Volume envelope"
@@ -219,6 +231,15 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
         role="group"
         aria-label="Volume envelope controls"
       >
+        <Button aria-pressed={levelsVisible} onClick={props.onToggleLevels}>
+          {levelsVisible ? "Hide volume envelope" : "Show volume envelope"}
+        </Button>
+        {!levelsVisible && (
+          <p role="status">
+            The volume envelope is hidden. Show it before adding, editing, or
+            deleting points.
+          </p>
+        )}
         {!editable && (
           <p>Volume envelope editing is available to the project owner.</p>
         )}
@@ -262,14 +283,14 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
           <div className="envelope-workspace-actions">
             <Button
               ref={add}
-              disabledReason={controlsBusy ? BUSY_REASON : undefined}
+              disabledReason={pointDisabledReason}
               onClick={props.onAdd}
             >
               Add point
             </Button>
             {selected && (
               <Button
-                disabledReason={controlsBusy ? BUSY_REASON : undefined}
+                disabledReason={pointDisabledReason}
                 onClick={props.onEdit}
               >
                 Edit point
@@ -278,7 +299,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
             {selected && (
               <Button
                 variant="danger"
-                disabledReason={controlsBusy ? BUSY_REASON : undefined}
+                disabledReason={pointDisabledReason}
                 onClick={props.onDelete}
               >
                 {points.length === 1
@@ -380,7 +401,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               <Button
                 type="submit"
                 variant="primary"
-                disabledReason={controlsBusy ? BUSY_REASON : undefined}
+                disabledReason={pointDisabledReason}
                 onKeyDown={cancelOnEscape}
               >
                 Save point

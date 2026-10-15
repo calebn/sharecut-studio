@@ -72,24 +72,26 @@ export function addVolumePoint(
   }
   if (timelineEnd === 0) return [{ ...point, time: 0 }];
 
+  const priorLevel = envelopeValueAt(existing, point.time);
+
   const startDistance = Math.abs(point.time);
   const endDistance = Math.abs(timelineEnd - point.time);
   if (startDistance <= ENVELOPE_POINT_EPSILON && startDistance <= endDistance) {
     return [
       { ...point, time: 0 },
-      { id: endpointIds.end, time: timelineEnd, value: point.value },
+      { id: endpointIds.end, time: timelineEnd, value: priorLevel },
     ];
   }
   if (endDistance <= ENVELOPE_POINT_EPSILON) {
     return [
-      { id: endpointIds.start, time: 0, value: point.value },
+      { id: endpointIds.start, time: 0, value: priorLevel },
       { ...point, time: timelineEnd },
     ];
   }
   return [
-    { id: endpointIds.start, time: 0, value: point.value },
+    { id: endpointIds.start, time: 0, value: priorLevel },
     point,
-    { id: endpointIds.end, time: timelineEnd, value: point.value },
+    { id: endpointIds.end, time: timelineEnd, value: priorLevel },
   ].sort((a, b) => a.time - b.time);
 }
 

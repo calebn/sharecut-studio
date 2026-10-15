@@ -127,15 +127,32 @@ export function EnvelopeOverlayView({
     setDragPointId(null);
   }, [baselinePoints]);
 
-  if (points.length < 1) {
-    return null;
-  }
-
   const [c0, c1] = visibleChunks;
   const sorted = draft ?? points;
   const x0 = c0 * VIEWPORT_CHUNK_PX;
   const x1 = Math.min(width, (c1 + 1) * VIEWPORT_CHUNK_PX);
   const xOf = (p: AutomationPoint) => p.time * zoomPxPerSec;
+  if (sorted.length === 0) {
+    const y = valueToY(1, height);
+    return (
+      <div
+        className="envelope-overlay"
+        data-testid={timelineTestIds.envelope}
+        style={{ left: x0, width: x1 - x0, height }}
+      >
+        <svg width={x1 - x0} height={height} className="envelope-svg">
+          <polyline
+            fill="none"
+            stroke="var(--color-envelope-line)"
+            strokeWidth="1.5"
+            points={`0,${y} ${x1 - x0},${y}`}
+            pointerEvents="none"
+            aria-hidden="true"
+          />
+        </svg>
+      </div>
+    );
+  }
   // Points in the chunk, plus one each side so edge segments still draw.
   let first = sorted.findIndex((p) => xOf(p) >= x0);
   first = first < 0 ? sorted.length - 1 : Math.max(0, first - 1);

@@ -55,27 +55,46 @@ describe("envelopes", () => {
     expect(
       addVolumePoint([], { id: "new", time: 4, value: 0.4 }, 10, ids),
     ).toEqual([
-      { id: "start", time: 0, value: 0.4 },
+      { id: "start", time: 0, value: 1 },
       { id: "new", time: 4, value: 0.4 },
-      { id: "end", time: 10, value: 0.4 },
+      { id: "end", time: 10, value: 1 },
     ]);
     expect(
       addVolumePoint([], { id: "new", time: 0, value: 0.7 }, 10, ids),
     ).toEqual([
       { id: "new", time: 0, value: 0.7 },
-      { id: "end", time: 10, value: 0.7 },
+      { id: "end", time: 10, value: 1 },
     ]);
     expect(
       addVolumePoint([], { id: "new", time: 5e-7, value: 0.7 }, 10, ids),
     ).toEqual([
       { id: "new", time: 0, value: 0.7 },
-      { id: "end", time: 10, value: 0.7 },
+      { id: "end", time: 10, value: 1 },
     ]);
     expect(
       addVolumePoint([], { id: "new", time: 10 - 5e-7, value: 0.8 }, 10, ids),
     ).toEqual([
-      { id: "start", time: 0, value: 0.8 },
+      { id: "start", time: 0, value: 1 },
       { id: "new", time: 10, value: 0.8 },
+    ]);
+  });
+
+  it("keeps the prior empty-curve level at the endpoint anchors", () => {
+    const first = addVolumePoint([], { id: "new", time: 5, value: 0.5 }, 10, {
+      start: "start",
+      end: "end",
+    });
+    expect(first).toEqual([
+      { id: "start", time: 0, value: 1 },
+      { id: "new", time: 5, value: 0.5 },
+      { id: "end", time: 10, value: 1 },
+    ]);
+    expect(
+      replaceEnvelopePoint(first, { id: "new", time: 5, value: 0.25 }),
+    ).toEqual([
+      { id: "start", time: 0, value: 1 },
+      { id: "new", time: 5, value: 0.25 },
+      { id: "end", time: 10, value: 1 },
     ]);
   });
 
@@ -87,7 +106,7 @@ describe("envelopes", () => {
       }),
     ).toEqual([
       { id: "new", time: 0, value: 0.3 },
-      { id: "end", time: 5e-7, value: 0.3 },
+      { id: "end", time: 5e-7, value: 1 },
     ]);
     expect(
       addVolumePoint([], { id: "new", time: 0, value: 0.3 }, 0, {
@@ -105,7 +124,7 @@ describe("envelopes", () => {
       }),
     ).toEqual([
       { id: "new", time: 0, value: 0.3 },
-      { id: "end", time: 1e-6, value: 0.3 },
+      { id: "end", time: 1e-6, value: 1 },
     ]);
     expect(
       addVolumePoint(

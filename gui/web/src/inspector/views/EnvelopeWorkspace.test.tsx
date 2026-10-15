@@ -77,6 +77,7 @@ describe("EnvelopeWorkspace", () => {
     setEnvelope.mockReset();
     setEnvelope.mockResolvedValue(undefined);
     hydrate();
+    useDawStore.getState().setLayerVisible("showLevels", true);
   });
   it("opens an empty workspace without saving; first draft defaults to zero/unity and cancels", async () => {
     hydrate([], null);
@@ -111,6 +112,37 @@ describe("EnvelopeWorkspace", () => {
       trackId: "host",
       pointId: next[0]!.id,
     });
+  });
+  it("keeps the workspace hidden and blocks saving until the envelope is shown", async () => {
+    hydrate([], null);
+    useDawStore.getState().setLayerVisible("showLevels", false);
+    mount(null);
+
+    expect(screen.getByRole("button", { name: "Add point" })).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show volume envelope" }),
+    );
+    expect(useDawStore.getState().layers.showLevels).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Add point" }));
+    await time("5");
+    await level("0.5");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Hide volume envelope" }),
+    );
+    expect(useDawStore.getState().layers.showLevels).toBe(false);
+    expect(screen.getByRole("button", { name: "Save point" })).toBeDisabled();
+    expect(setEnvelope).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show volume envelope" }),
+    );
+    await save();
+    const next = setEnvelope.mock.calls[0]![2] as AutomationPoint[];
+    expect(next.map(({ time: at, value }) => ({ time: at, value }))).toEqual([
+      { time: 0, value: 1 },
+      { time: 5, value: 0.5 },
+      { time: 10, value: 1 },
+    ]);
   });
   it("saves one existing envelope command for a half-dB nudge", async () => {
     hydrate([{ id: "late", time: 5, value: 0.5 }], "late");

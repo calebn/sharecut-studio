@@ -48,6 +48,7 @@ export function TrackInspector({
     splitSpeakersReview,
     setSelection,
     setLayerVisible,
+    layers,
     guestMode,
     shareCapabilities,
     setPlayheadSec,
@@ -59,6 +60,7 @@ export function TrackInspector({
     splitSpeakersReview: s.splitSpeakersReview,
     setSelection: s.setSelection,
     setLayerVisible: s.setLayerVisible,
+    layers: s.layers,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     setPlayheadSec: s.setPlayheadSec,
@@ -156,9 +158,14 @@ export function TrackInspector({
           inspector
         />
         <Button
+          aria-pressed={layers.showLevels}
+          onClick={() => setLayerVisible("showLevels", !layers.showLevels)}
+        >
+          {layers.showLevels ? "Hide volume envelope" : "Show volume envelope"}
+        </Button>
+        <Button
           data-envelope-entry={track.id}
           onClick={() => {
-            setLayerVisible("showLevels", true);
             setSelection({ kind: "envelope", trackId: track.id });
           }}
         >

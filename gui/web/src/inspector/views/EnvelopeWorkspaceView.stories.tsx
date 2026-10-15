@@ -24,6 +24,7 @@ const meta: Meta<typeof EnvelopeWorkspaceView> = {
     points: [],
     pointId: null,
     editable: true,
+    levelsVisible: true,
     form: null,
     busy: false,
     error: null,
@@ -37,6 +38,7 @@ const meta: Meta<typeof EnvelopeWorkspaceView> = {
     onDelete: fn(),
     onReload: fn(),
     onDone: fn(),
+    onToggleLevels: fn(),
   },
 };
 export default meta;
