@@ -157,6 +157,10 @@ export interface PendingEditView {
   harsh: boolean;
   /** Server-computed (`edits/tighten_hits.is_listen_one_by_one_hit`): Apply eligible never batches it. */
   listen_one_by_one?: boolean;
+  /** Plain-words sound kind (`edits/sound_actions.py`); null for non-tighten edits. */
+  label?: string | null;
+  /** Table default for this kind: cut, shorten, lower or leave. */
+  suggested_action?: "cut" | "shorten" | "lower" | "leave" | null;
 }
 
 export interface AppliedEditRecord {

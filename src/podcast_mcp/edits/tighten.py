@@ -27,6 +27,7 @@ from podcast_mcp.edits.fillers import (
 )
 from podcast_mcp.edits.mute_regions import muted_source_spans
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
+from podcast_mcp.edits.sound_actions import sound_label_and_action
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
@@ -98,6 +99,14 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
     return True
 
 
+def _edit_payload(decision: EditDecision) -> dict[str, Any]:
+    """One proposal row: the decision plus its plain-words label and suggested action."""
+    row = decision.model_dump()
+    info = sound_label_and_action(decision.reason)
+    row["label"], row["suggested_action"] = info if info else (None, None)
+    return row
+
+
 @dataclass(frozen=True)
 class TightenProposal:
     """Pending filler/pause decisions plus counted discourse and backchannel skips."""
@@ -112,7 +121,7 @@ class TightenProposal:
         """JSON-ready payload matching the ``propose_edits`` MCP tool's shape."""
         return {
             "operation": "propose_edits",
-            "edits": [e.model_dump() for e in self.decisions],
+            "edits": [_edit_payload(e) for e in self.decisions],
             "skip_counts": self.skip_counts,
             "summary": self.summary(),
         }
