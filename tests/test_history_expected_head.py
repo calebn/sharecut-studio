@@ -166,6 +166,25 @@ def test_toast_undo_reverts_its_own_change_while_it_is_still_the_head(minimal_pr
     assert _decision_ids(minimal_project) == {"host-hit"}
 
 
+def test_toolbar_undo_skips_preview_render_at_tip(minimal_project):
+    _seed(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+    _host_reject(svc)
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.mutate(
+        "before render preview",
+        "after render preview",
+        lambda p: p.edit_decisions.append(_decision("render-side-effect", 3.0)),
+        operation="render_preview",
+    )
+    preview_head = _status(minimal_project)["head_id"]
+
+    reply = _undo(svc, preview_head)
+
+    assert reply["ok"] is True
+    assert _decision_ids(minimal_project) == {"host-hit"}
+
+
 def test_toast_undo_still_reverts_its_change_after_a_preview_render_landed(minimal_project):
     _seed(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
