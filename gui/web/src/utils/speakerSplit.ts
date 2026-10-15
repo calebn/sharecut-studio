@@ -201,14 +201,21 @@ export function voiceSampleFromSelection(
   if (!target) return none(reason ?? "Select a range on the timeline first");
   if (target.intervals.length !== 1)
     return none("Select one stretch of the track");
-  if (!target.track_ids.includes(trackId))
-    return none("Select the range on the track being split");
+  if (target.track_ids.length !== 1 || target.track_ids[0] !== trackId)
+    return none("Select the range on the track being split only");
   const { start, end } = target.intervals[0]!;
   if (end - start < MIN_VOICE_SAMPLE_SEC)
     return none(
       `Select at least ${MIN_VOICE_SAMPLE_SEC} second of one person talking`,
     );
   const clips = clipsForTrack(project.clips?.tracks, trackId);
+  const first = clips.find(
+    (clip) => start + 1e-9 >= clip.timeline_start && start < clip.timeline_end,
+  );
+  if (!first) return none("Select audio that is on the track");
+  // One clip must hold the whole range: a gap between clips is audio that was removed.
+  if (end - SAMPLE_EDGE_EPS_SEC >= first.timeline_end)
+    return none("The range crosses a cut. Select within one stretch.");
   const sourceStart = timelinePointToSource(clips, start);
   const lastInside = timelinePointToSource(clips, end - SAMPLE_EDGE_EPS_SEC);
   if (sourceStart == null || lastInside == null)

@@ -450,8 +450,9 @@ pipeline-slot job over `SpeakerService.split_speakers` with `dry_run=False`, the
 splittable track), so a refusal is a 400 or 409 and no job starts. `enrollment` is
 `{name: [[start, end]]}` in **source** seconds, the same as `--enroll` and the MCP
 `enrollment`, and reaches `split_speakers` unchanged through `coerce_enrollment` (the one
-JSON-to-spans conversion the route, job and MCP share); every enrolled name must be in
-`names`. In the dialog, each speaker has **Use selection**: select a few seconds of that
+JSON-to-spans conversion the route, job and MCP share); with `names` given, every
+enrolled name must be one of them; without it the enrolled names become the first
+speakers. In the dialog, each speaker has **Use selection**: select a few seconds of that
 person talking on the track (the exact range selection), and the range is kept as that
 speaker's voice sample, mapped from timeline to source seconds through the track's clip.
 **Listen** replays it and **Clear** drops it. A range that crosses a cut, sits off the
