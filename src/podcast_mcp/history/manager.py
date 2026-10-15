@@ -67,6 +67,20 @@ def _require_head(
         raise StaleHistoryError(action)
 
 
+def _rewind_over_tip_render_previews(history: ProjectHistory) -> None:
+    """Move the cursor off automatic ``render_preview`` entries at the tip.
+
+    Auto refresh-mix lands after the edit that triggered it; an undo that names the
+    preview head (toolbar Mod+Z) should revert that edit in one step, not peel the
+    preview alone."""
+    while (
+        history.cursor == len(history.entries) - 1
+        and history.cursor > 0
+        and history.entries[history.cursor].operation == "render_preview"
+    ):
+        history.cursor -= 1
+
+
 def _behind_render_only(history: ProjectHistory, expected_head_id: str | None) -> int | None:
     """The index of ``expected_head_id`` when only preview renders were recorded after it.
 
@@ -197,6 +211,8 @@ class HistoryManager:
             _require_head(history, "undo", expected_head_id)
         if resumed is not None:
             history.cursor = resumed
+        else:
+            _rewind_over_tip_render_previews(history)
         if not history.can_undo():
             raise ValueError("Nothing to undo")
         history.cursor -= 1
