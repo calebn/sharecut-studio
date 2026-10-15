@@ -161,3 +161,20 @@ def test_normal_selected_document_command_retains_review_authority(
     assert host_command_result(reply) == {"count": 1}
     assert ("host", pytest.approx(0.3), pytest.approx(4.45), "source") in observed
     _assert_original_splice(load_project(ws.path), operation="approve_edits")
+
+
+def test_bulk_applies_a_filler_cut_right_beside_a_pause_it_holds(tmp_path, monkeypatch):
+    _fresh_join_review(monkeypatch)
+    result = _stored_remove(tmp_path, seed=1512)
+    result.edit_decisions.append(
+        result.edit_decisions[0].model_copy(
+            update={"id": "next-filler", "start": 4.5, "end": 4.8, "reason": "filler:um"}
+        )
+    )
+    ws = workspace(result)
+
+    out = EditService(ws).apply_suggested_actions()
+
+    assert out["held"] == ["stored-remove"]
+    assert out["applied"] == {"cut": 1}
+    assert [e.id for e in load_project(ws.path).edit_decisions] == ["stored-remove"]

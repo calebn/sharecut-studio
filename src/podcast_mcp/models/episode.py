@@ -107,6 +107,12 @@ class ClipMuteRegion(SourceSpan):
     # (Lower, #1434); a lowered span takes no ``fill``.
     gain_db: float | None = Field(default=None, lt=0, allow_inf_nan=False)
 
+    @model_validator(mode="after")
+    def _lowered_span_takes_no_fill(self) -> ClipMuteRegion:
+        if self.gain_db is not None and self.fill is not None:
+            raise ValueError("a lowered mute region (gain_db) takes no room-tone fill")
+        return self
+
 
 class MediaAsset(BaseModel):
     path: str

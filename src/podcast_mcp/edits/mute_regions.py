@@ -65,15 +65,25 @@ def _envelopes(regions: Sequence[ClipMuteRegion], origin: float) -> list[MuteEnv
         )
         if out and env.start <= out[-1].end + 1e-6:
             prev = out[-1]
-            gain = min(prev.gain, env.gain)
-            if env.end > prev.end:
-                out[-1] = MuteEnvelope(
-                    prev.start, env.end, prev.fade_out_sec, env.fade_in_sec, gain
-                )
-            elif gain != prev.gain:
-                out[-1] = MuteEnvelope(
-                    prev.start, prev.end, prev.fade_out_sec, prev.fade_in_sec, gain
-                )
+            if env.gain == prev.gain:
+                if env.end > prev.end:
+                    out[-1] = MuteEnvelope(
+                        prev.start, env.end, prev.fade_out_sec, env.fade_in_sec, env.gain
+                    )
+                continue
+            # Different gains never share an envelope: the quieter one keeps the overlap.
+            if env.gain < prev.gain:
+                if env.start > prev.start + 1e-9:
+                    out[-1] = MuteEnvelope(
+                        prev.start, env.start, prev.fade_out_sec, prev.fade_in_sec, prev.gain
+                    )
+                    out.append(env)
+                else:
+                    out[-1] = env
+                continue
+            if env.end > prev.end + 1e-9:
+                env = MuteEnvelope(prev.end, env.end, env.fade_out_sec, env.fade_in_sec, env.gain)
+                out.append(env)
             continue
         out.append(env)
     return out

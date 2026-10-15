@@ -155,7 +155,7 @@ test.describe("core flow", () => {
               host.getByText("No pending tighten decisions."),
             ).toBeVisible();
             await expect(
-              host.getByRole("button", { name: /Apply eligible/ }),
+              host.getByRole("button", { name: /Apply suggested actions/ }),
             ).toBeDisabled();
           });
 

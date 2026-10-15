@@ -190,3 +190,51 @@ def test_a_cut_the_guard_holds_for_another_speaker_applies_as_a_session_ripple_a
     assert out["cut_over_speaker"] == 1
     assert out["held"] == held_ids
     assert "um" not in _pending(path)
+
+
+def test_a_lowered_span_beside_a_mute_keeps_the_mute_and_does_not_widen_it(
+    tmp_path, sample_wav, monkeypatch
+) -> None:
+    from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
+
+    path = _project(tmp_path, sample_wav)
+    proj = load_project(Path(path))
+    proj.clips[0].mute_regions = [ClipMuteRegion(start_s=2.8, end_s=3.1)]
+    save_project(proj, Path(path))
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["laugh"])
+
+    clip = load_project(Path(path)).clips[0]
+    assert sorted((r.start_s, round(r.end_s, 3), r.gain_db) for r in clip.mute_regions) == [
+        (2.8, 3.1, None),
+        (3.1, 3.3, -12.0),
+    ]
+    gains = [
+        (round(e.start, 3), round(e.end, 3), e.gain)
+        for e in mute_spans_for_source_window(clip, 0.0, 10.0)
+    ]
+    assert gains[0][:2] == (2.8, 3.1) and gains[0][2] == 0.0
+    assert gains[1][:2] == (3.1, 3.3) and gains[1][2] > 0.0
+
+
+def test_a_lowered_region_takes_no_fill() -> None:
+    from podcast_mcp.models import RoomToneFill
+
+    with pytest.raises(ValueError, match="takes no room-tone fill"):
+        ClipMuteRegion(
+            start_s=1.0, end_s=2.0, gain_db=-6.0, fill=RoomToneFill(start_s=0.0, end_s=1.0)
+        )
+
+
+def test_a_speaker_bleed_hold_also_applies_as_a_session_ripple(
+    tmp_path, sample_wav, monkeypatch
+) -> None:
+    from podcast_mcp.edits import speech_energy_guard as guard
+
+    path = _project(tmp_path, sample_wav)
+    bleed = guard.ResolvedCutScope("speaker_bleed")
+    monkeypatch.setattr(guard, "resolve_cut_scope", lambda *a, **k: bleed)
+    out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["um"])
+    assert out["applied"] == {"cut": 1}
+    assert out["cut_over_speaker"] == 1

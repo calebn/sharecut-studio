@@ -17,7 +17,8 @@ from typing import Any
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.edits.edit_log import archive_decision
-from podcast_mcp.edits.mute_regions import add_source_mute, source_span_is_muted
+from podcast_mcp.edits.mute_regions import add_source_mute
+from podcast_mcp.edits.ranges import subtract_ranges_from_intervals as subtract_intervals
 from podcast_mcp.edits.sound_actions import SuggestedAction, sound_label_and_action
 from podcast_mcp.models import ClipMuteRegion, EditDecision, EpisodeProject
 
@@ -52,7 +53,7 @@ class SuggestedActionsResult:
         if self.cut_over_speaker:
             text += f"; {self.cut_over_speaker} cut over another speaker"
         if self.left_no_overlap:
-            text += f"; {self.left_no_overlap} laugh left (nobody talking over it)"
+            text += f"; {self.left_no_overlap} left (nobody talking over it)"
         if self.held:
             text += f"; {len(self.held)} still pending"
         return text + "."
@@ -85,17 +86,20 @@ def apply_lower(project: EpisodeProject, decision: EditDecision, db: float = LOW
     for clip in clips_for_track(project, decision.track_id):
         if decision.end <= clip.source_start or decision.start >= clip.source_end:
             continue
-        hard_muted = [r for r in clip.mute_regions if r.gain_db is None]
-        if source_span_is_muted(hard_muted, decision.start, decision.end):
-            continue
-        region = ClipMuteRegion(
-            start_s=decision.start,
-            end_s=decision.end,
-            fade_out_ms=LOWER_FADE_MS,
-            fade_in_ms=LOWER_FADE_MS,
-            gain_db=db,
-        )
-        written = add_source_mute(clip, region) or written
+        # Only the part no mute already silences: a lowered span never reopens, trims or
+        # abuts a mute (render would hold the union at the mute's gain).
+        hard = [(r.start_s, r.end_s) for r in clip.mute_regions if r.gain_db is None]
+        for lo, hi in subtract_intervals([(decision.start, decision.end)], hard):
+            if hi - lo < 1e-3:
+                continue
+            region = ClipMuteRegion(
+                start_s=lo,
+                end_s=hi,
+                fade_out_ms=LOWER_FADE_MS,
+                fade_in_ms=LOWER_FADE_MS,
+                gain_db=db,
+            )
+            written = add_source_mute(clip, region) or written
     if not written:
         return False
     archive_decision(

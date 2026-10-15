@@ -475,7 +475,7 @@ def test_proposing_without_replacing_never_adds_a_hit_twice(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize("edit_mode", ["ripple", "mute"])
-def test_real_generated_hits_are_pending_in_studio_and_apply_eligible(tmp_path, edit_mode):
+def test_real_generated_hits_are_pending_in_studio_and_apply_suggested(tmp_path, edit_mode):
     project = _filler_and_pause_project(tmp_path)
     project.timeline.duration_sec = 6
     ws = ProjectWorkspace.open(save_project(project))
