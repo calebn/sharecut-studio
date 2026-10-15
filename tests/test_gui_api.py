@@ -381,6 +381,39 @@ def test_map_transcript_utterances_to_timeline() -> None:
     assert u["words"][3]["audibility_locked"] is True
 
 
+def test_map_transcript_utterances_builds_origin_resolver_once(monkeypatch) -> None:
+    from podcast_mcp.engines.session_timeline import origin_resolver
+    from podcast_mcp.gui import mapper as mapper_module
+
+    builds = 0
+    real = origin_resolver
+
+    def counting(project):
+        nonlocal builds
+        builds += 1
+        return real(project)
+
+    monkeypatch.setattr(mapper_module, "origin_resolver", counting)
+    p = _minimal()
+    p.timeline.clips = [
+        Clip(
+            id=f"c{i}",
+            track_id="host",
+            source_start=float(i),
+            source_end=float(i) + 1.0,
+            timeline_start=float(i),
+        )
+        for i in range(50)
+    ]
+    combined = {
+        "utterances": [
+            {"track_id": "host", "start": float(i), "end": float(i) + 0.5} for i in range(30)
+        ]
+    }
+    map_transcript_utterances_to_timeline(p, combined)
+    assert builds == 1
+
+
 def test_transcript_word_mapping_batches_unsorted_words_once_per_track(monkeypatch) -> None:
     from podcast_mcp.engines.session_timeline import SessionTimeline
 

@@ -19,7 +19,7 @@ from podcast_mcp.edits.timeline_span import (
 )
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    clip_plays_lane,
+    origin_resolver,
     word_source_span,
 )
 from podcast_mcp.engines.utterance_runs import (
@@ -209,6 +209,15 @@ class _LaneRecordings:
     def __init__(self, project: EpisodeProject) -> None:
         self._project = project
         self._lanes: dict[str, list[_Recording]] = {}
+        self._origin_of = origin_resolver(project)
+
+    def _clip_plays_lane(self, clip: Clip, track_id: str) -> bool:
+        if self._origin_of(clip) == track_id:
+            return True
+        return clip.source_id is not None and any(
+            tr.track_id == track_id and tr.source_id == clip.source_id
+            for tr in self._project.transcripts
+        )
 
     def lane(self, track_id: str) -> list[_Recording]:
         cached = self._lanes.get(track_id)
@@ -218,7 +227,7 @@ class _LaneRecordings:
             # clips that play it by the transcript they resolve to.
             placements: dict[int, tuple[Transcript, set[str | None]]] = {}
             for clip in self._project.clips:
-                if not clip_plays_lane(self._project, clip, track_id):
+                if not self._clip_plays_lane(clip, track_id):
                     continue
                 transcript = self._project.transcript_for_source(track_id, clip.source_id)
                 if transcript is not None:
@@ -248,16 +257,14 @@ class _LaneRecordings:
         if (
             transcript is not None
             and transcript.source_id is None
-            and not any(
-                clip_plays_lane(self._project, clip, track_id) for clip in self._project.clips
-            )
+            and not any(self._clip_plays_lane(clip, track_id) for clip in self._project.clips)
         ):
             return _Recording(track_id, transcript)
         placements = frozenset(
             clip.source_id
             for clip in self._project.clips
             if transcript is not None
-            and clip_plays_lane(self._project, clip, track_id)
+            and self._clip_plays_lane(clip, track_id)
             and self._project.transcript_for_source(track_id, clip.source_id) is transcript
         )
         return _Recording(track_id, transcript, placements)
@@ -817,6 +824,8 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
     """
     rows: list[dict[str, Any]] = []
     timeline = SessionTimeline(project)
+    # One selected-recording word map per (track, source); joins reuse it (#1610).
+    word_span_cache: dict[tuple[str, str | None], list[list[tuple[TimelineSec, TimelineSec]]]] = {}
     track_ids = sorted({c.track_id for c in project.clips})
     for track_id in track_ids:
         clips = clips_for_track(project, track_id)
@@ -838,6 +847,7 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
             if shared_transcript and cutaway_end > cutaway_start + 1e-9:
                 assert left_transcript is not None
                 active_words = left_transcript.words
+                archived_words = [entry.word for entry in left_transcript.archived_words]
                 preview_words = [
                     (index, ordinal, word)
                     for index, (ordinal, word) in enumerate(
@@ -850,20 +860,19 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                 )
                 # Only words that reach into this cutaway are mapped: the rest are skipped
                 # below, so the per-word timeline mapping no longer scales with the transcript.
-                in_cutaway = [
-                    (word_index, word)
+                span_key = (track_id, left.source_id)
+                if span_key not in word_span_cache:
+                    word_span_cache[span_key] = timeline.map_selected_word_spans(
+                        track_id,
+                        left.source_id,
+                        [(w.start, w.end) for w in [*active_words, *archived_words]],
+                    )
+                full_word_spans = word_span_cache[span_key]
+                word_spans = {
+                    word_index: full_word_spans[word_index]
                     for word_index, _ordinal, word in preview_words
                     if float(word_source_span(word.start, word.end)[1]) > cutaway_start
                     and float(word.start) < cutaway_end
-                ]
-                mapped_spans = timeline.map_selected_word_spans(
-                    track_id,
-                    left.source_id,
-                    [(word.start, word.end) for _index, word in in_cutaway],
-                )
-                word_spans = {
-                    word_index: spans
-                    for (word_index, _word), spans in zip(in_cutaway, mapped_spans, strict=True)
                 }
                 for word_index, _ordinal, word in sorted(
                     preview_words, key=lambda row: (row[2].start, row[1], row[0])
