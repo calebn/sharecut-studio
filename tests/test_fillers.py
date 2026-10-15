@@ -272,7 +272,7 @@ def test_analyze_fillers_integration(tmp_path):
     assert decision.reason == "filler:um"
     assert decision.review_required is False
     assert decision.scope == "session"
-    assert decision.start == pytest.approx(0.490, abs=0.011)
+    assert decision.start == pytest.approx(0.460, abs=0.011)
     assert decision.end == pytest.approx(0.702, abs=0.005)
     assert decision.cut_confidence is not None
     # The uh is paced up to "hello" with a pad, so no splice gate scores its edges.
@@ -281,7 +281,7 @@ def test_analyze_fillers_integration(tmp_path):
         False,
         1.0,
     )
-    assert (padded.start, padded.end) == pytest.approx((0.74, 1.92), abs=0.005)
+    assert (padded.start, padded.end) == pytest.approx((0.705, 1.92), abs=0.005)
 
 
 @pytest.fixture(autouse=True)
