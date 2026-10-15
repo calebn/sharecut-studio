@@ -42,6 +42,7 @@ from podcast_mcp.util.proxy_paths import (
     assert_allowed_local_gui_path,
     assert_safe_proxy_path,
 )
+from podcast_relay.guest_ws_log import log_guest_ws_close
 from podcast_mcp.util.ws_delivery import (
     WS_SEND_TIMEOUT_S,
     SerializedWsWriter,
@@ -429,6 +430,7 @@ class TunnelClient:
         streams[stream_id] = stream
         close_code = 1000
         close_reason = ""
+        close_site = "tunnel.local_closed"
         try:
             async with websockets.connect(
                 url,
@@ -477,6 +479,7 @@ class TunnelClient:
                         except TimeoutError:
                             close_code = 1013
                             close_reason = "slow consumer"
+                            close_site = "tunnel.to_local_send_timeout"
                 finally:
                     for task in (up, down):
                         if not task.done():
@@ -488,9 +491,11 @@ class TunnelClient:
         except TimeoutError:
             close_code = 1013
             close_reason = "slow consumer"
+            close_site = "tunnel.connect_or_handshake_timeout"
         except Exception as exc:
             close_code = 1011
             close_reason = "proxy failed"
+            close_site = "tunnel.proxy_failed"
             log.warning(
                 "Guest WS proxy error for %s: %s",
                 self._tracker.redact(url),
@@ -498,6 +503,13 @@ class TunnelClient:
             )
         finally:
             streams.pop(stream_id, None)
+            log_guest_ws_close(
+                "tunnel",
+                close_site,
+                stream_id=stream_id,
+                code=close_code,
+                reason=close_reason,
+            )
             with contextlib.suppress(Exception):  # pragma: no cover
                 await send(
                     msg("ws_close", id=stream_id, code=close_code, reason=close_reason[:120])
@@ -590,11 +602,26 @@ class TunnelClient:
                     )
                     if stream is not None:
                         if mtype == "ws_close":
-                            stream.close(*ws_close_details(raw.get("code"), raw.get("reason")))
+                            code, reason = ws_close_details(raw.get("code"), raw.get("reason"))
+                            log_guest_ws_close(
+                                "tunnel",
+                                "tunnel.relay_ws_close",
+                                stream_id=stream_id,
+                                code=code,
+                                reason=reason,
+                            )
+                            stream.close(code, reason)
                         else:
                             try:
                                 stream.queue.put_nowait(str(raw.get("text") or ""))
                             except asyncio.QueueFull:
+                                log_guest_ws_close(
+                                    "tunnel",
+                                    "tunnel.host_backlog_full",
+                                    stream_id=stream_id,
+                                    code=1013,
+                                    reason="host backlog full",
+                                )
                                 stream.close(1013, "host backlog full", discard=True)
                 elif mtype == "ping":
                     log.debug("Relay ping answered")
@@ -607,7 +634,14 @@ class TunnelClient:
                     tasks.add(task)
                     task.add_done_callback(tasks.discard)
         finally:
-            for stream in ws_streams.values():
+            for stream_id, stream in list(ws_streams.items()):
+                log_guest_ws_close(
+                    "tunnel",
+                    "tunnel.disconnected",
+                    stream_id=stream_id,
+                    code=1013,
+                    reason="tunnel disconnected",
+                )
                 stream.close(1013, "tunnel disconnected", discard=True)
             ws_streams.clear()
             for task in tasks:
