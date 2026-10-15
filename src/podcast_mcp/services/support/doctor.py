@@ -58,6 +58,12 @@ class DoctorReport:
         }
 
 
+def _podcast_mcp_version() -> str:
+    import podcast_mcp
+
+    return podcast_mcp.__version__
+
+
 def run_doctor_checks(
     project: EpisodeProject | Path | None = None,
 ) -> DoctorReport:
@@ -89,9 +95,7 @@ def run_doctor_checks(
         report.checks.append(DoctorCheck("fail", f"cache not writable: {c}", err=True))
 
     try:
-        import podcast_mcp
-
-        report.checks.append(DoctorCheck("ok", f"podcast_mcp {podcast_mcp.__version__}"))
+        report.checks.append(DoctorCheck("ok", f"podcast_mcp {_podcast_mcp_version()}"))
     except ImportError as exc:
         report.checks.append(DoctorCheck("fail", f"import: {exc}", err=True))
 

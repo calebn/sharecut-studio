@@ -185,19 +185,19 @@ def test_doctor_cache_not_writable(tmp_path, monkeypatch):
 
 def test_doctor_import_fail(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    real_import = __import__
 
-    def fake_import(name, *args, **kwargs):
-        if name == "podcast_mcp":
-            raise ImportError("broken package")
-        return real_import(name, *args, **kwargs)
+    def broken_version() -> str:
+        raise ImportError("broken package")
 
     with (
         patch(
             "podcast_mcp.services.support.doctor.FFmpegEngine.check_available",
             return_value=(True, "ffmpeg 7.0"),
         ),
-        patch("builtins.__import__", side_effect=fake_import),
+        patch(
+            "podcast_mcp.services.support.doctor._podcast_mcp_version",
+            side_effect=broken_version,
+        ),
     ):
         result = runner.invoke(setup_app, ["doctor"])
     assert result.exit_code == 1
