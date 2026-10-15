@@ -2031,6 +2031,26 @@ button.history-row {
     box-sizing: border-box;
   }
 
+  /* Step rows: the checkbox's label and the step name fill a touch-height row. */
+  .pipeline-step-toggle {
+    display: grid;
+    place-items: center;
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+
+  .pipeline-step-select {
+    align-self: stretch;
+    min-block-size: var(--touch-min);
+  }
+
+  /* Text fields: vocabulary entry and string / number step parameters. */
+  .pipeline-vocabulary-field input,
+  .pipeline-param input:not([type="checkbox"]) {
+    block-size: var(--touch-min);
+    box-sizing: border-box;
+  }
+
   /* A summary stays display: list-item, so its disclosure triangle stays drawn. */
   .pipeline-advanced-shortcuts > summary,
   .pipeline-analyze-tracks > summary {

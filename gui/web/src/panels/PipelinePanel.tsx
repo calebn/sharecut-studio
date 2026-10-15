@@ -1134,20 +1134,24 @@ export function PipelinePanel() {
                     key={`${s.id}-${s.index}`}
                     className={`pipeline-step-row${selectedStep === s.id ? " selected" : ""}`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      disabled={running || starting || !cfg}
-                      aria-label={`Enable ${s.title}`}
-                      onChange={(e) => void toggleStep(s.id, e.target.checked)}
-                      ref={(el) => {
-                        if (el) {
-                          stepCheckboxes.current.set(s.id, el);
-                        } else {
-                          stepCheckboxes.current.delete(s.id);
+                    <label className="pipeline-step-toggle">
+                      <input
+                        type="checkbox"
+                        checked={enabled}
+                        disabled={running || starting || !cfg}
+                        aria-label={`Enable ${s.title}`}
+                        onChange={(e) =>
+                          void toggleStep(s.id, e.target.checked)
                         }
-                      }}
-                    />
+                        ref={(el) => {
+                          if (el) {
+                            stepCheckboxes.current.set(s.id, el);
+                          } else {
+                            stepCheckboxes.current.delete(s.id);
+                          }
+                        }}
+                      />
+                    </label>
                     <button
                       type="button"
                       className="pipeline-step-select"
