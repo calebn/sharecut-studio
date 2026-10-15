@@ -232,7 +232,8 @@ value; lowering that point later leaves the anchors unchanged and creates a dip.
 If the point is at either endpoint, its own ID serves as that anchor.
 Points keep their IDs when time sorting changes. If the envelope changes while
 a draft is open, saving is refused and **Discard draft and reload points**
-loads the current list. Shares can view the workspace, but editing is host-only.
+loads the current list. The host and Editor review links can edit envelopes;
+Commenter and Viewer links can view them but cannot edit.
 
 If the words a transcript correction, Suppress, or Ignore targets change (another tab, a
 guest, or an agent) before it lands, an edit that carries the text it expected is refused

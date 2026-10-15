@@ -165,18 +165,23 @@ for (const core of [
                 exact: true,
               }),
             ).toBeVisible();
-            const layer = page.getByRole("checkbox", {
-              name: "Volume envelope",
+            const showLayer = page.getByRole("button", {
+              name: "Show volume envelope",
               exact: true,
             });
-            await expect(layer).not.toBeChecked();
+            await expect(showLayer).toHaveAttribute("aria-pressed", "false");
             await page
               .getByRole("button", {
                 name: "Show volume envelope",
                 exact: true,
               })
               .click();
-            await expect(layer).toBeChecked();
+            await expect(
+              page.getByRole("button", {
+                name: "Hide volume envelope",
+                exact: true,
+              }),
+            ).toHaveAttribute("aria-pressed", "true");
             const unity = page.locator(".envelope-overlay").first();
             await expect(unity).toBeVisible();
             await expect(unity.locator("polyline")).toHaveAttribute(
@@ -193,7 +198,12 @@ for (const core of [
                 exact: true,
               })
               .click();
-            await expect(layer).not.toBeChecked();
+            await expect(
+              page.getByRole("button", {
+                name: "Show volume envelope",
+                exact: true,
+              }),
+            ).toHaveAttribute("aria-pressed", "false");
             await expect(page.locator(".envelope-overlay")).toHaveCount(0);
             await expect(
               page.getByRole("button", { name: "Add point", exact: true }),
@@ -206,7 +216,12 @@ for (const core of [
                 exact: true,
               })
               .click();
-            await expect(layer).toBeChecked();
+            await expect(
+              page.getByRole("button", {
+                name: "Hide volume envelope",
+                exact: true,
+              }),
+            ).toHaveAttribute("aria-pressed", "true");
             await expect(
               page.locator(".envelope-overlay").first(),
             ).toBeVisible();
@@ -711,12 +726,41 @@ test.describe("host envelope playback", () => {
           await page
             .getByRole("button", { name: "Add point", exact: true })
             .click();
-          await fillPoint(page, "0", "0.4");
+          await expect(page.getByLabel("Level (×)")).toHaveValue("1");
+          await fillPoint(page, "0", "1");
           const accepted = await savePoint(page);
           await expect
             .poll(() => envelopeSnapshot(projectPath, track.id).points)
             .toEqual(accepted.command.payload.points);
+          const flat = envelopeSnapshot(projectPath, track.id);
+          expect(flat.points).toEqual([
+            { id: expect.stringMatching(/\S/), time: 0, value: 1 },
+            { id: expect.stringMatching(/\S/), time: 60, value: 1 },
+          ]);
+          let expectedPoints = flat.points;
+          for (const point of flat.points) {
+            await page
+              .getByRole("combobox", { name: "Envelope point", exact: true })
+              .selectOption(point.id);
+            await page
+              .getByRole("button", { name: "Edit point", exact: true })
+              .click();
+            await expect(page.getByLabel("Level (×)")).toHaveValue("1");
+            await page.getByLabel("Level (×)").fill("0.4");
+            const lowered = await savePoint(page);
+            const expected = expectedPoints.map((candidate) =>
+              candidate.id === point.id
+                ? { ...candidate, value: 0.4 }
+                : candidate,
+            );
+            expect(lowered.command.payload.expected_points).toEqual(
+              expectedPoints,
+            );
+            expect(lowered.command.payload.points).toEqual(expected);
+            expectedPoints = expected;
+          }
           const saved = envelopeSnapshot(projectPath, track.id);
+          expect(saved.points).toEqual(expectedPoints);
           observer.stage("actual-nonunity-playback");
           const playback = await proveHostEnvelopePlayback(
             page,
