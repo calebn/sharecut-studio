@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -159,27 +159,51 @@ def test_concurrent_status_checks_hash_an_unchanged_file_once(tmp_path: Path, mo
     _write(tmp_path, "a.txt", b"a")
     manifest = (("a.txt", _sha256(b"a")),)
     calls: list[Path] = []
+    hash_started = threading.Event()
+    release_hash = threading.Event()
+    lock_contended = threading.Event()
 
     def fake_sha256(p: Path) -> str:
         calls.append(p)
-        time.sleep(0.05)
+        hash_started.set()
+        assert release_hash.wait(timeout=5)
         return _sha256(b"a")
 
     monkeypatch.setattr(model_manifest, "sha256_file", fake_sha256)
 
-    results: list[str | None] = []
-    threads = [
-        threading.Thread(
-            target=lambda: results.append(manifest_mismatch(tmp_path, manifest, memoize=True))
-        )
-        for _ in range(2)
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    real_get = model_manifest._MEMO_LOCKS.get
 
-    assert results == [None, None]
+    class ObservedLock:
+        def __init__(self, lock: threading.Lock) -> None:
+            self.lock = lock
+
+        def __enter__(self):
+            if not self.lock.acquire(blocking=False):
+                lock_contended.set()
+                if not self.lock.acquire(timeout=5):
+                    raise TimeoutError("timed out waiting for the memoized hash lock")
+            return self.lock
+
+        def __exit__(self, *_):
+            self.lock.release()
+
+    # Observe contention while delegating acquisition to the registry's real lock.
+    monkeypatch.setattr(
+        model_manifest._MEMO_LOCKS,
+        "get",
+        lambda key: ObservedLock(real_get(key)),
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(manifest_mismatch, tmp_path, manifest, memoize=True)
+        try:
+            assert hash_started.wait(timeout=5)
+            second = executor.submit(manifest_mismatch, tmp_path, manifest, memoize=True)
+            assert lock_contended.wait(timeout=5)
+        finally:
+            release_hash.set()
+        assert [first.result(timeout=5), second.result(timeout=5)] == [None, None]
+
     assert len(calls) == 1
     assert str((tmp_path / "a.txt").resolve()) not in model_manifest._MEMO_LOCKS
 
