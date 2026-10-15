@@ -225,9 +225,8 @@ export interface HitRoutingOptions {
    */
   snapshot?: () => () => void;
   /**
-   * The precision drag lab (#1184): takes over an armed target's drag, or
-   * returns false from `arm` to let it drag as usual. The arming finger's
-   * moves and lift go to it; a second finger or a cancel calls `cancel`.
+   * Auto precision on the phone shell (#1184): `arm` may take an armed target's
+   * drag; the arming finger's moves and lift go to it until commit or cancel.
    */
   precision?: PrecisionHandoff;
 }
@@ -312,7 +311,6 @@ type Phase =
       detents: DetentTrack | null;
     }
   | {
-      /** An armed target the precision lab took over (`options.precision`). */
       kind: "precision";
       pointerId: number;
     };
@@ -800,7 +798,6 @@ export function attachHitRouting(
         if (event.pointerId !== phase.pointerId) return;
         stop(event);
         suppressClickUntil = Date.now() + GHOST_CLICK_MS;
-        // Lifting hands the target to the lab, which may keep it open.
         phase = IDLE;
         options.precision?.up(event);
         return;

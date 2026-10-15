@@ -1,8 +1,3 @@
-/* Precision drag lab (#1184): three prototype surfaces for moving an armed
-   timeline target precisely. They share the strip's reading (name, how far,
-   where it stopped) and its bump; each takes the touches its variant needs
-   and leaves the rest of the screen alone. */
-
 .precision-layer {
   position: fixed;
   inset: 0;
@@ -49,9 +44,6 @@
   min-block-size: var(--touch-min);
 }
 
-/* Jog pad: the drawer's place, a header over a ribbed trackpad. The ribs
-   slide with the value; the ladder at the pad's end says which speed a
-   finger at that height gets (slower the higher it goes). */
 .precision-jog {
   position: absolute;
   inset-inline: 0;
@@ -136,157 +128,12 @@ html[data-shell="tablet"] .precision-jog {
   color: var(--accent);
 }
 
-/* Lens: a frame over the zoomed lanes. The lanes stay visible through it;
-   the frame takes every touch on them, so a drag anywhere moves the target. */
-.precision-lens {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--accent);
-  pointer-events: auto;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
-.precision-lens-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin: var(--space-3);
-  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-overlay-black-90);
-  color: var(--color-clip-label);
-}
-
-.precision-lens-bar .precision-name,
-.precision-lens-bar .precision-value {
-  color: var(--color-clip-label);
-}
-
-.precision-lens-hint {
-  align-self: center;
-  margin: var(--space-3);
-  padding: var(--space-0) var(--space-3);
-  border-radius: var(--radius-xs);
-  background: var(--color-overlay-black-90);
-  color: var(--color-clip-label);
-  font-size: var(--font-size-small);
-  font-weight: 600;
-}
-
-/* Offset grip: a loupe above the finger, its leader down to the edge, so
-   the finger never covers what it moves. */
-.precision-grip-leader {
-  position: absolute;
-  inset: 0;
-  inline-size: 100%;
-  block-size: 100%;
-  overflow: visible;
-}
-
-.precision-grip-leader line {
-  stroke: var(--accent);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-}
-
-.precision-grip-leader circle {
-  fill: var(--accent);
-  stroke: var(--color-bg-overlay);
-  stroke-width: 2;
-}
-
-.precision-grip-loupe {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-3) var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-overlay-black-90);
-  color: var(--color-clip-label);
-  box-shadow: 0 0.25rem 1rem var(--color-overlay-black-90);
-}
-
-/* The loupe reads in one line (name, how far, the ripple wave), and a
-   second only while a stop holds it. */
-.precision-grip-loupe .precision-name {
-  color: var(--color-clip-label);
-}
-
-.precision-grip-loupe .precision-value,
-.precision-grip-loupe .ripple-mark-text {
-  display: none;
-}
-
-.precision-grip-loupe .precision-delta {
-  color: var(--color-clip-label);
-}
-
-.precision-grip-canvas {
-  display: block;
-  border-radius: var(--radius-xs);
-  background: var(--color-timeline-lane);
-}
-
-/* Lab readout: what Auto chose and why, small and out of the finger's way. */
-.precision-decision {
-  position: absolute;
-  translate: -50% 0;
-  max-inline-size: calc(100vw - 2rem);
-  margin-block: var(--space-1);
-  padding: var(--space-0) var(--space-3);
-  border-radius: var(--radius-xs);
-  background: var(--color-overlay-black-90);
-  color: var(--color-clip-label);
-  font-size: var(--font-size-micro);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-}
-
-.precision-decision[data-mode="precision"] {
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.precision-log {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding-inline-start: var(--space-5);
-  font-variant-numeric: tabular-nums;
-}
-
-.precision-log li {
-  display: flex;
-  flex-direction: column;
-}
-
-.precision-log-name {
-  font-weight: 600;
-}
-
-.precision-log-status {
-  margin-inline-end: auto;
-  color: var(--color-text-secondary);
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .precision-delta[data-bump] {
     animation: nudge-bump var(--motion-state) var(--motion-ease-out);
   }
 
-  .precision-jog,
-  .precision-grip-loupe {
+  .precision-jog {
     animation: fade-in var(--motion-press) var(--motion-ease-out);
   }
 }

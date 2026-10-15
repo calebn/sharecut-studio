@@ -26,13 +26,6 @@ import {
   watchCommands,
 } from "../e2e/touchTimeline";
 
-/*
- * #1184 precision jog pad on a 390x844 phone: a long-press arms the last
- * clip's trim end, Auto opens the jog pad, one 10 ms step saves, and a second
- * finger cancels with nothing saved. Chromium drives CDP touch, WebKit
- * touch-typed pointer events (e2e/finger.ts).
- */
-
 const CLIENT_ID = "e2e-precision-drag";
 const PHONE = { width: 390, height: 844 };
 const HOLD_MS = 750;
@@ -71,7 +64,6 @@ async function lastClip(page: Page): Promise<Clip> {
 const trimEnd = (clip: Clip) =>
   `${lane} [data-clip-id="${clip.id}"] .trim-handle.out`;
 
-/** The fixture on the phone timeline, `zoomIns` past fit. */
 async function openPhone(
   page: Page,
   zoomIns = 3,
@@ -120,7 +112,6 @@ async function oneStepLeft(
   return { at, seen };
 }
 
-/** Answers the ripple's cut-speech question, if the trim asked it. */
 async function cutAnywayIfAsked(page: Page) {
   const cut = page.getByRole("button", { name: "Cut anyway" });
   if (await cut.isVisible({ timeout: 1500 }).catch(() => false)) {
@@ -137,7 +128,6 @@ async function savedEnd(page: Page, id: string) {
   return rows.find((c) => c.id === id)?.source_end;
 }
 
-/** Taps the clip's body so its edge handles show, then finds the trim end. */
 async function trimEndAt(page: Page, finger: Finger, clip: Clip) {
   const body = await centerOf(page, `${lane} [data-clip-id="${clip.id}"]`);
   await finger.down(body);
@@ -179,7 +169,6 @@ for (const variant of VARIANTS) {
     if (!pad) throw new Error("no jog pad");
     const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height - 8 };
     await finger.down(start);
-    // Up past three 40 px rungs: the fine speed.
     const fine = { x: start.x, y: start.y - 130 };
     await finger.slide(fine, 6, 16);
     await expect(page.locator(".precision-jog-hint")).toHaveText("Fine");
@@ -273,7 +262,6 @@ async function centerOfLocator(locator: Locator): Promise<Point> {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-/** Drags the jog pad by `dx` px at full speed, then lifts. */
 async function jog(page: Page, finger: Finger, dx: number) {
   const pad = await page.locator(".precision-jog-pad").boundingBox();
   if (!pad) throw new Error("no jog pad");
@@ -298,7 +286,6 @@ test("jog: a tap outside the pad finishes and saves", async ({
   await finger.up();
   await jog(page, finger, -6);
   const shown = await readout(page);
-  // Empty timeline below the lanes.
   const area = await page.locator(".timeline-scroll").boundingBox();
   if (!area) throw new Error("no timeline");
   await finger.down({
@@ -311,8 +298,6 @@ test("jog: a tap outside the pad finishes and saves", async ({
   expect(shown).toMatch(/^−\d+ ms$/);
   const ms = Number(shown?.replace(/[^\d]/g, ""));
   const asked = Date.now();
-  // The host's speech guard scans the cut span first; under load that has
-  // taken ~10 s for this one.
   await expect
     .poll(() => savedEnd(page, clip.id), { timeout: 60_000 })
     .toBeCloseTo(clip.source_end - ms / 1000, 6);
@@ -353,8 +338,6 @@ test("jog: a ripple over the guest's speech asks first, and Leave a gap keeps it
   await page.waitForTimeout(HOLD_MS);
   await expect(page.locator(".precision-jog")).toBeVisible();
   await finger.up();
-  // The reference clip from 40 s loses its first 6 s; the guest speaks from
-  // 43.5 s, so the ripple would cut their words.
   await jog(page, finger, 6 * pps);
   await expect(page.locator(".trim-readout")).toContainText("Ripple");
   await frame(page, info, `precision-jog-ripple-preview-${browserName}`);
@@ -385,7 +368,6 @@ test("Auto drags directly when a step is 4 px wide at a deep zoom", async ({
   context,
   browserName,
 }, info) => {
-  // 22 zoom-ins past fit: several hundred px per second, so 10 ms ≥ 4 px.
   const { clip, pps } = await openPhone(page, 22);
   const commands = watchCommands(page);
   const finger = await newFinger(context, page, browserName);
@@ -413,7 +395,6 @@ test("Auto drags directly when a step is 4 px wide at a deep zoom", async ({
     after,
     commands: commands.map((c) => c.type),
   });
-  // 40 px at most moves it 40 / pps s, finer when the finger is slow.
   expect(clip.source_end - after).toBeLessThanOrEqual(40 / pps + 0.01);
   expect(Math.round((clip.source_end - after) * 1e6) % 10_000).toBe(0);
 });

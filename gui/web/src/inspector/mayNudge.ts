@@ -16,7 +16,6 @@ type Access = Pick<
   | "joinMutationInFlight"
 >;
 
-/** May the current user change `field`? The strip's nudges and a precision drag ask. */
 export function mayNudge(s: Access, project: ProjectView, field: NudgeField) {
   switch (field.kind) {
     case "fade":

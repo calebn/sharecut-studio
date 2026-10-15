@@ -137,7 +137,6 @@ export function decidePrecision(
 
 const px = (v: number) => `${Math.round(v * 10) / 10} px`;
 
-/** The lab readout: what Auto chose and why. */
 export function decisionText(d: PrecisionDecision): string {
   const { targetPx, gapPx, stepPx } = d.measures;
   const limit = `${px(d.thresholdPx)}${d.sticky ? " (sticky)" : ""}`;

@@ -1,7 +1,3 @@
-/**
- * The precision jog pad (#1184): when Auto chooses precision, the drawer's
- * place becomes a trackpad with a speed ladder.
- */
 import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
@@ -101,7 +97,6 @@ function JogPad({ v }: { v: PrecisionView }) {
   );
 }
 
-/** Renders the jog pad while a precision drag is active. */
 export function PrecisionLayer() {
   const v = useSyncExternalStore(subscribePrecision, precisionView);
   const surface = v?.variant === "jog" ? <JogPad v={v} /> : null;
