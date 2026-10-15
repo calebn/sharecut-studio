@@ -255,7 +255,9 @@ export function useNudgeRun() {
         revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
       }
     };
-    if (!save) {
+    const envelopeNudge =
+      r.field.kind === "envelope-level" || r.field.kind === "envelope-time";
+    if (!save || (envelopeNudge && !useDawStore.getState().layers.showLevels)) {
       revert();
       return;
     }

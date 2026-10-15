@@ -231,28 +231,23 @@ for (const core of [
             await page
               .getByRole("button", { name: "Add point", exact: true })
               .click();
+            await fillPoint(page, "5", "1");
             observer.stage("first-save");
             const first = await savePoint(page);
             expect(first.command.payload.expected_points).toEqual([]);
             const flat = first.command.payload.points;
-            const point = flat?.[0];
-            expect(point).toEqual({
-              id: expect.stringMatching(/\S/),
-              time: 0,
-              value: 1,
-            });
-            expect(flat).toHaveLength(2);
-            expect(flat?.[1]).toEqual({
-              id: expect.stringMatching(/\S/),
-              time: 60,
-              value: 1,
-            });
-            expect(flat?.[1]?.id).not.toBe(point?.id);
+            const point = flat?.find((item) => item.time === 5);
+            expect(flat).toEqual([
+              { id: expect.stringMatching(/\S/), time: 0, value: 1 },
+              { id: expect.stringMatching(/\S/), time: 5, value: 1 },
+              { id: expect.stringMatching(/\S/), time: 60, value: 1 },
+            ]);
+            expect(new Set(flat?.map((item) => item.id)).size).toBe(3);
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(flat);
-            const one = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(origin, one, track.id);
+            const firstSaved = envelopeSnapshot(projectPath, track.id);
+            expectEnvelopeMutation(origin, firstSaved, track.id);
             await expect(
               page.getByRole("combobox", {
                 name: "Envelope point",
@@ -261,7 +256,7 @@ for (const core of [
             ).toHaveValue(point!.id);
             receipts.push({
               checkpoint: "first-point-applied",
-              observation: { first, origin, one },
+              observation: { first, origin, firstSaved },
             });
             observer.stage("first-undo-redo");
             const undoFirst = await acceptedEnvelopeCommand(
@@ -285,7 +280,7 @@ for (const core of [
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(flat);
             expect(envelopeSnapshot(projectPath, track.id).history).toEqual(
-              one.history,
+              firstSaved.history,
             );
             receipts.push({
               checkpoint: "first-point-one-step-undo-redo",
@@ -295,6 +290,27 @@ for (const core of [
                 restored: envelopeSnapshot(projectPath, track.id),
               },
             });
+            await page
+              .getByRole("button", { name: "Edit point", exact: true })
+              .click();
+            await expect(page.getByLabel("Level (×)")).toHaveValue("1");
+            await page.getByLabel("Level (×)").fill("0.5");
+            observer.stage("first-point-only-level-lowering");
+            const lowered = await savePoint(page);
+            const expectedDip = flat!.map((item) =>
+              item.id === point!.id ? { ...item, value: 0.5 } : item,
+            );
+            expect(lowered.command.payload.expected_points).toEqual(flat);
+            expect(lowered.command.payload.points).toEqual(expectedDip);
+            await expect
+              .poll(() => envelopeSnapshot(projectPath, track.id).points)
+              .toEqual([
+                { id: flat![0]!.id, time: 0, value: 1 },
+                { id: point!.id, time: 5, value: 0.5 },
+                { id: flat![2]!.id, time: 60, value: 1 },
+              ]);
+            const one = envelopeSnapshot(projectPath, track.id);
+            expectEnvelopeMutation(firstSaved, one, track.id);
             await page
               .getByRole("button", { name: "Add point", exact: true })
               .click();
