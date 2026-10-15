@@ -36,8 +36,11 @@ def _plans(
     for tid in gated:
         t0 = time.perf_counter()
         plan = bleed_gate.build_bleed_gate_plan(project, tid, source_clock=True)
+        elapsed = time.perf_counter() - t0
+        digest = hashlib.sha256(repr(plan.attenuation_spans).encode()).hexdigest()[:12]
         print(
-            f"  {label} {tid}: {time.perf_counter() - t0:6.2f} s  spans={len(plan.attenuation_spans)}"
+            f"  {label} {tid}: {elapsed:6.2f} s  spans={len(plan.attenuation_spans)} "
+            f"sha={digest} reasons={plan.reasons}"
         )
     if profile:
         profile.disable()
