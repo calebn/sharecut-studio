@@ -81,6 +81,7 @@ export interface NudgeBump {
 
 export function useNudgeRun() {
   const run = useRef<Run | null>(null);
+  const showLevels = useDawStore((state) => state.layers.showLevels);
   const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [bump, setBump] = useState<NudgeBump | null>(null);
@@ -185,6 +186,9 @@ export function useNudgeRun() {
   ): Run | null => {
     const s = useDawStore.getState();
     if (run.current || saving) return null;
+    const envelopeNudge =
+      field.kind === "envelope-level" || field.kind === "envelope-time";
+    if (envelopeNudge && !s.layers.showLevels) return null;
     const origin = s.projectEditBasis();
     if (!origin) return null;
     const value = nudgeAxis(origin, field)?.value ?? Number.NaN;
@@ -304,8 +308,23 @@ export function useNudgeRun() {
   });
   useEffect(() => () => void endRef.current(), []);
 
+  useEffect(() => {
+    if (showLevels) return;
+    const active = run.current;
+    if (
+      active &&
+      (active.field.kind === "envelope-level" ||
+        active.field.kind === "envelope-time")
+    )
+      void endRef.current(false);
+  }, [showLevels]);
+
   const buttonProps = (field: NudgeField, delta: number, name: string) => ({
-    "aria-disabled": saving || undefined,
+    "aria-disabled":
+      saving ||
+      ((field.kind === "envelope-level" || field.kind === "envelope-time") &&
+        !showLevels) ||
+      undefined,
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
       stalePointerClick.current = false;

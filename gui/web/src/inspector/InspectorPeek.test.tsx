@@ -98,6 +98,9 @@ function open(
   path = "/tmp/p.json",
 ) {
   useDawStore.getState().hydrate(path, p, null);
+  useDawStore
+    .getState()
+    .setLayerVisible("showLevels", target.selection?.kind === "envelopePoint");
   useDawStore.setState({ announceStatus: announce });
   return render(<Strip selection={target.selection} hit={target.hit} />);
 }
@@ -362,6 +365,53 @@ describe("InspectorPeek nudges", () => {
     expect(announce).toHaveBeenCalledWith(
       "Envelope point level is at its limit",
     );
+  });
+
+  it("does not preview or save an envelope nudge while the shared layer is hidden", async () => {
+    open(POINT);
+    act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+    const plus = button("Envelope point level 0.5 dB higher");
+    expect(plus).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.pointerDown(plus, { button: 0 });
+    fireEvent.pointerUp(plus);
+    fireEvent.click(plus);
+    await flush();
+
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+  });
+
+  it("discards an active envelope preview when the shared layer is hidden, even if it is shown again before release", async () => {
+    open(POINT);
+    const plus = button("Envelope point level 0.5 dB higher");
+    fireEvent.pointerDown(plus, { button: 0 });
+    advance(300);
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).not.toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+
+    act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+    act(() => useDawStore.getState().setLayerVisible("showLevels", true));
+    fireEvent.pointerUp(plus);
+    await flush();
+    advance(1000);
+
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
   });
 
   it("leaves a trim nudge unsaved and restores it when the ripple would cut another speaker", async () => {
