@@ -738,11 +738,15 @@ evidence:
 - Owner (2026-10-13), #1062 scope: a word-like acoustic span is labelled "possible missed word" with default Leave, not rejected, so the label can never hide a proposal
 - Owner (2026-10-13): the pipeline applies the suggested actions by default, "it's low risk and could potentially save the user a lot of time"
 enforced-by:
+- tests/test_sound_actions.py::test_every_row_uses_a_known_action_and_every_case_kind_has_a_row
+- tests/test_apply_suggested_actions.py::test_one_step_cuts_lowers_and_leaves_each_by_its_own_action
+- tests/test_apply_suggested_actions.py::test_one_sound_can_change_after_the_batch_without_undoing_the_others
+- tests/test_apply_sound_actions_step.py::test_the_defaults_apply_sounds_without_turning_tighten_on
+- tests/test_apply_sound_actions_step.py::test_the_step_acts_on_sounds_and_leaves_spoken_proposals_pending
 - tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
 - tests/test_acoustic_gap.py::test_a_span_the_model_hears_as_a_word_is_flagged_held_and_named_in_the_summary
 - tests/test_acoustic_gap.py::test_a_span_the_model_hears_as_a_hesitation_is_proposed_unflagged
-enforcement: pending #1434
 -->
 
 Each non-speech sound or disfluency a detector finds is a pending proposal with

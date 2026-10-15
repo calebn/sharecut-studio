@@ -63,6 +63,11 @@ def _project(tmp_path, sample_wav) -> str:
     return path
 
 
+def _layout(path: str) -> list[tuple[float, float, float]]:
+    clips = load_project(Path(path)).clips
+    return [(c.timeline_start, c.source_start, c.source_end) for c in clips]
+
+
 def _pending(path: str) -> list[str]:
     return sorted(d.id for d in load_project(Path(path)).edit_decisions if not d.applied)
 
@@ -114,6 +119,49 @@ def test_an_override_changes_one_sound_and_ids_narrow_the_batch(
     )
     assert out["applied"] == {"leave": 2}
     assert _pending(path) == ["laugh", "manual"]
+
+
+def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
+    tmp_path, sample_wav, monkeypatch
+) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    ws = ProjectWorkspace.open(path)
+    first = EditService(ws).apply_suggested_actions()
+    assert first["applied"] == {"lower": 1, "leave": 1, "cut": 1}
+    cut_layout = _layout(path)
+
+    out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
+        overrides={"um": "leave"}, revise=True
+    )
+
+    assert out["applied"] == {"lower": 1, "leave": 2}
+    project = load_project(Path(path))
+    assert _layout(path) != cut_layout
+    assert _layout(path) == [(0.0, 0.0, 10.0)]
+    assert [(r.start_s, r.gain_db) for c in project.clips for r in c.mute_regions] == [(3.0, -12.0)]
+    assert _pending(path) == ["manual"]
+    # The revised batch is again one undo step back to the proposals.
+    HistoryService(ProjectWorkspace.open(path)).undo()
+    assert _pending(path) == ["laugh", "manual", "um", "word"]
+    assert not any(c.mute_regions for c in load_project(Path(path)).clips)
+
+
+def test_revise_refuses_once_something_else_changed(tmp_path, sample_wav, monkeypatch) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
+    EditService(ProjectWorkspace.open(path)).reject(["manual"])
+    with pytest.raises(Exception, match="Nothing to revise"):
+        EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
+            overrides={"um": "leave"}, revise=True
+        )
+    with pytest.raises(Exception, match="not part of the latest batch"):
+        fresh = _project(tmp_path / "again", sample_wav)
+        EditService(ProjectWorkspace.open(fresh)).apply_suggested_actions()
+        EditService(ProjectWorkspace.open(fresh)).apply_suggested_actions(
+            overrides={"nope": "leave"}, revise=True
+        )
 
 
 def test_an_unknown_action_is_refused(tmp_path, sample_wav) -> None:

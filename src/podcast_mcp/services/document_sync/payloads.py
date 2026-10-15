@@ -182,6 +182,14 @@ class ApplySuggestedActionsPayload(BaseModel):
         default_factory=dict,
         description="Decision id to the action to use instead of its suggested one.",
     )
+    revise: bool = Field(
+        default=False,
+        description=(
+            "Change sounds of the batch just applied: step back to before it (it must be the "
+            "latest edit) and apply it again with `overrides` on top of its actions, as one "
+            "undo step. Takes no `ids`."
+        ),
+    )
 
 
 class UpdatePendingEditPayload(BaseModel):

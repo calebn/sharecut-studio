@@ -539,6 +539,7 @@ class EditService:
         ids: list[str] | None = None,
         *,
         overrides: dict[str, str] | None = None,
+        revise: bool = False,
     ) -> dict[str, Any]:
         """Apply every pending sound's own suggested action in one undoable step.
 
@@ -547,6 +548,10 @@ class EditService:
         turns a laugh down under the speaker talking over it, leave dismisses the proposal.
         ``ids`` narrows the batch like Studio's filtered list; ``overrides`` maps a decision
         id to another action (``cut`` / ``shorten`` / ``lower`` / ``leave``) for that sound.
+        ``revise`` changes sounds of the batch you just applied: it steps back to before
+        that batch, which must be the latest edit, and applies it again with ``overrides``
+        on top of the actions it used, so every other sound keeps its action and the result
+        is again one undo step.
         """
         from podcast_mcp.edits.sound_actions import SUGGESTED_ACTIONS
         from podcast_mcp.edits.suggested_actions import (
@@ -563,6 +568,13 @@ class EditService:
                 f"unknown action {bad[0]!r}; use one of {', '.join(SUGGESTED_ACTIONS)}",
                 code="unknown_sound_action",
             )
+        if revise:
+            if ids is not None:
+                raise CodedValueError(
+                    "revise re-applies the whole latest batch; give overrides, not ids",
+                    code="revise_takes_no_ids",
+                )
+            return self._revise_suggested_actions(overrides)
 
         def pending(e: EditDecision) -> bool:
             return (
@@ -587,9 +599,42 @@ class EditService:
                     "after apply suggested actions",
                     lambda p: apply_suggested_to_project(p, actions, result),
                     operation="apply_suggested_actions",
-                    params={"ids": sorted(actions)},
+                    params={"ids": sorted(actions), "requested": dict(actions)},
                 )
         return {"operation": "apply_suggested_actions", **result.to_payload()}
+
+    def _revise_suggested_actions(self, overrides: dict[str, str]) -> dict[str, Any]:
+        """Re-apply the latest Apply suggested actions batch with ``overrides`` on top."""
+        from podcast_mcp.history.manager import HistoryManager
+        from podcast_mcp.services.document.history import HistoryService
+
+        mgr = HistoryManager(self.ws.path)
+        history = HistoryService(self.ws)
+        with self.ws.transaction() as project:
+            index = mgr.tip_entry_index(project, "apply_suggested_actions")
+            params = mgr.entry(project, index).params if index is not None else None
+            requested = (params or {}).get("requested")
+            if index is None or not isinstance(requested, dict):
+                raise CodedValueError(
+                    "Nothing to revise: the latest edit is not an Apply suggested actions "
+                    "batch. Undo the later changes first.",
+                    code="no_suggested_batch_to_revise",
+                )
+            strangers = sorted(set(overrides) - set(requested))
+            if strangers:
+                raise CodedValueError(
+                    f"{strangers[0]!r} was not part of the latest batch",
+                    code="sound_not_in_batch",
+                )
+            tip = mgr.status(project).cursor
+            history.goto(index - 1)
+            try:
+                return self.apply_suggested_actions(
+                    sorted(requested), overrides={**requested, **overrides}
+                )
+            except BaseException:
+                history.goto(tip)
+                raise
 
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:
