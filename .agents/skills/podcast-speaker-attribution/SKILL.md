@@ -54,6 +54,8 @@ podcast speaker split --project PATH --track T --enroll "NAME=START:END" … --a
 
 ## Split one recording into a lane per speaker
 
+Studio's **Split speakers…** dialog takes the same enrollment: **Use selection** under a speaker keeps the selected range as that speaker's voice sample (sent as `enrollment`, source seconds).
+
 1. Ask how many people talk and their names. The count is required; never guess it.
 2. Ask the user to confirm a few seconds of only each speaker (source seconds) and pass them as `--enroll NAME=START:END` / `enrollment={"Name": [[s, e]]}`. Enrollment names the lanes and keeps clustering from splitting one voice.
 3. Dry-run first and read `seconds_by_speaker`, `crosstalk_sec` and `low_confidence_sec` back to the user.

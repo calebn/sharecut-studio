@@ -443,11 +443,21 @@ with its reason beside it when the track has no audio or is already a lane of a 
 (the project view's `TrackView.speaker_split_id`). The dialog asks for the speaker
 count (2 to 8) and optional names; a blank name becomes `Speaker N`, and the engine
 numbers unnamed speakers by who talks first. It posts `POST /api/speaker/split
-{ path, track_id, speaker_count, names? }`, which starts a `kind=split_speakers`
+{ path, track_id, speaker_count, names?, enrollment? }`, which starts a `kind=split_speakers`
 pipeline-slot job over `SpeakerService.split_speakers` with `dry_run=False`, the
 `owner` crosstalk mode and no room-tone fill. The route validates first
 (`SpeakerService.check_split`: the count, the names, a real embedding backend, a
-splittable track), so a refusal is a 400 or 409 and no job starts. Enrollment, the
+splittable track), so a refusal is a 400 or 409 and no job starts. `enrollment` is
+`{name: [[start, end]]}` in **source** seconds, the same as `--enroll` and the MCP
+`enrollment`, and reaches `split_speakers` unchanged through `coerce_enrollment` (the one
+JSON-to-spans conversion the route, job and MCP share); every enrolled name must be in
+`names`. In the dialog, each speaker has **Use selection**: select a few seconds of that
+person talking on the track (the exact range selection), and the range is kept as that
+speaker's voice sample, mapped from timeline to source seconds through the track's clip.
+**Listen** replays it and **Clear** drops it. A range that crosses a cut, sits off the
+track or is under a second is refused with its reason beside the button. The playhead
+alone cannot mark a sample, since a point has no length. The result also says to undo
+and run again with a sample per speaker when two tracks sound like one person. The
 crosstalk modes and `--room-tone-fill` stay on the CLI and MCP. The job's progress
 counts embedded windows, so the bar moves for the whole attribution; Cancel stops it
 between windows and, once attribution is done, before the project is touched. The
