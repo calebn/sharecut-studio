@@ -43,6 +43,8 @@ from podcast_mcp.engines.lane_words import (
 from podcast_mcp.engines.level_profile import (
     LevelProfile,
     file_level_profile,
+    file_speech_level_profile,
+    speech_level_profile,
     track_profile,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
@@ -50,7 +52,13 @@ from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
-from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, frame_rms_db, rms_db
+from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_DB,
+    SPEECH_BAND,
+    band_filter,
+    frame_rms_db,
+    rms_db,
+)
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
@@ -301,6 +309,11 @@ class TrackRmsCache:
             return self.recording_profile
         return track_profile(self.samples, int(self.sample_rate))
 
+    @cached_property
+    def speech_profile(self) -> LevelProfile:
+        """Speech-band profile for reconcile audibility (#1377)."""
+        return speech_level_profile(self.samples, int(self.sample_rate))
+
     @classmethod
     def from_timeline_stem(
         cls, path: Path, *, sample_rate: int = _RMS_SAMPLE_RATE
@@ -333,6 +346,19 @@ class TrackRmsCache:
         if window.size == 0:
             return None
         return rms_db(window, floor_db=floor_db)
+
+    def speech_rms_db(
+        self, t_start: float, t_end: float, *, floor_db: float = DIGITAL_SILENCE_DB
+    ) -> float | None:
+        """RMS (dB) of the speech-band content in ``[t_start, t_end)``."""
+        dur = t_end - t_start
+        if dur <= 0.005:
+            return None
+        window = self.window(t_start, t_end)
+        if window.size == 0:
+            return None
+        filtered = band_filter(window, int(self.sample_rate), SPEECH_BAND)
+        return rms_db(filtered, floor_db=floor_db)
 
 
 @dataclass(frozen=True)
@@ -669,6 +695,29 @@ def measure_window_rms_db(
     return rms_db(window, floor_db=floor_db)
 
 
+def _speech_rms_from_file(
+    path: Path,
+    start_sec: float,
+    end_sec: float,
+    *,
+    sample_rate: int = _RMS_SAMPLE_RATE,
+    floor_db: float = DIGITAL_SILENCE_DB,
+) -> float | None:
+    dur = end_sec - start_sec
+    if dur <= 0.005:
+        return None
+    try:
+        window = load_mono_window(
+            path, start_sec=start_sec, duration_sec=dur, sample_rate=sample_rate, antialias=True
+        )
+    except (ValueError, CalledProcessError):
+        return None
+    if window.size == 0:
+        return None
+    filtered = band_filter(window, sample_rate, SPEECH_BAND)
+    return rms_db(filtered, floor_db=floor_db)
+
+
 def _processed_track_path(project: EpisodeProject, track_id: str) -> Path | None:
     return existing_stem_path(project, track_id)
 
@@ -776,6 +825,30 @@ def _rms_for_track_at_timeline(
     return _effective_rms_db(rms, _recorded_gain_db(project, track_id) if recorded_gain else 0.0)
 
 
+def _speech_rms_for_track_at_timeline(
+    project: EpisodeProject,
+    track_id: str,
+    t_start: float,
+    t_end: float,
+    *,
+    caches: TrackRmsCacheSet | None = None,
+    floor_db: float = DIGITAL_SILENCE_DB,
+    recorded_gain: bool = True,
+) -> float | None:
+    cache = caches.get(track_id) if caches else None
+    if cache is not None:
+        rms = cache.speech_rms_db(t_start, t_end, floor_db=floor_db)
+    elif t_end - t_start <= 0.005:
+        return None
+    else:
+        read = timeline_window_samples(project, track_id, t_start, t_end)
+        if read is None or read[0].size == 0:
+            return None
+        filtered = band_filter(read[0], read[1], SPEECH_BAND)
+        rms = rms_db(filtered, floor_db=floor_db)
+    return _effective_rms_db(rms, _recorded_gain_db(project, track_id) if recorded_gain else 0.0)
+
+
 def timeline_frame_levels_db(
     project: EpisodeProject,
     track_id: str,
@@ -861,6 +934,10 @@ def _classify_word_audibility(
     return "audible", None
 
 
+def _audibility_profile(cache: TrackRmsCache) -> LevelProfile:
+    return cache.speech_profile
+
+
 def _voice_offsets(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict[str, float]:
     """Each decoded track's fixed offset (dB) onto the common voice scale, from its own profile.
 
@@ -872,7 +949,7 @@ def _voice_offsets(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict
     never depends on how loud the file was recorded (#1495).
     """
     return {
-        tid: cache.profile.path_reference_db
+        tid: _audibility_profile(cache).path_reference_db
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -883,7 +960,7 @@ def _voice_floors(
 ) -> dict[str, float]:
     """Each decoded track's audibility floor, on the same voice scale as its word levels."""
     return {
-        tid: cache.profile.audibility_floor_db - offsets.get(tid, 0.0)
+        tid: _audibility_profile(cache).audibility_floor_db - offsets.get(tid, 0.0)
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -902,7 +979,7 @@ def _track_levels(
     levels: dict[str, float] = {}
     for tid in track_ids:
         lag = lags.get(tid, 0.0)
-        rms = _rms_for_track_at_timeline(
+        rms = _speech_rms_for_track_at_timeline(
             project, tid, t_start + lag, t_end + lag, caches=caches, recorded_gain=False
         )
         if rms is not None:
@@ -919,6 +996,9 @@ def compute_word_audibility_map(
     caches: TrackRmsCacheSet | None = None,
 ) -> list[dict[str, Any]]:
     """Per-word audibility across all dialogue tracks at each word's timeline window.
+
+    Word levels and voice floors are read in the speech band so low-band room noise does
+    not mask speech that sits above it (#1377).
 
     A ``bleed`` verdict needs a measured path from the louder mic into the word's own
     (``TrackRmsCacheSet.echo_pairs``), so it needs rendered stems for both mics.
@@ -1159,7 +1239,7 @@ def list_low_audibility_words(
             tid, tr = lane.track_id, lane.transcript
             proc_cache = caches.get(tid)
             floor_db: float | None = (
-                proc_cache.profile.audibility_floor_db if proc_cache is not None else None
+                proc_cache.speech_profile.audibility_floor_db if proc_cache is not None else None
             )
             for i, w in enumerate(tr.words):
                 if w.suppressed:
@@ -1170,13 +1250,13 @@ def list_low_audibility_words(
                         done += 1
                         _tick()
                         continue
-                    rms = proc_cache.rms_db(tl_span[0], tl_span[1])
+                    rms = proc_cache.speech_rms_db(tl_span[0], tl_span[1])
                 else:
                     try:
                         path = track_audio_path(project, tid)
-                        rms = measure_window_rms_db(path, w.start, w.end)
+                        rms = _speech_rms_from_file(path, w.start, w.end)
                         if floor_db is None:
-                            floor_db = file_level_profile(
+                            floor_db = file_speech_level_profile(
                                 path, sample_rate=_RMS_SAMPLE_RATE
                             ).audibility_floor_db
                     except Exception:

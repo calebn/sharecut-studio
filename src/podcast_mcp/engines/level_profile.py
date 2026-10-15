@@ -26,7 +26,13 @@ import numpy as np
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
-from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, db_to_amplitude, frame_rms_db_stream
+from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_DB,
+    SPEECH_BAND,
+    db_to_amplitude,
+    frame_band_filtered_db,
+    frame_rms_db_stream,
+)
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import track_audio_path
@@ -226,6 +232,19 @@ def level_profile(
     return profile_from_levels(frame_levels_db(samples, sample_rate), whole_track=whole_track)
 
 
+def speech_level_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
+    """Whole-track :class:`LevelProfile` from speech-band 10 ms frames (#1377).
+
+    Reconcile audibility reads word levels and floors in the speech band so low-band HVAC
+    and rumble do not raise the room and call band-limited speech inaudible.
+    """
+    frame = max(1, round(sample_rate * LEVEL_FRAME_SEC))
+    levels = frame_band_filtered_db(
+        samples, sample_rate, frame, SPEECH_BAND, floor_db=DIGITAL_SILENCE_DB
+    )
+    return profile_from_levels(levels, whole_track=True) or SILENT
+
+
 def track_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
     """The whole-track profile of ``samples``; :data:`SILENT` when none of it is live."""
     return level_profile(samples, sample_rate, whole_track=True) or SILENT
@@ -322,3 +341,15 @@ def _write_record(path: Path, profile: LevelProfile) -> None:
 def recording_profile(project: EpisodeProject, track_id: str) -> LevelProfile:
     """The profile of the track's own recording (its primary media), measured once."""
     return file_level_profile(track_audio_path(project, track_id))
+
+
+def file_speech_level_profile(
+    path: Path,
+    samples: np.ndarray | None = None,
+    *,
+    sample_rate: int = PROFILE_SAMPLE_RATE,
+) -> LevelProfile:
+    """Speech-band whole-track profile of the audio file at ``path``."""
+    if samples is None:
+        samples = load_mono_full(path, sample_rate=sample_rate)
+    return speech_level_profile(samples, sample_rate)
