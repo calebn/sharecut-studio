@@ -74,24 +74,29 @@ def origin_resolver(project: EpisodeProject) -> Callable[[Clip], str]:
     resolver reads the project as it is when called; build a new one after a mutation.
     """
     by_source: dict[str, str | None] = {}
-    recordings: list[tuple[str, Path]] | None = None
+    track_media: dict[str, Path] = {}
+
+    def media_of(track_id: str, stored: str) -> Path:
+        if track_id not in track_media:
+            track_media[track_id] = resolve_under_workspace(project, stored)
+        return track_media[track_id]
 
     def origin_of_source(clip: Clip, source_id: str) -> str | None:
-        nonlocal recordings
         if source_id not in by_source:
             path = _clip_source_path(project, clip)
             if path is None:
                 by_source[source_id] = None
                 return None
-            if recordings is None:
-                recordings = [
-                    (track.id, resolve_under_workspace(project, track.media.path))
+            media = resolve_under_workspace(project, path)
+            # Tracks are resolved in order and the scan stops at the first match, as the
+            # per-clip answer always did, so a later track's bad path is never reached.
+            by_source[source_id] = next(
+                (
+                    track.id
                     for track in project.tracks
                     if track.media is not None
-                ]
-            media = resolve_under_workspace(project, path)
-            by_source[source_id] = next(
-                (tid for tid, track_media in recordings if same_recording(track_media, media)),
+                    and same_recording(media_of(track.id, track.media.path), media)
+                ),
                 None,
             )
         return by_source[source_id]
