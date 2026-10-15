@@ -18,15 +18,10 @@
  * threshold does not flip the mode from one arm to the next.
  */
 
-/** What Auto measured when the target was armed, CSS px. */
 export interface PrecisionMeasures {
-  /** The target's drawn width on screen. */
   targetPx: number;
-  /** To the nearest other target or soft boundary; null when there is none. */
   gapPx: number | null;
-  /** The finger's contact width. */
   fingerPx: number;
-  /** One step of the target at the current zoom. */
   stepPx: number;
 }
 
@@ -40,17 +35,10 @@ export interface PrecisionDecision {
   mode: "direct" | "precision";
   reason: PrecisionReason;
   measures: PrecisionMeasures;
-  /** The threshold the deciding measure was compared with, CSS px. */
   thresholdPx: number;
-  /** The threshold moved because this target was last armed in another mode. */
   sticky: boolean;
 }
 
-/**
- * A step at least this wide on screen drags directly. The prototype's
- * one-step runs showed a fingertip wobbling 1-2 px; twice the worst wobble
- * keeps a resting finger inside one step.
- */
 export const DIRECT_PX_PER_STEP = 4;
 
 /**
@@ -67,10 +55,8 @@ export const FALLBACK_FINGER_PX = 44;
  */
 export const MIN_FINGER_PX = 10;
 
-/** How far past a threshold a measure must go to change a target's last mode. */
 export const HYSTERESIS = 1.25;
 
-/** The contact width of a pointer: its larger side, or the fallback. */
 export function fingerWidthPx(width: number, height: number): number {
   const size = Math.max(width, height);
   return size >= MIN_FINGER_PX ? size : FALLBACK_FINGER_PX;
@@ -78,18 +64,11 @@ export function fingerWidthPx(width: number, height: number): number {
 
 type Mode = PrecisionDecision["mode"];
 
-/**
- * Direct or precision for a target with `measures`, armed last time in
- * `previous` mode (null for a first arm).
- */
 export function decidePrecision(
   measures: PrecisionMeasures,
   previous: Mode | null = null,
 ): PrecisionDecision {
   const { targetPx, gapPx, fingerPx, stepPx } = measures;
-  // Both thresholds lean toward the previous mode: after precision a step
-  // must be wider to go direct and a target wider to leave precision; after
-  // direct, the reverse.
   const margin =
     previous === "precision"
       ? HYSTERESIS
@@ -154,7 +133,6 @@ export function decisionText(d: PrecisionDecision): string {
   }
 }
 
-/** Finger speeds (px/ms) where a direct drag is finest, and back to 1:1. */
 export const SLOW_PX_PER_MS = 0.05;
 export const FAST_PX_PER_MS = 0.5;
 

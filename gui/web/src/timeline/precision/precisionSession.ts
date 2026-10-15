@@ -30,12 +30,9 @@ import {
   unitsPerSec,
 } from "./precisionMath";
 
-/** Jog pad when Auto needs precision; direct drag with ballistics otherwise. */
 export type PrecisionVariant = "jog" | "direct";
 
-/** The armed target's value against the project it was armed in. */
 export interface PrecisionAxis {
-  /** Hard limits. */
   clamp: (v: number) => number;
   /** Timeline second of the moving point at `v`; null if it does not move. */
   at: (v: number) => number | null;
@@ -44,20 +41,16 @@ export interface PrecisionAxis {
 
 export interface PrecisionTarget {
   field: NudgeField;
-  /** "Trim end", "Pending start": its name in the readout and announcements. */
   name: string;
 }
 
-/** Why the value stopped: a hard limit, or held at a soft boundary. */
 export type PrecisionStop =
   | { kind: "limit" }
   | { kind: "boundary"; boundary: SoftBoundary };
 
 interface Held {
   boundary: SoftBoundary;
-  /** Finger px pushed past the boundary since it caught. */
   push: number;
-  /** The finger's direction (±1) when it caught. */
   dir: 1 | -1;
 }
 
@@ -75,14 +68,12 @@ export type PrecisionState =
       target: PrecisionTarget;
       origin: number;
       gain: GainIndex;
-      /** Finger px per second of the moving point, at gain 1. */
       pxPerSec: number;
-      /** The value shown: whole steps from `origin`, inside every limit. */
+      /** Whole steps from `origin`, inside every limit. */
       value: number;
-      /** Where the finger alone would put it, before steps and limits. */
+      /** Finger travel before steps and limits. */
       raw: number;
       held: Held | null;
-      /** Set on the move that stopped the value; cleared when it moves on. */
       stop: PrecisionStop | null;
     }
   | {
@@ -110,9 +101,7 @@ export type PrecisionEvent =
   | {
       type: "move";
       dx: number;
-      /** The jog's speed step. */
       gain?: GainIndex;
-      /** A factor on this move alone: a direct drag's ballistics. */
       scale?: number;
     }
   | { type: "commit" }
@@ -160,7 +149,6 @@ function move(s: Active, dx: number, axis: PrecisionAxis, scale = 1): Active {
   return { ...s, value: step.value, raw, stop: null };
 }
 
-/** The next state of a precision drag, against the armed target's `axis`. */
 export function precisionReducer(
   state: PrecisionState,
   event: PrecisionEvent,

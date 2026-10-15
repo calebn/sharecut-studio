@@ -7,7 +7,6 @@ import {
   precisionReducer,
 } from "./precisionSession";
 
-/** A trim end at 10 s, between hard limits 8 s and 12 s, with a neighbour edge at 10.5 s. */
 const axis: PrecisionAxis = {
   clamp: (v) => Math.min(12, Math.max(8, v)),
   at: (v) => v,
@@ -23,7 +22,6 @@ function run(events: PrecisionEvent[], from: PrecisionState = IDLE) {
   return events.reduce((s, e) => precisionReducer(s, e, axis), from);
 }
 
-/** Armed at 10 s, with 100 finger px per second at full speed. */
 const armed: PrecisionEvent[] = [
   { type: "arm", variant: "jog", target, origin: 10 },
   { type: "enter", pxPerSec: 100 },

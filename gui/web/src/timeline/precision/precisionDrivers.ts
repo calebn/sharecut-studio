@@ -1,14 +1,3 @@
-/**
- * What a precision drag (#1184) moves: the armed target's own drag, driven
- * by value instead of by pointer.
- *
- * A clip's fade and trim handles register a driver over their drag draft
- * (`useClipEdgeHandles`), so a precision drag shows exactly what a finger
- * drag shows (the edge, the ripple mark or gap, the arrows on every lane)
- * and saves through the same `saveClipEdge`, cut-speech question included.
- * A pending edge or an envelope point's time previews and saves as a held
- * strip nudge does (`edit/nudge.ts`), the same commands its drag runs.
- */
 import { currentDocumentSeq } from "../../document/cursor";
 import { revertOptimisticIfUnchanged } from "../../document/optimisticRevert";
 import {
@@ -35,7 +24,6 @@ export interface PrecisionDriver {
 
 const registered = new Map<string, PrecisionDriver>();
 
-/** The key a timeline target's driver registers under. */
 export function driverKey(kind: string, id: string): string {
   return `${kind}:${id}`;
 }
@@ -56,7 +44,6 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
   let seq = 0;
   let preview: ProjectView | null = null;
   let value = Number.NaN;
-  /** Ends the draft; returns what it began from and showed last. */
   const end = () => {
     const ended = { from: origin, shown: preview };
     origin = null;
@@ -114,7 +101,6 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
   };
 }
 
-/** The driver for target `kind`/`id`, whose time value is `field`. */
 export function precisionDriver(
   kind: string,
   id: string,
