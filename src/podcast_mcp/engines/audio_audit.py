@@ -1339,6 +1339,7 @@ def list_low_audibility_words(
                     continue
                 word_dur = w.end - w.start
                 tl_span = word_timeline_window(st, lane, w.start, w.end)
+                rms: float | None
                 if proc_cache is not None:
                     if tl_span is None:
                         done += 1
