@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.document_sync import (
@@ -100,6 +100,23 @@ class SpeakerSplitRequest(BaseModel):
     track_id: str
     speaker_count: int = Field(ge=2, le=8)
     names: list[Annotated[str, Field(max_length=80)]] | None = Field(default=None, max_length=8)
+    # Each named speaker's known-voice spans in SOURCE seconds, as the CLI and MCP take them.
+    enrollment: (
+        dict[
+            Annotated[str, Field(max_length=80)],
+            Annotated[list[tuple[float, float]], Field(min_length=1, max_length=16)],
+        ]
+        | None
+    ) = Field(default=None, max_length=8)
+
+    @field_validator("enrollment")
+    @classmethod
+    def _spans_run_forward(cls, value):
+        for name, spans in (value or {}).items():
+            for start, end in spans:
+                if not (0 <= start < end < float("inf")):
+                    raise ValueError(f"{name}: each span needs 0 <= start < end")
+        return value
 
 
 class SpeakerMoveLaneSpanRequest(BaseModel):

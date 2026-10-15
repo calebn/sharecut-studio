@@ -19,6 +19,7 @@ from podcast_mcp.gui.job_events import (
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import BounceRequest, BounceService, SpeakerService
+from podcast_mcp.services.media.speaker import coerce_enrollment
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.progress import (
@@ -925,19 +926,31 @@ class PipelineJobManager:
         track_id: str,
         speaker_count: int,
         names: list[str] | None = None,
+        enrollment: dict[str, list[tuple[float, float]]] | None = None,
     ) -> PipelineJob:
-        """Split a one-track recording into a lane per speaker via ``SpeakerService``."""
+        """Split a one-track recording into a lane per speaker via ``SpeakerService``.
+
+        ``enrollment`` holds each named speaker's source-second spans, as the CLI and MCP take them.
+        """
 
         def validate_split() -> None:
             SpeakerService(ProjectWorkspace.open(project_path)).check_split(
-                track_id, speaker_count=speaker_count, names=names
+                track_id,
+                speaker_count=speaker_count,
+                names=names,
+                enrolled=list(enrollment or {}),
             )
 
         return self._spawn(
             project_path,
             kind="split_speakers",
             label="Split speakers",
-            config={"track_id": track_id, "speaker_count": speaker_count, "names": names},
+            config={
+                "track_id": track_id,
+                "speaker_count": speaker_count,
+                "names": names,
+                "enrollment": enrollment,
+            },
             validate=validate_split,
         )
 
@@ -1136,6 +1149,7 @@ class PipelineJobManager:
                 cfg["track_id"],
                 speaker_count=cfg["speaker_count"],
                 names=cfg.get("names"),
+                enrollment=coerce_enrollment(cfg.get("enrollment")),
                 dry_run=False,
                 progress=reporter,
                 cancel_check=cancel_check,

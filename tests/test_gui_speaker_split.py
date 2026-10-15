@@ -327,6 +327,41 @@ def test_the_route_starts_a_split_job(room: Path) -> None:
     assert [lane["name"] for lane in job["result"]["lanes"]] == ["Ana", "Ben"]
 
 
+def test_the_route_hands_the_enrollment_to_the_service_unchanged(
+    room: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict = {}
+    from podcast_mcp.services.media.speaker import SpeakerService
+
+    real = SpeakerService.split_speakers
+
+    def spy(self, *args, **kwargs):
+        seen.update(kwargs)
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(SpeakerService, "split_speakers", spy)
+    client = _client()
+    res = client.post(
+        "/api/speaker/split",
+        json={
+            "path": str(room),
+            "track_id": "room",
+            "speaker_count": 2,
+            "names": ["Ana", "Ben"],
+            "enrollment": {"Ana": [[0.5, 3.5]], "Ben": [[6.0, 9.0]]},
+        },
+    )
+    assert res.status_code == 200
+    job_id = res.json()["job"]["id"]
+    for _ in range(100):
+        job = client.get("/api/pipeline/status").json().get("job")
+        if job and job["id"] == job_id and job["status"] in ("ok", "error"):
+            break
+        time.sleep(0.05)
+    assert job["status"] == "ok"
+    assert seen["enrollment"] == {"Ana": [(0.5, 3.5)], "Ben": [(6.0, 9.0)]}
+
+
 def test_a_relayed_guest_cannot_start_a_split(room: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
 
@@ -354,6 +389,18 @@ def test_a_relayed_guest_cannot_start_a_split(room: Path, monkeypatch: pytest.Mo
         ({"track_id": "room", "speaker_count": 2, "names": ["Ana"]}, 400, "expected 2"),
         ({"track_id": "room", "speaker_count": 2, "names": ["Ana", "B" * 81]}, 422, None),
         ({"track_id": "room", "speaker_count": 8, "names": ["x"] * 9}, 422, None),
+        ({"track_id": "room", "speaker_count": 2, "enrollment": {"Ana": [[3.0, 1.0]]}}, 422, None),
+        ({"track_id": "room", "speaker_count": 2, "enrollment": {"Ana": []}}, 422, None),
+        (
+            {
+                "track_id": "room",
+                "speaker_count": 2,
+                "names": ["Ana", "Ben"],
+                "enrollment": {"Cy": [[0, 2]]},
+            },
+            400,
+            "not one of the names",
+        ),
     ],
 )
 def test_the_route_refuses_what_the_service_would(

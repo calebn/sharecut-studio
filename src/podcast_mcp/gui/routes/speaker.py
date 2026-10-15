@@ -47,6 +47,7 @@ def speaker_split(
             track_id=body.track_id,
             speaker_count=body.speaker_count,
             names=body.names,
+            enrollment=body.enrollment,
         )
     except CodedValueError as exc:
         if exc.code != "speaker_backend_unavailable":

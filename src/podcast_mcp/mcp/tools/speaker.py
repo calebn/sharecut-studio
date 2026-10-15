@@ -6,6 +6,7 @@ from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.models import SpeakerSplitCrosstalk
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import SpeakerService
+from podcast_mcp.services.media.speaker import coerce_enrollment
 from podcast_mcp.util.progress import resolve_progress
 
 
@@ -172,14 +173,7 @@ def speaker_split_tool(
             track_id,
             speaker_count=speaker_count,
             names=names,
-            enrollment=(
-                {
-                    name: [(float(s), float(e)) for s, e in spans]
-                    for name, spans in enrollment.items()
-                }
-                if enrollment
-                else None
-            ),
+            enrollment=coerce_enrollment(enrollment),
             crosstalk_mode=crosstalk_mode,
             room_tone_fill=room_tone_fill,
             dry_run=dry_run,
