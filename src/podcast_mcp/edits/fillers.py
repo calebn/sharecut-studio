@@ -2416,7 +2416,9 @@ def _gate_cut_edges(
     if (
         checks.audible_only
         and audio_cache is not None
-        and rms_db(audio_cache.window(cut_start, cut_end), floor_db=audio_cache.profile.voice_floor_db)
+        and rms_db(
+            audio_cache.window(cut_start, cut_end), floor_db=audio_cache.profile.voice_floor_db
+        )
         < audio_cache.profile.voice_floor_db
     ):
         return _CutRejected("inaudible")
