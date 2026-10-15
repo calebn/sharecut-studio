@@ -13,56 +13,51 @@ test.describe.configure({ timeout: 600_000 });
  * visual viewport once scrolled to, and is not under another element or a
  * scrim. Sizes are layout boxes, so a transition cannot shrink one (#1418).
  *
- * The selection surfaces (sheet, armed range), the shell chrome and Listen are
- * swept whole. Panel interiors are not: only the two rows #1433 named, where a
- * panel has the room to show them (`rows`). The rest are findings on #1445's
- * Ledger.
+ * The selection surfaces (sheet, armed range), the shell chrome, Listen and the
+ * Transcript and Pipeline panels are swept whole, at every cell. A control inside a
+ * closed <details> is not a control until it opens. Transcript words and their
+ * timestamps are inline text and wait on the dense-target decision (DENSE).
  */
 type Cell = {
   name: string;
   width: number;
   height: number;
   rootPx: number;
-  rows: boolean;
 };
 
 const PHONES: readonly Cell[] = [
-  { name: "phone 360", width: 360, height: 780, rootPx: 16, rows: true },
+  { name: "phone 360", width: 360, height: 780, rootPx: 16 },
   {
     name: "phone 360, 200% text",
     width: 360,
     height: 780,
     rootPx: 32,
-    rows: false,
   },
-  { name: "phone 390", width: 390, height: 844, rootPx: 16, rows: true },
+  { name: "phone 390", width: 390, height: 844, rootPx: 16 },
   {
     name: "phone 390, 200% text",
     width: 390,
     height: 844,
     rootPx: 32,
-    rows: false,
   },
-  { name: "phone max 767", width: 767, height: 1000, rootPx: 16, rows: true },
+  { name: "phone max 767", width: 767, height: 1000, rootPx: 16 },
 ];
 
 const TABLETS: readonly Cell[] = [
-  { name: "tablet min 768", width: 768, height: 1024, rootPx: 16, rows: true },
-  { name: "tablet 820", width: 820, height: 1180, rootPx: 16, rows: true },
+  { name: "tablet min 768", width: 768, height: 1024, rootPx: 16 },
+  { name: "tablet 820", width: 820, height: 1180, rootPx: 16 },
   {
     name: "tablet 820, 200% text",
     width: 820,
     height: 1180,
     rootPx: 32,
-    rows: false,
   },
-  { name: "tablet max 1180", width: 1180, height: 800, rootPx: 16, rows: true },
+  { name: "tablet max 1180", width: 1180, height: 800, rootPx: 16 },
   {
     name: "desktop min 1181",
     width: 1181,
     height: 800,
     rootPx: 16,
-    rows: true,
   },
 ];
 
@@ -72,14 +67,12 @@ const LANDSCAPES: readonly Cell[] = [
     width: 844,
     height: 390,
     rootPx: 16,
-    rows: false,
   },
   {
     name: "iPad landscape 1180",
     width: 1180,
     height: 834,
     rootPx: 16,
-    rows: true,
   },
   {
     name: "iPad landscape short Safari",
@@ -107,6 +100,11 @@ const DENSE = [
   ".track-header-open",
   ".track-reorder-handle",
   ".status-bar .status-chip",
+  // Transcript text: inline words in running text, where a taller hit area would take
+  // the neighbouring line's taps (docs/communication-philosophy.md, #1602). The speaker
+  // button holds the floor.
+  ".utterance-word",
+  ".utterance-seek:not(.utterance-speaker)",
 ];
 
 /** The panels' interiors, which only the rows below sweep. */
@@ -220,7 +218,7 @@ async function sweepCell(
     });
   }
 
-  if (cell.rows) {
+  {
     if (phone) {
       await page
         .getByRole("navigation", { name: "Primary" })
@@ -239,6 +237,11 @@ async function sweepCell(
     await expect(page.locator(".transcript-find-replace")).toBeVisible();
     found["find and replace row"] = await reachFailures(page, {
       scope: ".transcript-find-replace",
+      dense: DENSE,
+    });
+    found["transcript panel"] = await reachFailures(page, {
+      scope: PANELS.join(","),
+      skip: [".bottom-sheet-root"],
       dense: DENSE,
     });
 
@@ -262,6 +265,11 @@ async function sweepCell(
     ).toBeVisible();
     found["pipeline add term row"] = await reachFailures(page, {
       scope: ".pipeline-vocabulary-field form",
+      dense: DENSE,
+    });
+    found["pipeline panel"] = await reachFailures(page, {
+      scope: PANELS.join(","),
+      skip: [".bottom-sheet-root"],
       dense: DENSE,
     });
   }

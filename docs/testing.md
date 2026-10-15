@@ -664,15 +664,17 @@ and Listen, that the control
 - is not under another element, a scrim included, and does not spill out of the
   region that holds it.
 
-It also holds the editing rail to one row (#1347) and sweeps the Transcript
-Find and replace row and the Pipeline Add term row (#1433) wherever the panel
-has room to show them. `gui/web/e2e/reachability.ts` is the measuring helper. It
+It also holds the editing rail to one row (#1347) and sweeps the Transcript and
+Pipeline panels whole at every size and text scale, the Find and replace row and
+the Add term row included (#1433, #1445). A control inside a closed `<details>`
+is not measured until it opens. `gui/web/e2e/reachability.ts` is the measuring helper. It
 leaves out only the canvas dense targets (fade corners, trim handles, clip
 bodies, the ruler, the deselect strip, the track row's open overlay), which meet
 the floor through the dense-target pattern, the track grip, which has Move
-track up and down in the track sheet, and the status-bar chips, whose floor the
-fixed-height status bar waives by decision. Panel interiors are not swept; each
-finding there is a line on #1445's Ledger. A new control that fails the sweep is
+track up and down in the track sheet, the transcript words and their timestamps
+(inline text, #1602), and the status-bar chips, whose floor the fixed-height
+status bar waives by decision. Findings outside the swept surfaces are lines on
+#1445's Ledger. A new control that fails the sweep is
 fixed, or its class is named in that list with the equivalent control that
 replaces it. The selection surfaces themselves are covered at the unit level by
 `gui/web/src/layout/selectionSurface.test.tsx`, which renders every selection

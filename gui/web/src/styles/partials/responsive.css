@@ -513,7 +513,7 @@ html[data-shell="phone"] .mobile-comment-list-head .linkish {
   font-weight: 600;
   padding: var(--space-3) 0;
   cursor: pointer;
-  min-height: 2.5rem;
+  min-height: var(--touch-min);
 }
 
 .mobile-more-list {
