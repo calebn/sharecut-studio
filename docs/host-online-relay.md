@@ -699,6 +699,8 @@ WebSocket admission and command crashes log on the host and close with
 `1011` and `internal error`. Coded recording refusals keep `code=invalid_state`
 and add their domain `error_code`; the socket remains usable. Busy admission or
 setup closes with transient `1013` and fixed busy text, allowing reconnection.
+Relay and `podcast tunnel` log each guest-stream close at **info** with a stable
+`site=` label, redacted share token, stream id, code, and reason (#1350).
 Token lookup uses the same HTTP boundary for contention and unexpected failures.
 Existing access revocations retain their terminal `4403` behavior. Close reasons fit within
 120 UTF-8 bytes. Remote MCP capability lookup failures return fixed
