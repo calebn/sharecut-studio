@@ -107,7 +107,7 @@ const DENSE = [
   ".utterance-seek:not(.utterance-speaker)",
 ];
 
-/** The panels' interiors, which only the rows below sweep. */
+/** The panels' interiors. */
 const PANELS = [".tab-content", ".mobile-text-mode", ".mobile-more-mode"];
 
 async function arrive(page: Page, cell: Cell) {
@@ -218,61 +218,49 @@ async function sweepCell(
     });
   }
 
-  {
-    if (phone) {
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "Text" })
-        .click();
-    } else {
-      await page
-        .getByRole("button", { name: "Transcript", exact: true })
-        .first()
-        .click();
-    }
+  if (phone) {
     await page
-      .getByRole("button", { name: "Find and replace" })
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("button", { name: "Text" })
+      .click();
+  } else {
+    await page
+      .getByRole("button", { name: "Transcript", exact: true })
       .first()
       .click();
-    await expect(page.locator(".transcript-find-replace")).toBeVisible();
-    found["find and replace row"] = await reachFailures(page, {
-      scope: ".transcript-find-replace",
-      dense: DENSE,
-    });
-    found["transcript panel"] = await reachFailures(page, {
-      scope: PANELS.join(","),
-      skip: [".bottom-sheet-root"],
-      dense: DENSE,
-    });
-
-    if (phone) {
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "More" })
-        .click();
-      await page
-        .locator(".mobile-more-item", { hasText: "Pipeline" })
-        .first()
-        .click();
-    } else {
-      await page
-        .getByRole("button", { name: "Pipeline", exact: true })
-        .first()
-        .click();
-    }
-    await expect(
-      page.locator(".pipeline-vocabulary-field").first(),
-    ).toBeVisible();
-    found["pipeline add term row"] = await reachFailures(page, {
-      scope: ".pipeline-vocabulary-field form",
-      dense: DENSE,
-    });
-    found["pipeline panel"] = await reachFailures(page, {
-      scope: PANELS.join(","),
-      skip: [".bottom-sheet-root"],
-      dense: DENSE,
-    });
   }
+  await page.getByRole("button", { name: "Find and replace" }).first().click();
+  await expect(page.locator(".transcript-find-replace")).toBeVisible();
+  found["transcript panel"] = await reachFailures(page, {
+    scope: PANELS.join(","),
+    skip: [".bottom-sheet-root"],
+    dense: DENSE,
+  });
+
+  if (phone) {
+    await page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("button", { name: "More" })
+      .click();
+    await page
+      .locator(".mobile-more-item", { hasText: "Pipeline" })
+      .first()
+      .click();
+  } else {
+    await page
+      .getByRole("button", { name: "Pipeline", exact: true })
+      .first()
+      .click();
+  }
+  await expect(
+    page.locator(".pipeline-vocabulary-field").first(),
+  ).toBeVisible();
+  await page.getByText("From / Only shortcuts", { exact: true }).click();
+  found["pipeline panel"] = await reachFailures(page, {
+    scope: PANELS.join(","),
+    skip: [".bottom-sheet-root"],
+    dense: DENSE,
+  });
 
   const report = Object.entries(found)
     .filter(([, failures]) => failures.length > 0)

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   presenceAnchor,
   transcriptWordPresenceAnchor,
@@ -19,6 +19,7 @@ import {
   isTranscriptUtteranceVisible,
   isUtteranceActive,
   isWordActive,
+  scrollChildIntoParent,
   selectUnmappedUtterances,
   spanTextFromIndex,
   trackWordTexts,
@@ -835,5 +836,20 @@ describe("visibleTranscriptUtterances", () => {
     expect(visibleTranscriptUtterances(utterances, true, true)).toBe(
       utterances,
     );
+  });
+});
+
+describe("scrollChildIntoParent", () => {
+  it("also reveals the word where the list sits in a scrolling panel", () => {
+    const root = document.createElement("div");
+    const el = document.createElement("span");
+    root.append(el);
+    const reveal = vi.fn();
+    el.scrollIntoView = reveal;
+    scrollChildIntoParent(root, el, 0.5);
+    expect(reveal).toHaveBeenCalledWith({
+      block: "nearest",
+      inline: "nearest",
+    });
   });
 });

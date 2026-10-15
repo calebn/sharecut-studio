@@ -568,8 +568,10 @@ export function scrollChildIntoParent(
     elRect.height,
     anchorRatio,
   );
-  if (Math.abs(next - root.scrollTop) < 1) {
-    return;
+  if (Math.abs(next - root.scrollTop) >= 1) {
+    root.scrollTop = next;
   }
-  root.scrollTop = next;
+  // Where the list sits in a scrolling panel (a short slot or large text), the word can
+  // still be below the panel's fold; this is a no-op while it is already in view.
+  el.scrollIntoView?.({ block: "nearest", inline: "nearest" });
 }
