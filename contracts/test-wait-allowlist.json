@@ -48,7 +48,7 @@
     "tests/test_gui_api.py": 16,
     "tests/test_gui_speaker_split.py": 3,
     "tests/test_job_events.py": 0,
-    "tests/test_model_manifest.py": 1,
+    "tests/test_model_manifest.py": 0,
     "tests/test_parallel.py": 0,
     "tests/test_process.py": 1,
     "tests/test_progress_extended.py": 0,
