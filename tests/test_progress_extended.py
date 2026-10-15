@@ -295,7 +295,8 @@ def test_cli_progress_reporter_import_error_fallback(monkeypatch):
 
 def test_cli_progress_heartbeat_with_total(monkeypatch, capsys):
     monkeypatch.setattr("sys.stderr.isatty", lambda: False)
-    reporter = CliProgressReporter(enabled=True)
+    with patch("podcast_mcp.util.progress.threading.Thread"):
+        reporter = CliProgressReporter(enabled=True)
     reporter.start("job", "Job", total=4)
     capsys.readouterr()
     reporter._emit_heartbeat("job", reporter._tasks["job"], 90.0)  # type: ignore[attr-defined]
