@@ -32,7 +32,13 @@ from podcast_mcp.edits.session_air import (
     lane_placements,
     read_samples,
 )
-from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC, PROBE_SEC, carries_speech_pitch
+from podcast_mcp.edits.voiced_runs import (
+    FRAME_SEC,
+    HOP_SEC,
+    PROBE_SEC,
+    carries_quiet_speech_pitch,
+    carries_speech_pitch,
+)
 from podcast_mcp.engines.audio_audit import (
     _RMS_SAMPLE_RATE,
     TrackRmsCache,
@@ -262,11 +268,12 @@ def _pitchless_independent_runs(
     samples, rate = read
     frame = max(1, round(rate * LEVEL_FRAME_SEC))
     for first, last in bool_runs(own):
-        if (
-            carries_speech_pitch(samples[first * frame : last * frame], rate, interior=True)
-            is False
-        ):
-            pitchless[first:last] = True
+        segment = samples[first * frame : last * frame]
+        if carries_speech_pitch(segment, rate, interior=True) is not False:
+            continue
+        if carries_quiet_speech_pitch(segment, rate, interior=True) is True:
+            continue
+        pitchless[first:last] = True
     return pitchless
 
 

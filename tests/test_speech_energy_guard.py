@@ -1113,6 +1113,37 @@ def test_dense_owner_bleed_room_is_told_from_independent_peer_by_the_peers_own_s
 
 @pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
 @pytest.mark.parametrize("gain", [-20.0, 0.0, 30.0])
+@pytest.mark.parametrize("remark_scale", [0.1, 0.15], ids=["quiet_okay", "softer_okay"])
+def test_dense_owner_bleed_warns_on_quiet_backchannel_near_bleed_floor(
+    tmp_path: Path, cached: bool, gain: float, remark_scale: float
+) -> None:
+    """Regression for #1357: voiced remarks under the dense-bleed room reference still warn."""
+    clock = np.arange(8 * _SR) / _SR
+    owner, peer = _dense_bleed_with_independent_gap(clock, (3.0, 3.3), "room_noise")
+    remark = (clock >= (3.0 + 3.3) / 2 - 0.05) & (clock < (3.0 + 3.3) / 2 + 0.05)
+    peer[remark] += remark_scale * _voice(clock[remark], 150.0, 0.004)
+    p = _project_with_peer_audio(tmp_path, peer)
+    _write_wav(tmp_path / "host.wav", owner)
+    for track in p.tracks:
+        track.gain_db = gain
+    caches = build_track_rms_caches(p) if cached else None
+
+    levels = measure_peer_speech(
+        p,
+        [(1.0, 6.0)],
+        owner_track_ids=["host"],
+        peer_track_ids=["guest"],
+        defaults=_GUARD_ON,
+        caches=caches,
+    )
+    assert levels is not None
+    assert levels.speaking == ("guest",)
+    guard = assess_cross_track_speech(p, "host", 1.0, 6.0, defaults=_GUARD_ON, caches=caches)
+    assert guard.blocking_track_ids == ("guest",)
+
+
+@pytest.mark.parametrize("cached", [False, True], ids=["placed", "cached"])
+@pytest.mark.parametrize("gain", [-20.0, 0.0, 30.0])
 def test_dense_owner_bleed_room_reference_ignores_a_single_quieter_stretch(
     tmp_path: Path, cached: bool, gain: float
 ) -> None:
