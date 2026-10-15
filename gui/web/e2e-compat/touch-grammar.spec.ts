@@ -450,7 +450,21 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
     | { track_id: string; points: unknown[] }
     | undefined;
   expect(added?.track_id).toBe(guest.trackId);
-  expect(added?.points).toHaveLength(1);
+  expect(added?.points).toHaveLength(3);
+  const flat = added!.points as { id: string; time: number; value: number }[];
+  const newPoint = flat.find((point) => point.time > 0 && point.time < 60);
+  expect(flat[0]).toMatchObject({ time: 0, value: 1 });
+  expect(flat[2]).toMatchObject({ time: 60, value: 1 });
+  expect(newPoint).toMatchObject({ value: 1 });
+  expect(new Set(flat.map((point) => point.id)).size).toBe(3);
+  await expect
+    .poll(
+      async () =>
+        (await saved(page)).envelopes.find(
+          (env) => env.track_id === guest.trackId,
+        )?.points,
+    )
+    .toEqual(flat);
 });
 
 test("a long-press past the last clip opens the create menu and selects no text", async ({

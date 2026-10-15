@@ -177,15 +177,23 @@ for (const core of [
             observer.stage("first-save");
             const first = await savePoint(page);
             expect(first.command.payload.expected_points).toEqual([]);
-            const point = first.command.payload.points?.[0];
+            const flat = first.command.payload.points;
+            const point = flat?.[0];
             expect(point).toEqual({
               id: expect.stringMatching(/\S/),
               time: 0,
               value: 1,
             });
+            expect(flat).toHaveLength(2);
+            expect(flat?.[1]).toEqual({
+              id: expect.stringMatching(/\S/),
+              time: 60,
+              value: 1,
+            });
+            expect(flat?.[1]?.id).not.toBe(point?.id);
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual([point]);
+              .toEqual(flat);
             const one = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(origin, one, track.id);
             await expect(
@@ -218,7 +226,7 @@ for (const core of [
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual([point]);
+              .toEqual(flat);
             expect(envelopeSnapshot(projectPath, track.id).history).toEqual(
               one.history,
             );
@@ -237,7 +245,7 @@ for (const core of [
             observer.stage("second-save");
             const second = await savePoint(page);
             const secondPoint = second.command.payload.points?.find(
-              (item) => item.id !== point!.id,
+              (item) => item.time === 4,
             );
             expect(secondPoint).toEqual({
               id: expect.stringMatching(/\S/),
@@ -259,7 +267,13 @@ for (const core of [
             await screenshot(page, info, "populated-envelope-edit-draft");
             observer.stage("numeric-reorder");
             const moved = await savePoint(page);
-            const expected = [secondPoint!, { ...point!, time: 6, value: 0.8 }];
+            const expected = two.points
+              .map((item) =>
+                item.id === point!.id
+                  ? { ...point!, time: 6, value: 0.8 }
+                  : item,
+              )
+              .sort((a, b) => a.time - b.time);
             expect(moved.command.payload.points).toEqual(expected);
             expect(moved.command.payload.expected_points).toEqual(two.points);
             await expect
@@ -295,7 +309,7 @@ for (const core of [
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual([secondPoint]);
+              .toEqual(expected.filter((item) => item.id !== point!.id));
             const remaining = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(edited, remaining, track.id);
             observer.stage("final-removal-and-undo");
@@ -324,7 +338,7 @@ for (const core of [
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual([secondPoint]);
+              .toEqual(expected.filter((item) => item.id !== point!.id));
             expect(
               envelopeSnapshot(projectPath, track.id).history?.cursor,
             ).toBe(remaining.history?.cursor);
