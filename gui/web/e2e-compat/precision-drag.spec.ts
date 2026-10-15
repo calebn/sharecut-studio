@@ -174,28 +174,20 @@ for (const variant of VARIANTS) {
     );
     await page.waitForTimeout(400);
     await frame(page, info, `precision-${variant}-armed-${browserName}`);
-    let step: { at: Point; seen: string[] };
-    let from = at;
-    if (variant === "jog") {
-      await finger.up();
-      const pad = await page.locator(".precision-jog-pad").boundingBox();
-      if (!pad) throw new Error("no jog pad");
-      const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height - 8 };
-      await finger.down(start);
-      // Up past three 40 px rungs: the fine speed.
-      const fine = { x: start.x, y: start.y - 130 };
-      await finger.slide(fine, 6, 16);
-      await expect(page.locator(".precision-jog-hint")).toHaveText("Fine");
-      from = fine;
-      step = await oneStepLeft(page, (p) => finger.move(p), fine);
-      await frame(page, info, `precision-${variant}-one-step-${browserName}`);
-      await finger.up();
-      await page.getByRole("button", { name: "Done" }).click();
-    } else {
-      step = await oneStepLeft(page, (p) => finger.move(p), at);
-      await frame(page, info, `precision-${variant}-one-step-${browserName}`);
-      await finger.up();
-    }
+    await finger.up();
+    const pad = await page.locator(".precision-jog-pad").boundingBox();
+    if (!pad) throw new Error("no jog pad");
+    const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height - 8 };
+    await finger.down(start);
+    // Up past three 40 px rungs: the fine speed.
+    const fine = { x: start.x, y: start.y - 130 };
+    await finger.slide(fine, 6, 16);
+    await expect(page.locator(".precision-jog-hint")).toHaveText("Fine");
+    const step = await oneStepLeft(page, (p) => finger.move(p), fine);
+    await frame(page, info, `precision-${variant}-one-step-${browserName}`);
+    await finger.up();
+    await page.getByRole("button", { name: "Done" }).click();
+    const from = fine;
     const asked = await cutAnywayIfAsked(page);
     await expect(page.locator(".precision-layer")).toHaveCount(0);
     await expect
@@ -232,15 +224,12 @@ for (const variant of VARIANTS) {
     await fingers.down(at);
     await page.waitForTimeout(HOLD_MS);
     await expect(page.locator(".precision-layer")).toBeVisible();
-    let one = { x: at.x - 30, y: at.y };
-    if (variant === "jog") {
-      await fingers.up();
-      const pad = await page.locator(".precision-jog-pad").boundingBox();
-      if (!pad) throw new Error("no jog pad");
-      const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height / 2 };
-      await fingers.down(start);
-      one = { x: start.x - 30, y: start.y };
-    }
+    await fingers.up();
+    const pad = await page.locator(".precision-jog-pad").boundingBox();
+    if (!pad) throw new Error("no jog pad");
+    const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height / 2 };
+    await fingers.down(start);
+    const one = { x: start.x - 30, y: start.y };
     for (let k = 1; k <= 6; k += 1) {
       await fingers.move({ x: one.x + (30 * (6 - k)) / 6, y: one.y });
       await page.waitForTimeout(16);
