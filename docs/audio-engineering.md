@@ -200,7 +200,7 @@ The full cleanup report shares decoded processed-stem RMS caches across its
 audibility, gate, and boundary analyses; each standalone analysis can still
 build its own cache.
 
-The audibility and low-audibility scans judge a word against its own track's voice floor (`LevelProfile.voice_floor_db`, the figure tighten reads; [§ Detection levels](#detection-levels)), so a quieter copy of a recording gets the same verdicts; the report's `threshold_db` is that track's floor ([transcript-reconcile.md](transcript-reconcile.md), #1324). Reconcile reads both the word window and the floor in the **speech band** (`SPEECH_BAND`, same high-pass as pause trims) so low-band HVAC and rumble do not raise the room and call whispered speech inaudible (#1377).
+The audibility and low-audibility scans judge a word against its own track's voice floor (`LevelProfile.voice_floor_db`, the figure tighten reads; [§ Detection levels](#detection-levels)), so a quieter copy of a recording gets the same verdicts; the report's `threshold_db` is that track's floor ([transcript-reconcile.md](transcript-reconcile.md), #1324). Reconcile's **`inaudible`** verdict alone compares speech-band level to a speech-band floor (`SPEECH_BAND`, same high-pass as pause trims) so low-band HVAC and rumble do not raise the broadband room and call whispered speech inaudible (#1377). Bleed dominance and reported `track_rms_db` stay full-band.
 
 `analyze_cleanup` computes `bleed_ratio` (bleed word count / total words) per track. When
 it meets or exceeds `analysis.heuristics.bleed_ratio_warn_threshold` (default `0.2`, i.e.
