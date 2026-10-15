@@ -32,6 +32,15 @@ function attentionAnnouncement(input: Input): string | null {
 }
 
 export function useOfflineAttentionAnnouncement(input: Input): void {
+  const {
+    projectPath,
+    pending,
+    conflictCount,
+    unreadable,
+    dismissFailed,
+    loaded,
+    status,
+  } = input;
   const announceStatus = useDaw((s) => s.announceStatus);
   const last = useRef<{ projectPath: string; message: string | null }>({
     projectPath: "",
@@ -39,15 +48,23 @@ export function useOfflineAttentionAnnouncement(input: Input): void {
   });
 
   useEffect(() => {
-    if (last.current.projectPath !== input.projectPath) {
-      last.current = { projectPath: input.projectPath, message: null };
+    if (last.current.projectPath !== projectPath) {
+      last.current = { projectPath, message: null };
     }
-    const message = attentionAnnouncement(input);
+    const message = attentionAnnouncement({
+      projectPath,
+      pending,
+      conflictCount,
+      unreadable,
+      dismissFailed,
+      loaded,
+      status,
+    });
     if (!message) {
       if (
-        input.status === "checking" ||
-        input.status === "dismissing" ||
-        (input.unreadable && !input.loaded)
+        status === "checking" ||
+        status === "dismissing" ||
+        (unreadable && !loaded)
       ) {
         return;
       }
@@ -59,12 +76,12 @@ export function useOfflineAttentionAnnouncement(input: Input): void {
     announceStatus(message, { toast: false });
   }, [
     announceStatus,
-    input.conflictCount,
-    input.dismissFailed,
-    input.loaded,
-    input.pending,
-    input.projectPath,
-    input.status,
-    input.unreadable,
+    conflictCount,
+    dismissFailed,
+    loaded,
+    pending,
+    projectPath,
+    status,
+    unreadable,
   ]);
 }
