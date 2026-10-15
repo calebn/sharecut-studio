@@ -553,7 +553,8 @@ class EditService:
         ``revise`` changes sounds of the batch you just applied: it steps back to before
         that batch, which must be the latest edit, and applies it again with ``overrides``
         on top of the actions it used, so every other sound keeps its action and the result
-        is again one undo step.
+        is again one undo step. A sound the new action cannot apply (a held cut) comes back
+        pending and is named in ``held``; when none can apply the call refuses and keeps the batch.
         """
         from podcast_mcp.edits.sound_actions import SUGGESTED_ACTIONS
         from podcast_mcp.edits.suggested_actions import (
@@ -628,15 +629,29 @@ class EditService:
                     f"{strangers[0]!r} was not part of the latest batch",
                     code="sound_not_in_batch",
                 )
+            if index < 1:
+                raise CodedValueError(
+                    "Nothing to revise: the batch's starting state is no longer in history.",
+                    code="no_suggested_batch_to_revise",
+                )
             tip = mgr.status(project).cursor
             history.goto(index - 1)
             try:
-                return self.apply_suggested_actions(
+                result = self.apply_suggested_actions(
                     sorted(requested), overrides={**requested, **overrides}
                 )
             except BaseException:
                 history.goto(tip)
                 raise
+            if mgr.status(project).cursor == index - 1:
+                # Nothing was recorded (every sound was held), so the batch would stay undone.
+                history.goto(tip)
+                raise CodedValueError(
+                    "Nothing changed: none of the sounds could be applied with those actions "
+                    f"({', '.join(result['held'])} stayed pending).",
+                    code="revise_held",
+                )
+            return result
 
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:

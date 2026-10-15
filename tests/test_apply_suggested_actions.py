@@ -147,6 +147,18 @@ def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
 
 
+def test_revise_that_applies_nothing_keeps_the_batch(tmp_path, sample_wav, monkeypatch) -> None:
+    path = _project(tmp_path, sample_wav)
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["um"])
+    applied_layout = _layout(path)
+    monkeypatch.setattr(suggested_actions, "apply_suggested_to_project", lambda *_: None)
+    with pytest.raises(Exception, match="Nothing changed"):
+        EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
+            overrides={"um": "cut"}, revise=True
+        )
+    assert _layout(path) == applied_layout
+
+
 def test_revise_refuses_once_something_else_changed(tmp_path, sample_wav, monkeypatch) -> None:
     path = _project(tmp_path, sample_wav)
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
