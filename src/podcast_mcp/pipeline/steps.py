@@ -446,6 +446,58 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
     return f"{applied} tighten cuts applied"
 
 
+def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    """Propose and apply each non-speech sound's suggested action, in this one step (#1434).
+
+    Runs on ``tighten.apply_non_speech``, not ``tighten.enabled``: filler, pause, repetition
+    and restart proposals stay pending (or apply through the tighten steps when those are
+    on).  Cuts the speech guard would hold apply as the session ripple and the summary
+    counts them, so a pipeline run and Studio's Apply suggested actions agree.
+    """
+    from podcast_mcp.edits.sound_actions import is_non_speech_sound
+    from podcast_mcp.edits.suggested_actions import (
+        SuggestedActionsResult,
+        apply_suggested_to_project,
+        suggested_action_for,
+    )
+    from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.pipeline.meta import step_noop_reason
+
+    assert_refine_clear(project, defaults=defaults)
+    if reason := step_noop_reason("apply_sound_actions", defaults):
+        return f"skipped ({reason})"
+    with resolve_progress_task(
+        "apply_sound_actions",
+        "Applying sound actions",
+        prefer_parent=True,
+    ) as prog:
+        if step_noop_reason("analyze_fillers_pauses", defaults) is not None:
+            # The tighten analysis did not run, so look for sounds here and keep only those.
+            prog.set_phase("propose", "Looking for non-speech sounds…")
+            scratch = project.model_copy(deep=True)
+            found = [
+                d
+                for d in propose_tighten_edits(scratch, defaults, replace_existing=True).decisions
+                if is_non_speech_sound(d.reason)
+            ]
+            project.edit_decisions = [
+                e for e in project.edit_decisions if e.applied or not is_non_speech_sound(e.reason)
+            ] + found
+        prog.set_phase("apply", "Applying sound actions…")
+        actions: dict[str, str] = {
+            e.id: action
+            for e in project.edit_decisions
+            if not e.applied
+            and is_non_speech_sound(e.reason)
+            and (action := suggested_action_for(e)) is not None
+        }
+        if not actions:
+            return "no non-speech sounds to act on"
+        result = SuggestedActionsResult()
+        apply_suggested_to_project(project, actions, result)
+    return result.summary()
+
+
 def fill_gate_holes(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.gate_fill import fill_gate_holes as fill
 

@@ -94,6 +94,7 @@ AUDIO_AFFECTING_STEPS = frozenset(
         "balance_tracks",
         "focus_from_transcript",
         "tighten_from_transcript",
+        "apply_sound_actions",
         "render_dialogue_stems",
         "assemble_timeline",
     }
@@ -114,6 +115,7 @@ _STEP_MAP: dict[str, StepFn] = {
     "focus_from_transcript": pipeline_steps.focus_from_transcript,
     "analyze_fillers_pauses": pipeline_steps.analyze_fillers_pauses,
     "tighten_from_transcript": pipeline_steps.tighten_from_transcript,
+    "apply_sound_actions": pipeline_steps.apply_sound_actions,
     "fill_gate_holes": pipeline_steps.fill_gate_holes,
     "clean_audio": pipeline_steps.clean_audio,
     "compress_tracks": pipeline_steps.compress_tracks,
@@ -139,6 +141,7 @@ ORDERED_STEP_NAMES: list[str] = [
     "focus_from_transcript",
     "analyze_fillers_pauses",
     "tighten_from_transcript",
+    "apply_sound_actions",
     "fill_gate_holes",
     "clean_audio",
     "compress_tracks",

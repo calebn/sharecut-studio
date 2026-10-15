@@ -536,6 +536,63 @@ describe("PipelinePanel", () => {
     );
   });
 
+  it("unchecking Apply sound actions sets its own setting and leaves tighten.enabled", async () => {
+    const user = userEvent.setup();
+    const soundStep = {
+      id: "apply_sound_actions",
+      index: 5,
+      group: "editorial",
+      title: "Apply sound actions",
+      summary: "Apply each non-speech sound's suggested action",
+      kind: "heuristic",
+      depends_on: [],
+      requires_components: [],
+      param_sections: [],
+      enabled_by_default: true,
+    };
+    const initial = {
+      ...structuredClone(baseConfig),
+      steps: [...structuredClone(baseConfig.steps), soundStep],
+      enabled_steps: [...baseConfig.enabled_steps, soundStep.id],
+      config: {
+        ...baseConfig.config,
+        tighten: { enabled: false, apply_non_speech: true },
+      },
+    };
+    loadPipelineConfig
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(initial);
+    putPipelineConfig.mockImplementationOnce(async (_path, body) => ({
+      ...initial,
+      ...body,
+      config: body.config ?? initial.config,
+      enabled_steps: body.enabled_steps ?? initial.enabled_steps,
+    }));
+
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: "Enable Apply sound actions",
+      }),
+    );
+
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
+    expect(putPipelineConfig).toHaveBeenCalledWith(
+      "/tmp/ep.project.json",
+      expect.objectContaining({
+        enabled_steps: expect.not.arrayContaining([soundStep.id]),
+        config: expect.objectContaining({
+          tighten: { enabled: false, apply_non_speech: false },
+        }),
+      }),
+    );
+  });
+
   it("refetches before changing unattended mode", async () => {
     const user = userEvent.setup();
     loadPipelineConfig

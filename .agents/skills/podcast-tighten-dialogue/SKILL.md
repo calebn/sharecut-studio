@@ -22,7 +22,10 @@ demoted (adjacent-token phrase matching for `you know` / `sort of` / `kind of`;
 pause/confidence remain escape hatches) but splice flow is still the re-enable
 gate. Default workflow is **propose → review (listen-first) → approve per hit**.
 Never bulk-apply on a production episode without explicit user sign-off. Do not
-flip `tighten.enabled`.
+flip `tighten.enabled`. The pipeline's `apply_sound_actions` step is separate: on
+`tighten.apply_non_speech` (on by default) it applies each non-speech sound's
+suggested action in one undo step and leaves filler, pause, repetition and
+restart proposals alone; set the key `false` to leave those sounds pending.
 
 ## Policy (from `.agents/defaults/pipeline.yaml`)
 

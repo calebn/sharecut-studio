@@ -788,8 +788,13 @@ The rules that follow from it:
 3. **The pipeline applies them by default.** A pipeline run proposes the
    non-speech suggestions and applies them as Apply suggested actions would,
    held cuts included, in one undo step, and its summary names what it applied
-   and how many cuts went over another speaker. A pipeline setting turns this
-   off, leaving the suggestions pending.
+   and how many cuts went over another speaker. The `apply_sound_actions` step
+   does this on `tighten.apply_non_speech` (default `true`), independent of
+   `tighten.enabled`; set it `false` to leave the suggestions pending. It acts
+   on the non-speech kinds only. Filler, pause, repetition and restart
+   proposals keep their own gate: they apply only through the tighten steps,
+   behind `tighten.enabled`, and a cut the speech guard holds there still waits
+   for review.
 4. **A laugh over someone else is a level problem.** Each speaker has a track,
    so lowering the laugh keeps both the laugh and the other speaker's words.
    Lower reuses the per-track attenuation bleed handling already uses.
@@ -1092,7 +1097,7 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   kept whole and its reason gains `:likely_laugh` (`filler:acoustic:likely_laugh`), the
   Tighten row reads "Likely laugh", and `propose_edits` counts it in its summary
   ("1 acoustic (review, 1 likely laugh)"). It is a review flag like `:risky`, so it is
-  never auto-applied by the pipeline; its suggested action is Lower when another speaker talks over it and otherwise Leave (Apply suggested actions), and the
+  never cut by the pipeline; `apply_sound_actions` gives it its suggested action, which is Lower when another speaker talks over it and otherwise Leave (Apply suggested actions), and the
   editor decides. Both numbers are dB differences inside one run, so the rule reads the same
   at any recording level and needs no cadence, pitch or model. It is a hint and not a
   verdict: on the 2026-10-13 operator listening, 5 of 9 flagged clips were real laughs; the
@@ -1113,7 +1118,7 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   missed word**: the reason gains `:possible_word` (`filler:acoustic:possible_word`, after
   `:likely_laugh` when both apply), the pending edit's inspector subtitle and timeline overlay title read "Possible missed word", and
   `propose_edits` counts it ("1 acoustic (review, 1 possible missed word)"). Like every
-  review flag it never hides a proposal, is never auto-applied by the pipeline, and its suggested action in Apply suggested actions is Leave (#1434). A shape test (voiced length, spectral motion)
+  review flag it never hides a proposal, is never cut by the pipeline, and its suggested action, applied by Apply suggested actions and by the pipeline's `apply_sound_actions` step, is Leave (#1434). A shape test (voiced length, spectral motion)
   cannot do this job: on the lab tape a drawn-out "Then" (0.98 s) moves less than several
   "umm", and backchannels move as much as words. `tighten.acoustic_gap_filler.word_probe:
   false` turns the listening off; a Whisper model that is not installed leaves the proposals

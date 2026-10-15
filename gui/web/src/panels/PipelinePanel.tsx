@@ -72,6 +72,9 @@ const TIGHTEN_STEPS = new Set([
   "tighten_from_transcript",
 ]);
 
+// Gated by tighten.apply_non_speech, independent of tighten.enabled.
+const SOUND_ACTION_STEP = "apply_sound_actions";
+
 const GROUP_LABELS: Record<string, string> = {
   transcript: "Transcript",
   editorial: "Editorial",
@@ -516,6 +519,13 @@ export function PipelinePanel() {
             nextConfig,
             "tighten.enabled",
             [...TIGHTEN_STEPS].some((step) => set.has(step)),
+          );
+        }
+        if (stepId === SOUND_ACTION_STEP) {
+          nextConfig = setByPath(
+            nextConfig,
+            "tighten.apply_non_speech",
+            set.has(SOUND_ACTION_STEP),
           );
         }
         const patch: {

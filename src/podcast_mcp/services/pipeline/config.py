@@ -102,6 +102,8 @@ def transcribe_run_config(
 
 FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
 TIGHTEN_STEPS = ("analyze_fillers_pauses", "tighten_from_transcript")
+# Gated by tighten.apply_non_speech, not tighten.enabled (#1434).
+SOUND_ACTION_STEP = "apply_sound_actions"
 
 # Analyze flags a track whose astats noise floor sits within this of the track's own voice
 # level (-50 dBFS against the lab tape's -15.3 dBFS voice level), so a quieter recording of
@@ -128,6 +130,10 @@ def default_enabled_steps(config: dict[str, Any] | None = None) -> list[str]:
             continue
         if name in TIGHTEN_STEPS:
             if tighten_on:
+                enabled.add(name)
+            continue
+        if name == SOUND_ACTION_STEP:
+            if step_noop_reason(name, cfg) is None:
                 enabled.add(name)
             continue
         if step_meta(name).enabled_by_default:
@@ -204,6 +210,10 @@ def sync_editorial_enabled_steps(
     else:
         for step_id in TIGHTEN_STEPS:
             result = cascade_disable(result, step_id)
+    if step_noop_reason(SOUND_ACTION_STEP, config) is None:
+        result = expand_enable(result | {SOUND_ACTION_STEP})
+    else:
+        result = cascade_disable(result, SOUND_ACTION_STEP)
     return order_enabled_steps(result)
 
 
