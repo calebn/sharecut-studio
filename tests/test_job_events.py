@@ -54,20 +54,33 @@ def test_two_concurrent_subscribers_each_get_the_full_stream() -> None:
     )
 
     async def scenario() -> tuple[list[dict], list[dict]]:
-        task_a = asyncio.create_task(_collect(job, keepalive_sec=5.0))
-        task_b = asyncio.create_task(_collect(job, keepalive_sec=5.0))
-        while job_listener_count(job.id) < 2:
-            await asyncio.sleep(0.01)
+        stream_a = stream_job_events(job, keepalive_sec=5.0)
+        stream_b = stream_job_events(job, keepalive_sec=5.0)
+        try:
+            initial_a = json.loads((await stream_a.__anext__()).removeprefix("data: ").strip())
+            initial_b = json.loads((await stream_b.__anext__()).removeprefix("data: ").strip())
+            for initial in (initial_a, initial_b):
+                assert initial["type"] == "status"
+                assert initial["job"]["id"] == job.id
+                assert initial["job"]["status"] == "running"
+            assert job_listener_count(job.id) == 2
 
-        def produce() -> None:
-            job.publish({"type": "progress", "message": "A"})
-            job.publish({"type": "progress", "message": "B"})
-            job.status = "ok"
-            job.publish({"type": "done", "job": job.snapshot()})
+            def produce() -> None:
+                job.publish({"type": "progress", "message": "A"})
+                job.publish({"type": "progress", "message": "B"})
+                job.status = "ok"
+                job.publish({"type": "done", "job": job.snapshot()})
 
-        await asyncio.to_thread(produce)
-        results_a, results_b = await asyncio.gather(task_a, task_b)
-        return results_a, results_b
+            await asyncio.to_thread(produce)
+            results_a = [initial_a]
+            results_b = [initial_b]
+            for stream, results in ((stream_a, results_a), (stream_b, results_b)):
+                while results[-1]["type"] != "done":
+                    frame = await stream.__anext__()
+                    results.append(json.loads(frame.removeprefix("data: ").strip()))
+            return results_a, results_b
+        finally:
+            await asyncio.gather(stream_a.aclose(), stream_b.aclose())
 
     results_a, results_b = asyncio.run(scenario())
     for results in (results_a, results_b):
@@ -135,23 +148,28 @@ def test_subscriber_queue_bounded_drop_oldest() -> None:
         loop = asyncio.get_running_loop()
         q1 = job_events_hub().subscribe(key, loop)
         q2 = job_events_hub().subscribe(key, loop)
-        for i in range(JOB_EVENT_QUEUE_MAX + 8):
-            publish_job_event(key, {"n": i})
-        await asyncio.sleep(0.05)
-        out1 = []
-        while not q1.empty():
-            out1.append(q1.get_nowait())
-        out2 = []
-        while not q2.empty():
-            out2.append(q2.get_nowait())
-        job_events_hub().unsubscribe(key, q1)
-        job_events_hub().unsubscribe(key, q2)
-        return out1, out2
+        try:
+            for i in range(JOB_EVENT_QUEUE_MAX + 8):
+                publish_job_event(key, {"n": i})
+
+            first1, first2 = await asyncio.wait_for(asyncio.gather(q1.get(), q2.get()), timeout=1.0)
+            out1 = [first1]
+            while not q1.empty():
+                out1.append(q1.get_nowait())
+            out2 = [first2]
+            while not q2.empty():
+                out2.append(q2.get_nowait())
+            return out1, out2
+        finally:
+            job_events_hub().unsubscribe(key, q1)
+            job_events_hub().unsubscribe(key, q2)
 
     out1, out2 = asyncio.run(scenario())
-    assert len(out1) <= JOB_EVENT_QUEUE_MAX
-    assert len(out2) <= JOB_EVENT_QUEUE_MAX
-    assert out1 == out2
+    expected = [{"n": i} for i in range(8, 264)]
+    assert out1 == expected
+    assert out2 == expected
+    assert len(out1) == JOB_EVENT_QUEUE_MAX
+    assert len(out2) == JOB_EVENT_QUEUE_MAX
 
 
 def test_bootstrap_job_publish_goes_through_the_same_hub() -> None:
