@@ -140,7 +140,7 @@ On a coarse pointer the track-row clip-light clear sits below the lane's meter,
 not up over the Solo button above it, so a tap on Solo's lower corner no longer
 reaches Clear clip light. The Add track row, the Listen **Open all** link, the
 track sheet's Label, Speaker and Role fields and Select range's In and Out
-fields and track checkboxes all hold the 44px floor; a native `select` takes it
+fields and track checkboxes, and the More tab's overlay toggle rows, all hold the 44px floor (`e2e/touch-floor.spec.ts` sweeps phone, tablet and landscape and names the dense-target exceptions); a native `select` takes it
 as `block-size` because WebKit ignores `min-block-size` on one. Transcript
 **Find and replace** and Pipeline **Add term** rows wrap their controls on a
 coarse pointer so landscape panels do not overflow (#1433).
