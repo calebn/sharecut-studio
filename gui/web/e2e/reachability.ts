@@ -66,6 +66,15 @@ export async function reachFailures(
       };
       const hidden = (el: Element) => {
         if (el.closest("[inert],[hidden],[aria-hidden='true']")) return true;
+        // A closed <details> hides everything in it except its own summary.
+        for (
+          let d = el.parentElement?.closest("details");
+          d;
+          d = d.parentElement?.closest("details")
+        ) {
+          if (!d.open && !(el.parentElement === d && el.tagName === "SUMMARY"))
+            return true;
+        }
         for (let n: Element | null = el; n; n = n.parentElement) {
           const s = getComputedStyle(n);
           if (s.display === "none" || s.visibility === "hidden") return true;
