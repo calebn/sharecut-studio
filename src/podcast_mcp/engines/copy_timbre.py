@@ -50,9 +50,13 @@ def _smoothing_matrix(bins: int) -> np.ndarray:
     One matrix product smooths every frame at once; it is the same filter as convolving
     each frame's row with a flat kernel in ``same`` mode, to rounding.
     """
+    if TIMBRE_SMOOTH_BINS % 2 == 0:
+        raise ValueError("TIMBRE_SMOOTH_BINS must be odd: the band is centred on each bin")
     index = np.arange(bins)
     reach = TIMBRE_SMOOTH_BINS // 2
-    return (np.abs(index[:, None] - index[None, :]) <= reach) / TIMBRE_SMOOTH_BINS
+    matrix = (np.abs(index[:, None] - index[None, :]) <= reach) / TIMBRE_SMOOTH_BINS
+    matrix.setflags(write=False)
+    return matrix
 
 
 def fine_spectra(samples: np.ndarray, frames: np.ndarray, *, sample_rate: int) -> np.ndarray:
