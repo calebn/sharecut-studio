@@ -42,13 +42,13 @@ from podcast_mcp.util.proxy_paths import (
     assert_allowed_local_gui_path,
     assert_safe_proxy_path,
 )
-from podcast_relay.guest_ws_log import log_guest_ws_close
 from podcast_mcp.util.ws_delivery import (
     WS_SEND_TIMEOUT_S,
     SerializedWsWriter,
     TextWsStream,
     ws_close_details,
 )
+from podcast_relay.guest_ws_log import log_guest_ws_close
 from podcast_relay.protocol import PROTOCOL_VERSION, msg
 
 log = logging.getLogger(__name__)

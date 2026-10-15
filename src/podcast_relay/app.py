@@ -35,6 +35,7 @@ from podcast_mcp.util.rate_limit import is_review_audio_path
 from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue, ws_close_details
 from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
+from podcast_relay.guest_ws_log import log_guest_ws_close
 from podcast_relay.limits import (
     check_proxy_rpm,
     check_register,
@@ -43,9 +44,11 @@ from podcast_relay.limits import (
     rate_limit_detail,
     relay_rate_limit_enabled,
 )
-from podcast_relay.guest_ws_log import log_guest_ws_close
 from podcast_relay.offline import offline_page
 from podcast_relay.protocol import msg, new_id
+from podcast_relay.reports import router as reports_router
+from podcast_relay.reports import start_report_worker
+from podcast_relay.version import read_relay_git_sha, read_relay_version
 
 log = logging.getLogger(__name__)
 
@@ -71,10 +74,6 @@ def _close_relay_guest_stream(
         )
     stream.close(code, reason, discard=discard)
 
-
-from podcast_relay.reports import router as reports_router
-from podcast_relay.reports import start_report_worker
-from podcast_relay.version import read_relay_git_sha, read_relay_version
 
 _OFFLINE_HTML = offline_page(
     title="Host offline",
