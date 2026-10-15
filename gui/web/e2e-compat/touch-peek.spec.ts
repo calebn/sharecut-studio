@@ -11,6 +11,7 @@ import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
 import { e2eProjectPath } from "../e2e/env";
 import { type Finger, newFinger, type Point } from "../e2e/finger";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
+import { layer } from "../e2e/lifecycleAudit";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -84,6 +85,7 @@ async function open(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (SIZES[size].width < 768) await openPhoneTimeline(page);
+  await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
   await expect(
     page.locator('circle[aria-label^="Envelope point 2"]'),

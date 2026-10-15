@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, type TestInfo } from "@playwright/test";
+import { layer } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
@@ -73,6 +74,7 @@ export async function exerciseEnvelopeRecovery(
       await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
       if (shell === "phone") await openPhoneTimeline(page);
+      await layer(page, "Volume envelope", true);
       const lane = page.locator(".lane-row").first();
       const owner = lane.locator('circle[aria-label^="Envelope point 1 at"]');
       await expect(owner).toBeVisible();

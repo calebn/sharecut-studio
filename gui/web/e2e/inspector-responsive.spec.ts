@@ -229,6 +229,14 @@ for (const {
             );
             await pointerControl(
               page,
+              page.getByRole("button", {
+                name: "Show volume envelope",
+                exact: true,
+              }),
+              receipts,
+            );
+            await pointerControl(
+              page,
               page.getByRole("button", { name: "Add point", exact: true }),
               receipts,
             );
@@ -472,6 +480,7 @@ test.describe("independent keyboard envelope root32 phone", () => {
           });
           if (await expand.count()) await enter("Expand");
           await enter("Add volume envelope");
+          await enter("Show volume envelope");
           await enter("Add point");
           const time = page.getByLabel("Time (seconds on timeline)", {
             exact: true,
@@ -768,6 +777,14 @@ test.describe("root32 phone many points and request recovery", () => {
             page,
             page.getByRole("button", {
               name: "Edit volume envelope",
+              exact: true,
+            }),
+            receipts,
+          );
+          await pointerControl(
+            page,
+            page.getByRole("button", {
+              name: "Show volume envelope",
               exact: true,
             }),
             receipts,

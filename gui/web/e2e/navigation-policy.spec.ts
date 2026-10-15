@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import { layer } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -207,6 +208,7 @@ test("F09 host numeric inspector and view-only guest select without envelope mut
   await withShareableProject(
     async (projectPath) => {
       await openHostShare(page, projectPath);
+      await layer(page, "Volume envelope", true);
       await setTheme(page, "dark");
       await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
       const owner = page
@@ -233,6 +235,7 @@ test("F09 host numeric inspector and view-only guest select without envelope mut
       try {
         const guest = await context.newPage();
         await openGuestShare(guest, token);
+        await layer(guest, "Volume envelope", true);
         await setTheme(guest, "dark");
         await expect(guest.locator("html")).toHaveAttribute(
           "data-theme",

@@ -126,8 +126,10 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
         .getByRole("button", { name: "Open track details, guest", exact: true })
         .click();
       await guest
-        .getByRole("button", { name: /volume envelope$/ })
-        .first()
+        .getByRole("button", { name: "Add volume envelope", exact: true })
+        .click();
+      await guest
+        .getByRole("button", { name: "Show volume envelope", exact: true })
         .click();
       const editing = guest.getByText("Editing volume envelope", {
         exact: true,
