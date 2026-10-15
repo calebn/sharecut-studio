@@ -6,6 +6,7 @@ import asyncio
 import base64
 import contextlib
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -42,8 +43,35 @@ from podcast_relay.limits import (
     rate_limit_detail,
     relay_rate_limit_enabled,
 )
+from podcast_relay.guest_ws_log import log_guest_ws_close
 from podcast_relay.offline import offline_page
 from podcast_relay.protocol import msg, new_id
+
+log = logging.getLogger(__name__)
+
+
+def _close_relay_guest_stream(
+    stream: GuestWsStream,
+    site: str,
+    code: int,
+    reason: str,
+    *,
+    share_token: str = "",
+    stream_id: str = "",
+    discard: bool = False,
+) -> None:
+    if stream.close_code == 1000:
+        log_guest_ws_close(
+            "relay",
+            site,
+            share_token=share_token,
+            stream_id=stream_id,
+            code=code,
+            reason=reason,
+        )
+    stream.close(code, reason, discard=discard)
+
+
 from podcast_relay.reports import router as reports_router
 from podcast_relay.reports import start_report_worker
 from podcast_relay.version import read_relay_git_sha, read_relay_version
@@ -136,6 +164,7 @@ class TunnelSession:
     capabilities: dict[str, list[str]] = field(default_factory=dict)
     pending: dict[str, PendingHttp] = field(default_factory=dict)
     ws_streams: dict[str, GuestWsStream] = field(default_factory=dict)
+    ws_stream_tokens: dict[str, str] = field(default_factory=dict)
     # Guest/HTTP → host frames. A dedicated pump task drains this so guest
     # handlers never await tunnel send_json directly (avoids TestClient nested
     # WebSocket deadlocks and keeps the tunnel receive loop responsive).
@@ -232,9 +261,18 @@ class RelayState:
             for t in session.share_tokens:
                 self.token_to_host[t] = session.host_id
             if old is not None and old is not session:
-                for stream in old.ws_streams.values():
-                    stream.close(1013, "host tunnel replaced", discard=True)
+                for stream_id, stream in list(old.ws_streams.items()):
+                    _close_relay_guest_stream(
+                        stream,
+                        "relay.host_tunnel_replaced",
+                        1013,
+                        "host tunnel replaced",
+                        share_token=old.ws_stream_tokens.get(stream_id, ""),
+                        stream_id=stream_id,
+                        discard=True,
+                    )
                 old.ws_streams.clear()
+                old.ws_stream_tokens.clear()
                 old.to_host.close(discard=True)
         if old is not None and old is not session:
             with contextlib.suppress(Exception):
@@ -254,9 +292,18 @@ class RelayState:
                 if self.token_to_host.get(t) == host_id:
                     self.token_to_host.pop(t, None)
             # Keep token_bindings so another host cannot steal after disconnect.
-            for stream in list(session.ws_streams.values()):
-                stream.close(1013, "host offline", discard=True)
+            for stream_id, stream in list(session.ws_streams.items()):
+                _close_relay_guest_stream(
+                    stream,
+                    "relay.host_offline",
+                    1013,
+                    "host offline",
+                    share_token=session.ws_stream_tokens.get(stream_id, ""),
+                    stream_id=stream_id,
+                    discard=True,
+                )
             session.ws_streams.clear()
+            session.ws_stream_tokens.clear()
             session.to_host.close(discard=True)
 
     async def update_shares(
@@ -476,7 +523,17 @@ def create_relay_app() -> FastAPI:
                             try:
                                 stream.queue.put_nowait(str(data.get("text") or ""))
                             except asyncio.QueueFull:
-                                stream.close(1013, "guest backlog full", discard=True)
+                                _close_relay_guest_stream(
+                                    stream,
+                                    "relay.guest_backlog_full",
+                                    1013,
+                                    "guest backlog full",
+                                    share_token=session.ws_stream_tokens.get(
+                                        str(data.get("id") or ""), ""
+                                    ),
+                                    stream_id=str(data.get("id") or ""),
+                                    discard=True,
+                                )
                                 await session.enqueue_to_host(
                                     msg(
                                         "ws_close",
@@ -486,9 +543,18 @@ def create_relay_app() -> FastAPI:
                                     )
                                 )
                     elif mtype == "ws_close":
-                        stream = session.ws_streams.pop(str(data.get("id") or ""), None)
+                        stream_id = str(data.get("id") or "")
+                        stream = session.ws_streams.pop(stream_id, None)
                         if stream is not None:
-                            stream.close(*ws_close_details(data.get("code"), data.get("reason")))
+                            code, reason = ws_close_details(data.get("code"), data.get("reason"))
+                            _close_relay_guest_stream(
+                                stream,
+                                "relay.host_ws_close",
+                                code,
+                                reason,
+                                share_token=session.ws_stream_tokens.pop(stream_id, ""),
+                                stream_id=stream_id,
+                            )
                     elif mtype == "ping":
                         await session.send(msg("pong"))
                     elif mtype == "pong":
@@ -776,6 +842,7 @@ def create_relay_app() -> FastAPI:
         stream_id = new_id()
         stream = GuestWsStream()
         session.ws_streams[stream_id] = stream
+        session.ws_stream_tokens[stream_id] = token
 
         async def close_guest(code: int, reason: str) -> None:
             await websocket.close(code=code, reason=reason)
@@ -800,7 +867,15 @@ def create_relay_app() -> FastAPI:
                             break
                         await guest_writer.send(text)
                 except TimeoutError:
-                    stream.close(1013, "slow consumer", discard=True)
+                    _close_relay_guest_stream(
+                        stream,
+                        "relay.pump_to_guest_slow_consumer",
+                        1013,
+                        "slow consumer",
+                        share_token=token,
+                        stream_id=stream_id,
+                        discard=True,
+                    )
 
             pump = asyncio.create_task(_pump_to_guest())
             recv = asyncio.create_task(websocket.receive_text())
@@ -852,9 +927,18 @@ def create_relay_app() -> FastAPI:
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await closing
         except asyncio.QueueFull:
-            stream.close(1013, "tunnel backlog full", discard=True)
+            _close_relay_guest_stream(
+                stream,
+                "relay.tunnel_backlog_full",
+                1013,
+                "tunnel backlog full",
+                share_token=token,
+                stream_id=stream_id,
+                discard=True,
+            )
         finally:
             session.ws_streams.pop(stream_id, None)
+            session.ws_stream_tokens.pop(stream_id, None)
             with contextlib.suppress(Exception):
                 await session.enqueue_to_host(
                     msg(
