@@ -372,6 +372,13 @@ audited finding.
   dragging; and the keyboard steps through targets. This is WCAG's
   "equivalent control" exception (2.5.5, 2.5.8) plus a dragging alternative
   (2.5.7).
+  `gui/web/e2e/touch-floor.spec.ts` sweeps every control on a coarse pointer
+  (phone, tablet, landscape) and fails on any under 44 CSS px that is not one
+  of its named exceptions: canvas dense targets, inline transcript words and
+  timestamps (a taller hit area would take the next line's taps; the ruler
+  and transport seek at 44 px), the track reorder grip (Move up/down are the
+  44 px equivalent), and tablet status chips (the tab strip carries the same
+  actions). A new exception needs a line there and here (#1422).
 - [ ] No hover-only, mouse-only, or double-click-only path for any
   core flow; drags and gestures use pointer events.
 - [ ] Dialogs render as bottom sheets on phone viewports; primary
@@ -636,3 +643,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   rebuilds. Mod+B stays as "update now". Until the project loads the pill reads
   "Checking mix…" instead of claiming "Mix up to date".
 - 2026-10-14 — Save state distinguishes rejected from uncertain command outcomes (#1478): refusal explains that the editor must correct and resubmit, while an unknown result gives the safe recovery for retryable edits or Undo/Redo History inspection.
+- 2026-10-15 — A coarse-pointer sweep of the shell pins the 44 px floor (#1422): the More tab's overlay toggles (Pending edits, Markers, Comments and the rest) were 19 px tall and now hold the floor as whole rows, and the remaining sub-44 controls are the named dense-target exceptions.

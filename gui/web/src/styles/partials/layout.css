@@ -1181,6 +1181,13 @@ button.save-dot {
   user-select: none;
 }
 
+@media (pointer: coarse) {
+  /* The whole row is the toggle, so the row carries the floor, not the 0.75rem swatch. */
+  .overlay-legend-item {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .overlay-legend-swatch {
   inline-size: 0.75rem;
   block-size: 0.75rem;

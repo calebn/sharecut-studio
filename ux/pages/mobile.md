@@ -61,6 +61,8 @@ touch devices and in the phone layout, including when you use a mouse.
 Transcript **Find and replace** and Pipeline **Add term** rows wrap their
 controls on a coarse pointer so landscape panels stay inside the panel.
 
+The overlay toggles in **More** (Pending edits, Markers, Comments and the rest) are whole rows at least 44 CSS px tall on touch.
+
 An inspector stays open while the timeline remains interactive behind it. Fine pointers can drag pending-cut edges. On touch, selected cuts show 44px edge targets only when the drawn region is at least 44px wide and the lane fits both targets; otherwise choose **Edit timing** in the selected action card to focus Source start in the inspector. In compact mode, the peek strip's Start and End rows hold timing. The review card docks in the pinned header, and **Expand**, **Collapse**, and **Close** remain available there. When the compact inspector is open, its header keeps Undo and Redo visible at peek, half and full height, and the strip covers the tool rail so the lanes keep their room. Tapping an unavailable history button briefly shows "No undo" or "No redo" inside that button. The hint clears when that action becomes available. If the action becomes unavailable again, the hint stays clear until another tap. The full reason is announced for screen readers, and the feedback leaves the inspector content clear. The Impact panel lists every pending edit for selection. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
 
 While the compact inspector is open, keyboard navigation skips the covered tool
