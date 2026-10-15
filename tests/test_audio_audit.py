@@ -100,8 +100,11 @@ def test_list_low_audibility_flags_quiet_word(sample_wav: Path, tmp_path: Path):
     ]
 
     with (
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-50.0),
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.speech_rms_db", return_value=-50.0),
+        patch(
+            "podcast_mcp.engines.audio_audit.TrackRmsCache.speech_profile",
+            new=_floor_at(-40.0),
+        ),
     ):
         flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1
@@ -2059,6 +2062,53 @@ def test_a_hot_copy_on_another_recording_does_not_outrank_a_quiet_mic_own_speech
     """#1495: B carries A 12 dB hotter than A's own mic; on raw levels B always dominates A."""
     project = _two_mic_project(tmp_path)
     assert _own_word_verdict(_voice_scale_caches(), project, start=1.0) == "audible"
+
+
+def test_whisper_above_low_band_hvac_is_audible_in_the_speech_band() -> None:
+    """#1377: broadband room from HVAC must not call band-limited speech inaudible."""
+    from podcast_mcp.engines import audio_audit as aa
+
+    rate = 8000
+    duration = 8.0
+    clock = np.arange(int(rate * duration)) / rate
+    hvac = 0.011 * np.sin(2 * np.pi * 90.0 * clock)
+    loud = (clock >= 0.5) & (clock < 1.5)
+    speech = np.where(loud, 0.08 * np.sin(2 * np.pi * 1200.0 * clock), 0.0)
+    word_start, word_end = 3.0, 3.4
+    inside = (clock >= word_start) & (clock < word_end)
+    whisper = np.where(inside, 0.011 * np.sin(2 * np.pi * 2000.0 * clock), 0.0)
+    samples = (hvac + speech + whisper).astype(np.float32)
+    cache = TrackRmsCache(samples=samples, sample_rate=rate)
+
+    broadband_floor = cache.profile.audibility_floor_db
+    speech_floor = cache.speech_profile.audibility_floor_db
+    word_broadband = cache.rms_db(word_start, word_end)
+    word_speech = cache.speech_rms_db(word_start, word_end)
+    assert word_broadband is not None and word_speech is not None
+    assert word_broadband < broadband_floor
+    assert word_speech >= speech_floor
+
+    caches = TrackRmsCacheSet(caches={"host": cache})
+    offsets = aa._voice_offsets(["host"], caches)
+    floors = aa._voice_floors(["host"], caches, offsets)
+    levels = aa._track_levels(
+        EpisodeProject.create("ep", "/tmp"),
+        ["host"],
+        word_start,
+        word_end,
+        {},
+        caches,
+        offsets,
+    )
+    status, _ = aa._classify_word_audibility(
+        "host",
+        levels.get("host"),
+        levels,
+        policy=AnalysisPolicy(),
+        bleed_sources=set(),
+        voice_floors=floors,
+    )
+    assert status == "audible"
 
 
 def test_reconcile_verdicts_do_not_depend_on_balance_gain_or_recording_gain(
