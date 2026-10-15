@@ -251,11 +251,14 @@ def approve_edits(
     held_out: list[HeldEdit] | None = None,
     asked_out: list[AskedEdits] | None = None,
     override_peer_holds: set[str] | None = None,
+    accept_leaned_on: bool = False,
 ) -> int:
     """Apply the pending edits ``ids``.
 
     ``override_peer_holds`` (Apply suggested actions): a cut held for another track's
     speech or bleed applies as a session ripple instead, and its id is added to the set.
+    ``accept_leaned_on`` lets the rest of the batch apply beside a cut left pending: the
+    caller has already accepted the other speech those cuts clear (Apply suggested actions).
 
     Each session remove clears the speech guard now, against the current transcript.
     Unless ``confirm_cut_speech``, a batch whose ripples would cut speech outside their
@@ -355,7 +358,7 @@ def approve_edits(
     # An applied cut beside a left-pending one may have cleared speech on the assumption
     # that the other removes it: then nothing applies on a guess, as before.
     left_pending = (*asked_ids, *(h.edit_id for h in held))
-    leaned_on = any(
+    leaned_on = not accept_leaned_on and any(
         _near(extents[a], extents[x]) or _near_on_timeline(on_timeline[a], on_timeline[x])
         for a in applied_removes
         for x in left_pending

@@ -560,7 +560,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
             {playedMutes
               .map(
                 (region) =>
-                  `${region.start_s.toFixed(3)}–${region.end_s.toFixed(3)} s`,
+                  `${region.start_s.toFixed(3)}–${region.end_s.toFixed(3)} s${region.gain_db ? ` (${region.gain_db} dB)` : ""}`,
               )
               .join(", ")}
           </DefItem>

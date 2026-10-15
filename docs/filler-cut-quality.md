@@ -558,9 +558,7 @@ cuts, the trim's own and each peer's:
   trim is never merged into a filler, a track-local cut or an NL cut beside it
   (`_keeps_independent_review`), so its label, its scope and its pad stay its own. The
   server marks each pause trim that stays for review `listen_one_by_one`
-  (`tighten_hits.py`), and Studio's Apply suggested actions takes that flag, not a reason prefix it
-  parses itself: a pause trim that stays for review remains pending and is named as held, and a hit the server
-  never classified is not applied either. A trim with nothing left is skipped as `no_air`.
+  (`tighten_hits.py`) for the Tighten list. Apply suggested actions re-runs the join check at apply time instead of reading that flag: a pause trim whose join still needs review remains pending and is named as held. A trim with nothing left is skipped as `no_air`.
 - **Approval reads what the lanes play now.** Approving a session cut re-runs the speech
   guard against the project as it stands. The guard reads a rendered stem only while it is
   fresh, and otherwise the recordings through each track's lane (`lane_window`, the mapping

@@ -33,7 +33,10 @@ export const DOCUMENT_COMMAND_TIMEOUT_MS = 60_000;
  * but healthy batch is not cut off at one minute and shown as "Still sending".
  */
 export const LONG_DOCUMENT_COMMAND_TIMEOUT_MS = 15 * 60_000;
-const LONG_DOCUMENT_COMMANDS = new Set(["ApproveEdits"]);
+const LONG_DOCUMENT_COMMANDS = new Set([
+  "ApproveEdits",
+  "ApplySuggestedActions",
+]);
 
 function commandTimeoutMs(body: Record<string, unknown>): number {
   return typeof body.type === "string" && LONG_DOCUMENT_COMMANDS.has(body.type)

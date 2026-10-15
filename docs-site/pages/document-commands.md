@@ -7,11 +7,9 @@ Envelope fields on every command: `client_id`, `client_seq` (optional, >= 1; omi
 Which product surfaces expose related workflows: [Capabilities](#/capabilities).
 
 `ApproveEdits.allow_review` is transient caller authority for a fresh pause join review.
-It defaults to `true` for selected approval. Safe bulk approval sends `false` and
-holds the whole batch if a current pause join needs review. Turning Avoid harsh
-cuts off retains deliberate review authority. Pauses already marked for one-by-one
-listening remain excluded from bulk approval. `confirm_cut_speech` never widens
-this authority.
+It defaults to `true` for selected approval. `ApplySuggestedActions` never holds that
+authority: a pause whose current join needs review stays pending and is named in `held`
+while the rest of the batch applies. `confirm_cut_speech` never widens this authority.
 
 <!-- document-commands:generated -->
 

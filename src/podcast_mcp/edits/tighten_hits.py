@@ -1,10 +1,10 @@
 """Tighten hits: which pending decisions are tighten proposals, which are harsh, and which
 are listened to one at a time.
 
-The rules behind Studio **Apply eligible** (via ``pending_edits[].harsh`` and
-``pending_edits[].listen_one_by_one``) and the agent ``approve_edits_tool(apply_all_safe=True)``
-/ ``podcast edit approve --all-safe`` twins. Studio reads both flags from the server and
-holds no rule of its own.
+The rules behind the Tighten list's harsh-only filter and its one-by-one marker (via
+``pending_edits[].harsh`` and ``pending_edits[].listen_one_by_one``). Studio reads both flags
+from the server and holds no rule of its own. Apply suggested actions does not filter on
+them: the server applies each sound's own action and names what stays pending.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def join_risk_from_decision(decision: EditDecision) -> dict[str, Any] | None:
 
 
 def is_harsh_tighten_hit(decision: EditDecision) -> bool:
-    """A tighten hit that needs review or carries a join risk; Avoid harsh cuts skips it."""
+    """A tighten hit that needs review or carries a join risk; the harsh-only filter lists it."""
     return is_tighten_reason(decision.reason) and (
         decision.review_required or join_risk_from_decision(decision) is not None
     )

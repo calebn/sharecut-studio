@@ -561,15 +561,12 @@ def _consume_source_remove(
             )
         except ValueError as blocked:
             peers = tuple(getattr(blocked, "peers", ()))
-            if not (peers and override_peer_holds is not None):
-                return CutScopeHold(edit.id, peers, "peer_speech" if peers else "scope_unavailable")
-            override_peer_holds.add(edit.id)
-            resolved = None
+            return CutScopeHold(edit.id, peers, "peer_speech" if peers else "scope_unavailable")
         if isinstance(resolved, CutScopeUnavailable):
             return CutScopeHold(edit.id, (), "scope_unavailable")
-        if resolved is not None and resolved.scope == "track":
+        if resolved.scope == "track":
             peers = resolved.guard.blocking_track_ids if resolved.guard else ()
-            hold = (
+            hold: Literal["speaker_bleed", "peer_speech"] | None = (
                 "speaker_bleed"
                 if resolved.cause == "speaker_bleed"
                 else "peer_speech"

@@ -548,8 +548,9 @@ class EditService:
         ``ids`` narrows the batch like Studio's filtered list; ``overrides`` maps a decision
         id to another action (``cut`` / ``shorten`` / ``lower`` / ``leave``) for that sound.
         """
-        from podcast_mcp.edits.decisions import approve_edits, reject_edits
+        from podcast_mcp.edits.decisions import approve_edits, reject_edits, unplayed_pending_ids
         from podcast_mcp.edits.sound_actions import SUGGESTED_ACTIONS
+        from podcast_mcp.edits.source_removals import record_suggested_cut_speech
         from podcast_mcp.edits.suggested_actions import (
             SuggestedActionsResult,
             another_speaker_over,
@@ -579,7 +580,7 @@ class EditService:
             listed = [e for e in project.edit_decisions if pending(e)]
             actions = {e.id: overrides.get(e.id) or suggested_action_for(e) for e in listed}
             cut_ids = [e.id for e in listed if actions[e.id] in ("cut", "shorten")]
-            over = {e.id for e in listed if e.id in set(cut_ids) and e.cut_speech is not None}
+            over: set[str] = set()
 
             held: list[HeldEdit] = []
             overridden: set[str] = set()
@@ -605,13 +606,21 @@ class EditService:
                 p.edit_decisions = [e for e in p.edit_decisions if e.id not in done]
                 if cut_ids:
                     before = {e.id for e in p.edit_decisions}
+                    stale = unplayed_pending_ids(p, set(cut_ids))
+                    live = [i for i in cut_ids if i not in stale]
+                    for edit_id in live:
+                        decision = by_id[edit_id]
+                        if decision.scope != "track" and decision.exact_range is None:
+                            record_suggested_cut_speech(p, decision)
+                    over.update(i for i in live if by_id[i].cut_speech is not None)
                     approve_edits(
                         p,
-                        cut_ids,
+                        live,
                         confirm_cut_speech=True,
                         allow_review=False,
                         held_out=held,
                         override_peer_holds=overridden,
+                        accept_leaned_on=True,
                     )
                     gone.update(before - {e.id for e in p.edit_decisions})
 

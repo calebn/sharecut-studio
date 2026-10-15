@@ -19,6 +19,8 @@ export interface ClipMuteRegion {
   /** Fade over the region's start and end; the server defaults both to 5 ms. */
   fade_out_ms?: number;
   fade_in_ms?: number;
+  /** Negative dB: the span is turned down by this much instead of muted (Lower). */
+  gain_db?: number | null;
 }
 
 /** Encoder-detected sample-peak clipping, in source seconds. */
