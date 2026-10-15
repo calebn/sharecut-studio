@@ -41,9 +41,6 @@ test.describe("touch field size", () => {
         .getByRole("button", { name: "Show volume envelope", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "Show volume envelope", exact: true })
-        .click();
-      await page
         .getByRole("button", { name: "Add point", exact: true })
         .click();
       const time = page.getByLabel("Time (seconds on timeline)", {
