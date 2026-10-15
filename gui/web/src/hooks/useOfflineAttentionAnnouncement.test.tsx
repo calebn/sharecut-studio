@@ -1,6 +1,7 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GuestAttentionBanner } from "../layout/GuestAttentionBanner";
+import { ATTENTION_BANNER_ID } from "../layout/GuestAttentionBannerView";
 import { StatusBar } from "../layout/StatusBar";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -27,6 +28,12 @@ const offlineStore = vi.hoisted(() => {
 });
 
 vi.mock("../state/offlineStore", () => offlineStore);
+
+function attentionLiveRegion() {
+  const banner = document.getElementById(ATTENTION_BANNER_ID);
+  expect(banner).toBeTruthy();
+  return within(banner as HTMLElement).getByRole("status");
+}
 
 describe("useOfflineAttentionAnnouncement", () => {
   beforeEach(() => {
@@ -60,19 +67,19 @@ describe("useOfflineAttentionAnnouncement", () => {
       name: "Needs attention. 2 pending",
     });
     expectOutsideLiveRegions(container, /^Attention$/);
-    const polite = screen.getByRole("status");
+    const polite = attentionLiveRegion();
     expect(polite.getAttribute("aria-live")).toBe("polite");
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Needs attention. 2 pending",
-    );
     expect(polite.textContent).toBe("Needs attention. 2 pending");
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+    expect(screen.getAllByRole("status")).toHaveLength(2);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(region).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
-    expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
+    expect(polite.textContent).toBe("Needs attention. 2 pending");
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(0);
   });
 
   it("announces unreadable saved edits before the first successful read", async () => {
@@ -87,9 +94,9 @@ describe("useOfflineAttentionAnnouncement", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(useDawStore.getState().statusAnnouncement).toMatch(
+    expect(attentionLiveRegion().textContent).toMatch(
       /Saved edits could not be read/,
     );
-    expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
   });
 });
