@@ -290,7 +290,7 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
   expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
 });
 
-test("tablet and desktop shells keep every control a finger can use across 768 to 1101 wide", async ({
+test("tablet and desktop shells keep every control a finger can use across 768 to 1181 wide", async ({
   page,
 }) => {
   expect(await sweep(page, TABLETS), "controls a finger cannot use").toBe("");
