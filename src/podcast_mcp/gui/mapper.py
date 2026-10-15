@@ -817,6 +817,9 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
     """
     rows: list[dict[str, Any]] = []
     timeline = SessionTimeline(project)
+    # One selected-recording word map per (track, source); each join reused to
+    # re-map the full transcript (#1535).
+    word_span_cache: dict[tuple[str, str | None], list[list[tuple[TimelineSec, TimelineSec]]]] = {}
     track_ids = sorted({c.track_id for c in project.clips})
     for track_id in track_ids:
         clips = clips_for_track(project, track_id)
@@ -839,11 +842,14 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                 assert left_transcript is not None
                 active_words = left_transcript.words
                 archived_words = [entry.word for entry in left_transcript.archived_words]
-                word_spans = timeline.map_selected_word_spans(
-                    track_id,
-                    left.source_id,
-                    [(w.start, w.end) for w in [*active_words, *archived_words]],
-                )
+                span_key = (track_id, left.source_id)
+                if span_key not in word_span_cache:
+                    word_span_cache[span_key] = timeline.map_selected_word_spans(
+                        track_id,
+                        left.source_id,
+                        [(w.start, w.end) for w in [*active_words, *archived_words]],
+                    )
+                word_spans = word_span_cache[span_key]
                 preview_words = [
                     (index, ordinal, word)
                     for index, (ordinal, word) in enumerate(
