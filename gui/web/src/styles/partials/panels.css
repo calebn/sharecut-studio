@@ -1783,6 +1783,41 @@ button.history-row {
   gap: var(--space-3);
 }
 
+/* #1433: 44px controls must wrap inside narrow landscape panels (iPad). */
+@media (pointer: coarse) {
+  .transcript-find-replace form {
+    align-items: stretch;
+    min-inline-size: 0;
+  }
+
+  .transcript-find-replace form .ui-field {
+    flex: 1 1 12rem;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    margin-bottom: 0;
+  }
+
+  .transcript-find-replace form .ui-field input {
+    box-sizing: border-box;
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  .pipeline-vocabulary-field form {
+    align-items: stretch;
+    min-inline-size: 0;
+  }
+
+  .pipeline-vocabulary-field form input {
+    flex: 1 1 10rem;
+    min-inline-size: 0;
+  }
+
+  .pipeline-vocabulary-field form .ui-control {
+    flex-shrink: 0;
+  }
+}
+
 .edit-boundary-preview {
   font-size: var(--font-size-body);
   line-height: 1.4;

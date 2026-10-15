@@ -141,7 +141,9 @@ not up over the Solo button above it, so a tap on Solo's lower corner no longer
 reaches Clear clip light. The Add track row, the Listen **Open all** link, the
 track sheet's Label, Speaker and Role fields and Select range's In and Out
 fields and track checkboxes all hold the 44px floor; a native `select` takes it
-as `block-size` because WebKit ignores `min-block-size` on one.
+as `block-size` because WebKit ignores `min-block-size` on one. Transcript
+**Find and replace** and Pipeline **Add term** rows wrap their controls on a
+coarse pointer so landscape panels do not overflow (#1433).
 
 Round 9 (#1181) moved the strip above the tool rail after an Undo tap could
 nudge a pending edit. Issue #1205 moves the shared Undo and Redo controls into
