@@ -33,7 +33,12 @@ const VIEWPORTS: Record<
   "tablet-short": { width: 768, height: 500, outcome: "docked" },
   tablet: { width: 820, height: 1180, outcome: "docked-regular" },
   "tablet-768": { width: 768, height: 1024, outcome: "docked-regular" },
-  "desktop-1180": { width: 1180, height: 820, outcome: "floating" },
+  "tablet-landscape-1180": {
+    width: 1180,
+    height: 820,
+    outcome: "docked-regular",
+  },
+  "desktop-1181": { width: 1181, height: 820, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
   "desktop-short": { width: 1280, height: 440, outcome: "inline" },
 };

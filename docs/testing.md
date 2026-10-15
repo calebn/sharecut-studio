@@ -1648,7 +1648,7 @@ test; other rows are whole tests.
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| tablet and desktop shells keep every control a finger can use across 768 to 1101 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| tablet and desktop shells keep every control a finger can use across 768 to 1181 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the tablet sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
