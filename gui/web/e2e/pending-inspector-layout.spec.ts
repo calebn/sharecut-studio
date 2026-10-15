@@ -269,7 +269,7 @@ test.describe("Pending inspector layout", () => {
       recovery.getByRole("button", { name: "Waive with reason" }),
     ).toBeAttached();
 
-    const attention = page.getByRole("alert", { name: /^Needs attention/ });
+    const attention = page.getByRole("region", { name: /^Needs attention/ });
     const details = attention.locator("details");
     await details
       .getByLabel("View attention details and recovery actions")

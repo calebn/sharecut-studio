@@ -252,7 +252,7 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
 
-    const alert = await screen.findByRole("alert", {
+    const alert = await screen.findByRole("region", {
       name: "Needs attention. 1 pending, 1 conflict",
     });
     expect(within(alert).getByText("Attention", { exact: true })).toBeVisible();
@@ -309,7 +309,7 @@ describe("MobileShell", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Not saved yet · 2 waiting to send" }),
     );
-    expect(screen.getByRole("alert")).toHaveFocus();
+    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveFocus();
   });
 
   it("provides exactly one project heading in every phone mode", async () => {

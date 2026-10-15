@@ -282,7 +282,7 @@ test("tablet unreadable save light stays passive and its Retry has a full touch 
       scrollHeight,
       "passive failed bar does not scroll",
     ).toBeLessThanOrEqual(clientHeight);
-    const attention = page.getByRole("alert", {
+    const attention = page.getByRole("region", {
       name: /Saved edits could not be read/,
     });
     await attention.locator("summary").click();

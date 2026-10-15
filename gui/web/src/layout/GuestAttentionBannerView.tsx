@@ -2,7 +2,8 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { OfflineConflict } from "../state/offlineStore";
 import { Button } from "../ui/Button";
-import { overflowLabel, plural } from "../utils/format";
+import { overflowLabel } from "../utils/format";
+import { attentionCountLabel, attentionRegionLabel } from "./attentionLabel";
 
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
 export const ATTENTION_LISTED_CONFLICTS = 5;
@@ -102,22 +103,13 @@ export function GuestAttentionBannerView({
     conflicts.length - ATTENTION_LISTED_CONFLICTS,
   );
   const attentionCount = pending + conflicts.length;
-  const countLabel = [
-    pending > 0 ? `${pending} pending` : "",
-    conflicts.length > 0
-      ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const alertLabel = [
-    "Needs attention",
-    countLabel,
-    unreadable ? "Saved edits could not be read" : "",
-    dismissFailed ? "Dismissal failed" : "",
-  ]
-    .filter(Boolean)
-    .join(". ");
+  const countLabel = attentionCountLabel(pending, conflicts.length);
+  const regionLabel = attentionRegionLabel({
+    pending,
+    conflictCount: conflicts.length,
+    unreadable,
+    dismissFailed,
+  });
 
   return (
     <>
@@ -141,9 +133,9 @@ export function GuestAttentionBannerView({
             )
               focusedRef.current = null;
           }}
-          role="alert"
+          role="region"
           tabIndex={-1}
-          aria-label={alertLabel}
+          aria-label={regionLabel}
         >
           <details className="guest-attention-details">
             <summary
@@ -151,7 +143,7 @@ export function GuestAttentionBannerView({
               aria-label="View attention details and recovery actions"
             >
               <strong>Attention</strong>
-              <span role="img" aria-label={countLabel || alertLabel}>
+              <span role="img" aria-label={countLabel || regionLabel}>
                 {attentionCount || "!"}
               </span>
               <span>Details</span>

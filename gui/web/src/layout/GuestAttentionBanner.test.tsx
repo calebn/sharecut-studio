@@ -104,7 +104,9 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 pending/);
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 pending/);
     expect(offlineStore.loadConflicts).not.toHaveBeenCalled();
     expect(offlineStore.loadHostConflicts).toHaveBeenCalledWith("/tmp/p.json");
 
@@ -120,7 +122,9 @@ describe("GuestAttentionBanner", () => {
       "/tmp/p.json",
       [expect.objectContaining({ command: expect.any(Object) })],
     );
-    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 pending/);
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 pending/);
   });
 
   it("uses the share path: loadConflicts(token), no host command count", async () => {
@@ -130,7 +134,9 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByRole("alert")).toHaveAccessibleName(/1 conflict/);
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 conflict/);
     expect(offlineStore.loadConflicts).toHaveBeenCalledWith("tok-sample");
     expect(offlineStore.loadHostCommandCount).not.toHaveBeenCalled();
 
@@ -141,7 +147,9 @@ describe("GuestAttentionBanner", () => {
     expect(offlineStore.dismissConflicts).toHaveBeenCalledWith("tok-sample", [
       expect.objectContaining({ command: expect.any(Object) }),
     ]);
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps a newer same-command outcome visible and fenced while dismissal is pending", async () => {
@@ -173,7 +181,9 @@ describe("GuestAttentionBanner", () => {
     );
 
     openDetails();
-    expect(screen.getByRole("alert")).toHaveTextContent("Newer refusal.");
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveTextContent("Newer refusal.");
     expect(volatileOutcomeFor(path, "same-command")).toMatchObject({
       reason: "Newer refusal.",
     });
@@ -189,12 +199,16 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
     offlineStore.loadHostCommandCount.mockResolvedValue(3);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
-    expect(screen.getByRole("alert")).toHaveAccessibleName(/3 pending/);
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/3 pending/);
   });
 
   it("shows retained-work status when the initial loads reject", async () => {
@@ -206,7 +220,9 @@ describe("GuestAttentionBanner", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     openDetails();
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveTextContent(
       "Could not read saved edits on this device. Your saved edits have been kept.",
     );
     expect(
@@ -216,9 +232,9 @@ describe("GuestAttentionBanner", () => {
     offlineStore.loadHostCommandCount.mockResolvedValue(2);
     await act(() => vi.advanceTimersByTimeAsync(2000));
     openDetails();
-    expect(screen.getByRole("alert")).toHaveAccessibleName(
-      /2 pending, 1 conflict/,
-    );
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/2 pending, 1 conflict/);
     expect(
       screen.queryByText(/Could not read saved edits/),
     ).not.toBeInTheDocument();
@@ -254,7 +270,9 @@ describe("GuestAttentionBanner", () => {
     await act(() => vi.advanceTimersByTimeAsync(0));
 
     openDetails();
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveTextContent(
       "Ask the project owner to inspect History before trying this action again.",
     );
     expect(
@@ -270,15 +288,17 @@ describe("GuestAttentionBanner", () => {
     render(<GuestAttentionBanner />);
     await act(() => vi.advanceTimersByTimeAsync(0));
     openDetails();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Your saved edits have been kept.",
-    );
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveTextContent("Your saved edits have been kept.");
     expect(
       screen.queryByRole("button", { name: "Dismiss all" }),
     ).not.toBeInTheDocument();
     offlineStore.loadCommandQueue.mockResolvedValue([]);
     await act(() => vi.advanceTimersByTimeAsync(2000));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("retains the last verified count and conflicts until both reads succeed", async () => {
@@ -288,22 +308,22 @@ describe("GuestAttentionBanner", () => {
     render(<GuestAttentionBanner />);
     await act(() => vi.advanceTimersByTimeAsync(0));
     openDetails();
-    expect(screen.getByRole("alert")).toHaveAccessibleName(
-      /2 pending, 1 conflict/,
-    );
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/2 pending, 1 conflict/);
     offlineStore.loadHostConflicts.mockRejectedValue(
       new Error("Invalid saved conflict"),
     );
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     await act(() => vi.advanceTimersByTimeAsync(2000));
     openDetails();
-    expect(screen.getByRole("alert")).toHaveAccessibleName(
-      /2 pending, 1 conflict/,
-    );
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/2 pending, 1 conflict/);
     openDetails();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Your saved edits have been kept.",
-    );
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveTextContent("Your saved edits have been kept.");
     expect(getActionButton("Dismiss all")).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -311,7 +331,9 @@ describe("GuestAttentionBanner", () => {
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     offlineStore.loadHostConflicts.mockResolvedValue([]);
     await act(() => vi.advanceTimersByTimeAsync(2000));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
   });
   describe.each([
     { namespace: "host", path: "/tmp/p.json", host: true },
@@ -331,9 +353,9 @@ describe("GuestAttentionBanner", () => {
       render(<GuestAttentionBanner />);
       await act(() => vi.advanceTimersByTimeAsync(0));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Verified retained conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Verified retained conflict");
       expect(getActionButton("Dismiss all")).toBeInTheDocument();
     }
 
@@ -346,20 +368,22 @@ describe("GuestAttentionBanner", () => {
       offlineStore.loadHostCommandCount.mockResolvedValue(0);
       await act(() => vi.advanceTimersByTimeAsync(4000));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Your saved edits have been kept.",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Your saved edits have been kept.");
       await act(async () => old.resolve([newer]));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Verified retained conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Verified retained conflict");
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Your saved edits have been kept.",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Your saved edits have been kept.");
       if (host)
-        expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
+        expect(
+          screen.getByRole("region", { name: /Needs attention/ }),
+        ).toHaveAccessibleName(/2 pending/);
       expect(getActionButton("Dismiss all")).toHaveAttribute(
         "aria-disabled",
         "true",
@@ -372,14 +396,14 @@ describe("GuestAttentionBanner", () => {
       read().mockReturnValueOnce(old.promise).mockResolvedValueOnce([newer]);
       await act(() => vi.advanceTimersByTimeAsync(4000));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       await act(async () => old.reject(new Error("old unreadable")));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       expect(
         screen.queryByText(/Could not read saved edits/),
       ).not.toBeInTheDocument();
@@ -399,11 +423,13 @@ describe("GuestAttentionBanner", () => {
         else offlineStore.loadCommandQueue.mockReturnValueOnce(queue.promise);
         await act(() => vi.advanceTimersByTimeAsync(2000));
         openDetails();
-        expect(screen.getByRole("alert")).toHaveTextContent(
-          "Verified retained conflict",
-        );
+        expect(
+          screen.getByRole("region", { name: /Needs attention/ }),
+        ).toHaveTextContent("Verified retained conflict");
         if (host)
-          expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
+          expect(
+            screen.getByRole("region", { name: /Needs attention/ }),
+          ).toHaveAccessibleName(/2 pending/);
         expect(getActionButton("Dismiss all")).toHaveAttribute(
           "aria-disabled",
           "true",
@@ -469,15 +495,15 @@ describe("GuestAttentionBanner", () => {
         fireEvent.click(button);
       });
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Verified retained conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Verified retained conflict");
       expect(clear()).not.toHaveBeenCalled();
       await act(async () => current.resolve([newer]));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       expect(getActionButton("Dismiss all")).toBeInTheDocument();
     });
 
@@ -487,9 +513,9 @@ describe("GuestAttentionBanner", () => {
       read().mockReturnValueOnce(old.promise).mockResolvedValueOnce([newer]);
       await act(() => vi.advanceTimersByTimeAsync(4000));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       await act(async () => fireEvent.click(getActionButton("Dismiss all")));
       await act(async () => old.resolve([verified]));
       expect(
@@ -499,8 +525,13 @@ describe("GuestAttentionBanner", () => {
         screen.queryByText("Newer admitted conflict"),
       ).not.toBeInTheDocument();
       if (host) {
-        expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
-      } else expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+        expect(
+          screen.getByRole("region", { name: /Needs attention/ }),
+        ).toHaveAccessibleName(/2 pending/);
+      } else
+        expect(
+          screen.queryByRole("region", { name: /Needs attention/ }),
+        ).not.toBeInTheDocument();
     });
 
     it("ignores a read result from the previous project", async () => {
@@ -517,14 +548,14 @@ describe("GuestAttentionBanner", () => {
           ),
       );
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       await act(async () => old.resolve([verified]));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       expect(
         screen.queryByText("Verified retained conflict"),
       ).not.toBeInTheDocument();
@@ -538,18 +569,18 @@ describe("GuestAttentionBanner", () => {
       read().mockReturnValueOnce(retry.promise);
       await act(() => vi.advanceTimersByTimeAsync(2000));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Verified retained conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Verified retained conflict");
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Your saved edits have been kept.",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Your saved edits have been kept.");
       await act(async () => retry.resolve([newer]));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       expect(
         screen.queryByText(/Could not read saved edits/),
       ).not.toBeInTheDocument();
@@ -560,11 +591,13 @@ describe("GuestAttentionBanner", () => {
       clear().mockRejectedValueOnce(new Error("Invalid saved conflict"));
       await act(async () => fireEvent.click(getActionButton("Dismiss all")));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Verified retained conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Verified retained conflict");
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent(
         "Dismissal failed. Your saved outcomes have been kept.",
       );
       expect(getActionButton("Dismiss all")).toHaveAttribute(
@@ -576,9 +609,9 @@ describe("GuestAttentionBanner", () => {
       clear().mockReturnValueOnce(dismiss.promise);
       await act(async () => fireEvent.click(getActionButton("Dismiss all")));
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Verified retained conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Verified retained conflict");
       expect(getActionButton("Dismiss all")).toHaveAttribute(
         "aria-disabled",
         "true",
@@ -598,8 +631,13 @@ describe("GuestAttentionBanner", () => {
         screen.queryByText("Verified retained conflict"),
       ).not.toBeInTheDocument();
       if (host) {
-        expect(screen.getByRole("alert")).toHaveAccessibleName(/2 pending/);
-      } else expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+        expect(
+          screen.getByRole("region", { name: /Needs attention/ }),
+        ).toHaveAccessibleName(/2 pending/);
+      } else
+        expect(
+          screen.queryByRole("region", { name: /Needs attention/ }),
+        ).not.toBeInTheDocument();
     });
 
     it("ignores dismissal completion after a project switch", async () => {
@@ -617,17 +655,59 @@ describe("GuestAttentionBanner", () => {
           ),
       );
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
       await act(async () =>
         dismiss.resolve({ pending: host ? 2 : 0, conflicts: [newer] }),
       );
       openDetails();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Newer admitted conflict",
-      );
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent("Newer admitted conflict");
     });
+  });
+
+  it("converges when dismissal rejects after a send ended during dismissal", async () => {
+    const path = "/tmp/1540-dismiss-send-end.json";
+    const verified = offlineConflict({ reason: "Verified retained conflict" });
+    offlineStore.loadHostConflicts.mockResolvedValue([verified]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(2);
+    const dismissal = deferred<Dismissal>();
+    offlineStore.dismissHostConflicts.mockReturnValueOnce(dismissal.promise);
+    useDawStore.getState().hydrate(path, minimalProject());
+    const { beginDocumentSend } = await import("../state/documentSendOrder");
+    const { SaveStateDot } = await import("./SaveStateDot");
+    render(
+      <>
+        <SaveStateDot />
+        <GuestAttentionBanner />
+      </>,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    await act(async () => fireEvent.click(getActionButton("Dismiss all")));
+    act(() => {
+      const send = beginDocumentSend(path, "during-dismiss");
+      send.finish();
+    });
+    offlineStore.loadHostCommandCount.mockResolvedValue(0);
+    offlineStore.loadHostConflicts.mockResolvedValue([]);
+
+    await act(async () => {
+      dismissal.reject(new Error("dismiss refused"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByRole("img", { name: "Saved to project" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
+    expect(offlineStore.loadHostCommandCount.mock.calls.length).toBeGreaterThan(
+      1,
+    );
   });
 
   it("Send now replays the host queue; a share guest is not offered it", async () => {
@@ -668,9 +748,9 @@ describe("GuestAttentionBanner", () => {
     });
 
     openDetails();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "The app will retry this same command automatically.",
-    );
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveTextContent("The app will retry this same command automatically.");
     expect(
       screen.queryByRole("button", { name: "Send now" }),
     ).not.toBeInTheDocument();

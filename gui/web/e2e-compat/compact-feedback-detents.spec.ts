@@ -281,7 +281,7 @@ for (const {
         "Can't undo: the project changed since. Nothing was undone.",
       );
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-      const attention = page.getByRole("alert", {
+      const attention = page.getByRole("region", {
         name: "Needs attention. 1 conflict",
       });
       await expect(attention).toBeVisible();

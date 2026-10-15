@@ -95,6 +95,15 @@ describe("App styles", () => {
     expect(body).not.toMatch(/outline-offset/);
   });
 
+  it("keeps the failed save light square and the saved light circular (#1540)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(here, "styles/partials/layout.css"), "utf8");
+    expect(src).toMatch(/\.save-dot::before\s*\{[^}]*border-radius:\s*50%/s);
+    expect(src).toMatch(
+      /\.save-dot\[data-save-state="failed"\]::before\s*\{[^}]*border-radius:\s*var\(--radius-sm\)/s,
+    );
+  });
+
   it("gives the lane header's Mute and Solo the touch target on a coarse pointer (#1028)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "styles/partials/layout.css"), "utf8");

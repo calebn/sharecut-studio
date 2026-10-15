@@ -1,3 +1,4 @@
+import { useOfflineAttentionAnnouncement } from "../hooks/useOfflineAttentionAnnouncement";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { requestHostDrain } from "../state/drainOfflineQueue";
@@ -20,6 +21,7 @@ export function GuestAttentionBanner({
     conflicts: allConflicts,
     recoverySelection,
     status,
+    loaded,
   } = useOfflineAttention(projectPath);
   const activeConflicts = allConflicts.filter(
     (conflict) => !conflict.dismissed,
@@ -28,6 +30,15 @@ export function GuestAttentionBanner({
     ? [...activeConflicts, recoverySelection]
     : activeConflicts;
   const guest = isShareProjectKey(projectPath);
+  const unreadable = status === "unreadable" || status === "retrying";
+  useOfflineAttentionAnnouncement({
+    pending,
+    conflictCount: conflicts.length,
+    unreadable,
+    dismissFailed: status === "dismiss-failed",
+    loaded,
+    status,
+  });
   return (
     <GuestAttentionBannerView
       key={projectPath}
@@ -36,7 +47,7 @@ export function GuestAttentionBanner({
       conflicts={conflicts}
       canDismiss={activeConflicts.length > 0}
       guest={guest}
-      unreadable={status === "unreadable" || status === "retrying"}
+      unreadable={unreadable}
       dismissFailed={status === "dismiss-failed"}
       checking={
         status === "checking" ||

@@ -114,7 +114,7 @@ test("queued speaker save stays visible and reports pending delivery", async ({
       .first(),
   ).toBeVisible();
   await expect(
-    page.getByRole("alert", {
+    page.getByRole("region", {
       name: /^Needs attention\. 1 pending(?:,|$)/,
     }),
   ).toBeVisible();
