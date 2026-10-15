@@ -54,10 +54,11 @@ def sound_kind(reason: str | None) -> str | None:
     """The ``SOUND_ACTIONS`` key for a tighten ``reason``, or None for other edits."""
     text = reason or ""
     if text.startswith(ACOUSTIC_FILLER_REASON):
-        if is_likely_laugh_reason(text):
-            return "laugh"
+        # A heard word outranks a laugh: "leave" is the safe default when both flags are set.
         if is_possible_word_reason(text):
             return "possible_word"
+        if is_likely_laugh_reason(text):
+            return "laugh"
         return "acoustic"
     if text.startswith("filler:"):
         return "filler"

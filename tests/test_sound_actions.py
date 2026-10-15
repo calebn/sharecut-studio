@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits.sound_actions import SOUND_ACTIONS, sound_kind, sound_label_and_action
+from podcast_mcp.edits.sound_actions import (
+    SOUND_ACTIONS,
+    SUGGESTED_ACTIONS,
+    sound_kind,
+    sound_label_and_action,
+)
+from podcast_mcp.edits.tighten import TightenProposal
+from podcast_mcp.models.episode import EditDecision
 
 # reason -> (kind, label, default action).  A new row in SOUND_ACTIONS needs a line here
 # only when a detector emits its kind.
@@ -16,7 +23,26 @@ CASES = [
     ("restart:we", "restart", "False start", "cut"),
     ("filler:acoustic", "acoustic", "Unclear sound", "leave"),
     ("filler:acoustic:likely_laugh", "laugh", "Laugh", "lower"),
-    ("filler:acoustic:other_speaking:likely_laugh", "laugh", "Laugh", "lower"),
+    ("filler:acoustic:likely_laugh:other_speaking:t1,t2:risky", "laugh", "Laugh", "lower"),
+    ("filler:acoustic:likely_laugh:risky", "laugh", "Laugh", "lower"),
+    ("filler:acoustic:risky", "acoustic", "Unclear sound", "leave"),
+    (
+        "filler:acoustic:other_speaking:t1,t2:possible_word",
+        "possible_word",
+        "Possible missed word",
+        "leave",
+    ),
+    # A heard word outranks a laugh flag.
+    (
+        "filler:acoustic:likely_laugh:possible_word",
+        "possible_word",
+        "Possible missed word",
+        "leave",
+    ),
+    ("pause:", "pause", "Long pause", "shorten"),
+    ("pause:0.80s:join_review", "pause", "Long pause", "shorten"),
+    ("restart:phrase:we went", "restart", "False start", "cut"),
+    ("repetition:word:the", "repetition", "Repeated words", "cut"),
     ("filler:acoustic:possible_word", "possible_word", "Possible missed word", "leave"),
 ]
 
@@ -25,9 +51,23 @@ CASES = [
 def test_default_label_and_action(reason: str, kind: str, label: str, action: str) -> None:
     assert sound_kind(reason) == kind
     assert sound_label_and_action(reason) == (label, action)
-    assert SOUND_ACTIONS[kind].action == action
 
 
 def test_non_tighten_reason_has_no_suggestion() -> None:
     assert sound_label_and_action("manual cut") is None
     assert sound_label_and_action(None) is None
+
+
+def test_every_row_uses_a_known_action_and_every_case_kind_has_a_row() -> None:
+    assert all(row.action in SUGGESTED_ACTIONS for row in SOUND_ACTIONS.values())
+    assert all(kind in SOUND_ACTIONS for _, kind, _, _ in CASES)
+
+
+def test_propose_payload_carries_label_and_action() -> None:
+    laugh = EditDecision(
+        id="e1", track_id="t1", start=1.0, end=2.0, reason="filler:acoustic:likely_laugh"
+    )
+    other = EditDecision(id="e2", track_id="t1", start=3.0, end=4.0, reason="manual")
+    rows = TightenProposal([laugh, other], {}).to_payload()["edits"]
+    assert (rows[0]["label"], rows[0]["suggested_action"]) == ("Laugh", "lower")
+    assert (rows[1]["label"], rows[1]["suggested_action"]) == (None, None)
