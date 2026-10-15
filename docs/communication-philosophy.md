@@ -373,10 +373,10 @@ audited finding.
   "equivalent control" exception (2.5.5, 2.5.8) plus a dragging alternative
   (2.5.7).
   `gui/web/e2e/touch-floor.spec.ts` sweeps every control on a coarse pointer
-  (phone, tablet, landscape) and fails on any under 44 CSS px that is not one
+  (every phone mode, the tablet and landscape shells and the transport menu) and fails on any under 44 CSS px that is not one
   of its named exceptions: canvas dense targets, inline transcript words and
-  timestamps (a taller hit area would take the next line's taps; the ruler
-  and transport seek at 44 px), the track reorder grip (Move up/down are the
+  timestamps, but not the speaker button (a taller hit area would take the
+  next line's taps; the ruler and transport seek at 44 px), the track reorder grip (Move up/down are the
   44 px equivalent), and tablet status chips (the tab strip carries the same
   actions). A new exception needs a line there and here (#1422).
 - [ ] No hover-only, mouse-only, or double-click-only path for any
