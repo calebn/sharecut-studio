@@ -32,6 +32,7 @@ export function GuestAttentionBanner({
   const guest = isShareProjectKey(projectPath);
   const unreadable = status === "unreadable" || status === "retrying";
   useOfflineAttentionAnnouncement({
+    projectPath,
     pending,
     conflictCount: conflicts.length,
     unreadable,
