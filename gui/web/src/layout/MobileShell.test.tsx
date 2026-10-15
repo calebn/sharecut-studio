@@ -309,7 +309,9 @@ describe("MobileShell", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Not saved yet · 2 waiting to send" }),
     );
-    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveFocus();
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveFocus();
   });
 
   it("provides exactly one project heading in every phone mode", async () => {

@@ -4,6 +4,7 @@ import type { AttentionStatus } from "../state/offlineAttention";
 import { useDaw } from "../state/useDaw";
 
 type Input = {
+  projectPath: string;
   pending: number;
   conflictCount: number;
   unreadable: boolean;
@@ -15,7 +16,10 @@ type Input = {
 function attentionAnnouncement(input: Input): string | null {
   const visible =
     input.unreadable || input.conflictCount > 0 || input.pending > 0;
-  if (!visible || !input.loaded) return null;
+  if (!visible) return null;
+  if (!input.loaded && !input.unreadable && input.status !== "dismiss-failed") {
+    return null;
+  }
   if (input.status === "checking" || input.status === "dismissing") {
     return null;
   }
@@ -29,16 +33,29 @@ function attentionAnnouncement(input: Input): string | null {
 
 export function useOfflineAttentionAnnouncement(input: Input): void {
   const announceStatus = useDaw((s) => s.announceStatus);
-  const last = useRef<string | null>(null);
+  const last = useRef<{ projectPath: string; message: string | null }>({
+    projectPath: "",
+    message: null,
+  });
 
   useEffect(() => {
+    if (last.current.projectPath !== input.projectPath) {
+      last.current = { projectPath: input.projectPath, message: null };
+    }
     const message = attentionAnnouncement(input);
     if (!message) {
-      last.current = null;
+      if (
+        input.status === "checking" ||
+        input.status === "dismissing" ||
+        (input.unreadable && !input.loaded)
+      ) {
+        return;
+      }
+      last.current.message = null;
       return;
     }
-    if (message === last.current) return;
-    last.current = message;
+    if (message === last.current.message) return;
+    last.current.message = message;
     announceStatus(message, { toast: false });
   }, [
     announceStatus,
@@ -46,6 +63,7 @@ export function useOfflineAttentionAnnouncement(input: Input): void {
     input.dismissFailed,
     input.loaded,
     input.pending,
+    input.projectPath,
     input.status,
     input.unreadable,
   ]);

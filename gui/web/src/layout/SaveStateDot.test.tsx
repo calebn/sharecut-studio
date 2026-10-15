@@ -316,7 +316,9 @@ describe("SaveStateDot", () => {
 
     fireEvent.click(getActionButton("Dismiss all"));
     await settle();
-    expect(screen.queryByRole("region", { name: /Needs attention/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
     rendered.unmount();
     offlineStore.loadHostConflicts.mockResolvedValue([dismissed]);
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
@@ -327,7 +329,9 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    expect(screen.queryByRole("region", { name: /Needs attention/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
     const dot = screen.getByRole("button", {
       name: "Save failed · The clip moved. Edit and submit again.",
     });
@@ -408,7 +412,9 @@ describe("SaveStateDot", () => {
 
     fireEvent.click(getActionButton("Dismiss all"));
     await settle();
-    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(/1 pending/);
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 pending/);
     rendered.unmount();
     offlineStore.loadHostConflicts.mockResolvedValue([
       { ...history, dismissed: true },
@@ -420,7 +426,9 @@ describe("SaveStateDot", () => {
       </>,
     );
     await settle();
-    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(/1 pending/);
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 pending/);
     fireEvent.click(
       screen.getByRole("button", {
         name: /Outcome unknown .* Inspect History before trying again/,
@@ -456,7 +464,9 @@ describe("SaveStateDot", () => {
     fireEvent.click(getActionButton("Dismiss all"));
     await settle();
 
-    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveAccessibleName(/1 pending/);
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveAccessibleName(/1 pending/);
     expect(
       screen.getByRole("button", { name: "Send now" }),
     ).toBeInTheDocument();
@@ -499,8 +509,12 @@ describe("SaveStateDot", () => {
       await dismissal.promise;
     });
 
-    expect(screen.getByRole("region", { name: /Needs attention/ })).toHaveTextContent("Newer refusal.");
-    expect(screen.getByRole("region", { name: /Needs attention/ })).not.toHaveTextContent("Earlier refusal.");
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).toHaveTextContent("Newer refusal.");
+    expect(
+      screen.getByRole("region", { name: /Needs attention/ }),
+    ).not.toHaveTextContent("Earlier refusal.");
     expect(screen.queryByText("0 pending")).not.toBeInTheDocument();
   });
 
@@ -568,7 +582,9 @@ describe("SaveStateDot", () => {
     expect(
       screen.getByRole("img", { name: "Saved to project" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: /Needs attention/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /Needs attention/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows nothing to a share guest and reads no host queue", async () => {

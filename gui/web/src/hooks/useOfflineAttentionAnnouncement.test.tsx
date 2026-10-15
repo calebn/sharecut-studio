@@ -68,5 +68,28 @@ describe("useOfflineAttentionAnnouncement", () => {
     expect(polite.textContent).toBe("Needs attention. 2 pending");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(region).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
+  });
+
+  it("announces unreadable saved edits before the first successful read", async () => {
+    offlineStore.loadHostConflicts.mockRejectedValue(new Error("idb"));
+    offlineStore.loadHostCommandCount.mockRejectedValue(new Error("idb"));
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <GuestAttentionBanner />
+        <StatusBar />
+      </DawProvider>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
+      /Saved edits could not be read/,
+    );
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
   });
 });
