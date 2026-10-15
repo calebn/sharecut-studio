@@ -323,7 +323,13 @@ function arm(element: Element, down: PointerEvent): boolean {
   if (!element.closest(".daw-shell--phone")) return false;
   const kind = element.getAttribute("data-hit-kind") ?? "";
   const id = element.getAttribute("data-hit-id") ?? "";
-  if (kind === "pending-start" || kind === "pending-end") return false;
+  if (
+    kind === "pending-start" ||
+    kind === "pending-end" ||
+    kind === "envelope-point"
+  ) {
+    return false;
+  }
   const target = precisionTarget(project, kind, id);
   if (!target || !mayNudge(store, project, target.field)) return false;
   const nudge = nudgeAxis(project, target.field);
