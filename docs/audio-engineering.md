@@ -176,7 +176,7 @@ late recorder (+36 to +48 s on aligned lab tracks).
 The ffmpeg filter graph and the delivery loudness targets set render levels, not detection thresholds, and are not scanned.
 `tests/test_tighten_gain_invariance.py` is the one contract: tighten, reconcile, the bleed
 gate, Analyze, the ASR silence filter, the speaker split and long-delay bleed evidence each decide the same at 0, -12 and -24 dB, and
-(for the project-level detectors) with one track alone 24 dB down. Tighten proposal clocks and skip counts must also match when one dialogue track alone is 12 dB quieter (#1529); the speech-energy guard keeps each contrast mic on ``path_reference_db`` instead of treating a quieter recording as bleed residue.
+(for the project-level detectors) with one track alone 24 dB down. Tighten proposal clocks and skip counts must also match when one dialogue track alone is 12 dB quieter (#1529); the speech-energy guard keeps each contrast mic on ``path_reference_db`` when it sits within the residue band plus 12 dB headroom, instead of treating that quieter dialogue recording as bleed residue. Tracks far below that band stay residue (read as recorded).
 
 Known limits:
 
