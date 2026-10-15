@@ -67,6 +67,25 @@ def _require_head(
         raise StaleHistoryError(action)
 
 
+def _behind_render_only(history: ProjectHistory, expected_head_id: str | None) -> int | None:
+    """The index of ``expected_head_id`` when only preview renders were recorded after it.
+
+    A preview render lands in history a while after the edit that caused it, so an undo
+    that targets the edit (a toast's Undo) would otherwise refuse as "the project changed".
+    A render adds no edit of its own, so stepping back from the edit is what the caller meant."""
+    if expected_head_id is None or history.head_id() == expected_head_id:
+        return None
+    ids = [entry.id for entry in history.entries]
+    if expected_head_id not in ids:
+        return None
+    index = ids.index(expected_head_id)
+    if history.cursor != len(ids) - 1:
+        return None
+    if all(entry.operation == "render_preview" for entry in history.entries[index + 1 :]):
+        return index
+    return None
+
+
 @dataclass
 class HistoryStatus:
     cursor: int
@@ -173,7 +192,11 @@ class HistoryManager:
 
     def _undo_locked(self, project: EpisodeProject, expected_head_id: str | None) -> HistoryStatus:
         history = self._load_index(project)
-        _require_head(history, "undo", expected_head_id)
+        resumed = _behind_render_only(history, expected_head_id)
+        if resumed is None:
+            _require_head(history, "undo", expected_head_id)
+        if resumed is not None:
+            history.cursor = resumed
         if not history.can_undo():
             raise ValueError("Nothing to undo")
         history.cursor -= 1

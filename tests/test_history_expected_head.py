@@ -166,6 +166,42 @@ def test_toast_undo_reverts_its_own_change_while_it_is_still_the_head(minimal_pr
     assert _decision_ids(minimal_project) == {"host-hit"}
 
 
+def test_toast_undo_still_reverts_its_change_after_a_preview_render_landed(minimal_project):
+    _seed(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+    toast_entry = _host_reject(svc)["history_head_id"]
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.mutate(
+        "before render preview",
+        "after render preview",
+        lambda p: p.edit_decisions.append(_decision("render-side-effect", 3.0)),
+        operation="render_preview",
+    )
+    assert _status(minimal_project)["head_id"] != toast_entry
+
+    reply = _undo(svc, toast_entry)
+
+    assert reply["ok"] is True
+    assert _decision_ids(minimal_project) == {"host-hit"}
+
+
+def test_toast_undo_refuses_when_an_edit_landed_after_the_preview_render(minimal_project):
+    _seed(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+    toast_entry = _host_reject(svc)["history_head_id"]
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.mutate(
+        "before render preview",
+        "after render preview",
+        lambda p: p.edit_decisions.append(_decision("render-side-effect", 3.0)),
+        operation="render_preview",
+    )
+    _agent_edit(minimal_project)
+
+    with pytest.raises(DocumentConflictError):
+        _undo(svc, toast_entry)
+
+
 def test_a_stale_cmd_z_refuses_and_a_fresh_one_undoes_the_latest_change(minimal_project):
     _seed(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
