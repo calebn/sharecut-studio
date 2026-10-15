@@ -266,7 +266,8 @@ editor page never rubber-bands. Decision and
 measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)
 and [§ Collapse stays in reach](touch-editor-decisions.md#collapse-stays-in-reach-1051-round-4).
 
-On touch, a long press arms a fade, trim, pending edge or envelope point;
+On touch, a long press arms a fade, trim, or envelope point; pending start/end
+edges keep the existing armed drag (no jog pad).
 **Auto precision** (#1184) then opens a jog pad in the drawer's place when the
 target or its neighbour is narrower than a finger, or drags directly on the
 timeline when a step is already at least 4 px wide (slower finger motion moves
