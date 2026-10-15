@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 import numpy as np
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.bleed_lag_segments import LagSteps
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
@@ -389,7 +388,7 @@ class TrackRmsCacheSet:
     _copy_paths: dict[tuple[str, str], CopyPath] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
-    _lag_steps: dict[str, LagSteps | None] = field(
+    _lag_steps: dict[str, object] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
     _path_samples: dict[str, np.ndarray] = field(
@@ -476,7 +475,7 @@ class TrackRmsCacheSet:
             self._copy_paths[key] = self._measure_copy_path(source_track_id, bleed_track_id)
         return self._copy_paths[key]
 
-    def lane_lag_steps(self, project: EpisodeProject, lane_id: str) -> LagSteps | None:
+    def lane_lag_steps(self, project: EpisodeProject, lane_id: str):
         if lane_id not in self._lag_steps:
             from podcast_mcp.engines.bleed_audibility_lag import lag_steps_for_lane
 
