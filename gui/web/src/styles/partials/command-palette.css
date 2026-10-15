@@ -880,5 +880,5 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 
 .split-speakers-sample-range {
   font-size: var(--font-size-caption);
-  color: var(--text-muted);
+  color: var(--color-text-secondary);
 }
