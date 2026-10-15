@@ -849,7 +849,7 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                     for index, entry in enumerate(left_transcript.archived_words)
                 )
                 # Only words that reach into this cutaway are mapped: the rest are skipped
-                # below, and mapping a whole transcript per edit point is quadratic.
+                # below, so the per-word timeline mapping no longer scales with the transcript.
                 in_cutaway = [
                     (word_index, word)
                     for word_index, _ordinal, word in preview_words
