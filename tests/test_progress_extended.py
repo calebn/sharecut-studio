@@ -95,30 +95,26 @@ def test_json_progress_unknown_task_is_noop():
 
 
 def test_json_progress_heartbeat_loop():
-    import time
-
     buf = StringIO()
-    reporter = JsonProgressReporter(stream=buf)
+    with patch("podcast_mcp.util.progress.threading.Thread"):
+        reporter = JsonProgressReporter(stream=buf)
     reporter._heartbeat_sec = 0.0  # type: ignore[attr-defined]
     reporter.start("slow", "Slow task", total=1)
     with reporter._lock:
         reporter._tasks["slow"].last_emit = 0.0
 
-    state = {"count": 0}
+    waits = iter([False, True])
 
-    def wait_short(_timeout: float) -> bool:
-        state["count"] += 1
-        if state["count"] >= 2:
+    def wait_for_stop(_timeout: float) -> bool:
+        if next(waits):
             reporter._stop.set()
-        time.sleep(0.02)
         return reporter._stop.is_set()
 
-    reporter._stop.wait = wait_short  # type: ignore[method-assign]
+    reporter._stop.wait = wait_for_stop  # type: ignore[method-assign]
     reporter._heartbeat_loop()
     kinds = [json.loads(line)["kind"] for line in buf.getvalue().strip().splitlines()]
     assert "heartbeat" in kinds
     reporter.end("slow")
-    reporter.close()
 
 
 class _RecordingFakeProgress:
@@ -297,11 +293,13 @@ def test_cli_progress_reporter_import_error_fallback(monkeypatch):
     reporter.close()
 
 
-def test_cli_progress_heartbeat_with_total(monkeypatch):
+def test_cli_progress_heartbeat_with_total(monkeypatch, capsys):
     monkeypatch.setattr("sys.stderr.isatty", lambda: False)
     reporter = CliProgressReporter(enabled=True)
     reporter.start("job", "Job", total=4)
+    capsys.readouterr()
     reporter._emit_heartbeat("job", reporter._tasks["job"], 90.0)  # type: ignore[attr-defined]
+    assert capsys.readouterr().err == "Job… (1:30) 0/4\n"
     reporter.end("job")
     reporter.close()
 

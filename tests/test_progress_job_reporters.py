@@ -336,20 +336,6 @@ def test_cli_progress_disabled_and_rich_end_without_total(monkeypatch, fake_rich
     rich.close()
 
 
-def test_cli_progress_heartbeat(monkeypatch) -> None:
-    import time
-
-    from podcast_mcp.util.progress import CliProgressReporter
-
-    monkeypatch.setattr(sys.stderr, "isatty", lambda: False)
-    reporter = CliProgressReporter(enabled=True)
-    reporter._heartbeat_sec = 0.01
-    reporter.start("t", "Long", total=2)
-    time.sleep(1.2)
-    reporter.end("t")
-    reporter.close()
-
-
 def test_elapsed_mixin_heartbeat_drops_finished_task(monkeypatch) -> None:
     import threading
     import time
@@ -645,8 +631,17 @@ def test_pipeline_runner_selection_errors(minimal_project) -> None:
         assert "no pipeline steps" in str(exc)
 
 
-def test_last_progress_at_ignores_snapshot_keepalive() -> None:
-    import time
+def test_last_progress_at_ignores_snapshot_keepalive(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from podcast_mcp.gui import jobs as jobs_module
+
+    clock = [5.0]
+    monkeypatch.setattr(
+        jobs_module,
+        "time",
+        SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 100.0),
+    )
 
     job = PipelineJob(
         id="stale",
@@ -654,7 +649,7 @@ def test_last_progress_at_ignores_snapshot_keepalive() -> None:
         from_step=None,
         only_step=None,
         status="running",
-        started_at=time.monotonic(),
+        started_at=clock[0],
         last_progress_at=42.0,
         message="Quiet step",
     )
@@ -663,10 +658,11 @@ def test_last_progress_at_ignores_snapshot_keepalive() -> None:
         try:
             snap = job.snapshot()
             assert snap["last_progress_at"] == 42.0
-            time.sleep(0.02)
+            clock[0] = 7.0
             keep = job.snapshot()
             assert keep["last_progress_at"] == 42.0
-            assert keep["elapsed_sec"] >= snap["elapsed_sec"]
+            assert snap["elapsed_sec"] == 0.0
+            assert keep["elapsed_sec"] == 2.0
 
             reporter.start("pipeline", "Pipeline", total=1)
             bumped = job.last_progress_at
