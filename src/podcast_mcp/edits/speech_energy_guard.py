@@ -771,7 +771,7 @@ def measure_peer_speech(
         # Which mic is louder is read on the recordings against each one's own voice, without
         # the balance gains (#1549). A peer with a voice of its own is read in the loudest window
         # of the span, so the owner is too: the two levels are of the same kind (#1419).
-        def owner_raw(*, windowed: bool) -> list[float | None]:
+        def owner_raw(refs: dict[str, float], *, windowed: bool) -> list[float | None]:
             return [
                 max(
                     (
@@ -791,7 +791,7 @@ def measure_peer_speech(
                 for s, e in checked
             ]
 
-        span_owner_mean = owner_raw(windowed=False)
+        span_owner_mean = owner_raw(refs, windowed=False)
         span_owner_loudest: list[float | None] | None = None
         for index, (tl_start, tl_end) in enumerate(checked):
             rms = measure_timeline_rms_db(
@@ -824,7 +824,7 @@ def measure_peer_speech(
             if calibrated is None:
                 own_voice = math.isfinite(_voice_reach_db(project, tid, caches))
                 if own_voice and span_owner_loudest is None:
-                    span_owner_loudest = owner_raw(windowed=True)
+                    span_owner_loudest = owner_raw(refs, windowed=True)
                 heard = (
                     _loudest_window_db(project, tid, (tl_start, tl_end), rms, caches)
                     if own_voice
