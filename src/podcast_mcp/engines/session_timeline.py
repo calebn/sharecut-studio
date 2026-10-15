@@ -15,9 +15,10 @@ from __future__ import annotations
 import itertools
 import math
 from bisect import bisect_right
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Protocol
 
 from podcast_mcp.models import Clip, EpisodeProject
@@ -65,17 +66,47 @@ def _clip_source_path(project: EpisodeProject, clip: Clip) -> str | None:
     return src.path if src is not None and src.path else None
 
 
+def origin_resolver(project: EpisodeProject) -> Callable[[Clip], str]:
+    """``origin_track_id_for_clip`` for many clips of one project state.
+
+    Each distinct source and each track's media is resolved once, so a pass over every
+    clip pays one path resolution per recording, not one per clip and track. The
+    resolver reads the project as it is when called; build a new one after a mutation.
+    """
+    by_source: dict[str, str | None] = {}
+    recordings: list[tuple[str, Path]] | None = None
+
+    def origin_of_source(clip: Clip, source_id: str) -> str | None:
+        nonlocal recordings
+        if source_id not in by_source:
+            path = _clip_source_path(project, clip)
+            if path is None:
+                by_source[source_id] = None
+                return None
+            if recordings is None:
+                recordings = [
+                    (track.id, resolve_under_workspace(project, track.media.path))
+                    for track in project.tracks
+                    if track.media is not None
+                ]
+            media = resolve_under_workspace(project, path)
+            by_source[source_id] = next(
+                (tid for tid, track_media in recordings if same_recording(track_media, media)),
+                None,
+            )
+        return by_source[source_id]
+
+    def origin(clip: Clip) -> str:
+        if clip.source_id is None:
+            return clip.track_id
+        return origin_of_source(clip, clip.source_id) or clip.track_id
+
+    return origin
+
+
 def origin_track_id_for_clip(project: EpisodeProject, clip: Clip) -> str:
     """Track whose media this clip plays (``source_id`` path, else current lane)."""
-    path = _clip_source_path(project, clip)
-    if path is not None:
-        media = resolve_under_workspace(project, path)
-        for track in project.tracks:
-            if track.media is not None and same_recording(
-                resolve_under_workspace(project, track.media.path), media
-            ):
-                return track.id
-    return clip.track_id
+    return origin_resolver(project)(clip)
 
 
 def clip_plays_lane(project: EpisodeProject, clip: Clip, track_id: str) -> bool:
@@ -465,10 +496,11 @@ class SessionTimeline:
         self._indexes: dict[str, tuple[tuple[_ClipKey, ...], _TrackIndex | None]] = {}
 
     def _index(self, track_id: str) -> _TrackIndex | None:
+        origin = origin_resolver(self._project)
         keys = tuple(
             (c.timeline_start, c.source_start, c.source_end)
             for c in self._project.clips
-            if origin_track_id_for_clip(self._project, c) == track_id
+            if origin(c) == track_id
         )
         track = self._project.track_by_id(track_id)
         if not keys and track is not None and track.timeline_empty:
