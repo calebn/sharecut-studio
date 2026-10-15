@@ -95,6 +95,42 @@ export function useNudgeRun() {
   const endedAt = useRef(Number.NEGATIVE_INFINITY);
   const stalePointerClick = useRef(false);
 
+  const isEnvelopeNudge = (r: Run) =>
+    r.field.kind === "envelope-level" || r.field.kind === "envelope-time";
+  const sameOwnedEnvelope = (r: Run) => {
+    if (!isEnvelopeNudge(r)) return true;
+    const state = useDawStore.getState();
+    if (
+      !state.project ||
+      state.projectPath !== r.projectPath ||
+      state.projectEpoch !== r.projectEpoch ||
+      currentDocumentSeq() !== r.seq
+    )
+      return false;
+    const expected = r.preview ?? r.origin;
+    const currentEnvelope = findVolumeEnvelope(
+      state.project.envelopes,
+      r.field.trackId,
+    );
+    const expectedEnvelope = findVolumeEnvelope(
+      expected.envelopes,
+      r.field.trackId,
+    );
+    return (
+      (currentEnvelope == null) === (expectedEnvelope == null) &&
+      (currentEnvelope == null ||
+        expectedEnvelope == null ||
+        sameEnvelopePoints(currentEnvelope.points, expectedEnvelope.points))
+    );
+  };
+  const abandonRun = (r: Run) => {
+    if (r.input === "pointer") stalePointerClick.current = true;
+    if (r.timer) clearTimeout(r.timer);
+    r.timer = null;
+    if (run.current === r) run.current = null;
+    setRunning(false);
+  };
+
   const discardStale = (r: Run) => {
     const s = useDawStore.getState();
     if (
@@ -122,6 +158,10 @@ export function useNudgeRun() {
 
   const step = (r: Run, held: boolean) => {
     if (r.field.kind === "trim" && discardStale(r)) return;
+    if (!sameOwnedEnvelope(r)) {
+      abandonRun(r);
+      return;
+    }
     const store = useDawStore.getState();
     const axis = nudgeAxis(r.origin, r.field);
     if (!axis || !store.project || r.stopped) return;
@@ -244,6 +284,11 @@ export function useNudgeRun() {
     const r = run.current;
     if (!r) return;
     if (r.field.kind === "trim" && discardStale(r)) return;
+    if (!sameOwnedEnvelope(r)) {
+      abandonRun(r);
+      endedAt.current = Date.now();
+      return;
+    }
     run.current = null;
     setRunning(false);
     endedAt.current = Date.now();
@@ -264,41 +309,38 @@ export function useNudgeRun() {
     const revert = () => {
       if (r.trimToken || !r.preview) return;
       const state = useDawStore.getState();
+      if (isEnvelopeNudge(r)) {
+        if (!sameOwnedEnvelope(r)) return;
+        const project = state.project;
+        if (!project) return;
+        const previous = findVolumeEnvelope(
+          r.origin.envelopes,
+          r.field.trackId,
+        );
+        const envelopes = previous
+          ? withVolumeEnvelopePoints(
+              project.envelopes,
+              r.field.trackId,
+              previous.points,
+            )
+          : project.envelopes.filter(
+              (envelope) =>
+                envelope.track_id !== r.field.trackId ||
+                envelope.parameter !== "volume",
+            );
+        state.setProject({ ...project, envelopes });
+        return;
+      }
       if (
         state.projectPath !== r.projectPath ||
         state.projectEpoch !== r.projectEpoch ||
-        currentDocumentSeq() > r.seq
+        currentDocumentSeq() > r.seq ||
+        state.project !== r.preview
       )
         return;
-      if (state.project === r.preview) {
-        revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
-        return;
-      }
-      if (r.field.kind !== "envelope-level" && r.field.kind !== "envelope-time")
-        return;
-      const project = state.project;
-      if (!project) return;
-      const trackId = r.field.trackId;
-      const currentEnvelope = findVolumeEnvelope(project.envelopes, trackId);
-      const previewEnvelope = findVolumeEnvelope(r.preview.envelopes, trackId);
-      if (
-        (currentEnvelope == null) !== (previewEnvelope == null) ||
-        (currentEnvelope != null &&
-          previewEnvelope != null &&
-          !sameEnvelopePoints(currentEnvelope.points, previewEnvelope.points))
-      )
-        return;
-      const previous = findVolumeEnvelope(r.origin.envelopes, trackId);
-      const envelopes = previous
-        ? withVolumeEnvelopePoints(project.envelopes, trackId, previous.points)
-        : project.envelopes.filter(
-            (envelope) =>
-              envelope.track_id !== trackId || envelope.parameter !== "volume",
-          );
-      state.setProject({ ...project, envelopes });
+      revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
     };
-    const envelopeNudge =
-      r.field.kind === "envelope-level" || r.field.kind === "envelope-time";
+    const envelopeNudge = isEnvelopeNudge(r);
     const hiddenEnvelope =
       envelopeNudge && !useDawStore.getState().layers.showLevels;
     if (hiddenEnvelope && r.input === "pointer")
