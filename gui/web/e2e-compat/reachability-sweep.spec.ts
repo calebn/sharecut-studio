@@ -56,10 +56,10 @@ const TABLETS: readonly Cell[] = [
     rootPx: 32,
     rows: false,
   },
-  { name: "tablet max 1100", width: 1100, height: 800, rootPx: 16, rows: true },
+  { name: "tablet max 1180", width: 1180, height: 800, rootPx: 16, rows: true },
   {
-    name: "desktop min 1101",
-    width: 1101,
+    name: "desktop min 1181",
+    width: 1181,
     height: 800,
     rootPx: 16,
     rows: true,
@@ -75,9 +75,16 @@ const LANDSCAPES: readonly Cell[] = [
     rows: false,
   },
   {
-    name: "iPad landscape 1194",
-    width: 1194,
+    name: "iPad landscape 1180",
+    width: 1180,
     height: 834,
+    rootPx: 16,
+    rows: true,
+  },
+  {
+    name: "iPad landscape short Safari",
+    width: 1180,
+    height: 620,
     rootPx: 16,
     rows: true,
   },
@@ -148,7 +155,7 @@ async function sweepCell(
   theme: Theme,
 ): Promise<string> {
   const phone = cell.width <= 767;
-  const sheet = cell.width <= 1100;
+  const sheet = cell.width <= 1180;
   const found: Record<string, Reach[]> = {};
   await arrive(page, cell);
   await setTheme(page, theme);

@@ -1139,6 +1139,22 @@ button.save-dot {
   .editing-tool-rail {
     padding-block: var(--space-0);
   }
+
+  /* iPad landscape with Safari chrome: stay one scrollable row (#1632). */
+  html[data-shell="tablet"] .editing-tool-rail-tools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  html[data-shell="tablet"] .editing-tool-rail-tools > *,
+  html[data-shell="tablet"] .editing-tool-rail-tools .ui-control {
+    flex: none;
+  }
+
+  html[data-shell="tablet"] .editing-tool-rail-end {
+    flex-wrap: nowrap;
+  }
 }
 
 .blade-confirm-sheet {
