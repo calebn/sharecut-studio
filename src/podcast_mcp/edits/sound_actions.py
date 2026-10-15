@@ -78,3 +78,15 @@ def sound_label_and_action(reason: str | None) -> tuple[str, SuggestedAction] | 
         return None
     row = SOUND_ACTIONS[kind]
     return row.label, row.action
+
+
+# Kinds the pipeline applies on its own setting, independent of ``tighten.enabled``: sounds
+# that are not words.  Filler, pause, repetition and restart cuts stay behind the golden-ear
+# bar (docs/filler-cut-quality.md) and apply only when ``tighten.enabled`` is on.
+SPEECH_KINDS = frozenset({"filler", "pause", "repetition", "restart"})
+
+
+def is_non_speech_sound(reason: str | None) -> bool:
+    """True for a tighten proposal that is a sound, not a spoken word or pause."""
+    kind = sound_kind(reason)
+    return kind is not None and kind not in SPEECH_KINDS

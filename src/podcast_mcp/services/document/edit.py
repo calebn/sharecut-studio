@@ -548,13 +548,10 @@ class EditService:
         ``ids`` narrows the batch like Studio's filtered list; ``overrides`` maps a decision
         id to another action (``cut`` / ``shorten`` / ``lower`` / ``leave``) for that sound.
         """
-        from podcast_mcp.edits.decisions import approve_edits, reject_edits, unplayed_pending_ids
         from podcast_mcp.edits.sound_actions import SUGGESTED_ACTIONS
-        from podcast_mcp.edits.source_removals import record_suggested_cut_speech
         from podcast_mcp.edits.suggested_actions import (
             SuggestedActionsResult,
-            another_speaker_over,
-            apply_lower,
+            apply_suggested_to_project,
             suggested_action_for,
         )
 
@@ -578,70 +575,20 @@ class EditService:
         result = SuggestedActionsResult()
         with self.ws.transaction() as project:
             listed = [e for e in project.edit_decisions if pending(e)]
-            actions = {e.id: overrides.get(e.id) or suggested_action_for(e) for e in listed}
+            actions: dict[str, str] = {
+                e.id: overrides.get(e.id) or str(suggested_action_for(e)) for e in listed
+            }
             cut_ids = [e.id for e in listed if actions[e.id] in ("cut", "shorten")]
-            over: set[str] = set()
-
-            held: list[HeldEdit] = []
-            overridden: set[str] = set()
-            gone: set[str] = set()
-
-            def apply_all(p) -> None:
-                by_id = {e.id: e for e in p.edit_decisions}
-                done: set[str] = set()
-                for edit_id in [i for i, a in actions.items() if a == "lower"]:
-                    decision = by_id[edit_id]
-                    if not another_speaker_over(p, decision):
-                        actions[edit_id] = "leave"
-                        result.left_no_overlap += 1
-                    elif apply_lower(p, decision):
-                        done.add(edit_id)
-                        result.applied["lower"] = result.applied.get("lower", 0) + 1
-                    else:
-                        result.held.append(edit_id)
-                leave_ids = [i for i, a in actions.items() if a == "leave"]
-                reject_edits(p, leave_ids)
-                if leave_ids:
-                    result.applied["leave"] = len(leave_ids)
-                p.edit_decisions = [e for e in p.edit_decisions if e.id not in done]
-                if cut_ids:
-                    before = {e.id for e in p.edit_decisions}
-                    stale = unplayed_pending_ids(p, set(cut_ids))
-                    live = [i for i in cut_ids if i not in stale]
-                    for edit_id in live:
-                        decision = by_id[edit_id]
-                        if decision.scope != "track" and decision.exact_range is None:
-                            record_suggested_cut_speech(p, decision)
-                    over.update(i for i in live if by_id[i].cut_speech is not None)
-                    approve_edits(
-                        p,
-                        live,
-                        confirm_cut_speech=True,
-                        allow_review=False,
-                        held_out=held,
-                        override_peer_holds=overridden,
-                        accept_leaned_on=True,
-                    )
-                    gone.update(before - {e.id for e in p.edit_decisions})
-
             if cut_ids:
                 self._require_refine_clear()
             with batch_scope():
                 self.ws.mutate(
                     "before apply suggested actions",
                     "after apply suggested actions",
-                    apply_all,
+                    lambda p: apply_suggested_to_project(p, actions, result),
                     operation="apply_suggested_actions",
                     params={"ids": sorted(actions)},
                 )
-            applied_cuts = [i for i in cut_ids if i in gone]
-            for action in ("cut", "shorten"):
-                n = sum(1 for i in applied_cuts if actions[i] == action)
-                if n:
-                    result.applied[action] = n
-            result.cut_over_speaker = len((over | overridden) & set(applied_cuts))
-            result.held.extend(h.edit_id for h in held)
-            result.held.extend(i for i in cut_ids if i not in gone and i not in result.held)
         return {"operation": "apply_suggested_actions", **result.to_payload()}
 
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:

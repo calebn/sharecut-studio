@@ -9,6 +9,7 @@
     "analyze_focus_cuts",
     "analyze_prosody",
     "apply_bleed_suppression_tool",
+    "apply_sound_actions",
     "assemble_timeline",
     "balance_tracks",
     "audio_diagnostics_tool",

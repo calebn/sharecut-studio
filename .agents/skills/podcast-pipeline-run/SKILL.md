@@ -28,15 +28,16 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 12. focus_from_transcript (no-op unless `focus.auto_apply: true`)
 13. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
 14. tighten_from_transcript (no-op unless `tighten.enabled: true`)
-15. fill_gate_holes (`gate_fill.mode`, **auto by default**) — room tone under the digital silence a recorder's noise gate (Zoom) leaves between words on each dialogue track: its recorded bed, else comfort noise matched to its own noise under its speech; never another track. The summary names each track's holes, seconds filled and level, or why it stayed silent. Undo `after fill_gate_holes` to remove it. See [docs/pipeline.md § Gate fill](../../docs/pipeline.md#gate-fill).
-16. clean_audio
-17. compress_tracks
-18. balance_tracks
-19. assemble_timeline — final stems (edits + FX)
-20. reconcile_transcript — **pass 2** (post-FX audibility refresh)
-21. mix_with_music
-22. master_loudness
-23. export_deliverables
+15. apply_sound_actions (`tighten.apply_non_speech`, **on by default**, independent of `tighten.enabled`) — applies each non-speech sound's suggested action (a laugh with another speaker over it is lowered, an unclear sound is left, a cut is ripple across every dialogue track) in one undo step; the summary names what it applied and how many cuts went over another speaker. Filler, pause, repetition and restart proposals are not touched. Undo `after apply_sound_actions` to revert it; set `tighten.apply_non_speech: false` to leave the sounds pending.
+16. fill_gate_holes (`gate_fill.mode`, **auto by default**) — room tone under the digital silence a recorder's noise gate (Zoom) leaves between words on each dialogue track: its recorded bed, else comfort noise matched to its own noise under its speech; never another track. The summary names each track's holes, seconds filled and level, or why it stayed silent. Undo `after fill_gate_holes` to remove it. See [docs/pipeline.md § Gate fill](../../docs/pipeline.md#gate-fill).
+17. clean_audio
+18. compress_tracks
+19. balance_tracks
+20. assemble_timeline — final stems (edits + FX)
+21. reconcile_transcript — **pass 2** (post-FX audibility refresh)
+22. mix_with_music
+23. master_loudness
+24. export_deliverables
 
 **Alignment:** After ASR, `align_tracks` places whole-file dialogue clips on one session clock (see **podcast-align-audio**). Unattended runs keep the scorer result and waive `require_align_accept` when `align.accept.mode` is `waive_unattended`. Agents clear the gate with listen + `podcast align done`.
 

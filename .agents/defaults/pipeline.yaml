@@ -84,6 +84,13 @@ tighten:
   # (discourse "like" over-cut + broken splice flow). Manual propose/apply still works.
   # See docs/filler-cut-quality.md § Default pipeline status.
   enabled: false
+  # Non-speech sounds (laughs, unclear sounds, backchannels) get their suggested action
+  # applied by the apply_sound_actions step, in one undo step, whatever `enabled` says:
+  # a laugh with another speaker over it is lowered, an unclear sound is left. Filler,
+  # pause, repetition and restart proposals are not touched here. false = propose only
+  # when tighten.enabled and leave every sound pending. See docs/filler-cut-quality.md
+  # D-non-speech-sound-actions.
+  apply_non_speech: true
   # ripple = session/track REMOVE (default). mute = mute the filler window in
   # place (Clip.mute_regions) over filler_pad_mode's fill; each edge fades on one
   # track, so a mute gets the padded-cut checks below, not the splice checks or
@@ -107,7 +114,8 @@ tighten:
   # Propose review-only repetition:/restart: hits (light intensity turns this off).
   repetition_candidates: true
   # Review-only local DSP candidates for voiced audio hidden in ASR gaps.
-  # This never auto-applies: VAD can mistake breaths/noise for words.
+  # They are never cut: VAD can mistake breaths/noise for words. apply_non_speech lowers a
+  # laugh under another speaker and leaves the rest.
   acoustic_gap_filler:
     enabled: true
     min_gap_sec: 0.35

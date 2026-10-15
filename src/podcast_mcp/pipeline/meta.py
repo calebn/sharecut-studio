@@ -178,6 +178,20 @@ _STEP_DEFS: dict[str, StepMeta] = {
         enabled_by_default=False,
         noop_unless="tighten.enabled",
     ),
+    "apply_sound_actions": StepMeta(
+        id="apply_sound_actions",
+        group="editorial",
+        title="Apply sound actions",
+        summary=(
+            "Apply each non-speech sound's suggested action (cut, lower or leave) "
+            "(no-op unless tighten.apply_non_speech)."
+        ),
+        kind="heuristic",
+        depends_on=("require_transcript_refine",),
+        param_sections=("tighten", "inaudible_cuts", "render"),
+        enabled_by_default=True,
+        noop_unless="tighten.apply_non_speech",
+    ),
     "fill_gate_holes": StepMeta(
         id="fill_gate_holes",
         group="mix",
@@ -759,6 +773,20 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         group="common",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
+    ),
+    ParamField(
+        path="tighten.apply_non_speech",
+        label="Apply sound actions",
+        description=(
+            "Propose and apply each non-speech sound's suggested action (laughs lowered "
+            "under another speaker, unclear sounds left) in one undo step; off leaves them "
+            "pending. Independent of Tighten enabled."
+        ),
+        type="boolean",
+        default=True,
+        group="common",
+        section="tighten",
+        affects=("apply_sound_actions",),
     ),
     ParamField(
         path="tighten.edit_mode",

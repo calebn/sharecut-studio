@@ -117,3 +117,70 @@ def apply_lower(project: EpisodeProject, decision: EditDecision, db: float = LOW
         },
     )
     return True
+
+
+def apply_suggested_to_project(
+    project: EpisodeProject, actions: dict[str, str], result: SuggestedActionsResult
+) -> None:
+    """Apply ``actions`` (decision id -> cut / shorten / lower / leave) to ``project`` in place.
+
+    The caller owns the transaction, so a service call and a pipeline step each get one
+    undo step.  Lowers go first (a laugh nobody talks over becomes a leave), then leaves,
+    then every cut together so the speech guard sees one batch.
+    """
+    from podcast_mcp.edits.decisions import (
+        HeldEdit,
+        approve_edits,
+        reject_edits,
+        unplayed_pending_ids,
+    )
+    from podcast_mcp.edits.source_removals import record_suggested_cut_speech
+
+    by_id = {e.id: e for e in project.edit_decisions}
+    cut_ids = [i for i, a in actions.items() if a in ("cut", "shorten") and i in by_id]
+    done: set[str] = set()
+    for edit_id in [i for i, a in actions.items() if a == "lower" and i in by_id]:
+        decision = by_id[edit_id]
+        if not another_speaker_over(project, decision):
+            actions[edit_id] = "leave"
+            result.left_no_overlap += 1
+        elif apply_lower(project, decision):
+            done.add(edit_id)
+            result.applied["lower"] = result.applied.get("lower", 0) + 1
+        else:
+            result.held.append(edit_id)
+    leave_ids = [i for i, a in actions.items() if a == "leave" and i in by_id]
+    reject_edits(project, leave_ids)
+    if leave_ids:
+        result.applied["leave"] = len(leave_ids)
+    project.edit_decisions = [e for e in project.edit_decisions if e.id not in done]
+    if not cut_ids:
+        return
+    before = {e.id for e in project.edit_decisions}
+    stale = unplayed_pending_ids(project, set(cut_ids))
+    live = [i for i in cut_ids if i not in stale]
+    for edit_id in live:
+        decision = by_id[edit_id]
+        if decision.scope != "track" and decision.exact_range is None:
+            record_suggested_cut_speech(project, decision)
+    over = {i for i in live if by_id[i].cut_speech is not None}
+    held: list[HeldEdit] = []
+    overridden: set[str] = set()
+    approve_edits(
+        project,
+        live,
+        confirm_cut_speech=True,
+        allow_review=False,
+        held_out=held,
+        override_peer_holds=overridden,
+        accept_leaned_on=True,
+    )
+    gone = before - {e.id for e in project.edit_decisions}
+    applied_cuts = [i for i in cut_ids if i in gone]
+    for action in ("cut", "shorten"):
+        n = sum(1 for i in applied_cuts if actions[i] == action)
+        if n:
+            result.applied[action] = n
+    result.cut_over_speaker = len((over | overridden) & set(applied_cuts))
+    result.held.extend(h.edit_id for h in held)
+    result.held.extend(i for i in cut_ids if i not in gone and i not in result.held)
