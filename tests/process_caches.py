@@ -36,6 +36,7 @@ SHARED: dict[str, str] = {
     "podcast_mcp.engines.asr_silence:_cached_silent_fraction": "Keyed by every input.",
     "podcast_mcp.engines.session_timeline:_build_index": "Keyed by the full clip tuple.",
     "podcast_mcp.edits.join_cost_spectral:_mel_filterbank": "Pure function of (sr, n_fft).",
+    "podcast_mcp.engines.copy_timbre:_smoothing_matrix": "Pure function of the band width.",
     "podcast_mcp.services.collaboration.share:_review_version_ids_at_revision": (
         "Keyed by project path and file revision."
     ),
