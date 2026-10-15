@@ -195,7 +195,6 @@ const PATHS: Record<IconName, ReactElement> = {
   ),
   // Trim mode Option A (#1135): a wave, sound carrying on past the edit.
   ripple: <path d="M2.5 10c1.5-4 3.5-4 5 0s3.5 4 5 0 3.5-4 5 0" />,
-  // Trim mode Option A (#1135): a broken flatline, a gap with no ripple.
   flatline: (
     <>
       <path d="M2.5 10h4.5" />
