@@ -993,6 +993,12 @@ def _inaudibility_floors(
     }
 
 
+# Short words (about 40-100 ms) dilute in a span mean; read the loudest frame instead (#1594).
+_SHORT_WORD_AUDIBILITY_MAX_SEC = 0.10
+_SHORT_WORD_FRAME_SEC = 0.01
+_MIN_WORD_RMS_DUR_SEC = 0.005
+
+
 def _track_levels(
     project: EpisodeProject,
     track_ids: list[str],
@@ -1001,13 +1007,33 @@ def _track_levels(
     lags: dict[str, float],
     caches: TrackRmsCacheSet,
     offsets: dict[str, float],
+    *,
+    word_dur: float | None = None,
 ) -> dict[str, float]:
     """Each track's level for a timeline window on the voice scale, a lagged source read later."""
+    use_peak = (
+        word_dur is not None
+        and _MIN_WORD_RMS_DUR_SEC < word_dur <= _SHORT_WORD_AUDIBILITY_MAX_SEC
+    )
     levels: dict[str, float] = {}
     for tid in track_ids:
         lag = lags.get(tid, 0.0)
+        win_start, win_end = t_start + lag, t_end + lag
+        if use_peak:
+            frame_levels = timeline_frame_levels_db(
+                project,
+                tid,
+                win_start,
+                win_end,
+                frame_sec=_SHORT_WORD_FRAME_SEC,
+                hop_sec=_SHORT_WORD_FRAME_SEC,
+                caches=caches,
+            )
+            if frame_levels is not None and frame_levels.size:
+                levels[tid] = float(frame_levels.max()) - offsets.get(tid, 0.0)
+                continue
         rms = _rms_for_track_at_timeline(
-            project, tid, t_start + lag, t_end + lag, caches=caches, recorded_gain=False
+            project, tid, win_start, win_end, caches=caches, recorded_gain=False
         )
         if rms is not None:
             levels[tid] = rms - offsets.get(tid, 0.0)
@@ -1058,7 +1084,7 @@ def compute_word_audibility_map(
     total_words = sum(len(lane.transcript.words) for lane in lanes)
 
     # RMS windows shorter than this cannot be measured (see TrackRmsCache.rms_db).
-    _min_rms_dur = 0.005
+    _min_rms_dur = _MIN_WORD_RMS_DUR_SEC
 
     with resolve_progress_task(
         "audibility",
@@ -1143,7 +1169,14 @@ def compute_word_audibility_map(
                     continue
                 tl_start, tl_end = tl_span
                 track_rms = _track_levels(
-                    project, all_tracks, tl_start, tl_end, lags, caches, offsets
+                    project,
+                    all_tracks,
+                    tl_start,
+                    tl_end,
+                    lags,
+                    caches,
+                    offsets,
+                    word_dur=word_dur,
                 )
                 own_rms = track_rms.get(tid)
                 own_speech: float | None = None
@@ -1166,7 +1199,14 @@ def compute_word_audibility_map(
                 unlike_copy = False
                 if status == "bleed" and dominant in lags:
                     at_zero = _track_levels(
-                        project, all_tracks, tl_start, tl_end, {}, caches, offsets
+                        project,
+                        all_tracks,
+                        tl_start,
+                        tl_end,
+                        {},
+                        caches,
+                        offsets,
+                        word_dur=word_dur,
                     )
                     zero_speech: float | None = None
                     zero_own = at_zero.get(tid)
@@ -1298,13 +1338,32 @@ def list_low_audibility_words(
             for i, w in enumerate(tr.words):
                 if w.suppressed:
                     continue
+                word_dur = w.end - w.start
                 tl_span = word_timeline_window(st, lane, w.start, w.end)
                 if proc_cache is not None:
                     if tl_span is None:
                         done += 1
                         _tick()
                         continue
-                    rms = proc_cache.rms_db(tl_span[0], tl_span[1])
+                    if (
+                        _MIN_WORD_RMS_DUR_SEC < word_dur <= _SHORT_WORD_AUDIBILITY_MAX_SEC
+                        and (
+                            frame_levels := timeline_frame_levels_db(
+                                project,
+                                tid,
+                                tl_span[0],
+                                tl_span[1],
+                                frame_sec=_SHORT_WORD_FRAME_SEC,
+                                hop_sec=_SHORT_WORD_FRAME_SEC,
+                                caches=caches,
+                            )
+                        )
+                        is not None
+                        and frame_levels.size
+                    ):
+                        rms = float(frame_levels.max())
+                    else:
+                        rms = proc_cache.rms_db(tl_span[0], tl_span[1])
                 else:
                     try:
                         path = track_audio_path(project, tid)
