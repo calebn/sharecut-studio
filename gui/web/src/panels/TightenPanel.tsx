@@ -382,7 +382,12 @@ export function TightenPanel() {
                       )}
                     </td>
                     <td>{trackLabel(hit.track_id)}</td>
-                    <td>{hit.tightenClass}</td>
+                    <td>
+                      {hit.label ?? hit.tightenClass}
+                      {hit.suggested_action
+                        ? ` · suggest ${hit.suggested_action}`
+                        : ""}
+                    </td>
                     <td className="tighten-snippet">
                       {hit.snippet || "No snippet"}
                     </td>

@@ -418,7 +418,9 @@ def propose_edits(
 
     Returns a JSON object ``{operation, edits, skip_counts, summary}`` (not a
     bare array — breaking vs older list-of-decisions clients). ``operation`` is
-    ``propose_edits``. ``skip_counts`` maps ``discourse:{token}`` to kept uses
+    ``propose_edits``. Each edit also carries ``label`` (plain words, e.g. "Laugh")
+    and ``suggested_action`` (``cut`` / ``shorten`` / ``lower`` / ``leave``) from
+    one table (``edits/sound_actions.py``). ``skip_counts`` maps ``discourse:{token}`` to kept uses
     and ``backchannel:{phrase}`` to kept acknowledgments (``uh huh``).
     ``word_probe:unavailable`` is a missing Whisper model; ``word_probe:failed``
     is a span whose decode raised. The ``summary`` names both.
