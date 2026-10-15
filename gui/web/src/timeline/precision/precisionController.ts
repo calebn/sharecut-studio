@@ -355,6 +355,7 @@ function arm(element: Element, down: PointerEvent): boolean {
   const store = useDawStore.getState();
   const project = store.project;
   if (down.pointerType !== "touch" || !project || session) return false;
+  if (!element.closest(".daw-shell--phone")) return false;
   const kind = element.getAttribute("data-hit-kind") ?? "";
   const id = element.getAttribute("data-hit-id") ?? "";
   const target = precisionTarget(project, kind, id);
