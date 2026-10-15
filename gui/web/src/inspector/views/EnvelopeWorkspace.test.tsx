@@ -116,7 +116,7 @@ describe("EnvelopeWorkspace", () => {
   it("keeps the workspace hidden and blocks saving until the envelope is shown", async () => {
     hydrate([], null);
     useDawStore.getState().setLayerVisible("showLevels", false);
-    mount(null);
+    const workspace = mount(null);
 
     expect(screen.getByRole("button", { name: "Add point" })).toBeDisabled();
     await userEvent.click(
@@ -124,8 +124,8 @@ describe("EnvelopeWorkspace", () => {
     );
     expect(useDawStore.getState().layers.showLevels).toBe(true);
     await userEvent.click(screen.getByRole("button", { name: "Add point" }));
+    expect(screen.getByLabelText("Level (×)")).toHaveValue("1");
     await time("5");
-    await level("0.5");
     await userEvent.click(
       screen.getByRole("button", { name: "Hide volume envelope" }),
     );
@@ -137,11 +137,26 @@ describe("EnvelopeWorkspace", () => {
       screen.getByRole("button", { name: "Show volume envelope" }),
     );
     await save();
-    const next = setEnvelope.mock.calls[0]![2] as AutomationPoint[];
-    expect(next.map(({ time: at, value }) => ({ time: at, value }))).toEqual([
+    const flat = setEnvelope.mock.calls[0]![2] as AutomationPoint[];
+    expect(flat.map(({ time: at, value }) => ({ time: at, value }))).toEqual([
       { time: 0, value: 1 },
-      { time: 5, value: 0.5 },
+      { time: 5, value: 1 },
       { time: 10, value: 1 },
+    ]);
+    expect(setEnvelope.mock.calls[0]![3]).toEqual([]);
+    hydrate(flat, flat[1]!.id);
+    workspace.rerender(
+      <EnvelopeWorkspace trackId="host" pointId={flat[1]!.id} />,
+    );
+    await edit();
+    expect(screen.getByLabelText("Level (×)")).toHaveValue("1");
+    await level("0.5");
+    await save();
+    expect(setEnvelope.mock.calls[1]![3]).toEqual(flat);
+    expect(setEnvelope.mock.calls[1]![2]).toEqual([
+      { ...flat[0]!, value: 1 },
+      { ...flat[1]!, value: 0.5 },
+      { ...flat[2]!, value: 1 },
     ]);
   });
   it("saves one existing envelope command for a half-dB nudge", async () => {
@@ -157,6 +172,54 @@ describe("EnvelopeWorkspace", () => {
       [{ id: "late", time: 5, value: 0.529627 }],
       [{ id: "late", time: 5, value: 0.5 }],
     );
+  });
+  it("keeps a submitted envelope nudge when the shared layer is hidden", async () => {
+    hydrate([{ id: "late", time: 5, value: 1 }], "late");
+    mount();
+    let settle!: () => void;
+    setEnvelope.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+    );
+
+    const point = screen.getByRole("button", { name: "0.5 dB lower" });
+    fireEvent.pointerDown(point, { button: 0, pointerId: 4 });
+    fireEvent.pointerUp(point, { pointerId: 4 });
+    await waitFor(() => expect(setEnvelope).toHaveBeenCalledTimes(1));
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [{ id: "late", time: 5, value: 0.944061 }],
+      [{ id: "late", time: 5, value: 1 }],
+    );
+
+    useDawStore.getState().setLayerVisible("showLevels", false);
+    await act(async () => settle());
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "late", time: 5, value: 0.944061 }]);
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+  });
+  it("reverts an active envelope nudge if the shared layer is hidden", async () => {
+    hydrate([{ id: "late", time: 5, value: 1 }], "late");
+    mount();
+    const point = screen.getByRole("button", { name: "0.5 dB lower" });
+    fireEvent.pointerDown(point, { button: 0, pointerId: 3 });
+    useDawStore.getState().setLayerVisible("showLevels", false);
+    fireEvent.pointerUp(point, { pointerId: 3 });
+
+    await waitFor(() => expect(setEnvelope).not.toHaveBeenCalled());
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "late", time: 5, value: 1 }]);
   });
   it("sends the raw unsorted origin and edits the exact ID", async () => {
     mount();
