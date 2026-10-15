@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.media.speaker import (
         SpeakerService,
+        coerce_enrollment,
     )
     from podcast_mcp.services.media.transcript import (
         TranscriptService,
@@ -75,6 +76,7 @@ __all__ = [
     "TranscriptService",
     "VocabularyConflictError",
     "WaveformBusyError",
+    "coerce_enrollment",
     "delete_all_proxies_if_unused",
     "delete_object_store_object_if_unused",
     "ensure_and_upload_all_proxies",
@@ -131,6 +133,7 @@ _MODULE_BY_NAME = {
     "upload_review_version_to_object_store": "review_media",
     "presigned_review_audio_url": "review_media",
     "SpeakerService": "speaker",
+    "coerce_enrollment": "speaker",
     "TranscriptService": "transcript",
     "TranscriptContextBusyError": "transcript_precorrect",
     "TranscriptPrecorrectService": "transcript_precorrect",

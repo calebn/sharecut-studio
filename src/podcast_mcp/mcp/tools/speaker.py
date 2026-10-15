@@ -5,8 +5,7 @@ from mcp.server import MCPServer
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.models import SpeakerSplitCrosstalk
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.media import SpeakerService
-from podcast_mcp.services.media.speaker import coerce_enrollment
+from podcast_mcp.services.media import SpeakerService, coerce_enrollment
 from podcast_mcp.util.progress import resolve_progress
 
 
