@@ -94,3 +94,20 @@ def test_a_cut_overlapping_the_asked_one_on_the_timeline_keeps_the_batch_asking(
     reply = approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
 
     assert reply["unchanged"] is True
+
+
+def test_approving_several_cuts_at_once_leaves_one_history_entry(tmp_path, monkeypatch):
+    result, _asked = _with_plain_cut(tmp_path, monkeypatch)
+    plain = next(e for e in result.edit_decisions if e.id == "plain")
+    result.edit_decisions += [
+        plain.model_copy(update={"id": "plain2", "start": 4.0, "end": 4.2}),
+        plain.model_copy(update={"id": "plain3", "start": 5.0, "end": 5.2}),
+    ]
+    ws = workspace(result)
+    approve_edits(ws, {"ids": ["plain"]})  # the first mutation also writes the baseline entry
+    before = len(load_project(ws.path).history.entries)
+
+    reply = approve_edits(ws, {"ids": ["plain2", "plain3"]})
+
+    assert reply["count"] == 2
+    assert len(load_project(ws.path).history.entries) == before + 1
