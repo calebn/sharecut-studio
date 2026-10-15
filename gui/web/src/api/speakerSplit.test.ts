@@ -19,6 +19,7 @@ describe("startSplitSpeakersJob", () => {
         trackId: "room",
         speakerCount: 3,
         names: ["Ana", "Ben", "Cy"],
+        enrollment: { Ana: [[1.5, 6]] },
       }),
     ).resolves.toEqual(job);
     const [url, init] = hostFetch.mock.calls[0]!;
@@ -29,6 +30,7 @@ describe("startSplitSpeakersJob", () => {
       track_id: "room",
       speaker_count: 3,
       names: ["Ana", "Ben", "Cy"],
+      enrollment: { Ana: [[1.5, 6]] },
     });
   });
 
@@ -43,6 +45,7 @@ describe("startSplitSpeakersJob", () => {
         trackId: "room",
         speakerCount: 2,
         names: null,
+        enrollment: null,
       }),
     ).rejects.toThrow("track room is already split");
   });

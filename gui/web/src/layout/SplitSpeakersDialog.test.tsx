@@ -288,6 +288,7 @@ describe("SplitSpeakersDialog", () => {
       trackId: "room",
       speakerCount: 2,
       names: ["Ana", "Ben"],
+      enrollment: null,
     });
     expect(await screen.findByText("Finding who is talking…")).toBeTruthy();
     expect(
@@ -329,6 +330,119 @@ describe("SplitSpeakersDialog", () => {
     expect(useDawStore.getState().pendingJobResults).toEqual({});
     expect(useDawStore.getState().spokenJobResultIds).toContain("s1");
     await expectNoA11yViolations(baseElement);
+  });
+
+  it("seeds the split with a voice sample taken from the selected range", async () => {
+    const user = userEvent.setup();
+    const roomClip = {
+      id: "room_clip",
+      track_id: "room",
+      source_start: 4,
+      source_end: 64,
+      timeline_start: 10,
+      timeline_end: 70,
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+      join_in_mode: "fade" as const,
+      source_id: null,
+      source_duration_sec: 60,
+      recording_key: null,
+    };
+    useDawStore.setState({
+      project: minimalProject({
+        tracks: [sampleTrack({ id: "room", label: "Room", duration_sec: 60 })],
+        clips: { tracks: { room: [roomClip] }, clip_count: 1 },
+      }),
+    });
+    const { baseElement } = render(<SplitSpeakersDialog />);
+    await openWithFocusSettled();
+    const mark = screen.getByRole("button", {
+      name: "Use selection as Speaker 1's voice",
+    });
+    expect(mark).toBeDisabled();
+    act(() =>
+      useDawStore.getState().setSelection({
+        kind: "range",
+        target: {
+          kind: "exact_range",
+          intervals: [{ start: 12, end: 18 }],
+          track_ids: ["room"],
+          clips: [],
+          media_seals: {},
+        },
+      }),
+    );
+    await waitFor(() => expect(mark).toBeEnabled());
+    await user.click(mark);
+    expect(screen.getByText("Voice sample 0:12 · 0:06")).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "Listen to Speaker 1's voice sample",
+      }),
+    ).toBeTruthy();
+    await expectNoA11yViolations(baseElement);
+    await user.click(screen.getByRole("button", { name: "Split speakers" }));
+    expect(startSplitSpeakersJob).toHaveBeenCalledWith(PATH, {
+      trackId: "room",
+      speakerCount: 2,
+      names: ["Speaker 1", "Speaker 2"],
+      enrollment: { "Speaker 1": [[6, 12]] },
+    });
+  });
+
+  it("clears a voice sample", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({
+      project: minimalProject({
+        tracks: [sampleTrack({ id: "room", label: "Room", duration_sec: 60 })],
+        clips: {
+          tracks: {
+            room: [
+              {
+                id: "c",
+                track_id: "room",
+                source_start: 0,
+                source_end: 60,
+                timeline_start: 0,
+                timeline_end: 60,
+                fade_in_ms: 0,
+                fade_out_ms: 0,
+                join_in_mode: "fade" as const,
+                source_id: null,
+                source_duration_sec: 60,
+                recording_key: null,
+              },
+            ],
+          },
+          clip_count: 1,
+        },
+      }),
+      selection: {
+        kind: "range",
+        target: {
+          kind: "exact_range",
+          intervals: [{ start: 2, end: 5 }],
+          track_ids: ["room"],
+          clips: [],
+          media_seals: {},
+        },
+      },
+    });
+    render(<SplitSpeakersDialog />);
+    await openWithFocusSettled();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use selection as Speaker 2's voice",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Clear Speaker 2's voice sample" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Split speakers" }));
+    expect(startSplitSpeakersJob).toHaveBeenCalledWith(
+      PATH,
+      expect.objectContaining({ names: null, enrollment: null }),
+    );
   });
 
   it("names the track as it was called before the split renamed it to the first speaker", async () => {
