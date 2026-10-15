@@ -907,6 +907,11 @@ def test_split_is_one_undoable_step(mixed_ws: ProjectWorkspace) -> None:
         "room", speaker_count=2, names=["Ana", "Ben"], dry_run=False
     )
     assert [lane["track_id"] for lane in result["lanes"]] == ["room", "room_ben"]
+    duration = mixed_ws.project.track_by_id("room").media.duration_sec
+    assert duration is not None
+    by_name = {lane["name"]: lane["muted_sec"] for lane in result["lanes"]}
+    assert by_name.keys() == {"Ana", "Ben"}
+    assert all(0.0 <= muted <= duration for muted in by_name.values())
     assert len(mixed_ws.project.history.entries) == entries + 2
     HistoryService(mixed_ws).undo()
     after = mixed_ws.project.model_dump(include={"timeline", "transcript_data", "editorial"})
