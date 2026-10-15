@@ -152,3 +152,14 @@ def test_precomputed_own_spectra_give_the_same_similarity():
         copy_similarity(own, peer, frames, 4, sample_rate=RATE),
         copy_similarity(own, peer, frames, 4, sample_rate=RATE, own_fine=fine),
     )
+
+
+def test_fine_spectra_smoothing_matches_a_flat_kernel_convolution():
+    from podcast_mcp.engines import copy_timbre
+
+    rng = np.random.default_rng(5)
+    rows = np.log(np.abs(rng.normal(size=(40, 120))) + 1e-9)
+    kernel = np.ones(copy_timbre.TIMBRE_SMOOTH_BINS) / copy_timbre.TIMBRE_SMOOTH_BINS
+    expected = np.apply_along_axis(np.convolve, 1, rows, kernel, mode="same")
+    got = rows @ copy_timbre._smoothing_matrix(rows.shape[1])
+    assert np.allclose(got, expected, rtol=0, atol=1e-12)
