@@ -10,6 +10,8 @@ the word as another speaker's (#1052). Both confirm a copy lag with it first
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 
 from podcast_mcp.engines.envelope_lag import (
@@ -41,6 +43,18 @@ TIMBRE_LAG_REACH = round(COPY_FRAME_SEC / 2 / COPY_HOP_SEC)
 _SIMILARITY_CHUNK = 4096
 
 
+@lru_cache(maxsize=8)
+def _smoothing_matrix(bins: int) -> np.ndarray:
+    """The moving average over ``TIMBRE_SMOOTH_BINS`` bins, zero beyond the band's edges.
+
+    One matrix product smooths every frame at once; it is the same filter as convolving
+    each frame's row with a flat kernel in ``same`` mode, to rounding.
+    """
+    index = np.arange(bins)
+    reach = TIMBRE_SMOOTH_BINS // 2
+    return (np.abs(index[:, None] - index[None, :]) <= reach) / TIMBRE_SMOOTH_BINS
+
+
 def fine_spectra(samples: np.ndarray, frames: np.ndarray, *, sample_rate: int) -> np.ndarray:
     """Unit vectors of each level frame's log spectrum less its smooth envelope.
 
@@ -56,8 +70,7 @@ def fine_spectra(samples: np.ndarray, frames: np.ndarray, *, sample_rate: int) -
     window = np.hanning(width)
     padded = samples if samples.size else np.zeros(1)
     spectra = np.log(np.abs(np.fft.rfft(padded[index] * window, axis=1))[:, band] + 1e-9)
-    kernel = np.ones(TIMBRE_SMOOTH_BINS) / TIMBRE_SMOOTH_BINS
-    smooth = np.apply_along_axis(np.convolve, 1, spectra, kernel, mode="same")
+    smooth = spectra @ _smoothing_matrix(spectra.shape[1])
     fine = spectra - smooth
     fine -= fine.mean(axis=1, keepdims=True)
     return fine / (np.linalg.norm(fine, axis=1, keepdims=True) + 1e-12)
