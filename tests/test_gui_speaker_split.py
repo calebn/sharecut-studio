@@ -340,6 +340,14 @@ def test_the_route_hands_the_enrollment_to_the_service_unchanged(
         return real(self, *args, **kwargs)
 
     monkeypatch.setattr(SpeakerService, "split_speakers", spy)
+    started: list[PipelineJob] = []
+    start = PipelineJobManager.start_split_speakers
+
+    def capture(self, *args, **kwargs):
+        started.append(start(self, *args, **kwargs))
+        return started[-1]
+
+    monkeypatch.setattr(PipelineJobManager, "start_split_speakers", capture)
     client = _client()
     res = client.post(
         "/api/speaker/split",
@@ -352,12 +360,8 @@ def test_the_route_hands_the_enrollment_to_the_service_unchanged(
         },
     )
     assert res.status_code == 200
-    job_id = res.json()["job"]["id"]
-    for _ in range(100):
-        job = client.get("/api/pipeline/status").json().get("job")
-        if job and job["id"] == job_id and job["status"] in ("ok", "error"):
-            break
-        time.sleep(0.05)
+    _wait(started[0])
+    job = started[0].snapshot()
     assert job["status"] == "ok"
     assert seen["enrollment"] == {"Ana": [(0.5, 3.5)], "Ben": [(6.0, 9.0)]}
 
