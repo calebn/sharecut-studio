@@ -9,6 +9,7 @@ import {
   type StretchedProject,
   stretchProjectToSession,
 } from "../e2e/deepZoom";
+import { layer } from "../e2e/lifecycleAudit";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -100,6 +101,7 @@ test.describe("deep zoom at the content ceiling", () => {
         await expect(page.getByRole("heading", { level: 1 })).toContainText(
           /aligned dialogue/i,
         );
+        await layer(page, "Volume envelope", true);
         const scroll = page.locator(".timeline-scroll");
         await scroll.waitFor({ state: "visible" });
         await expectPaintedWaveformTile(page);

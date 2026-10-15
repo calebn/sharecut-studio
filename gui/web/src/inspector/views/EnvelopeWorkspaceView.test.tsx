@@ -208,6 +208,13 @@ describe("envelope initial focus", () => {
 });
 
 describe("selected envelope nudge controls", () => {
+  it("does not let visibility change while a nudge is active", () => {
+    render(<EnvelopeWorkspaceView {...props} nudgeActive />);
+    expect(
+      screen.getByRole("button", { name: "Hide volume envelope" }),
+    ).toBeDisabled();
+  });
+
   it("offers timeline steps and half-dB steps, disabling a downward step from silence", async () => {
     const run = {
       buttonProps: vi.fn(() => ({})),

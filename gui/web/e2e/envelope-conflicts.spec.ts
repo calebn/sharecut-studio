@@ -40,6 +40,9 @@ test("local stale draft and real ordered CAS refusal preserve the winning envelo
           .getByRole("button", { name: "Add volume envelope", exact: true })
           .click();
         await page
+          .getByRole("button", { name: "Show volume envelope", exact: true })
+          .click();
+        await page
           .getByRole("button", { name: "Add point", exact: true })
           .click();
         const first = await acceptedEnvelopeCommand(page, "SetEnvelope", () =>
@@ -55,6 +58,9 @@ test("local stale draft and real ordered CAS refusal preserve the winning envelo
         await openEnvelopeTrackDetails(peer, track.label, receipts);
         await peer
           .getByRole("button", { name: "Edit volume envelope", exact: true })
+          .click();
+        await peer
+          .getByRole("button", { name: "Show volume envelope", exact: true })
           .click();
         await peer
           .getByRole("combobox", { name: "Envelope point", exact: true })
@@ -218,6 +224,9 @@ test("accepted envelope save does not reclaim a different inspector while respon
         await openEnvelopeTrackDetails(page, track.label, receipts);
         await page
           .getByRole("button", { name: "Add volume envelope", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "Show volume envelope", exact: true })
           .click();
         await page
           .getByRole("button", { name: "Add point", exact: true })

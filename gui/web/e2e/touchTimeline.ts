@@ -11,6 +11,7 @@ import {
 } from "@playwright/test";
 import { rulerWidthPx } from "./deepZoom";
 import { postDocumentCommand } from "./documentCommand";
+import { layer } from "./lifecycleAudit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setTheme, type Theme } from "./theme";
 
@@ -191,6 +192,7 @@ export async function openTimeline(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
+  await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
   await expect(
     page.locator('circle[aria-label^="Envelope point 2"]'),

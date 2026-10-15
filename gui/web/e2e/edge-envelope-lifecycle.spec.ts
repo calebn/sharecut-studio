@@ -34,6 +34,7 @@ for (const family of ["fade", "trim", "envelope"] as const)
               : page
                   .locator('circle[aria-label^="Envelope point 1 at"]')
                   .first();
+        if (family === "envelope") await layer(page, "Volume envelope", true);
         if (family === "trim") {
           await block.locator(".clip-hit").click();
           await expect(block.locator(".clip-hit")).toHaveAttribute(

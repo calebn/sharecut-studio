@@ -10,6 +10,7 @@ import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
 import { postDocumentCommand, postHistoryMove } from "../e2e/documentCommand";
 import { e2eProjectPath } from "../e2e/env";
 import { type Finger, newFinger, type Point } from "../e2e/finger";
+import { layer } from "../e2e/lifecycleAudit";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -118,6 +119,7 @@ async function open(page: Page, size: SizeName, theme: "dark" | "light") {
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (SIZES[size].width < 768) await openPhoneTimeline(page);
+  await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
   await setZoom(page, 3);
 }

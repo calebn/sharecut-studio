@@ -1,6 +1,7 @@
 import { expect, type Page, type TestInfo, test } from "@playwright/test";
 import { e2eProjectPath } from "../e2e/env";
 import { newFinger } from "../e2e/finger";
+import { layer } from "../e2e/lifecycleAudit";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -101,6 +102,7 @@ async function noRowOverStrip(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (viewport.width < 768) await openPhoneTimeline(page);
+  await layer(page, "Volume envelope", true);
   await setZoom(page, 3);
   const finger = await newFinger(context, page, browserName);
   await finger.down(

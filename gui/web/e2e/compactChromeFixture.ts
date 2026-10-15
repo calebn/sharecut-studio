@@ -6,7 +6,7 @@ import {
   type TestInfo,
 } from "@playwright/test";
 import { e2eProjectPath } from "./env";
-
+import { layer } from "./lifecycleAudit";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -70,6 +70,7 @@ export async function openAt(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (size.width < 768) await openPhoneTimeline(page);
+  await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
   await page.evaluate((px) => {

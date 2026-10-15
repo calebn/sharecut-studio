@@ -231,7 +231,11 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
         role="group"
         aria-label="Volume envelope controls"
       >
-        <Button aria-pressed={levelsVisible} onClick={props.onToggleLevels}>
+        <Button
+          aria-pressed={levelsVisible}
+          disabledReason={controlsBusy ? BUSY_REASON : undefined}
+          onClick={props.onToggleLevels}
+        >
           {levelsVisible ? "Hide volume envelope" : "Show volume envelope"}
         </Button>
         {!levelsVisible && (
