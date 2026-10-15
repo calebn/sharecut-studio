@@ -29,7 +29,6 @@ export interface GuestAttentionBannerViewProps {
   onRetry?: () => void;
   /** Open the existing History surface for a command that may have applied. */
   onInspectHistory?: () => void;
-  /** Polite live region for queue/conflict changes (not the shell status region). */
   attentionLiveMessage?: string;
   attentionLiveSeq?: number;
 }
