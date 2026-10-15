@@ -21,6 +21,9 @@ const DOCUMENTED_EXCEPTIONS = [
   ".utterance-word",
   ".utterance-seek:not(.utterance-speaker)",
   ".track-reorder-handle",
+  ".comment-marker.pin",
+  ".pending-hit",
+  ".pending-handle",
 ];
 const TABLET_EXCEPTIONS = [".status-chip"];
 const FLOOR_PX = 44 - 0.5;

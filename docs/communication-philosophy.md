@@ -374,7 +374,11 @@ audited finding.
   (2.5.7).
   `gui/web/e2e/touch-floor.spec.ts` sweeps every control on a coarse pointer
   (every phone mode, the tablet and landscape shells and the transport menu) and fails on any under 44 CSS px that is not one
-  of its named exceptions: canvas dense targets, inline transcript words and
+  of its named exceptions: canvas dense targets (the trim handles, fade
+  corners, comment pins and the pending edit's hit area and handles, whose
+  size follows time on the timeline; a selected pending edit grows its
+  handles to 44 px, and the Comments and Edits lists are the equivalent
+  controls), inline transcript words and
   timestamps, but not the speaker button (a taller hit area would take the
   next line's taps; the ruler and transport seek at 44 px), the track reorder grip (Move up/down are the
   44 px equivalent), and tablet status chips (the tab strip carries the same
