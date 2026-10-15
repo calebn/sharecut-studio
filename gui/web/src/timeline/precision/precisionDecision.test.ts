@@ -6,7 +6,6 @@ import {
   velocityGain,
 } from "./precisionDecision";
 
-/** An 8 px trim handle under a 44 px finger, at 10 px/s (0.1 px per step). */
 const narrow = { targetPx: 8, gapPx: null, fingerPx: 44, stepPx: 0.1 };
 
 describe("Auto precision decision", () => {
@@ -44,7 +43,6 @@ describe("Auto precision decision", () => {
   it("keeps a target's last mode until a measure clears the threshold by 25%", () => {
     const edge = { ...narrow, targetPx: 50 };
     expect(decidePrecision(edge).mode).toBe("direct");
-    // Armed in precision before: 50 px is under 44 × 1.25 = 55, so it stays.
     const kept = decidePrecision(edge, "precision");
     expect([kept.mode, kept.thresholdPx, kept.sticky]).toEqual([
       "precision",
@@ -54,14 +52,12 @@ describe("Auto precision decision", () => {
     expect(decidePrecision({ ...edge, targetPx: 56 }, "precision").mode).toBe(
       "direct",
     );
-    // Armed directly before: 40 px is not under 44 / 1.25 = 35.2, so it stays.
     expect(decidePrecision({ ...edge, targetPx: 40 }, "direct").mode).toBe(
       "direct",
     );
     expect(decidePrecision({ ...edge, targetPx: 35 }, "direct").mode).toBe(
       "precision",
     );
-    // The zoom threshold leans the same way: 5 px after precision, 3.2 after direct.
     expect(decidePrecision({ ...narrow, stepPx: 4.5 }, "precision").mode).toBe(
       "precision",
     );
@@ -99,7 +95,6 @@ describe("Auto precision decision", () => {
 
 describe("direct drag ballistics", () => {
   it("moves a slow finger one step per 4 px and a fast one 1:1", () => {
-    // 0.1 px per step: a slow finger gets 0.025, so 4 px make one step.
     expect(velocityGain(0, 0.1)).toBe(0.025);
     expect(velocityGain(0.05, 0.1)).toBe(0.025);
     expect(velocityGain(0.275, 0.1)).toBeCloseTo(0.5125, 9);

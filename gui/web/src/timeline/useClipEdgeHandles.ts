@@ -51,7 +51,6 @@ type Capture = Omit<Context, "getTicks" | "onSelect"> & {
 type Input =
   | { kind: "pointer"; pointerId: number; originX: number }
   | { kind: "keyboard"; key: "ArrowLeft" | "ArrowRight" }
-  /** A precision drag (#1184) sets the value directly. */
   | { kind: "precision" };
 type Draft = {
   phase: "preview" | "committing";

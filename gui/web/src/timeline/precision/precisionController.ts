@@ -1,8 +1,8 @@
 /**
  * Runs one Auto precision drag (#1184) at a time: the hit router hands it an
  * armed target (`precisionHandoff`), it measures the target and decides
- * direct or precision (`precisionDecision.ts`), the style's surface
- * (`PrecisionLayer`) feeds it finger travel, and it turns the session's
+ * direct or precision (`precisionDecision.ts`), the jog pad (`PrecisionLayer`)
+ * feeds it finger travel, and it turns the session's
  * states into previews, bumps, a save on commit and a rollback on cancel.
  *
  * Exits:
@@ -45,10 +45,8 @@ import {
   precisionReducer,
 } from "./precisionSession";
 
-/** Marks the precision surface: a press there is not a tap outside. */
 export const PRECISION_UI_ATTR = "data-precision-ui";
 
-/** What the precision surface renders. */
 export interface PrecisionView {
   variant: PrecisionVariant;
   name: string;
@@ -56,18 +54,12 @@ export interface PrecisionView {
   origin: number;
   value: number;
   gain: GainIndex;
-  /** Finger px per second of the moving point, at gain 1. */
   pxPerSec: number;
   stop: PrecisionStop | null;
-  /** Changes on every new stop, so a bump cue replays. */
   bump: number;
-  /** The armed target on the timeline. */
   element: Element;
-  /** Where the finger driving it is, viewport px. */
   finger: HitPoint | null;
-  /** A finger is on the target or the pad right now. */
   dragging: boolean;
-  /** What Auto chose when the target was armed, and why. */
   decision: PrecisionDecision;
 }
 
@@ -75,7 +67,6 @@ interface Driving {
   pointerId: number;
   startY: number;
   lastX: number;
-  /** The last move's `timeStamp`, and the smoothed finger speed (px/ms). */
   lastAt: number;
   speed: number;
 }
@@ -85,17 +76,13 @@ interface Session {
   axis: PrecisionAxis;
   driver: PrecisionDriver;
   element: Element;
-  /** The arming finger, until it lifts. */
   arming: number | null;
-  /** The finger moving the target: the arming one, or one on the pad. */
   driving: Driving | null;
-  /** Touches down anywhere; a second one cancels. */
   touches: Set<number>;
   moved: boolean;
   bump: number;
   finger: HitPoint | null;
   decision: PrecisionDecision;
-  /** One step of the target on screen at the timeline's zoom. */
   stepPx: number;
   dispose: () => void;
 }
@@ -138,7 +125,6 @@ function render(s: Session) {
   });
 }
 
-/** The time value a long-press on `kind`/`id` would drag, if it has one. */
 export function precisionTarget(
   project: ProjectView,
   kind: string,
@@ -190,12 +176,6 @@ const HINTS: Record<PrecisionVariant, string> = {
   jog: "precision, drag in the jog pad, slide up to slow it, Done to finish",
 };
 
-/**
- * How far the nearest other target, or soft boundary, is from `element`, in
- * px; null when there is none. Other targets on its lane count, less the
- * wide bodies behind them; a boundary the target sits on does not (its drag
- * does not catch there either).
- */
 function neighbourGapPx(
   element: Element,
   axis: PrecisionAxis,
@@ -282,13 +262,11 @@ export function cancelPrecision(): void {
   if (session) end(session, "cancel");
 }
 
-/** The driving finger moved to `event`; a direct drag scales it by its speed. */
 function drive(s: Session, event: PointerEvent, gain?: GainIndex) {
   const d = s.driving;
   if (!d) return;
   const dx = event.clientX - d.lastX;
   const dt = Math.max(1, event.timeStamp - d.lastAt);
-  // Half the last move, half the history: one jerky sample does not jump it.
   d.speed = 0.5 * (Math.abs(dx) / dt) + 0.5 * d.speed;
   d.lastX = event.clientX;
   d.lastAt = event.timeStamp;
@@ -310,7 +288,6 @@ const startDriving = (event: PointerEvent): Driving => ({
   speed: 0,
 });
 
-/** Window listeners: a second finger cancels, a tap outside commits. */
 function watch(s: Session): () => void {
   const onDown = (event: PointerEvent) => {
     if (event.pointerType === "touch") s.touches.add(event.pointerId);
@@ -383,7 +360,6 @@ function arm(element: Element, down: PointerEvent): boolean {
     lastMode(key),
   );
   logDecision({ at: Date.now(), target: key, name: target.name, decision });
-  // A direct envelope point keeps the grammar's own drag, in time and level.
   if (
     decision.mode === "direct" &&
     isHitKind(kind) &&
@@ -435,14 +411,12 @@ function arm(element: Element, down: PointerEvent): boolean {
   return true;
 }
 
-/** The hit router's hand-off: an armed target's drag on touch. */
 export const precisionHandoff: PrecisionHandoff = {
   arm,
   move(event) {
     const s = session;
     if (!s || s.arming !== event.pointerId) return;
     const st = s.state;
-    // The jog moves only from its pad; the finger that armed it rests.
     if (st.phase === "precision" && st.variant === "jog") return;
     drive(s, event);
   },
@@ -465,12 +439,10 @@ export const precisionHandoff: PrecisionHandoff = {
   },
 };
 
-/** Pointer handlers for the jog pad. */
 export const precisionPad = {
   down(event: PointerEvent, surface: Element) {
     const s = session;
     if (!s || s.driving || s.state.phase !== "precision") return;
-    // Done and other controls on the surface keep their own press.
     if (event.target instanceof Element && event.target.closest("button")) {
       return;
     }
@@ -502,7 +474,6 @@ export const precisionPad = {
   },
 };
 
-/** The value as the strip shows it. */
 export function valueText(field: NudgeField, value: number): string {
   return NUDGE_KINDS[field.kind].format(value);
 }

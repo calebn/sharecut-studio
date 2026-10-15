@@ -1,17 +1,6 @@
 /**
- * How each precision variant (#1184) turns finger travel into time, and the
- * smallest step it lands on.
- *
- * - Jog pad: finger travel at the timeline's zoom, times a gain the finger
- *   picks by sliding up, like iOS media scrubbing's speeds.
- * - Auto-zoom lens: the timeline zooms so about ±1 s fills the time column,
- *   and finger travel moves the target 1:1 at that zoom.
- * - Offset grip: finger travel at the loupe's zoom, which is never coarser
- *   than `GRIP_LOUPE_PX_PER_SEC`.
- *
- * Every variant lands on whole steps of the target's smallest nudge (10 ms
- * for a trim, a pending edge or an envelope point's time, 1 ms for a fade),
- * counted from where the target was armed, so one step is one frame.
+ * Jog-pad precision (#1184): finger travel at the timeline zoom times a gain
+ * from vertical slide, landing on whole nudge steps from the armed origin.
  */
 import { NUDGE_KINDS, type NudgeField } from "../../edit/nudge";
 
@@ -55,22 +44,6 @@ export const JOG_GAIN_STEP_PX = 40;
 export function jogGainIndex(riseUp: number): GainIndex {
   const step = Math.floor(Math.max(0, riseUp) / JOG_GAIN_STEP_PX);
   return Math.min(step, JOG_GAINS.length - 1) as GainIndex;
-}
-
-/** Half the span the lens shows either side of the armed edge (s). */
-export const LENS_HALF_SEC = 1;
-
-/** The lens zoom: `LENS_HALF_SEC` either side of the edge fills `timeViewportPx`. */
-export function lensPxPerSec(timeViewportPx: number): number {
-  return timeViewportPx / (2 * LENS_HALF_SEC);
-}
-
-/** The grip's loupe never shows less than this, so a step is ≥ 2 px. */
-export const GRIP_LOUPE_PX_PER_SEC = 200;
-
-/** The grip's loupe zoom at timeline zoom `pxPerSec`. */
-export function gripPxPerSec(pxPerSec: number): number {
-  return Math.max(pxPerSec, GRIP_LOUPE_PX_PER_SEC);
 }
 
 /** One step of `field`: its smallest nudge, in the field's units. */
