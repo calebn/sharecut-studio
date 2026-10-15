@@ -103,6 +103,9 @@ class ClipMuteRegion(SourceSpan):
     fill: RoomToneFill | None = None
     fade_out_ms: int = Field(default=MUTE_FADE_MS, ge=0)
     fade_in_ms: int = Field(default=MUTE_FADE_MS, ge=0)
+    # None: fully muted. A negative value turns the span down by that many dB instead
+    # (Lower, #1434); a lowered span takes no ``fill``.
+    gain_db: float | None = Field(default=None, lt=0, allow_inf_nan=False)
 
 
 class MediaAsset(BaseModel):

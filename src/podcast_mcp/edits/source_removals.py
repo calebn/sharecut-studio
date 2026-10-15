@@ -372,8 +372,14 @@ def consume_source_remove(
     batch: Sequence[SourceExtent],
     use_inaudible_opt: bool | None = False,
     record_log: bool = False,
+    override_peer_holds: set[str] | None = None,
 ) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation | CutScopeHold:
     """Prove and consume the actual ordinary source removal against current playback.
+
+    With ``override_peer_holds`` a cut the speech guard would hold for another track's
+    speech or bleed (``peer_speech`` / ``speaker_bleed``) applies as the session ripple
+    over every dialogue track instead, and its id is added to the set. Every other hold
+    still holds.
 
     The proof only reads the project, so its repeated reads (a track's render hash, once per
     peer window) share the first result until the first mutation.
@@ -389,6 +395,7 @@ def consume_source_remove(
             batch=batch,
             use_inaudible_opt=use_inaudible_opt,
             record_log=record_log,
+            override_peer_holds=override_peer_holds,
         )
 
 
@@ -402,6 +409,7 @@ def _consume_source_remove(
     batch: Sequence[SourceExtent],
     use_inaudible_opt: bool | None,
     record_log: bool,
+    override_peer_holds: set[str] | None = None,
 ) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation | CutScopeHold:
     """Prove and consume the actual ordinary source removal against current playback.
 
@@ -553,15 +561,25 @@ def _consume_source_remove(
             )
         except ValueError as blocked:
             peers = tuple(getattr(blocked, "peers", ()))
-            return CutScopeHold(edit.id, peers, "peer_speech" if peers else "scope_unavailable")
+            if not (peers and override_peer_holds is not None):
+                return CutScopeHold(edit.id, peers, "peer_speech" if peers else "scope_unavailable")
+            override_peer_holds.add(edit.id)
+            resolved = None
         if isinstance(resolved, CutScopeUnavailable):
             return CutScopeHold(edit.id, (), "scope_unavailable")
-        if resolved.scope == "track":
+        if resolved is not None and resolved.scope == "track":
             peers = resolved.guard.blocking_track_ids if resolved.guard else ()
-            if resolved.cause == "speaker_bleed":
-                return CutScopeHold(edit.id, peers, "speaker_bleed")
-            if resolved.cause == "peer_speech" and edit.cut_speech is None:
-                return CutScopeHold(edit.id, peers, "peer_speech")
+            hold = (
+                "speaker_bleed"
+                if resolved.cause == "speaker_bleed"
+                else "peer_speech"
+                if resolved.cause == "peer_speech" and edit.cut_speech is None
+                else None
+            )
+            if hold is not None:
+                if override_peer_holds is None:
+                    return CutScopeHold(edit.id, peers, hold)
+                override_peer_holds.add(edit.id)
     implicit = []
     for tid in tracks:
         track = project.track_by_id(tid)

@@ -14,9 +14,12 @@ class MuteSampleEnvelope:
     last: int
     fade_out: int
     fade_in: int
+    gain: float = 0.0
 
     def silent_span(self) -> tuple[int, int]:
-        """Half-open sample run whose generated gain is exactly zero."""
+        """Half-open sample run whose generated gain is exactly zero (empty when lowered)."""
+        if self.gain > 0.0:
+            return self.first, self.first
         if self.fade_out + self.fade_in > self.last - self.first:
             return self.first, self.last
         return self.first + self.fade_out, self.last - self.fade_in + 1
@@ -31,14 +34,16 @@ class RequestedExtent:
 class MuteEnvelope:
     """One muted region's gain, in seconds from a render window's start.
 
-    The gain falls to zero over the first ``fade_out_sec`` of ``[start, end)``, stays
-    there and rises back to one over its last ``fade_in_sec``.
+    The gain falls to ``gain`` (zero for a mute, a linear floor for Lower) over the first
+    ``fade_out_sec`` of ``[start, end)``, stays there and rises back to one over its
+    last ``fade_in_sec``.
     """
 
     start: float
     end: float
     fade_out_sec: float
     fade_in_sec: float
+    gain: float = 0.0
 
     def samples(
         self, sample_rate: int, *, source_start: float = 0.0, origin: int = 0
@@ -48,6 +53,7 @@ class MuteEnvelope:
             math.floor((self.end + source_start) * sample_rate + 0.5) - origin,
             math.floor(self.fade_out_sec * sample_rate + 0.5),
             math.floor(self.fade_in_sec * sample_rate + 0.5),
+            self.gain,
         )
 
 
