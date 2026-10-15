@@ -352,5 +352,53 @@ def test_map_edit_boundaries_maps_only_the_words_that_reach_each_cutaway(
         [f"w{i}" for i in range(10, 20)],
         [f"w{i}" for i in range(30, 50)],
     ]
-    # Each edit point asked about its own cutaway (10 and 20 words), not all 100.
-    assert [len(words) for words in asked] == [10, 20]
+    # One full transcript map per recording; cutaway membership uses cached spans (#1610).
+    assert len(asked) == 1
+    assert len(asked[0]) == 100
+
+
+def test_map_edit_boundaries_maps_words_once_per_recording(minimal_project, monkeypatch):
+    """Cutaway joins share one selected word map per track recording (#1610)."""
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=500.0),
+        )
+    ]
+    gap = 10.0
+    clips: list[Clip] = []
+    for index in range(12):
+        src_start = index * gap
+        clips.append(
+            Clip(
+                id=f"c{index}",
+                track_id="host",
+                source_start=src_start,
+                source_end=src_start + 5.0,
+                timeline_start=index * 5.0,
+            )
+        )
+    ws.project.timeline.clips = clips
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text=f"w{i}", start=i * 0.5, end=i * 0.5 + 0.2) for i in range(40)
+            ],
+        )
+    ]
+    calls = 0
+    original = SessionTimeline.map_selected_word_spans
+
+    def counted(self, track_id, source_id, words):
+        nonlocal calls
+        calls += 1
+        return original(self, track_id, source_id, words)
+
+    monkeypatch.setattr(SessionTimeline, "map_selected_word_spans", counted)
+    rows = map_edit_boundaries(ws.project)
+    assert len(rows) == len(clips) - 1
+    assert calls == 1
