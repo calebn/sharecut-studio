@@ -83,7 +83,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, db_to_amplitude, rms_db
+from podcast_mcp.util.dsp import db_to_amplitude, rms_db
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.parallel import run_parallel
@@ -863,9 +863,10 @@ def _peer_voiced_at(
             if run[1] <= lo or run[0] >= hi:
                 continue
             own_db = rms_db(
-                own_cache.window(run[0] + copy, run[1] + copy), floor_db=DIGITAL_SILENCE_DB
+                own_cache.window(run[0] + copy, run[1] + copy),
+                floor_db=own_cache.profile.voice_floor_db,
             )
-            peer_db = rms_db(cache.window(*run), floor_db=DIGITAL_SILENCE_DB)
+            peer_db = rms_db(cache.window(*run), floor_db=cache.profile.voice_floor_db)
             if (own_db - own_voice_db) - (peer_db - peer_voice_db) < margin:
                 return True
     return False
@@ -2415,7 +2416,7 @@ def _gate_cut_edges(
     if (
         checks.audible_only
         and audio_cache is not None
-        and rms_db(audio_cache.window(cut_start, cut_end), floor_db=DIGITAL_SILENCE_DB)
+        and rms_db(audio_cache.window(cut_start, cut_end), floor_db=audio_cache.profile.voice_floor_db)
         < audio_cache.profile.voice_floor_db
     ):
         return _CutRejected("inaudible")

@@ -88,6 +88,7 @@ evidence:
 enforced-by:
 - tests/test_level_literals.py::test_the_detectors_hold_no_absolute_level
 - tests/test_tighten_gain_invariance.py::test_a_detector_decides_the_same_at_any_recording_level
+- tests/test_tighten_gain_invariance.py::test_tighten_proposals_match_when_tracks_are_requantized_to_pcm_s16le
 -->
 
 A recording's gain moves every dBFS level in it, so no detector compares a level with a

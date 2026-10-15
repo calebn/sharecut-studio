@@ -58,10 +58,13 @@ class BandLevels:
         read: Callable[[float, float], np.ndarray],
         sample_rate: int,
         band: BandShape = SPEECH_BAND,
+        *,
+        level_floor_db: float = DIGITAL_SILENCE_DB,
     ) -> None:
         self._read = read
         self._rate = sample_rate
         self.band = band
+        self._level_floor_db = level_floor_db
         self._frame = max(1, round(sample_rate * LEVEL_FRAME_SEC))
         self._block = round(self._BLOCK_SEC / LEVEL_FRAME_SEC)
         self._margin = round(self._MARGIN_SEC / LEVEL_FRAME_SEC)
@@ -82,7 +85,7 @@ class BandLevels:
         if not samples.size:
             return np.empty(0, dtype=np.float32)
         levels = frame_band_filtered_db(
-            samples, self._rate, self._frame, self.band, floor_db=DIGITAL_SILENCE_DB
+            samples, self._rate, self._frame, self.band, floor_db=self._level_floor_db
         )
         return levels[lead : lead + self._block].astype(np.float32)
 
@@ -137,6 +140,7 @@ class TrackAudioCache:
             lambda start, duration: self.window(start, start + duration),
             int(self.waveform.sample_rate),
             band,
+            level_floor_db=self.profile.room_db,
         )
 
     @cached_property

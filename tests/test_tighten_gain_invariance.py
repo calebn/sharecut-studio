@@ -265,6 +265,18 @@ def _write(path: Path, samples: np.ndarray, rate: int) -> None:
         handle.writeframes(ints.view(np.uint8).reshape(-1, 4)[:, :3].tobytes())
 
 
+def _write_s16(path: Path, samples: np.ndarray, rate: int) -> None:
+    """16-bit PCM, matching dialogue stem render (``pcm_s16le``, #1401)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    assert np.max(np.abs(samples)) < 1.0
+    ints = np.rint(samples * 32767).astype("<i2")
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes(ints.tobytes())
+
+
 def _read(path: Path) -> tuple[np.ndarray, int]:
     with open_wav(path) as source:
         width, rate = source.getsampwidth(), source.getframerate()
@@ -283,6 +295,16 @@ def _scaled(project: EpisodeProject, gains: dict[str, float]) -> EpisodeProject:
         path = project.workspace_path() / track.media.path
         samples, rate = _read(path)
         _write(path, samples * 10 ** (gains.get(track.id, 0.0) / 20), rate)
+    return project
+
+
+def _scaled_s16(project: EpisodeProject, gains: dict[str, float]) -> EpisodeProject:
+    """Rewrite each track at ``gains[track]`` dB, as 16-bit PCM like rendered stems."""
+    for track in project.timeline.tracks:
+        assert track.media is not None
+        path = project.workspace_path() / track.media.path
+        samples, rate = _read(path)
+        _write_s16(path, samples * 10 ** (gains.get(track.id, 0.0) / 20), rate)
     return project
 
 
@@ -793,6 +815,34 @@ def _tighten_signature(project: EpisodeProject, *, edit_mode: str = "ripple") ->
         for d in proposal.decisions
     )
     return decisions, dict(proposal.skip_counts)
+
+
+@pytest.mark.parametrize(
+    ("detector_name", "gain_db"),
+    [
+        ("tighten-ripple-gated", -12.0),
+        ("tighten-ripple-gated", -24.0),
+    ],
+)
+def test_tighten_proposals_match_when_tracks_are_requantized_to_pcm_s16le(
+    tmp_path: Path, detector_name: str, gain_db: float
+) -> None:
+    """Gain-scaled 16-bit stems must not move tighten edges (#1401)."""
+    detector = DETECTORS[detector_name]
+    if gain_db < detector.quietest_db:
+        pytest.skip(f"{detector_name} is not pinned at {gain_db:+.0f} dB")
+    edit_mode = "ripple" if "ripple" in detector_name else "mute"
+    base = detector.scene(tmp_path / "base")
+    gains = dict.fromkeys(("host", "guest", "solo"), gain_db)
+    scaled = _scaled_s16(detector.scene(tmp_path / "s16"), gains)
+    want_decisions, want_skips = _tighten_signature(base, edit_mode=edit_mode)
+    got_decisions, got_skips = _tighten_signature(scaled, edit_mode=edit_mode)
+    assert got_skips == want_skips
+    assert len(got_decisions) == len(want_decisions)
+    for got, want in zip(got_decisions, want_decisions, strict=True):
+        assert got[:2] == want[:2] and got[4] == want[4]
+        assert got[2] == pytest.approx(want[2], abs=FRAME_SEC + 1e-6)
+        assert got[3] == pytest.approx(want[3], abs=FRAME_SEC + 1e-6)
 
 
 @pytest.mark.parametrize(

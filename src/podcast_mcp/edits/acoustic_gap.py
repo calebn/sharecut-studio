@@ -218,7 +218,13 @@ def _scan_window(
     sr = int(cache.waveform.sample_rate)
     window = end - start
     samples = cache.window(start, end)
-    levels = frame_rms_db(samples, frame, hop, max_frames=max_frames)
+    levels = frame_rms_db(
+        samples,
+        frame,
+        hop,
+        max_frames=max_frames,
+        floor_db=cache.profile.room_db,
+    )
     if levels.size == 0:
         return []
     noise = float(np.percentile(levels, _NOISE_PERCENTILE))
