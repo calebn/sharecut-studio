@@ -273,7 +273,6 @@ def test_is_cached_hashes_once_under_concurrent_status_checks(tmp_path, monkeypa
         def __exit__(self, *_):
             self.lock.release()
 
-    # Observe contention while delegating acquisition to the registry's real lock.
     monkeypatch.setattr(
         model_manifest._MEMO_LOCKS,
         "get",
