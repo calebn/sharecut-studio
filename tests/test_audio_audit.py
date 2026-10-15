@@ -463,7 +463,7 @@ def test_sandwiched_zero_duration_deferred_not_suppressed(tmp_path: Path):
 
 
 def test_short_word_audibility_uses_loudest_frame(tmp_path: Path):
-    """A 40–100 ms word is not judged by span-mean RMS alone (#1594)."""
+    """A 40-100 ms word is not judged by span-mean RMS alone (#1594)."""
     from podcast_mcp.engines.audio_audit import _track_levels
 
     project = EpisodeProject.create("ep", str(tmp_path))
