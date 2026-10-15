@@ -88,7 +88,16 @@ function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
       if (!from || !shown) return;
       const store = useDawStore.getState();
       try {
-        if (await saveNudge(path, from, field, value)) {
+        if (
+          await saveNudge(
+            path,
+            from,
+            field,
+            value,
+            () => true,
+            () => undefined,
+          )
+        ) {
           store.announceStatus(NUDGE_KINDS[field.kind].saved);
         } else {
           revert(from, shown);

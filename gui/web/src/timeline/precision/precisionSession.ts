@@ -22,7 +22,6 @@ import type { NudgeField } from "../../edit/nudge";
 import { nudgeStep } from "../../edit/nudge";
 import type { SoftBoundary } from "../../edit/nudgeBoundaries";
 import { DRAG_DETENT_PX } from "../../hooks/gestureConstants";
-import type { PrecisionStyle } from "./precisionLab";
 import {
   frameOf,
   type GainIndex,
@@ -31,12 +30,8 @@ import {
   unitsPerSec,
 } from "./precisionMath";
 
-/**
- * How the drag runs: one of the precision styles, or `direct` when Auto
- * judged the target easy to drag (the finger moves it at the timeline's
- * zoom, finer while the finger moves slowly).
- */
-export type PrecisionVariant = PrecisionStyle | "direct";
+/** Jog pad when Auto needs precision; direct drag with ballistics otherwise. */
+export type PrecisionVariant = "jog" | "direct";
 
 /** The armed target's value against the project it was armed in. */
 export interface PrecisionAxis {

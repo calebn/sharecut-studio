@@ -266,6 +266,14 @@ editor page never rubber-bands. Decision and
 measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)
 and [§ Collapse stays in reach](touch-editor-decisions.md#collapse-stays-in-reach-1051-round-4).
 
+On touch, a long press arms a fade, trim, pending edge or envelope point;
+**Auto precision** (#1184) then opens a jog pad in the drawer's place when the
+target or its neighbour is narrower than a finger, or drags directly on the
+timeline when a step is already at least 4 px wide (slower finger motion moves
+finer steps). Slide up on the pad to slow the move; **Done** or a tap outside
+finishes. A second finger cancels. Detail: [touch-editor-decisions.md § Auto
+precision jog pad](touch-editor-decisions.md#decision-auto-precision-jog-pad-on-touch).
+
 The compact header uses the strip's vertical spacing at every detent. At
 667×360 with 32px root text, the full sheet keeps room below its wrapped
 history and resize controls for a complete fade field and label. Native Tab

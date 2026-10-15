@@ -6,9 +6,8 @@
  * states into previews, bumps, a save on commit and a rollback on cancel.
  *
  * Exits:
- * - commit: lifting the arming finger after moving it (direct, grip, lens),
- *   a lift in the lens, Done, or a tap anywhere outside the precision
- *   surface;
+ * - commit: lifting the arming finger after moving it (direct), Done, or a tap
+ *   anywhere outside the jog pad;
  * - cancel: a second finger anywhere, which rolls the draft back.
  */
 import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../../edit/nudge";
@@ -16,9 +15,7 @@ import { softBoundaries } from "../../edit/nudgeBoundaries";
 import { GHOST_CLICK_MS } from "../../hooks/gestureConstants";
 import { mayNudge } from "../../inspector/mayNudge";
 import { useDawStore } from "../../state/dawStore";
-import { timelineViewportRegistry } from "../../state/timelineViewportRegistry";
 import type { ProjectView } from "../../types/project";
-import { measureTimelineColumns } from "../../utils/timelineViewport";
 import type { HitPoint } from "../hitCandidates";
 import { ARMED_ATTR, type PrecisionHandoff } from "../hitRouting";
 import { clipEdgeOf, HIT_KINDS, isHitKind } from "../inputContract";
@@ -31,13 +28,10 @@ import {
   velocityGain,
 } from "./precisionDecision";
 import { type PrecisionDriver, precisionDriver } from "./precisionDrivers";
-import { precisionLab } from "./precisionLab";
 import {
   frameOf,
   type GainIndex,
-  gripPxPerSec,
   jogGainIndex,
-  lensPxPerSec,
   unitsPerSec,
 } from "./precisionMath";
 import {
@@ -53,9 +47,6 @@ import {
 
 /** Marks the precision surface: a press there is not a tap outside. */
 export const PRECISION_UI_ATTR = "data-precision-ui";
-
-/** How long the lens takes to zoom in or out (ms). */
-const LENS_MS = 240;
 
 /** What the precision surface renders. */
 export interface PrecisionView {
@@ -103,7 +94,6 @@ interface Session {
   moved: boolean;
   bump: number;
   finger: HitPoint | null;
-  lens: { zoom: number; scrollLeft: number; playheadSec: number } | null;
   decision: PrecisionDecision;
   /** One step of the target on screen at the timeline's zoom. */
   stepPx: number;
@@ -113,7 +103,6 @@ interface Session {
 let session: Session | null = null;
 let view: PrecisionView | null = null;
 const listeners = new Set<() => void>();
-let zoomFrame = 0;
 
 function publish(next: PrecisionView | null) {
   view = next;
@@ -199,8 +188,6 @@ export function precisionTarget(
 const HINTS: Record<PrecisionVariant, string> = {
   direct: "drag sideways to move it, slowly for fine steps, lift to finish",
   jog: "precision, drag in the jog pad, slide up to slow it, Done to finish",
-  lens: "precision, zoomed in, drag to move it, lift to finish",
-  grip: "precision, drag to move it, lift to finish",
 };
 
 /**
@@ -267,72 +254,6 @@ function dispatch(s: Session, event: PrecisionEvent) {
   render(s);
 }
 
-function reducedMotion(): boolean {
-  return !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-}
-
-/** Zooms the timeline from `from` to `to`, keeping `anchorX` still. */
-function animateZoom(
-  from: number,
-  to: number,
-  anchorX: () => number,
-  done?: () => void,
-) {
-  cancelAnimationFrame(zoomFrame);
-  const apply = (z: number) =>
-    useDawStore.getState().applyAnchoredZoom(z, anchorX());
-  if (reducedMotion()) {
-    apply(to);
-    done?.();
-    return;
-  }
-  const start = performance.now();
-  const tick = (now: number) => {
-    const t = Math.min(1, (now - start) / LENS_MS);
-    const eased = 1 - (1 - t) ** 3;
-    apply(from * (to / from) ** eased);
-    if (t < 1) zoomFrame = requestAnimationFrame(tick);
-    else done?.();
-  };
-  zoomFrame = requestAnimationFrame(tick);
-}
-
-const centerX = (element: Element) => {
-  const box = element.getBoundingClientRect();
-  return box.left + box.width / 2;
-};
-
-function openLens(s: Session): number {
-  const store = useDawStore.getState();
-  const scroller = timelineViewportRegistry.getTimelineElement();
-  const columns = scroller ? measureTimelineColumns(scroller) : null;
-  const zoom = lensPxPerSec(columns?.timeViewportPx ?? window.innerWidth);
-  s.lens = {
-    zoom: store.zoomPxPerSec,
-    scrollLeft: store.scrollLeft,
-    playheadSec: store.playheadSec,
-  };
-  const anchor = centerX(s.element);
-  animateZoom(store.zoomPxPerSec, zoom, () => anchor);
-  return zoom;
-}
-
-function closeLens(s: Session) {
-  const saved = s.lens;
-  if (!saved) return;
-  const element = s.element;
-  animateZoom(
-    useDawStore.getState().zoomPxPerSec,
-    saved.zoom,
-    () => centerX(element),
-    () => {
-      const store = useDawStore.getState();
-      store.setPlayheadSec(saved.playheadSec);
-      store.setScrollLeft(saved.scrollLeft);
-    },
-  );
-}
-
 function end(s: Session, event: "commit" | "cancel") {
   if (session !== s) return;
   session = null;
@@ -342,7 +263,6 @@ function end(s: Session, event: "commit" | "cancel") {
   s.element.removeAttribute(ARMED_ATTR);
   const store = useDawStore.getState();
   store.setTimelineDragging(false);
-  closeLens(s);
   publish(null);
   if (st.phase === "committed" && Math.abs(st.value - st.origin) > 1e-9) {
     void s.driver.commit();
@@ -432,10 +352,9 @@ function watch(s: Session): () => void {
 }
 
 function arm(element: Element, down: PointerEvent): boolean {
-  const lab = precisionLab();
   const store = useDawStore.getState();
   const project = store.project;
-  if (!lab.auto || !project || session) return false;
+  if (down.pointerType !== "touch" || !project || session) return false;
   const kind = element.getAttribute("data-hit-kind") ?? "";
   const id = element.getAttribute("data-hit-id") ?? "";
   const target = precisionTarget(project, kind, id);
@@ -472,7 +391,7 @@ function arm(element: Element, down: PointerEvent): boolean {
     return false;
   }
   const variant: PrecisionVariant =
-    decision.mode === "precision" ? lab.style : "direct";
+    decision.mode === "precision" ? "jog" : "direct";
   const driver = precisionDriver(kind, id, target.field, target.name);
   if (!driver?.begin()) return false;
   const s: Session = {
@@ -486,7 +405,6 @@ function arm(element: Element, down: PointerEvent): boolean {
     moved: false,
     bump: 0,
     finger: { x: down.clientX, y: down.clientY },
-    lens: null,
     decision,
     stepPx,
     dispose: () => undefined,
@@ -510,19 +428,13 @@ function arm(element: Element, down: PointerEvent): boolean {
   element.setAttribute(ARMED_ATTR, "");
   store.setTimelineDragging(true);
   dispatch(s, { type: "arm", variant, target, origin: nudge.value });
-  const pxPerSec =
-    variant === "lens"
-      ? openLens(s)
-      : variant === "grip"
-        ? gripPxPerSec(store.zoomPxPerSec)
-        : store.zoomPxPerSec;
-  dispatch(s, { type: "enter", pxPerSec });
+  dispatch(s, { type: "enter", pxPerSec: store.zoomPxPerSec });
   store.announceStatus(`${target.name} armed: ${HINTS[variant]}`);
   vibrate();
   return true;
 }
 
-/** The hit router's hand-off: an armed target's drag goes to the lab. */
+/** The hit router's hand-off: an armed target's drag on touch. */
 export const precisionHandoff: PrecisionHandoff = {
   arm,
   move(event) {
@@ -541,11 +453,7 @@ export const precisionHandoff: PrecisionHandoff = {
     s.touches.delete(event.pointerId);
     const st = s.state;
     if (st.phase !== "precision") return;
-    if (
-      st.variant === "direct" ||
-      st.variant === "grip" ||
-      (st.variant === "lens" && s.moved)
-    ) {
+    if (st.variant === "direct") {
       end(s, "commit");
       return;
     }
@@ -556,7 +464,7 @@ export const precisionHandoff: PrecisionHandoff = {
   },
 };
 
-/** Pointer handlers for the jog pad and the lens surface. */
+/** Pointer handlers for the jog pad. */
 export const precisionPad = {
   down(event: PointerEvent, surface: Element) {
     const s = session;
@@ -589,11 +497,6 @@ export const precisionPad = {
     const s = session;
     if (!s || s.driving?.pointerId !== event.pointerId) return;
     s.driving = null;
-    const st = s.state;
-    if (st.phase === "precision" && st.variant === "lens" && s.moved) {
-      end(s, "commit");
-      return;
-    }
     render(s);
   },
 };

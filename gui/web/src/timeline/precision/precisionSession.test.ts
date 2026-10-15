@@ -149,7 +149,7 @@ describe("precision session", () => {
     expect(run([{ type: "reset" }], cancelled)).toEqual(IDLE);
     expect(
       run([
-        { type: "arm", variant: "grip", target, origin: 10 },
+        { type: "arm", variant: "jog", target, origin: 10 },
         { type: "cancel" },
       ]).phase,
     ).toBe("cancelled");
@@ -157,13 +157,13 @@ describe("precision session", () => {
 
   it("ignores moves before entering and a second arm while active", () => {
     const early = run([
-      { type: "arm", variant: "lens", target, origin: 10 },
+      { type: "arm", variant: "jog", target, origin: 10 },
       { type: "move", dx: 50 },
     ]);
     expect(early.phase).toBe("armed");
     const again = run([
       ...armed,
-      { type: "arm", variant: "grip", target, origin: 3 },
+      { type: "arm", variant: "jog", target, origin: 3 },
     ]);
     expect(again).toMatchObject({ variant: "jog", origin: 10 });
   });
@@ -179,7 +179,7 @@ describe("precision session", () => {
       boundaries: [],
     };
     const s = [
-      { type: "arm", variant: "grip", target: fade, origin: 300 },
+      { type: "arm", variant: "jog", target: fade, origin: 300 },
       { type: "enter", pxPerSec: 200 },
       { type: "move", dx: 4 },
     ] as const satisfies PrecisionEvent[];

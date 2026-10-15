@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   deltaText,
   frameOf,
-  gripPxPerSec,
   jogGain,
   jogGainIndex,
-  lensPxPerSec,
   quantize,
   unitsPerSec,
 } from "./precisionMath";
@@ -30,15 +28,6 @@ describe("precision math", () => {
     expect(jogGain(3, 10, 0.01)).toBe(0.0125);
     expect(jogGain(3, 200, 0.01)).toBe(0.125);
     expect(jogGain(1, 10, 0.01)).toBe(0.5);
-  });
-
-  it("fits ±1 s of the lens into the time column", () => {
-    expect(lensPxPerSec(326)).toBe(163);
-  });
-
-  it("never lets the grip's loupe show less than 200 px per second", () => {
-    expect(gripPxPerSec(12)).toBe(200);
-    expect(gripPxPerSec(480)).toBe(480);
   });
 
   it("steps a trim by 10 ms and a fade by 1 ms", () => {

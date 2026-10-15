@@ -1,31 +1,14 @@
 /**
- * The precision drag's surface (#1184), one per style Auto switches into:
- * - Jog pad: the drawer's place becomes a trackpad with a speed ladder.
- * - Auto-zoom lens: a frame over the zoomed lanes that takes the finger.
- * - Offset grip: a loupe above the finger, leading down to the edge.
- * Each shows the target's name, how far it moved, and the stop it is held
- * at, and offers Done (the jog and the lens; the grip finishes on lift).
- * A direct drag has no surface. Every drag shows the lab readout of what
- * Auto chose; the Auto decisions dialog lists the last ones.
+ * The precision jog pad (#1184): when Auto chooses precision, the drawer's
+ * place becomes a trackpad with a speed ladder.
  */
 import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
-import { useDawStore } from "../../state/dawStore";
-import { Dialog } from "../../ui";
 import { RippleMark } from "../../ui/RippleMark";
-import {
-  decisionLogText,
-  setDecisionLogOpen,
-  useDecisionLog,
-} from "./decisionLog";
 import {
   commitPrecision,
   PRECISION_UI_ATTR,
@@ -35,8 +18,7 @@ import {
   subscribePrecision,
   valueText,
 } from "./precisionController";
-import { decisionText } from "./precisionDecision";
-import { deltaText, frameOf, JOG_GAINS, unitsPerSec } from "./precisionMath";
+import { deltaText, frameOf, JOG_GAINS } from "./precisionMath";
 
 const ui = { [PRECISION_UI_ATTR]: "" };
 
@@ -86,7 +68,6 @@ function DoneButton() {
 }
 
 function JogPad({ v }: { v: PrecisionView }) {
-  // The ribs slide with the value, so a fine gain visibly moves less.
   const frame = frameOf(v.field);
   const steps = Math.round((v.value - v.origin) / frame);
   const ribOffset = `${(steps % 8) * 0.125}rem`;
@@ -120,267 +101,20 @@ function JogPad({ v }: { v: PrecisionView }) {
   );
 }
 
-function visibleBox(el: Element | null) {
-  const box = el?.getBoundingClientRect();
-  return box
-    ? { top: box.top, left: box.left, width: box.width, height: box.height }
-    : null;
-}
-
-function Lens({ v }: { v: PrecisionView }) {
-  const [box, setBox] = useState<ReturnType<typeof visibleBox>>(null);
-  useLayoutEffect(() => {
-    const place = () =>
-      setBox(visibleBox(v.element.closest(".timeline-scroll")));
-    place();
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [v.element]);
-  if (!box) return null;
-  return (
-    <section
-      {...ui}
-      className="precision-lens"
-      aria-label={`${v.name} lens`}
-      style={box}
-      {...pad}
-    >
-      <span className="precision-lens-hint">
-        {v.dragging ? "Lift to finish" : "Drag anywhere to move it"}
-      </span>
-      <div className="precision-lens-bar">
-        <Readout v={v} />
-        <DoneButton />
-      </div>
-    </section>
-  );
-}
-
-/** The loupe canvas size and how far above the finger it floats, CSS px. */
-const LOUPE = { width: 224, height: 56, lift: 44 };
-
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name);
-}
-
-function drawLoupe(canvas: HTMLCanvasElement, v: PrecisionView, zoom: number) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = LOUPE.width * dpr;
-  canvas.height = LOUPE.height * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, LOUPE.width, LOUPE.height);
-  const edge = v.element.getBoundingClientRect();
-  const edgeX = edge.left + edge.width / 2;
-  const lane = v.element.closest("[data-track-id]");
-  const laneBox = lane?.getBoundingClientRect();
-  const scale = v.pxPerSec / Math.max(zoom, 1e-6);
-  if (lane && laneBox) {
-    const srcW = LOUPE.width / scale;
-    const x0 = edgeX - srcW / 2;
-    ctx.imageSmoothingEnabled = true;
-    for (const tile of lane.querySelectorAll("canvas")) {
-      const r = tile.getBoundingClientRect();
-      const left = Math.max(r.left, x0);
-      const right = Math.min(r.right, x0 + srcW);
-      if (right <= left || r.width <= 0 || r.height <= 0) continue;
-      const kx = tile.width / r.width;
-      ctx.drawImage(
-        tile,
-        (left - r.left) * kx,
-        0,
-        (right - left) * kx,
-        tile.height,
-        (left - x0) * scale,
-        0,
-        (right - left) * scale,
-        LOUPE.height,
-      );
-    }
-  }
-  // Ticks every 10 ms (5 ms for a fade's 1 ms steps would crowd), taller at
-  // 100 ms, counted from where the target was armed.
-  const secPerUnit = 1 / Math.abs(unitsPerSec(v.field));
-  const moved =
-    (v.value - v.origin) * secPerUnit * Math.sign(unitsPerSec(v.field));
-  const tickSec = Math.max(frameOf(v.field) * secPerUnit, 0.01);
-  const mid = LOUPE.width / 2;
-  const first = Math.ceil((moved - mid / v.pxPerSec) / tickSec);
-  const last = Math.floor((moved + mid / v.pxPerSec) / tickSec);
-  ctx.strokeStyle = cssVar("--text-dim");
-  ctx.lineWidth = 1;
-  for (let k = first; k <= last; k += 1) {
-    const x = mid + (k * tickSec - moved) * v.pxPerSec;
-    const major = k % 10 === 0;
-    ctx.globalAlpha = k === 0 ? 1 : major ? 0.8 : 0.35;
-    ctx.beginPath();
-    ctx.moveTo(x, LOUPE.height);
-    ctx.lineTo(x, LOUPE.height - (k === 0 ? 20 : major ? 12 : 6));
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = cssVar("--accent");
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(mid, 0);
-  ctx.lineTo(mid, LOUPE.height);
-  ctx.stroke();
-}
-
-function Grip({ v }: { v: PrecisionView }) {
-  const zoom = useDawStore((s) => s.zoomPxPerSec);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const [edge, setEdge] = useState<{ x: number; y: number } | null>(null);
-  useEffect(() => {
-    let frame = 0;
-    const tick = () => {
-      if (canvas.current) drawLoupe(canvas.current, v, zoom);
-      const box = v.element.getBoundingClientRect();
-      setEdge({ x: box.left + box.width / 2, y: box.top });
-      frame = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(frame);
-  }, [v, zoom]);
-  const finger = v.finger ?? edge;
-  if (!finger || !edge) return null;
-  const left = Math.min(
-    Math.max(finger.x - LOUPE.width / 2, 8),
-    window.innerWidth - LOUPE.width - 8,
-  );
-  // The loupe sits above the finger and grows upward from there.
-  const base = Math.max(finger.y - LOUPE.lift, LOUPE.height + 8);
-  return (
-    <div className="precision-grip" aria-hidden="true">
-      <svg className="precision-grip-leader">
-        <line x1={left + LOUPE.width / 2} y1={base} x2={edge.x} y2={edge.y} />
-        <circle cx={edge.x} cy={edge.y} r="5" />
-      </svg>
-      <div
-        className="precision-grip-loupe"
-        style={{ left, bottom: window.innerHeight - base, width: LOUPE.width }}
-      >
-        <Readout v={v} />
-        <canvas
-          ref={canvas}
-          className="precision-grip-canvas"
-          style={{ width: LOUPE.width, height: LOUPE.height }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * The lab readout: what Auto chose for this drag and why, over the
- * timeline's top edge (its bottom edge for the grip, whose loupe is above
- * the finger). It takes no touches.
- */
-function DecisionChip({ v }: { v: PrecisionView }) {
-  // Measured on every publish: the lens zooms and the timeline scrolls.
-  const box = visibleBox(v.element.closest(".timeline-scroll"));
-  if (!box) return null;
-  const bottom = v.variant === "grip";
-  return (
-    <output
-      className="precision-decision"
-      data-mode={v.decision.mode}
-      data-reason={v.decision.reason}
-      style={{
-        left: box.left + box.width / 2,
-        top: bottom ? undefined : box.top,
-        bottom: bottom ? window.innerHeight - box.top - box.height : undefined,
-      }}
-    >
-      {decisionText(v.decision)}
-    </output>
-  );
-}
-
-function DecisionsDialog() {
-  const { entries, open } = useDecisionLog();
-  const [copied, setCopied] = useState(false);
-  const close = () => {
-    setCopied(false);
-    setDecisionLogOpen(false);
-  };
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(decisionLogText(entries));
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
-  return (
-    <Dialog
-      open={open}
-      onClose={close}
-      title="Auto decisions"
-      phoneSheet
-      footer={
-        <>
-          <span role="status" className="precision-log-status">
-            {copied ? "Copied" : ""}
-          </span>
-          <button
-            type="button"
-            className="ui-control modifier-action"
-            disabled={entries.length === 0}
-            onClick={() => void copy()}
-          >
-            Copy all
-          </button>
-        </>
-      }
-    >
-      {entries.length === 0 ? (
-        <p>
-          No decisions yet. Long-press a fade, trim, pending edge or envelope
-          point with Auto precision on.
-        </p>
-      ) : (
-        <ol className="precision-log">
-          {entries.map((e) => (
-            <li key={`${e.at}-${e.target}`} data-mode={e.decision.mode}>
-              <span className="precision-log-name">{e.name}</span>
-              <span>{decisionText(e.decision)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </Dialog>
-  );
-}
-
-/** Renders the active precision drag's surface and readout, if any. */
+/** Renders the jog pad while a precision drag is active. */
 export function PrecisionLayer() {
   const v = useSyncExternalStore(subscribePrecision, precisionView);
-  const surface =
-    v?.variant === "jog" ? (
-      <JogPad v={v} />
-    ) : v?.variant === "lens" ? (
-      <Lens v={v} />
-    ) : v?.variant === "grip" ? (
-      <Grip v={v} />
-    ) : null;
-  return (
-    <>
-      <DecisionsDialog />
-      {v
-        ? createPortal(
-            <div
-              className="precision-layer"
-              data-variant={v.variant}
-              data-mode={v.decision.mode}
-            >
-              {surface}
-              <DecisionChip v={v} />
-            </div>,
-            document.body,
-          )
-        : null}
-    </>
-  );
+  const surface = v?.variant === "jog" ? <JogPad v={v} /> : null;
+  return v
+    ? createPortal(
+        <div
+          className="precision-layer"
+          data-variant={v.variant}
+          data-mode={v.decision.mode}
+        >
+          {surface}
+        </div>,
+        document.body,
+      )
+    : null;
 }

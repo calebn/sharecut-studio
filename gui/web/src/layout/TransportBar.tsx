@@ -29,7 +29,6 @@ import {
   guestHearsMixOnly,
 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { PrecisionLabSection } from "../timeline/precision/PrecisionLabSection";
 import type { AuditionMode } from "../types/session";
 import {
   CommandButton,
@@ -413,9 +412,6 @@ export function TransportBar({
             </ToggleButton>
           ))}
         </SegmentedControl>
-      </MenuSection>
-      <MenuSection label="Labs">
-        <PrecisionLabSection />
       </MenuSection>
     </>
   );
