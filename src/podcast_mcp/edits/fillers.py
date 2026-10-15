@@ -1957,18 +1957,19 @@ def _start_at_filler_onset(
     "to" runs 80 ms past its word end into "like"), and an edge at the word start
     leaves the filler's head, so the cut is skipped.
     """
-    floor = candidate.start - _FILLER_ONSET_REACH_SEC
+    walk_floor = candidate.start - _FILLER_ONSET_REACH_SEC
     tr = project.transcript_for_source(candidate.track_id, None)
     for w in tr.words if tr else ():
         if w.suppressed or w.end <= w.start or candidate.start <= w.start:
             continue
-        floor = max(floor, min(w.end, candidate.start))
+        walk_floor = max(walk_floor, min(w.end, candidate.start))
+    min_start = walk_floor
     before, _after = _kept_neighbours(project, candidate)
     if before is not None:
         air_after_prev = candidate.start - before.end
-        if air_after_prev > 1e-9:
-            floor = max(
-                floor,
+        if air_after_prev > 1e-9 and voice_separates(audio_cache, before.end, candidate.start):
+            min_start = max(
+                min_start,
                 before.end
                 + recommend_prev_word_lead_out_ms(
                     project,
@@ -1976,15 +1977,22 @@ def _start_at_filler_onset(
                     before.end,
                     defaults=defaults,
                     audio_cache=audio_cache,
-                    max_available_sec=air_after_prev,
                 )
                 / 1000.0,
             )
-    onset = voice_onset(audio_cache, candidate.start, floor)
+    onset = voice_onset(audio_cache, candidate.start, walk_floor)
     if onset is None:
+        if (
+            before is not None
+            and min_start > walk_floor + 1e-9
+            and voice_separates(audio_cache, before.end, candidate.start)
+        ):
+            start = min_start
+            if start > plan.start + 1e-9:
+                return replace(plan, start=start)
         return _CutRejected("filler_onset")
-    start = max(floor, onset - _ONSET_GUARD_SEC)
-    if onset < candidate.start and start < plan.start:
+    start = max(min_start, onset - _ONSET_GUARD_SEC)
+    if start > plan.start + 1e-9 or (onset < candidate.start and start + 1e-9 < plan.start):
         return replace(plan, start=start)
     return plan
 
