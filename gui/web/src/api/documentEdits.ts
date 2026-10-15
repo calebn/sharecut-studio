@@ -314,7 +314,7 @@ export interface SuggestedActionsOutcome {
   /** Saved and sent later by the drain, so the outcome is not known yet. */
   queued: boolean;
   summary: string | null;
-  historyHead: string | null;
+  historyHead: HistoryEntryId | null;
 }
 
 /** Apply every listed sound's own suggested action in one undo step. */
