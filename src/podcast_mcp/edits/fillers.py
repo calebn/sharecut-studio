@@ -1947,6 +1947,7 @@ def _start_at_filler_onset(
     candidate: _CutCandidate,
     *,
     audio_cache: TrackAudioCache,
+    defaults: dict[str, Any],
 ) -> _CutPlan | _CutRejected:
     """Start ``plan`` before the filler's acoustic onset; refuse it if a kept word runs into it.
 
@@ -1962,6 +1963,23 @@ def _start_at_filler_onset(
         if w.suppressed or w.end <= w.start or candidate.start <= w.start:
             continue
         floor = max(floor, min(w.end, candidate.start))
+    before, _after = _kept_neighbours(project, candidate)
+    if before is not None:
+        air_after_prev = candidate.start - before.end
+        if air_after_prev > 1e-9:
+            floor = max(
+                floor,
+                before.end
+                + recommend_prev_word_lead_out_ms(
+                    project,
+                    candidate.track_id,
+                    before.end,
+                    defaults=defaults,
+                    audio_cache=audio_cache,
+                    max_available_sec=air_after_prev,
+                )
+                / 1000.0,
+            )
     onset = voice_onset(audio_cache, candidate.start, floor)
     if onset is None:
         return _CutRejected("filler_onset")
@@ -2039,21 +2057,6 @@ def _between_kept_voices(
             # A word cut's own onset edge sits at the start of a quiet frame (#1061),
             # one hop before the voiced-run edge ``voice_end`` reports.
             start = max(start, ends + _VOICE_EDGE_PAD_SEC if wordless else ends - HOP_SEC)
-        if not wordless and candidate.cut_kind == "filler":
-            air_after_prev = max(0.0, min(end, candidate.start) - before.end)
-            if air_after_prev > 1e-9:
-                lead_out = (
-                    recommend_prev_word_lead_out_ms(
-                        project,
-                        candidate.track_id,
-                        before.end,
-                        defaults=defaults,
-                        audio_cache=audio_cache,
-                        max_available_sec=air_after_prev,
-                    )
-                    / 1000.0
-                )
-                start = max(start, before.end + lead_out)
     if after is not None:
         floor = start if wordless else max(start, candidate.end)
         onset = voice_onset(audio_cache, after.start, floor)
@@ -2273,7 +2276,9 @@ def _gate_cut_edges(
         and candidate.cut_kind == "filler"
         and not candidate.strictly_bounded
     ):
-        started = _start_at_filler_onset(project, plan, candidate, audio_cache=audio_cache)
+        started = _start_at_filler_onset(
+            project, plan, candidate, audio_cache=audio_cache, defaults=defaults
+        )
         if isinstance(started, _CutRejected):
             return started
         plan = started

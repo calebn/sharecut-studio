@@ -3196,6 +3196,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
             _CutPlan.for_cut(2.25, 2.6, mute=True, pad=None),
             uh,
             audio_cache=cache,
+            defaults=load_defaults(),
         )
         assert isinstance(so, _CutPlan)
         assert isinstance(started, _CutPlan)
@@ -3524,7 +3525,12 @@ def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
     from podcast_mcp.edits.cut_quality import recommend_prev_word_lead_out_ms
-    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
+    from podcast_mcp.edits.fillers import (
+        _between_kept_voices,
+        _CutCandidate,
+        _CutPlan,
+        _start_at_filler_onset,
+    )
 
     rate = 48_000
     decay_n = round(0.07 * rate)
@@ -3566,7 +3572,9 @@ def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
     )
     ungated_start_inside_prev_word_decay = 1.10
     plan = _CutPlan.for_cut(ungated_start_inside_prev_word_decay, 1.26, mute=False, pad=None)
-    gated = _between_kept_voices(project, plan, like, audio_cache=cache, defaults=defaults)
+    started = _start_at_filler_onset(project, plan, like, audio_cache=cache, defaults=defaults)
+    assert isinstance(started, _CutPlan)
+    gated = _between_kept_voices(project, started, like, audio_cache=cache, defaults=defaults)
 
     assert isinstance(gated, _CutPlan)
     assert gated.start >= 1.08 + lead - 0.02
