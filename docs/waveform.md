@@ -660,19 +660,23 @@ workspace path checks apply to these recordings.
 
 Select a track, then choose **Add volume envelope** in its inspector (the inspector
 sheet on a phone). For a track with points, the entry is **Edit volume envelope**.
-Opening the workspace reveals the Volume envelope layer without changing saved
-audio. **Done** returns to the track inspector. Shared projects show the envelope
-but explain that editing is available to the project owner.
+Opening the workspace does not change the shared Volume envelope layer or saved
+audio. Use **Show volume envelope** to reveal it across all tracks. **Done**
+returns to the track inspector. Shared-project Editors can edit the envelope;
+Commenters and Viewers can view it but cannot edit it.
 
 On a short phone screen, choose **Expand** in the inspector sheet to reach the envelope controls. Opening the workspace does not expand the sheet automatically.
 
 Choose **Add point**, enter **Time (seconds on timeline)** and **Level (×)**, then
-**Save point**. The first draft starts at zero seconds and 1.00×. Later additions
-start at the playhead, bounded to the timeline, with the envelope’s current level.
+**Save point**. The first draft starts at 0 seconds with the empty curve’s current
+level. Later additions start at the playhead, bounded to the timeline, with the
+existing curve’s current level.
 The default is only a proposal: opening a form or leaving a field does not save it.
 **Cancel** or Escape discards the draft. Level accepts 0 through 1.50: zero is
-silent and 1.00 leaves the track’s volume unchanged. A single point applies across
-the track; before the first and after the last point, the endpoint level holds.
+silent and 1.00 leaves the track’s volume unchanged. A saved curve with exactly
+one point applies that level across the track. The GUI’s first-point operation
+adds endpoint anchors at the prior level; before the first and after the last
+point, the endpoint level holds.
 This automation is separate from the track volume fader and effects.
 
 Use the **Envelope point** selector to reach tightly spaced or coincident points

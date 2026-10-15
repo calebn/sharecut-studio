@@ -458,7 +458,9 @@ See [responsive inspector evidence](https://github.com/calebn/sharecut-studio/pu
 and owner acceptance limits.
 
 The track’s **Add volume envelope** or **Edit volume envelope** action opens
-`EnvelopeWorkspace` and shows the layer without creating automation. Its point
+`EnvelopeWorkspace` without changing the shared layer visibility or creating
+automation. If the shared layer is hidden, choose **Show volume envelope**
+before adding, editing, or deleting points. Its point
 list selects by immutable ID; **Add point** and **Edit point** open numeric time
 and level drafts. Time and Level use decimal text fields so wheel scrolling
 does not step the draft values; the existing numeric validation reports errors.

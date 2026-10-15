@@ -422,8 +422,28 @@ for (const core of [
                   (item) => item.id !== remainingPoint.id,
                 ),
               );
-            const onePoint = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(remaining, onePoint, track.id);
+            const twoPoints = envelopeSnapshot(projectPath, track.id);
+            expectEnvelopeMutation(remaining, twoPoints, track.id);
+            expect(twoPoints.points).toHaveLength(2);
+            const penultimatePoint = twoPoints.points[0]!;
+            const deletedPenultimate = await acceptedEnvelopeCommand(
+              page,
+              "SetEnvelope",
+              () =>
+                page
+                  .getByRole("button", { name: "Delete point", exact: true })
+                  .click(),
+            );
+            await expect
+              .poll(() => envelopeSnapshot(projectPath, track.id).points)
+              .toEqual(
+                twoPoints.points.filter(
+                  (item) => item.id !== penultimatePoint.id,
+                ),
+              );
+            const lastPoint = envelopeSnapshot(projectPath, track.id);
+            expectEnvelopeMutation(twoPoints, lastPoint, track.id);
+            expect(lastPoint.points).toHaveLength(1);
             observer.stage("final-removal-and-undo");
             const removed = await acceptedEnvelopeCommand(
               page,
@@ -440,7 +460,7 @@ for (const core of [
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual([]);
             const empty = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(onePoint, empty, track.id);
+            expectEnvelopeMutation(lastPoint, empty, track.id);
             expect(removed.command.payload.points).toEqual([]);
             await screenshot(page, info, "removed-envelope-empty-workspace");
             const undoRemoval = await acceptedEnvelopeCommand(
@@ -450,19 +470,15 @@ for (const core of [
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(
-                remaining.points.filter(
-                  (item) => item.id !== remainingPoint.id,
-                ),
-              );
+              .toEqual(lastPoint.points);
             expect(
               envelopeSnapshot(projectPath, track.id).history?.cursor,
-            ).toBe(onePoint.history?.cursor);
+            ).toBe(lastPoint.history?.cursor);
             expect(
               observer.commands.filter(
                 (command) => command.type === "SetEnvelope",
               ),
-            ).toHaveLength(6);
+            ).toHaveLength(8);
             receipts.push({
               checkpoint: "edit-reopen-delete-final-removal",
               observation: {
@@ -470,12 +486,14 @@ for (const core of [
                 moved,
                 deleted,
                 deletedRemaining,
+                deletedPenultimate,
                 removed,
                 undoRemoval,
                 two,
                 edited,
                 remaining,
-                onePoint,
+                twoPoints,
+                lastPoint,
                 empty,
               },
             });
