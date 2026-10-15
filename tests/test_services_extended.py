@@ -657,7 +657,7 @@ def test_play_silent_stem_extract_falls_back_to_segment(minimal_project, sample_
 
 
 def test_play_stem_cache_invalidates_on_stem_mtime(minimal_project, sample_wav) -> None:
-    import time
+    import os
 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
@@ -670,10 +670,17 @@ def test_play_stem_cache_invalidates_on_stem_mtime(minimal_project, sample_wav) 
     first = svc._cache_path("stem_host_hash", 0.0, 0.5, stem)
     first.parent.mkdir(parents=True, exist_ok=True)
     first.write_bytes(b"old")
-    time.sleep(0.01)
-    stem.write_bytes(sample_wav.read_bytes())
+    unchanged = svc._cache_path("stem_host_hash", 0.0, 0.5, stem)
+    assert unchanged == first
+    assert unchanged.read_bytes() == b"old"
+
+    before = stem.stat()
+    expected_mtime_ns = before.st_mtime_ns + 1_000_000_000
+    os.utime(stem, ns=(before.st_atime_ns, expected_mtime_ns))
+    assert stem.stat().st_mtime_ns == expected_mtime_ns
+
     second = svc._cache_path("stem_host_hash", 0.0, 0.5, stem)
-    assert first != second
+    assert second != first
 
 
 def test_play_processed_segment_cache_hit(minimal_project, sample_wav) -> None:
