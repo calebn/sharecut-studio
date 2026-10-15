@@ -245,7 +245,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
           </p>
         )}
         {!editable && (
-          <p>Volume envelope editing is available to the project owner.</p>
+          <p>This link can view, but not edit, the volume envelope.</p>
         )}
         <p>
           Time is measured on the timeline. Level multiplies this track’s
@@ -253,8 +253,9 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
         </p>
         {points.length === 0 ? (
           <p>
-            No volume points. Add a point to control this track’s volume over
-            time. A single point sets the level across the whole track.
+            No volume points. Add points to control this track’s volume over
+            time. The first point preserves the prior level at the timeline
+            ends.
           </p>
         ) : (
           <label htmlFor={`${id}-point`}>

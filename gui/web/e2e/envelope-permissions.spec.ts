@@ -152,7 +152,7 @@ test("viewer share keeps envelope GUI read-only", async ({
         .click();
       await expect(
         guest.getByText(
-          "Volume envelope editing is available to the project owner.",
+          "This link can view, but not edit, the volume envelope.",
           { exact: true },
         ),
       ).toBeVisible();
@@ -234,7 +234,7 @@ test("editor share edits a volume envelope point", async ({
         .click();
       await expect(
         guest.getByText(
-          "Volume envelope editing is available to the project owner.",
+          "This link can view, but not edit, the volume envelope.",
           { exact: true },
         ),
       ).toHaveCount(0);

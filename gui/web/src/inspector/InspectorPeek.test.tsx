@@ -6,10 +6,20 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  applyDocumentSnapshot,
+  mergeReturnedComment,
+} from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { expectNoA11yViolations } from "../test/a11y";
-import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { deferred } from "../test/deferred";
+import {
+  clipRow,
+  minimalProject,
+  sampleComment,
+  sampleTrack,
+} from "../test/fixtures";
 import { replayPointer } from "../timeline/hitRouting";
 import type { ProjectView, Selection } from "../types/project";
 import { InspectorPeek } from "./InspectorPeek";
@@ -387,11 +397,44 @@ describe("InspectorPeek nudges", () => {
     ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
   });
 
-  it("discards an active envelope preview when the shared layer is hidden, even if it is shown again before release", async () => {
+  it.each([
+    { kind: "level", button: "Envelope point level 0.5 dB higher" },
+    { kind: "time", button: "Envelope point 0.01 s later" },
+  ])(
+    "discards an active envelope $kind preview when the layer is hidden and shown before release",
+    async ({ button: name }) => {
+      open(POINT);
+      const plus = button(name);
+      fireEvent.pointerDown(plus, { button: 0 });
+      advance(300);
+      expect(
+        useDawStore
+          .getState()
+          .project!.envelopes.find((envelope) => envelope.track_id === "host")
+          ?.points,
+      ).not.toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+
+      act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+      act(() => useDawStore.getState().setLayerVisible("showLevels", true));
+      advance(600);
+      fireEvent.pointerUp(plus);
+      fireEvent.click(plus, { detail: 1 });
+      await flush();
+
+      expect(api.setEnvelope).not.toHaveBeenCalled();
+      expect(
+        useDawStore
+          .getState()
+          .project!.envelopes.find((envelope) => envelope.track_id === "host")
+          ?.points,
+      ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+    },
+  );
+
+  it("hiding after a comment merge discards only the envelope preview", async () => {
     open(POINT);
     const plus = button("Envelope point level 0.5 dB higher");
     fireEvent.pointerDown(plus, { button: 0 });
-    advance(300);
     expect(
       useDawStore
         .getState()
@@ -399,11 +442,34 @@ describe("InspectorPeek nudges", () => {
         ?.points,
     ).not.toEqual([{ id: "e1", time: 9.75, value: 1 }]);
 
+    mergeReturnedComment(sampleComment({ id: "c-merged", body: "Published" }));
     act(() => useDawStore.getState().setLayerVisible("showLevels", false));
-    act(() => useDawStore.getState().setLayerVisible("showLevels", true));
     fireEvent.pointerUp(plus);
     await flush();
-    advance(1000);
+
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(useDawStore.getState().project?.comments).toContainEqual(
+      sampleComment({ id: "c-merged", body: "Published" }),
+    );
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+  });
+
+  it("keeps a newer authoritative envelope when hiding a stale preview", async () => {
+    open(POINT);
+    const plus = button("Envelope point level 0.5 dB higher");
+    fireEvent.pointerDown(plus, { button: 0 });
+    const fresh = structuredClone(project);
+    fresh.envelopes[0]!.points[0]!.value = 0.75;
+    applyDocumentSnapshot({ server_seq: 1, project: fresh });
+
+    act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+    fireEvent.pointerUp(plus);
+    await flush();
 
     expect(api.setEnvelope).not.toHaveBeenCalled();
     expect(
@@ -411,7 +477,34 @@ describe("InspectorPeek nudges", () => {
         .getState()
         .project!.envelopes.find((envelope) => envelope.track_id === "host")
         ?.points,
-    ).toEqual([{ id: "e1", time: 9.75, value: 1 }]);
+    ).toEqual([{ id: "e1", time: 9.75, value: 0.75 }]);
+  });
+
+  it("keeps an accepted envelope save pending when the layer is hidden", async () => {
+    const save = deferred<void>();
+    api.setEnvelope.mockReturnValueOnce(save.promise);
+    open(POINT);
+    const plus = button("Envelope point level 0.5 dB higher");
+    fireEvent.pointerDown(plus, { button: 0 });
+    fireEvent.pointerUp(plus);
+    expect(api.setEnvelope).toHaveBeenCalledTimes(1);
+
+    act(() => useDawStore.getState().setLayerVisible("showLevels", false));
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "e1", time: 9.75, value: 1.059254 }]);
+    await act(async () => save.resolve());
+
+    expect(api.setEnvelope).toHaveBeenCalledTimes(1);
+    expect(
+      useDawStore
+        .getState()
+        .project!.envelopes.find((envelope) => envelope.track_id === "host")
+        ?.points,
+    ).toEqual([{ id: "e1", time: 9.75, value: 1.059254 }]);
   });
 
   it("leaves a trim nudge unsaved and restores it when the ripple would cut another speaker", async () => {

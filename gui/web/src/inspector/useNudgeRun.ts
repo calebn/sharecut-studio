@@ -46,6 +46,11 @@ import { ownsSavingTrim } from "../state/projectSlice";
 import { isReplayed } from "../timeline/hitRouting";
 import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
+import {
+  findVolumeEnvelope,
+  sameEnvelopePoints,
+  withVolumeEnvelopePoints,
+} from "../utils/envelopes";
 
 /** How long the bump cue shows on the value it stopped. */
 const BUMP_MS = 1200;
@@ -59,6 +64,7 @@ interface Run {
   /** The project as saved when the run began; the save is checked against it. */
   origin: ProjectView;
   projectPath: string;
+  projectEpoch: number;
   seq: number;
   trimToken: symbol | null;
   value: number;
@@ -217,6 +223,7 @@ export function useNudgeRun() {
       input,
       origin,
       projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
       seq: currentDocumentSeq(),
       trimToken,
       value,
@@ -255,13 +262,48 @@ export function useNudgeRun() {
     }
     if (r.moved === 0) return;
     const revert = () => {
-      if (!r.trimToken && r.preview) {
+      if (r.trimToken || !r.preview) return;
+      const state = useDawStore.getState();
+      if (
+        state.projectPath !== r.projectPath ||
+        state.projectEpoch !== r.projectEpoch ||
+        currentDocumentSeq() > r.seq
+      )
+        return;
+      if (state.project === r.preview) {
         revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
+        return;
       }
+      if (r.field.kind !== "envelope-level" && r.field.kind !== "envelope-time")
+        return;
+      const project = state.project;
+      if (!project) return;
+      const trackId = r.field.trackId;
+      const currentEnvelope = findVolumeEnvelope(project.envelopes, trackId);
+      const previewEnvelope = findVolumeEnvelope(r.preview.envelopes, trackId);
+      if (
+        (currentEnvelope == null) !== (previewEnvelope == null) ||
+        (currentEnvelope != null &&
+          previewEnvelope != null &&
+          !sameEnvelopePoints(currentEnvelope.points, previewEnvelope.points))
+      )
+        return;
+      const previous = findVolumeEnvelope(r.origin.envelopes, trackId);
+      const envelopes = previous
+        ? withVolumeEnvelopePoints(project.envelopes, trackId, previous.points)
+        : project.envelopes.filter(
+            (envelope) =>
+              envelope.track_id !== trackId || envelope.parameter !== "volume",
+          );
+      state.setProject({ ...project, envelopes });
     };
     const envelopeNudge =
       r.field.kind === "envelope-level" || r.field.kind === "envelope-time";
-    if (!save || (envelopeNudge && !useDawStore.getState().layers.showLevels)) {
+    const hiddenEnvelope =
+      envelopeNudge && !useDawStore.getState().layers.showLevels;
+    if (hiddenEnvelope && r.input === "pointer")
+      stalePointerClick.current = true;
+    if (!save || hiddenEnvelope) {
       revert();
       return;
     }
@@ -315,8 +357,10 @@ export function useNudgeRun() {
       active &&
       (active.field.kind === "envelope-level" ||
         active.field.kind === "envelope-time")
-    )
+    ) {
+      if (active.input === "pointer") stalePointerClick.current = true;
       void endRef.current(false);
+    }
   }, [showLevels]);
 
   const buttonProps = (field: NudgeField, delta: number, name: string) => ({

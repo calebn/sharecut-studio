@@ -380,7 +380,7 @@ describe("EnvelopeWorkspace", () => {
     mount();
     expect(
       screen.getByText(
-        "Volume envelope editing is available to the project owner.",
+        "This link can view, but not edit, the volume envelope.",
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Add point" })).toBeNull();
