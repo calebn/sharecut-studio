@@ -902,6 +902,8 @@ def _classify_word_audibility(
     policy: AnalysisPolicy,
     bleed_sources: Collection[str],
     voice_floors: dict[str, float],
+    own_speech_level: float | None = None,
+    inaudibility_floors: dict[str, float] | None = None,
 ) -> tuple[str, str | None]:
     """The acoustic verdict for one word window.
 
@@ -914,6 +916,10 @@ def _classify_word_audibility(
     people talking, not a copy, and keeps its own audibility (#774). A source mic's
     level is read at its copy lag (#1052). The levels stay in the row's
     ``track_rms_db`` for review.
+
+    Bleed dominance uses full-band levels and floors. The inaudible verdict alone can use
+    ``own_speech_level`` and ``inaudibility_floors`` (speech-band) so low-band room
+    noise does not mask whispered speech (#1377).
     """
     if own_rms is None:
         return "inaudible", None
@@ -929,13 +935,15 @@ def _classify_word_audibility(
             return "bleed", dominant_tid
 
     if own_rms < voice_floors.get(own_track_id, -math.inf):
+        if (
+            own_speech_level is not None
+            and inaudibility_floors is not None
+            and own_speech_level >= inaudibility_floors.get(own_track_id, -math.inf)
+        ):
+            return "audible", None
         return "inaudible", None
 
     return "audible", None
-
-
-def _audibility_profile(cache: TrackRmsCache) -> LevelProfile:
-    return cache.speech_profile
 
 
 def _voice_offsets(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict[str, float]:
@@ -949,7 +957,7 @@ def _voice_offsets(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict
     never depends on how loud the file was recorded (#1495).
     """
     return {
-        tid: _audibility_profile(cache).path_reference_db
+        tid: cache.profile.path_reference_db
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -960,7 +968,27 @@ def _voice_floors(
 ) -> dict[str, float]:
     """Each decoded track's audibility floor, on the same voice scale as its word levels."""
     return {
-        tid: _audibility_profile(cache).audibility_floor_db - offsets.get(tid, 0.0)
+        tid: cache.profile.audibility_floor_db - offsets.get(tid, 0.0)
+        for tid in track_ids
+        if (cache := caches.get(tid)) is not None
+    }
+
+
+def _speech_voice_offsets(track_ids: Collection[str], caches: TrackRmsCacheSet) -> dict[str, float]:
+    """Speech-band path references for the inaudibility floor check (#1377)."""
+    return {
+        tid: cache.speech_profile.path_reference_db
+        for tid in track_ids
+        if (cache := caches.get(tid)) is not None
+    }
+
+
+def _inaudibility_floors(
+    track_ids: Collection[str], caches: TrackRmsCacheSet, speech_offsets: dict[str, float]
+) -> dict[str, float]:
+    """Speech-band audibility floors on the speech voice scale."""
+    return {
+        tid: cache.speech_profile.audibility_floor_db - speech_offsets.get(tid, 0.0)
         for tid in track_ids
         if (cache := caches.get(tid)) is not None
     }
@@ -979,7 +1007,7 @@ def _track_levels(
     levels: dict[str, float] = {}
     for tid in track_ids:
         lag = lags.get(tid, 0.0)
-        rms = _speech_rms_for_track_at_timeline(
+        rms = _rms_for_track_at_timeline(
             project, tid, t_start + lag, t_end + lag, caches=caches, recorded_gain=False
         )
         if rms is not None:
@@ -997,8 +1025,9 @@ def compute_word_audibility_map(
 ) -> list[dict[str, Any]]:
     """Per-word audibility across all dialogue tracks at each word's timeline window.
 
-    Word levels and voice floors are read in the speech band so low-band room noise does
-    not mask speech that sits above it (#1377).
+    The ``inaudible`` verdict alone compares speech-band level to a speech-band floor so
+    low-band room noise does not mask whispered speech (#1377). Bleed dominance still
+    uses full-band levels and floors.
 
     A ``bleed`` verdict needs a measured path from the louder mic into the word's own
     (``TrackRmsCacheSet.echo_pairs``), so it needs rendered stems for both mics.
@@ -1023,6 +1052,8 @@ def compute_word_audibility_map(
     targets = [track_id] if track_id else all_tracks
     offsets = _voice_offsets(all_tracks, caches)
     floors = _voice_floors(all_tracks, caches, offsets)
+    speech_offsets = _speech_voice_offsets(all_tracks, caches)
+    inaudibility_floors = _inaudibility_floors(all_tracks, caches, speech_offsets)
 
     lanes = lanes_transcripts(project, targets)
     total_words = sum(len(lane.transcript.words) for lane in lanes)
@@ -1116,14 +1147,36 @@ def compute_word_audibility_map(
                     project, all_tracks, tl_start, tl_end, lags, caches, offsets
                 )
                 own_rms = track_rms.get(tid)
+                own_speech: float | None = None
+                if own_rms is not None and own_rms < floors.get(tid, -math.inf):
+                    raw_speech = _speech_rms_for_track_at_timeline(
+                        project, tid, tl_start, tl_end, caches=caches, recorded_gain=False
+                    )
+                    if raw_speech is not None:
+                        own_speech = raw_speech - speech_offsets.get(tid, 0.0)
                 status, dominant = _classify_word_audibility(
-                    tid, own_rms, track_rms, policy=pol, bleed_sources=paths, voice_floors=floors
+                    tid,
+                    own_rms,
+                    track_rms,
+                    policy=pol,
+                    bleed_sources=paths,
+                    voice_floors=floors,
+                    own_speech_level=own_speech,
+                    inaudibility_floors=inaudibility_floors,
                 )
                 unlike_copy = False
                 if status == "bleed" and dominant in lags:
                     at_zero = _track_levels(
                         project, all_tracks, tl_start, tl_end, {}, caches, offsets
                     )
+                    zero_speech: float | None = None
+                    zero_own = at_zero.get(tid)
+                    if zero_own is not None and zero_own < floors.get(tid, -math.inf):
+                        raw_zero = _speech_rms_for_track_at_timeline(
+                            project, tid, tl_start, tl_end, caches=caches, recorded_gain=False
+                        )
+                        if raw_zero is not None:
+                            zero_speech = raw_zero - speech_offsets.get(tid, 0.0)
                     zero = _classify_word_audibility(
                         tid,
                         at_zero.get(tid),
@@ -1131,6 +1184,8 @@ def compute_word_audibility_map(
                         policy=pol,
                         bleed_sources=paths,
                         voice_floors=floors,
+                        own_speech_level=zero_speech,
+                        inaudibility_floors=inaudibility_floors,
                     )
                     unlike_copy = zero[0] != "bleed" and not paths[dominant].carries(
                         caches.copy_match(dominant, tid, tl_start, tl_end)
@@ -1239,7 +1294,7 @@ def list_low_audibility_words(
             tid, tr = lane.track_id, lane.transcript
             proc_cache = caches.get(tid)
             floor_db: float | None = (
-                proc_cache.speech_profile.audibility_floor_db if proc_cache is not None else None
+                proc_cache.profile.audibility_floor_db if proc_cache is not None else None
             )
             for i, w in enumerate(tr.words):
                 if w.suppressed:
@@ -1250,13 +1305,13 @@ def list_low_audibility_words(
                         done += 1
                         _tick()
                         continue
-                    rms = proc_cache.speech_rms_db(tl_span[0], tl_span[1])
+                    rms = proc_cache.rms_db(tl_span[0], tl_span[1])
                 else:
                     try:
                         path = track_audio_path(project, tid)
-                        rms = _speech_rms_from_file(path, w.start, w.end)
+                        rms = measure_window_rms_db(path, w.start, w.end)
                         if floor_db is None:
-                            floor_db = file_speech_level_profile(
+                            floor_db = file_level_profile(
                                 path, sample_rate=_RMS_SAMPLE_RATE
                             ).audibility_floor_db
                     except Exception:

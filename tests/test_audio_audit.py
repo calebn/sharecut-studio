@@ -100,11 +100,8 @@ def test_list_low_audibility_flags_quiet_word(sample_wav: Path, tmp_path: Path):
     ]
 
     with (
-        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.speech_rms_db", return_value=-50.0),
-        patch(
-            "podcast_mcp.engines.audio_audit.TrackRmsCache.speech_profile",
-            new=_floor_at(-40.0),
-        ),
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db", return_value=-50.0),
+        patch("podcast_mcp.engines.audio_audit.TrackRmsCache.profile", new=_floor_at(-40.0)),
     ):
         flagged = list_low_audibility_words(project, track_id="host")
     assert len(flagged) == 1
@@ -2091,6 +2088,8 @@ def test_whisper_above_low_band_hvac_is_audible_in_the_speech_band() -> None:
     caches = TrackRmsCacheSet(caches={"host": cache})
     offsets = aa._voice_offsets(["host"], caches)
     floors = aa._voice_floors(["host"], caches, offsets)
+    speech_offsets = aa._speech_voice_offsets(["host"], caches)
+    inaudibility_floors = aa._inaudibility_floors(["host"], caches, speech_offsets)
     levels = aa._track_levels(
         EpisodeProject.create("ep", "/tmp"),
         ["host"],
@@ -2100,6 +2099,9 @@ def test_whisper_above_low_band_hvac_is_audible_in_the_speech_band() -> None:
         caches,
         offsets,
     )
+    own_speech = cache.speech_rms_db(word_start, word_end)
+    assert own_speech is not None
+    own_speech -= speech_offsets.get("host", 0.0)
     status, _ = aa._classify_word_audibility(
         "host",
         levels.get("host"),
@@ -2107,6 +2109,8 @@ def test_whisper_above_low_band_hvac_is_audible_in_the_speech_band() -> None:
         policy=AnalysisPolicy(),
         bleed_sources=set(),
         voice_floors=floors,
+        own_speech_level=own_speech,
+        inaudibility_floors=inaudibility_floors,
     )
     assert status == "audible"
 
