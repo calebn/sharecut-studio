@@ -24,7 +24,7 @@ from podcast_mcp.models import ClipMuteRegion, EditDecision, EpisodeProject
 
 log = logging.getLogger(__name__)
 
-LOWER_DB = -12.0
+LOWER_GAIN_DB = -12.0
 LOWER_FADE_MS = 20
 
 
@@ -77,7 +77,7 @@ def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> boo
         return False
 
 
-def apply_lower(project: EpisodeProject, decision: EditDecision, db: float = LOWER_DB) -> bool:
+def apply_lower(project: EpisodeProject, decision: EditDecision, db: float = LOWER_GAIN_DB) -> bool:
     """Turn the decision's span down on its own track; True when a clip took it."""
     mapped = edit_timeline_range(project, decision)
     if mapped is None:
