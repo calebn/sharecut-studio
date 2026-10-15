@@ -2,6 +2,7 @@ import { setEnvelope } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { errorMessage } from "../utils/apiError";
 import {
+  addVolumePoint,
   ENVELOPE_POINT_EPSILON,
   envelopeValueAt,
   findVolumeEnvelope,
@@ -50,7 +51,10 @@ export function registerEnvelopeCommands(): void {
       time,
       value: envelopeValueAt(origin, time),
     };
-    const next = [...origin, point].sort((a, b) => a.time - b.time);
+    const next = addVolumePoint(origin, point, project.timeline_duration_sec, {
+      start: randomUuid(),
+      end: randomUuid(),
+    });
     try {
       await setEnvelope(projectPath, trackId, next, origin);
     } catch (error) {

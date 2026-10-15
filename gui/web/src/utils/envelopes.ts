@@ -61,6 +61,38 @@ export function withVolumeEnvelopePoints(
   return envelopes.map((e) => (e === current ? { ...e, points } : e));
 }
 
+export function addVolumePoint(
+  existing: readonly AutomationPoint[],
+  point: AutomationPoint,
+  timelineEnd: number,
+  endpointIds: Readonly<{ start: string; end: string }>,
+): AutomationPoint[] {
+  if (existing.length > 0) {
+    return [...existing, point].sort((a, b) => a.time - b.time);
+  }
+  if (timelineEnd === 0) return [{ ...point, time: 0 }];
+
+  const startDistance = Math.abs(point.time);
+  const endDistance = Math.abs(timelineEnd - point.time);
+  if (startDistance <= ENVELOPE_POINT_EPSILON && startDistance <= endDistance) {
+    return [
+      { ...point, time: 0 },
+      { id: endpointIds.end, time: timelineEnd, value: point.value },
+    ];
+  }
+  if (endDistance <= ENVELOPE_POINT_EPSILON) {
+    return [
+      { id: endpointIds.start, time: 0, value: point.value },
+      { ...point, time: timelineEnd },
+    ];
+  }
+  return [
+    { id: endpointIds.start, time: 0, value: point.value },
+    point,
+    { id: endpointIds.end, time: timelineEnd, value: point.value },
+  ].sort((a, b) => a.time - b.time);
+}
+
 export function replaceEnvelopePoint(
   points: readonly AutomationPoint[],
   next: AutomationPoint,

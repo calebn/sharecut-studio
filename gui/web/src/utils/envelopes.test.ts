@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addVolumePoint,
   clampEnvelopeValue,
   envelopeValueAt,
   findVolumeEnvelope,
@@ -46,6 +47,76 @@ describe("envelopes", () => {
     expect(points).toEqual([
       { id: "late", time: 5, value: 0.5 },
       { id: "early", time: 8, value: 0.2 },
+    ]);
+  });
+
+  it("builds a flat first envelope point with stable endpoint identities", () => {
+    const ids = { start: "start", end: "end" };
+    expect(
+      addVolumePoint([], { id: "new", time: 4, value: 0.4 }, 10, ids),
+    ).toEqual([
+      { id: "start", time: 0, value: 0.4 },
+      { id: "new", time: 4, value: 0.4 },
+      { id: "end", time: 10, value: 0.4 },
+    ]);
+    expect(
+      addVolumePoint([], { id: "new", time: 0, value: 0.7 }, 10, ids),
+    ).toEqual([
+      { id: "new", time: 0, value: 0.7 },
+      { id: "end", time: 10, value: 0.7 },
+    ]);
+    expect(
+      addVolumePoint([], { id: "new", time: 5e-7, value: 0.7 }, 10, ids),
+    ).toEqual([
+      { id: "new", time: 0, value: 0.7 },
+      { id: "end", time: 10, value: 0.7 },
+    ]);
+    expect(
+      addVolumePoint([], { id: "new", time: 10 - 5e-7, value: 0.8 }, 10, ids),
+    ).toEqual([
+      { id: "start", time: 0, value: 0.8 },
+      { id: "new", time: 10, value: 0.8 },
+    ]);
+  });
+
+  it("keeps distinct positive-duration anchors below the collision epsilon", () => {
+    expect(
+      addVolumePoint([], { id: "new", time: 2e-7, value: 0.3 }, 5e-7, {
+        start: "start",
+        end: "end",
+      }),
+    ).toEqual([
+      { id: "new", time: 0, value: 0.3 },
+      { id: "end", time: 5e-7, value: 0.3 },
+    ]);
+    expect(
+      addVolumePoint([], { id: "new", time: 0, value: 0.3 }, 0, {
+        start: "start",
+        end: "end",
+      }),
+    ).toEqual([{ id: "new", time: 0, value: 0.3 }]);
+  });
+
+  it("adds a tied endpoint point on the nearer boundary and leaves existing curves unchanged apart from insertion", () => {
+    expect(
+      addVolumePoint([], { id: "new", time: 0.5e-6, value: 0.3 }, 1e-6, {
+        start: "start",
+        end: "end",
+      }),
+    ).toEqual([
+      { id: "new", time: 0, value: 0.3 },
+      { id: "end", time: 1e-6, value: 0.3 },
+    ]);
+    expect(
+      addVolumePoint(
+        [{ id: "late", time: 5, value: 0.5 }],
+        { id: "new", time: 2, value: 0.8 },
+        10,
+        { start: "start", end: "end" },
+      ),
+    ).toEqual([
+      { id: "new", time: 2, value: 0.8 },
+      { id: "late", time: 5, value: 0.5 },
     ]);
   });
 

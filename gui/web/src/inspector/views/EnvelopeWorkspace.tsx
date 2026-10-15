@@ -8,6 +8,7 @@ import type { AutomationPoint } from "../../types/project";
 import { focusAndReveal } from "../../ui/focusAndReveal";
 import { errorMessage } from "../../utils/apiError";
 import {
+  addVolumePoint,
   ENVELOPE_POINT_EPSILON,
   envelopeTimeRangeMessage,
   envelopeValueAt,
@@ -25,7 +26,11 @@ import {
   EnvelopeWorkspaceView,
 } from "./EnvelopeWorkspaceView";
 
-type Draft = { form: EnvelopeForm; origin: AutomationPoint[] };
+type Draft = {
+  form: EnvelopeForm;
+  origin: AutomationPoint[];
+  endpointIds: { start: string; end: string } | null;
+};
 
 export function EnvelopeWorkspace({
   trackId,
@@ -113,6 +118,10 @@ export function EnvelopeWorkspace({
     reset();
     setDraft({
       origin,
+      endpointIds:
+        kind === "add" && origin.length === 0
+          ? { start: randomUuid(), end: randomUuid() }
+          : null,
       form: {
         kind,
         pointId: kind === "edit" ? selected!.id : randomUuid(),
@@ -213,7 +222,12 @@ export function EnvelopeWorkspace({
       oldPoint && sameEnvelopePoint(oldPoint, point)
         ? origin
         : form.kind === "add"
-          ? [...origin, point].sort((a, b) => a.time - b.time)
+          ? addVolumePoint(
+              origin,
+              point,
+              duration,
+              draft.endpointIds ?? { start: randomUuid(), end: randomUuid() },
+            )
           : replaceEnvelopePoint(origin, point);
     void commit(next, origin, point.id);
   };

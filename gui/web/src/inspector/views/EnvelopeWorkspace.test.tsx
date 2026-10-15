@@ -100,7 +100,11 @@ describe("EnvelopeWorkspace", () => {
     expect(setEnvelope).not.toHaveBeenCalled();
     await save();
     const next = setEnvelope.mock.calls[0]![2] as AutomationPoint[];
-    expect(next).toEqual([{ id: expect.any(String), time: 0, value: 1 }]);
+    expect(next).toEqual([
+      { id: expect.any(String), time: 0, value: 1 },
+      { id: expect.any(String), time: 10, value: 1 },
+    ]);
+    expect(next[1]!.id).not.toBe(next[0]!.id);
     expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", next, []);
     expect(useDawStore.getState().selection).toEqual({
       kind: "envelopePoint",
