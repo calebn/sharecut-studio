@@ -112,7 +112,7 @@ alone does not create an undo action or invalidate an otherwise matching index.
 
 Pipeline run logs stay on the project file and are not reverted by undo.
 
-`--expected-head` (Undo toast, `undo --expected-head`) treats `render_preview` entries recorded after the named entry as render-only: a preview render that lands behind an edit does not make the toast stale. Any other entry after it still does (`history.manager._behind_render_only`).
+`--expected-head` (Undo toast, `undo --expected-head`) treats `render_preview` entries recorded after the named entry as render-only: a preview render that lands behind an edit does not make the toast stale. Any other entry after it still does (`history.manager._behind_render_only`). When the caller names the current head and only `render_preview` entries sit at the tip (toolbar Mod+Z after auto refresh-mix), undo rewinds over those previews first so one step reverts the edit that triggered them (`history.manager._rewind_over_tip_render_previews`).
 
 `edit apply-suggested --revise` (`HistoryManager.tip_entry_index`) finds the latest `apply_suggested_actions` entry while the cursor is at the tip and only `render_preview` entries follow it, goes back to just before it and re-applies the same batch with the overrides. Nothing else is undone, and the cursor returns to the tip if the re-apply fails.
 A run records its starting editable state if it differs from the current snapshot,
