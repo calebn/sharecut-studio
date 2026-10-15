@@ -147,7 +147,7 @@ as `block-size` because WebKit ignores `min-block-size` on one. Transcript
 **Find and replace** and Pipeline **Add term** rows wrap their controls on a
 coarse pointer so landscape panels do not overflow (#1433). The Pipeline panel's
 selects, its From / Only shortcuts summary and the More hub's back button hold the
-floor too (#1445). In a slot under 40rem tall (`@container app`, so large text
+floor too (#1445). On touch, in a window under 40rem tall (`@container app`, so large text
 counts) the Pipeline toolbar scrolls with its panel instead of sticking, and the
 Transcript panel scrolls as a whole with the list keeping at least 16rem, so
 neither covers the rows beneath it. `e2e-compat/reachability-sweep.spec.ts` sweeps

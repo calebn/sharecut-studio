@@ -2031,40 +2031,41 @@ button.history-row {
     box-sizing: border-box;
   }
 
-  .pipeline-advanced-shortcuts > summary {
+  /* A summary stays display: list-item, so its disclosure triangle stays drawn. */
+  .pipeline-advanced-shortcuts > summary,
+  .pipeline-analyze-tracks > summary {
     min-block-size: var(--touch-min);
     box-sizing: border-box;
-  }
-
-  .pipeline-advanced-shortcuts > summary {
-    display: flex;
-    align-items: center;
+    align-content: center;
   }
 }
 
-/* Short slot or large text (@container app is rem-based, so 200% text counts): the
+/* Touch, in a short window or at large text (@container app is rem-based, so 200% text
+   counts; a mouse on a short desktop window keeps the sticky toolbar): the
    sticky Pipeline toolbar and the Transcript chrome would cover the rows they sit
    above. The toolbar scrolls with its panel, and the Transcript panel scrolls as a
    whole so its toolbar and Find and replace keep their size and the list keeps a
    readable slot (#1445 Ledger). */
-@container app (max-height: 40rem) {
-  .pipeline-toolbar {
-    position: static;
-  }
+@media (pointer: coarse) {
+  @container app (max-height: 40rem) {
+    .pipeline-toolbar {
+      position: static;
+    }
 
-  .transcript-panel {
-    overflow-y: auto;
-  }
+    .transcript-panel {
+      overflow-y: auto;
+    }
 
-  .transcript-panel > :not(.transcript-list) {
-    flex-shrink: 0;
-  }
+    .transcript-panel > :not(.transcript-list) {
+      flex-shrink: 0;
+    }
 
-  .transcript-panel > .transcript-list {
-    flex: 1 0 16rem;
-  }
+    .transcript-panel > .transcript-list {
+      flex: 1 0 16rem;
+    }
 
-  .transcript-find-replace {
-    max-block-size: none;
+    .transcript-find-replace {
+      max-block-size: none;
+    }
   }
 }
