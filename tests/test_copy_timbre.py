@@ -138,3 +138,17 @@ def test_the_timbre_needs_half_a_second_of_copy_frames(
     got = _confirmed_with(monkeypatch, 0.9, 0.0, frame_count)
 
     assert (got is not None) is confirmed
+
+
+def test_precomputed_own_spectra_give_the_same_similarity():
+    from podcast_mcp.engines.copy_timbre import copy_similarity, fine_spectra
+
+    rng = np.random.default_rng(3)
+    own = rng.normal(0, 0.1, 6 * RATE)
+    peer = rng.normal(0, 0.1, 6 * RATE)
+    frames = np.arange(5, 400, 3)
+    fine = fine_spectra(own, frames, sample_rate=RATE)
+    assert np.array_equal(
+        copy_similarity(own, peer, frames, 4, sample_rate=RATE),
+        copy_similarity(own, peer, frames, 4, sample_rate=RATE, own_fine=fine),
+    )

@@ -100,6 +100,45 @@ def subtract_intervals(
     epsilon: float = 0.0,
 ) -> list[tuple[float, float]]:
     """Keep the interval difference, with the caller's boundary tolerance."""
+    if epsilon == 0.0 and all(end > start for start, end in segments):
+        return _subtract_exact(segments, removes)
+    return _subtract_sequential(segments, removes, epsilon)
+
+
+def _subtract_exact(
+    segments: list[tuple[float, float]], removes: Iterable[tuple[float, float]]
+) -> list[tuple[float, float]]:
+    """The difference of each segment against the merged removes, in one sweep.
+
+    With no tolerance the result does not depend on the order the removes apply in, so
+    sorting and merging them once lets each segment visit only the removes it overlaps
+    instead of every remove visiting every segment.
+    """
+    merged = merge_intervals((s, e) for s, e in removes if e > s)
+    if not merged:
+        return list(segments)
+    starts = [start for start, _end in merged]
+    ends = [end for _start, end in merged]
+    out: list[tuple[float, float]] = []
+    for start, end in segments:
+        # First merged remove that ends after the segment starts (ends are sorted: merged).
+        index = bisect_right(ends, start)
+        cursor = start
+        while index < len(merged) and starts[index] < end:
+            if starts[index] > cursor:
+                out.append((cursor, starts[index]))
+            cursor = max(cursor, ends[index])
+            index += 1
+        if cursor < end:
+            out.append((cursor, end))
+    return out
+
+
+def _subtract_sequential(
+    segments: list[tuple[float, float]],
+    removes: Iterable[tuple[float, float]],
+    epsilon: float,
+) -> list[tuple[float, float]]:
     for remove_start, remove_end in removes:
         if remove_end <= remove_start:
             continue
