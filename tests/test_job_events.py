@@ -1,5 +1,3 @@
-"""Unit tests for the per-subscriber SSE fan-out in ``gui/job_events.py``."""
-
 from __future__ import annotations
 
 import asyncio
@@ -23,8 +21,6 @@ from podcast_mcp.gui.jobs import PipelineJob
 
 @dataclass
 class _FakeJob:
-    """Minimal ``StreamableJob``: an id plus a mutable status for snapshot()."""
-
     id: str
     status: str = "running"
 
@@ -43,7 +39,6 @@ async def _collect(job: Any, *, keepalive_sec: float = 5.0, limit: int | None = 
 
 
 def test_two_concurrent_subscribers_each_get_the_full_stream() -> None:
-    """Regression: neither subscriber steals events meant for the other."""
     job = PipelineJob(
         id="two-subs",
         project_path="/tmp/p.json",
@@ -121,7 +116,7 @@ def test_aclose_unsubscribes() -> None:
 
     async def scenario() -> None:
         gen = stream_job_events(job, keepalive_sec=5.0)
-        await gen.__anext__()  # connect snapshot
+        await gen.__anext__()
         assert job_listener_count(job.id) == 1
         await gen.aclose()
 
@@ -138,7 +133,7 @@ def test_publish_without_listener_is_a_noop() -> None:
         status="running",
     )
     assert job.has_listeners() is False
-    job.publish({"type": "progress"})  # must not raise
+    job.publish({"type": "progress"})
 
 
 def test_subscriber_queue_bounded_drop_oldest() -> None:
