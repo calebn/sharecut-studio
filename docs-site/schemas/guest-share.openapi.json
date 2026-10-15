@@ -879,6 +879,131 @@
         "title": "ApplyFadeRecommendationsPayload",
         "type": "object"
       },
+      "ApplySuggestedActionsCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ApplySuggestedActionsPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ApplySuggestedActions",
+            "default": "ApplySuggestedActions",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "ApplySuggestedActionsCommand",
+        "type": "object"
+      },
+      "ApplySuggestedActionsPayload": {
+        "properties": {
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Narrow the batch to these pending sounds (the Tighten list's filtered ids); omit for every pending tighten proposal.",
+            "title": "Ids"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "enum": [
+                "cut",
+                "shorten",
+                "lower",
+                "leave"
+              ],
+              "type": "string"
+            },
+            "description": "Decision id to the action to use instead of its suggested one.",
+            "title": "Overrides",
+            "type": "object"
+          }
+        },
+        "title": "ApplySuggestedActionsPayload",
+        "type": "object"
+      },
       "ApproveEditsCommand": {
         "properties": {
           "causation_id": {
@@ -973,7 +1098,7 @@
         "properties": {
           "allow_review": {
             "default": true,
-            "description": "Authorize a pause join that currently requires review. Selected approval defaults to true. Apply eligible with Avoid harsh cuts on sends false; speech confirmation does not change this authority.",
+            "description": "Authorize a pause join that currently requires review. Selected approval defaults to true. Speech confirmation does not change this authority.",
             "title": "Allow Review",
             "type": "boolean"
           },
@@ -1224,6 +1349,18 @@
                 "type": "null"
               }
             ]
+          },
+          "gain_db": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gain Db"
           },
           "start_s": {
             "title": "Start S",
@@ -7783,6 +7920,7 @@
                     "AddSocialClip": "#/components/schemas/AddSocialClipCommand",
                     "AddTrack": "#/components/schemas/AddTrackCommand",
                     "ApplyFadeRecommendations": "#/components/schemas/ApplyFadeRecommendationsCommand",
+                    "ApplySuggestedActions": "#/components/schemas/ApplySuggestedActionsCommand",
                     "ApproveEdits": "#/components/schemas/ApproveEditsCommand",
                     "CorrectTranscriptPhrase": "#/components/schemas/CorrectTranscriptPhraseCommand",
                     "CorrectTranscriptWord": "#/components/schemas/CorrectTranscriptWordCommand",
@@ -7862,6 +8000,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/RejectEditsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ApplySuggestedActionsCommand"
                   },
                   {
                     "$ref": "#/components/schemas/UpdatePendingEditCommand"

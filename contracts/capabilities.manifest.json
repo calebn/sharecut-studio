@@ -366,28 +366,28 @@
       }
     },
     {
-      "id": "daw.tighten.applyAllSafe",
-      "label": "Apply eligible tighten hits",
+      "id": "daw.tighten.applySuggested",
+      "label": "Apply suggested actions",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 ApproveEdits",
+      "service": "Sharecut Studio command bus \u2192 ApplySuggestedActions",
       "industry_standard_key": false,
       "gates": [
         "tightenPanelOpen"
       ],
       "surfaces": {
-        "command": "tighten.applyAllSafe",
+        "command": "tighten.applySuggested",
         "gui": [
           "tightenPanel"
         ],
         "keyboard": "Mod+Shift+Enter",
         "mcp": [
-          "approve_edits_tool"
+          "apply_suggested_actions_tool"
         ],
-        "cli": "podcast edit approve --all-safe",
+        "cli": "podcast edit apply-suggested",
         "skill": "podcast-tighten-dialogue"
       },
       "omit": {},
-      "tooltip": "Apply listed tighten hits, skipping harsh cuts when enabled",
+      "tooltip": "Give every listed sound its own suggested action in one undo step",
       "presence": {
         "cursor": "none",
         "follow": "none"

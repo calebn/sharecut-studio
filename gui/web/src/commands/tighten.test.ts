@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { approveEdits, rejectEdits } from "../api";
+import { applySuggestedActions, approveEdits, rejectEdits } from "../api";
 import { hostFetch } from "../api/documentTransport";
 import type { Answer, Question } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
@@ -17,6 +17,11 @@ vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
   return {
     ...actual,
+    applySuggestedActions: vi.fn(async () => ({
+      queued: false,
+      summary: "Applied 2 suggested actions",
+      historyHead: "h1",
+    })),
     approveEdits: vi.fn(async () => ({
       queued: false,
       asked: false,
@@ -74,6 +79,7 @@ describe("tighten commands", () => {
     clearRegisteredCommands();
     registerDawCommands();
     vi.mocked(approveEdits).mockClear();
+    vi.mocked(applySuggestedActions).mockClear();
     vi.mocked(rejectEdits).mockClear();
     answerQuestions(confirmReply.mockReturnValue(true));
     useDawStore.getState().hydrate(
@@ -216,117 +222,59 @@ describe("tighten commands", () => {
     expect(rejectEdits).toHaveBeenCalledWith("/tmp/p.json", ["restart"]);
   });
 
-  it("apply-all batches eligible ids into one ApproveEdits", async () => {
-    const result = await execute("tighten.applyAllSafe", {
-      avoidHarsh: true,
+  it("apply-suggested sends every listed id, harsh ones included, in one call", async () => {
+    const result = await execute("tighten.applySuggested", {
       ids: ["e1", "e2"],
     });
     expect(result).toEqual({ status: "ok" });
     expect(confirmReply).toHaveBeenCalledWith({
       kind: "confirm",
-      title: "Apply 1 tighten hit?",
-      message: "Their cuts go into the timeline. 1 harsh hit stays pending.",
+      title: "Apply suggested actions to 2 sounds?",
+      message:
+        "Each sound gets its own action: cut, shorten, lower or leave. A cut over another speaker ripples every track. One undo puts it all back.",
       keepLabel: "Keep reviewing",
-      actionLabel: "Apply 1",
+      actionLabel: "Apply 2",
       danger: false,
     });
-    expect(approveEdits).toHaveBeenCalledTimes(1);
-    expect(approveEdits).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      ["e1"],
-      false,
-      false,
-    );
-  });
-
-  it("apply-all retains deliberate review authority with Avoid harsh cuts off", async () => {
-    vi.mocked(approveEdits).mockResolvedValueOnce({
-      queued: false,
-      asked: false,
-      count: 2,
-      historyHead: null,
-    });
-    const result = await execute("tighten.applyAllSafe", {
-      avoidHarsh: false,
-      ids: ["e1", "e2"],
-    });
-    expect(result).toEqual({ status: "ok" });
-    expect(approveEdits).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      ["e1", "e2"],
-      false,
-      true,
-    );
-  });
-
-  it("turning off Avoid harsh cuts still leaves one-by-one pause hits pending", async () => {
-    useDawStore.setState({
-      project: minimalProject({
-        pending_edits: [
-          pending(),
-          pending({
-            id: "review-pause",
-            reason: "pause:2.00s",
-            review_required: true,
-            harsh: true,
-            listen_one_by_one: true,
-          }),
-        ],
-      }),
-    });
-    expect(
-      await execute("tighten.applyAllSafe", {
-        avoidHarsh: false,
-        ids: ["e1", "review-pause"],
-      }),
-    ).toEqual({ status: "ok" });
-    expect(approveEdits).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      ["e1"],
-      false,
-      true,
-    );
-  });
-
-  it("disables apply-all when every listed hit is harsh", async () => {
-    const result = await execute("tighten.applyAllSafe", {
-      avoidHarsh: true,
-      ids: ["e2"],
-    });
-    expect(result.status).toBe("disabled");
+    expect(applySuggestedActions).toHaveBeenCalledTimes(1);
+    expect(applySuggestedActions).toHaveBeenCalledWith("/tmp/p.json", [
+      "e1",
+      "e2",
+    ]);
     expect(approveEdits).not.toHaveBeenCalled();
   });
 
-  it("apply-all uses tightenApplyScope when ids omitted", async () => {
-    useDawStore.getState().setTightenApplyScope({
-      avoidHarsh: true,
-      ids: ["e1", "e2"],
+  it("apply-suggested announces the server summary with an undo", async () => {
+    await execute("tighten.applySuggested", { ids: ["e1", "e2"] });
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Applied 2 suggested actions",
+      undo: "h1",
     });
-    const result = await execute("tighten.applyAllSafe", {});
-    expect(result).toEqual({ status: "ok" });
-    expect(approveEdits).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      ["e1"],
-      false,
-      false,
-    );
   });
 
-  it("apply-all never batches a row the server did not classify", async () => {
-    const unclassified = pending({ id: "unclassified" });
-    delete (unclassified as { listen_one_by_one?: boolean }).listen_one_by_one;
-    useDawStore.setState({
-      project: minimalProject({ pending_edits: [unclassified] }),
+  it("apply-suggested does nothing when the question is declined", async () => {
+    confirmReply.mockReturnValue(false);
+    const result = await execute("tighten.applySuggested", { ids: ["e1"] });
+    expect(result).toEqual({ status: "disabled", reason: "Cancelled" });
+    expect(applySuggestedActions).not.toHaveBeenCalled();
+  });
+
+  it("apply-suggested uses tightenApplyScope when ids omitted", async () => {
+    useDawStore.getState().setTightenApplyScope({ ids: ["e1", "e2"] });
+    const result = await execute("tighten.applySuggested", {});
+    expect(result).toEqual({ status: "ok" });
+    expect(applySuggestedActions).toHaveBeenCalledWith("/tmp/p.json", [
+      "e1",
+      "e2",
+    ]);
+  });
+
+  it("apply-suggested is disabled when no listed hit exists", async () => {
+    const result = await execute("tighten.applySuggested", {
+      ids: ["missing"],
     });
-    const result = await execute("tighten.applyAllSafe", {
-      avoidHarsh: true,
-      ids: ["unclassified"],
-    });
-    expect(result).toEqual({
-      status: "disabled",
-      reason: "Nothing is eligible to apply",
-    });
-    expect(approveEdits).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: "disabled", reason: "Nothing to apply" });
+    expect(applySuggestedActions).not.toHaveBeenCalled();
   });
 
   it("previewHit disables when timeline position is missing", async () => {

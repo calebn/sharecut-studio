@@ -340,16 +340,13 @@ def list_edit_decisions_tool(
 
 def approve_edits_tool(
     project_path: str,
-    ids: list[str] | None = None,
-    apply_all_safe: bool = False,
+    ids: list[str],
     confirm_cut_speech: bool = False,
 ) -> str:
     """Approve pending edits by id, applying them to the timeline.
 
-    ``apply_all_safe`` is Studio **Apply eligible** with Avoid harsh cuts on: it applies
-    every pending tighten hit (or only those in ``ids``) except harsh ones
-    (``review_required`` or a ``:risky`` / ``:join_review`` join risk), in one undo
-    step. ``skipped_harsh`` lists the hits it left for review.
+    To give every pending sound its own suggested action at once, use
+    ``apply_suggested_actions_tool``.
 
     A ripple that cuts another speaker's speech returns ``needs_confirmation`` and
     applies nothing; ask the person, then call again with ``confirm_cut_speech=true``.
@@ -359,18 +356,32 @@ def approve_edits_tool(
     silence one track and shorten nothing, so it stays pending.
     """
     ws = ProjectWorkspace.open(project_path)
-    service = EditService(ws)
-    if apply_all_safe:
-        result = service.approve_eligible_tighten(ids, confirm_cut_speech=confirm_cut_speech)
-    elif ids is None:
-        raise ValueError("pass ids, or apply_all_safe=true")
-    else:
-        outcome = service.approve(ids, confirm_cut_speech=confirm_cut_speech)
-        if isinstance(outcome, CutSpeechConfirmation):
-            return to_json(outcome.result("approve_edits"))
-        result = {"operation": "approve_edits", "approved_count": outcome, "ids": ids}
-    if "needs_confirmation" not in result:
-        agent_mutated(ws)
+    outcome = EditService(ws).approve(ids, confirm_cut_speech=confirm_cut_speech)
+    if isinstance(outcome, CutSpeechConfirmation):
+        return to_json(outcome.result("approve_edits"))
+    agent_mutated(ws)
+    return to_json({"operation": "approve_edits", "approved_count": outcome, "ids": ids})
+
+
+def apply_suggested_actions_tool(
+    project_path: str,
+    ids: list[str] | None = None,
+    overrides: dict[str, str] | None = None,
+) -> str:
+    """Apply every pending sound's own suggested action in one undo step.
+
+    Each tighten proposal carries a ``label`` and a ``suggested_action`` (``propose_edits``
+    shows them). This applies all of them, or only ``ids``: ``cut`` and ``shorten`` cut
+    (a cut held because another speaker is talking applies as a ripple across every
+    dialogue track, and ``cut_over_speaker`` counts those so you can tell the person),
+    ``lower`` turns a laugh down while another speaker talks over it (otherwise it is left),
+    ``leave`` dismisses the proposal and keeps the audio. ``overrides`` maps a decision id to
+    another action for that sound. Returns ``applied`` by action, ``cut_over_speaker``,
+    ``held`` (ids still pending) and a ``summary`` sentence.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    result = EditService(ws).apply_suggested_actions(ids, overrides=overrides)
+    agent_mutated(ws)
     return to_json(result)
 
 
@@ -473,6 +484,7 @@ def register(mcp: MCPServer) -> None:
         join_label_tool,
         list_edit_decisions_tool,
         approve_edits_tool,
+        apply_suggested_actions_tool,
         reject_edits_tool,
         update_pending_edit_tool,
         revert_applied_edit_tool,

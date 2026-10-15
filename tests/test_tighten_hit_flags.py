@@ -1,4 +1,4 @@
-"""Apply eligible: one harsh rule and one listen-one-by-one rule for Studio and agents."""
+"""Harsh and listen-one-by-one flags on tighten hits, and the Apply suggested actions entry points."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.edits.tighten_hits import (
-    eligible_tighten_ids,
     is_harsh_tighten_hit,
     is_listen_one_by_one_hit,
 )
@@ -71,13 +70,6 @@ def test_a_pause_trim_that_stays_for_review_is_listened_to_one_by_one_and_never_
     assert is_harsh_tighten_hit(held)
     assert is_listen_one_by_one_hit(held)
     assert [d.id for d in HITS if is_listen_one_by_one_hit(d)] == ["join"]
-    assert eligible_tighten_ids([auto, held, HITS[0]]) == ["auto", "safe"]
-
-
-def test_eligible_ids_skip_harsh_applied_and_non_tighten() -> None:
-    applied = _decision("done", "filler:um")
-    applied.applied = True
-    assert eligible_tighten_ids([*HITS, applied]) == ["safe"]
 
 
 def _seed(path: str, sample_wav) -> None:
@@ -127,41 +119,30 @@ def test_studio_view_carries_the_same_harsh_and_listen_one_by_one_flags(
     }
 
 
-def test_approve_edits_tool_apply_all_safe_applies_only_eligible(tmp_path, sample_wav) -> None:
+def test_apply_suggested_actions_tool_applies_every_listed_sound(tmp_path, sample_wav) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed(path, sample_wav)
-    out = json.loads(mcp_server.approve_edits_tool(path, apply_all_safe=True))
-    assert out == {
-        "operation": "approve_edits",
-        "approved_count": 1,
-        "ids": ["safe"],
-        "skipped_harsh": ["risky", "join", "review"],
-    }
+    out = json.loads(mcp_server.apply_suggested_actions_tool(path, ["safe", "nl"]))
+    assert out["applied"] == {"cut": 1}
+    assert out["held"] == []
     assert _pending(path) == ["join", "nl", "review", "risky"]
 
 
-def test_apply_all_safe_narrows_to_listed_ids(tmp_path, sample_wav) -> None:
+def test_approve_edits_tool_needs_ids(tmp_path) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
-    _seed(path, sample_wav)
-    out = json.loads(mcp_server.approve_edits_tool(path, ["risky", "nl"], apply_all_safe=True))
-    assert out["ids"] == []
-    assert out["skipped_harsh"] == ["risky"]
-    assert _pending(path) == ["join", "nl", "review", "risky", "safe"]
+    with pytest.raises(TypeError):
+        mcp_server.approve_edits_tool(path)  # type: ignore[call-arg]
 
 
-def test_approve_edits_tool_needs_ids_without_apply_all_safe(tmp_path) -> None:
-    path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(ValueError, match="apply_all_safe"):
-        mcp_server.approve_edits_tool(path)
-
-
-def test_cli_approve_all_safe_is_one_undo_step(tmp_path, sample_wav) -> None:
+def test_cli_apply_suggested_is_one_undo_step(tmp_path, sample_wav) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed(path, sample_wav)
     runner = CliRunner()
-    result = runner.invoke(app, ["edit", "approve", "--project", path, "--all-safe"])
+    result = runner.invoke(
+        app, ["edit", "apply-suggested", "--project", path, "--ids", "safe,risky"]
+    )
     assert result.exit_code == 0, result.output
-    assert "Approved 1 edit(s); skipped 3 as harsh." in result.output
-    assert _pending(path) == ["join", "nl", "review", "risky"]
+    assert result.output.startswith("Applied 2 cut")
+    assert _pending(path) == ["join", "nl", "review"]
     assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
     assert _pending(path) == ["join", "nl", "review", "risky", "safe"]

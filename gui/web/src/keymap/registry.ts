@@ -350,15 +350,15 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     notes: "Backspace: selected tighten hit",
   },
   {
-    id: "tighten.applyAllSafe",
+    id: "tighten.applySuggested",
     category: "review",
-    label: "Apply eligible tighten hits",
+    label: "Apply suggested actions",
     keys: ["Enter"],
     bareKey: false,
     requireMod: true,
     requireShift: true,
     when: "tightenPanelOpen",
-    notes: "Mod+Shift+Enter: skip harsh when Avoid harsh cuts is on",
+    notes: "Mod+Shift+Enter: every listed sound gets its own suggested action",
   },
   {
     id: "tighten.previewHit",
@@ -909,12 +909,8 @@ export function argsFromKeyEvent(
   ) {
     return { shift: e.shiftKey };
   }
-  if (commandId === "tighten.applyAllSafe") {
-    const scope = useDawStore.getState().tightenApplyScope;
-    return {
-      avoidHarsh: scope.avoidHarsh,
-      ids: [...scope.ids],
-    };
+  if (commandId === "tighten.applySuggested") {
+    return { ids: [...useDawStore.getState().tightenApplyScope.ids] };
   }
   return {};
 }

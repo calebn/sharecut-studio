@@ -36,7 +36,6 @@ from podcast_mcp.edits.tighten import (
     format_tighten_propose_summary,
     propose_tighten_edits,
 )
-from podcast_mcp.edits.tighten_hits import eligible_tighten_ids
 from podcast_mcp.edits.tighten_reasons import is_likely_laugh_reason, is_possible_word_reason
 from podcast_mcp.edits.transcript_cuts import coalesce_edits
 from podcast_mcp.engines.audio_audit import TrackRmsCache
@@ -1217,7 +1216,6 @@ def test_a_likely_laugh_is_held_for_review_and_named_in_the_summary(
     (decision,) = proposal.decisions
     assert decision.reason == "filler:acoustic:likely_laugh"
     assert decision.review_required
-    assert eligible_tighten_ids(proposal.decisions) == []
     assert "1 acoustic (review, 1 likely laugh)" in proposal.summary()
 
 
@@ -1276,7 +1274,6 @@ def test_a_span_the_model_hears_as_a_word_is_flagged_held_and_named_in_the_summa
     (decision,) = proposal.decisions
     assert decision.reason == "filler:acoustic:possible_word"
     assert decision.review_required
-    assert eligible_tighten_ids(proposal.decisions) == []
     assert "1 acoustic (review, 1 possible missed word)" in proposal.summary()
     (samples, language) = calls[0]
     assert language == "en"

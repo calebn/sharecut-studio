@@ -794,13 +794,13 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "tightenPanelOpen",
     notes: "Args: { id?: string } → RejectEdits",
   },
-  "tighten.applyAllSafe": {
-    id: "tighten.applyAllSafe",
+  "tighten.applySuggested": {
+    id: "tighten.applySuggested",
     category: "review",
-    label: "Apply eligible tighten hits",
-    keywords: ["filler", "fillers", "um", "uh"],
+    label: "Apply suggested actions",
+    keywords: ["filler", "fillers", "um", "uh", "laugh", "lower"],
     when: "tightenPanelOpen",
-    notes: "Args: { avoidHarsh?: boolean }: one ApproveEdits batch",
+    notes: "Args: { ids?: string[] }: one ApplySuggestedActions batch",
   },
   "tighten.previewHit": {
     id: "tighten.previewHit",

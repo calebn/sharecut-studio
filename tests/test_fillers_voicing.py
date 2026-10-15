@@ -492,9 +492,8 @@ def test_real_generated_hits_are_pending_in_studio_and_apply_eligible(tmp_path, 
     assert [row["id"] for row in view.pending_edits] == [d.id for d in proposal.decisions]
     filler = proposal.decisions[0]
     assert filler.type.value == ("mute" if edit_mode == "mute" else "remove")
-    result = EditService(ws).approve_eligible_tighten([filler.id])
-    assert result["approved_count"] == 1
-    assert result["ids"] == [filler.id]
+    result = EditService(ws).apply_suggested_actions([filler.id])
+    assert result["applied"] == {"cut": 1}
     assert [r.decision_ids for r in ws.project.editorial.edit_log] == [[filler.id]]
     if edit_mode == "mute":
         assert ws.project.edit_decisions == []

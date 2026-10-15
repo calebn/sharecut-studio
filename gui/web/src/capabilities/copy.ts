@@ -62,9 +62,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Skip tighten hit",
     tooltip: "Skip the selected tighten cut",
   },
-  "daw.tighten.applyAllSafe": {
-    label: "Apply eligible tighten hits",
-    tooltip: "Apply listed tighten hits, skipping harsh cuts when enabled",
+  "daw.tighten.applySuggested": {
+    label: "Apply suggested actions",
+    tooltip:
+      "Give every listed sound its own suggested action in one undo step",
   },
   "daw.tighten.previewHit": {
     label: "Preview tighten hit",

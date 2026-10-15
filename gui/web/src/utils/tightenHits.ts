@@ -212,43 +212,21 @@ export function tightenHitCanPreview(
   return hit.timeline_start != null && hit.timeline_end != null;
 }
 
-export function eligibleApplyAllIds(
-  hits: TightenHit[],
-  avoidHarsh: boolean,
-): string[] {
-  return hits
-    .filter((hit) => !hit.listenOneByOne && (!avoidHarsh || !hit.harsh))
-    .map((hit) => hit.id);
-}
-
 function hitCount(n: number): string {
-  return n === 1 ? "1 tighten hit" : `${n} tighten hits`;
+  return n === 1 ? "1 sound" : `${n} sounds`;
 }
 
-/** Counts for "Apply eligible" and the question it asks before applying. */
-export function applyAllSummary(
-  listed: number,
-  eligible: number,
-): {
-  apply: number;
-  skipped: number;
+/** The question Apply suggested actions asks before it applies the listed sounds. */
+export function applySuggestedSummary(listed: number): {
   question: Omit<ConfirmQuestion, "kind">;
 } {
-  const skipped = Math.max(0, listed - eligible);
-  const kept =
-    skipped === 1
-      ? " 1 harsh hit stays pending."
-      : skipped > 1
-        ? ` ${skipped} harsh hits stay pending.`
-        : "";
   return {
-    apply: eligible,
-    skipped,
     question: {
-      title: `Apply ${hitCount(eligible)}?`,
-      message: `Their cuts go into the timeline.${kept}`,
+      title: `Apply suggested actions to ${hitCount(listed)}?`,
+      message:
+        "Each sound gets its own action: cut, shorten, lower or leave. A cut over another speaker ripples every track. One undo puts it all back.",
       keepLabel: "Keep reviewing",
-      actionLabel: `Apply ${eligible}`,
+      actionLabel: `Apply ${listed}`,
       danger: false,
     },
   };

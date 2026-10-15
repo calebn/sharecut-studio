@@ -1,4 +1,4 @@
-import { approveEdits, rejectEdits } from "../api";
+import { applySuggestedActions, approveEdits, rejectEdits } from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import { askConfirm } from "../feedback/ask";
 import { canApplyPass12 } from "../shareMode";
@@ -7,8 +7,7 @@ import type { PendingEditView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import {
-  applyAllSummary,
-  eligibleApplyAllIds,
+  applySuggestedSummary,
   isTightenPending,
   listTightenHits,
   tightenHitsForListedIds,
@@ -132,20 +131,48 @@ async function runReject(id: string): Promise<ExecuteResult> {
     : { status: "disabled", reason: "Tighten action in progress" };
 }
 
+async function runApplySuggested(ids: string[]): Promise<ExecuteResult> {
+  const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
+    const s = useDawStore.getState();
+    if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
+      return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
+    }
+    try {
+      const { queued, summary, historyHead } = await applySuggestedActions(
+        useDawStore.getState().projectPath,
+        ids,
+      );
+      const next = useDawStore.getState();
+      if (queued) {
+        next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+        return { status: "ok" };
+      }
+      next.setSelection(null);
+      next.announceStatus(summary ?? "Applied suggested actions", {
+        undo: historyHead,
+      });
+      return { status: "ok" };
+    } catch (e) {
+      const msg = errorMessage(e);
+      useDawStore.getState().announceStatus(`Apply failed: ${msg}`);
+      return { status: "disabled", reason: msg };
+    }
+  });
+  return result.ran
+    ? result.value
+    : { status: "disabled", reason: "Tighten action in progress" };
+}
+
 function resolveApplyAllArgs(args: Record<string, unknown>): {
-  avoidHarsh: boolean;
   listedIds: string[] | null;
 } {
-  const scope = useDawStore.getState().tightenApplyScope;
-  const avoidHarsh =
-    typeof args.avoidHarsh === "boolean" ? args.avoidHarsh : scope.avoidHarsh;
   if (Array.isArray(args.ids)) {
-    const listedIds = args.ids.filter(
-      (id): id is string => typeof id === "string",
-    );
-    return { avoidHarsh, listedIds };
+    return {
+      listedIds: args.ids.filter((id): id is string => typeof id === "string"),
+    };
   }
-  return { avoidHarsh, listedIds: scope.ids.length ? [...scope.ids] : null };
+  const scope = useDawStore.getState().tightenApplyScope;
+  return { listedIds: scope.ids.length ? [...scope.ids] : null };
 }
 
 function hitsForApplyAll(
@@ -180,31 +207,28 @@ export function registerTightenCommands(): void {
     return runReject(edit.id);
   });
 
-  registerCommand("tighten.applyAllSafe", async (args) => {
+  registerCommand("tighten.applySuggested", async (args) => {
     const s = useDawStore.getState();
     if (!s.project) {
       return { status: "disabled", reason: "No project" };
     }
-    const { avoidHarsh, listedIds } = resolveApplyAllArgs(args);
+    const { listedIds } = resolveApplyAllArgs(args);
     const hits = hitsForApplyAll(s.project, listedIds);
-    const ids = eligibleApplyAllIds(hits, avoidHarsh);
-    const summary = applyAllSummary(hits.length, ids.length);
-    if (ids.length === 0) {
-      return { status: "disabled", reason: "Nothing is eligible to apply" };
+    if (hits.length === 0) {
+      return { status: "disabled", reason: "Nothing to apply" };
     }
-    if (!(await askConfirm(summary.question))) {
+    if (!(await askConfirm(applySuggestedSummary(hits.length).question))) {
       return { status: "disabled", reason: "Cancelled" };
     }
     const fresh = useDawStore.getState();
     if (!fresh.project) {
       return { status: "disabled", reason: "No project" };
     }
-    const freshHits = hitsForApplyAll(fresh.project, listedIds);
-    const freshIds = eligibleApplyAllIds(freshHits, avoidHarsh);
-    if (freshIds.length === 0) {
-      return { status: "disabled", reason: "Nothing is eligible to apply" };
+    const ids = hitsForApplyAll(fresh.project, listedIds).map((h) => h.id);
+    if (ids.length === 0) {
+      return { status: "disabled", reason: "Nothing to apply" };
     }
-    return runApprove(freshIds, !avoidHarsh);
+    return runApplySuggested(ids);
   });
 
   registerCommand("tighten.previewHit", async (args) => {

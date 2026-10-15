@@ -127,38 +127,45 @@ def edit_cut_utterance_cmd(
 def edit_approve_cmd(
     project: Path = typer.Option(..., "--project"),
     ids: str | None = typer.Option(None, "--ids", help="Comma-separated edit ids"),
-    all_safe: bool = typer.Option(
-        False,
-        "--all-safe",
-        help="Apply every non-harsh tighten hit (only those in --ids when given), "
-        "as Studio Apply eligible does",
-    ),
     yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
-    if all_safe:
-        result = with_cut_speech_confirmation(
-            lambda confirm: EditService(ws).approve_eligible_tighten(
-                id_list, confirm_cut_speech=confirm
-            ),
-            yes=yes,
-        )
-        n = result["approved_count"]
-        typer.echo(f"Approved {n} edit(s); skipped {len(result['skipped_harsh'])} as harsh.")
-    elif id_list is None:
-        raise typer.BadParameter("pass --ids, or --all-safe")
-    else:
-        edit_ids = id_list
-        n = with_cut_speech_confirmation(
-            lambda confirm: EditService(ws).approve(
-                edit_ids, allow_exact=True, confirm_cut_speech=confirm
-            ),
-            yes=yes,
-        )
-        typer.echo(f"Approved {n} edit(s).")
+    if id_list is None:
+        raise typer.BadParameter("pass --ids (or use apply-suggested for every pending sound)")
+    edit_ids = id_list
+    n = with_cut_speech_confirmation(
+        lambda confirm: EditService(ws).approve(
+            edit_ids, allow_exact=True, confirm_cut_speech=confirm
+        ),
+        yes=yes,
+    )
+    typer.echo(f"Approved {n} edit(s).")
     if n == 0:
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
+
+
+@edit_app.command("apply-suggested")
+def edit_apply_suggested_cmd(
+    project: Path = typer.Option(..., "--project"),
+    ids: str | None = typer.Option(
+        None, "--ids", help="Comma-separated edit ids (default: every pending tighten proposal)"
+    ),
+    override: list[str] = typer.Option(
+        [], "--override", help="ID=ACTION (cut, shorten, lower or leave) for one sound; repeatable"
+    ),
+) -> None:
+    """Apply every pending sound's suggested action in one undo step."""
+    overrides: dict[str, str] = {}
+    for item in override:
+        edit_id, _, action = item.partition("=")
+        if not edit_id or not action:
+            raise typer.BadParameter(f"--override wants ID=ACTION, got {item!r}")
+        overrides[edit_id] = action
+    ws = ProjectWorkspace.open(project)
+    id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
+    result = EditService(ws).apply_suggested_actions(id_list, overrides=overrides)
+    typer.echo(result["summary"])
 
 
 @edit_app.command("reject")

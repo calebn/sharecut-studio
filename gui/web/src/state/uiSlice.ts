@@ -808,7 +808,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setShareDialogOpen: (shareDialogOpen) => set({ shareDialogOpen }),
     recordPanelOpen: false,
     setRecordPanelOpen: (recordPanelOpen) => set({ recordPanelOpen }),
-    tightenApplyScope: { avoidHarsh: true, ids: [] },
+    tightenApplyScope: { ids: [] },
     setTightenApplyScope: (tightenApplyScope) => set({ tightenApplyScope }),
     hostMcpDialogOpen: false,
     setHostMcpDialogOpen: (hostMcpDialogOpen) => set({ hostMcpDialogOpen }),

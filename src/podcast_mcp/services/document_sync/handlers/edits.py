@@ -41,6 +41,13 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def apply_suggested_actions(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    ids = p.get("ids")
+    return EditService(ws).apply_suggested_actions(
+        list(ids) if ids is not None else None, overrides=dict(p.get("overrides") or {})
+    )
+
+
 def reject_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = list(p["ids"])
     count = EditService(ws).reject(ids, allow_exact=p.get("_allow_exact") is True)

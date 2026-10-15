@@ -534,45 +534,6 @@ class EditService:
             [e.track_id for e in project.edit_decisions if wanted(e) and e.track_id in dialogue],
         )
 
-    def approve_eligible_tighten(
-        self, ids: list[str] | None = None, *, confirm_cut_speech: bool = False
-    ) -> dict[str, Any]:
-        """Studio Apply eligible with Avoid harsh cuts: approve the non-harsh tighten hits.
-
-        ``ids`` narrows the candidates the way Studio's filtered list does; ``None`` means
-        every pending decision. One undo step, like the GUI's single ``ApproveEdits`` batch.
-        A batch whose ripples cut another speaker's speech applies nothing and returns
-        ``needs_confirmation`` until ``confirm_cut_speech``.
-        """
-        from podcast_mcp.edits.tighten_hits import eligible_tighten_ids, is_tighten_reason
-
-        # Before the transaction holds the commit lock: a first pick decodes the recordings.
-        wanted = None if ids is None else set(ids)
-        self._ensure_room_tone_pools(
-            lambda e: (
-                (wanted is None or e.id in wanted) and not e.applied and is_tighten_reason(e.reason)
-            )
-        )
-        with self.ws.transaction() as project:
-            listed = [
-                d
-                for d in project.edit_decisions
-                if (wanted is None or d.id in wanted)
-                and not d.applied
-                and is_tighten_reason(d.reason)
-            ]
-            eligible = eligible_tighten_ids(listed)
-            approved = (
-                self.approve(eligible, confirm_cut_speech=confirm_cut_speech, allow_review=False)
-                if eligible
-                else 0
-            )
-        skipped = [d.id for d in listed if d.id not in eligible]
-        batch = {"ids": eligible, "skipped_harsh": skipped}
-        if isinstance(approved, CutSpeechConfirmation):
-            return {**approved.result("approve_edits"), **batch}
-        return {"operation": "approve_edits", "approved_count": approved, **batch}
-
     def apply_suggested_actions(
         self,
         ids: list[str] | None = None,
@@ -648,7 +609,7 @@ class EditService:
                         p,
                         cut_ids,
                         confirm_cut_speech=True,
-                        allow_review=True,
+                        allow_review=False,
                         held_out=held,
                         override_peer_holds=overridden,
                     )
