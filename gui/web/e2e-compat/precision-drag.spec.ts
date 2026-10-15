@@ -29,9 +29,6 @@ import {
 const CLIENT_ID = "e2e-precision-drag";
 const PHONE = { width: 390, height: 844 };
 const HOLD_MS = 750;
-const VARIANTS = ["jog"] as const;
-type Variant = (typeof VARIANTS)[number];
-
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 300_000 });
 
@@ -79,7 +76,7 @@ async function openPhone(
   return { clip, pps };
 }
 
-async function open(page: Page, _variant: Variant): Promise<Clip> {
+async function openJog(page: Page): Promise<Clip> {
   return (await openPhone(page)).clip;
 }
 
@@ -138,119 +135,108 @@ async function hold(page: Page, finger: Finger, at: Point) {
   await page.waitForTimeout(HOLD_MS);
 }
 
-for (const variant of VARIANTS) {
-  test(`${variant}: moves a trim end exactly one 10 ms step and saves it`, async ({
-    page,
-    context,
-    browserName,
-  }, info) => {
-    const clip = await open(page, variant);
-    const commands = watchCommands(page);
-    const finger = await newFinger(context, page, browserName);
-    const at = await trimEndAt(page, finger, clip);
-    await hold(page, finger, at);
-    await expect(page.locator(".precision-layer")).toHaveAttribute(
-      "data-variant",
-      variant,
-    );
-    await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
-    await expect(precisionLayer(page)).toHaveAttribute(
-      "data-mode",
-      "precision",
-    );
-    await page.waitForTimeout(400);
-    await frame(page, info, `precision-${variant}-armed-${browserName}`);
-    await finger.up();
-    const pad = await page.locator(".precision-jog-pad").boundingBox();
-    if (!pad) throw new Error("no jog pad");
-    const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height - 8 };
-    await finger.down(start);
-    const fine = { x: start.x, y: start.y - 130 };
-    await finger.slide(fine, 6, 16);
-    await expect(page.locator(".precision-jog-hint")).toHaveText("Fine");
-    const step = await oneStepLeft(page, (p) => finger.move(p), fine);
-    await frame(page, info, `precision-${variant}-one-step-${browserName}`);
-    await finger.up();
-    await page.getByRole("button", { name: "Done" }).click();
-    const from = fine;
-    const asked = await cutAnywayIfAsked(page);
-    await expect(page.locator(".precision-layer")).toHaveCount(0);
-    await expect
-      .poll(async () => savedEnd(page, clip.id), { timeout: 60_000 })
-      .toBeCloseTo(clip.source_end - 0.01, 6);
-    await page.waitForTimeout(500);
-    await frame(page, info, `precision-${variant}-saved-${browserName}`);
-    const after = await savedEnd(page, clip.id);
-    json(info, `precision-${variant}-one-step-${browserName}`, {
-      from: clip.source_end,
-      after,
-      readouts: step.seen,
-      fingerPx: from.x - step.at.x,
-      askedCutSpeech: asked,
-      commands: commands.map((c) => c.type),
-    });
-    expect(step.seen.at(-1)).toBe("−10 ms");
-    expect(commands.filter((c) => c.type === "TrimClipEdge")).toHaveLength(1);
+test("jog: moves a trim end exactly one 10 ms step and saves it", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const variant = "jog";
+  const clip = await openJog(page);
+  const commands = watchCommands(page);
+  const finger = await newFinger(context, page, browserName);
+  const at = await trimEndAt(page, finger, clip);
+  await hold(page, finger, at);
+  await expect(page.locator(".precision-layer")).toHaveAttribute(
+    "data-variant",
+    variant,
+  );
+  await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
+  await expect(precisionLayer(page)).toHaveAttribute("data-mode", "precision");
+  await page.waitForTimeout(400);
+  await frame(page, info, `precision-${variant}-armed-${browserName}`);
+  await finger.up();
+  const pad = await page.locator(".precision-jog-pad").boundingBox();
+  if (!pad) throw new Error("no jog pad");
+  const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height - 8 };
+  await finger.down(start);
+  const fine = { x: start.x, y: start.y - 130 };
+  await finger.slide(fine, 6, 16);
+  await expect(page.locator(".precision-jog-hint")).toHaveText("Fine");
+  const step = await oneStepLeft(page, (p) => finger.move(p), fine);
+  await frame(page, info, `precision-${variant}-one-step-${browserName}`);
+  await finger.up();
+  await page.getByRole("button", { name: "Done" }).click();
+  const from = fine;
+  const asked = await cutAnywayIfAsked(page);
+  await expect(page.locator(".precision-layer")).toHaveCount(0);
+  await expect
+    .poll(async () => savedEnd(page, clip.id), { timeout: 60_000 })
+    .toBeCloseTo(clip.source_end - 0.01, 6);
+  await page.waitForTimeout(500);
+  await frame(page, info, `precision-${variant}-saved-${browserName}`);
+  const after = await savedEnd(page, clip.id);
+  json(info, `precision-${variant}-one-step-${browserName}`, {
+    from: clip.source_end,
+    after,
+    readouts: step.seen,
+    fingerPx: from.x - step.at.x,
+    askedCutSpeech: asked,
+    commands: commands.map((c) => c.type),
   });
+  expect(step.seen.at(-1)).toBe("−10 ms");
+  expect(commands.filter((c) => c.type === "TrimClipEdge")).toHaveLength(1);
+});
 
-  test(`${variant}: a second finger cancels the drag and saves nothing`, async ({
+test("jog: a second finger cancels the drag and saves nothing", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const variant = "jog";
+  const clip = await openJog(page);
+  const commands = watchCommands(page);
+  const fingers = await twoFingers(context, page, browserName);
+  const at = await trimEndAt(
     page,
-    context,
-    browserName,
-  }, info) => {
-    const clip = await open(page, variant);
-    const commands = watchCommands(page);
-    const fingers = await twoFingers(context, page, browserName);
-    const at = await trimEndAt(
-      page,
-      await newFinger(context, page, browserName),
-      clip,
-    );
-    await fingers.down(at);
-    await page.waitForTimeout(HOLD_MS);
-    await expect(page.locator(".precision-layer")).toBeVisible();
-    await fingers.up();
-    const pad = await page.locator(".precision-jog-pad").boundingBox();
-    if (!pad) throw new Error("no jog pad");
-    const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height / 2 };
-    await fingers.down(start);
-    const one = { x: start.x - 30, y: start.y };
-    for (let k = 1; k <= 6; k += 1) {
-      await fingers.move({ x: one.x + (30 * (6 - k)) / 6, y: one.y });
-      await page.waitForTimeout(16);
-    }
-    const moved = await readout(page);
-    await frame(
-      page,
-      info,
-      `precision-${variant}-before-second-${browserName}`,
-    );
-    await fingers.join(one, { x: one.x + 120, y: one.y - 200 });
-    await page.waitForTimeout(100);
-    await frame(
-      page,
-      info,
-      `precision-${variant}-second-finger-${browserName}`,
-    );
-    await fingers.up();
-    await page.waitForTimeout(800);
-    const end = await savedEnd(page, clip.id);
-    const layer = await page.locator(".precision-layer").count();
-    const armed = await page.locator("[data-hit-armed]").count();
-    json(info, `precision-${variant}-second-finger-${browserName}`, {
-      moved,
-      end,
-      layer,
-      armed,
-      commands: commands.map((c) => c.type),
-    });
-    expect(moved).not.toBe("+0 ms");
-    expect(layer).toBe(0);
-    expect(armed).toBe(0);
-    expect(end).toBe(clip.source_end);
-    expect(commands.filter((c) => c.type === "TrimClipEdge")).toEqual([]);
+    await newFinger(context, page, browserName),
+    clip,
+  );
+  await fingers.down(at);
+  await page.waitForTimeout(HOLD_MS);
+  await expect(page.locator(".precision-layer")).toBeVisible();
+  await fingers.up();
+  const pad = await page.locator(".precision-jog-pad").boundingBox();
+  if (!pad) throw new Error("no jog pad");
+  const start = { x: pad.x + pad.width / 2, y: pad.y + pad.height / 2 };
+  await fingers.down(start);
+  const one = { x: start.x - 30, y: start.y };
+  for (let k = 1; k <= 6; k += 1) {
+    await fingers.move({ x: one.x + (30 * (6 - k)) / 6, y: one.y });
+    await page.waitForTimeout(16);
+  }
+  const moved = await readout(page);
+  await frame(page, info, `precision-${variant}-before-second-${browserName}`);
+  await fingers.join(one, { x: one.x + 120, y: one.y - 200 });
+  await page.waitForTimeout(100);
+  await frame(page, info, `precision-${variant}-second-finger-${browserName}`);
+  await fingers.up();
+  await page.waitForTimeout(800);
+  const end = await savedEnd(page, clip.id);
+  const layer = await page.locator(".precision-layer").count();
+  const armed = await page.locator("[data-hit-armed]").count();
+  json(info, `precision-${variant}-second-finger-${browserName}`, {
+    moved,
+    end,
+    layer,
+    armed,
+    commands: commands.map((c) => c.type),
   });
-}
+  expect(moved).not.toBe("+0 ms");
+  expect(layer).toBe(0);
+  expect(armed).toBe(0);
+  expect(end).toBe(clip.source_end);
+  expect(commands.filter((c) => c.type === "TrimClipEdge")).toEqual([]);
+});
 
 async function centerOfLocator(locator: Locator): Promise<Point> {
   const box = await locator.boundingBox({ timeout: 5000 });
@@ -275,7 +261,7 @@ test("jog: a tap outside the pad finishes and saves", async ({
   context,
   browserName,
 }, info) => {
-  const clip = await open(page, "jog");
+  const clip = await openJog(page);
   const commands = watchCommands(page);
   const finger = await newFinger(context, page, browserName);
   await hold(page, finger, await trimEndAt(page, finger, clip));
@@ -314,7 +300,7 @@ test("jog: a ripple over the guest's speech asks first, and Leave a gap keeps it
   context,
   browserName,
 }, info) => {
-  await open(page, "jog");
+  await openJog(page);
   const pps = await setZoom(page, 1);
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);

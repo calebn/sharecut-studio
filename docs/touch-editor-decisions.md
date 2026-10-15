@@ -1015,12 +1015,12 @@ evidence:
 enforced-by:
 - gui/web/src/timeline/precision/precisionDecision.test.ts::goes into precision for a target narrower than the finger
 - gui/web/src/timeline/precision/precisionSession.test.ts::moves one 10 ms step for 1 px at full speed
-- gui/web/e2e-compat/precision-drag.spec.ts::${variant}: moves a trim end exactly one 10 ms step and saves it
+- gui/web/e2e-compat/precision-drag.spec.ts::jog: moves a trim end exactly one 10 ms step and saves it
 -->
 
 On the phone shell only (`daw-shell--phone`), a long press arms a fade,
-trim, or envelope point. Pending start/end handles keep the existing armed
-drag only (no jog pad). `decidePrecision` chooses **direct** drag (with pointer ballistics:
+trim, or envelope point. Pending start/end handles and chooser chip rest-to-grab
+keep the existing armed drag only (no jog pad). `decidePrecision` chooses **direct** drag (with pointer ballistics:
 slower finger motion moves finer steps) when one step is at least 4 px on
 screen, or when the target and its neighbours are wider than a finger;
 otherwise it opens the **jog pad** in the drawer's place. The pad maps finger

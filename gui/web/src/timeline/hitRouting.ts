@@ -484,8 +484,9 @@ export function attachHitRouting(
     target: HitPoint,
     finger: HitPoint,
     at: HitPoint = finger,
+    { usePrecision = true } = {},
   ) => {
-    if (options.precision?.arm(element, source)) {
+    if (usePrecision && options.precision?.arm(element, source)) {
       setPhase({ kind: "precision", pointerId: source.pointerId });
       report(element);
       return;
@@ -550,7 +551,7 @@ export function attachHitRouting(
       router.choose(index, source.pointerType);
       return;
     }
-    grab(element, source, candidate, anchor, at);
+    grab(element, source, candidate, anchor, at, { usePrecision: false });
   };
   /** The open chooser's finger is now `finger`; a new anchor restarts its timers. */
   const setFinger = (finger: ChipFinger, source: PointerEvent) => {

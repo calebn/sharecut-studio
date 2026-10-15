@@ -1738,6 +1738,11 @@ test; other rows are whole tests.
 | desktop: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | desktop: network boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | desktop: stale boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
+| Auto drags directly when a step is 4 px wide at a deep zoom | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
+| jog: a ripple over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
+| jog: a second finger cancels the drag and saves nothing | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
+| jog: moves a trim end exactly one 10 ms step and saves it | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
+| jog: a tap outside the pad finishes and saves | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | a document state load the server never answers shows a banner whose retry recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | the banner sits in view, not under the fixed shell, and its retry recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 
