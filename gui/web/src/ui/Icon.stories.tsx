@@ -34,6 +34,7 @@ const ICONS = {
   range: true,
   warning: true,
   ripple: true,
+  flatline: true,
 } satisfies Record<IconName, true>;
 
 const NAMES = Object.keys(ICONS) as IconName[];
