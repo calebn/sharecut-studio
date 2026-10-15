@@ -182,7 +182,7 @@ def _own_sound(
     ]
     caches = timeline_caches
     if caches is None and len(jobs) > _WINDOW_READS_MAX:
-        caches = build_track_rms_caches(project, track_ids=scope)
+        caches = build_track_rms_caches(project, track_ids=scope, unprocessed=True)
     found: dict[str, list[tuple[float, float]]] = {}
     for window, owners, tid in jobs:
         levels = measure_peer_speech(
