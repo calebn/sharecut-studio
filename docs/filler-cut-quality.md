@@ -87,9 +87,13 @@ of the peer's own windows. The pitch test is
 `voiced_runs.carries_speech_pitch(..., interior=True)`: the autocorrelation peak
 tighten's voiced runs use to keep breaths, clicks and room tone out, counted
 only where it is a true peak, because low-frequency room noise has a correlation
-that only falls and would otherwise read as a high voice. Both tests are
-relative to the peer's own sound, so recording gain, the owner's pitch and a
-same-gender pair change nothing. A run that carries pitch, rises above that
+that only falls and would otherwise read as a high voice. When bleed buries a
+remark under that room reference, `voiced_runs.carries_quiet_speech_pitch` also
+reads the peer's own sound: weak but stable speech-period f0 across three probes,
+with an f0 spread cap relative to the median f0, so a quiet backchannel still
+warns while scattered hum peaks do not (#1357). Both tests are relative to the
+peer's own sound, so recording gain, the owner's pitch and a same-gender pair
+change nothing. A run that carries pitch, rises above that
 quiet, is under three probes (60 ms) or cannot be read blocks as before.
 Supported boundary: in this case only, a quiet unvoiced peer sound (for example a
 short "shh" or "psst" 28 to 37 dB under the owner's speech, filling an owner gap) can
