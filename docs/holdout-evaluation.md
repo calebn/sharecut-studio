@@ -39,9 +39,16 @@ Whisper plus forced-aligner words.
    room recording changed in at least one (a proposal disappeared or an edge moved
    over 30 ms). Most come from the 12 dB burst-onset contrast
    (`word_onset._BURST_DB`) and the 6 dB rise, not from the breath level offsets.
-6. **Whether any of this is audible is inconclusive.** The listening pack
-   (12 items) is staged for the owner. Until it is heard, no difference above is
-   called a defect on listening grounds, and no threshold is changed.
+6. **Listening is partial (4 of 12 items, 2026-10-15).** The owner heard L01,
+   L02, L07, and L11 from the local pack. L01 (podcast_111) reports clipped or
+   lost speech (possible residual end of “like”; the following word is not
+   established). L02, L07, and L11 report no clipping or lost speech. L07 is the
+   room-mic `filler:acoustic:join_review` sample; its metadata does not attribute
+   the speech to Victoria. Usefulness and exact defect timestamps were not
+   answered; eight items remain unheard. No threshold was changed. Until the
+   rest of the pack is heard, frame-grid and sample-format differences stay
+   precision findings ([#1449](https://github.com/calebn/sharecut-studio/issues/1449)),
+   not listening-confirmed defects.
 
 Not covered: native 48 kHz audio, the three-speaker episode (`podcast_073`, held
 back), non-English speech, a run without the forced word aligner, live ASR under
@@ -291,7 +298,9 @@ when a track is turned down 12 dB, 4 seeded-random edits and 2 random untouched
 stretches. It is rendered with `podcast play pending-preview` from the same code
 SHA. The owner's question is on #1273 (`needs-user-input`). Clipped words or lost
 speech are recorded apart from taste, and useful edits are counted so doing
-nothing cannot win. **Owner verdict: pending.**
+nothing cannot win. **Owner verdict (partial, 2026-10-15):** 4 of 12 items
+answered in `answers.csv` (L01 clipped/lost speech yes; L02, L07, L11 no). Eight
+items pending; audio local only.
 
 ## Defects and where they went
 
@@ -302,6 +311,7 @@ nothing cannot win. **Owner verdict: pending.**
 | Bleed gate plans 0 spans on the quieter lane as recorded | yes, real recording | evidence on [#1374](https://github.com/calebn/sharecut-studio/issues/1374) |
 | Tighten proposals not gain invariant on two tracks | yes, real recording | ledger of [#1443](https://github.com/calebn/sharecut-studio/issues/1443) |
 | Frame-grid phase and sample-format dependence of edges | effect on the ear unknown | ledger of [#1449](https://github.com/calebn/sharecut-studio/issues/1449) |
+| L01-111-A: owner reports clipped or lost speech on one risky edit | one holdout item; attribution uncertain | follow-up after the remaining eight listens; no threshold change in this slice |
 
 ## Commands
 
