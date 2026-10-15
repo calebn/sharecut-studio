@@ -1018,8 +1018,8 @@ enforced-by:
 - gui/web/e2e-compat/precision-drag.spec.ts::${variant}: moves a trim end exactly one 10 ms step and saves it
 -->
 
-On touch only, a long press arms a fade, trim, pending edge or envelope
-point. `decidePrecision` chooses **direct** drag (with pointer ballistics:
+On the phone shell only (`daw-shell--phone`), a long press arms a fade,
+trim, pending edge or envelope point. `decidePrecision` chooses **direct** drag (with pointer ballistics:
 slower finger motion moves finer steps) when one step is at least 4 px on
 screen, or when the target and its neighbours are wider than a finger;
 otherwise it opens the **jog pad** in the drawer's place. The pad maps finger
