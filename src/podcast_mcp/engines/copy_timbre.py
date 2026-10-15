@@ -63,21 +63,53 @@ def fine_spectra(samples: np.ndarray, frames: np.ndarray, *, sample_rate: int) -
     return fine / (np.linalg.norm(fine, axis=1, keepdims=True) + 1e-12)
 
 
-def copy_similarity(
-    own: np.ndarray, peer: np.ndarray, frames: np.ndarray, lag: int, *, sample_rate: int
-) -> np.ndarray:
-    """Per ``own`` frame, how much its fine spectrum matches ``peer``'s ``lag`` hops later."""
-    chunks = np.split(frames, range(_SIMILARITY_CHUNK, frames.size, _SIMILARITY_CHUNK))
+# Own spectra kept across a confirmation's lags and nulls: 230 float64 bins a frame, so at
+# most about 40 MB. Longer frame runs read the own side again at each lag.
+_OWN_FINE_MAX_FRAMES = 20_000
+
+
+def _own_fine_spectra(
+    own: np.ndarray, frames: np.ndarray, *, sample_rate: int
+) -> np.ndarray | None:
+    if frames.size > _OWN_FINE_MAX_FRAMES:
+        return None
     return np.concatenate(
         [
-            np.sum(
-                fine_spectra(own, chunk, sample_rate=sample_rate)
-                * fine_spectra(peer, chunk + lag, sample_rate=sample_rate),
-                axis=1,
-            )
-            for chunk in chunks
+            fine_spectra(own, chunk, sample_rate=sample_rate)
+            for chunk in np.split(frames, range(_SIMILARITY_CHUNK, frames.size, _SIMILARITY_CHUNK))
         ]
     )
+
+
+def copy_similarity(
+    own: np.ndarray,
+    peer: np.ndarray,
+    frames: np.ndarray,
+    lag: int,
+    *,
+    sample_rate: int,
+    own_fine: np.ndarray | None = None,
+) -> np.ndarray:
+    """Per ``own`` frame, how much its fine spectrum matches ``peer``'s ``lag`` hops later.
+
+    ``own_fine`` is ``fine_spectra(own, frames)`` when the caller already has it: the own
+    side does not depend on the lag, so a caller that reads the same frames at several
+    lags computes it once.
+    """
+    chunks = np.split(frames, range(_SIMILARITY_CHUNK, frames.size, _SIMILARITY_CHUNK))
+    first = 0
+    parts = []
+    for chunk in chunks:
+        mine = (
+            fine_spectra(own, chunk, sample_rate=sample_rate)
+            if own_fine is None
+            else own_fine[first : first + chunk.size]
+        )
+        parts.append(
+            np.sum(mine * fine_spectra(peer, chunk + lag, sample_rate=sample_rate), axis=1)
+        )
+        first += chunk.size
+    return np.concatenate(parts)
 
 
 def copy_likeness(similarity: np.ndarray) -> float:
@@ -95,6 +127,7 @@ def _null_similarities(
     shifts: tuple[float, ...],
     *,
     sample_rate: int,
+    own_fine: np.ndarray | None = None,
 ) -> list[np.ndarray]:
     """Per shift where the peer talks, ``frames``' match with it ``shift`` s off the lag."""
     matches = []
@@ -102,9 +135,20 @@ def _null_similarities(
         moved = lag + round(shift / COPY_HOP_SEC)
         at = frames + moved
         inside = (at >= 0) & (at < peer_levels.size)
-        talking = frames[inside][peer_levels[at[inside]] >= loud_db]
+        talks = inside.copy()
+        talks[inside] = peer_levels[at[inside]] >= loud_db
+        talking = frames[talks]
         if talking.size:
-            matches.append(copy_similarity(own, peer, talking, moved, sample_rate=sample_rate))
+            matches.append(
+                copy_similarity(
+                    own,
+                    peer,
+                    talking,
+                    moved,
+                    sample_rate=sample_rate,
+                    own_fine=None if own_fine is None else own_fine[talks],
+                )
+            )
     return matches
 
 
@@ -148,17 +192,22 @@ def confirmed_likeness(
     """
     if frames.size < MIN_CONFIRM_FRAMES:
         return None
+    own_fine = _own_fine_spectra(own, frames, sample_rate=sample_rate)
     likenesses = {
-        shifted: copy_likeness(copy_similarity(own, peer, frames, shifted, sample_rate=sample_rate))
+        shifted: copy_likeness(
+            copy_similarity(own, peer, frames, shifted, sample_rate=sample_rate, own_fine=own_fine)
+        )
         for shifted in range(lag - TIMBRE_LAG_REACH, lag + 1)
     }
     best = max(likenesses, key=likenesses.__getitem__)
     args = (own, peer, frames, best, peer_levels, loud_db)
-    near = _null_similarities(*args, NULL_SHIFTS_SEC, sample_rate=sample_rate)
+    near = _null_similarities(*args, NULL_SHIFTS_SEC, sample_rate=sample_rate, own_fine=own_fine)
     if near:
         null = max(copy_likeness(match) for match in near)
     else:
-        far = _null_similarities(*args, FAR_NULL_SHIFTS_SEC, sample_rate=sample_rate)
+        far = _null_similarities(
+            *args, FAR_NULL_SHIFTS_SEC, sample_rate=sample_rate, own_fine=own_fine
+        )
         if not far:
             return None
         null = copy_likeness(np.concatenate(far))

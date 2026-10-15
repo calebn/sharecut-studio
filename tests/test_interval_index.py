@@ -30,3 +30,24 @@ def test_intersect_intervals() -> None:
     assert intersect_intervals([(0, 2), (3, 6)], [(1, 4), (5, 9)]) == [(1, 2), (3, 4), (5, 6)]
     assert intersect_intervals([(0, 1)], [(2, 3)]) == []
     assert intersect_intervals([(0, 2), (1, 3)], [(0, 10)]) == [(0, 3)]
+
+
+def test_subtract_intervals_sweep_matches_removing_one_at_a_time():
+    import random
+
+    from podcast_mcp.util.intervals import _subtract_sequential, subtract_intervals
+
+    rng = random.Random(7)
+
+    def span() -> tuple[float, float]:
+        start = rng.choice([rng.randint(0, 20), rng.random() * 20])
+        return start, start + rng.choice([0, rng.randint(0, 6), rng.random() * 5])
+
+    for _ in range(3000):
+        segments = [span() for _ in range(rng.choice([0, 1, 2, 5, 12]))]
+        if rng.random() < 0.5:
+            segments = [(lo, hi) for lo, hi in segments if hi > lo]
+        removes = [span() for _ in range(rng.choice([0, 1, 3, 9, 20]))]
+        assert subtract_intervals(list(segments), list(removes)) == _subtract_sequential(
+            list(segments), list(removes), 0.0
+        )
