@@ -24,7 +24,7 @@ vi.mock("../state/offlineStore", () => offlineStore);
 vi.mock("../hooks/useViewportClass", () => ({
   useViewportClass: () => "tablet" as const,
   PHONE_MAX_PX: 767,
-  TABLET_MAX_PX: 1100,
+  TABLET_MAX_PX: 1180,
   shellBreakpointFromWidth: () => "tablet" as const,
   cssViewportWidth: () => 1024,
 }));

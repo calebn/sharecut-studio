@@ -23,6 +23,7 @@ describe("shellBreakpointFromWidth", () => {
   it("classifies tablet", () => {
     expect(shellBreakpointFromWidth(PHONE_MAX_PX + 1)).toBe("tablet");
     expect(shellBreakpointFromWidth(TABLET_MAX_PX)).toBe("tablet");
+    expect(shellBreakpointFromWidth(1180)).toBe("tablet");
   });
 
   it("classifies desktop", () => {

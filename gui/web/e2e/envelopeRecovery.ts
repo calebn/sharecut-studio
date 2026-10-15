@@ -68,7 +68,7 @@ export async function exerciseEnvelopeRecovery(
   await withShareableProject(
     async (projectPath) => {
       const width = page.viewportSize()!.width;
-      const shell = width < 720 ? "phone" : width < 1100 ? "tablet" : "desktop";
+      const shell = width < 720 ? "phone" : width < 1180 ? "tablet" : "desktop";
       if (shell === "phone") await rememberInspectorDetent(page, "half");
       await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();

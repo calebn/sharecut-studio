@@ -50,7 +50,7 @@ export async function exerciseTouchSheetAffordances(
   });
   await openHostProject(page);
   if (viewport.width <= 767) await openPhoneTimeline(page);
-  else if (viewport.width <= 1100) {
+  else if (viewport.width <= 1180) {
     const timelineTab = page.getByRole("button", {
       name: "Timeline",
       exact: true,

@@ -652,7 +652,7 @@ browser grid.
 
 `gui/web/e2e-compat/reachability-sweep.spec.ts` is the one place that measures
 whether a finger can use the touch surfaces. At the shell boundaries (360, 390,
-767, 768, 820, 1100, 1101 wide, a phone held sideways and an iPad held sideways)
+767, 768, 820, 1180, 1181 wide, a phone held sideways and an iPad held sideways)
 and at 16 px and 32 px root text it asserts, for every interactive control in
 the shell chrome, the track sheet or inspector, the armed Select range controls
 and Listen, that the control
