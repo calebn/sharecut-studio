@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import cProfile
+import hashlib
 import pstats
 import sys
 import time
@@ -23,9 +24,12 @@ from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.project_state import snapshot_project
 
 
-def _plans(project, label: str, *, profile: cProfile.Profile | None = None) -> float:
+def _plans(
+    project, label: str, *, profile: cProfile.Profile | None = None, keep_cache: bool = False
+) -> float:
     gated = [t.id for t in project.tracks if t.transcript_gate]
-    bleed_gate._cached_bleed_gate_plan.cache_clear()
+    if not keep_cache:
+        bleed_gate._cached_bleed_gate_plan.cache_clear()
     start = time.perf_counter()
     if profile:
         profile.enable()
@@ -62,8 +66,8 @@ def main() -> int:
         apply_for_suggested(suggested, window)
         prof = cProfile.Profile()
         print(f"Suggested, decode shared:    {_plans(suggested, 'sug', profile=prof):.2f} s")
-        again = _plans(suggested, "sug")
-        print(f"Suggested, same project twice (cache hit upper bound): {again:.2f} s")
+        again = _plans(suggested, "sug", keep_cache=True)
+        print(f"Suggested, same project twice (real cache hit): {again:.2f} s")
     pstats.Stats(prof).sort_stats("cumulative").print_stats(args.top)
     return 0
 
