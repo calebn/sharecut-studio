@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline
 from podcast_mcp.models import (
@@ -332,3 +334,104 @@ def test_offset_lane_orders_with_the_takes_by_timeline(tmp_path: Path) -> None:
     starts = [row["timeline_start"] for row in _view(project)]
     assert starts == sorted(starts)
     assert _view(project)[-1]["text"] == "d0"
+
+
+def test_host_detail_rebuilds_take_rows_from_stale_combined_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from collections import Counter
+
+    from podcast_mcp.gui import assembler
+    from podcast_mcp.models import CombinedTranscript, CombinedUtterance
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.util import workspace_paths
+    from podcast_mcp.util.batch_scope import _scope
+
+    project = _two_take_project(tmp_path)
+    project.timeline.tracks[0].media = MediaAsset(path="take2.wav", duration_sec=30.0)
+    project.sources = [
+        SourceRecording(id="take2", path="take2.wav"),
+        SourceRecording(id="take3", path="take3.wav"),
+    ]
+    (tmp_path / "take2.wav").write_bytes(b"x")
+    (tmp_path / "take3.wav").write_bytes(b"x")
+    project.transcripts = [
+        Transcript(track_id="vicky", source_id="take2", words=_words("okay", [1.0])),
+        Transcript(track_id="vicky", source_id="take3", words=_words("okay", [1.0])),
+    ]
+    project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(
+                track_id="vicky",
+                speaker="vicky",
+                start=1.0,
+                end=1.4,
+                text="stale row without source identity",
+            )
+        ]
+    )
+    workspace = ProjectWorkspace(tmp_path / "episode.project.json", project)
+
+    _resolve_within_calls: list[str] = []
+    resolve_within = workspace_paths._resolve_within
+
+    def record_resolve(root: Path, stored: str, base: Path | None) -> Path:
+        _resolve_within_calls.append(stored)
+        return resolve_within(root, stored, base)
+
+    monkeypatch.setattr(workspace_paths, "_resolve_within", record_resolve)
+    detail = assembler.dump_project_projection(
+        workspace,
+        projection=assembler.ViewProjection.DETAIL,
+        history={},
+    )
+    rows = detail["transcript"]["utterances"]
+    expected = [
+        ("okay0", "take2", [(1.0, 1.4)]),
+        ("okay0", "take3", [(11.0, 11.4)]),
+    ]
+    assert [
+        (
+            row["text"],
+            row["source_id"],
+            [(span["start"], span["end"]) for span in row["timeline_spans"]],
+        )
+        for row in rows
+    ] == expected
+    assert [row["words"][0]["timing_target"] for row in rows] == [
+        {"track_id": "vicky", "source_id": "take2", "word_index": 0},
+        {"track_id": "vicky", "source_id": "take3", "word_index": 0},
+    ]
+    assert Counter(_resolve_within_calls) == Counter({"take2.wav": 1, "take3.wav": 1})
+    assert _scope.get() is None
+
+    _resolve_within_calls.clear()
+    project.sources[1] = project.sources[1].model_copy(update={"path": "take3-moved.wav"})
+    (tmp_path / "take3-moved.wav").write_bytes(b"x")
+    project.clips[1] = project.clips[1].model_copy(update={"timeline_start": 20.0})
+    moved = assembler.dump_project_projection(
+        workspace,
+        projection=assembler.ViewProjection.DETAIL,
+        history={},
+    )
+    moved_rows = moved["transcript"]["utterances"]
+    assert [(row["source_id"], row["timeline_spans"][0]["start"]) for row in moved_rows] == [
+        ("take2", 1.0),
+        ("take3", 21.0),
+    ]
+    assert rows[1]["timeline_spans"][0]["start"] == 11.0
+    assert Counter(_resolve_within_calls) == Counter({"take2.wav": 1, "take3-moved.wav": 1})
+    assert "take3.wav" not in _resolve_within_calls
+    assert _scope.get() is None
+
+    def fail_during_mapping(*args, **kwargs):
+        raise RuntimeError("mapper stopped")
+
+    monkeypatch.setattr(assembler, "map_transcript_utterances_to_timeline", fail_during_mapping)
+    with pytest.raises(RuntimeError, match="mapper stopped"):
+        assembler.dump_project_projection(
+            workspace,
+            projection=assembler.ViewProjection.DETAIL,
+            history={},
+        )
+    assert _scope.get() is None
