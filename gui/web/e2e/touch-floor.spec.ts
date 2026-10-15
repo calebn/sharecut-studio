@@ -7,20 +7,29 @@ import { e2eProjectPath } from "./env";
  * fails. The exceptions are not resized on purpose:
  * - canvas dense targets (`.fade-corner`, `.trim-handle`, `.track-headers-well`): the
  *   dense-target pattern, with 44px inspector fields and nudges as the equivalent;
- * - transcript text (`.utterance-word`, `.utterance-seek`): inline words in running text, where
- *   a taller hit area would take the neighbouring line's taps; the ruler and transport seek at 44px;
+ * - transcript text (`.utterance-word`, and `.utterance-seek` timestamps but not the
+ *   `.utterance-speaker` button, which opens the speaker editor): inline words in running text,
+ *   where a taller hit area would take the neighbouring line's taps; the ruler and transport
+ *   seek at 44px;
  * - `.track-reorder-handle`: a drag shortcut whose equivalent is the 44px Move up/down buttons;
- * - `.status-chip`: tablet and desktop status bar chips; the tab strip carries the same actions.
+ * - `.status-chip` on tablet and wider only: the status bar's chips; the phone chips hold the floor.
  */
-const DOCUMENTED_EXCEPTIONS =
-  ".fade-corner, .trim-handle, .track-headers-well, .utterance-word, .utterance-seek, .track-reorder-handle, .status-chip";
+const DOCUMENTED_EXCEPTIONS = [
+  ".fade-corner",
+  ".trim-handle",
+  ".track-headers-well",
+  ".utterance-word",
+  ".utterance-seek:not(.utterance-speaker)",
+  ".track-reorder-handle",
+];
+const TABLET_EXCEPTIONS = [".status-chip"];
 const FLOOR_PX = 44 - 0.5;
 const CONTROLS =
-  "button, a[href], [role=button], [role=tab], [role=menuitem], [role=checkbox], [role=switch], input, select, textarea, summary";
+  "button, a[href], [role=button], [role=tab], [role=menuitem], [role=checkbox], [role=menuitemcheckbox], [role=menuitemradio], [role=switch], input, select, textarea, summary";
 const MODES = ["Listen", "Timeline", "Text", "More"] as const;
 
 /** Visible controls whose touch target is under the floor and not a documented exception. */
-async function undersized(page: Page) {
+async function undersized(page: Page, exceptions: string) {
   return page.evaluate(
     ({ controls, exceptions, floor }) => {
       const out: string[] = [];
@@ -37,14 +46,8 @@ async function undersized(page: Page) {
             : el;
         const r = target.getBoundingClientRect();
         if (r.width === 0 || r.height === 0) continue;
-        if (r.bottom < 0 || r.top > innerHeight) continue;
-        if (r.right < 0 || r.left > innerWidth) continue;
         if (r.width >= floor && r.height >= floor) continue;
-        const name = (
-          el.getAttribute("aria-label") ||
-          el.textContent ||
-          ""
-        )
+        const name = (el.getAttribute("aria-label") || el.textContent || "")
           .trim()
           .slice(0, 28);
         out.push(
@@ -53,14 +56,14 @@ async function undersized(page: Page) {
       }
       return out;
     },
-    { controls: CONTROLS, exceptions: DOCUMENTED_EXCEPTIONS, floor: FLOOR_PX },
+    { controls: CONTROLS, exceptions, floor: FLOOR_PX },
   );
 }
 
 const SIZES = [
-  { name: "phone 390x844", width: 390, height: 844 },
-  { name: "tablet 820x1180", width: 820, height: 1180 },
-  { name: "landscape 932x432", width: 932, height: 432 },
+  { name: "phone 390x844", width: 390, height: 844, phone: true },
+  { name: "tablet 820x1180", width: 820, height: 1180, phone: false },
+  { name: "landscape 932x432", width: 932, height: 432, phone: false },
 ];
 
 for (const size of SIZES) {
@@ -75,15 +78,40 @@ for (const size of SIZES) {
     const page = await context.newPage();
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     await expect(page.locator("[data-save-state]")).toBeVisible();
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+    ).toBe(true);
+    const exceptions = (
+      size.phone
+        ? DOCUMENTED_EXCEPTIONS
+        : [...DOCUMENTED_EXCEPTIONS, ...TABLET_EXCEPTIONS]
+    ).join(", ");
     const found: string[] = [];
     const nav = page.getByRole("navigation", { name: "Primary" });
-    if (await nav.count()) {
+    if (size.phone) {
+      await expect(nav).toBeVisible();
       for (const name of MODES) {
         await nav.getByRole("button", { name, exact: true }).click();
-        found.push(...(await undersized(page)).map((row) => `[${name}] ${row}`));
+        found.push(
+          ...(await undersized(page, exceptions)).map(
+            (row) => `[${name}] ${row}`,
+          ),
+        );
       }
     } else {
-      found.push(...(await undersized(page)));
+      found.push(...(await undersized(page, exceptions)));
+      // The transport menu holds the overlay layers: its rows hold the floor and the last one
+      // is reachable in a short window.
+      await page.getByRole("button", { name: "Menu", exact: true }).click();
+      const layers = page.locator(".overlay-legend-item");
+      expect(await layers.count()).toBeGreaterThan(0);
+      found.push(
+        ...(await undersized(page, exceptions)).map((row) => `[Menu] ${row}`),
+      );
+      const last = layers.last();
+      await last.scrollIntoViewIfNeeded();
+      const box = (await last.boundingBox())!;
+      expect(box.y + box.height).toBeLessThanOrEqual(size.height);
     }
     expect(found).toEqual([]);
     await context.close();
