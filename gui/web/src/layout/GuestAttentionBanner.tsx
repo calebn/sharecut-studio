@@ -31,7 +31,7 @@ export function GuestAttentionBanner({
     : activeConflicts;
   const guest = isShareProjectKey(projectPath);
   const unreadable = status === "unreadable" || status === "retrying";
-  useOfflineAttentionAnnouncement({
+  const { liveMessage, liveSeq } = useOfflineAttentionAnnouncement({
     projectPath,
     pending,
     conflictCount: conflicts.length,
@@ -42,6 +42,8 @@ export function GuestAttentionBanner({
   });
   return (
     <GuestAttentionBannerView
+      attentionLiveMessage={liveMessage}
+      attentionLiveSeq={liveSeq}
       key={projectPath}
       host={host}
       pending={pending}

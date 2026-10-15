@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { attentionRegionLabel } from "../layout/attentionLabel";
 import type { AttentionStatus } from "../state/offlineAttention";
-import { useDaw } from "../state/useDaw";
 
 type Input = {
   projectPath: string;
@@ -31,7 +30,12 @@ function attentionAnnouncement(input: Input): string | null {
   });
 }
 
-export function useOfflineAttentionAnnouncement(input: Input): void {
+type LiveState = { projectPath: string; message: string; seq: number };
+
+export function useOfflineAttentionAnnouncement(input: Input): {
+  liveMessage: string;
+  liveSeq: number;
+} {
   const {
     projectPath,
     pending,
@@ -41,47 +45,40 @@ export function useOfflineAttentionAnnouncement(input: Input): void {
     loaded,
     status,
   } = input;
-  const announceStatus = useDaw((s) => s.announceStatus);
-  const last = useRef<{ projectPath: string; message: string | null }>({
-    projectPath: "",
-    message: null,
-  });
+  const live = useRef<LiveState>({ projectPath: "", message: "", seq: 0 });
 
-  useEffect(() => {
-    if (last.current.projectPath !== projectPath) {
-      last.current = { projectPath, message: null };
-    }
-    const message = attentionAnnouncement({
-      projectPath,
-      pending,
-      conflictCount,
-      unreadable,
-      dismissFailed,
-      loaded,
-      status,
-    });
-    if (!message) {
-      if (
-        status === "checking" ||
-        status === "dismissing" ||
-        (unreadable && !loaded)
-      ) {
-        return;
-      }
-      last.current.message = null;
-      return;
-    }
-    if (message === last.current.message) return;
-    last.current.message = message;
-    announceStatus(message, { toast: false });
-  }, [
-    announceStatus,
+  if (live.current.projectPath !== projectPath) {
+    live.current = { projectPath, message: "", seq: 0 };
+  }
+
+  const message = attentionAnnouncement({
+    projectPath,
+    pending,
     conflictCount,
+    unreadable,
     dismissFailed,
     loaded,
-    pending,
-    projectPath,
     status,
-    unreadable,
-  ]);
+  });
+
+  if (message) {
+    if (message !== live.current.message) {
+      live.current = {
+        projectPath,
+        message,
+        seq: live.current.seq + 1,
+      };
+    }
+  } else if (
+    status !== "checking" &&
+    status !== "dismissing" &&
+    !(unreadable && !loaded)
+  ) {
+    live.current = { projectPath, message: "", seq: live.current.seq };
+  }
+
+  return {
+    liveMessage: live.current.message,
+    liveSeq: live.current.seq,
+  };
 }
