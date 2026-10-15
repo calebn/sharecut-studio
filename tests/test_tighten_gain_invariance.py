@@ -265,8 +265,7 @@ def _write(path: Path, samples: np.ndarray, rate: int) -> None:
         handle.writeframes(ints.view(np.uint8).reshape(-1, 4)[:, :3].tobytes())
 
 
-def _write_s16(path: Path, samples: np.ndarray, rate: int) -> None:
-    """16-bit PCM, matching dialogue stem render (``pcm_s16le``, #1401)."""
+def _write_pcm_s16le(path: Path, samples: np.ndarray, rate: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     assert np.max(np.abs(samples)) < 1.0
     ints = np.rint(samples * 32767).astype("<i2")
@@ -299,12 +298,11 @@ def _scaled(project: EpisodeProject, gains: dict[str, float]) -> EpisodeProject:
 
 
 def _scaled_s16(project: EpisodeProject, gains: dict[str, float]) -> EpisodeProject:
-    """Rewrite each track at ``gains[track]`` dB, as 16-bit PCM like rendered stems."""
     for track in project.timeline.tracks:
         assert track.media is not None
         path = project.workspace_path() / track.media.path
         samples, rate = _read(path)
-        _write_s16(path, samples * 10 ** (gains.get(track.id, 0.0) / 20), rate)
+        _write_pcm_s16le(path, samples * 10 ** (gains.get(track.id, 0.0) / 20), rate)
     return project
 
 
