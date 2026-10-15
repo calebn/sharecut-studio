@@ -250,8 +250,12 @@ def approve_edits(
     allow_review: bool = True,
     held_out: list[HeldEdit] | None = None,
     asked_out: list[AskedEdits] | None = None,
+    override_peer_holds: set[str] | None = None,
 ) -> int:
     """Apply the pending edits ``ids``.
+
+    ``override_peer_holds`` (Apply suggested actions): a cut held for another track's
+    speech or bleed applies as a session ripple instead, and its id is added to the set.
 
     Each session remove clears the speech guard now, against the current transcript.
     Unless ``confirm_cut_speech``, a batch whose ripples would cut speech outside their
@@ -320,6 +324,7 @@ def approve_edits(
             batch=batch,
             use_inaudible_opt=False,
             record_log=False,
+            override_peer_holds=override_peer_holds,
         )
         if isinstance(applied, CutSpeechConfirmation):
             asked.append(applied)

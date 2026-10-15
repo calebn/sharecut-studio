@@ -739,16 +739,22 @@ class FFmpegEngine:
         ):
             first, last = samples.first, samples.last
             fade_out, fade_in = samples.fade_out, samples.fade_in
+            floor = samples.gain
             if fade_out + fade_in > last - first:
-                gains.append((str(first), f"if(gte(n,{first})*lt(n,{last}),0,1)"))
+                gains.append((str(first), f"if(gte(n,{first})*lt(n,{last}),{floor:g},1)"))
                 continue
+            span = 1.0 - floor
             expr = "1"
             if fade_in > 0:
-                expr = f"if(between(n,{last - fade_in},{last}),(n-({last - fade_in}))/{fade_in},1)"
-            expr = f"if(between(n,{first + fade_out},{last - fade_in}),0,{expr})"
+                expr = (
+                    f"if(between(n,{last - fade_in},{last}),"
+                    f"{floor:g}+{span:g}*(n-({last - fade_in}))/{fade_in},1)"
+                )
+            expr = f"if(between(n,{first + fade_out},{last - fade_in}),{floor:g},{expr})"
             if fade_out > 0:
                 expr = (
-                    f"if(between(n,{first},{first + fade_out}),1-(n-({first}))/{fade_out},{expr})"
+                    f"if(between(n,{first},{first + fade_out}),"
+                    f"1-{span:g}*(n-({first}))/{fade_out},{expr})"
                 )
             gains.append((str(first), expr))
         if not gains:

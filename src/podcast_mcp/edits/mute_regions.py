@@ -15,12 +15,18 @@ over one recording the union of their regions, so a mute the join crosses stays 
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import Any
 
 from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
 from podcast_mcp.engines.audio import MuteEnvelope, MuteSampleEnvelope
 from podcast_mcp.models import Clip, ClipMuteRegion, EpisodeProject, RoomToneFill
+
+
+def _linear_gain(region: ClipMuteRegion) -> float:
+    """Gain a region holds: 0 for a mute, 10**(dB/20) for a lowered span."""
+    return 0.0 if region.gain_db is None else math.pow(10.0, region.gain_db / 20.0)
 
 
 def _with_span(region: ClipMuteRegion, start: float, end: float) -> ClipMuteRegion:
@@ -55,11 +61,19 @@ def _envelopes(regions: Sequence[ClipMuteRegion], origin: float) -> list[MuteEnv
             end=region.end_s - origin,
             fade_out_sec=region.fade_out_ms / 1000.0,
             fade_in_sec=region.fade_in_ms / 1000.0,
+            gain=_linear_gain(region),
         )
         if out and env.start <= out[-1].end + 1e-6:
             prev = out[-1]
+            gain = min(prev.gain, env.gain)
             if env.end > prev.end:
-                out[-1] = MuteEnvelope(prev.start, env.end, prev.fade_out_sec, env.fade_in_sec)
+                out[-1] = MuteEnvelope(
+                    prev.start, env.end, prev.fade_out_sec, env.fade_in_sec, gain
+                )
+            elif gain != prev.gain:
+                out[-1] = MuteEnvelope(
+                    prev.start, prev.end, prev.fade_out_sec, prev.fade_in_sec, gain
+                )
             continue
         out.append(env)
     return out
@@ -87,7 +101,11 @@ def merge_mute_regions(regions: list[ClipMuteRegion]) -> list[ClipMuteRegion]:
     merged: list[ClipMuteRegion] = [ordered[0]]
     for region in ordered[1:]:
         prev = merged[-1]
-        if region.fill == prev.fill and region.start_s <= prev.end_s + 1e-6:
+        if (
+            region.fill == prev.fill
+            and region.gain_db == prev.gain_db
+            and region.start_s <= prev.end_s + 1e-6
+        ):
             last = region if region.end_s > prev.end_s else prev
             merged[-1] = prev.model_copy(
                 update={"end_s": last.end_s, "fade_in_ms": last.fade_in_ms}
@@ -107,6 +125,7 @@ def mute_regions_payload(regions: list[ClipMuteRegion]) -> list[dict[str, Any]]:
                 "fade_out_ms": r.fade_out_ms,
                 "fade_in_ms": r.fade_in_ms,
                 **({"fill": r.fill.model_dump()} if r.fill is not None else {}),
+                **({"gain_db": r.gain_db} if r.gain_db is not None else {}),
             }
             for r in regions
         ),
@@ -136,11 +155,13 @@ def add_source_mute(clip: Clip, region: ClipMuteRegion) -> bool:
 
 
 def muted_source_spans(project: EpisodeProject) -> dict[str, list[ClipMuteRegion]]:
-    """Merged ``clip.mute_regions`` spans per track, fill or not: what render mutes."""
+    """Merged ``clip.mute_regions`` spans per track, fill or not: what render mutes (not Lower)."""
     by_track: dict[str, list[ClipMuteRegion]] = {}
     for clip in project.clips:
         by_track.setdefault(clip.track_id, []).extend(
-            ClipMuteRegion(start_s=r.start_s, end_s=r.end_s) for r in clip.mute_regions
+            ClipMuteRegion(start_s=r.start_s, end_s=r.end_s)
+            for r in clip.mute_regions
+            if r.gain_db is None
         )
     return {
         track_id: merge_mute_regions(regions) for track_id, regions in by_track.items() if regions
