@@ -40,8 +40,6 @@ _F0_MIN_HZ = 70.0
 _F0_MAX_HZ = 350.0
 # ``breath_detect._CLEAR_PITCH_PEAK``: the normalized autocorrelation a breath stays under.
 VOICED_PEAK = 0.55
-# Dense owner bleed can bury a quiet remark under the peer's room reference (#1357). Peaks
-# between this and ``VOICED_PEAK`` still carry a stable speech-period f0 when room hum does not.
 _QUIET_VOICED_PEAK = 0.28
 _QUIET_F0_IQR_REL = 0.1
 _QUIET_F0_IQR_MIN_HZ = 20.0
