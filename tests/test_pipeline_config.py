@@ -259,6 +259,17 @@ def test_config_put_syncs_focus_without_enabled_list(tmp_path) -> None:
     assert "analyze_focus_cuts" in (ws.enabled_steps or [])
 
 
+def test_config_put_brings_back_sound_actions_when_the_setting_turns_on(tmp_path) -> None:
+    proj = tmp_path / "ep4.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = config_store()
+    store.put(proj, reset=True)
+    store.put(proj, config={"tighten": {"apply_non_speech": False}})
+    assert "apply_sound_actions" not in (store.get(proj).enabled_steps or [])
+    store.put(proj, config={"tighten": {"apply_non_speech": True}})
+    assert "apply_sound_actions" in (store.get(proj).enabled_steps or [])
+
+
 def test_config_put_preserves_focus_uncheck_when_flag_unchanged(tmp_path) -> None:
     from podcast_mcp.services.pipeline.config import FOCUS_STEPS
 

@@ -193,6 +193,10 @@ def editorial_enabled_flags(config: dict[str, Any]) -> tuple[bool, bool]:
     return focus_on, tighten_on
 
 
+def _sound_actions_on(config: dict[str, Any]) -> bool:
+    return step_noop_reason(SOUND_ACTION_STEP, config) is None
+
+
 def sync_editorial_enabled_steps(
     enabled: set[str],
     config: dict[str, Any],
@@ -405,7 +409,7 @@ class PipelineConfigStore:
             previous_enabled = set(default_enabled_steps(ws.config))
         else:
             previous_enabled = set(ws.enabled_steps)
-        prev_editorial = editorial_enabled_flags(ws.config)
+        prev_editorial = (*editorial_enabled_flags(ws.config), _sound_actions_on(ws.config))
         if merged is not None:
             ws.config = merged
         if enabled_steps is not None:
@@ -413,7 +417,10 @@ class PipelineConfigStore:
                 previous_enabled,
                 set(enabled_steps),
             )
-        elif config is not None and prev_editorial != editorial_enabled_flags(ws.config):
+        elif config is not None and prev_editorial != (
+            *editorial_enabled_flags(ws.config),
+            _sound_actions_on(ws.config),
+        ):
             ws.enabled_steps = sync_editorial_enabled_steps(
                 previous_enabled,
                 ws.config,
