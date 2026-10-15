@@ -1963,36 +1963,47 @@ def _start_at_filler_onset(
         if w.suppressed or w.end <= w.start or candidate.start <= w.start:
             continue
         walk_floor = max(walk_floor, min(w.end, candidate.start))
-    min_start = walk_floor
     before, _after = _kept_neighbours(project, candidate)
+    decay_safe: float | None = None
     if before is not None:
         air_after_prev = candidate.start - before.end
         if air_after_prev > 1e-9 and voice_separates(audio_cache, before.end, candidate.start):
-            min_start = max(
-                min_start,
-                before.end
-                + recommend_prev_word_lead_out_ms(
+            decay_safe = before.end + (
+                recommend_prev_word_lead_out_ms(
                     project,
                     candidate.track_id,
                     before.end,
                     defaults=defaults,
                     audio_cache=audio_cache,
                 )
-                / 1000.0,
+                / 1000.0
             )
     onset = voice_onset(audio_cache, candidate.start, walk_floor)
+    prev_voice_runs_on = (
+        before is not None
+        and voice_end(audio_cache, before.end, candidate.start) is None
+        and voice_separates(audio_cache, before.end, candidate.start)
+    )
     if onset is None:
         if (
-            before is not None
-            and min_start > walk_floor + 1e-9
-            and voice_separates(audio_cache, before.end, candidate.start)
+            decay_safe is not None
+            and before is not None
+            and prev_voice_runs_on
+            and before.end < plan.start < decay_safe - 1e-9
         ):
-            start = min_start
-            if start > plan.start + 1e-9:
-                return replace(plan, start=start)
+            return replace(plan, start=decay_safe)
         return _CutRejected("filler_onset")
-    start = max(min_start, onset - _ONSET_GUARD_SEC)
-    if start > plan.start + 1e-9 or (onset < candidate.start and start + 1e-9 < plan.start):
+    start = max(walk_floor, onset - _ONSET_GUARD_SEC)
+    gradual_onset = onset + 1e-9 >= candidate.start
+    if (
+        decay_safe is not None
+        and before is not None
+        and prev_voice_runs_on
+        and gradual_onset
+        and before.end < plan.start < decay_safe - 1e-9
+    ):
+        return replace(plan, start=max(start, decay_safe))
+    if onset < candidate.start and start + 1e-9 < plan.start:
         return replace(plan, start=start)
     return plan
 
