@@ -117,7 +117,7 @@ def test_manifest_shares_one_mcp_tool_across_capabilities() -> None:
     data = json.loads((ROOT / "contracts" / "capabilities.manifest.json").read_text())
     rows = {c["id"]: c["surfaces"].get("mcp") for c in data["capabilities"]}
     assert "approve_edits_tool" in rows["daw.tighten.applyHit"]
-    assert "approve_edits_tool" in rows["daw.tighten.applyAllSafe"]
+    assert "apply_suggested_actions_tool" in rows["daw.tighten.applySuggested"]
 
 
 def test_agent_reason_beside_an_agent_surface_is_an_error() -> None:
