@@ -55,7 +55,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 17
+BLEED_GATE_REV = 18
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -110,6 +110,19 @@ _SAME_SIGNAL_GAP_DB = 20 * math.log10(2 * (1 - 10 ** (-_OWN_MARGIN_DB / 40)))
 # 43 ms at 48 kHz. Opus frames run 20 ms, up to 60 ms.
 _CODEC_REACH_SEC = 0.05
 _ONSET_REACH = round(_ONSET_REACH_SEC / _OWNER_HOP_SEC)
+# A peer whose gate opens late loses the start of its first syllable on its own track,
+# so the copy here is louder before the opening than the opening's own first frames
+# say (#1477, #1131). A lane that sounded this long before an opening (30 ms, the shortest late
+# gate the call apps leave) reads the peer's level this much further past it, a
+# syllable's rise to its peak, when the copy is expected there.
+_LATE_OPEN_SEC = 0.03
+_SYLLABLE_RISE_SEC = 0.09
+_LATE_OPEN = round(_LATE_OPEN_SEC / _OWNER_HOP_SEC)
+# A gate that opens later than this cuts a word, not its first syllable; sound that began
+# earlier is not read as a late gate's copy.
+_LATE_OPEN_MAX = round(0.25 / _OWNER_HOP_SEC)
+_LATE_TRACK_SHARE = 0.5
+_SYLLABLE_RISE = round(_SYLLABLE_RISE_SEC / _OWNER_HOP_SEC)
 
 
 @dataclass(frozen=True)
@@ -387,7 +400,7 @@ class _PeerCopy:
         onset = _sliding_max(-direct, round(_LEVEL_FRAME_SEC / hop), 0) >= -PEER_OPEN_DB
         steps = np.broadcast_to(lead, size)
         ahead = direct.copy()
-        for step in range(1, min(_ONSET_REACH, size) + 1):
+        for step in range(1, min(max(_ONSET_REACH, int(steps.max(initial=0))), size) + 1):
             later = np.concatenate([direct[step:], np.full(step, LEVEL_FLOOR_DB)])
             ahead = np.where(steps >= step, np.maximum(ahead, later), ahead)
         return np.where(onset, np.maximum(held, ahead), held)
@@ -511,10 +524,21 @@ def _copy_lead(
     for lo, hi in bool_runs(sounding):
         starts[lo:hi] = lo
     opened = direct > PEER_OPEN_DB
+    openings = np.flatnonzero(opened[1:] & ~opened[:-1] & sounding[:-1]) + 1
+    heard = {int(opening): int(opening - starts[opening - 1]) for opening in openings}
+    # A late gate shows on most of a peer's openings, not on the odd laugh or breath that
+    # runs into one. Only a track that opens late on at least half its openings (those the
+    # lane sounded into, or sat quiet before) is read a syllable further past each one.
+    quiet = int(np.count_nonzero(opened[1:] & ~opened[:-1])) - len(heard)
+    late = sum(_LATE_OPEN <= reach <= _LATE_OPEN_MAX for reach in heard.values())
+    late_track = late > 0 and late >= _LATE_TRACK_SHARE * (len(heard) + quiet)
     lead = np.zeros(size, dtype=int)
-    for opening in np.flatnonzero(opened[1:] & ~opened[:-1] & sounding[:-1]) + 1:
+    for opening, sounded_for in heard.items():
         near = slice(max(0, opening - _ONSET_REACH - frame), opening + frame + 1)
-        lead[near] = np.maximum(lead[near], min(_ONSET_REACH, opening - starts[opening - 1]))
+        sounded = min(_ONSET_REACH, sounded_for)
+        is_late = late_track and _LATE_OPEN <= sounded_for <= _LATE_OPEN_MAX
+        reads = sounded + _SYLLABLE_RISE if is_late else sounded
+        lead[near] = np.maximum(lead[near], reads)
     return lead
 
 
