@@ -634,7 +634,14 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
             )?.mute_regions,
         )
         .toEqual([
-          { start_s: 1, end_s: 2, fade_in_ms: 5, fade_out_ms: 5, fill: null },
+          {
+            start_s: 1,
+            end_s: 2,
+            fade_in_ms: 5,
+            fade_out_ms: 5,
+            fill: null,
+            gain_db: null,
+          },
         ]);
       expect(
         geometry(projectPath).find(

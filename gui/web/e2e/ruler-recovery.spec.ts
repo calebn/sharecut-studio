@@ -1252,7 +1252,14 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
               )?.mute_regions,
           )
           .toEqual([
-            { start_s: 2, end_s: 3, fade_in_ms: 5, fade_out_ms: 5, fill: null },
+            {
+              start_s: 2,
+              end_s: 3,
+              fade_in_ms: 5,
+              fade_out_ms: 5,
+              fill: null,
+              gain_db: null,
+            },
           ]);
         const expectedDomain = {
           ...beforeFullDomain,
@@ -1267,6 +1274,7 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
                       fade_in_ms: 5,
                       fade_out_ms: 5,
                       fill: null,
+                      gain_db: null,
                     },
                   ],
                 }
