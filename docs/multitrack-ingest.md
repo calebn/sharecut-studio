@@ -567,6 +567,24 @@ What to do:
 
 Reopen #1204 on a user report, or when a method for short utterances passes the actual-run gate named in the block.
 
+### Evidence: gold mixdown enrollment (#1621)
+
+The gold mixdown (`source/gold/full-mixdown.wav` in the private lab checkout) is 184.679 s of the same three speakers after the human content cut. It is not the 28-minute Zoom sum in the table below.
+
+The default Mac venv has no speaker embedding, so `SpeakerService.check_split` raises `speaker_backend_unavailable` (`code=speaker_backend_unavailable`). A scratch venv with `[speaker-lite]` loads Resemblyzer. Both splits below used that backend, `podcast speaker split --track room --speakers 3`, and the same engine path as MCP `enrollment` and CLI `--enroll NAME=START:END` (source seconds). Enrollment spans are exclusive 8 s windows taken from the gold solos: Caleb `24.0:32.0`, Audra `149.75:157.75`, Lana `114.88:122.88`. No audio left the Mac.
+
+| | Blind (`method=cluster`) | Enrolled (`method=enroll`) |
+| --- | --- | --- |
+| Speaker count | 3 (Speaker 1, Speaker 2, Speaker 3) | 3 (Caleb, Audra, Lana) |
+| Lane open sec (`seconds_by_speaker`) | 84.22 / 55.94 / 44.52 | 84.08 / 55.94 / 44.66 |
+| Lane `muted_sec` after `--apply` | 100.459 / 128.739 / 140.160 | 100.599 / 128.739 / 140.020 |
+| `crosstalk_sec` | 2.60 | 3.48 |
+| `low_confidence_sec` | 17.64 | 16.62 |
+| Turns | 32 | 34 |
+| Backend | resemblyzer | resemblyzer |
+
+Each enrollment window plays on one lane for the full 8 s. Blind Speaker 1, 2, and 3 match Caleb, Audra, and Lana. Resemblyzer did not collapse this 184.7 s mixdown. Enrollment named the lanes and moved 0.14 s between Caleb and Lana. Collapse of one voice into two clusters remains a Resemblyzer failure on the longer mixdown (below, 0.5 s and 1.5 s windows).
+
 ### Evidence: lab mixdown (#1095)
 
 Truth is the lab tape (rev 3b414c4c): the three aligned Zoom tracks summed into one
