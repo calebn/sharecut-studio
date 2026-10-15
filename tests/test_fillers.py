@@ -3519,7 +3519,6 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
 
 
 def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
-    """Lab 16.45: do not start a filler cut while the previous word is still decaying (#1079)."""
     import numpy as np
 
     from podcast_mcp.config import load_defaults
@@ -3565,8 +3564,8 @@ def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
     like = _CutCandidate(
         track_id="host", start=1.15, end=1.25, reason="filler:like", cut_kind="filler"
     )
-    # Filler-onset rule alone would start inside the decay of "of".
-    plan = _CutPlan.for_cut(1.10, 1.26, mute=False, pad=None)
+    ungated_start_inside_prev_word_decay = 1.10
+    plan = _CutPlan.for_cut(ungated_start_inside_prev_word_decay, 1.26, mute=False, pad=None)
     gated = _between_kept_voices(project, plan, like, audio_cache=cache, defaults=defaults)
 
     assert isinstance(gated, _CutPlan)
