@@ -91,10 +91,6 @@ async function frame(page: Page, info: TestInfo, name: string) {
 
 const readout = (page: Page) => page.locator(".precision-delta").textContent();
 
-/**
- * Moves the driving finger left 1 px at a time from `from` until the readout
- * says one step earlier; returns where it stopped and the readouts seen.
- */
 async function oneStepLeft(
   page: Page,
   move: (to: Point) => Promise<void>,

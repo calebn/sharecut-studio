@@ -1,7 +1,3 @@
-/**
- * Jog-pad precision (#1184): finger travel at the timeline zoom times a gain
- * from vertical slide, landing on whole nudge steps from the armed origin.
- */
 import { NUDGE_KINDS, type NudgeField } from "../../edit/nudge";
 
 export const JOG_GAINS = [
@@ -40,13 +36,11 @@ export function jogGain(
  */
 export const JOG_GAIN_STEP_PX = 40;
 
-/** The gain step for a finger `riseUp` px above where the jog began. */
 export function jogGainIndex(riseUp: number): GainIndex {
   const step = Math.floor(Math.max(0, riseUp) / JOG_GAIN_STEP_PX);
   return Math.min(step, JOG_GAINS.length - 1) as GainIndex;
 }
 
-/** One step of `field`: its smallest nudge, in the field's units. */
 export function frameOf(field: NudgeField): number {
   return NUDGE_KINDS[field.kind].steps[0];
 }
@@ -61,7 +55,6 @@ export function unitsPerSec(field: NudgeField): number {
   return field.edge === "in" ? 1000 : -1000;
 }
 
-/** `raw` on the nearest whole step from `origin`. */
 export function quantize(raw: number, origin: number, frame: number): number {
   const steps = Math.round((raw - origin) / frame);
   return Math.round((origin + steps * frame) * 1e6) / 1e6;

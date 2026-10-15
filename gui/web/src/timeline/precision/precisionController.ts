@@ -1,15 +1,3 @@
-/**
- * Runs one Auto precision drag (#1184) at a time: the hit router hands it an
- * armed target (`precisionHandoff`), it measures the target and decides
- * direct or precision (`precisionDecision.ts`), the jog pad (`PrecisionLayer`)
- * feeds it finger travel, and it turns the session's
- * states into previews, bumps, a save on commit and a rollback on cancel.
- *
- * Exits:
- * - commit: lifting the arming finger after moving it (direct), Done, or a tap
- *   anywhere outside the jog pad;
- * - cancel: a second finger anywhere, which rolls the draft back.
- */
 import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../../edit/nudge";
 import { softBoundaries } from "../../edit/nudgeBoundaries";
 import { GHOST_CLICK_MS } from "../../hooks/gestureConstants";
