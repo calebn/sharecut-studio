@@ -257,11 +257,11 @@ html[data-shell="tablet"] {
   grid-template-rows: auto auto 0 minmax(0, 1fr) auto var(--mobile-nav-height);
 }
 
-/* A short phone window (landscape, or large text) gives the banner and Listen's
-   comment field a share of the shell, never the whole of it: with a 2x root
-   size the two used to leave the mode body 0 tall and scroll the shell. */
+/* A short phone window (landscape, or large text) gives Listen's comment field
+   a share of the shell, never the whole of it: with a 2x root size it used to
+   leave the mode body 0 tall and scroll the shell. The banner keeps its own
+   overflow: its details open as a dropdown below the head. */
 @container app (max-height: 24rem) {
-  .daw-shell--phone > .daw-shell-banners,
   .daw-shell--phone > .mobile-dock {
     max-block-size: 35cqb;
     overflow-y: auto;

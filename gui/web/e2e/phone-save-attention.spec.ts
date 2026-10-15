@@ -122,35 +122,54 @@ test.describe("phone save attention in a short window at twice the text size", (
     hasTouch: true,
   });
 
-  {
-    test("Listen keeps a mode body, the banner and the navigation on screen", async ({
-      page,
-    }) => {
-      await openPhone(page, { failed: true, rootPx: 32 });
-      await mode(page, "Listen").click();
-      const geometry = await page.evaluate(() => {
-        const rect = (selector: string) => {
-          const box = document.querySelector(selector)?.getBoundingClientRect();
-          return (
-            box && { top: box.top, bottom: box.bottom, height: box.height }
-          );
-        };
-        return {
-          body: rect(".mobile-mode-body"),
-          banner: rect(".daw-shell-banners"),
-          nav: rect(".mobile-nav"),
-          shellScroll: document.querySelector(".daw-shell")?.scrollTop,
-          height: window.innerHeight,
-        };
-      });
-      expect(geometry.body?.height ?? 0).toBeGreaterThan(0);
-      expect(geometry.banner?.top ?? -1).toBeGreaterThanOrEqual(0);
-      expect(geometry.nav?.bottom ?? Infinity).toBeLessThanOrEqual(
-        geometry.height,
-      );
-      expect(geometry.shellScroll, "the shell does not scroll").toBe(0);
-      await mode(page, "Text").click();
-      await expect(mode(page, "Text")).toHaveAttribute("aria-pressed", "true");
+  test("Listen keeps a mode body, the banner and the navigation on screen", async ({
+    page,
+  }) => {
+    await openPhone(page, { failed: true, rootPx: 32 });
+    await mode(page, "Listen").click();
+    const geometry = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const box = document.querySelector(selector)?.getBoundingClientRect();
+        return box && { top: box.top, bottom: box.bottom, height: box.height };
+      };
+      return {
+        body: rect(".mobile-mode-body"),
+        banner: rect(".daw-shell-banners"),
+        nav: rect(".mobile-nav"),
+        shellScroll: document.querySelector(".daw-shell")?.scrollTop,
+        height: window.innerHeight,
+      };
     });
-  }
+    expect(geometry.body?.height ?? 0).toBeGreaterThan(0);
+    expect(geometry.banner?.top ?? -1).toBeGreaterThanOrEqual(0);
+    expect(geometry.nav?.bottom ?? Infinity).toBeLessThanOrEqual(
+      geometry.height,
+    );
+    expect(geometry.shellScroll, "the shell does not scroll").toBe(0);
+    await mode(page, "Text").click();
+    await expect(mode(page, "Text")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("the banner's details open with Retry reachable", async ({ page }) => {
+    await openPhone(page, { failed: true, rootPx: 32 });
+    await mode(page, "Listen").click();
+    const attention = page.getByRole("alert", {
+      name: /Saved edits could not be read/,
+    });
+    await expect(attention).toBeVisible();
+    await attention.locator("summary").click();
+    const retry = attention.getByRole("button", { name: "Retry", exact: true });
+    await expect(retry).toBeVisible();
+    const box = (await retry.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(360);
+    const reaches = await retry.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        box.x + box.width / 2,
+        box.y + box.height / 2,
+      );
+      return hit === element || (hit !== null && element.contains(hit));
+    });
+    expect(reaches).toBe(true);
+  });
 });
