@@ -2023,9 +2023,14 @@ button.history-row {
 /* Pipeline panel controls hold the touch floor: its selects and the From / Only
    shortcuts summary are the panel's fixed-size fields (#1445 Ledger). */
 @media (pointer: coarse) {
+  /* WebKit ignores min-block-size on a native select. */
   .pipeline-mode select,
   .pipeline-controls select,
-  .pipeline-param select,
+  .pipeline-param select {
+    block-size: var(--touch-min);
+    box-sizing: border-box;
+  }
+
   .pipeline-advanced-shortcuts > summary {
     min-block-size: var(--touch-min);
     box-sizing: border-box;

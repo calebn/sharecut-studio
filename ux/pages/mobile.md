@@ -59,7 +59,10 @@ Inspector action buttons, including **Replace audio…**, **Remove track**,
 **Go to start**, and preview controls, keep at least 44 CSS px of height on
 touch devices and in the phone layout, including when you use a mouse.
 Transcript **Find and replace** and Pipeline **Add term** rows wrap their
-controls on a coarse pointer so landscape panels stay inside the panel.
+controls on a coarse pointer so landscape panels stay inside the panel. Pipeline's
+selects and the From / Only shortcuts row are 44 CSS px tall on touch. At large text
+or in a short window, the Pipeline toolbar scrolls with the panel and the Transcript
+panel scrolls as a whole, so neither covers the rows under it.
 
 The overlay toggles in **More** (Pending edits, Markers, Comments and the rest) are whole rows at least 44 CSS px tall on touch.
 
