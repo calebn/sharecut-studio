@@ -145,7 +145,13 @@ track sheet's Label, Speaker and Role fields and Select range's In and Out
 fields and track checkboxes, and the More tab's overlay toggle rows, all hold the 44px floor (`e2e/touch-floor.spec.ts` sweeps phone, tablet and landscape and names the dense-target exceptions); a native `select` takes it
 as `block-size` because WebKit ignores `min-block-size` on one. Transcript
 **Find and replace** and Pipeline **Add term** rows wrap their controls on a
-coarse pointer so landscape panels do not overflow (#1433).
+coarse pointer so landscape panels do not overflow (#1433). The Pipeline panel's
+selects, its From / Only shortcuts summary and the More hub's back button hold the
+floor too (#1445). In a slot under 40rem tall (`@container app`, so large text
+counts) the Pipeline toolbar scrolls with its panel instead of sticking, and the
+Transcript panel scrolls as a whole with the list keeping at least 16rem, so
+neither covers the rows beneath it. `e2e-compat/reachability-sweep.spec.ts` sweeps
+both panels whole at every cell.
 
 Round 9 (#1181) moved the strip above the tool rail after an Undo tap could
 nudge a pending edit. Issue #1205 moves the shared Undo and Redo controls into
