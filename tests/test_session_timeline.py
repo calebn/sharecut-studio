@@ -1023,5 +1023,53 @@ def test_indexing_resolves_each_recording_once_not_once_per_clip(tmp_path, monke
     p = _parked_project(tmp_path, 400)
     st = SessionTimeline(p)
     assert st.source_to_timeline("host", SourceSec(1.0)) == pytest.approx(1.0)
-    # Two tracks' media plus the one source: constant in the clip count.
-    assert len(calls) == 3
+    # The one source plus the first track's media, which matches: constant in the clip count.
+    assert len(calls) == 2
+
+
+def test_origin_resolver_edge_cases_and_per_source_answers(tmp_path):
+    from podcast_mcp.engines.session_timeline import origin_resolver
+
+    p = _parked_project(tmp_path, 0)
+    p.timeline.tracks.append(Track(id="noise", label="Noise"))  # no media
+    p.timeline.tracks.append(
+        Track(id="far", label="Far", media=MediaAsset(path="/elsewhere/far.wav", duration_sec=9.0))
+    )
+    p.sources.append(SourceRecording(id="src_blank", path="", duration_sec=9.0))
+
+    def clip(cid: str, source_id: str | None) -> Clip:
+        return Clip(
+            id=cid,
+            track_id="guest",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+            source_id=source_id,
+        )
+
+    origin = origin_resolver(p)
+    assert origin(clip("a", "src_host")) == "host"
+    assert origin(clip("b", "src_guest")) == "guest"
+    assert origin(clip("c", "src_host")) == "host"  # the cached answer is per source
+    assert origin(clip("d", None)) == "guest"
+    assert origin(clip("e", "no_such_source")) == "guest"
+    assert origin(clip("f", "src_blank")) == "guest"
+    # The scan stops at the first match, so the escaping path on a later track is never read.
+    assert origin_track_id_for_clip(p, clip("g", "src_host")) == "host"
+
+
+def test_a_view_build_runs_inside_a_batch_scope(tmp_path, monkeypatch):
+    from podcast_mcp.gui import assembler
+    from podcast_mcp.util.batch_scope import _scope
+
+    seen: list[bool] = []
+
+    def fake_build(ws, *, projection, history):
+        seen.append(_scope.get() is not None)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(assembler, "build_project_view", fake_build)
+    monkeypatch.setattr(assembler, "_workspace", lambda source: (object(), None))
+    with pytest.raises(RuntimeError):
+        assembler.dump_project_projection(tmp_path, projection="shell")
+    assert seen == [True]
