@@ -439,6 +439,15 @@ class SpeakerService:
         }
 
 
+def coerce_enrollment(
+    raw: Mapping[str, Sequence[Sequence[float]]] | None,
+) -> dict[str, list[tuple[float, float]]] | None:
+    """An enrollment map from JSON-shaped ``[[start, end], ...]`` spans to what ``split_speakers`` takes."""
+    if not raw:
+        return None
+    return {name: [(float(s), float(e)) for s, e in spans] for name, spans in raw.items()}
+
+
 def _speaker_names(count: int, names: Sequence[str] | None, enrolled: list[str]) -> list[str]:
     if names:
         if len(names) != count:
