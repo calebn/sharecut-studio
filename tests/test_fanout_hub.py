@@ -8,7 +8,9 @@ from podcast_mcp.services.app.fanout_hub import FanoutHub
 
 
 def _tick(loop: asyncio.AbstractEventLoop) -> None:
-    loop.run_until_complete(asyncio.sleep(0))
+    ready = loop.create_future()
+    loop.call_soon(ready.set_result, None)
+    loop.run_until_complete(ready)
 
 
 def test_publish_delivers_on_each_subscribers_own_loop() -> None:
