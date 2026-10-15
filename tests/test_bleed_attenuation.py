@@ -187,13 +187,6 @@ def test_track_speakers_own_speech_is_untouched(tmp_path: Path) -> None:
     _silent(after, 2.55, 2.95)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#1443 Ledger: main muted this only because the guest track sits 5 dB under the lab's "
-        "voice level; with each track at the lab's level main keeps 1.02-1.22 s as own sound too"
-    ),
-)
 @pytest.mark.usefixtures("one_phrase_copy_evidence")
 def test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy(tmp_path: Path) -> None:
     project = _episode(tmp_path, direct_gated_until=1.15)
