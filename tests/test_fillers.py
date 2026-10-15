@@ -3518,6 +3518,61 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
     assert resumed.fade_in_ms == recommended
 
 
+def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
+    """Lab 16.45: do not start a filler cut while the previous word is still decaying (#1079)."""
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.audio_cache import build_track_audio_caches
+    from podcast_mcp.edits.cut_quality import recommend_prev_word_lead_out_ms
+    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
+
+    rate = 48_000
+    decay_n = round(0.07 * rate)
+    decay_t = np.arange(decay_n) / rate
+    carrier = np.sin(2 * np.pi * 150.0 * decay_t)
+    decay = (
+        carrier
+        / np.sqrt(np.mean(carrier**2))
+        * np.power(10.0, np.linspace(-20.0, -48.0, decay_n) / 20.0)
+    )
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.5, _voice(0.35, rate=rate)),
+            (1.0, _voice(0.08, rate=rate)),
+            (1.08, decay),
+            (1.14, _voice(0.12, level_db=-22, rate=rate)),
+            (1.5, _voice(0.35, level_db=-18, rate=rate)),
+        ],
+        [
+            TranscriptWord(text="kind", start=0.5, end=0.85, confidence=0.95),
+            TranscriptWord(text="of", start=1.0, end=1.08, confidence=0.95),
+            TranscriptWord(text="like", start=1.15, end=1.25, confidence=0.9),
+            TranscriptWord(text="edits", start=1.55, end=1.9, confidence=0.95),
+        ],
+        rate=rate,
+    )
+    defaults = load_defaults()
+    caches = build_track_audio_caches(project, {"host"})
+    if "host" not in caches:
+        pytest.skip("track audio cache unavailable")
+    cache = caches["host"]
+    lead = (
+        recommend_prev_word_lead_out_ms(project, "host", 1.08, defaults=defaults, audio_cache=cache)
+        / 1000.0
+    )
+    like = _CutCandidate(
+        track_id="host", start=1.15, end=1.25, reason="filler:like", cut_kind="filler"
+    )
+    # Filler-onset rule alone would start inside the decay of "of".
+    plan = _CutPlan.for_cut(1.10, 1.26, mute=False, pad=None)
+    gated = _between_kept_voices(project, plan, like, audio_cache=cache, defaults=defaults)
+
+    assert isinstance(gated, _CutPlan)
+    assert gated.start >= 1.08 + lead - 0.02
+
+
 def _late_filler_defaults(join: str) -> dict:
     from podcast_mcp.config import load_defaults
 

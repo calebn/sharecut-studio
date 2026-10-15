@@ -33,6 +33,7 @@ from podcast_mcp.edits.cut_quality import (
     optimize_and_assess,
     post_pad_fade_in_bounds_ms,
     recommend_cut_fade_ms,
+    recommend_prev_word_lead_out_ms,
 )
 from podcast_mcp.edits.filler_pacing import (
     MIN_PACED_CUT_SEC,
@@ -2038,6 +2039,21 @@ def _between_kept_voices(
             # A word cut's own onset edge sits at the start of a quiet frame (#1061),
             # one hop before the voiced-run edge ``voice_end`` reports.
             start = max(start, ends + _VOICE_EDGE_PAD_SEC if wordless else ends - HOP_SEC)
+        if not wordless and candidate.cut_kind == "filler":
+            air_after_prev = max(0.0, min(end, candidate.start) - before.end)
+            if air_after_prev > 1e-9:
+                lead_out = (
+                    recommend_prev_word_lead_out_ms(
+                        project,
+                        candidate.track_id,
+                        before.end,
+                        defaults=defaults,
+                        audio_cache=audio_cache,
+                        max_available_sec=air_after_prev,
+                    )
+                    / 1000.0
+                )
+                start = max(start, before.end + lead_out)
     if after is not None:
         floor = start if wordless else max(start, candidate.end)
         onset = voice_onset(audio_cache, after.start, floor)
