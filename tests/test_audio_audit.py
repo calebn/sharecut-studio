@@ -462,6 +462,23 @@ def test_sandwiched_zero_duration_deferred_not_suppressed(tmp_path: Path):
     assert any("what" in (u.text or "") for u in merged.utterances)
 
 
+def test_effective_copy_lag_follows_lane_latency_steps() -> None:
+    from podcast_mcp.edits.bleed_lag_segments import LagSegment, LagSteps
+    from podcast_mcp.engines.bleed_audibility_lag import effective_copy_lag_sec
+
+    steps = LagSteps(
+        (
+            LagSegment(start_sec=0.0, shift_sec=-0.12, frames=10, correlation=0.9),
+            LagSegment(
+                start_sec=180.0, shift_sec=-0.2, frames=10, correlation=0.9, gap_sec=(150.0, 210.0)
+            ),
+        ),
+        step_cost=1.0,
+    )
+    assert effective_copy_lag_sec(0.14, steps, 50.0) == pytest.approx(0.14)
+    assert effective_copy_lag_sec(0.14, steps, 200.0) == pytest.approx(0.22)
+
+
 def test_short_word_audibility_uses_loudest_frame(tmp_path: Path):
     """A 40-100 ms word is not judged by span-mean RMS alone (#1594)."""
     from podcast_mcp.engines.audio_audit import _track_levels

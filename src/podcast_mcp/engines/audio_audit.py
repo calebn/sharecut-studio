@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 import numpy as np
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.bleed_lag_segments import LagSteps
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
@@ -388,6 +389,9 @@ class TrackRmsCacheSet:
     _copy_paths: dict[tuple[str, str], CopyPath] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
+    _lag_steps: dict[str, LagSteps | None] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
     _path_samples: dict[str, np.ndarray] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
@@ -472,12 +476,30 @@ class TrackRmsCacheSet:
             self._copy_paths[key] = self._measure_copy_path(source_track_id, bleed_track_id)
         return self._copy_paths[key]
 
+    def lane_lag_steps(self, project: EpisodeProject, lane_id: str) -> LagSteps | None:
+        if lane_id not in self._lag_steps:
+            from podcast_mcp.engines.bleed_audibility_lag import lag_steps_for_lane
+
+            self._lag_steps[lane_id] = lag_steps_for_lane(project, self, lane_id)
+        return self._lag_steps[lane_id]
+
     def copy_match(
-        self, source_track_id: str, bleed_track_id: str, t_start: float, t_end: float
+        self,
+        source_track_id: str,
+        bleed_track_id: str,
+        t_start: float,
+        t_end: float,
+        *,
+        lag_sec: float | None = None,
     ) -> float:
         """Median fine-spectrum match of a bleed-mic window with the source at its lag."""
         bleed = self.caches[bleed_track_id]
-        lag = round(self.copy_path(source_track_id, bleed_track_id).lag_sec / COPY_HOP_SEC)
+        lag_value = (
+            lag_sec
+            if lag_sec is not None
+            else self.copy_path(source_track_id, bleed_track_id).lag_sec
+        )
+        lag = round(lag_value / COPY_HOP_SEC)
         first = round((t_start - bleed.timeline_offset_sec) / COPY_HOP_SEC)
         last = round((t_end - bleed.timeline_offset_sec - COPY_FRAME_SEC) / COPY_HOP_SEC)
         frames = np.arange(first, max(first, last) + 1)
@@ -1101,7 +1123,8 @@ def compute_word_audibility_map(
         for lane in lanes:
             tid, tr = lane.track_id, lane.transcript
             paths = caches.leak_paths(tid)
-            lags = {src: path.lag_sec for src, path in paths.items() if path.lag_sec}
+            steady_lags = {src: path.lag_sec for src, path in paths.items() if path.lag_sec}
+            segment_lags = {src: caches.lane_lag_steps(project, src) for src in steady_lags}
             for i, w in enumerate(tr.words):
                 # Degenerate ASR timestamps (start==end) never produce an RMS window.
                 # Isolated junk → inaudible/suppress. Sandwiched between normal-duration
@@ -1167,6 +1190,20 @@ def compute_word_audibility_map(
                     _tick()
                     continue
                 tl_start, tl_end = tl_span
+                from podcast_mcp.engines.bleed_audibility_lag import copy_lag_at_timeline
+
+                tl_mid = (tl_start + tl_end) / 2
+                lags = {
+                    src: copy_lag_at_timeline(
+                        project,
+                        caches,
+                        src,
+                        tid,
+                        tl_mid,
+                        lag_steps=segment_lags,
+                    )
+                    for src in steady_lags
+                }
                 track_rms = _track_levels(
                     project,
                     all_tracks,
@@ -1226,7 +1263,7 @@ def compute_word_audibility_map(
                         inaudibility_floors=inaudibility_floors,
                     )
                     unlike_copy = zero[0] != "bleed" and not paths[dominant].carries(
-                        caches.copy_match(dominant, tid, tl_start, tl_end)
+                        caches.copy_match(dominant, tid, tl_start, tl_end, lag_sec=lags[dominant])
                     )
                     if unlike_copy:
                         status, dominant = zero
@@ -1244,7 +1281,7 @@ def compute_word_audibility_map(
                     "dominant_track": dominant,
                     "suppressed": w.suppressed,
                 }
-                if lags:
+                if steady_lags:
                     entry["copy_lag_ms"] = {k: round(v * 1000) for k, v in lags.items()}
                 if status == "inaudible":
                     entry["reason"] = "below_audibility_threshold"
