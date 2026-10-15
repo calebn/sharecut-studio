@@ -58,7 +58,7 @@
     "tests/test_relay_ws.py": 2,
     "tests/test_remote_mcp_executor.py": 2,
     "tests/test_review_share.py": 3,
-    "tests/test_services_extended.py": 2,
+    "tests/test_services_extended.py": 1,
     "tests/test_session_sync.py": 11,
     "tests/test_session_sync_presence_delta.py": 17,
     "tests/test_track_mix.py": 1,
