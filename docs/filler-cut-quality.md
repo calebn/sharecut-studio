@@ -199,8 +199,10 @@ stays whole, and a gradual onset gets the full fade-in (**Padded cuts are two
 faded edges**). The cut starts at the filler's voice (**Filler left edge**).
 A content `like` stays (**Discourse-safe selection**). The pad is paced from
 the span the cut finally removes (**Filler pacing floor**, #1074; owner listening
-check pending). Open listening note: the review-only `like` cut at 16.45 s
-sounds rough (#1079).
+check pending). After #1075 moved the left edge to the filler's voice, the review-only
+`like` cut at 16.45 s could still start while `of` was decaying (#1079); `_between_kept_voices`
+now also applies `recommend_prev_word_lead_out_ms` on filler cuts when there is air after the
+previous kept word, matching the padded pacing margin.
 
 ### Decision: A guard-blocked filler waits for review
 
