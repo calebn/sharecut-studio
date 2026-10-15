@@ -5,11 +5,19 @@ from pathlib import Path
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
-from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+from podcast_mcp.edits.ripple import RippleRemoval
+from podcast_mcp.edits.source_removals import (
+    ScopeChangedAtApproval,
+    inspect_source_remove_placement,
+    record_suggested_cut_speech,
+)
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.models import (
     Clip,
+    CutSpeech,
+    CutSpeechTrack,
+    CutSpeechWord,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -21,6 +29,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.util.coded_error import CodedValueError
@@ -69,6 +78,82 @@ def _cut(edit_id: str = "cut", *, reason: str = "filler:um", scope: str = "sessi
         scope=scope,
         reason=reason,
     )
+
+
+def test_record_suggested_cut_speech_ignores_mute_without_remove_placement():
+    project = EpisodeProject.create("pure source removal", "/tmp/fix1508-pure")
+    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="host-clip", track_id="host", source_start=0, source_end=6, timeline_start=0)
+    ]
+    mute = EditDecision(
+        id="mute",
+        track_id="host",
+        type=EditDecisionType.MUTE,
+        start=1,
+        end=2,
+        reason="filler:um",
+        applied=False,
+    )
+
+    record_suggested_cut_speech(project, mute)
+
+    assert mute.cut_speech is None
+
+
+def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
+    project = EpisodeProject.create("pure source removal", "/tmp/fix1508-pure")
+    project.tracks = [
+        Track(id=tid, label=tid.title(), role=TrackRole.DIALOGUE) for tid in ("host", "guest")
+    ]
+    project.clips = [
+        Clip(id=f"{tid}-clip", track_id=tid, source_start=0, source_end=6, timeline_start=0)
+        for tid in ("host", "guest")
+    ]
+    decision = _cut()
+    expected = CutSpeech(
+        spans=[RangeInterval(start=1, end=2)],
+        tracks=[
+            CutSpeechTrack(
+                track_id="guest",
+                speaker="Guest",
+                words=[CutSpeechWord(text="hello", timeline_start=1.2, timeline_end=1.5)],
+            )
+        ],
+    )
+    observed: list[tuple[EpisodeProject, tuple[tuple[float, float], ...], frozenset[str]]] = []
+
+    def assess(project_arg: EpisodeProject, removal: RippleRemoval) -> CutSpeech:
+        observed.append((project_arg, removal.spans, removal.edited_track_ids))
+        return expected
+
+    monkeypatch.setattr("podcast_mcp.edits.source_removals.assess_cut_speech", assess)
+
+    record_suggested_cut_speech(project, decision)
+
+    assert observed == [(project, ((1.0, 2.0),), frozenset({"host"}))]
+    assert decision.cut_speech == expected
+
+
+def test_source_remove_placement_keeps_its_remove_only_contract():
+    project = EpisodeProject.create("pure source removal", "/tmp/fix1508-pure")
+    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="host-clip", track_id="host", source_start=0, source_end=6, timeline_start=0)
+    ]
+    mute = EditDecision(
+        id="mute",
+        track_id="host",
+        type=EditDecisionType.MUTE,
+        start=1,
+        end=2,
+        applied=False,
+    )
+    remove = mute.model_copy(update={"id": "remove", "type": EditDecisionType.REMOVE})
+
+    with pytest.raises(ValueError, match="ordinary source remove required"):
+        inspect_source_remove_placement(project, mute)
+    assert inspect_source_remove_placement(project, remove) == (1, 2)
 
 
 def _replay(project: EpisodeProject) -> None:
