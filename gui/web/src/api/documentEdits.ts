@@ -310,6 +310,39 @@ export async function waiveTranscriptRefine(
   }
 }
 
+export interface SuggestedActionsOutcome {
+  /** Saved and sent later by the drain, so the outcome is not known yet. */
+  queued: boolean;
+  summary: string | null;
+  historyHead: string | null;
+}
+
+/** Apply every listed sound's own suggested action in one undo step. */
+export async function applySuggestedActions(
+  projectPath: string,
+  ids: string[] | null,
+  overrides: Record<string, string> = {},
+): Promise<SuggestedActionsOutcome> {
+  const result = await submitDocumentCommand(
+    projectPath,
+    "ApplySuggestedActions",
+    {
+      ...(ids ? { ids } : {}),
+      ...(Object.keys(overrides).length ? { overrides } : {}),
+    },
+  );
+  if (result.queued === true)
+    return { queued: true, summary: null, historyHead: null };
+  const command = result.command;
+  const payload = isSuggestionRecord(command) ? command.payload : null;
+  const done = isSuggestionRecord(payload) ? payload.result : null;
+  const summary =
+    isSuggestionRecord(done) && typeof done.summary === "string"
+      ? done.summary
+      : null;
+  return { queued: false, summary, historyHead: replyHistoryHead(result) };
+}
+
 /** `queued`: saved and sent later by the drain, so the outcome is not known yet. */
 export async function rejectEdits(
   projectPath: string,

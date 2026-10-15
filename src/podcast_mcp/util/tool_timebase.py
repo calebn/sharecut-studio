@@ -29,6 +29,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "join_label_tool": "source",
     "update_pending_edit_tool": "source",
     "revert_applied_edit_tool": "na",
+    "apply_suggested_actions_tool": "na",
     "move_segment_tool": "timeline",
     "move_clips_tool": "timeline",
     "move_by_text_tool": "source",

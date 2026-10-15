@@ -263,10 +263,10 @@ def test_original_auto_trims_keep_the_intervening_guest_without_replaying_source
     path = tmp_path / "episode.project.json"
     save_project(project, path)
 
-    result = json.loads(mcp_server.approve_edits_tool(str(path), apply_all_safe=True))
+    result = json.loads(mcp_server.apply_suggested_actions_tool(str(path)))
 
     assert "needs_confirmation" not in result
-    assert result["approved_count"] == 2
+    assert result["applied_count"] == 2
     saved = load_project(path)
     assert saved.edit_decisions == []
     assert _lane_ends(saved) == pytest.approx({"host": 28.5, "guest": 28.5})
@@ -279,7 +279,9 @@ def test_original_auto_trims_keep_the_intervening_guest_without_replaying_source
     )
 
 
-def test_the_pipeline_applies_the_same_auto_trims_apply_all_safe_does(tmp_path: Path) -> None:
+def test_the_pipeline_applies_the_same_auto_trims_apply_suggested_actions_does(
+    tmp_path: Path,
+) -> None:
     project = _original_trims_project(tmp_path)
 
     assert apply_auto_edits(project) == 2

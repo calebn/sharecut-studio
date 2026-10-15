@@ -65,6 +65,7 @@ from podcast_mcp.mcp.tools.comments import (  # noqa: E402, F401
 from podcast_mcp.mcp.tools.edits import (  # noqa: E402, F401
     apply_edit_plan_tool,
     apply_edits,
+    apply_suggested_actions_tool,
     approve_edits_tool,
     build_edit_context,
     cut_text_match_tool,

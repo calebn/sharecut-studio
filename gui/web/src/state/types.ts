@@ -295,8 +295,8 @@ export interface DawState {
   /** Host record-room control panel. */
   recordPanelOpen: boolean;
   /** Tighten tab Apply-eligible scope for keyboard shortcuts. */
-  tightenApplyScope: { avoidHarsh: boolean; ids: string[] };
-  setTightenApplyScope: (scope: { avoidHarsh: boolean; ids: string[] }) => void;
+  tightenApplyScope: { ids: string[] };
+  setTightenApplyScope: (scope: { ids: string[] }) => void;
   /** Local host MCP connect dialog (Streamable HTTP URL). */
   hostMcpDialogOpen: boolean;
   /** Host Help → diagnostics bundle dialog. */

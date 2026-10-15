@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PendingEditView, ProjectView } from "../types/project";
 import {
-  applyAllSummary,
-  eligibleApplyAllIds,
+  applySuggestedSummary,
   filterTightenHits,
   isHarshTightenHit,
   isTightenPending,
@@ -105,7 +104,6 @@ describe("tightenHits", () => {
       "restart",
     ]);
     expect(hits.map((hit) => hit.riskBadge)).toEqual(["review", "review"]);
-    expect(eligibleApplyAllIds(hits, true)).toEqual([]);
     expect(
       filterTightenHits(hits, {
         classFilter: "restart",
@@ -130,14 +128,6 @@ describe("tightenHits", () => {
     const unclassified = edit();
     delete (unclassified as { harsh?: boolean }).harsh;
     expect(isHarshTightenHit(unclassified)).toBe(true);
-  });
-
-  it("leaves an unclassified edit out of apply-all when avoid-harsh is on", () => {
-    const unclassified = edit({ id: "unclassified" });
-    delete (unclassified as { harsh?: boolean }).harsh;
-    const hits = listTightenHits([edit({ id: "safe" }), unclassified], null);
-    expect(eligibleApplyAllIds(hits, true)).toEqual(["safe"]);
-    expect(eligibleApplyAllIds(hits, false)).toEqual(["safe", "unclassified"]);
   });
 
   it("builds a ±3 word snippet", () => {
@@ -196,73 +186,21 @@ describe("tightenHits", () => {
     ).toEqual(["e1"]);
   });
 
-  it("excludes harsh ids from apply-all when avoid-harsh is on", () => {
-    const hits = listTightenHits(
-      [
-        edit(),
-        edit({
-          id: "e2",
-          reason: "filler:uh:risky",
-          review_required: true,
-          harsh: true,
-        }),
-      ],
-      null,
-    );
-    expect(eligibleApplyAllIds(hits, true)).toEqual(["e1"]);
-    expect(eligibleApplyAllIds(hits, false)).toEqual(["e1", "e2"]);
-    expect(applyAllSummary(31, 23)).toEqual({
-      apply: 23,
-      skipped: 8,
+  it("asks one question that names the sounds and the per-sound actions", () => {
+    expect(applySuggestedSummary(31)).toEqual({
       question: {
-        title: "Apply 23 tighten hits?",
-        message: "Their cuts go into the timeline. 8 harsh hits stay pending.",
+        title: "Apply suggested actions to 31 sounds?",
+        message:
+          "Each sound gets its own action: cut, shorten, lower or leave. A cut over another speaker ripples every track. One undo puts it all back.",
         keepLabel: "Keep reviewing",
-        actionLabel: "Apply 23",
+        actionLabel: "Apply 31",
         danger: false,
       },
     });
-    expect(applyAllSummary(2, 1).question).toMatchObject({
-      title: "Apply 1 tighten hit?",
-      message: "Their cuts go into the timeline. 1 harsh hit stays pending.",
+    expect(applySuggestedSummary(1).question).toMatchObject({
+      title: "Apply suggested actions to 1 sound?",
+      actionLabel: "Apply 1",
     });
-    expect(applyAllSummary(4, 4).question.message).toBe(
-      "Their cuts go into the timeline.",
-    );
-  });
-
-  it("never batches a pause trim, whether or not harsh cuts are avoided", () => {
-    const hits = listTightenHits(
-      [
-        edit({ id: "um" }),
-        edit({
-          id: "trim",
-          reason: "pause:1.10s:solo",
-          review_required: true,
-          harsh: true,
-          listen_one_by_one: true,
-        }),
-        edit({
-          id: "risky",
-          reason: "filler:uh:risky",
-          review_required: true,
-          harsh: true,
-        }),
-      ],
-      null,
-    );
-    expect(eligibleApplyAllIds(hits, true)).toEqual(["um"]);
-    expect(eligibleApplyAllIds(hits, false)).toEqual(["um", "risky"]);
-  });
-
-  it("takes the listen-one-by-one rule from the server and fails closed without it", () => {
-    const flagged = edit({ id: "trim", listen_one_by_one: true });
-    const unclassified = edit({ id: "unknown" });
-    delete (unclassified as { listen_one_by_one?: boolean }).listen_one_by_one;
-    // A pause the server did not flag is batched; a hit it never classified is not.
-    const unflaggedPause = edit({ id: "pause", reason: "pause:1.10s:solo" });
-    const hits = listTightenHits([flagged, unclassified, unflaggedPause], null);
-    expect(eligibleApplyAllIds(hits, false)).toEqual(["pause"]);
   });
 
   it("treats missing timeline bounds as not seekable or previewable", () => {

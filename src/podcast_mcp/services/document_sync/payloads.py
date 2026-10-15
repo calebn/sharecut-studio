@@ -150,8 +150,7 @@ class ApproveEditsPayload(BaseModel):
         default=True,
         description=(
             "Authorize a pause join that currently requires review. Selected approval "
-            "defaults to true. Apply eligible with Avoid harsh cuts on sends false; "
-            "speech confirmation does not change this authority."
+            "defaults to true. Speech confirmation does not change this authority."
         ),
     )
     confirm_cut_speech: ConfirmCutSpeech = False
@@ -169,6 +168,20 @@ class ApproveEditsPayload(BaseModel):
 
 class RejectEditsPayload(BaseModel):
     ids: list[str]
+
+
+class ApplySuggestedActionsPayload(BaseModel):
+    ids: list[str] | None = Field(
+        default=None,
+        description=(
+            "Narrow the batch to these pending sounds (the Tighten list's filtered ids); "
+            "omit for every pending tighten proposal."
+        ),
+    )
+    overrides: dict[str, Literal["cut", "shorten", "lower", "leave"]] = Field(
+        default_factory=dict,
+        description="Decision id to the action to use instead of its suggested one.",
+    )
 
 
 class UpdatePendingEditPayload(BaseModel):
@@ -601,6 +614,11 @@ class ApproveEditsCommand(DocumentCommandEnvelope):
     payload: ApproveEditsPayload
 
 
+class ApplySuggestedActionsCommand(DocumentCommandEnvelope):
+    type: Literal["ApplySuggestedActions"] = "ApplySuggestedActions"
+    payload: ApplySuggestedActionsPayload
+
+
 class RejectEditsCommand(DocumentCommandEnvelope):
     type: Literal["RejectEdits"] = "RejectEdits"
     payload: RejectEditsPayload
@@ -815,6 +833,7 @@ DocumentCommandBody = Annotated[
     | RedoHistoryCommand
     | ApproveEditsCommand
     | RejectEditsCommand
+    | ApplySuggestedActionsCommand
     | UpdatePendingEditCommand
     | RestoreAppliedEditCommand
     | SetClipFadeCommand
@@ -923,6 +942,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "RedoHistory": RedoHistoryPayload,
     "ApproveEdits": ApproveEditsPayload,
     "RejectEdits": RejectEditsPayload,
+    "ApplySuggestedActions": ApplySuggestedActionsPayload,
     "UpdatePendingEdit": UpdatePendingEditPayload,
     "RestoreAppliedEdit": RestoreAppliedEditPayload,
     "SetClipFade": SetClipFadePayload,

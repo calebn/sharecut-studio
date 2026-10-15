@@ -9,7 +9,6 @@ holds no rule of its own.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import Any
 
 from podcast_mcp.edits.tighten_reasons import PAUSE_REASON_PREFIX
@@ -57,19 +56,7 @@ def is_harsh_tighten_hit(decision: EditDecision) -> bool:
 def is_listen_one_by_one_hit(decision: EditDecision) -> bool:
     """A pause trim that stays for review: the editor listens to each and applies it alone.
 
-    One that passed the risk checks is applied like a safe filler. Apply eligible never
-    batches one that did not, whatever Avoid harsh cuts says.
+    One that passed the risk checks is applied like a safe filler. Apply suggested actions
+    leaves one whose join still needs review pending and names it.
     """
     return (decision.reason or "").startswith(PAUSE_REASON_PREFIX) and decision.review_required
-
-
-def eligible_tighten_ids(decisions: Iterable[EditDecision]) -> list[str]:
-    """Pending tighten hits that Apply eligible applies with Avoid harsh cuts on."""
-    return [
-        d.id
-        for d in decisions
-        if not d.applied
-        and is_tighten_reason(d.reason)
-        and not is_harsh_tighten_hit(d)
-        and not is_listen_one_by_one_hit(d)
-    ]

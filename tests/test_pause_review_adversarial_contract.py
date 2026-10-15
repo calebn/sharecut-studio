@@ -16,18 +16,15 @@ from test_pause_current_operation_contract import _fresh_join_review, _stored_re
 from test_source_remove_geometry import _cut
 
 
-def test_all_safe_cannot_authorize_a_fresh_join_review(tmp_path, monkeypatch):
+def test_apply_suggested_cannot_authorize_a_fresh_join_review(tmp_path, monkeypatch):
     observed = _fresh_join_review(monkeypatch)
     ws = workspace(_stored_remove(tmp_path, seed=1512))
-    before_files = files(tmp_path)
-    before_model = ws.project.model_dump(mode="json")
     assert ws.project.edit_decisions[0].review_required is False
-    with pytest.raises(ScopeChangedAtApproval):
-        EditService(ws).approve_eligible_tighten(["stored-remove"])
+    result = EditService(ws).apply_suggested_actions(["stored-remove"])
+    assert result["held"] == ["stored-remove"]
     assert observed
-    assert files(tmp_path) == before_files
-    assert ws.project.model_dump(mode="json") == before_model
-    assert load_project(ws.path).model_dump(mode="json") == before_model
+    assert [c.source_end for c in load_project(ws.path).clips] == [6.0]
+    assert [e.id for e in load_project(ws.path).edit_decisions] == ["stored-remove"]
 
 
 def test_auto_pause_cannot_treat_a_join_scorer_exception_as_pass(tmp_path, monkeypatch):

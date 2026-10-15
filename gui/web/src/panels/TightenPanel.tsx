@@ -19,8 +19,6 @@ import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import {
-  applyAllSummary,
-  eligibleApplyAllIds,
   filterTightenHits,
   listTightenHits,
   type TightenClass,
@@ -78,14 +76,12 @@ export function TightenPanel() {
   }));
   const headingId = useId();
   const harshId = useId();
-  const avoidHarshId = useId();
   const statusId = useId();
   const proposeErrorId = useId();
   const [classFilter, setClassFilter] = useState<"all" | TightenClass>("all");
   const [trackFilter, setTrackFilter] = useState("");
   const [harshOnly, setHarshOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [avoidHarsh, setAvoidHarsh] = useState(true);
   const [proposing, setProposing] = useState(false);
   const [findRun, setFindRun] = useState<FindRun | null>(null);
 
@@ -173,16 +169,13 @@ export function TightenPanel() {
   );
   useEffect(() => {
     useDawStore.getState().setTightenApplyScope({
-      avoidHarsh,
       ids: filtered.map((h) => h.id),
     });
-  }, [avoidHarsh, filtered]);
-  const eligibleIds = eligibleApplyAllIds(filtered, avoidHarsh);
-  const summary = applyAllSummary(filtered.length, eligibleIds.length);
+  }, [filtered]);
   const applyAllReason = !canApply
     ? "Only the host or an Editor can apply edits."
-    : eligibleIds.length === 0
-      ? "Nothing is eligible to apply with the current filters."
+    : filtered.length === 0
+      ? "Nothing to apply with the current filters."
       : undefined;
   const selectedId = selection?.kind === "pending" ? selection.id : null;
 
@@ -296,30 +289,18 @@ export function TightenPanel() {
       </div>
 
       <div className="tighten-bulk">
-        <label className="tighten-check" htmlFor={avoidHarshId}>
-          <input
-            id={avoidHarshId}
-            type="checkbox"
-            checked={avoidHarsh}
-            onChange={(e) => setAvoidHarsh(e.target.checked)}
-          />
-          Avoid harsh cuts
-        </label>
         <CommandButton
-          commandId="tighten.applyAllSafe"
+          commandId="tighten.applySuggested"
           variant="primary"
-          args={{ avoidHarsh, ids: filtered.map((h) => h.id) }}
+          args={{ ids: filtered.map((h) => h.id) }}
           disabledReason={applyAllReason}
         >
-          Apply eligible ({eligibleIds.length})
+          Apply suggested actions ({filtered.length})
         </CommandButton>
       </div>
 
       <p id={statusId} className="tighten-status" aria-live="polite">
         {filtered.length} of {hits.length} hits
-        {avoidHarsh
-          ? ` · ${eligibleIds.length} eligible (${summary.skipped} harsh skipped)`
-          : ` · ${eligibleIds.length} eligible`}
       </p>
 
       {filtered.length === 0 ? (

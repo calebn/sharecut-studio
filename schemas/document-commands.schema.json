@@ -924,6 +924,137 @@
       "title": "ApplyFadeRecommendationsPayload",
       "type": "object"
     },
+    "ApplySuggestedActionsCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/ApplySuggestedActionsPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "ApplySuggestedActions",
+          "default": "ApplySuggestedActions",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "ApplySuggestedActionsCommand",
+      "type": "object"
+    },
+    "ApplySuggestedActionsPayload": {
+      "properties": {
+        "ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Narrow the batch to these pending sounds (the Tighten list's filtered ids); omit for every pending tighten proposal.",
+          "title": "Ids"
+        },
+        "overrides": {
+          "additionalProperties": {
+            "enum": [
+              "cut",
+              "shorten",
+              "lower",
+              "leave"
+            ],
+            "type": "string"
+          },
+          "description": "Decision id to the action to use instead of its suggested one.",
+          "title": "Overrides",
+          "type": "object"
+        }
+      },
+      "title": "ApplySuggestedActionsPayload",
+      "type": "object"
+    },
     "ApproveEditsCommand": {
       "properties": {
         "causation_id": {
@@ -1023,7 +1154,7 @@
       "properties": {
         "allow_review": {
           "default": true,
-          "description": "Authorize a pause join that currently requires review. Selected approval defaults to true. Apply eligible with Avoid harsh cuts on sends false; speech confirmation does not change this authority.",
+          "description": "Authorize a pause join that currently requires review. Selected approval defaults to true. Speech confirmation does not change this authority.",
           "title": "Allow Review",
           "type": "boolean"
         },
@@ -1201,6 +1332,19 @@
             }
           ],
           "default": null
+        },
+        "gain_db": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gain Db"
         },
         "start_s": {
           "title": "Start S",
@@ -6837,6 +6981,7 @@
       "AddSocialClip": "#/$defs/AddSocialClipCommand",
       "AddTrack": "#/$defs/AddTrackCommand",
       "ApplyFadeRecommendations": "#/$defs/ApplyFadeRecommendationsCommand",
+      "ApplySuggestedActions": "#/$defs/ApplySuggestedActionsCommand",
       "ApproveEdits": "#/$defs/ApproveEditsCommand",
       "CorrectTranscriptPhrase": "#/$defs/CorrectTranscriptPhraseCommand",
       "CorrectTranscriptWord": "#/$defs/CorrectTranscriptWordCommand",
@@ -6916,6 +7061,9 @@
     },
     {
       "$ref": "#/$defs/RejectEditsCommand"
+    },
+    {
+      "$ref": "#/$defs/ApplySuggestedActionsCommand"
     },
     {
       "$ref": "#/$defs/UpdatePendingEditCommand"

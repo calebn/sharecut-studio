@@ -316,16 +316,20 @@ describe("TightenPanel", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("disables apply-all with its reason when nothing is eligible", () => {
+  it("disables apply-all with its reason when no hit is listed", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
         <TightenPanel />
       </DawProvider>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    const apply = screen.getByRole("button", { name: /Apply eligible/ });
+    fireEvent.change(screen.getByLabelText("Search hits"), {
+      target: { value: "no such words" },
+    });
+    const apply = screen.getByRole("button", {
+      name: /Apply suggested actions/,
+    });
     expect(apply).toBeDisabled();
-    expect(apply).toHaveAccessibleDescription(/eligible/i);
+    expect(apply).toHaveAccessibleDescription(/Nothing to apply/i);
   });
 
   it("leads each row's actions with the decisions, Apply then Skip, before Preview and Go to", () => {
@@ -341,7 +345,7 @@ describe("TightenPanel", () => {
     expect(labels).toEqual(["Apply", "Skip", "Preview", "Go to"]);
   });
 
-  it("makes Apply eligible the one primary action in the panel", () => {
+  it("makes Apply suggested actions the one primary action in the panel", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
         <TightenPanel />
@@ -349,7 +353,7 @@ describe("TightenPanel", () => {
     );
     const primary = document.querySelectorAll(".ui-control.primary");
     expect([...primary].map((b) => b.textContent)).toEqual([
-      expect.stringMatching(/^Apply eligible/),
+      expect.stringMatching(/^Apply suggested actions/),
     ]);
   });
 
@@ -378,8 +382,8 @@ describe("TightenPanel", () => {
     expect(screen.getByRole("button", { name: "Repetition" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Restart" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: /Apply eligible/ }),
-    ).toBeDisabled();
+      screen.getByRole("button", { name: "Apply suggested actions (2)" }),
+    ).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Restart" }));
     expect(screen.getByText(/1 of 2 hits/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Apply.*Host/i }));
@@ -397,10 +401,12 @@ describe("TightenPanel", () => {
         <TightenPanel />
       </DawProvider>,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Apply eligible/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply suggested actions (2)" }),
+    );
     expect(execute).toHaveBeenCalledWith(
-      "tighten.applyAllSafe",
-      { avoidHarsh: true, ids: ["e1", "e2"] },
+      "tighten.applySuggested",
+      { ids: ["e1", "e2"] },
       { skipWhen: true },
     );
 
@@ -424,19 +430,17 @@ describe("TightenPanel", () => {
     );
   });
 
-  it("does not offer Apply eligible for a hit the server never classified", () => {
+  it("shows the suggested action beside the label in the row", () => {
     const project = projectWithHits();
-    const unclassified = pending({ id: "unclassified" });
-    delete (unclassified as { listen_one_by_one?: boolean }).listen_one_by_one;
-    project.pending_edits = [unclassified];
+    project.pending_edits = [
+      pending({ id: "laugh", label: "Laugh", suggested_action: "lower" }),
+    ];
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
         <TightenPanel />
       </DawProvider>,
     );
-    expect(
-      screen.getByRole("button", { name: /Apply eligible/ }),
-    ).toBeDisabled();
+    expect(screen.getByText(/Laugh · suggest lower/)).toBeTruthy();
   });
 
   it("disables seek and preview when a hit has no timeline bounds", () => {
