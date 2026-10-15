@@ -115,6 +115,12 @@ export function SplitSpeakersDialog() {
     };
   }, [open]);
   const [wasOpen, setWasOpen] = useState(false);
+  const [sampleTrackId, setSampleTrackId] = useState<string | null>(null);
+  if (trackId !== sampleTrackId) {
+    // Samples are seconds of one recording, so another track starts with none.
+    setSampleTrackId(trackId);
+    if (settings.samples.length) setSettings((s) => ({ ...s, samples: [] }));
+  }
   const doneMatchesProject =
     flow.kind === "done" &&
     flow.projectPath === projectPath &&
@@ -443,7 +449,10 @@ export function SplitSpeakersDialog() {
         useDawStore
           .getState()
           .setSelection({ kind: "range", target: sample.target });
-        void runRangeAction("play");
+        void runRangeAction("play").then((result) => {
+          if (result.status === "disabled")
+            useDawStore.getState().announceStatus(result.reason);
+        });
       }}
       onSplit={() => void onSplit()}
       onCancelSplit={() => void onCancelSplit()}

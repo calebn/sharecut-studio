@@ -290,6 +290,50 @@ describe("voice samples", () => {
     expect(got.reason).toContain(reason);
   });
 
+  it("refuses a range across a gap that keeps the same offset", () => {
+    const got = voiceSampleFromSelection(
+      projectWith(
+        clip({
+          timeline_start: 0,
+          timeline_end: 10,
+          source_start: 0,
+          source_end: 10,
+        }),
+        clip({
+          id: "d",
+          timeline_start: 15,
+          timeline_end: 30,
+          source_start: 15,
+          source_end: 30,
+        }),
+      ),
+      range(8, 17),
+      "room",
+    );
+    expect(got.reason).toBe(
+      "The range crosses a cut. Select within one stretch.",
+    );
+  });
+
+  it("accepts a range that ends on the clip edge", () => {
+    const got = voiceSampleFromSelection(
+      projectWith(clip({})),
+      range(60, 70),
+      "room",
+    );
+    expect(got.reason).toBeNull();
+    expect(got.sample?.sourceEnd).toBeCloseTo(64);
+  });
+
+  it("refuses a range that spans other tracks too", () => {
+    const got = voiceSampleFromSelection(
+      projectWith(clip({})),
+      range(12, 18, ["room", "other"]),
+      "room",
+    );
+    expect(got.sample).toBeNull();
+  });
+
   it("refuses a range that crosses a cut", () => {
     const got = voiceSampleFromSelection(
       projectWith(
