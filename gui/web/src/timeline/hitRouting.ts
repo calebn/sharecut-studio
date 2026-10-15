@@ -551,7 +551,9 @@ export function attachHitRouting(
       router.choose(index, source.pointerType);
       return;
     }
-    grab(element, source, candidate, anchor, at, { usePrecision: false });
+    const routed = targetOf(element);
+    const usePrecision = routed?.kind !== "envelope-point";
+    grab(element, source, candidate, anchor, at, { usePrecision });
   };
   /** The open chooser's finger is now `finger`; a new anchor restarts its timers. */
   const setFinger = (finger: ChipFinger, source: PointerEvent) => {
