@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 
 import pytest
@@ -53,14 +54,32 @@ def test_run_parallel_empty_list():
 
 
 def test_run_parallel_preserves_order_regardless_of_completion_time():
-    # Item 0 sleeps longest, item 4 returns fastest -- output must still be [0, 1, 2, 3, 4].
-    delays = [0.05, 0.04, 0.03, 0.02, 0.01]
+    completion_order: list[int] = []
+    release = [Event() for _ in range(5)]
 
-    def slow_identity(i: int) -> int:
-        time.sleep(delays[i])
+    class CompletionTrackingExecutor(ThreadPoolExecutor):
+        def submit(self, fn, /, *args, **kwargs):
+            future = super().submit(fn, *args, **kwargs)
+            position = args[-1]
+
+            def record_completion(_future):
+                # Done callbacks run only after the Future has completed.
+                completion_order.append(position)
+                if position:
+                    release[position - 1].set()
+
+            future.add_done_callback(record_completion)
+            return future
+
+    def gated_identity(i: int) -> int:
+        assert release[i].wait(timeout=2), f"item {i} was never released"
         return i
 
-    result = run_parallel(list(range(5)), slow_identity, max_workers=5)
+    release[-1].set()
+    with patch("podcast_mcp.util.parallel.ThreadPoolExecutor", CompletionTrackingExecutor):
+        result = run_parallel(list(range(5)), gated_identity, max_workers=5)
+
+    assert completion_order == [4, 3, 2, 1, 0]
     assert result == [0, 1, 2, 3, 4]
 
 
