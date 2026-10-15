@@ -187,7 +187,6 @@ def test_concurrent_status_checks_hash_an_unchanged_file_once(tmp_path: Path, mo
         def __exit__(self, *_):
             self.lock.release()
 
-    # Observe contention while delegating acquisition to the registry's real lock.
     monkeypatch.setattr(
         model_manifest._MEMO_LOCKS,
         "get",
