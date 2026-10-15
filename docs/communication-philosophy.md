@@ -629,6 +629,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   `disabledReason`.
 - 2026-10-13 — Added "Save state" (#1448): the host's project shows Saving to project…, Saved to project, Not saved yet · N waiting to send, or Save failed with a next step, reusing the record room's saving and saved words.
 - 2026-10-13 — Save state is a status light (#1448): a small dot with its text in the name and tooltip, shape plus colour, shown in every phone mode. Send now and Retry live in the Needs attention banner.
+- 2026-10-15 — On phone the save light is read-only in every state (#1539): the Needs attention banner is the control, so a Waiting or Failed light adds no row and moves no content.
 - 2026-10-14 — The mix rebuilds itself (#1468): the host no longer sees
   "· Refresh" after the mix status, and the pill reads "Updating mix…" while it
   rebuilds. Mod+B stays as "update now". Until the project loads the pill reads

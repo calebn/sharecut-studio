@@ -257,6 +257,17 @@ html[data-shell="tablet"] {
   grid-template-rows: auto auto 0 minmax(0, 1fr) auto var(--mobile-nav-height);
 }
 
+/* A short phone window (landscape, or large text) gives the banner and Listen's
+   comment field a share of the shell, never the whole of it: with a 2x root
+   size the two used to leave the mode body 0 tall and scroll the shell. */
+@container app (max-height: 24rem) {
+  .daw-shell--phone > .daw-shell-banners,
+  .daw-shell--phone > .mobile-dock {
+    max-block-size: 35cqb;
+    overflow-y: auto;
+  }
+}
+
 /* Listen's comment field: the bottom zone, right above the mode bar. */
 .daw-shell > .mobile-dock {
   grid-area: dock;
@@ -289,14 +300,8 @@ html[data-shell="tablet"] {
 }
 
 /* The status row holds the save light, so it is always drawn. It sticks while
-   it also carries a live recording, Solo on, or a save that needs the host
-   (waiting or failed). */
-.mobile-status-row:has(
-  .record-rec-chip,
-  .solo-chip,
-  .save-dot[data-save-state="waiting"],
-  .save-dot[data-save-state="failed"]
-) {
+   it also carries a live recording or Solo on. */
+.mobile-status-row:has(.record-rec-chip, .solo-chip) {
   position: sticky;
   top: 0;
   z-index: var(--z-shell-status);
@@ -315,18 +320,20 @@ html[data-shell="tablet"] {
   padding-block: var(--space-3);
 }
 
-/* Outside Listen a light that needs nothing from the person adds no row
-   height. It sits in the corner of the mode body and takes no taps, so it can
-   never cover the control under it. Waiting and failed are tappable and a
-   banner is already up, so they keep a real row sized to the 44pt target. */
-.mobile-status-row--overlay:not(
-  :has(
-    .record-rec-chip,
-    .solo-chip,
-    .save-dot[data-save-state="waiting"],
-    .save-dot[data-save-state="failed"]
-  )
-) {
+/* The phone's save light never takes a tap or paints a target, in any state:
+   the Needs attention banner above the body is the control for a save that
+   needs the host, so Waiting and Failed add no row and the content under the
+   light never moves when the state changes. Outside Listen the light adds no
+   row height and sits in the corner of the mode body. */
+.mobile-status-row .save-dot {
+  pointer-events: none;
+}
+
+.mobile-status-row .save-dot::after {
+  content: none;
+}
+
+.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip)) {
   position: sticky;
   top: 0;
   z-index: var(--z-shell-status);
@@ -336,25 +343,10 @@ html[data-shell="tablet"] {
   pointer-events: none;
 }
 
-.mobile-status-row--overlay:not(
-    :has(
-      .record-rec-chip,
-      .solo-chip,
-      .save-dot[data-save-state="waiting"],
-      .save-dot[data-save-state="failed"]
-    )
-  )
-  .save-dot {
+.mobile-status-row--overlay:not(:has(.record-rec-chip, .solo-chip)) .save-dot {
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: 0;
-}
-
-.mobile-status-row:has(
-  .save-dot[data-save-state="waiting"],
-  .save-dot[data-save-state="failed"]
-) {
-  min-block-size: var(--touch-min);
 }
 
 /* The phone's two Solo on chips: the status row and the Mix sheet. */
