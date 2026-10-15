@@ -153,7 +153,7 @@ test.describe("phone save attention in a short window at twice the text size", (
   test("the banner's details open with Retry reachable", async ({ page }) => {
     await openPhone(page, { failed: true, rootPx: 32 });
     await mode(page, "Listen").click();
-    const attention = page.getByRole("alert", {
+    const attention = page.getByRole("region", {
       name: /Saved edits could not be read/,
     });
     await expect(attention).toBeVisible();
