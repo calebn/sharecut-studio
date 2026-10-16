@@ -372,11 +372,12 @@ async def test_a_stop_signal_ends_the_tunnel_with_a_stopped_snapshot(
             await asyncio.wait_for(running, timeout=5)
     finally:
         try:
-            if running is not None and not running.done():
-                running.cancel()
-                done, _pending = await asyncio.wait({running}, timeout=5)
-                if not done:
-                    raise TimeoutError("tunnel task did not stop after cancellation")
+            if running is not None:
+                if not running.done():
+                    running.cancel()
+                    done, _pending = await asyncio.wait({running}, timeout=5)
+                    if not done:
+                        raise TimeoutError("tunnel task did not stop after cancellation")
                 if not running.cancelled():
                     running.result()
         finally:
