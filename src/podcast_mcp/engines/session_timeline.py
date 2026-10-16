@@ -204,7 +204,7 @@ def _candidates_source(idx: _TrackIndex, lo: float, hi: float) -> tuple[_Span, .
     """Spans that could overlap [lo, hi] on the source axis."""
     stop = bisect_right(idx.source_starts, hi + _EPS)
     if not idx.source_monotonic:
-        return idx.by_source[bisect_right(idx.source_end_reach, lo + _EPS) : stop]
+        return idx.by_source[bisect_right(idx.source_end_reach, lo - _EPS) : stop]
     start = max(0, bisect_right(idx.source_starts, lo + _EPS) - 1)
     return idx.by_source[start:stop]
 
@@ -213,7 +213,7 @@ def _candidates_timeline(idx: _TrackIndex, lo: float, hi: float) -> tuple[_Span,
     """Spans that could overlap [lo, hi] on the timeline axis."""
     stop = bisect_right(idx.timeline_starts, hi + _EPS)
     if not idx.timeline_monotonic:
-        return idx.by_timeline[bisect_right(idx.timeline_end_reach, lo + _EPS) : stop]
+        return idx.by_timeline[bisect_right(idx.timeline_end_reach, lo - _EPS) : stop]
     start = max(0, bisect_right(idx.timeline_starts, lo + _EPS) - 1)
     return idx.by_timeline[start:stop]
 

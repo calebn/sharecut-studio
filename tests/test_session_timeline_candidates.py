@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -61,3 +62,19 @@ def test_mapping_a_source_span_through_repeated_segments_finds_every_placement()
     ]
     mapped = SessionTimeline(project).map_source_span("t", 13.0, 13.5)
     assert mapped == [(3.0, 3.5), (11.0, 11.5)]
+
+
+def test_a_clip_end_still_looks_up_when_segments_repeat():
+    project = EpisodeProject.create("ep", "/tmp/ws")
+    project.tracks = [Track(id="t", label="T", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="a", track_id="t", source_start=10.0, source_end=20.0, timeline_start=0.0),
+        Clip(id="b", track_id="t", source_start=12.0, source_end=14.0, timeline_start=10.0),
+        Clip(id="c", track_id="t", source_start=30.0, source_end=35.0, timeline_start=12.0),
+    ]
+    idx = _build_index(
+        tuple((c.timeline_start, c.source_start, c.source_end) for c in project.clips)
+    )
+    assert not idx.source_monotonic
+    assert SessionTimeline._source_point(idx, 20.0) == 10.0
+    assert SessionTimeline._source_point(idx, 20.0 - 5e-10) == pytest.approx(10.0, abs=1e-9)
