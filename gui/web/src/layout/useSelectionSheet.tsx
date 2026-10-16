@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { isRangeSelection } from "../edit/rangeSelection";
-import { InspectorPeek } from "../inspector/InspectorPeek";
 import { SelectionSheetBody } from "../inspector/SelectionSheetBody";
 import { opensPhoneSheet, sheetScreen } from "../inspector/selectionSurface";
 import type {
@@ -66,7 +65,6 @@ export interface SelectionSheet {
   compact: CompactSheetProps | undefined;
   /** The editing rail is inert while a full-height compact sheet covers it. */
   coversTools: boolean;
-  /** Whether the shared range controls belong in this sheet. */
   rangeActionsInSheet: boolean;
   content: ReactNode;
 }
@@ -112,9 +110,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
     open &&
     (rangeArmed ||
       isRangeSelection(selection) ||
-      (shell === "tablet" &&
-        selection?.kind === "clip" &&
-        sessionRegion != null));
+      (shell === "tablet" && sessionRegion != null));
   return {
     open,
     rangeActionsInSheet,
@@ -127,11 +123,11 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
     },
     compact: compact ? compactSheetProps(compact) : undefined,
     coversTools: open && compact != null && !compact.stowed,
-    content:
-      compact?.view === "peek" ? (
-        <InspectorPeek peek={compact.peek} />
-      ) : (
-        <SelectionSheetBody rangeActionsInSheet={rangeActionsInSheet} />
-      ),
+    content: (
+      <SelectionSheetBody
+        rangeActionsInSheet={rangeActionsInSheet}
+        peek={compact?.view === "peek" ? compact.peek : null}
+      />
+    ),
   };
 }

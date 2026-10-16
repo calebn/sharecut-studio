@@ -239,6 +239,20 @@ const REACH: Record<SelectionKind, Reach[]> = {
 
 const SHELLS: ShellBreakpoint[] = ["phone", "tablet", "desktop"];
 const RANGE_KINDS: SelectionKind[] = ["range", "transcriptRange"];
+const AGENT_RANGE_ADOPTION: Record<SelectionKind, boolean> = {
+  range: false,
+  transcriptRange: false,
+  clip: true,
+  pending: true,
+  applied: true,
+  track: true,
+  chapter: true,
+  social: true,
+  comment: true,
+  transcriptWord: true,
+  envelope: true,
+  envelopePoint: true,
+};
 
 function mount(shell: ShellBreakpoint) {
   viewport.shell = shell;
@@ -373,6 +387,32 @@ describe("selection surfaces reach every kind on every shell", () => {
           name: "Use agent range on selected tracks",
         }),
       ).toBeVisible();
+    });
+  }
+
+  for (const kind of Object.keys(AGENT_RANGE_ADOPTION) as SelectionKind[]) {
+    it(`keeps the agent range in the tablet sheet for ${kind} selections`, () => {
+      const { container } = mount("tablet");
+      act(() =>
+        useDawStore.setState({ sessionRegion: { start_sec: 0, end_sec: 2 } }),
+      );
+      select(SELECTIONS[kind]);
+
+      const home = sheet();
+      const regions = rangeRegions();
+      expect(home).not.toBeNull();
+      expect(regions).toHaveLength(1);
+      expect(home!.contains(regions[0]!)).toBe(true);
+      expect(
+        container
+          .querySelector(".daw-shell-transport")
+          ?.querySelector('[aria-label="Range actions"]'),
+      ).toBeNull();
+      expect(
+        within(regions[0]!).queryByRole("button", {
+          name: "Use agent range on selected tracks",
+        }) !== null,
+      ).toBe(AGENT_RANGE_ADOPTION[kind]);
     });
   }
 
