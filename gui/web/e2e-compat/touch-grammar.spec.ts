@@ -31,6 +31,7 @@ import {
   watchCommands,
 } from "../e2e/touchTimeline";
 import { CHOOSER_EDGE_PX } from "../src/timeline/chooserLayout";
+import { TOUCH_HIT_RADIUS_PX } from "../src/timeline/hitCandidates";
 
 /*
  * #1051 round 4b, the touch grammar on a 430x932 iPhone viewport: a
@@ -126,6 +127,43 @@ const open = (page: Page) => openWith(page, async () => undefined);
 
 const openWithGap = (page: Page) => openWith(page, () => splitGuestLane(page));
 
+async function expectBelowEnvelopeLine(page: Page, trackId: string, y: number) {
+  const line = await page
+    .locator(`.lane-row[data-track-id="${trackId}"] .envelope-line-target`)
+    .boundingBox();
+  expect(line).not.toBeNull();
+  expect(y).toBeGreaterThan(line!.y + line!.height + TOUCH_HIT_RADIUS_PX);
+}
+
+async function expectClipAt(page: Page, selector: string, at: Point) {
+  expect(
+    await page
+      .locator(`${selector} .clip-hit`)
+      .evaluate(
+        (clip, point) =>
+          document
+            .elementFromPoint(point.x, point.y)
+            ?.closest("[data-hit-kind]") === clip,
+        at,
+      ),
+  ).toBe(true);
+}
+
+async function expectEmptyAt(page: Page, at: Point) {
+  const hit = await page.evaluate((point) => {
+    const element = document.elementFromPoint(point.x, point.y);
+    return {
+      kind:
+        element?.closest("[data-hit-kind]")?.getAttribute("data-hit-kind") ??
+        null,
+      surface: Boolean(element?.closest("[data-hit-surface]")),
+      element: element?.outerHTML.slice(0, 300),
+    };
+  }, at);
+  expect(hit.kind).toBeNull();
+  expect(hit.surface, hit.element).toBe(true);
+}
+
 /**
  * Lays the guest lane's gap out in the time column, the moved clip's start
  * (30 s) left of the fixed playhead, so a drag left meets the neighbour's end
@@ -155,11 +193,13 @@ async function showGap(page: Page, guest: GuestLane) {
     const box = await page.locator(clip).boundingBox();
     if (!box) throw new Error("guest clip has no box");
     if (box.x + 40 < layout.center) {
+      const y = box.y + box.height - 8;
+      await expectBelowEnvelopeLine(page, guest.trackId, y);
       return {
         clip,
         pps: layout.pps,
         start: box.x,
-        y: box.y + box.height / 2,
+        y,
       };
     }
   }
@@ -323,6 +363,7 @@ test("a long-press arms a clip, which moves in time only, holds at its neighbour
   const commands = watchCommands(page);
   const gap = await showGap(page, guest);
   const from = onBody(gap);
+  await expectClipAt(page, gap.clip, from);
   await hold(page, finger, from);
   await expect(page.locator(`${gap.clip} .clip-hit`)).toHaveAttribute(
     "data-hit-armed",
@@ -373,6 +414,7 @@ test("a second finger cancels an armed clip move", async ({
   const gap = await showGap(page, guest);
   const fingers = await twoFingers(context, page, browserName);
   const from = onBody(gap);
+  await expectClipAt(page, gap.clip, from);
   await fingers.down(from);
   await page.waitForTimeout(HOLD_MS);
   await expect(armed(page)).toHaveCount(1);
@@ -412,7 +454,9 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   const commands = watchCommands(page);
   // The gap in the guest's lane, which has no envelope points or pending edits.
   const gap = await showGap(page, guest);
-  await hold(page, finger, { x: gap.start - 5 * gap.pps, y: gap.y });
+  const at = { x: gap.start - 5 * gap.pps, y: gap.y };
+  await expectEmptyAt(page, at);
+  await hold(page, finger, at);
   await finger.up();
   const menu = page.getByRole("menu", { name: /^Create at / });
   await expect(menu).toBeVisible();
@@ -533,11 +577,13 @@ test("in a short viewport the create menu stays in view off the finger, and lift
     const row = document.querySelector(`.lane-row[data-track-id="${trackId}"]`);
     row?.scrollIntoView({ block: "center" });
     const box = row?.getBoundingClientRect();
-    return box ? box.top + box.height / 2 : null;
+    return box ? box.bottom - 8 : null;
   }, guest.trackId);
   if (y === null) throw new Error("guest lane not found");
+  await expectBelowEnvelopeLine(page, guest.trackId, y);
   await page.waitForTimeout(300);
   const at = { x: gap.start - 5 * gap.pps, y };
+  await expectEmptyAt(page, at);
   await hold(page, finger, at);
   const menu = page.getByRole("menu", { name: /^Create at / });
   await expect(menu).toBeVisible();
@@ -606,6 +652,7 @@ async function measureCreateMenu(
   guest: GuestLane,
   rootPx: number,
   height: number,
+  rightEdge = false,
 ): Promise<MenuRow | null> {
   await page.setViewportSize({ width: 844, height });
   await page.evaluate((px) => {
@@ -613,19 +660,36 @@ async function measureCreateMenu(
   }, rootPx);
   await page.waitForTimeout(400);
   const gap = await showGap(page, guest);
+  let x = gap.start - 5 * gap.pps;
+  if (rightEdge) {
+    x = await page.evaluate((gapX) => {
+      const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
+      const view = scroller.getBoundingClientRect();
+      const before = scroller.scrollLeft;
+      scroller.scrollLeft += gapX - (view.left + scroller.clientWidth - 20);
+      return gapX - (scroller.scrollLeft - before);
+    }, x);
+  }
   const y = await page.evaluate((trackId) => {
     const row = document.querySelector(`.lane-row[data-track-id="${trackId}"]`);
-    row?.scrollIntoView({ block: "nearest" });
-    const scroller = document.querySelector(".timeline-scroll");
-    const box = row?.getBoundingClientRect();
+    const scroller = document.querySelector<HTMLElement>(".timeline-scroll");
+    const before = row?.getBoundingClientRect();
     const view = scroller?.getBoundingClientRect();
-    if (!box || !view) return null;
-    const top = Math.max(box.top, view.top);
-    const bottom = Math.min(box.bottom, view.bottom);
-    return bottom - top < 8 ? null : (top + bottom) / 2;
+    if (!row || !scroller || !before || !view) return null;
+    const visibleBottom = view.top + scroller.clientHeight - 20;
+    scroller.scrollTop += before.bottom - visibleBottom;
+    const box = row.getBoundingClientRect();
+    const ruler = document
+      .querySelector(".time-ruler")
+      ?.getBoundingClientRect();
+    const top = Math.max(box.top, view.top, ruler?.bottom ?? view.top);
+    const bottom = Math.min(box.bottom, visibleBottom);
+    return bottom - top < 8 ? null : bottom - 8;
   }, guest.trackId);
   if (y === null) return null;
-  const at = { x: gap.start - 5 * gap.pps, y };
+  await expectBelowEnvelopeLine(page, guest.trackId, y);
+  const at = { x, y };
+  await expectEmptyAt(page, at);
   await hold(page, finger, at);
   const measured = await page.evaluate(({ x, y: fy }) => {
     const menu = document.querySelector<HTMLElement>(".create-menu");
@@ -728,17 +792,34 @@ test("a create menu taller than 90% of the screen, with room beside the finger, 
     width: 844,
     height: 390,
   });
+  await page
+    .getByRole("button", { name: "Maximize timeline", exact: true })
+    .click();
   const finger = await newFinger(context, page, browserName);
   const rows: MenuRow[] = [];
-  for (const rootPx of [24, 26, 28, 30, 32]) {
-    const tall = await measureCreateMenu(page, finger, guest, rootPx, 900);
+  for (const rootPx of [24, 26, 28, 30, 32, 34, 36]) {
+    const tall = await measureCreateMenu(
+      page,
+      finger,
+      guest,
+      rootPx,
+      900,
+      true,
+    );
     if (!tall) throw new Error(`no create menu at ${rootPx}px text`);
     // A screen just tall enough for the whole menu and its edges. Where the
     // menu is then more than 90dvh, nothing needs to cap or scroll it, so the
     // shared drop-down cap must not.
     const height = Math.ceil(tall.naturalHeight) + 2 * CHOOSER_EDGE_PX + 4;
     if (tall.naturalHeight <= 0.9 * height) continue;
-    const row = await measureCreateMenu(page, finger, guest, rootPx, height);
+    const row = await measureCreateMenu(
+      page,
+      finger,
+      guest,
+      rootPx,
+      height,
+      true,
+    );
     if (!row) throw new Error(`no create menu at ${rootPx}px on ${height}px`);
     rows.push(row);
   }
@@ -873,6 +954,7 @@ test("a second finger cancels an armed drag and the create menu", async ({
 
   const gap = await showGap(page, guest);
   const body = { x: gap.start - 5 * gap.pps, y: gap.y };
+  await expectEmptyAt(page, body);
   await fingers.down(body);
   await page.waitForTimeout(HOLD_MS);
   await expect(page.getByRole("menu", { name: /^Create at / })).toBeVisible();
