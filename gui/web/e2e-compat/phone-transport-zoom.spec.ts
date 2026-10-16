@@ -89,6 +89,22 @@ test("phone zoom keeps the compact transport and Listen timer inside the viewpor
   expect(timerOverflow, "the current and total times fit the Listen card").toBe(
     0,
   );
+
+  await moreHub(page);
+  await page
+    .locator(".mobile-more-item", { hasText: "Pipeline" })
+    .first()
+    .click();
+  const pipeline = page.locator(".pipeline-panel");
+  await expect(pipeline).toBeVisible();
+  await chromeReachable(page, ".pipeline-panel");
+  const pipelineOverflow = await pipeline.evaluate(
+    (el) => el.scrollWidth - el.clientWidth,
+  );
+  expect(
+    pipelineOverflow,
+    "the Pipeline panel stays within its horizontal viewport",
+  ).toBe(0);
 });
 
 test("compact transport at 200% text keeps More History below the bar (#1636)", async ({
