@@ -15,7 +15,6 @@ import re
 import shutil
 import subprocess
 import threading
-import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -80,6 +79,7 @@ from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util import atomic_render
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import render_lock, render_lock_path
+from render_lock_signal import render_contention_signal
 from ripple_helpers import ripple_cut
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1156,46 +1156,52 @@ def test_a_premix_that_stays_stale_after_a_rebuild_warns(
     assert "stems that stay stale: guest" in caplog.text
 
 
-def _wait_for_log(caplog, text: str, timeout: float = 5.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if text in caplog.text:
-            return True
-        time.sleep(0.02)
-    return False
-
-
-def test_render_lock_is_reentrant_and_serializes_threads(minimal_project, caplog):
+def test_render_lock_is_reentrant_and_serializes_threads(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     held, release, order = threading.Event(), threading.Event(), []
+    errors: list[BaseException] = []
 
     def holder() -> None:
         with render_lock(ws.project), render_lock(ws.project):
             held.set()
-            release.wait(5)
+            assert release.wait(5)
 
     def waiter() -> None:
         with render_lock(ws.project):
             order.append("b")
 
-    with caplog.at_level(logging.INFO, logger="podcast_mcp.util.project_state"):
-        a = threading.Thread(target=holder)
+    def run(fn) -> None:
+        try:
+            fn()
+        except BaseException as exc:
+            errors.append(exc)
+
+    with render_contention_signal(ws.project.workspace_path()) as contended:
+        a = threading.Thread(target=run, args=(holder,))
         a.start()
-        assert held.wait(5)
-        b = threading.Thread(target=waiter)
-        b.start()
-        assert _wait_for_log(caplog, "waiting for another render")
-        assert order == []
-        release.set()
-        a.join(5)
-        b.join(5)
+        b = None
+        try:
+            assert held.wait(5)
+            b = threading.Thread(target=run, args=(waiter,))
+            b.start()
+            assert contended.wait(5)
+            assert order == []
+        finally:
+            release.set()
+            a.join(10)
+            if b is not None:
+                b.join(10)
+            if errors:
+                raise errors[0]
     assert not a.is_alive()
-    assert not b.is_alive()
+    assert b is None or not b.is_alive()
+    if errors:
+        raise errors[0]
     assert order == ["b"]
     assert render_lock_path(ws.project).is_file()
 
 
-def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
+def test_export_and_render_preview_serialize_their_mix(minimal_project):
     ws = _two_tracks(minimal_project)
     _fresh_stems(ws.project)
     ws.save()
@@ -1213,7 +1219,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
             first = not in_mix.is_set()
         if first:
             in_mix.set()
-            release.wait(5)
+            assert release.wait(5)
         try:
             return original(inputs, out, **kw)
         finally:
@@ -1234,7 +1240,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
         patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
         patch.object(steps, "schedule_stem_waveforms"),
         patch("podcast_mcp.render.maybe_auto_reconcile", return_value={}),
-        caplog.at_level(logging.INFO, logger="podcast_mcp.util.project_state"),
+        render_contention_signal(ws.project.workspace_path()) as contended,
     ):
         te = threading.Thread(
             target=run,
@@ -1245,21 +1251,31 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
             ),
         )
         te.start()
-        assert in_mix.wait(5)
-        tr = threading.Thread(
-            target=run,
-            args=(
-                lambda: PipelineService(ProjectWorkspace.open(minimal_project)).render_preview(),
-            ),
-        )
-        tr.start()
-        assert _wait_for_log(caplog, "waiting for another render")
-        assert eng.mix_tracks.call_count == 1
-        release.set()
-        te.join(10)
-        tr.join(10)
+        tr = None
+        try:
+            assert in_mix.wait(5)
+            tr = threading.Thread(
+                target=run,
+                args=(
+                    lambda: PipelineService(
+                        ProjectWorkspace.open(minimal_project)
+                    ).render_preview(),
+                ),
+            )
+            tr.start()
+            assert contended.wait(5)
+            assert eng.mix_tracks.call_count == 1
+        finally:
+            release.set()
+            te.join(10)
+            if tr is not None:
+                tr.join(10)
+            if errors:
+                raise errors[0]
     assert not te.is_alive()
-    assert not tr.is_alive()
+    assert tr is None or not tr.is_alive()
+    if errors:
+        raise errors[0]
     assert errors == []
     assert state["max"] == 1
     assert eng.mix_tracks.call_count == 2
