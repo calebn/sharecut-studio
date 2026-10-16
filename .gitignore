@@ -36,7 +36,12 @@ coverage.xml
 htmlcov/
 .mypy_cache/
 .ruff_cache/
-.cursor/
+# Local Cursor state. Re-include the committed pstack bake-in so Autopilot
+# cloud checkouts inject it (VMs have no ~/.cursor/rules/).
+.cursor/*
+!.cursor/rules/
+.cursor/rules/*
+!.cursor/rules/pstack-models.mdc
 .DS_Store
 *.orig
 /node_modules/

@@ -8,6 +8,7 @@ Canonical agent configuration for **any** MCP-capable client (Cursor, Claude Cod
 | [rules/engineering-standards.md](rules/engineering-standards.md) | SOLID/DRY, tests-as-you-go, docs-in-sync |
 | [Git policy](skills/sharecut-poteto/references/git-workflow.md) | Feature branch → PR → `main` (no direct pushes to `main`) |
 | [rules/gui-styling.md](rules/gui-styling.md) | Theme tokens, rem, `@container`, consent-gated CSS exceptions |
+| [rules/pstack-models.mdc](rules/pstack-models.mdc) | pstack per-role models (identical to `.cursor/rules/pstack-models.mdc`; Autopilot/cloud bake-in) |
 | [Issue claims](skills/sharecut-poteto/references/issue-claims.md) | Claiming GitHub issues (`in-progress`, `pipeline:*` stage labels, claim comment + 6-hour heartbeat) so agents don't collide |
 | [skills/](skills/) | Episode workflows and the [native Poteto companion](skills/sharecut-poteto/SKILL.md) |
 | [defaults/pipeline.yaml](defaults/pipeline.yaml) | Shared pipeline thresholds |
@@ -21,6 +22,18 @@ Canonical agent configuration for **any** MCP-capable client (Cursor, Claude Cod
 3. Reload MCP servers after install if the IDE was already running.
 
 See [docs/setup.md](../docs/setup.md) for details.
+
+## pstack models (Cursor Autopilot / cloud)
+
+Cursor Autopilot cloud VMs have no `~/.cursor/rules/`. The committed
+[`.cursor/rules/pstack-models.mdc`](../.cursor/rules/pstack-models.mdc) is the
+workspace alwaysApply rule those checkouts inject. [rules/pstack-models.mdc](rules/pstack-models.mdc)
+is the same body in this bundle — keep the two files identical.
+
+Native poteto skills still `Read` `~/.cursor/rules/pstack-models.mdc`. Autopilot
+and cloud owners copy workspace `.cursor/rules/pstack-models.mdc` to
+`~/.cursor/rules/pstack-models.mdc` before spawning Task. Do not add a second
+copy helper here.
 
 ## Feature docs (for agents)
 
