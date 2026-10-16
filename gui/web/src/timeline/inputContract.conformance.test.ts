@@ -194,6 +194,43 @@ const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
   );
 
 describe("touch paths", () => {
+  it("arms a nearby flat point before the line and arms the line in its own reach", () => {
+    const chooser: string[][] = [];
+    router.dispose();
+    router = attachHitRouting(root, {
+      onChooser: (view) => {
+        if (view)
+          chooser.push(view.hits.map(({ candidate }) => candidate.kind));
+      },
+      onArm: (target) => armed.push(target),
+    });
+    const line = button(hitTargetProps("envelope-line", "level", 0), {
+      left: 100,
+      top: 114,
+      right: 400,
+      bottom: 126,
+    });
+    const point = button(hitTargetProps("envelope-point", "point", 10), {
+      left: 195,
+      top: 115,
+      right: 205,
+      bottom: 125,
+    });
+    root.append(line, point);
+    press(point, "pointerdown", 203, 116);
+    router.longPress();
+    expect(chooser.at(-1)).toEqual(["envelope-point", "envelope-line"]);
+    router.dispose();
+    root.replaceChildren(line);
+    router = attachHitRouting(root, { onArm: (target) => armed.push(target) });
+    press(line, "pointerdown", 300, 120);
+    router.longPress();
+    expect(armed.at(-1)).toEqual({
+      kind: "envelope-line",
+      id: "level",
+      axis: "y",
+    });
+  });
   it("finds the timeline's press owners", () => {
     expect(PRESS_OWNERS.length).toBeGreaterThan(HIT_KIND_NAMES.length);
   });

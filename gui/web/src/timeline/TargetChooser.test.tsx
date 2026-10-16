@@ -104,6 +104,30 @@ function show(overrides: Partial<ChooserView> = {}) {
 }
 
 describe("TargetChooser", () => {
+  it("shows a whole-track flat-line glyph without a false time at a late touch position", () => {
+    const line = target(
+      hitTargetProps("envelope-line", "host-line", 0, { detail: "0.80" }),
+    );
+    view = {
+      ...view,
+      origin: { x: 300, y: 400 },
+      hits: [
+        hit(line, { kind: "envelope-line", id: "host-line", x: 300, y: 400 }),
+      ],
+    };
+    show();
+    const chip = screen.getByRole("menuitemradio");
+    expect(chip).toHaveAttribute("aria-label", "Envelope level, whole track");
+    expect(
+      chip.querySelector(".target-glyph--envelope-line .target-glyph-line"),
+    ).toBeTruthy();
+    expect(document.querySelector(".target-chooser-caption")).toHaveTextContent(
+      "Envelope level, whole track",
+    );
+    expect(
+      document.querySelector(".target-chooser-caption"),
+    ).not.toHaveTextContent("00:00");
+  });
   it("names each target by kind and time, in real-x order, and announces the count", () => {
     show();
     const menu = screen.getByRole("menu", { name: "Targets here" });
