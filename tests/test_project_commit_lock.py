@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing as mp
-import time
 from pathlib import Path
 
 import pytest
@@ -34,7 +33,7 @@ from podcast_mcp.util.project_state import (
     project_commit_lock,
     project_commit_lock_path,
 )
-from process_helpers import reap
+from process_helpers import observe_failed_commit_lock_attempt, reap
 from review_platform import requires_safe_failed_cleanup
 from review_platform import (
     unmarked_tests_run_as_unsupported_platform as unmarked_tests_run_as_unsupported_platform,
@@ -75,14 +74,14 @@ def _child_failed_publish(project_path, publishing, may_clean, cleaned) -> None:
         ReviewService(ProjectWorkspace.open(project_path)).publish(label="doomed")
 
 
-def _child_goto(project_path, index, adopted, result) -> None:
+def _child_goto(project_path, index, blocked, result) -> None:
     """Adopt the failing publication's uncommitted index, then jump to its last entry."""
     store = ProjectStore(Path(project_path))
     project = store.load()
     mgr = HistoryManager(Path(project_path))
-    adopted.set()
     try:
-        mgr.goto(project, index)
+        with observe_failed_commit_lock_attempt(project, blocked):
+            mgr.goto(project, index)
         result.put("ok")
     except Exception as exc:
         result.put(type(exc).__name__)
@@ -261,17 +260,21 @@ def test_failed_publication_cleanup_is_not_raced_by_history_goto(minimal_project
     a = _CTX.Process(
         target=_child_failed_publish, args=(minimal_project, publishing, may_clean, cleaned)
     )
-    a.start()
-    assert publishing.wait(60)
-    adopted, result = _CTX.Event(), _CTX.Queue()
-    b = _CTX.Process(target=_child_goto, args=(minimal_project, doomed_index, adopted, result))
-    b.start()
-    assert adopted.wait(60)
-    time.sleep(1.0)
-    may_clean.set()
-    assert cleaned.wait(60)
-    reap(a, 60)
-    reap(b, 60)
+    blocked, result = _CTX.Event(), _CTX.Queue()
+    b = _CTX.Process(target=_child_goto, args=(minimal_project, doomed_index, blocked, result))
+    try:
+        a.start()
+        assert publishing.wait(60)
+        b.start()
+        assert blocked.wait(60), "goto never made a busy project-lock attempt"
+        may_clean.set()
+        assert cleaned.wait(60)
+    finally:
+        may_clean.set()
+        if a.pid is not None:
+            reap(a, 60)
+        if b.pid is not None:
+            reap(b, 60)
     assert result.get(timeout=10) != "ok"
 
     persisted = load_project(minimal_project)
