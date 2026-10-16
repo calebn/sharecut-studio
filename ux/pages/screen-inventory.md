@@ -2,7 +2,7 @@
 
 Per-surface **display schemas**: what regions exist, what data they show, empty/loading states, and what’s out of scope. Pair with [Domain glossary](#/glossary) for field definitions.
 
-**Breakpoints:** phone &lt;768 · tablet 768–1180 · desktop &gt;1180. Spec: [docs/gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md).
+**Breakpoints:** phone &lt;768 · tablet 768–1194 · desktop &gt;1194. Spec: [docs/gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md).
 
 **Live reference:** [See the UI](#/demo) — screenshots + [`sharecut_ux_demo`](https://github.com/calebn/sharecut-studio/tree/main/tests/fixtures/sharecut_ux_demo) fixture.
 
