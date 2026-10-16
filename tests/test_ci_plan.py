@@ -106,6 +106,7 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
         (["docs/setup.md", "src/podcast_mcp/edits/cuts.py"], False, "full", []),
         ([".agents/defaults/pipeline.yaml"], True, "full", PR_E2E),
         ([".agents/rules/gui-styling.md"], False, "full", []),
+        ([".cursor/rules/pstack-models.mdc"], False, "full", []),
         (["config/distribution.dev.json"], True, "full", PR_E2E),
         (["tests/fixtures/document_delta/insert.json"], True, "full", PR_E2E),
         (["src/podcast_mcp/engines/bleed_gate.py", "tests/test_bleed_gate.py"], False, "full", []),
