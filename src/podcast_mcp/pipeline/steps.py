@@ -37,6 +37,7 @@ from podcast_mcp.pipeline.helpers import (
     set_or_replace_chain,
 )
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.project_state import current_cancel_check, with_render_lock
@@ -483,13 +484,13 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
             # The tighten analysis did not run, so look for sounds here and keep only those.
             prog.set_phase("propose", "Looking for non-speech sounds…")
             scratch = project.model_copy(deep=True)
-            found = [
-                d
-                for d in propose_tighten_edits(
+            # Proving each sound reads the same stems and paths again and again; the scan only
+            # reads the scratch copy, so those reads are shared across it (and its workers).
+            with batch_scope(), frozen_state():
+                proposal = propose_tighten_edits(
                     scratch, _defaults_without_word_probe(defaults), replace_existing=True
-                ).decisions
-                if is_non_speech_sound(d.reason)
-            ]
+                )
+            found = [d for d in proposal.decisions if is_non_speech_sound(d.reason)]
             project.edit_decisions = [
                 e for e in project.edit_decisions if e.applied or not is_non_speech_sound(e.reason)
             ] + found

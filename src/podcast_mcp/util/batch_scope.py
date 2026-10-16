@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 T = TypeVar("T")
+# A batch scope and a frozen block, either of which may be absent.
+BatchState = tuple[dict[Hashable, Any] | None, dict[Hashable, Any] | None]
 _scope: ContextVar[dict[Hashable, Any] | None] = ContextVar("batch_scope", default=None)
 
 
@@ -84,3 +86,27 @@ def frozen(key: Hashable, make: Callable[[], T], *, keep: object = None) -> T:
     if key not in block:
         block[key] = (keep, make())
     return block[key][1]
+
+
+@contextmanager
+def carried(state: BatchState) -> Iterator[None]:
+    """Run a worker thread inside the caller's batch scope and frozen block.
+
+    A thread pool starts its threads in an empty context, so without this the pool's work
+    would pay for every decode and path resolution the caller's scope already shares.
+    """
+    scope, block = state
+    scope_token = _scope.set(scope) if scope is not None else None
+    frozen_token = _frozen.set(block) if block is not None else None
+    try:
+        yield
+    finally:
+        if frozen_token is not None:
+            _frozen.reset(frozen_token)
+        if scope_token is not None:
+            _scope.reset(scope_token)
+
+
+def snapshot() -> BatchState:
+    """The caller's current batch scope and frozen block, for :func:`carried`."""
+    return _scope.get(), _frozen.get()

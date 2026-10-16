@@ -131,3 +131,21 @@ def test_with_tighten_off_the_scan_skips_the_word_probe(sounds_project, monkeypa
 
     assert summary == "no non-speech sounds to act on"
     assert seen == {"word_probe": False, "caller_word_probe": True}
+
+
+def test_with_tighten_off_the_scan_shares_its_repeat_reads(sounds_project, monkeypatch):
+    from podcast_mcp.util import batch_scope
+
+    seen = {}
+
+    def propose(project, cfg, *, replace_existing):
+        seen["state"] = batch_scope.snapshot()
+        return type("Proposal", (), {"decisions": []})()
+
+    monkeypatch.setattr(steps, "propose_tighten_edits", propose)
+
+    steps.apply_sound_actions(sounds_project, load_defaults())
+
+    scope, block = seen["state"]
+    assert scope is not None and block is not None
+    assert batch_scope.snapshot() == (None, None)
