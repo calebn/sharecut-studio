@@ -14,8 +14,11 @@ import {
 } from "./useMediaQueryStore";
 
 export const PHONE_MAX_PX = 767;
-/** iPad 11″ landscape is ~1180 CSS px wide; keep it on the tablet shell (#1632). */
-export const TABLET_MAX_PX = 1180;
+/**
+ * iPad Air 11″ landscape is 1180 CSS px wide and iPad Pro 11″ is 1194; keep
+ * both on the tablet shell (#1632, #1674).
+ */
+export const TABLET_MAX_PX = 1194;
 
 export const PHONE_MQ = `(max-width: ${PHONE_MAX_PX}px)`;
 export const TABLET_MQ = `(max-width: ${TABLET_MAX_PX}px)`;

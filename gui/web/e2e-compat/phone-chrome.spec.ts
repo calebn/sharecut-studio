@@ -299,3 +299,27 @@ test("the phone timeline shows Undo and Redo; a Safari tab offers the Home Scree
     await expect(hint).toBeHidden();
   });
 });
+
+for (const width of [1180, 1194]) {
+  test(`an iPad ${width} wide in landscape keeps Select, Blade, Select range, + Track and Import on the rail (#1674)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 834 });
+    await withShareableProject(async (projectPath) => {
+      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+      await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+      const rail = page.getByRole("group", { name: "Editing tools" });
+      for (const name of [
+        "Select",
+        "Blade",
+        "Select range",
+        "+ Track",
+        "Import",
+      ]) {
+        await expect(
+          rail.getByRole("button", { name, exact: true }),
+        ).toBeVisible();
+      }
+    });
+  });
+}
