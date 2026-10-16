@@ -2065,7 +2065,7 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
 
     with (
         patch(
-            "podcast_mcp.edits.cut_proof.shared_timeline_rms_caches",
+            "podcast_mcp.edits.fillers.shared_timeline_rms_caches",
             return_value=timeline_caches,
         ) as shared_timeline,
         patch(

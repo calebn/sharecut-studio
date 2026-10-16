@@ -28,6 +28,7 @@ from podcast_mcp.edits.breath_detect import (
     pause_air_span,
     protect_cut_breaths,
 )
+from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
 from podcast_mcp.edits.cut_quality import (
     assess_cut_risk,
     optimize_and_assess,
@@ -97,6 +98,7 @@ if TYPE_CHECKING:
         LaneUnavailable,
         PauseEdgeFade,
     )
+    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 
 log = logging.getLogger(__name__)
 
@@ -2263,6 +2265,7 @@ def _cut_scope(
     *,
     peer_scoped: bool,
     defaults: dict[str, Any],
+    caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> ResolvedCutScope | _CutRejected:
     if not peer_scoped:
@@ -2270,7 +2273,13 @@ def _cut_scope(
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
 
     resolved = resolve_cut_scope(
-        project, track_id, start, end, defaults=defaults, _admissible_spans=_admissible_spans
+        project,
+        track_id,
+        start,
+        end,
+        defaults=defaults,
+        caches=caches,
+        _admissible_spans=_admissible_spans,
     )
     if isinstance(resolved, CutScopeUnavailable):
         return _CutRejected("scope_unavailable")
@@ -2287,6 +2296,7 @@ def _gate_cut_edges(
     audio_caches: Mapping[str, TrackAudioCache] | None,
     word_index: CutWordIndex | None,
     session_air: SessionAir | None,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> _GatedCut | _CutRejected:
     """Run the edge checks ``plan.checks`` selects, then read who speaks over the final span."""
     track_id = candidate.track_id
@@ -2441,6 +2451,7 @@ def _gate_cut_edges(
             cut_end,
             peer_scoped=checks.peer_scoped,
             defaults=defaults,
+            caches=timeline_caches,
             _admissible_spans=admissible_spans,
         )
     except ValueError:
@@ -2498,6 +2509,7 @@ def _prepare_candidate(
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     session_air: SessionAir | None = None,
+    timeline_caches: TrackRmsCacheSet | None = None,
     force_enabled: bool | None = None,
     _retention_retry: bool = False,
 ) -> _PreparedCut | _CutRejected:
@@ -2592,7 +2604,13 @@ def _prepare_candidate(
     cut_start, cut_end = paced_span
     try:
         resolved = _cut_scope(
-            project, track_id, cut_start, cut_end, peer_scoped=not mute_mode, defaults=defaults
+            project,
+            track_id,
+            cut_start,
+            cut_end,
+            peer_scoped=not mute_mode,
+            defaults=defaults,
+            caches=timeline_caches,
         )
     except ValueError:
         return _CutRejected("scope")
@@ -2613,6 +2631,7 @@ def _prepare_candidate(
         audio_caches=audio_caches,
         word_index=word_index,
         session_air=session_air,
+        timeline_caches=timeline_caches,
     )
     if not isinstance(gated, _GatedCut):
         return gated
@@ -2752,6 +2771,7 @@ def _prepare_candidate(
                     peer_indexes=peer_indexes,
                     audio_caches=audio_caches,
                     session_air=air,
+                    timeline_caches=timeline_caches,
                     force_enabled=force_enabled,
                     _retention_retry=True,
                 )
@@ -2805,6 +2825,7 @@ def _prepare_candidate(
                     plan.end,
                     peer_scoped=True,
                     defaults=defaults,
+                    caches=timeline_caches,
                     _admissible_spans=support,
                 )
             except ValueError:
@@ -3014,6 +3035,7 @@ def _analyze_candidate(
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     session_air: SessionAir | None = None,
+    timeline_caches: TrackRmsCacheSet | None = None,
 ) -> _AnalyzedCut | _CutRejected:
     prepared = _prepare_candidate(
         project,
@@ -3025,6 +3047,7 @@ def _analyze_candidate(
         peer_indexes=peer_indexes,
         audio_caches=audio_caches,
         session_air=session_air,
+        timeline_caches=timeline_caches,
     )
     if isinstance(prepared, _CutRejected):
         return prepared
@@ -3049,6 +3072,7 @@ def analyze_candidates(
     lost with it.
     """
     session_air = SessionAir(project, audio_caches=audio_caches, word_indexes=word_indexes)
+    timeline_caches = shared_timeline_rms_caches(project)
 
     def analyze(candidate: _CutCandidate) -> _AnalyzedCut | _CutRejected:
         prepared = _prepare_candidate(
@@ -3061,6 +3085,7 @@ def analyze_candidates(
             peer_indexes=peer_indexes,
             audio_caches=audio_caches,
             session_air=session_air,
+            timeline_caches=timeline_caches,
         )
         if isinstance(prepared, _CutRejected):
             return prepared

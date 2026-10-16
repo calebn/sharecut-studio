@@ -58,6 +58,12 @@ Implementation: `edits/fillers.py`, `edits/cut_quality.py`, `edits/join_continui
 
 ### Peer speech guard
 
+The tighten candidate scan (`analyze_candidates` in `edits/fillers.py`) builds
+timeline RMS caches once per run via `shared_timeline_rms_caches` in
+`edits/cut_proof.py` (`build_track_rms_caches(..., unprocessed=True)`) and passes
+that `TrackRmsCacheSet` through `resolve_cut_scope` for every peer-scoped cut
+(#1660).
+
 `speech_energy_guard` checks each mapped span independently with 10 ms frames,
 including up to the existing 60 ms outward edge pad. One qualifying frame can
 block session ripple, even when a long cut dilutes its whole-span mean. New
