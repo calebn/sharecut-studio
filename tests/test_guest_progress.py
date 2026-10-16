@@ -94,11 +94,8 @@ async def test_mcp_progress_sink_preserves_accepted_payload_when_closed() -> Non
 
     sink.emit(payload)
     sink.close()
-    await asyncio.sleep(0)
-
-    assert queue.get_nowait() == payload
+    assert await asyncio.wait_for(queue.get(), timeout=1) == payload
     sink.emit({"method": "late"})
-    await asyncio.sleep(0)
     assert queue.empty()
 
 
@@ -346,7 +343,6 @@ async def test_install_guest_tool_progress_mcp_notifications_when_token_present(
         wrapped = install_guest_tool_progress(impl, fail_detail=guest_failure_detail)
         out = wrapped("guest_get_project", {})
         assert out == {"ok": True}
-        await asyncio.sleep(0)
         assert ctx.notifications
         assert all(n["method"] == "notifications/progress" for n in ctx.notifications)
         assert all(n["params"]["progressToken"] == "pt-1" for n in ctx.notifications)
