@@ -120,6 +120,8 @@
 
   .modifier-footer-actions .ui-segmented {
     block-size: auto;
+    max-inline-size: 100%;
+    flex-wrap: wrap;
   }
 }
 
@@ -145,6 +147,8 @@ html[data-shell="phone"] .modifier-footer-actions .ui-control {
 
 html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   block-size: auto;
+  max-inline-size: 100%;
+  flex-wrap: wrap;
 }
 
 .modifier-error {
