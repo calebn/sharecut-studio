@@ -362,7 +362,11 @@ test.describe("flat envelope browser touch", () => {
             y: box!.y + box!.height / 2,
           };
           await touch(cdp, "touchStart", [start]);
-          await page.waitForTimeout(LONG_PRESS_MS + 150);
+          await expect(
+            page
+              .locator(".ui-toast")
+              .filter({ hasText: "Envelope level armed:" }),
+          ).toBeVisible();
           await touch(cdp, "touchMove", [{ x: start.x, y: start.y - 12 }]);
           await touch(cdp, "touchCancel");
           await expect(slider).toHaveAttribute("aria-valuenow", "1");
