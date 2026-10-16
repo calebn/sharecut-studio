@@ -178,10 +178,11 @@ def test_registry_observer_identifies_exit_without_result(
 
 
 def _stalled_registry_report(sender: Connection, entered: Any) -> None:
+    stall = multiprocessing.Event()
     try:
         sender.send(("progress", "target entered"))
         entered.set()
-        time.sleep(60)
+        stall.wait()
     finally:
         sender.close()
 

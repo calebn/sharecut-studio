@@ -147,21 +147,25 @@ async def test_start_passes_send_gate(monkeypatch):
         await conn.stop_tasks()
 
 
+async def _until_cancelled() -> None:
+    await asyncio.Event().wait()
+
+
 @pytest.mark.asyncio
 async def test_stop_tasks_cancels_and_logs_failures(caplog):
     ws = _Ws()
     conn = await admit_guest_ws(ws, "tok", log_label="test")
     assert conn is not None
 
-    async def _sleeper() -> None:
-        await asyncio.sleep(10)
+    boomed = asyncio.Event()
 
     async def _boom() -> None:
+        boomed.set()
         raise RuntimeError("boom")
 
-    sleeper_task = conn.spawn(_sleeper())
+    sleeper_task = conn.spawn(_until_cancelled())
     conn.spawn(_boom())
-    await asyncio.sleep(0)
+    await asyncio.wait_for(boomed.wait(), 2)
 
     with caplog.at_level(logging.ERROR):
         await conn.stop_tasks()
@@ -211,20 +215,25 @@ def test_guest_sockets_reject_revoked_token_identically(path, minimal_project, s
 async def test_ws_task_set_stop_propagates_outer_cancel():
     unwinding = asyncio.Event()
 
+    started = asyncio.Event()
+    hold_unwind = asyncio.Event()
+
     async def _slow_unwind() -> None:
+        started.set()
         try:
-            await asyncio.sleep(3600)
+            await _until_cancelled()
         except asyncio.CancelledError:
             unwinding.set()
-            await asyncio.sleep(0.05)
+            await hold_unwind.wait()
             raise
 
     tasks = WsTaskSet("test")
     inner = tasks.spawn(_slow_unwind())
-    await asyncio.sleep(0)
+    await asyncio.wait_for(started.wait(), 2)
     outer = asyncio.create_task(tasks.stop())
     await unwinding.wait()
     outer.cancel()
+    hold_unwind.set()
     with pytest.raises(asyncio.CancelledError):
         await outer
     assert outer.cancelled()
@@ -233,12 +242,15 @@ async def test_ws_task_set_stop_propagates_outer_cancel():
 
 @pytest.mark.asyncio
 async def test_ws_task_set_stop_without_outer_cancel_returns_normally():
+    started = asyncio.Event()
+
     async def _sleeper() -> None:
-        await asyncio.sleep(3600)
+        started.set()
+        await _until_cancelled()
 
     tasks = WsTaskSet("test")
     t = tasks.spawn(_sleeper())
-    await asyncio.sleep(0)
+    await asyncio.wait_for(started.wait(), 2)
     await tasks.stop()  # must not raise
     assert t.cancelled()
 
@@ -249,13 +261,13 @@ async def test_ws_task_set_stop_in_finally_keeps_the_delivered_cancel():
     tasks = WsTaskSet("test")
     stop_outcome: list[str] = []
 
-    async def _sleeper() -> None:
-        await asyncio.sleep(3600)
+    entered = asyncio.Event()
 
     async def _route() -> None:
-        child = tasks.spawn(_sleeper())
+        child = tasks.spawn(_until_cancelled())
         try:
-            await asyncio.sleep(3600)
+            entered.set()
+            await _until_cancelled()
         finally:
             try:
                 await tasks.stop()
@@ -266,7 +278,7 @@ async def test_ws_task_set_stop_in_finally_keeps_the_delivered_cancel():
             assert child.cancelled()
 
     route = asyncio.create_task(_route())
-    await asyncio.sleep(0.01)
+    await asyncio.wait_for(entered.wait(), 2)
     route.cancel("shutdown-msg")
     with pytest.raises(asyncio.CancelledError) as excinfo:
         await route
@@ -277,12 +289,15 @@ async def test_ws_task_set_stop_in_finally_keeps_the_delivered_cancel():
 
 @pytest.mark.asyncio
 async def test_ws_task_set_logs_failures_and_is_reusable(caplog):
+    boomed = asyncio.Event()
+
     async def _boom() -> None:
+        boomed.set()
         raise RuntimeError("boom")
 
     tasks = WsTaskSet("owner ws")
     tasks.spawn(_boom())
-    await asyncio.sleep(0)
+    await asyncio.wait_for(boomed.wait(), 2)
     with caplog.at_level(logging.ERROR):
         await tasks.stop()
     assert any("owner ws pump exit" in rec.message for rec in caplog.records)
@@ -290,10 +305,13 @@ async def test_ws_task_set_logs_failures_and_is_reusable(caplog):
     await tasks.stop()  # empty set: no-op
     assert caplog.records == []
 
+    started = asyncio.Event()
+
     async def _sleeper() -> None:
-        await asyncio.sleep(3600)
+        started.set()
+        await _until_cancelled()
 
     t = tasks.spawn(_sleeper())  # reusable after stop (session record attach/detach)
-    await asyncio.sleep(0)
+    await asyncio.wait_for(started.wait(), 2)
     await tasks.stop()
     assert t.cancelled()
