@@ -103,3 +103,22 @@ def test_copy_lag_at_timeline_uses_lane_lag_steps(tmp_path: Path) -> None:
             project, caches, "guest", "host", 1.5, lag_steps={"guest": steps}
         )
     assert adjusted == pytest.approx(steady + 0.12)
+
+
+@pytest.mark.usefixtures("one_phrase_copy_evidence")
+@pytest.mark.parametrize("timeline_sec", [10_000.0, -50.0])
+def test_copy_lag_outside_the_source_lane_keeps_the_steady_lag(
+    tmp_path: Path, timeline_sec: float
+) -> None:
+    """A word judged past the source lane's end has no step to read: steady lag, no raise."""
+    project = _episode(tmp_path, direct_lag_sec=0.14)
+    caches = build_track_rms_caches(project)
+    steady = caches.copy_path("guest", "host").lag_sec
+    steps = LagSteps(
+        (LagSegment(start_sec=0.0, shift_sec=-0.12, frames=1, correlation=0.9),),
+        step_cost=1.0,
+    )
+    adjusted = copy_lag_at_timeline(
+        project, caches, "guest", "host", timeline_sec, lag_steps={"guest": steps}
+    )
+    assert adjusted == pytest.approx(steady)

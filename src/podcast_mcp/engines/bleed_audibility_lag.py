@@ -123,7 +123,11 @@ def copy_lag_at_timeline(
     read_tl = timeline_sec + steady
     clip = next(
         (span.clip for span in clips if span.timeline_start <= read_tl < span.timeline_end),
-        clips[0].clip,
+        None,
     )
+    if clip is None:
+        # The source lane has no audio there (it is shorter than the judged lane, or a cut left
+        # a gap), so no lag step applies; reading the first clip would raise outside its span.
+        return steady
     source_sec = clip_timeline_point_to_source(clip, read_tl)
     return effective_copy_lag_sec(steady, steps, source_sec)
