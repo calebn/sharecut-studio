@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pause_policy_public_helpers import workspace
 from podcast_mcp.models import load_project
-from podcast_mcp.services.document_sync.handlers.edits import approve_edits
 from podcast_mcp.services.document import HistoryService
+from podcast_mcp.services.document_sync.handlers.edits import approve_edits
 from podcast_mcp.services.document_sync.handlers.history import redo_history, undo_history
 from test_approve_guard_blocked_ripple import _blocked_filler
 
