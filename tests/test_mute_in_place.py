@@ -264,7 +264,7 @@ def test_mute_mode_skips_pause_candidates():
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
         patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             side_effect=RuntimeError("scorer down"),
         ),
     ):
@@ -341,7 +341,7 @@ def test_mute_analyze_join_fail_and_pacing_skip():
             patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
             patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
             patch(
-                "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+                "podcast_mcp.edits.cut_safety.assess_proposed_cut",
                 return_value=SimpleNamespace(verdict=verdict),
             ) as assess,
         ):
@@ -1508,7 +1508,7 @@ def _propose_with_stubbed_dsp(project: EpisodeProject, defaults: dict, edit_mode
         patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
-        patch("podcast_mcp.edits.join_continuity.assess_proposed_cut", side_effect=RuntimeError),
+        patch("podcast_mcp.edits.cut_safety.assess_proposed_cut", side_effect=RuntimeError),
     ):
         return propose_tighten_edits(project, defaults, edit_mode=edit_mode)
 

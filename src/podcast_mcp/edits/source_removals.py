@@ -177,21 +177,18 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         return error
 
 
-def inspect_source_remove_placement(
-    project: EpisodeProject, edit: EditDecision
-) -> tuple[TimelineSec, TimelineSec] | CutScopeHold:
-    """Check complete source placement and canonical operation membership."""
-    return _inspect_source_remove_placement(project, edit, check_witness=True)
-
-
 def resize_source_remove(
     project: EpisodeProject, saved: EditDecision, *, start: float, end: float
 ) -> EditDecision:
+    from podcast_mcp.edits.cut_safety import (
+        inspect_source_remove_placement,
+    )
+
     current = inspect_source_remove_placement(project, saved)
     if isinstance(current, CutScopeHold):
         raise ScopeChangedAtApproval([current], {}, {saved.id: cut_label(project, saved)})
     candidate = saved.model_copy(deep=True, update={"start": start, "end": end})
-    placement = _inspect_source_remove_placement(project, candidate, check_witness=False)
+    placement = _inspect_source_remove_placement_impl(project, candidate, check_witness=False)
     if isinstance(placement, CutScopeHold):
         raise ScopeChangedAtApproval([placement], {}, {saved.id: cut_label(project, saved)})
     expected_start = float(current[0]) + (start - saved.start)
@@ -208,7 +205,7 @@ def resize_source_remove(
     return candidate
 
 
-def _inspect_source_remove_placement(
+def _inspect_source_remove_placement_impl(
     project: EpisodeProject, edit: EditDecision, *, check_witness: bool
 ) -> tuple[TimelineSec, TimelineSec] | CutScopeHold:
     if (
@@ -368,9 +365,16 @@ def inspect_source_remove(
     *,
     heard_pause_sec: float | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
+    placement: tuple[TimelineSec, TimelineSec] | None = None,
 ) -> tuple[float, float] | CutScopeHold:
     """Assess final ordinary SOURCE bounds without publishing or authorizing a later mutation."""
-    span = inspect_source_remove_placement(project, edit)
+    span: tuple[TimelineSec, TimelineSec] | CutScopeHold
+    if placement is not None:
+        span = placement
+    else:
+        from podcast_mcp.edits.cut_safety import inspect_source_remove_placement
+
+        span = inspect_source_remove_placement(project, edit)
     if isinstance(span, CutScopeHold):
         return span
     if (edit.reason or "").startswith("pause:"):
@@ -426,6 +430,8 @@ def record_suggested_cut_speech(project: EpisodeProject, decision: EditDecision)
     """
     if decision.type != EditDecisionType.REMOVE:
         return
+    from podcast_mcp.edits.cut_safety import inspect_source_remove_placement
+
     span = inspect_source_remove_placement(project, decision)
     if isinstance(span, CutScopeHold):
         return
@@ -457,26 +463,6 @@ def _nearest_ripple_join_time(project: EpisodeProject, near_sec: float) -> float
     return best if best is not None and best_dist < 0.1 else near_sec
 
 
-def _pending_playing_source_spans(
-    project: EpisodeProject, besides: EditDecision
-) -> dict[str, list[tuple[float, float]]]:
-    timeline = SessionTimeline(project)
-    spans: dict[str, list[tuple[float, float]]] = {}
-    for other in project.edit_decisions:
-        if (
-            other.id == besides.id
-            or other.applied
-            or other.exact_range is not None
-            or other.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
-            or not timeline.map_source_span(
-                other.track_id, SourceSec(other.start), SourceSec(other.end)
-            )
-        ):
-            continue
-        spans.setdefault(other.track_id, []).append((other.start, other.end))
-    return spans
-
-
 def _apply_replace_gap_pad(
     project: EpisodeProject,
     edit: EditDecision,
@@ -496,8 +482,10 @@ def _apply_replace_gap_pad(
         else _nearest_ripple_join_time(project, tl_start)
     )
     if filler_pad_mode() == "room_tone":
+        from podcast_mcp.edits.cut_safety import pending_pad_source_spans
+
         report = insert_room_tone_pad(
-            project, pad_start_sec, gap, avoid=_pending_playing_source_spans(project, edit)
+            project, pad_start_sec, gap, avoid=pending_pad_source_spans(project, edit)
         )
         samples = report["pad_samples"]
     else:
@@ -583,6 +571,7 @@ def _consume_source_remove(
     scope still holds. A hold changes no geometry. Generic witnessed cuts keep their
     proven window through consumption; pause trims re-prove their optimized window.
     """
+    from podcast_mcp.edits import cut_safety
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
     from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
     from podcast_mcp.edits.track_media import full_span_clip
@@ -591,9 +580,10 @@ def _consume_source_remove(
     source_audio_caches = shared_source_audio_caches(project)
 
     scope = edit.scope or "session"
-    seed = inspect_source_remove_placement(project, edit)
+    seed = cut_safety.inspect_source_remove_placement(project, edit)
     if isinstance(seed, CutScopeHold):
         return seed
+    placement = seed
     timeline = SessionTimeline(project)
     tl_start, tl_end = float(seed[0]), float(seed[1])
     removal = None
@@ -658,9 +648,10 @@ def _consume_source_remove(
                 "crossfade_ms": finished.crossfade_ms,
             }
         )
-        final_span = inspect_source_remove_placement(project, actual)
+        final_span = cut_safety.inspect_source_remove_placement(project, actual)
         if isinstance(final_span, CutScopeHold):
             return final_span
+        placement = final_span
         tl_start, tl_end = float(final_span[0]), float(final_span[1])
         removal = RippleRemoval.of([TrackExtent(edit.track_id, tl_start, tl_end)])
     elif scope == "track":
@@ -723,6 +714,7 @@ def _consume_source_remove(
         actual,
         heard_pause_sec=prepared_pause.heard_pause if prepared_pause else None,
         audio_caches=source_audio_caches,
+        placement=placement,
     )
     if isinstance(assessed, CutScopeHold):
         return assessed

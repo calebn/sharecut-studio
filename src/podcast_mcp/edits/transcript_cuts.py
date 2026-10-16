@@ -295,11 +295,11 @@ def add_remove_decision(
     if end <= start:
         raise ValueError("end must be greater than start")
     from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_safety import inspect_source_remove_placement
     from podcast_mcp.edits.filler_pacing import apply_filler_pacing
     from podcast_mcp.edits.source_removals import (
         CutScopeHold,
         ScopeChangedAtApproval,
-        inspect_source_remove_placement,
         record_suggested_cut_speech,
         require_source_remove,
     )

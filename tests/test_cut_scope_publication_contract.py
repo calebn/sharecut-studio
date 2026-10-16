@@ -66,7 +66,7 @@ def test_moved_filler_edge_needs_available_assessment_before_publication(
         return assess_cross_track_speech(*args, **kwargs)
 
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", fail_on_moved_span
+        "podcast_mcp.edits.cut_safety.assess_cross_track_speech", fail_on_moved_span
     )
     proposal = propose_tighten_edits(result, cfg, replace_existing=False)
 
@@ -120,9 +120,7 @@ def test_acoustic_candidate_counts_one_unprefixed_unavailable_skip(tmp_path, mon
     def unavailable(*_args, **_kwargs):
         raise failure("acoustic candidate peer assessment unavailable")
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", unavailable
-    )
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_cross_track_speech", unavailable)
     proposal = propose_tighten_edits(result, cfg)
 
     assert proposal.skip_counts == {"scope_unavailable": 1}
@@ -147,9 +145,7 @@ def test_pause_cannot_force_session_scope_over_unavailable_assessment(
             raise failure("pause source span peer assessment unavailable")
         return assess_cross_track_speech(*args, **kwargs)
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", unavailable_pause
-    )
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_cross_track_speech", unavailable_pause)
     proposal = propose_tighten_edits(result, cfg)
 
     assert assessed == [pytest.approx((0.2, 4.45))] * (1 if assessment == "initial" else 2)
@@ -167,9 +163,7 @@ def test_mute_proposal_stays_publishable_with_a_failing_peer_assessor(
     def unavailable(*_args, **_kwargs):
         raise failure("MUTE must not require peer assessment")
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", unavailable
-    )
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_cross_track_speech", unavailable)
     proposal = propose_tighten_edits(result, cfg, replace_existing=False, edit_mode="mute")
 
     assert [(d.start, d.end, d.type, d.scope) for d in proposal.decisions] == [
@@ -217,9 +211,7 @@ def test_requested_track_bypasses_failed_assessment_and_saved_track_stays_a_punc
     def unavailable(*_args, **_kwargs):
         raise failure("intentional track operation must not require peer assessment")
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", unavailable
-    )
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_cross_track_speech", unavailable)
     resolved = resolve_cut_scope(result, "host", 1, 1.5, requested_scope="track", defaults=cfg)
     assert resolved.scope == "track"
     edit = pause("punch", start=1, end=1.5, gap=None)
@@ -256,9 +248,7 @@ def test_saved_session_approval_unavailable_hold_preserves_saved_bytes(
         assessed.append((args[2], args[3]))
         raise failure("saved session peer assessment unavailable")
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", unavailable
-    )
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_cross_track_speech", unavailable)
     with pytest.raises(ScopeChangedAtApproval) as held:
         EditService(ws).approve(["session"])
 

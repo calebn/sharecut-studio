@@ -7,13 +7,13 @@ import re
 from bisect import bisect_left
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
-from enum import Enum
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from podcast_mcp.config import bounded_float, join_micro_fade_ms
+from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.acoustic_gap import (
     AcousticGapConfig,
     AcousticGapRun,
@@ -35,7 +35,6 @@ from podcast_mcp.edits.cut_quality import (
     recommend_cut_fade_ms,
     recommend_prev_word_lead_out_ms,
 )
-from podcast_mcp.edits.cut_safety import protect_cut_breaths
 from podcast_mcp.edits.filler_pacing import (
     MIN_PACED_CUT_SEC,
     PacedPad,
@@ -1774,90 +1773,6 @@ class _CutRejected:
     unavailable_lanes: tuple[LaneUnavailable, ...] = ()
 
 
-class _Join(Enum):
-    """How approving a cut joins the audio on either side of it."""
-
-    # A ripple without a pad (a track punch, a pause trim, a cut with no flanking
-    # word): the audio before ``start`` butts against the audio after ``end``.
-    SPLICE = "splice"
-    PADDED = "padded"
-    # Mute in place (``edits/mute_regions.py``): nothing moves and no other track
-    # changes; the clip fades out into the hole and back in after it with the padded
-    # cut's fades (``decisions._apply_mute_edit``).
-    MUTE = "mute"
-
-
-class _BreathEdges(Enum):
-    """What a cut's edges owe the breaths around them."""
-
-    # A splice: an edge must sit in a complete breath (moved out of it) or in clear
-    # audio; connected activity of any other kind suppresses the cut.
-    PROTECT = "protect"
-    # A mute fades each edge against fill: an edge must not chop a breath, so it moves
-    # out of one and keeps it whole, and a span that is mostly breath is no filler.
-    # An edge may sit in any other activity.
-    KEEP_WHOLE = "keep_whole"
-    # A padded cut renders a pad between its faded edges (#978).
-    IGNORE = "ignore"
-
-
-@dataclass(frozen=True)
-class _EdgeChecks:
-    """The checks a cut's two edges get, chosen by its :class:`_Join`."""
-
-    breaths: _BreathEdges
-    # A splice joins the audio before ``start`` to the audio after ``end``: the
-    # cut-risk level-jump terms and the join continuity gate score that join.
-    score_joins: bool
-    # A faded edge fades against fill, so the right edge fades in on whatever
-    # follows it: that must be the next word's first phoneme, whole, and no kept
-    # word may vanish inside the span. The fade-in can reach a plosive burst after
-    # the cut, so the decision carries the burst for approval to end the fade before it.
-    end_before_next_onset: bool
-    keep_whole_words: bool
-    # An acoustic run has no word label, so voiced audio that runs from its edge on
-    # into a kept word is that word's sound. A splice's breath protection refuses
-    # such an edge; a join that keeps breaths whole must refuse it here.
-    refuse_attached_runs: bool
-    # A ripple also removes time, so it is worth proposing over inaudible audio; a
-    # mute keeps the time, so it must silence something a listener can hear.
-    audible_only: bool
-    # A ripple moves every track, so peer speech is checked at the edges and flagged for
-    # review. A mute changes only its own track.
-    peer_scoped: bool
-
-
-_EDGE_CHECKS = {
-    _Join.SPLICE: _EdgeChecks(
-        breaths=_BreathEdges.PROTECT,
-        score_joins=True,
-        end_before_next_onset=False,
-        keep_whole_words=False,
-        refuse_attached_runs=False,
-        audible_only=False,
-        peer_scoped=True,
-    ),
-    _Join.PADDED: _EdgeChecks(
-        breaths=_BreathEdges.IGNORE,
-        score_joins=False,
-        end_before_next_onset=True,
-        keep_whole_words=True,
-        refuse_attached_runs=False,
-        audible_only=False,
-        peer_scoped=True,
-    ),
-    _Join.MUTE: _EdgeChecks(
-        breaths=_BreathEdges.KEEP_WHOLE,
-        score_joins=False,
-        end_before_next_onset=True,
-        keep_whole_words=True,
-        refuse_attached_runs=True,
-        audible_only=True,
-        peer_scoped=False,
-    ),
-}
-
-
 @dataclass(frozen=True)
 class _CutPlan:
     """The span a cut removes, the join approving ships, and the pad a ripple inserts.
@@ -1868,7 +1783,7 @@ class _CutPlan:
 
     start: float
     end: float
-    join: _Join
+    join: cut_safety.CutJoin
     pad: PacedPad | None = None
     # Where a plosive burst begins, once the right edge has been fitted to the next
     # word's onset; the decision carries it so the fade-in after the cut ends before it.
@@ -1880,10 +1795,10 @@ class _CutPlan:
     def for_cut(cls, start: float, end: float, *, mute: bool, pad: PacedPad | None) -> _CutPlan:
         """The plan for a ripple (``pad`` from pacing) or a mute."""
         if mute:
-            return cls(start, end, _Join.MUTE)
+            return cls(start, end, cut_safety.CutJoin.MUTE)
         if pad is None or pad.seconds(start, end) <= 0:
-            return cls(start, end, _Join.SPLICE)
-        return cls(start, end, _Join.PADDED, pad)
+            return cls(start, end, cut_safety.CutJoin.SPLICE)
+        return cls(start, end, cut_safety.CutJoin.PADDED, pad)
 
     @property
     def replace_gap_sec(self) -> float | None:
@@ -1892,8 +1807,8 @@ class _CutPlan:
         return self.pad.seconds(self.start, self.end)
 
     @property
-    def checks(self) -> _EdgeChecks:
-        return _EDGE_CHECKS[self.join]
+    def checks(self) -> cut_safety.CutEdgeChecks:
+        return cut_safety.CUT_EDGE_CHECKS[self.join]
 
 
 # The right edge of a padded cut or a mute stops this far before the next word's
@@ -2402,16 +2317,16 @@ def _gate_cut_edges(
                     return _CutRejected("unsettled_edges")
                 cut_start, cut_end = settled.start, settled.end
             voiced_flag = settled.flag
-    elif checks.breaths is not _BreathEdges.IGNORE:
-        breath_safe = protect_cut_breaths(
+    elif candidate.cut_kind != "pause":
+        breath_safe = cut_safety.protect_cut_edges(
             project,
             track_id,
             cut_start,
             cut_end,
+            join=plan.join,
             defaults=defaults,
             audio_cache=audio_cache,
             word_index=word_index,
-            strict=checks.breaths is _BreathEdges.PROTECT,
         )
         if breath_safe is None:
             return _CutRejected("breath")
@@ -2959,17 +2874,14 @@ def _finish_candidate(
     replace_gap = plan.replace_gap_sec
     if checks.score_joins and bool(tighten.get("join_continuity_gate", False)):
         try:
-            from podcast_mcp.edits.join_continuity import (
-                JoinContinuityConfig,
-                assess_proposed_cut,
-            )
+            from podcast_mcp.edits.join_continuity import JoinContinuityConfig
 
             jc_cfg = replace(
                 JoinContinuityConfig.from_defaults(defaults),
                 neural=False,
                 calibrate=False,
             )
-            jc = assess_proposed_cut(
+            jc = cut_safety.assess_proposed_cut(
                 project,
                 track_id,
                 cut_start,
@@ -2989,7 +2901,7 @@ def _finish_candidate(
             if candidate.cut_kind == "pause":
                 return _CutRejected("join_continuity")
 
-    mute = plan.join is _Join.MUTE
+    mute = plan.join is cut_safety.CutJoin.MUTE
     if mute:
         # Approval fades the clip into the hole as a padded cut fades into its pad.
         fade_ms = int(tighten.get("filler_pre_pad_fade_out_ms", 5))

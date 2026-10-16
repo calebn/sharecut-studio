@@ -161,7 +161,7 @@ def _fresh_join_review(monkeypatch, *, independent=False):
         observed.append((track_id, cut_start, cut_end, kwargs["timebase"]))
         return SimpleNamespace(verdict="pass" if independent and cut_start > 5 else "review")
 
-    monkeypatch.setattr("podcast_mcp.edits.join_continuity.assess_proposed_cut", verdict)
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_proposed_cut", verdict)
     return observed
 
 

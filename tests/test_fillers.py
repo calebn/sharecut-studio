@@ -302,7 +302,7 @@ def _mock_cut_pipeline(request):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.edits.fillers.protect_cut_breaths",
+            "podcast_mcp.edits.cut_safety.protect_cut_breaths",
             side_effect=lambda project, track_id, start, end, **kw: (start, end),
         ),
         patch(
@@ -2439,7 +2439,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
             return_value={"host": sentinel_cache},
         ),
         patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             return_value=SimpleNamespace(verdict="review"),
         ) as assess,
     ):
@@ -2449,7 +2449,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
 
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="fail"),
     ) as assess:
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2458,7 +2458,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
 
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="review"),
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2468,7 +2468,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
 
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         side_effect=RuntimeError("scorer down"),
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2647,9 +2647,9 @@ def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
     ]
     padded = [TranscriptWord(text="so", start=0.0, end=0.1), *unpadded]
     rejecting = {
-        "breath": patch("podcast_mcp.edits.fillers.protect_cut_breaths", return_value=None),
+        "breath": patch("podcast_mcp.edits.cut_safety.protect_cut_breaths", return_value=None),
         "join": patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             return_value=SimpleNamespace(verdict="fail"),
         ),
     }[gate]
@@ -2701,7 +2701,7 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
 
     with (
         patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air),
-        patch("podcast_mcp.edits.fillers.protect_cut_breaths", side_effect=breaths),
+        patch("podcast_mcp.edits.cut_safety.protect_cut_breaths", side_effect=breaths),
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
 
@@ -2771,7 +2771,7 @@ def test_a_pause_trim_that_fails_a_filler_check_stays_for_review(tmp_path: Path)
         "tighten": {**_PAUSE_DEFAULTS["tighten"], "join_continuity_gate": True},
     }
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="review"),
     ):
         decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2798,7 +2798,7 @@ def test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it():
     ]
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="fail"),
     ):
         decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -3776,13 +3776,14 @@ def test_filler_pad_is_paced_from_the_span_the_cut_removes(tmp_path, word_start,
 def test_cut_plan_paces_its_pad_from_its_own_span():
     from dataclasses import replace
 
+    from podcast_mcp.edits.cut_safety import CutJoin
     from podcast_mcp.edits.filler_pacing import PacedPad
-    from podcast_mcp.edits.fillers import _CutPlan, _Join
+    from podcast_mcp.edits.fillers import _CutPlan
 
     pad = PacedPad(gap_sec=0.0, min_sec=0.35, retain=0.85, max_sec=1.0)
     plan = _CutPlan.for_cut(1.2, 1.3, mute=False, pad=pad)
 
-    assert (plan.join, plan.replace_gap_sec) == (_Join.PADDED, pytest.approx(0.35))
+    assert (plan.join, plan.replace_gap_sec) == (CutJoin.PADDED, pytest.approx(0.35))
     # An edge check that moves the left edge to the voice resizes the pad with it.
     assert replace(plan, start=0.5).replace_gap_sec == pytest.approx(0.68)
     # Air the cut took whole still sets the floor when the span shrinks inside it.
@@ -3790,7 +3791,7 @@ def test_cut_plan_paces_its_pad_from_its_own_span():
     assert replace(gap_plan, end=1.5).replace_gap_sec == pytest.approx(0.935)
     # A mute keeps its time, so it inserts no pad.
     mute = _CutPlan.for_cut(1.2, 1.3, mute=True, pad=pad)
-    assert (mute.join, mute.replace_gap_sec) == (_Join.MUTE, None)
+    assert (mute.join, mute.replace_gap_sec) == (CutJoin.MUTE, None)
 
 
 def _scope_result(peers_speaking: bool):
@@ -3824,7 +3825,7 @@ def _analyze_padded_uh(*, peers_speaking: bool, join_verdict: str):
             return_value=_scope_result(peers_speaking),
         ),
         patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             return_value=SimpleNamespace(verdict=join_verdict),
         ),
     ):

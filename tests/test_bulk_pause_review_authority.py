@@ -47,7 +47,7 @@ def test_safe_bulk_approves_a_pause_that_passes_the_current_join_check(tmp_path,
         observed.append((track_id, cut_start, cut_end, kwargs["timebase"]))
         return SimpleNamespace(verdict="pass")
 
-    monkeypatch.setattr("podcast_mcp.edits.join_continuity.assess_proposed_cut", passed)
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_proposed_cut", passed)
     ws = workspace(_stored_remove(tmp_path, seed=1512))
     result = EditService(ws).apply_suggested_actions()
     assert result["applied"] == {"shorten": 1}
@@ -165,6 +165,10 @@ def test_normal_selected_document_command_retains_review_authority(
 
 def test_bulk_applies_a_filler_cut_right_beside_a_pause_it_holds(tmp_path, monkeypatch):
     _fresh_join_review(monkeypatch)
+    monkeypatch.setattr(
+        "podcast_mcp.edits.cut_safety.protect_cut_edges",
+        lambda _project, _track, start, end, **_kwargs: (start, end),
+    )
     result = _stored_remove(tmp_path, seed=1512)
     result.edit_decisions.append(
         result.edit_decisions[0].model_copy(
