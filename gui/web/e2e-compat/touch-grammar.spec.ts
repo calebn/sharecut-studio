@@ -661,6 +661,27 @@ function menuIsBad(row: MenuRow): boolean {
   );
 }
 
+test("tablet landscape at 200% text still lets Zoom hit the ruler", async ({
+  page,
+}) => {
+  await openWith(page, () => splitGuestLane(page), {
+    width: 844,
+    height: 390,
+  });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px";
+  });
+  await expect
+    .poll(async () =>
+      page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
+    )
+    .toBe("32px");
+  await page
+    .locator(".time-ruler")
+    .first()
+    .click({ position: { x: 4, y: 4 }, timeout: 8_000 });
+});
+
 test("the create menu reaches every item and stays off the finger at every text size and screen height", async ({
   page,
   context,

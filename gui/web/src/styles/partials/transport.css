@@ -63,9 +63,12 @@
 
 .transport--collapsed {
   display: flex;
+  gap: var(--space-3);
+}
+
+.daw-shell--phone .transport--collapsed {
   flex-wrap: wrap;
   align-content: center;
-  gap: var(--space-3);
   min-inline-size: 0;
 }
 
@@ -179,8 +182,11 @@
 
 .transport--collapsed .transport-primary-actions {
   margin-inline-start: auto;
-  flex-wrap: wrap;
   gap: var(--space-1);
+}
+
+.daw-shell--phone .transport--collapsed .transport-primary-actions {
+  flex-wrap: wrap;
 }
 
 .transport-icon-btn {
