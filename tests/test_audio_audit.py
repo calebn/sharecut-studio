@@ -2237,3 +2237,52 @@ def test_cache_window_before_the_offset_clamps_to_the_cache_start():
     window = cache.window(0.5, 1.5)
     assert window.size == 4_000
     assert window[0] == 0
+
+
+def test_cached_and_uncached_window_reads_return_the_same_samples(tmp_path: Path):
+    from podcast_mcp.engines import audio_audit as aa
+
+    rate = aa._RMS_SAMPLE_RATE
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    noise = np.random.default_rng(7).uniform(-0.5, 0.5, 6 * rate)
+    with wave.open(str(raw / "host.wav"), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes((noise * 32767).astype("<i2").tobytes())
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            speaker="Host",
+            media=MediaAsset(path="raw/host.wav", duration_sec=6.0),
+        )
+    ]
+    project.timeline.clips = [
+        Clip(
+            id="c1",
+            track_id="host",
+            source_start=0.7,
+            source_end=5.0,
+            timeline_start=2.00175,
+        )
+    ]
+    caches = aa.build_track_rms_caches(project)
+    for t0, t1 in [(4.00175, 4.08175), (3.348981, 3.408981), (2.5, 2.6003), (5.1234, 5.2)]:
+        cached, _ = aa.timeline_window_samples(project, "host", t0, t1, caches=caches)
+        uncached, _ = aa.timeline_window_samples(project, "host", t0, t1)
+        assert cached.size == uncached.size
+        np.testing.assert_allclose(cached, uncached, atol=1e-4)
+
+
+def test_cache_window_length_rounds_apart_from_its_start():
+    rate = 8_000
+    cache = TrackRmsCache(np.arange(10 * rate, dtype=np.float32), rate)
+    t_start, t_end = 1.00006, 1.00019
+    assert round(t_start * rate) + round((t_end - t_start) * rate) != round(t_end * rate)
+    window = cache.window(t_start, t_end)
+    assert window.size == round((t_end - t_start) * rate)
+    assert window[0] == round(t_start * rate)
