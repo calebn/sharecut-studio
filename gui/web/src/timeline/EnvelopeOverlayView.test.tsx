@@ -189,6 +189,60 @@ describe("EnvelopeOverlayView", () => {
     expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
+  it("selects another track on a plain line tap without saving", () => {
+    const selected = vi.fn();
+    const save = vi.fn().mockResolvedValue({});
+    const { container } = renderView({
+      points: [],
+      baselinePoints: [],
+      timelineEnd: 10,
+      onSelectTrack: selected,
+      onCommitPoints: save,
+    });
+    const line = container.querySelector(".envelope-line-target")!;
+    fireEvent.pointerDown(line, { pointerId: 1, clientY: 30 });
+    fireEvent.pointerUp(line, { pointerId: 1 });
+    fireEvent.click(line, { detail: 1 });
+    expect(selected).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("does not select a track from a drag's trailing click or a read-only guide", async () => {
+    const { container, onSelectTrack, onCommitPoints, rerender } = renderView({
+      points: [],
+      baselinePoints: [],
+      timelineEnd: 10,
+    });
+    const line = container.querySelector(".envelope-line-target")!;
+    fireEvent.pointerDown(line, { pointerId: 4, clientY: 30 });
+    fireEvent.pointerMove(line, { pointerId: 4, clientY: 20 });
+    fireEvent.pointerUp(line, { pointerId: 4, clientY: 20 });
+    fireEvent.click(line, { detail: 1 });
+    await vi.waitFor(() => expect(onCommitPoints).toHaveBeenCalledTimes(1));
+    expect(onSelectTrack).not.toHaveBeenCalled();
+    rerender(
+      <EnvelopeOverlayView
+        points={[]}
+        baselinePoints={[]}
+        timelineEnd={10}
+        zoomPxPerSec={10}
+        width={200}
+        height={72}
+        visibleChunks={[0, 0]}
+        editable={false}
+        selectedPointId={null}
+        onSelectTrack={onSelectTrack}
+        captureSelection={() => vi.fn()}
+        onCommitPoints={onCommitPoints}
+        onCommitError={vi.fn()}
+      />,
+    );
+    const guide = screen.getByRole("slider", { name: "Envelope level" });
+    expect(guide).not.toHaveAttribute("data-hit-kind");
+    fireEvent.click(guide);
+    expect(onSelectTrack).not.toHaveBeenCalled();
+  });
+
   it("cancels an unsubmitted line pointer gesture without rolling back an accepted command", async () => {
     let resolveCommit: (value: unknown) => void = () => {};
     const onCommitPoints = vi.fn(

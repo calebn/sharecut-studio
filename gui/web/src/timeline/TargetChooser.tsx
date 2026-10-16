@@ -37,6 +37,7 @@ import { type DragAxis, HIT_KINDS, type HitKind } from "./inputContract";
 /** Kind label, plus the envelope gain the dot stands for. */
 function chipTitle(hit: ResolvedHit): string {
   const label = HIT_KINDS[hit.candidate.kind].label;
+  if (hit.candidate.kind === "envelope-line") return `${label}, whole track`;
   const detail = hitDetail(hit.element);
   return hit.candidate.kind === "envelope-point" && detail
     ? `${label} ${detail}×`
@@ -81,6 +82,12 @@ function TargetGlyph({
     >
       <g transform={mirror ? "matrix(-1 0 0 1 24 0)" : undefined}>
         {kind === "envelope-point" ? <circle cx="12" cy="12" r="10" /> : null}
+        {kind === "envelope-line" ? (
+          <path
+            className="target-glyph-line"
+            d="M2 12H22M12 3V21M9 6l3-3 3 3M9 18l3 3 3-3"
+          />
+        ) : null}
         {kind === "fade-in" || kind === "fade-out" ? (
           <>
             <path className="target-glyph-line" d="M1 23C9 22 15 15 17 1" />
@@ -257,7 +264,9 @@ export function TargetChooser({
   const caption =
     view.over === "more"
       ? `${hidden} more targets`
-      : `${chipTitle(view.hits[active])} · ${formatTime(hitTimeSec(view.hits[active].element))}`;
+      : view.hits[active].candidate.kind === "envelope-line"
+        ? chipTitle(view.hits[active])
+        : `${chipTitle(view.hits[active])} · ${formatTime(hitTimeSec(view.hits[active].element))}`;
 
   useLayoutEffect(() => {
     // Layout size, not the painted box: the entrance scales chips from 0.4.
@@ -329,7 +338,11 @@ export function TargetChooser({
             : style
         }
         {...{ [CHOOSER_ITEM_ATTR]: String(item.index) }}
-        aria-label={`${chipTitle(hit)} at ${time}`}
+        aria-label={
+          kind === "envelope-line"
+            ? chipTitle(hit)
+            : `${chipTitle(hit)} at ${time}`
+        }
         onFocus={() => setFocused(item.index)}
         onPick={(pointerType) => router.choose(item.index, pointerType)}
       >

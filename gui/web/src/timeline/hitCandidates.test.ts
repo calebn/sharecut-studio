@@ -62,6 +62,40 @@ function ranked(
 }
 
 describe("rankHitTargets", () => {
+  it("keeps a reachable flat-envelope point ahead of its full-width line without overriding selection", () => {
+    const line: HitTarget = {
+      kind: "envelope-line",
+      id: "line",
+      rect: { left: 100, top: 114, right: 400, bottom: 126 },
+      selected: false,
+    };
+    const at = { x: 203, y: 116 };
+    const ranked = (
+      targets: HitTarget[],
+      radius: number,
+      hit: HitTarget | null = null,
+    ) =>
+      rankHitTargets(targets, at, radius, hit).map(
+        ({ candidate }) => candidate.kind,
+      );
+    expect(ranked([line, point], 22, point)).toEqual([
+      "envelope-point",
+      "envelope-line",
+    ]);
+    expect(ranked([line, point], 0, point)).toEqual([
+      "envelope-point",
+      "envelope-line",
+    ]);
+    expect(ranked([{ ...line, selected: true }, point], 22)).toEqual([
+      "envelope-line",
+      "envelope-point",
+    ]);
+    expect(
+      rankHitTargets([line, point], { x: 300, y: 120 }, 22).map(
+        ({ candidate }) => candidate.kind,
+      ),
+    ).toEqual(["envelope-line"]);
+  });
   it("ranks a same-time cluster at a clip edge: the roll first, as it outranks the trims (#1135), then by core distance and priority", () => {
     expect(ranked(cluster, 22)).toEqual([
       {

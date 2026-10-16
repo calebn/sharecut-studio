@@ -113,6 +113,7 @@ export function EnvelopeOverlayView({
   const [lineKeyLevel, setLineKeyLevel] = useState<number | null>(null);
   const lineKeyOrigin = useRef<AutomationPoint[] | null>(null);
   const lineKeyIds = useRef<{ start: string; end: string } | null>(null);
+  const lineClickMoved = useRef(false);
   // By id, not index: a re-sort or delete keeps the focused circle (same key).
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const dragRef = useRef<EnvelopeDrag | null>(null);
@@ -336,6 +337,12 @@ export function EnvelopeOverlayView({
               aria-valuenow={shownLevel}
               aria-valuetext={`${shownLevel} gain`}
               aria-disabled={!editable}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (editable && (e.detail === 0 || !lineClickMoved.current))
+                  onSelectTrack();
+                lineClickMoved.current = false;
+              }}
               onBlur={(e) => {
                 if (dragRef.current?.target === e.currentTarget) clearDrag();
                 lineKeyOrigin.current = null;
@@ -423,6 +430,7 @@ export function EnvelopeOverlayView({
                 const target = e.currentTarget;
                 target.focus({ preventScroll: true });
                 if (document.activeElement !== target) return;
+                lineClickMoved.current = false;
                 const origin = baselinePoints.map((point) => ({ ...point }));
                 dragRef.current = {
                   kind: "line",
@@ -454,6 +462,7 @@ export function EnvelopeOverlayView({
                 )
                   return;
                 e.stopPropagation();
+                if (e.clientY !== drag.startY) lineClickMoved.current = true;
                 const level = clampEnvelopeValue(
                   drag.startLevel +
                     ((drag.startY - e.clientY) * 1.5) / (height - 8),

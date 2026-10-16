@@ -94,7 +94,7 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: null,
-    outranks: [],
+    outranks: ["envelope-line"],
     body: false,
   },
   "envelope-line": {
