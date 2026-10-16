@@ -17,12 +17,12 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { answerQuestions } from "../test/ask";
-import { minimalProject } from "../test/fixtures";
+import { COMMENTER_CAPABILITIES, minimalProject } from "../test/fixtures";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
 } from "../types/pipeline";
-import type { PendingEditView } from "../types/project";
+import { HISTORY_ROOT_ID, type PendingEditView } from "../types/project";
 import { TightenPanel } from "./TightenPanel";
 
 const confirmReply = vi.fn<(question: Question) => Answer>();
@@ -702,5 +702,116 @@ describe("TightenPanel", () => {
       resolveRun(job());
     });
     expect(useDawStore.getState().pipelineJob).toBeNull();
+  });
+
+  describe("just applied sounds", () => {
+    function projectWithBatch() {
+      return {
+        ...projectWithHits(),
+        history: {
+          cursor: 1,
+          head_id: HISTORY_ROOT_ID,
+          can_undo: true,
+          can_redo: false,
+          groups: [
+            {
+              kind: "mutation",
+              before_index: 0,
+              after_index: 1,
+              operation: "apply_suggested_actions",
+              params: {
+                sounds: [
+                  {
+                    id: "um",
+                    label: "Filler word",
+                    track_id: "host",
+                    timeline_start: 5,
+                    action: "cut",
+                  },
+                  {
+                    id: "laugh",
+                    label: "Laugh",
+                    track_id: "guest",
+                    timeline_start: null,
+                    action: "lower",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      };
+    }
+
+    function renderBatch() {
+      const project = projectWithBatch();
+      useDawStore.getState().hydrate("/tmp/p.json", project);
+      return render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <TightenPanel />
+        </DawProvider>,
+      );
+    }
+
+    it("lists the batch with each sound's action and changes one through the command bus", async () => {
+      const { container } = renderBatch();
+      expect(
+        screen.getByRole("heading", { name: "Just applied (2)" }),
+      ).toBeTruthy();
+      const select = screen.getByRole("combobox", {
+        name: "Action for Filler word at 0:05, Host",
+      });
+      expect(select).toHaveValue("cut");
+      expect(
+        screen.getByRole("combobox", { name: "Action for Laugh, Guest" }),
+      ).toHaveValue("lower");
+      fireEvent.change(select, { target: { value: "leave" } });
+      expect(execute).toHaveBeenCalledWith(
+        "tighten.reviseSuggested",
+        { id: "um", action: "leave" },
+        { skipWhen: true },
+      );
+      await expectNoA11yViolations(container);
+    });
+
+    it("seeks to a sound that has a place on the timeline", () => {
+      renderBatch();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Go to Filler word at 0:05, Host" }),
+      );
+      expect(execute).toHaveBeenCalledWith(
+        "transport.seek",
+        { sec: 5 },
+        { skipWhen: true },
+      );
+      expect(screen.getByText("Unmapped")).toBeTruthy();
+    });
+
+    it("reads as text for a viewer who may not apply edits", () => {
+      useDawStore.getState().hydrate("/tmp/p.json", projectWithBatch());
+      useDawStore.setState({
+        projectPath: "share:test",
+        guestMode: "edit",
+        shareCapabilities: COMMENTER_CAPABILITIES,
+      });
+      render(<TightenPanel />);
+      expect(screen.queryByRole("combobox", { name: /Action for/ })).toBeNull();
+      expect(screen.getByText("Cut")).toBeTruthy();
+      expect(screen.getByText("Lower")).toBeTruthy();
+    });
+
+    it("is absent when there is no batch to change", () => {
+      render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={projectWithHits()}
+        >
+          <TightenPanel />
+        </DawProvider>,
+      );
+      expect(
+        screen.queryByRole("heading", { name: /Just applied/ }),
+      ).toBeNull();
+    });
   });
 });

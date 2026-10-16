@@ -560,6 +560,7 @@ class EditService:
         from podcast_mcp.edits.suggested_actions import (
             SuggestedActionsResult,
             apply_suggested_to_project,
+            describe_sounds,
             suggested_action_for,
         )
 
@@ -602,7 +603,11 @@ class EditService:
                     "after apply suggested actions",
                     lambda p: apply_suggested_to_project(p, actions, result),
                     operation="apply_suggested_actions",
-                    params={"ids": sorted(actions), "requested": dict(actions)},
+                    params={
+                        "ids": sorted(actions),
+                        "requested": dict(actions),
+                        "sounds": describe_sounds(project, listed, actions),
+                    },
                 )
         return {"operation": "apply_suggested_actions", **result.to_payload()}
 

@@ -67,6 +67,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip:
       "Give every listed sound its own suggested action in one undo step",
   },
+  "daw.tighten.reviseSuggested": {
+    label: "Change an applied sound",
+    tooltip: "Change one sound of the batch just applied, keeping the others",
+  },
   "daw.tighten.previewHit": {
     label: "Preview tighten hit",
     tooltip: "Preview the selected tighten hit",

@@ -802,6 +802,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "tightenPanelOpen",
     notes: "Args: { ids?: string[] }: one ApplySuggestedActions batch",
   },
+  "tighten.reviseSuggested": {
+    id: "tighten.reviseSuggested",
+    category: "review",
+    label: "Change an applied sound",
+    keywords: ["filler", "laugh", "revise", "undo"],
+    when: "tightenPanelOpen",
+    notes:
+      "Args: { id: string, action: cut | shorten | lower | leave }: ApplySuggestedActions revise of the latest batch",
+  },
   "tighten.previewHit": {
     id: "tighten.previewHit",
     category: "review",

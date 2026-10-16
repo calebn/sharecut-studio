@@ -18,6 +18,7 @@ import {
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { isPipelineSlotBusy } from "../utils/pipeline";
+import { revisableSuggestedBatch } from "../utils/suggestedBatch";
 import {
   filterTightenHits,
   listTightenHits,
@@ -34,6 +35,7 @@ import {
   tightenProposeRunOptions,
 } from "../utils/tightenIntensity";
 import { formatTimeShort } from "../utils/time";
+import { AppliedSoundsList } from "./AppliedSoundsList";
 
 const CLASS_FILTERS: { id: "all" | TightenClass; label: string }[] = [
   { id: "all", label: "All" },
@@ -178,6 +180,16 @@ export function TightenPanel() {
       ? "Nothing to apply with the current filters."
       : undefined;
   const selectedId = selection?.kind === "pending" ? selection.id : null;
+  const appliedSounds = useMemo(
+    () =>
+      project
+        ? revisableSuggestedBatch({
+            history: project.history,
+            pending_edits: project.pending_edits,
+          })
+        : [],
+    [project],
+  );
 
   if (!project) {
     return null;
@@ -298,6 +310,12 @@ export function TightenPanel() {
           Apply suggested actions ({filtered.length})
         </CommandButton>
       </div>
+
+      <AppliedSoundsList
+        sounds={appliedSounds}
+        trackLabel={trackLabel}
+        canChange={canApply}
+      />
 
       <p id={statusId} className="tighten-status" aria-live="polite">
         {filtered.length} of {hits.length} hits
