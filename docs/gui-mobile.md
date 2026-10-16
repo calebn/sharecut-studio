@@ -227,6 +227,8 @@ start below the bar instead of scrolling under overflow. Targets stay
 `gui/web/e2e-compat/phone-transport-zoom.spec.ts` uses a 215×466 layout viewport
 as a page-zoom substitute (half of iPhone 15 Plus CSS) plus a 32 px root at
 430×932. A physical iPhone Safari 200% Aa zoom remains a Mac-simulator check.
+Tablet collapsed transport stays one row so a short landscape window at 200%
+text cannot grow the bar over the ruler.
 
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 

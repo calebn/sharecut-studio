@@ -34,10 +34,13 @@ describe("shell grid areas", () => {
     expect(tracks[2]).toBe("minmax(var(--transport-height), auto)");
     const grown = rule(
       layoutCss,
-      ".daw-shell--phone .daw-shell-transport > .transport, .daw-shell--tablet .daw-shell-transport > .transport.transport--collapsed",
+      ".daw-shell--phone .daw-shell-transport > .transport",
     );
     expect(grown).toMatch(/block-size:\s*auto/);
     expect(grown).toMatch(/min-block-size:\s*var\(--transport-height\)/);
+    expect(layoutCss).not.toMatch(
+      /\.daw-shell--tablet \.daw-shell-transport > \.transport/,
+    );
   });
 
   it("never lets a layout or banner class re-declare the grid", () => {

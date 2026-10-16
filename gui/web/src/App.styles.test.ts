@@ -178,7 +178,12 @@ describe("App styles", () => {
     );
     const collapsed = transport.match(/\.transport--collapsed \{([^}]*)\}/);
     expect(collapsed).toBeTruthy();
-    expect(collapsed![1]).toMatch(/flex-wrap:\s*wrap/);
+    expect(collapsed![1]).not.toMatch(/flex-wrap:\s*wrap/);
+    const phone = transport.match(
+      /\.daw-shell--phone \.transport--collapsed \{([^}]*)\}/,
+    );
+    expect(phone).toBeTruthy();
+    expect(phone![1]).toMatch(/flex-wrap:\s*wrap/);
     const hero = transport.match(/\.listen-hero-controls \{([^}]*)\}/);
     expect(hero).toBeTruthy();
     expect(hero![1]).toMatch(/flex-wrap:\s*wrap/);
