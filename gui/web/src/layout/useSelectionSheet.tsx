@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { isRangeSelection } from "../edit/rangeSelection";
 import { InspectorPeek } from "../inspector/InspectorPeek";
 import { SelectionSheetBody } from "../inspector/SelectionSheetBody";
 import { opensPhoneSheet, sheetScreen } from "../inspector/selectionSurface";
@@ -65,6 +66,8 @@ export interface SelectionSheet {
   compact: CompactSheetProps | undefined;
   /** The editing rail is inert while a full-height compact sheet covers it. */
   coversTools: boolean;
+  /** Whether the shared range controls belong in this sheet. */
+  rangeActionsInSheet: boolean;
   content: ReactNode;
 }
 
@@ -74,6 +77,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
   const {
     selection,
     rangeArmed,
+    sessionRegion,
     layoutMode,
     mobileMode,
     moreDestination,
@@ -84,6 +88,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
   } = useDaw((s) => ({
     selection: s.selection,
     rangeArmed: s.rangeArmed,
+    sessionRegion: s.sessionRegion,
     layoutMode: s.layoutMode,
     mobileMode: s.mobileMode,
     moreDestination: s.moreDestination,
@@ -103,8 +108,16 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       moreDestination,
     });
   const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
+  const rangeActionsInSheet =
+    open &&
+    (rangeArmed ||
+      isRangeSelection(selection) ||
+      (shell === "tablet" &&
+        selection?.kind === "clip" &&
+        sessionRegion != null));
   return {
     open,
+    rangeActionsInSheet,
     expanded: sheetExpanded,
     onExpandedChange: setSheetExpanded,
     onClose: () => {
@@ -118,7 +131,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       compact?.view === "peek" ? (
         <InspectorPeek peek={compact.peek} />
       ) : (
-        <SelectionSheetBody />
+        <SelectionSheetBody rangeActionsInSheet={rangeActionsInSheet} />
       ),
   };
 }
