@@ -610,7 +610,9 @@ def test_guest_mcp_range_cut_follows_the_share(
         assert project.edit_decisions == []
         assert project.clips != before
     else:
-        assert [d.reason for d in project.edit_decisions] == ["guest:suggest"]
+        [proposal] = project.edit_decisions
+        assert proposal.reason == "guest:suggest"
+        assert proposal.boundary_intent == "programmatic"
         assert project.clips == before
 
 

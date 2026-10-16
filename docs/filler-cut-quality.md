@@ -54,6 +54,10 @@ decided-by: calebn
 evidence:
 - #1403 owner decision: https://github.com/calebn/sharecut-studio/issues/1403#issuecomment-6221464888
 - #1658 owner decision: https://github.com/calebn/sharecut-studio/pull/1658#issuecomment-6221465273
+enforced-by:
+- tests/test_selected_range.py::test_only_trusted_context_marks_selected_boundaries_human
+- tests/test_selected_range.py::test_payload_cannot_forge_internal_boundary_intent
+- tests/test_guest_transcript_selection.py::test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused
 enforcement: pending #1403
 -->
 
@@ -63,6 +67,14 @@ finalized-edge preservation, current-placement validation, structural validity, 
 hull checks, or data-integrity checks. It does not make every approval or every edit
 path manual. #1403 defines which trusted entry points establish manual intent and
 tests the distinction.
+
+This rejects two alternatives. Keeping acoustic vetoes after a human chooses the
+boundaries prevents intentional audible edits. Removing them for every command leaves
+automated and agentic edits unprotected. Capability, reason, snap choice, and range
+mode do not prove a human action. Only the host and review GUI document routes establish
+manual boundaries. Each persisted decision records its proposal origin separately from its
+current boundary intent. A programmatic retime resets only the latter. A direct **Approve**
+of an automated proposal remains unresolved.
 
 ## Policy
 
@@ -288,7 +300,8 @@ Approving it by hand (Studio **Approve**, `approve_edits_tool`, `podcast edit ap
 the suggestion is a session ripple that records the speech it would cut, so approval answers
 `needs_confirmation` with the **Cut anyway** question and changes nothing, and
 `confirm_cut_speech` then ripples every dialogue track, so their lengths stay equal and no
-one-track record is written.
+one-track record is written. This confirmation applies to an automated suggestion. It does
+not yet establish manual boundary intent; #1403 keeps that direct-Approve mapping pending.
 `tighten.speech_energy_guard.on_conflict` takes `review` (the default) or `skip`,
 which refuses the cut. Any other value, including the removed `track_local`, is
 rejected with a `ValueError` when the pipeline config loads. A mute is a track-scope edit by design, so mute mode

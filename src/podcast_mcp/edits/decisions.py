@@ -46,6 +46,7 @@ from podcast_mcp.models import (
     MUTE_FADE_MS,
     ClipJoinMode,
     ClipMuteRegion,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -508,6 +509,7 @@ def update_pending_edit(
     end: float,
     snap: bool = True,
     track_ids: list[str] | None = None,
+    boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
 ) -> EditDecision:
     """Update a pending edit decision's range; optionally inaudible-snap."""
     edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
@@ -522,6 +524,7 @@ def update_pending_edit(
         edit.start = at_time
         edit.end = at_time
         edit.timebase = "timeline"
+        edit.boundary_intent = boundary_intent
         if track_ids is not None:
             edit.track_ids = list(track_ids)
             if track_ids:
@@ -543,6 +546,7 @@ def update_pending_edit(
         edit.start = start
         edit.end = end
     require_source_remove(project, edit)
+    edit.boundary_intent = boundary_intent
     if snap:
         optimizer_kwargs: dict[str, Any] = {}
         if edit.source_id is not None:

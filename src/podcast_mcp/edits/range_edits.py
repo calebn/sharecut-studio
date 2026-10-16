@@ -10,7 +10,15 @@ from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
-from podcast_mcp.models import Clip, ClipMuteRegion, EditDecision, EditDecisionType, EpisodeProject
+from podcast_mcp.models import (
+    Clip,
+    ClipMuteRegion,
+    CutIntent,
+    EditDecision,
+    EditDecisionType,
+    EpisodeProject,
+    ProposalOrigin,
+)
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.util.coded_error import CodedError
 
@@ -227,6 +235,7 @@ def edit_selected_range(
     reason: str,
     action_id: str,
     author: str | None = None,
+    boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
 ) -> RangeEditResult:
     target = resolve_range(project, target)
     if not target.clips:
@@ -245,6 +254,12 @@ def edit_selected_range(
         reason=reason,
         author=author,
         exact_range=target,
+        proposal_origin=(
+            ProposalOrigin.HUMAN
+            if boundary_intent is CutIntent.HUMAN_BOUNDARIES
+            else ProposalOrigin.PROGRAMMATIC
+        ),
+        boundary_intent=boundary_intent,
     )
     if propose:
         project.edit_decisions.append(edit)

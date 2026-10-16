@@ -10,9 +10,12 @@ from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
     Clip,
+    CutIntent,
     EditDecision,
     EditDecisionType,
+    EpisodeProject,
     MediaAsset,
+    ProposalOrigin,
     SpeakerIngestAlignment,
     Track,
     TrackRole,
@@ -154,6 +157,30 @@ def test_edit_segments():
     assert len(segs) == 2
     assert segs[0].start == 0.0 and segs[0].end == 0.5
     assert segs[1].start == 0.8 and segs[1].end == 2.0
+
+
+def test_cut_intent_defaults_programmatic_but_serialized_projects_require_facts():
+    decision = EditDecision(id="d", track_id="host", start=1, end=2)
+    assert decision.proposal_origin is ProposalOrigin.PROGRAMMATIC
+    assert decision.boundary_intent is CutIntent.PROGRAMMATIC
+
+    project = EpisodeProject.create("episode", ".")
+    raw = project.model_dump(mode="json", by_alias=True)
+    raw["editorial"]["edit_decisions"] = [decision.model_dump(mode="json")]
+    assert (
+        EpisodeProject.model_validate(raw).edit_decisions[0].boundary_intent
+        is CutIntent.PROGRAMMATIC
+    )
+
+    del raw["editorial"]["edit_decisions"][0]["boundary_intent"]
+    with pytest.raises(ValueError, match="require proposal_origin and boundary_intent"):
+        EpisodeProject.model_validate(raw)
+
+    schema = json.loads(
+        (Path(__file__).resolve().parents[1] / "schemas/episode.project.schema.json").read_text()
+    )
+    edit_schema = schema["$defs"]["EditDecision"]
+    assert {"proposal_origin", "boundary_intent"} <= set(edit_schema["required"])
 
 
 _ARTIFACTS = "artifacts"

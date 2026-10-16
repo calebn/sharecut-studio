@@ -203,6 +203,8 @@ class ApplySuggestedActionsPayload(BaseModel):
 
 
 class UpdatePendingEditPayload(BaseModel):
+    model_config = {"extra": "forbid"}
+
     id: str
     start: float
     end: float

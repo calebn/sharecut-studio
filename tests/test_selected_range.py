@@ -13,11 +13,21 @@ from podcast_mcp.edits.range_edits import (
     range_media_seal,
 )
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
-from podcast_mcp.models import Clip, EpisodeProject, Track, load_project, save_project
+from podcast_mcp.models import (
+    Clip,
+    CutIntent,
+    EditDecision,
+    EpisodeProject,
+    ProposalOrigin,
+    Track,
+    load_project,
+    save_project,
+)
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import (
+    INTERACTIVE_COMMAND,
     DocumentCommand,
     DocumentSyncService,
     validate_payload,
@@ -302,6 +312,74 @@ def test_agents_suggest_guests_and_offline_edits_propose(
     HistoryService(svc.ws).undo()
     assert svc.ws.project.clips == before
     assert len(svc.ws.project.edit_decisions) == 1
+
+
+def test_only_trusted_context_marks_selected_boundaries_human(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    svc = DocumentSyncService.open(minimal_project)
+
+    interactive = command(target(svc.ws.project))
+    svc.submit(
+        interactive,
+        capabilities=capabilities_for_role("commenter"),
+        range_policy="apply",
+        trusted_context=INTERACTIVE_COMMAND,
+    )
+    automated = command(target(svc.ws.project))
+    svc.submit(
+        automated,
+        capabilities=capabilities_for_role("commenter", with_mcp=True),
+        range_policy="apply",
+    )
+
+    by_id = {edit.id: edit for edit in svc.ws.project.edit_decisions}
+    assert (
+        by_id[interactive.command_id].proposal_origin,
+        by_id[interactive.command_id].boundary_intent,
+    ) == (ProposalOrigin.HUMAN, CutIntent.HUMAN_BOUNDARIES)
+    assert (
+        by_id[automated.command_id].proposal_origin,
+        by_id[automated.command_id].boundary_intent,
+    ) == (ProposalOrigin.PROGRAMMATIC, CutIntent.PROGRAMMATIC)
+
+    svc.ws.project.edit_decisions.append(
+        EditDecision(
+            id="human-nudge",
+            track_id="a",
+            start=1.0,
+            end=2.0,
+            proposal_origin=ProposalOrigin.HUMAN,
+            boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        )
+    )
+    svc.ws.save()
+    svc.submit(
+        DocumentCommand(
+            type="UpdatePendingEdit",
+            payload={"id": "human-nudge", "start": 1.1, "end": 2.1},
+            client_id="host",
+            client_seq=None,
+            role="viewer",
+        )
+    )
+    updated = next(edit for edit in svc.ws.project.edit_decisions if edit.id == "human-nudge")
+    assert (updated.proposal_origin, updated.boundary_intent) == (
+        ProposalOrigin.HUMAN,
+        CutIntent.PROGRAMMATIC,
+    )
+
+
+@pytest.mark.parametrize("command_type", ["EditSelectedRange", "UpdatePendingEdit"])
+def test_payload_cannot_forge_internal_boundary_intent(command_type):
+    payload = (
+        {"action": "cut", "target": {}}
+        if command_type == "EditSelectedRange"
+        else {"id": "pending", "start": 1.0, "end": 2.0, "snap": False}
+    )
+    with pytest.raises(ValidationError, match="_boundary_intent"):
+        validate_payload(command_type, payload | {"_boundary_intent": "human_boundaries"})
 
 
 @pytest.mark.parametrize("action", ["cut", "mute"])
