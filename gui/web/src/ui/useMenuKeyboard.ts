@@ -27,11 +27,13 @@ export function useMenuKeyboard({
   open,
   panelRef,
   close,
+  fallbackTriggerRef,
   orientation = "vertical",
 }: {
   open: boolean;
   panelRef: RefObject<HTMLElement | null>;
   close: () => void;
+  fallbackTriggerRef?: RefObject<HTMLElement | null>;
   orientation?: "vertical" | "horizontal";
 }): void {
   useEffect(() => {
@@ -79,6 +81,50 @@ export function useMenuKeyboard({
       if (!panel || !panel.contains(document.activeElement)) {
         return;
       }
+      if (fallbackTriggerRef && e.key === "Tab") {
+        const trigger = fallbackTriggerRef.current;
+        const doc = panel.ownerDocument;
+        if (trigger) {
+          const candidates = listFocusable(doc.body).filter((el) => {
+            if (panel.contains(el) || el.tabIndex < 0) return false;
+            for (
+              let parent: HTMLElement | null = el;
+              parent;
+              parent = parent.parentElement
+            ) {
+              const style = doc.defaultView?.getComputedStyle(parent);
+              if (
+                parent.hidden ||
+                parent.inert ||
+                style?.display === "none" ||
+                style?.visibility === "hidden"
+              ) {
+                return false;
+              }
+            }
+            return true;
+          });
+          const ordered = candidates
+            .map((el, index) => ({ el, index, tabIndex: el.tabIndex }))
+            .sort((a, b) => {
+              const aPositive = a.tabIndex > 0;
+              const bPositive = b.tabIndex > 0;
+              if (aPositive !== bPositive) return aPositive ? -1 : 1;
+              if (aPositive && a.tabIndex !== b.tabIndex)
+                return a.tabIndex - b.tabIndex;
+              return a.index - b.index;
+            })
+            .map(({ el }) => el);
+          const triggerIndex = ordered.indexOf(trigger);
+          const target = e.shiftKey
+            ? trigger
+            : ordered[triggerIndex >= 0 ? triggerIndex + 1 : 0];
+          e.preventDefault();
+          close();
+          target?.focus();
+          return;
+        }
+      }
       const items = menuItems(panel);
       if (items.length === 0) {
         return;
@@ -114,5 +160,5 @@ export function useMenuKeyboard({
         restore.focus();
       }
     };
-  }, [open, close, orientation, panelRef]);
+  }, [open, close, orientation, panelRef, fallbackTriggerRef]);
 }

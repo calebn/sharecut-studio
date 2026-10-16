@@ -184,17 +184,18 @@ iOS Safari also zooms the page when a focused field's computed `font-size` is un
 ## Menu popover support
 
 Menu panels use the Popover API (Chrome 114, Firefox 125, Safari 17.0 on iOS 17
-and macOS). Safari 17 also ships for macOS 12 and 13 and updates the system
-WebKit there, so a WKWebView on those releases has the API once Safari 17 is
-installed. `ui/Menu.tsx` calls `showPopover()` only where it exists. On an
-older webview (iOS 16, or macOS 12 and 13 without the Safari 17 update, the
-declared Tauri minimum) the panel stays a `position: fixed` element placed by
-the same `ui/anchoredPlacement.ts` code and stacked by `--z-menu`: the menu
-opens and works, but an ancestor that clips or contains fixed descendants (a
-sheet's `overflow` or size container) can crop it, and `--z-toast` over
-`--z-menu` keeps the toast on top. The toast lift in
-[design-tokens.md § Top layer](design-tokens.md#top-layer) is then not needed.
-No other fallback exists.
+and macOS). `ui/Menu.tsx` selects native mode only when both `showPopover()` and
+`hidePopover()` exist. Native panels stay beside their trigger and enter the
+browser top layer. Without both methods, the menu portals the same panel into
+the trigger's `ownerDocument.body`; it omits the `popover` attribute and uses
+`position: fixed`, `ui/anchoredPlacement.ts`, and `--z-menu`. The body portal
+escapes clipping and containing blocks between the trigger and panel. It keeps
+the trigger's computed `--menu-item-min-block-size`, including the transport's
+named-container touch size and the phone modifier-footer size. Native Tab order
+is unchanged; fallback Tab and Shift+Tab leave relative to the trigger because
+the portal changes document order. `--z-toast` stays above fallback menus, and
+native menus keep the toast ordering in
+[design-tokens.md § Top layer](design-tokens.md#top-layer).
 
 ## Phone: four modes + one sheet
 
@@ -605,7 +606,7 @@ The shell grid uses named areas (`banners / follow / transport / main / tabs / s
 1. One job per phone screen (no timeline + full transcript + inspector).
 2. ≥44×44pt targets; fade/envelope hit areas ≥2× visual width.
 3. Sheets: Close + dismiss; never stack.
-4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Menu panels are popovers drawn in the top layer and fixed where `ui/anchoredPlacement.ts` puts them (#1372): below the trigger, flipped above when that side has more room, clamped `--menu-edge-margin` inside every edge of the visual viewport on every shell, so a trigger at the left of a track sheet cannot push the panel off screen. They cap to `min(90dvh, var(--menu-available-height))`, where `--menu-available-height` is the room on the chosen side (above phone `.mobile-nav` when present, re-measured every frame while the menu is open so a banner row appearing above the transport cannot leave a stale cap), and scroll internally so every item stays reachable on short viewports. The active phone navigation item keeps a transparent tab with an accent label and accent top indicator (the platform tab-bar convention for the current location); its state transition is disabled for reduced motion. The centered phone playhead uses `--color-timeline-playhead` so it remains visible in the dark timeline well.
+4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Native Menu panels use the top layer; API-unavailable menus portal the same panel to `document.body`. Both use `ui/anchoredPlacement.ts` (#1372): below the trigger, flipped above when that side has more room, and clamped `--menu-edge-margin` inside every visual viewport edge. They cap to `min(90dvh, var(--menu-available-height))`; the cap is re-measured every frame while open so a banner row cannot leave it stale. Panels scroll internally so every item stays reachable on short viewports. The `.ui-menu-root` keeps row sizing in `--menu-item-min-block-size`; the named transport container sets the touch size, which fallback placement copies from the trigger. Phone modifier-footer menus also use the touch size. The active phone navigation item keeps a transparent tab with an accent label and accent top indicator (the platform tab-bar convention for the current location); its state transition is disabled for reduced motion. The centered phone playhead uses `--color-timeline-playhead` so it remains visible in the dark timeline well.
 5. Snap only to on-screen anchors.
 6. Listen-first: every edit surface keeps Play around / seek footer.
 7. Progressive complexity via `shareMode` capabilities.
