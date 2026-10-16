@@ -895,7 +895,12 @@ async def test_run_once_ws_dispatch_paths():
             "share_token": "tok",
         },
         {"type": "ws_data", "id": "s1", "text": "hello-guest"},
-        {"type": "ws_close", "id": "s1"},
+        {
+            "type": "ws_close",
+            "id": "s1",
+            "code": 4001,
+            "reason": "relay-requested-close",
+        },
         {
             "type": "ws_open",
             "id": "s2",
@@ -912,6 +917,7 @@ async def test_run_once_ws_dispatch_paths():
     local_entered = asyncio.Event()
     guest_received = asyncio.Event()
     s1_close_sent = asyncio.Event()
+    local_close_args: list[tuple[int, str]] = []
     idx = {"i": 0}
 
     class _FakeLocal:
@@ -928,13 +934,19 @@ async def test_run_once_ws_dispatch_paths():
 
         async def send(self, text: str) -> None:
             if text == "hello-guest":
-                self._done.set()
                 guest_received.set()
 
+        async def close(self, code: int, reason: str) -> None:
+            local_close_args.append((code, reason))
+            self._done.set()
+
     class _LocalCtx:
+        def __init__(self) -> None:
+            self.local = _FakeLocal()
+
         async def __aenter__(self):
             local_entered.set()
-            return _FakeLocal()
+            return self.local
 
         async def __aexit__(self, *a):
             return False
@@ -949,7 +961,12 @@ async def test_run_once_ws_dispatch_paths():
         async def send(self, data: str) -> None:
             outbox.append(data)
             reply = _json.loads(data)
-            if reply.get("type") == "ws_close" and reply.get("id") == "s1":
+            if (
+                reply.get("type") == "ws_close"
+                and reply.get("id") == "s1"
+                and reply.get("code") == 4001
+                and reply.get("reason") == "relay-requested-close"
+            ):
                 s1_close_sent.set()
 
         async def recv(self) -> str:
@@ -959,9 +976,11 @@ async def test_run_once_ws_dispatch_paths():
             idx["i"] = i + 1
             message = messages[i]
             if message.get("type") == "ws_data" and message.get("id") == "s1":
-                await local_entered.wait()
+                await asyncio.wait_for(local_entered.wait(), timeout=2)
             elif message.get("type") == "ws_close" and message.get("id") == "s1":
-                await guest_received.wait()
+                await asyncio.wait_for(guest_received.wait(), timeout=2)
+            elif i == 5:
+                await asyncio.wait_for(s1_close_sent.wait(), timeout=2)
             return _json.dumps(message)
 
     def _connect(url, **kwargs):
@@ -974,7 +993,7 @@ async def test_run_once_ws_dispatch_paths():
             await asyncio.wait_for(client._run_once(), timeout=5.0)
         assert local_entered.is_set()
         assert guest_received.is_set()
-        await asyncio.wait_for(s1_close_sent.wait(), timeout=2)
+        assert local_close_args == [(4001, "relay-requested-close")]
 
     joined = "\n".join(outbox)
     assert "hello" in joined
