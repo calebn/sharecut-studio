@@ -9,7 +9,7 @@ import {
 } from "../commands/history";
 import { activateDocumentScope } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
-import { trackEditSave } from "../state/documentSendOrder";
+import { trackDocumentDrain, trackEditSave } from "../state/documentSendOrder";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
@@ -501,6 +501,55 @@ describe("FeedbackToast", () => {
       await act(async () => {
         finish();
         await send;
+      });
+    }
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+  });
+
+  it("keeps Undo enabled while an offline drain that began after the toast is out", async () => {
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore
+        .getState()
+        .announceStatus("Applied 6, held 4", { undo: entry("host-reorder") });
+    });
+    let endDrain!: () => void;
+    const drain = new Promise<void>((resolve) => {
+      endDrain = resolve;
+    });
+    try {
+      act(() => {
+        trackDocumentDrain("/tmp/ep", drain);
+      });
+      expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    } finally {
+      await act(async () => {
+        endDrain();
+        await drain;
+      });
+    }
+  });
+
+  it("disables Undo while an offline drain that was running at announce is out, then enables it", async () => {
+    let endDrain!: () => void;
+    const drain = new Promise<void>((resolve) => {
+      endDrain = resolve;
+    });
+    act(() => {
+      trackDocumentDrain("/tmp/ep", drain);
+    });
+    render(<FeedbackToast />);
+    try {
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Applied 6, held 4", { undo: entry("host-reorder") });
+      });
+      expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    } finally {
+      await act(async () => {
+        endDrain();
+        await drain;
       });
     }
     expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
