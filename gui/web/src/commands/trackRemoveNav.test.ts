@@ -163,6 +163,7 @@ describe("track.remove / nav / Escape fall-through", () => {
       message: "Removed Host",
       undo: "e-remove",
       baseHead: "root",
+      drainMark: expect.any(Number),
     });
   });
 

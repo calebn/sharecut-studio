@@ -36,6 +36,7 @@ import {
   noteZoomPointerClientX,
   peekZoomPointerClientX,
 } from "../utils/zoomPointer";
+import { documentDrainMark } from "./documentSendOrder";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
   CommentDraft,
@@ -320,6 +321,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
                   message,
                   undo: options.undo ?? null,
                   baseHead: s.project?.history?.head_id ?? null,
+                  drainMark: documentDrainMark(),
                 },
               }
             : {}),

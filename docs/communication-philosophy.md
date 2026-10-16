@@ -299,7 +299,9 @@ the empty state, not a separate discovery task.
   tab's own edit is still saving waits for that edit and then runs on it, so
   it never reverses the edit before the slow one and the tap is never lost.
   A toast's Undo is disabled with the busy reason while an edit is saving,
-  because the edit makes its entry stale. Tighten apply, skip and Apply
+  because the edit makes its entry stale. An offline drain that began after the
+  toast replays records queued before it, so it does not disable that Undo
+  (#1680). Tighten apply, skip and Apply
   eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
   Mute, single pending-edit Approve and Reject, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
@@ -605,6 +607,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   description, and returns focus to the control that opened it in
   Safari too; the toast steps off the control just pressed.
 
+- 2026-10-16 A toast's Undo is no longer disabled by an offline drain that began after the toast; an edit save or send still disables it, and so does a drain that was already running when the toast appeared (#1680).
 - 2026-10-16 Undo and Redo pressed while this tab's own edit is still saving wait for it and then run (#1675); the five-second "Your last edit is still saving" refusal is gone. A toast's Undo is disabled with the busy reason while an edit is saving, since the edit makes its entry stale.
 - 2026-10-16 The envelope-point select, the effect Bypass toggles and the comment composer's fields and track picks hold the 44 px floor on touch (#1445); the reachability sweep also covers the clip sheet, the Comments panel and a track with an envelope and an effect chain.
 - 2026-10-16 The phone Mix sheet shows **Plays at {dB}** over a fader whose track has a volume envelope (#1645), so a phone host can read the level at the playhead without opening the inspector. It stays plain text.

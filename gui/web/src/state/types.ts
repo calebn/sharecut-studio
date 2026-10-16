@@ -151,6 +151,13 @@ export interface FeedbackToast {
    * while the head is still this one.
    */
   baseHead: HistoryEntryId | null;
+  /**
+   * `documentDrainMark()` when it announced. Undo waits for the drain running
+   * then, not one that starts later: a drain replays records queued before this
+   * change. Edit saves and sends hold it whenever they begin, since each makes
+   * the entry stale once it lands.
+   */
+  drainMark: number;
 }
 
 export interface AnnounceOptions {

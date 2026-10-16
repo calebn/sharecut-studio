@@ -23,6 +23,8 @@ import { raceTimeout } from "../utils/raceTimeout";
 const sends = new Map<string, Send[]>();
 const finishedCount = new Map<string, number>();
 const drains = new Map<string, Promise<void>>();
+const drainOrder = new Map<string, number>();
+let drainsStarted = 0;
 const preparing = new Map<string, Set<Promise<void>>>();
 const activityListeners = new Set<() => void>();
 const landed = new Map<
@@ -42,15 +44,26 @@ export function subscribeDocumentActivity(listener: () => void): () => void {
   };
 }
 
+/** A mark for `documentActivityBusy`: how many drain runs this tab has started so far. */
+export function documentDrainMark(): number {
+  return drainsStarted;
+}
+
 /**
  * True while this tab has an edit save preparing, a live send in flight or a
  * drain running for the project: the edit is on its way to the server.
+ * With a `drainMark`, a drain started after it does not count. A drain replays
+ * records queued before any caller's edit, so a caller that waits on its own
+ * edit (a toast's Undo) is not held by a run that began later.
  */
-export function documentActivityBusy(projectPath: string): boolean {
+export function documentActivityBusy(
+  projectPath: string,
+  drainMark = Number.POSITIVE_INFINITY,
+): boolean {
   return (
     (preparing.get(projectPath)?.size ?? 0) > 0 ||
     (sends.get(projectPath)?.length ?? 0) > 0 ||
-    drains.has(projectPath)
+    (drains.has(projectPath) && (drainOrder.get(projectPath) ?? 0) <= drainMark)
   );
 }
 
@@ -65,10 +78,12 @@ export function trackDocumentDrain(
   done: Promise<void>,
 ): void {
   drains.set(projectPath, done);
+  drainOrder.set(projectPath, ++drainsStarted);
   notifyActivity();
   void done.then(() => {
     if (drains.get(projectPath) === done) {
       drains.delete(projectPath);
+      drainOrder.delete(projectPath);
       notifyActivity();
     }
   });

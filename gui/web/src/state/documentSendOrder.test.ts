@@ -3,6 +3,7 @@ import {
   activeDocumentDrain,
   beginDocumentSend,
   documentActivityBusy,
+  documentDrainMark,
   documentSendDone,
   documentSendsFinished,
   subscribeDocumentActivity,
@@ -148,6 +149,23 @@ describe("document activity", () => {
     );
     expect(documentActivityBusy("/act")).toBe(true);
     endDrain();
+    await vi.waitFor(() => expect(documentActivityBusy("/act")).toBe(false));
+
+    const mark = documentDrainMark();
+    let endLater!: () => void;
+    trackDocumentDrain(
+      "/act",
+      new Promise<void>((resolve) => {
+        endLater = resolve;
+      }),
+    );
+    expect(documentActivityBusy("/act", mark)).toBe(false);
+    expect(documentActivityBusy("/act", documentDrainMark())).toBe(true);
+    expect(documentActivityBusy("/act")).toBe(true);
+    const during = beginDocumentSend("/act", "during");
+    expect(documentActivityBusy("/act", mark)).toBe(true);
+    during.finish();
+    endLater();
     await vi.waitFor(() => expect(documentActivityBusy("/act")).toBe(false));
 
     expect(heard.mock.calls.length).toBeGreaterThanOrEqual(6);

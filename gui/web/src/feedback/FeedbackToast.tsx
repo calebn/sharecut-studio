@@ -48,8 +48,10 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     projectPath: s.projectPath,
   }));
   // An edit still on its way makes this toast's entry stale once it lands, so its Undo waits.
+  // A drain that began after the toast replays older records and does not hold it.
+  const drainMark = toast?.drainMark;
   const saving = useSyncExternalStore(subscribeDocumentActivity, () =>
-    documentActivityBusy(projectPath),
+    documentActivityBusy(projectPath, drainMark),
   );
   const [undoing, setUndoing] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);

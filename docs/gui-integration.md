@@ -396,7 +396,7 @@ A host project shows one save state, so "did that save?" never needs the History
 
 | State | Read from | Light (shape, colour token) | Name and `title` |
 | --- | --- | --- | --- |
-| Saving | this tab has an edit save preparing, a live send in flight or a queue drain running (`documentActivityBusy` in `state/documentSendOrder.ts`) | ring, `--color-text-secondary`; pulses, static under `prefers-reduced-motion` | `Saving to project…` |
+| Saving | this tab has an edit save preparing, a live send in flight or a queue drain running (`documentActivityBusy` in `state/documentSendOrder.ts`; a toast's Undo passes the `drainMark` it announced with, so a drain started after the toast does not hold it, #1680) | ring, `--color-text-secondary`; pulses, static under `prefers-reduced-motion` | `Saving to project…` |
 | Waiting to send | edits in the host offline queue (`host-queue:{projectPath}`) with nothing in flight | hollow circle, `--color-warning` | `Not saved yet · N waiting to send` |
 | Save failed | a refused edit in `host-conflicts:{projectPath}`, or a queue that cannot be read | rounded square, `--color-danger` | `Save failed` |
 | Saved | none of the above, after the queue has been read once | solid circle, `--color-success` | `Saved to project` |
