@@ -217,6 +217,16 @@ No other fallback exists.
 | **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
 | **More** | Hub → **Search commands** (opens Commands and shortcuts), Mix sheet, Comments, History, Impact, Tighten, Pipeline, settings | Track mixing, long-lived panels, command discovery |
 
+The compact header transport (Timeline, Text, More) and the Listen hero wrap
+their controls when the row is tighter than Play, Stop, time, Comment, Fit and
+Menu (Safari page zoom at 200% on a phone, or 200% text). The phone transport
+grid row grows with that wrap (`minmax(var(--transport-height), auto)`), so
+More hub rows such as History start below the bar instead of scrolling under
+overflow. Targets stay `--touch-min`. This is not pinch-zoom on the timeline.
+`gui/web/e2e-compat/phone-transport-zoom.spec.ts` uses a 215×466 layout viewport
+as a page-zoom substitute (half of iPhone 15 Plus CSS) plus a 32 px root at
+430×932; a physical iPhone Safari 200% Aa zoom remains a Mac-simulator check.
+
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
 **Listen comment field (#1338).** Commenting is the job of a Commenter or Editor review link, so Listen docks a comment field in its own grid row (`dock`) between the scrolling view and the mode bar: the bottom zone for doing. From opening the link, a guest taps the field, types, and taps **Post comment**, with no mode, menu or ruler first. **Post comment** enables once the field has text, and the **at 0:12** chip beside it shows where the comment lands (the selected range, else the playhead; see [timeline-comments.md](timeline-comments.md#daw-viewer)). With the software keyboard up, iOS Safari lifts the dock and mode bar above the keyboard, so the field, the chip and **Post comment** stay visible on an iPhone SE. Posting closes the software keyboard on purpose (the guest goes back to listening, and an open keyboard covers half the Listen view; tablet and desktop keep the field focused for the next comment), and announces "Comment posted at 0:12" in the app toast, which docks above the field (`.mobile-dock` is a toast floor in `feedback/toastDock.ts`), and the comment joins the Listen list; it does not open the Inspector. The field is 1rem so iOS does not zoom in on focus. A Viewer link and a project still loading show no dock. Two other placements were tried on an iPhone SE and rejected: a field inline under the Listen card moves down with every status chip and banner and scrolls away with the comment list, and a fifth **Comments** tab takes a third tap and hides the player while composing.

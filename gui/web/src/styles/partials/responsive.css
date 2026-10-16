@@ -244,7 +244,7 @@ html[data-shell="tablet"] {
     "dock"
     "nav";
   grid-template-rows:
-    auto auto var(--transport-height) minmax(0, 1fr) auto
+    auto auto minmax(var(--transport-height), auto) minmax(0, 1fr) auto
     var(--mobile-nav-height);
   height: 100vh;
   height: 100dvh;

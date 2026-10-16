@@ -63,7 +63,10 @@
 
 .transport--collapsed {
   display: flex;
+  flex-wrap: wrap;
+  align-content: center;
   gap: var(--space-3);
+  min-inline-size: 0;
 }
 
 @container app (inline-size < 97.75rem) {
@@ -176,6 +179,7 @@
 
 .transport--collapsed .transport-primary-actions {
   margin-inline-start: auto;
+  flex-wrap: wrap;
   gap: var(--space-1);
 }
 
@@ -297,7 +301,8 @@
     gap: var(--space-1);
   }
 
-  .transport--collapsed .timecode-current {
+  .transport--collapsed .timecode-current,
+  .listen-hero .timecode-current {
     font-size: var(--font-size-ui);
   }
 }
@@ -428,6 +433,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
+  min-inline-size: 0;
   padding: var(--space-5);
   border: 1px solid var(--color-transport-control-border);
   border-radius: var(--radius-xl);
@@ -461,27 +467,30 @@
 
 .listen-hero-time {
   min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.listen-hero-time .timecode {
+  max-inline-size: 100%;
 }
 
 .listen-hero-controls {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-4);
 }
 
 .listen-hero-transport {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-3);
 }
 
-.listen-hero-skip:first-child {
-  justify-self: end;
-}
-
-.listen-hero-skip:last-child {
-  justify-self: start;
+.listen-hero-skip {
+  flex: 0 0 auto;
 }
 
 .listen-hero .play-btn {
