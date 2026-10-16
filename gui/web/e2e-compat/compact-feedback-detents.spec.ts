@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "../e2e/env";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
+import { layer } from "../e2e/lifecycleAudit";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -100,6 +101,7 @@ for (const {
       await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       await page.setViewportSize(viewport);
       if (viewport.width < 768) await openPhoneTimeline(page);
+      await layer(page, "Volume envelope", true);
       await setTheme(page, theme);
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       await setZoom(page, 3);
