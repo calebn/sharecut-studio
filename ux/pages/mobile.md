@@ -156,6 +156,7 @@ A few things live in different places on mobile:
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
 - **Solo on · Clear solo** sits above every tab while a track is soloed, so you can see why other voices are silent and turn solo off in one tap
 - **Audition and export** are in the compact transport Menu outside Listen
+- **Safari page zoom** wraps Play, time, and Comment onto another row instead of covering History
 - **Undo and Redo** are the two arrow buttons at the right end of the tool row above the Timeline tabs. When there's nothing to undo or redo, the button is dimmed, and tapping it says why. That feedback ends after 3.5 seconds, when the action becomes available, or when the history controls disappear. Tap again if they return unavailable.
 
 The phone layout groups controls by task so they fit a smaller screen.

@@ -671,7 +671,12 @@ a copy of the fixture whose first track has a volume envelope and an effect chai
 the track surface and the envelope workspace show the Envelope point select and the
 Bypass toggles. A control inside a closed `<details>` is not measured until it opens.
 The sheet's hidden detent range is the keyboard route to the drawer height; a finger
-swipes the header or taps the resize buttons. `gui/web/e2e/reachability.ts` is the measuring helper. It
+swipes the header or taps the resize buttons. Page zoom is not that 32 px root:
+Safari Aa 200% shrinks the layout or visual viewport while rem stays 16 px, which
+the sweep never opens. `gui/web/e2e-compat/phone-transport-zoom.spec.ts` covers the
+compact transport and Listen hero at 215×466 (half of iPhone 15 Plus CSS, a
+page-zoom layout substitute) and at 430×932 with a 32 px root. It does not stand
+in for a physical iPhone. `gui/web/e2e/reachability.ts` is the measuring helper. It
 leaves out only the canvas dense targets (fade corners, trim handles, clip
 bodies, the ruler, the deselect strip, the track row's open overlay), which meet
 the floor through the dense-target pattern, the track grip, which has Move

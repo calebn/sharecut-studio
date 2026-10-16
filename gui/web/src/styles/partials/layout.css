@@ -82,6 +82,12 @@ html[data-shell] body {
   block-size: var(--transport-height);
 }
 
+.daw-shell--phone .daw-shell-transport > .transport,
+.daw-shell--tablet .daw-shell-transport > .transport.transport--collapsed {
+  block-size: auto;
+  min-block-size: var(--transport-height);
+}
+
 .daw-shell > main {
   grid-area: main;
 }
