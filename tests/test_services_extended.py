@@ -2106,8 +2106,6 @@ def test_overlapping_stem_renders_publish_one_at_a_time(minimal_project, sample_
                 raise errors[0]
     assert not ta.is_alive()
     assert tb is None or not tb.is_alive()
-    if errors:
-        raise errors[0]
     assert errors == []
     stem = ws_b.project.artifacts_dir() / "tracks" / "host.wav"
     assert stem.read_bytes() == b"1.0"
