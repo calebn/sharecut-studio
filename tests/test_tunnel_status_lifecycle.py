@@ -14,7 +14,6 @@ import os
 import signal
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -333,23 +332,27 @@ class HangingRelay(FakeRelay):
         raise AssertionError("unreachable")
 
 
-async def _wait_for(condition: Callable[[], bool]) -> None:
-    for _ in range(500):
-        if condition():
-            return
-        await asyncio.sleep(0.01)
-    raise AssertionError("timed out waiting for the tunnel")
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stop_signal", [signal.SIGTERM, signal.SIGINT], ids=["SIGTERM", "SIGINT"])
 async def test_a_stop_signal_ends_the_tunnel_with_a_stopped_snapshot(
     tmp_path: Path, stop_signal: signal.Signals
 ):
     h = Harness(tmp_path)
+    connected = asyncio.Event()
+    record_transition = h.recorder.on_transition
+
+    def record_transition_and_acknowledge(status: Any) -> None:
+        record_transition(status)
+        if status.phase is TunnelPhase.CONNECTED:
+            connected.set()
+
+    h.recorder.on_transition = record_transition_and_acknowledge
     rng = MagicMock()
     rng.uniform.return_value = 0.0
-    previous = signal.signal(stop_signal, lambda *_: None)
+    stop_signals = (signal.SIGINT, signal.SIGTERM)
+    previous_handlers = {stop: signal.getsignal(stop) for stop in stop_signals}
+    signal.signal(stop_signal, lambda *_: None)
+    running: asyncio.Task[None] | None = None
     try:
         with (
             patch("websockets.connect", side_effect=_scripted_connect(HangingRelay(ACK))),
@@ -362,13 +365,23 @@ async def test_a_stop_signal_ends_the_tunnel_with_a_stopped_snapshot(
             http_cls.return_value = http
 
             running = asyncio.create_task(tunnel_module._run_until_signalled(h.client))
-            await _wait_for(lambda: h.client.tracker.status.phase is TunnelPhase.CONNECTED)
+            await asyncio.wait_for(connected.wait(), timeout=5)
             assert _file_phase(h) == "connected"
 
             os.kill(os.getpid(), stop_signal)
             await asyncio.wait_for(running, timeout=5)
     finally:
-        signal.signal(stop_signal, previous)
+        try:
+            if running is not None and not running.done():
+                running.cancel()
+                done, _pending = await asyncio.wait({running}, timeout=5)
+                if not done:
+                    raise TimeoutError("tunnel task did not stop after cancellation")
+                if not running.cancelled():
+                    running.result()
+        finally:
+            for stop, previous in previous_handlers.items():
+                signal.signal(stop, previous)
 
     assert _file_phase(h) == "stopped"
     assert read_tunnel_status(relay_configured=True, directory=tmp_path)["state"] == "off"

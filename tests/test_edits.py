@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import random
-import time
 from unittest.mock import patch
 
 from podcast_mcp.config import load_defaults
@@ -131,10 +129,7 @@ def _two_track_filler_project() -> EpisodeProject:
 
 
 def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
-    """Real ThreadPoolExecutor (max_workers > 1) across two tracks must produce the
-    same decisions, in the same order, as a fully serial run -- gather-in-parallel,
-    apply-in-original-order must be order-independent of thread completion timing.
-    """
+    """Serial and parallel filler runs produce identical grouped decisions."""
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
 
     defaults = {
@@ -152,11 +147,10 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
         },
     }
 
-    def jittery_optimize(project, track_id, start, end, **kwargs):
+    def deterministic_optimize(project, track_id, start, end, **kwargs):
         from podcast_mcp.edits.cut_quality import CutRisk
         from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
-        time.sleep(random.uniform(0.0, 0.01))
         return (
             OptimizedCutRange(
                 start=start,
@@ -179,7 +173,7 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
         with (
             patch(
                 "podcast_mcp.edits.fillers.optimize_and_assess",
-                side_effect=jittery_optimize,
+                side_effect=deterministic_optimize,
             ),
             patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
             patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),

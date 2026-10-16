@@ -109,9 +109,12 @@ async def test_dispatch_cancels_and_awaits_all_proxies_on_disconnect():
     client = TunnelClient(cfg)
     started: set[str] = set()
     stopped: set[str] = set()
+    http_started = asyncio.Event()
+    ws_ready = asyncio.Event()
 
     async def http_proxy(_http, _raw, *, send):
         started.add("http")
+        http_started.set()
         try:
             await asyncio.Event().wait()
         finally:
@@ -122,6 +125,7 @@ async def test_dispatch_cancels_and_awaits_all_proxies_on_disconnect():
         streams["stream"] = TextWsStream(queue=WsFrameQueue(len, maxsize=1, max_bytes=100))
         streams["stream"].queue.put_nowait("old")
         nonlocal_streams.append(streams)
+        ws_ready.set()
         try:
             await asyncio.Event().wait()
         finally:
@@ -145,9 +149,11 @@ async def test_dispatch_cancels_and_awaits_all_proxies_on_disconnect():
             try:
                 result = next(self.messages)
             except StopIteration:
-                await asyncio.sleep(0)
                 raise ConnectionError("relay dropped") from None
-            await asyncio.sleep(0)
+            if result["type"] == "ws_open":
+                await asyncio.wait_for(http_started.wait(), timeout=5)
+            elif result["type"] == "ws_data":
+                await asyncio.wait_for(ws_ready.wait(), timeout=5)
             return json.dumps(result)
 
     with pytest.raises(ConnectionError, match="relay dropped"):

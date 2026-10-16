@@ -39,7 +39,7 @@
     "tests/test_cross_process_sync.py": 12,
     "tests/test_document_submit_crash_recovery.py": 1,
     "tests/test_document_sync.py": 4,
-    "tests/test_edits.py": 1,
+    "tests/test_edits.py": 0,
     "tests/test_export_cancel.py": 4,
     "tests/test_fanout_hub.py": 0,
     "tests/test_guest_progress.py": 22,
@@ -52,7 +52,7 @@
     "tests/test_parallel.py": 0,
     "tests/test_process.py": 0,
     "tests/test_progress_extended.py": 0,
-    "tests/test_progress_framework.py": 3,
+    "tests/test_progress_framework.py": 0,
     "tests/test_progress_job_reporters.py": 0,
     "tests/test_project_commit_lock.py": 2,
     "tests/test_registry_lifecycle_actors.py": 1,
@@ -64,8 +64,8 @@
     "tests/test_session_sync_presence_delta.py": 17,
     "tests/test_track_mix.py": 0,
     "tests/test_tunnel_client.py": 0,
-    "tests/test_tunnel_run.py": 2,
-    "tests/test_tunnel_status_lifecycle.py": 1,
+    "tests/test_tunnel_run.py": 0,
+    "tests/test_tunnel_status_lifecycle.py": 0,
     "tests/test_word_aligner_models.py": 0,
     "tests/test_ws_delivery.py": 6
   }
