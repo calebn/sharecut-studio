@@ -606,6 +606,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   Safari too; the toast steps off the control just pressed.
 
 - 2026-10-16 Undo and Redo pressed while this tab's own edit is still saving wait for it and then run (#1675); the five-second "Your last edit is still saving" refusal is gone. A toast's Undo is disabled with the busy reason while an edit is saving, since the edit makes its entry stale.
+- 2026-10-16 An Approve all that asks Cut anyway is one Undo (#1677): the Cut anyway toast counts the whole pass ("Approved 10 pending edits") and any Undo takes back both parts, so the dialog's "One Undo takes them back" is true.
 - 2026-10-16 The envelope-point select, the effect Bypass toggles and the comment composer's fields and track picks hold the 44 px floor on touch (#1445); the reachability sweep also covers the clip sheet, the Comments panel and a track with an envelope and an effect chain.
 - 2026-10-16 The phone Mix sheet shows **Plays at {dB}** over a fader whose track has a volume envelope (#1645), so a phone host can read the level at the playhead without opening the inspector. It stays plain text.
 - 2026-10-16 The track header's **Out** readout follows the volume envelope at the playhead (#1642): it is the gain the mix plays (staging, saved volume and envelope), and silence reads `−∞ dB`. It stays plain text, so playback does not announce it.

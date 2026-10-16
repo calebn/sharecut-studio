@@ -43,6 +43,7 @@ import {
   type HeldCut,
   type PendingReviewCapture,
   type ReviewOutcome,
+  type ReviewPassStart,
   requireCurrentPendingReview,
 } from "../utils/pendingReviewPass";
 import { loadBoundaryContext } from "./boundary";
@@ -145,6 +146,12 @@ export function askIfReplayHeldBack(
     const done = isSuggestionRecord(sent) ? sent.result : null;
     // A batch that applied the rest asks only about the cuts it left.
     const only = confirmIdsOf(done);
+    const applied = isSuggestionRecord(done) ? done.count : null;
+    const firstHead = replyHistoryHead(result);
+    const first: ReviewPassStart | null =
+      firstHead && typeof applied === "number" && applied > 0
+        ? { head: firstHead, applied }
+        : null;
     const choices: CutSpeechChoices = {
       kind: "pending-review",
       review,
@@ -153,14 +160,14 @@ export function askIfReplayHeldBack(
         const reply = await submitDocumentCommand(projectPath, type, {
           ...payload,
           ...(only ? { ids: only } : {}),
+          ...(first ? { continues_head_id: first.head } : {}),
           confirm_cut_speech: true,
         });
-        return reviewOutcome(projectPath, reply, choices);
+        return reviewOutcome(projectPath, reply, choices, undefined, first);
       },
       leaveGap: null,
     };
     const asked = rippleOutcome(projectPath, result, choices).asked;
-    const applied = isSuggestionRecord(done) ? done.count : null;
     if (asked && typeof applied === "number" && applied > 0)
       useDawStore
         .getState()
@@ -203,7 +210,11 @@ function reviewOutcome(
   projectPath: string,
   result: Record<string, unknown>,
   choices?: CutSpeechChoices,
-  narrow?: (confirmIds: string[]) => CutSpeechChoices,
+  narrow?: (
+    confirmIds: string[],
+    first: ReviewPassStart | null,
+  ) => CutSpeechChoices,
+  earlier: ReviewPassStart | null = null,
 ): ReviewOutcome {
   if (result.queued === true)
     return {
@@ -217,10 +228,17 @@ function reviewOutcome(
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const review = isSuggestionRecord(payload) ? payload.result : null;
   const confirmIds = confirmIdsOf(review);
-  const asking = choices && confirmIds && narrow ? narrow(confirmIds) : choices;
+  const applied = isSuggestionRecord(review) ? review.count : null;
+  const historyHead = replyHistoryHead(result);
+  // Cut anyway after a part that applied: one Undo takes back both.
+  const first: ReviewPassStart | null =
+    historyHead && typeof applied === "number" && applied > 0
+      ? { head: historyHead, applied }
+      : null;
+  const asking =
+    choices && confirmIds && narrow ? narrow(confirmIds, first) : choices;
   if (asking && rippleOutcome(projectPath, result, asking).asked) {
     // Approve all applied what it could and asked only about the rest.
-    const applied = isSuggestionRecord(review) ? review.count : null;
     return {
       queued: false,
       asked: true,
@@ -237,8 +255,9 @@ function reviewOutcome(
     queued: false,
     asked: false,
     count,
-    historyHead: replyHistoryHead(result),
+    historyHead,
     held: heldOf(review),
+    ...(earlier && historyHead ? { pass: earlier } : {}),
   };
 }
 
@@ -271,22 +290,35 @@ export async function approveEdits(
   allowReview = true,
   review: PendingReviewCapture = capturePendingReview("approve", projectPath),
   holdBlocked = false,
+  earlier: ReviewPassStart | null = null,
 ): Promise<ReviewOutcome> {
   if (confirmCutSpeech) requireCurrentPendingReview(review);
   const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
     ids,
     allow_review: allowReview,
     ...(holdBlocked ? { hold_blocked: true } : {}),
+    ...(earlier ? { continues_head_id: earlier.head } : {}),
     ...confirmed(confirmCutSpeech),
   });
-  const choices = (only: string[]): CutSpeechChoices => ({
+  const choices = (
+    only: string[],
+    first: ReviewPassStart | null = null,
+  ): CutSpeechChoices => ({
     kind: "pending-review",
     review,
     cutAnyway: () =>
-      approveEdits(projectPath, only, true, allowReview, review, holdBlocked),
+      approveEdits(
+        projectPath,
+        only,
+        true,
+        allowReview,
+        review,
+        holdBlocked,
+        first,
+      ),
     leaveGap: null,
   });
-  return reviewOutcome(projectPath, result, choices(ids), choices);
+  return reviewOutcome(projectPath, result, choices(ids), choices, earlier);
 }
 
 export async function waiveTranscriptRefine(

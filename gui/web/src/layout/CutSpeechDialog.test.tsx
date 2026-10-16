@@ -249,6 +249,7 @@ describe("CutSpeechDialog", () => {
       })
       .mockResolvedValue({
         ok: true,
+        history_head_id: "0f9e8d7c6b5a",
         command: { payload: { result: { count: 1 } } },
       });
     render(<CutSpeechDialog />);
@@ -272,8 +273,15 @@ describe("CutSpeechDialog", () => {
         ids: ["e2"],
         allow_review: true,
         hold_blocked: true,
+        // Names the first part's entry, so the server undoes both parts as one step.
+        continues_head_id: "a1b2c3d4e5f6",
         confirm_cut_speech: true,
       },
+    });
+    // The toast counts the whole pass and offers the one Undo.
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Approved 3 pending edits",
+      undo: "0f9e8d7c6b5a",
     });
   });
 

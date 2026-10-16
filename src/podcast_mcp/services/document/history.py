@@ -94,7 +94,8 @@ class HistoryService:
     def undo(self, *, rerender: bool = False, expected_head_id: str | None = None) -> dict:
         """Undo the head entry. ``expected_head_id`` refuses with ``StaleHistoryError``
         (``history_stale``) unless that entry is still the head, so an edit that landed
-        after the caller looked is never the one reverted."""
+        after the caller looked is never the one reverted. An Approve all pass that asked Cut
+        anyway comes back whole (``HistoryManager.undo``)."""
         return self._move(
             "undo",
             lambda project: self._mgr.undo(project, expected_head_id=expected_head_id),
