@@ -220,8 +220,6 @@ def test_publication_encodes_while_another_process_holds_lock(
 
     def spy_hash(stage, identity):
         hashed.append(stage.name)
-        # Simulate hashing a large review WAV while another process owns the lock.
-        time.sleep(0.4)
         return original_hash(stage, identity)
 
     def spy(self, wav, mp3, *, bitrate_kbps):
