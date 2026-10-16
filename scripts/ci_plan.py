@@ -121,6 +121,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("src/podcast_mcp/util/**", Scope.OTHER),
         # The hosted relay; relay-ci.yml smoke-tests it and no browser suite runs it.
         ("src/podcast_relay/**", Scope.OTHER),
+        ("contracts/test-wait-allowlist.json", Scope.OTHER),
         ("contracts/**", Scope.GUI),
         ("schemas/**", Scope.GUI),
         ("deploy/brand/**", Scope.GUI),
