@@ -139,3 +139,22 @@ def test_run_parallel_tasks_keep_the_callers_niceness_and_nothing_else():
     with low_priority(7):
         assert run_parallel([1, 2, 3], probe, max_workers=3) == [(7, "unset")] * 3
     assert run_parallel([1, 2], probe, max_workers=2) == [(0, "unset")] * 2
+
+
+def test_run_parallel_workers_share_the_callers_batch_scope():
+    from podcast_mcp.util.batch_scope import batch_scope, frozen, frozen_state, scoped
+
+    made: list[int] = []
+
+    def read(i: int) -> tuple[int, int]:
+        shared = scoped(("key",), lambda: made.append(i) or i)
+        return shared, frozen(("frozen",), lambda: i)
+
+    with batch_scope(), frozen_state():
+        first = read(0)
+        results = run_parallel([1, 2, 3, 4], read, max_workers=4)
+
+    assert results == [first] * 4
+    assert made == [0]
+    # Outside a scope the workers share nothing.
+    assert run_parallel([1, 2], read, max_workers=2) == [(1, 1), (2, 2)]
