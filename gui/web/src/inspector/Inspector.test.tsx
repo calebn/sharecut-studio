@@ -263,7 +263,7 @@ describe("SelectionSheetBody", () => {
     useDawStore.setState({ selection: null, rangeArmed: true });
     render(
       <div className="bottom-sheet-body">
-        <SelectionSheetBody />
+        <SelectionSheetBody rangeActionsInSheet />
       </div>,
     );
     expect(
@@ -279,7 +279,7 @@ describe("SelectionSheetBody", () => {
     });
     render(
       <div className="bottom-sheet-body">
-        <SelectionSheetBody />
+        <SelectionSheetBody rangeActionsInSheet />
       </div>,
     );
     expect(

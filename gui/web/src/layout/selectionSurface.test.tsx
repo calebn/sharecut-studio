@@ -347,7 +347,7 @@ describe("selection surfaces reach every kind on every shell", () => {
       }
     });
 
-    it(`an agent range over a clip stays ${shell === "phone" ? "out of the bar" : "in the bar"} on the ${shell} shell, and an armed Select range moves it into ${shell === "desktop" ? "the bar" : "the sheet"}`, () => {
+    it(`an agent range over a clip stays ${shell === "phone" ? "out of the bar" : shell === "tablet" ? "in the sheet" : "in the bar"} on the ${shell} shell, and an armed Select range moves it into ${shell === "desktop" ? "the bar" : "the sheet"}`, () => {
       const { container } = mount(shell);
       act(() =>
         useDawStore.setState({ sessionRegion: { start_sec: 4, end_sec: 9 } }),
@@ -356,6 +356,8 @@ describe("selection surfaces reach every kind on every shell", () => {
       const bar = container.querySelector(".daw-shell-transport");
       if (shell === "phone") {
         expect(rangeRegions()).toEqual([]);
+      } else if (shell === "tablet") {
+        expect(sheet()?.contains(rangeRegions()[0]!)).toBe(true);
       } else {
         expect(bar?.contains(rangeRegions()[0]!)).toBe(true);
       }
