@@ -652,7 +652,7 @@ browser grid.
 
 `gui/web/e2e-compat/reachability-sweep.spec.ts` is the one place that measures
 whether a finger can use the touch surfaces. At the shell boundaries (360, 390,
-767, 768, 820, 1180, 1181 wide, a phone held sideways and an iPad held sideways)
+767, 768, 820, 1194, 1195 wide, a phone held sideways and an iPad held sideways)
 and at 16 px and 32 px root text it asserts, for every interactive control in
 the shell chrome, the track sheet or inspector, the clip sheet or inspector, the
 armed Select range controls and Listen, that the control
@@ -1662,7 +1662,7 @@ test; other rows are whole tests.
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| tablet and desktop shells keep every control a finger can use across 768 to 1181 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| tablet and desktop shells keep every control a finger can use across 768 to 1195 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a track with an envelope and an effect chain keeps every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending-edit and transcript-word sheet bodies keep every control reachable | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |

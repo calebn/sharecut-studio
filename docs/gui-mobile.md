@@ -34,10 +34,10 @@ See [shell chrome](design-system.md#shell-chrome) for the catalog boundary.
 | Shell | Width | Root class | Layout |
 |-------|-------|------------|--------|
 | Phone | `< 768px` | `data-shell="phone"` / `.daw-shell--phone` | Four modes + selection sheet |
-| Tablet | `768–1180px` | `data-shell="tablet"` / `.daw-shell--tablet` | Timeline + peek inspector sheet (portrait); side inspector when wide enough |
-| Desktop | `> 1180px` | `data-shell="desktop"` | Reaper four-pane grid + optional layouts |
+| Tablet | `768–1194px` | `data-shell="tablet"` / `.daw-shell--tablet` | Timeline + peek inspector sheet (portrait); side inspector when wide enough |
+| Desktop | `> 1194px` | `data-shell="desktop"` | Reaper four-pane grid + optional layouts |
 
-iPad 11″ landscape is ~1180 CSS px wide. The tablet band used to end at 1100px, which put that orientation on the desktop shell and hid Select, Blade, and Select range behind collapsed transport chrome (#1632). `TABLET_MAX_PX` now includes 1180 so landscape keeps the bottom editing tool rail. On a short tablet viewport the rail scrolls sideways instead of wrapping into clipped rows.
+iPad 11″ landscape is 1180 CSS px wide on the Air and 1194 on the Pro. The tablet band used to end at 1100px, which put that orientation on the desktop shell and hid Select, Blade, and Select range behind collapsed transport chrome (#1632). It then ended at 1180, which still left the Pro on the desktop shell (#1674). `TABLET_MAX_PX` now includes 1194 so both keep the bottom editing tool rail. A desktop shell whose transport bar has collapsed lists **Select a range** with Select tool and Blade tool under Timeline tools in Menu, not further down in its own Selection group. On a short tablet viewport the rail scrolls sideways instead of wrapping into clipped rows.
 
 Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewportClass.ts) reads a first-render snapshot through the shared media-query subscription in `useMediaQueryStore.ts` (`matchMedia` + `visualViewport` resize). Pointer capability and Storybook docs theme use that subscription too; pointer events still select the last used device. Store mirrors `shellBreakpoint`. CSS class stem `.daw-shell*` is frozen BEM (`StudioShell` / `MobileShell`); do not rename it in lockstep with the TypeScript component.
 
@@ -622,7 +622,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 |------|----------|
 | Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (session width, except Listen), Menu icon; desktop/tablet also **Layout** (maximize/restore) and, on the wide bar, a **Fit tracks to window height** icon beside Fit |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
-| Menu → Project (host) | New / Open, then the export pair Bounce… and Export deliverables…, then **Share…** (collaboration extension), Record room… and **Connect agent…**, with a divider between the three groups. Selection (**Select a range**) follows Markers, so Help sits right under the view sections. Home also has **Connect agent…** |
+| Menu → Project (host) | New / Open, then the export pair Bounce… and Export deliverables…, then **Share…** (collaboration extension), Record room… and **Connect agent…**, with a divider between the three groups. Selection (**Select a range**) follows Markers, so Help sits right under the view sections. A collapsed desktop bar moves **Select a range** up beside Select tool and Blade tool under Timeline tools and drops the Selection group. Home also has **Connect agent…** |
 | Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Full mix/Edited stems/Original, **Refresh mix** when render is stale, layers, zoom, **Track height −/+** and **Fit tracks to window height** checkbox, layout, theme, Fit session width if omitted from bar, Help (wide desktop splits layers/zoom/track height/layout/theme into a **View** menu) |
 
 ### Editing tool rail (phone / tablet Timeline)

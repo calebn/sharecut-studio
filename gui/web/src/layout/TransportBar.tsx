@@ -196,6 +196,8 @@ export function TransportBar({
         (showRecordingChip && recordChipVisible),
     );
 
+  const timelineToolsInMenu = collapsed && !compact && !menuOnly;
+
   const desktopError =
     !compact && !menuOnly && collapsed ? transportError : null;
   const structuralToolsAllowed = canSuggestStructuralOnProject(
@@ -442,7 +444,7 @@ export function TransportBar({
       )}
     >
       {collapsed ? <AvatarStack variant="menu" /> : null}
-      {collapsed && !compact && !menuOnly ? (
+      {timelineToolsInMenu ? (
         <MenuSection label="Timeline tools">
           <MenuItem
             disabled={loading}
@@ -476,6 +478,9 @@ export function TransportBar({
           >
             Blade tool
           </MenuItem>
+          <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
+            Select a range
+          </CommandMenuItem>
           {toolMode === "blade" && !commentMode ? (
             <CommandMenuItem commandId="edit.bladeCut" onSelect={closeMenu}>
               Cut at playhead
@@ -570,11 +575,13 @@ export function TransportBar({
           </CommandMenuItem>
         </MenuSection>
       ) : null}
-      <MenuSection label="Selection">
-        <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
-          Select a range
-        </CommandMenuItem>
-      </MenuSection>
+      {timelineToolsInMenu ? null : (
+        <MenuSection label="Selection">
+          <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
+            Select a range
+          </CommandMenuItem>
+        </MenuSection>
+      )}
       {collapsed ? (
         <MenuSection label="Audition">{auditionGroup(true)}</MenuSection>
       ) : null}

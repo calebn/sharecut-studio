@@ -57,10 +57,10 @@ const TABLETS: readonly Cell[] = [
     height: 1180,
     rootPx: 32,
   },
-  { name: "tablet max 1180", width: 1180, height: 800, rootPx: 16 },
+  { name: "tablet max 1194", width: 1194, height: 800, rootPx: 16 },
   {
-    name: "desktop min 1181",
-    width: 1181,
+    name: "desktop min 1195",
+    width: 1195,
     height: 800,
     rootPx: 16,
   },
@@ -76,6 +76,12 @@ const LANDSCAPES: readonly Cell[] = [
   {
     name: "iPad landscape 1180",
     width: 1180,
+    height: 834,
+    rootPx: 16,
+  },
+  {
+    name: "iPad Pro 11 landscape 1194",
+    width: 1194,
     height: 834,
     rootPx: 16,
   },
@@ -202,7 +208,7 @@ async function sweepCell(
   theme: Theme,
 ): Promise<string> {
   const phone = cell.width <= 767;
-  const sheet = cell.width <= 1180;
+  const sheet = cell.width <= 1194;
   const found: Record<string, Reach[]> = {};
   await arrive(page, cell);
   await setTheme(page, theme);
@@ -387,7 +393,7 @@ async function sweepSeededTrack(
     const trigger = page.locator(".track-header-open").first();
     await trigger.focus();
     await trigger.press("Enter");
-    const surface = cell.width <= 1180 ? ".bottom-sheet" : "aside.inspector";
+    const surface = cell.width <= 1194 ? ".bottom-sheet" : "aside.inspector";
     await expect(page.locator(surface)).toBeVisible();
     await expect(
       page.getByRole("checkbox", { name: /^Bypass / }).first(),
@@ -430,7 +436,7 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
   expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
 });
 
-test("tablet and desktop shells keep every control a finger can use across 768 to 1181 wide", async ({
+test("tablet and desktop shells keep every control a finger can use across 768 to 1195 wide", async ({
   page,
 }) => {
   expect(await sweep(page, TABLETS), "controls a finger cannot use").toBe("");

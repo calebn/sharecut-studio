@@ -199,7 +199,7 @@ test("transport zones never overlap across desktop widths", async ({
           }, name);
           const transport = page.locator("header.transport");
           const controls = transport.locator(".transport-edit-controls button");
-          await expect(controls).toHaveCount(width <= 1180 ? 0 : 4);
+          await expect(controls).toHaveCount(width <= 1194 ? 0 : 4);
           const geometry = await transport.evaluate((header) => {
             const box = (node: Element) => {
               const rect = node.getBoundingClientRect();
