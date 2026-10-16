@@ -310,19 +310,23 @@ async function sweepCell(
     dense: DENSE,
   });
 
-  await page
-    .getByRole("button", { name: "Comment", exact: true })
-    .first()
-    .click();
-  await expect(
-    page.getByRole("textbox", { name: "Comment", exact: true }),
-  ).toBeVisible();
-  await settle(page);
-  found["comments panel"] = await reachFailures(page, {
-    scope: PANELS.join(","),
-    skip: [".bottom-sheet-root"],
-    dense: DENSE,
-  });
+  // Phones comment from the Listen dock, swept above. The Comments panel is a tablet
+  // and desktop tab, and its action items and track picks appear once there is text.
+  if (!phone) {
+    await page
+      .getByRole("button", { name: "Comment", exact: true })
+      .first()
+      .click();
+    const body = page.getByRole("textbox", { name: "Comment", exact: true });
+    await body.fill("Check this join");
+    await expect(page.locator(".comment-track-picks")).toBeVisible();
+    await settle(page);
+    found["comments panel"] = await reachFailures(page, {
+      scope: PANELS.join(","),
+      skip: [".bottom-sheet-root"],
+      dense: DENSE,
+    });
+  }
 
   const report = Object.entries(found)
     .filter(([, failures]) => failures.length > 0)
