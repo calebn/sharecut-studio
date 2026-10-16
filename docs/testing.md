@@ -674,9 +674,10 @@ The sheet's hidden detent range is the keyboard route to the drawer height; a fi
 swipes the header or taps the resize buttons. Page zoom is not that 32 px root:
 Safari Aa 200% shrinks the layout or visual viewport while rem stays 16 px, which
 the sweep never opens. `gui/web/e2e-compat/phone-transport-zoom.spec.ts` covers the
-compact transport and Listen hero at 215×466 (half of iPhone 15 Plus CSS, a
-page-zoom layout substitute) and at 430×932 with a 32 px root. It does not stand
-in for a physical iPhone. `gui/web/e2e/reachability.ts` is the measuring helper. It
+compact transport and Listen timer at 197×329 CSS px, matching the measured
+iPhone 15 Pro Safari 200% layout viewport, and at 393×852 with a 32 px root. The
+WebKit case checks browser layout at that width; it does not reproduce native
+Safari's select painting or stand for a physical iPhone. `gui/web/e2e/reachability.ts` is the measuring helper. It
 leaves out only the canvas dense targets (fade corners, trim handles, clip
 bodies, the ruler, the deselect strip, the track row's open overlay), which meet
 the floor through the dense-target pattern, the track grip, which has Move
@@ -1656,7 +1657,7 @@ test; other rows are whole tests.
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | actual sheet controls and help copy work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways keeps three compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| compact transport wraps at a 200% page-zoom layout width (#1636) | `gui/web/e2e-compat/phone-transport-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| phone zoom keeps the compact transport and Listen timer inside the viewport (#1636) | `gui/web/e2e-compat/phone-transport-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | compact transport at 200% text keeps More History below the bar (#1636) | `gui/web/e2e-compat/phone-transport-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo on the tool row and five lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps Zoom, Undo and Redo on the tool row, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
