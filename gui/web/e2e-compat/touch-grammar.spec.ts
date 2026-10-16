@@ -454,9 +454,9 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   expect(added?.track_id).toBe(guest.trackId);
   expect(added?.points).toHaveLength(3);
   const flat = added!.points as { id: string; time: number; value: number }[];
-  const newPoint = flat.find((point) => point.time > 0 && point.time < 60);
+  const newPoint = flat.find((point) => point.time > 0 && point.time < 70);
   expect(flat[0]).toMatchObject({ time: 0, value: 1 });
-  expect(flat[2]).toMatchObject({ time: 60, value: 1 });
+  expect(flat[2]).toMatchObject({ time: 70, value: 1 });
   expect(newPoint).toMatchObject({ value: 1 });
   expect(new Set(flat.map((point) => point.id)).size).toBe(3);
   await expect
