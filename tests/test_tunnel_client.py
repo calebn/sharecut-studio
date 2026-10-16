@@ -725,7 +725,6 @@ async def test_proxy_ws_successful_bridge():
         async def _gen(self):
             yield '{"ok":true}'
             yield b'{"bin":true}'
-            # Stay open until relay pushes close via queue
             await self._hold.wait()
             return
 
