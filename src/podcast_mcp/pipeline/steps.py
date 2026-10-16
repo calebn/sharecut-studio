@@ -447,11 +447,7 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
 
 
 def _sound_scan_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
-    """Copy of ``defaults`` with Whisper word probe off (#1608).
-
-    Acoustic defaults already Leave or Lower, so the probe cannot cut a real word
-    and only adds the Whisper load.
-    """
+    """Copy of ``defaults`` with Whisper word probe off for the non-speech scan (#1608)."""
     tighten = dict(defaults.get("tighten") or {})
     gap = dict(tighten.get("acoustic_gap_filler") or {})
     gap["word_probe"] = False
