@@ -14,12 +14,8 @@ from typer.testing import CliRunner
 
 from history_helpers import history_move
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits.cut_speech import (
-    CutSpeechConfirmation,
-    LaneSourceExtent,
-    SpeechClearance,
-    clear_ripple,
-)
+from podcast_mcp.edits.cut_safety import clear_ripple
+from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, LaneSourceExtent, SpeechClearance
 from podcast_mcp.edits.decisions import apply_auto_edits
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
 from podcast_mcp.engines.session_timeline import SessionTimeline

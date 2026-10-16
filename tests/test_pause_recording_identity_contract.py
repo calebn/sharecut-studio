@@ -15,8 +15,8 @@ from pause_policy_public_helpers import (
     project,
     workspace,
 )
+from podcast_mcp.edits.cut_safety import CutRejected, original_pause_support
 from podcast_mcp.edits.edit_log import archive_timeline_op
-from podcast_mcp.edits.fillers import _CutRejected, _original_pause_support
 from podcast_mcp.edits.session_air import GeometricPause
 from podcast_mcp.models import Clip, SourceRecording, load_project
 from podcast_mcp.services.document import EditService
@@ -93,12 +93,12 @@ def test_manual_fill_archives_actual_tiles_once_and_empty_refill_adds_no_record(
     ]
     if not bed:
         support = _support(saved)
-        assert not isinstance(support, _CutRejected)
+        assert not isinstance(support, CutRejected)
         assert support.seconds == pytest.approx(0.4)
         history_free = saved.model_copy(deep=True)
         history_free.editorial.edit_log = []
         control = _support(history_free)
-        assert not isinstance(control, _CutRejected)
+        assert not isinstance(control, CutRejected)
         assert control.seconds == pytest.approx(0.55)
     _assert_private_archive(saved, tmp_path)
     second = EditService(ws).fill_room_tone(track_id="host")
@@ -154,7 +154,7 @@ def _sampled_original_deleted(tmp_path):
 
 
 def _support(result):
-    return _original_pause_support(
+    return original_pause_support(
         result, "host", tuple(result.transcripts[0].words), GeometricPause(())
     )
 
@@ -165,7 +165,7 @@ def test_deleted_original_sample_is_excluded_after_split_and_move_with_alias_rec
     _deny_registry(monkeypatch)
     result = _sampled_original_deleted(tmp_path)
     genuine = _support(result)
-    assert not isinstance(genuine, _CutRejected)
+    assert not isinstance(genuine, CutRejected)
     assert genuine.seconds == pytest.approx(0.65)
     result.sources.append(SourceRecording(id="same-media", path="raw/host.wav", duration_sec=6))
     archive_timeline_op(
@@ -184,7 +184,7 @@ def test_deleted_original_sample_is_excluded_after_split_and_move_with_alias_rec
         },
     )
     support = _support(result)
-    assert not isinstance(support, _CutRejected)
+    assert not isinstance(support, CutRejected)
     assert support.seconds == pytest.approx(0.4)
     assert [(float(piece.source_start), float(piece.source_end)) for piece in support.pieces] == [
         pytest.approx((0.2, 0.3)),
@@ -207,7 +207,7 @@ def test_deleted_original_sample_is_excluded_after_split_and_move_with_alias_rec
 def test_indicated_unresolved_or_malformed_sample_holds_instead_of_crediting_air(tmp_path, receipt):
     result = _sampled_original_deleted(tmp_path)
     genuine = _support(result)
-    assert not isinstance(genuine, _CutRejected)
+    assert not isinstance(genuine, CutRejected)
     assert genuine.seconds == pytest.approx(0.65)
     archive_timeline_op(
         result,
@@ -215,7 +215,7 @@ def test_indicated_unresolved_or_malformed_sample_holds_instead_of_crediting_air
         track_ids=["host"],
         params={"pad_samples": [receipt]},
     )
-    assert isinstance(_support(result), _CutRejected)
+    assert isinstance(_support(result), CutRejected)
 
 
 def test_known_pad_without_receipt_holds_but_unrelated_nonpad_record_keeps_original_credit(
@@ -224,10 +224,10 @@ def test_known_pad_without_receipt_holds_but_unrelated_nonpad_record_keeps_origi
     result = _sampled_original_deleted(tmp_path)
     archive_timeline_op(result, operation="move_clips", track_ids=["host"], params={})
     genuine = _support(result)
-    assert not isinstance(genuine, _CutRejected)
+    assert not isinstance(genuine, CutRejected)
     assert genuine.seconds == pytest.approx(0.65)
     archive_timeline_op(result, operation="fill_with_room_tone", track_ids=["host"], params={})
-    assert isinstance(_support(result), _CutRejected)
+    assert isinstance(_support(result), CutRejected)
 
 
 def test_saved_pause_uses_private_identity_and_archives_only_finite_effect_geometry(
@@ -266,7 +266,7 @@ def test_missing_pad_receipt_cannot_prove_disjointness_from_foreign_primary_medi
     result = _sampled_original_deleted(tmp_path)
     add_guest(result, tmp_path, "quiet")
     control = _support(result)
-    assert not isinstance(control, _CutRejected)
+    assert not isinstance(control, CutRejected)
     assert control.seconds == pytest.approx(0.65)
     archive_timeline_op(result, operation="fill_with_room_tone", track_ids=["guest"], params={})
-    assert isinstance(_support(result), _CutRejected)
+    assert isinstance(_support(result), CutRejected)

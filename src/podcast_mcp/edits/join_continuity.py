@@ -1021,52 +1021,6 @@ def _assess_existing_join(
     )
 
 
-def assess_proposed_cut(
-    project: EpisodeProject,
-    track_id: str,
-    cut_start: float,
-    cut_end: float,
-    *,
-    timebase: Literal["source", "timeline"] = "source",
-    config: JoinContinuityConfig | None = None,
-    defaults: dict[str, Any] | None = None,
-    audio_caches: dict[str, TrackAudioCache] | None = None,
-) -> JoinContinuityReport:
-    cfg = config or JoinContinuityConfig.from_defaults(defaults)
-    if cut_end <= cut_start:
-        raise ValueError("cut_end must be > cut_start")
-    samples = _resolve_source_samples(project, track_id, cfg.sample_rate, audio_caches=audio_caches)
-    cfg = cfg.at_levels(track_level_profile(project, track_id, (audio_caches or {}).get(track_id)))
-    st = SessionTimeline(project)
-    if timebase == "timeline":
-        mapped0 = st.timeline_to_source(track_id, TimelineSec(cut_start))
-        mapped1 = st.timeline_to_source(track_id, TimelineSec(cut_end))
-        if mapped0 is None or mapped1 is None:
-            raise ValueError(
-                f"timeline cut {cut_start}->{cut_end} falls in a gap on track {track_id!r}"
-            )
-        src0, src1 = float(mapped0), float(mapped1)
-    else:
-        src0, src1 = float(cut_start), float(cut_end)
-    i0, i1 = _splice_indices((src0, src1), cfg.sample_rate)
-    worst = _worst_placement(samples, cfg.sample_rate, i0, i1, cfg)
-    return _finalize(
-        track_id=track_id,
-        mode="proposed_cut",
-        join_sec=float(cut_start),
-        timebase=timebase,
-        risk=worst.risk,
-        hits=worst.hits,
-        samples=samples,
-        cfg=cfg,
-        extra_reasons=[
-            f"cut {cut_start:.3f}->{cut_end:.3f} ({timebase})",
-            *worst.reasons(cfg, cfg.sample_rate),
-        ],
-        artifacts_dir=project.artifacts_dir(),
-    )
-
-
 def assess_project_joins(
     project: EpisodeProject,
     *,

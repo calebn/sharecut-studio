@@ -355,6 +355,14 @@ enforced-by:
 - gui/web/src/layout/CutSpeechDialog.test.tsx::asks before a ripple delete cuts another speaker, naming who, when and what
 -->
 
+The manual-confirmation requirement in this decision is superseded by
+[D-manual-cut-intent](filler-cut-quality.md#decision-manual-cut-intent-bypasses-acoustic-vetoes).
+Trusted explicit human approval is an acoustic override, including peer speech.
+Programmatic calls retain acoustic checks, and both paths retain structural checks.
+Implementation of that distinction remains pending #1403; the tests above describe
+current behavior, not completed enforcement of the amendment.
+
+
 Trim, delete, cut and paste take one `mode` (`EditMode`, `ripple` | `gap`) on
 their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment`).
 

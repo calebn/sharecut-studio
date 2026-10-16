@@ -35,6 +35,7 @@ from podcast_mcp.edits.cut_quality import (
     recommend_cut_fade_ms,
     recommend_prev_word_lead_out_ms,
 )
+from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import (
     MIN_PACED_CUT_SEC,
     PacedPad,
@@ -43,14 +44,12 @@ from podcast_mcp.edits.filler_pacing import (
 )
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.mute_regions import (
-    IgnoredWordRegions,
     muted_source_spans,
     source_span_is_muted,
 )
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
-from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause, SessionAir
+from podcast_mcp.edits.session_air import MeasuredPause, SessionAir
 from podcast_mcp.edits.shared_pause import PauseClaim, shared_pause_twins
-from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     ACOUSTIC_FILLER_REASON,
@@ -74,7 +73,7 @@ from podcast_mcp.edits.word_onset import (
     voice_separates,
 )
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
-from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
+from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     ClipMuteRegion,
     EditDecision,
@@ -85,16 +84,14 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.dsp import db_to_amplitude, rms_db
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals, subtract_intervals
-from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.text import lexicon_form, normalize_text
-from podcast_mcp.util.timebase import SourceSec, TimelineSec
+from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 if TYPE_CHECKING:
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
     from podcast_mcp.edits.timeline_ops import (
-        LaneUnavailable,
         PauseEdgeFade,
     )
     from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
@@ -873,23 +870,9 @@ def _peer_voiced_at(
     return False
 
 
-@dataclass(frozen=True)
-class _OriginalQuietSupport:
-    pieces: tuple[TimelineClipSpan, ...]
-
-    @property
-    def seconds(self) -> float:
-        return sum(
-            hi - lo
-            for lo, hi in merge_intervals(
-                (float(piece.source_start), float(piece.source_end)) for piece in self.pieces
-            )
-        )
-
-
 def _pause_words(
     project: EpisodeProject, candidate: _CutCandidate
-) -> tuple[TranscriptWord, TranscriptWord] | _CutRejected:
+) -> tuple[TranscriptWord, TranscriptWord] | CutRejected:
     transcript = project.transcript_for_source(candidate.track_id, None)
     words = (
         [w for w in transcript.words if not w.suppressed and not w.ignored and w.end > w.start]
@@ -907,7 +890,7 @@ def _pause_words(
         default=None,
     )
     if before is None or after is None:
-        return _CutRejected("no_air")
+        return CutRejected("no_air")
     timeline = SessionTimeline(project)
     for word in (before, after):
         span = timeline.exact_source_span(
@@ -918,219 +901,8 @@ def _pause_words(
             not math.isclose(float(actual), expected, rel_tol=0, abs_tol=1e-6)
             for actual, expected in zip(source, (word.start, word.end), strict=True)
         ):
-            return _CutRejected("source_geometry")
+            return CutRejected("source_geometry")
     return before, after
-
-
-def _spans_agree(got: tuple[float, float] | None, want: tuple[float, float]) -> bool:
-    """Whether a span mapped there and back lands on ``want``, within float error (#1560)."""
-    return got is not None and all(abs(g - w) <= 1e-9 for g, w in zip(got, want, strict=True))
-
-
-def _original_pause_support(
-    project: EpisodeProject,
-    track_id: str,
-    words: tuple[TranscriptWord, TranscriptWord],
-    observation: GeometricPause | MeasuredPause,
-) -> _OriginalQuietSupport | _CutRejected:
-    from podcast_mcp.edits.clips_ops import uses_crossfade_join
-    from podcast_mcp.edits.ripple import ripple_track_ids
-    from podcast_mcp.edits.room_tone import room_tone_source_id
-    from podcast_mcp.edits.track_media import full_span_clip
-    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
-    from podcast_mcp.util.coded_error import CodedError
-    from podcast_mcp.util.tracks import recording_audio_path
-    from podcast_mcp.util.workspace_paths import resolve_under_workspace
-
-    timeline = SessionTimeline(project)
-    before, after = words
-    before_span = timeline.exact_source_span(
-        track_id, SourceSec(before.start), SourceSec(before.end)
-    )
-    after_span = timeline.exact_source_span(track_id, SourceSec(after.start), SourceSec(after.end))
-    if before_span is None or after_span is None or before_span[1] > after_span[0]:
-        return _CutRejected("source_geometry")
-    origin = project.track_by_id(track_id)
-    if origin is None or origin.media is None:
-        return _CutRejected("source_geometry")
-    try:
-        media = resolve_under_workspace(project, origin.media.path).resolve()
-    except (CodedError, OSError, ValueError):
-        return _CutRejected("source_geometry")
-    images = []
-    for track in project.tracks:
-        lane = timeline.lane_clip_spans(track.id)
-        if not lane and (
-            not track.timeline_empty
-            and track.media is not None
-            and track.media.duration_sec is not None
-            and math.isfinite(track.media.duration_sec)
-        ):
-            clip = full_span_clip(track.id, track.media.duration_sec)
-            lane = [
-                TimelineClipSpan(
-                    TimelineSec(0),
-                    TimelineSec(track.media.duration_sec),
-                    SourceSec(0),
-                    SourceSec(track.media.duration_sec),
-                    clip,
-                )
-            ]
-        images.extend(lane)
-    same_media = []
-    for image in images:
-        clip = image.clip
-        clip_track = project.track_by_id(clip.track_id)
-        if clip_track is None:
-            continue
-        try:
-            if same_recording(resolve_clip_audio_path(project, clip_track, clip), media):
-                same_media.append(image)
-        except (CodedError, OSError, ValueError):
-            continue
-    for track in project.tracks:
-        bed_source = project.source_by_id(room_tone_source_id(track.id))
-        if track.room_tone is not None and bed_source is not None:
-            try:
-                if same_recording(resolve_under_workspace(project, bed_source.path), media):
-                    return _OriginalQuietSupport(())
-            except (CodedError, OSError, ValueError):
-                continue
-    known_pads: list[tuple[float, float]] = []
-    for record in project.editorial.edit_log:
-        gap = record.params.get("replace_gap_sec")
-        pad_purpose = record.operation in {"fill_with_room_tone", "insert_room_tone_pad"} or (
-            isinstance(gap, (int, float))
-            and not isinstance(gap, bool)
-            and math.isfinite(gap)
-            and gap > 0
-            and record.params.get("mute") is not True
-        )
-        if "pad_samples" not in record.params:
-            if pad_purpose:
-                return _CutRejected("source_geometry")
-            continue
-        samples = record.params["pad_samples"]
-        if not isinstance(samples, (list, tuple)):
-            return _CutRejected("source_geometry")
-        for sample in samples:
-            if (
-                not isinstance(sample, dict)
-                or not isinstance(sample.get("track_id"), str)
-                or not sample["track_id"]
-                or "source_id" not in sample
-                or (
-                    sample["source_id"] is not None
-                    and (not isinstance(sample["source_id"], str) or not sample["source_id"])
-                )
-            ):
-                return _CutRejected("source_geometry")
-            try:
-                referenced = recording_audio_path(
-                    project, sample["track_id"], sample["source_id"]
-                ).resolve(strict=True)
-            except (CodedError, OSError, ValueError):
-                return _CutRejected("source_geometry")
-            if not same_recording(referenced, media):
-                continue
-            lo, hi = sample.get("source_start"), sample.get("source_end")
-            if (
-                not isinstance(lo, (int, float))
-                or isinstance(lo, bool)
-                or not isinstance(hi, (int, float))
-                or isinstance(hi, bool)
-                or not math.isfinite(lo)
-                or not math.isfinite(hi)
-                or lo < 0
-                or hi <= lo
-            ):
-                return _CutRejected("source_geometry")
-            known_pads.append((lo, hi))
-    allowed = set(ripple_track_ids(project, [track_id]))
-    ignored = IgnoredWordRegions(project)
-    pieces = []
-    cursor = float(before_span[1])
-    for placement in sorted(
-        timeline.map_timeline_spans(track_id, before_span[1], after_span[0]),
-        key=lambda piece: piece.timeline_start,
-    ):
-        if abs(float(placement.timeline_start) - cursor) > 1e-6:
-            return _CutRejected("source_geometry")
-        cursor = float(placement.timeline_end)
-        matches = [
-            image
-            for image in same_media
-            if image.source_start <= placement.source_start + 1e-6
-            and image.source_end >= placement.source_end - 1e-6
-            and image.timeline_start <= placement.timeline_start + 1e-6
-            and image.timeline_end >= placement.timeline_end - 1e-6
-        ]
-        if len(matches) != 1 or matches[0].clip.track_id not in allowed:
-            continue
-        clip = matches[0].clip
-        clip_track = project.track_by_id(clip.track_id)
-        lane_clips = sorted(
-            (image.clip for image in images if image.clip.track_id == clip.track_id),
-            key=lambda c: c.timeline_start,
-        )
-        at = lane_clips.index(clip)
-        if (
-            clip_track is None
-            or clip_track.muted
-            or clip_track.transcript_gate
-            or (
-                (at > 0 and uses_crossfade_join(lane_clips[at - 1], clip))
-                or (at + 1 < len(lane_clips) and uses_crossfade_join(clip, lane_clips[at + 1]))
-            )
-        ):
-            continue
-        duplicated = [
-            (float(other.source_start), float(other.source_end))
-            for other in same_media
-            if other.clip is not clip
-        ]
-        excluded = (
-            [
-                (region.start_s, region.end_s)
-                for region in [*clip.mute_regions, *ignored.for_clip(clip)]
-            ]
-            + known_pads
-            + duplicated
-        )
-        for lo, hi in subtract_intervals(
-            [
-                (
-                    max(before.end, float(placement.source_start)),
-                    min(after.start, float(placement.source_end)),
-                )
-            ],
-            excluded,
-        ):
-            if hi <= lo:
-                continue
-            mapped = timeline.exact_source_span(track_id, SourceSec(lo), SourceSec(hi))
-            if mapped is None or not _spans_agree(
-                timeline.exact_timeline_source_span(track_id, *mapped), (lo, hi)
-            ):
-                continue
-            for quiet_lo, quiet_hi in subtract_intervals(
-                [(float(mapped[0]), float(mapped[1]))],
-                [(sound.lo, sound.hi) for sound in observation.activity],
-            ):
-                source = timeline.exact_timeline_source_span(
-                    track_id, TimelineSec(quiet_lo), TimelineSec(quiet_hi)
-                )
-                if source is not None and _spans_agree(
-                    timeline.exact_source_span(track_id, *source), (quiet_lo, quiet_hi)
-                ):
-                    pieces.append(
-                        TimelineClipSpan(
-                            TimelineSec(quiet_lo), TimelineSec(quiet_hi), *source, clip
-                        )
-                    )
-    if abs(cursor - float(after_span[0])) > 1e-6:
-        return _CutRejected("source_geometry")
-    return _OriginalQuietSupport(tuple(pieces))
 
 
 def _pause_trim_end_for_timeline_floor(
@@ -1606,7 +1378,7 @@ def _add_acoustic_candidates(
 
 def _resolve_analyzed_cuts(
     candidates: list[_CutCandidate],
-    results: list[_AnalyzedCut | _CutRejected],
+    results: list[_AnalyzedCut | CutRejected],
     *,
     existing: Iterable[EditDecision] = (),
     muted: Mapping[str, Sequence[ClipMuteRegion]] | None = None,
@@ -1647,7 +1419,7 @@ def _resolve_analyzed_cuts(
     }
     pairs: list[tuple[_CutCandidate, _AnalyzedCut | None]] = []
     for candidate, outcome in zip(candidates, results, strict=True):
-        if isinstance(outcome, _CutRejected):
+        if isinstance(outcome, CutRejected):
             prefix = (
                 "acoustic:"
                 if candidate.strictly_bounded and outcome.skip != "scope_unavailable"
@@ -1672,7 +1444,8 @@ def _resolve_analyzed_cuts(
             _count_skip(skip_counts, "same_hit")
             result = None
         if result is not None and project is not None and result.decision_type == "remove":
-            from podcast_mcp.edits.source_removals import CutScopeHold, inspect_source_remove
+            from podcast_mcp.edits.cut_safety import CutScopeHold
+            from podcast_mcp.edits.source_removals import inspect_source_remove
 
             assessed = inspect_source_remove(
                 project,
@@ -1766,14 +1539,6 @@ _MIN_NUDGED_CUT_SEC = 0.1
 
 
 @dataclass(frozen=True)
-class _CutRejected:
-    """A candidate analysis refused, counted as ``skip`` in the proposal's skip counts."""
-
-    skip: str
-    unavailable_lanes: tuple[LaneUnavailable, ...] = ()
-
-
-@dataclass(frozen=True)
 class _CutPlan:
     """The span a cut removes, the join approving ships, and the pad a ripple inserts.
 
@@ -1835,7 +1600,7 @@ def _shrink_to_next_onset(
     *,
     audio_cache: TrackAudioCache,
     defaults: dict[str, Any],
-) -> _CutPlan | _CutRejected:
+) -> _CutPlan | CutRejected:
     """End ``plan`` before the next word's acoustic onset; refuse it if the filler stays.
 
     A burst onset stays on the plan, so approval can end the fade-in after the cut
@@ -1853,7 +1618,7 @@ def _shrink_to_next_onset(
         return replace(plan, next_burst=burst)
     end = min(plan.end, onset.sec - guard)
     if end < candidate.end - _FILLER_END_SLACK_SEC:
-        return _CutRejected("next_onset")
+        return CutRejected("next_onset")
     return replace(plan, end=end, next_burst=burst)
 
 
@@ -1869,7 +1634,7 @@ def _start_at_filler_onset(
     *,
     audio_cache: TrackAudioCache,
     defaults: dict[str, Any],
-) -> _CutPlan | _CutRejected:
+) -> _CutPlan | CutRejected:
     """Start ``plan`` before the filler's acoustic onset; refuse it if a kept word runs into it.
 
     The walk back never passes the previous kept word's end. When the level stays
@@ -1913,7 +1678,7 @@ def _start_at_filler_onset(
             and before.end < plan.start < decay_safe - 1e-9
         ):
             return replace(plan, start=decay_safe)
-        return _CutRejected("filler_onset")
+        return CutRejected("filler_onset")
     start = max(walk_floor, onset - _ONSET_GUARD_SEC)
     gradual_onset = onset + 1e-9 >= candidate.start
     if (
@@ -1959,7 +1724,7 @@ def _between_kept_voices(
     *,
     audio_cache: TrackAudioCache,
     defaults: dict[str, Any],
-) -> _CutPlan | _CutRejected:
+) -> _CutPlan | CutRejected:
     """Keep ``plan`` out of the voice of the kept words either side of it (#1064).
 
     Word times end a word before its voice does: the lab "So" ends at 230.78 and
@@ -1992,7 +1757,7 @@ def _between_kept_voices(
         ceiling = end if wordless else min(end, candidate.start)
         ends = voice_end(audio_cache, before.end, ceiling)
         if ends is None and (wordless or not voice_separates(audio_cache, before.end, end)):
-            return _CutRejected("kept_voice")
+            return CutRejected("kept_voice")
         if ends is not None and ends > before.end:
             # A word cut's own onset edge sits at the start of a quiet frame (#1061),
             # one hop before the voiced-run edge ``voice_end`` reports.
@@ -2008,7 +1773,7 @@ def _between_kept_voices(
     if end - start + 1e-9 < _cut_minimum_sec(candidate) or (
         candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, start, end)
     ):
-        return _CutRejected("kept_voice")
+        return CutRejected("kept_voice")
     return replace(plan, start=start, end=end)
 
 
@@ -2182,10 +1947,10 @@ def _cut_scope(
     defaults: dict[str, Any],
     caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
-) -> ResolvedCutScope | _CutRejected:
+) -> ResolvedCutScope | CutRejected:
     if not peer_scoped:
         return ResolvedCutScope("intentional_track")
-    from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
+    from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
 
     resolved = resolve_cut_scope(
         project,
@@ -2197,7 +1962,7 @@ def _cut_scope(
         _admissible_spans=_admissible_spans,
     )
     if isinstance(resolved, CutScopeUnavailable):
-        return _CutRejected("scope_unavailable")
+        return CutRejected("scope_unavailable")
     return resolved
 
 
@@ -2212,7 +1977,7 @@ def _gate_cut_edges(
     word_index: CutWordIndex | None,
     session_air: SessionAir | None,
     timeline_caches: TrackRmsCacheSet | None = None,
-) -> _GatedCut | _CutRejected:
+) -> _GatedCut | CutRejected:
     """Run the edge checks ``plan.checks`` selects, then read who speaks over the final span."""
     track_id = candidate.track_id
     checks = plan.checks
@@ -2227,19 +1992,19 @@ def _gate_cut_edges(
         started = _start_at_filler_onset(
             project, plan, candidate, audio_cache=audio_cache, defaults=defaults
         )
-        if isinstance(started, _CutRejected):
+        if isinstance(started, CutRejected):
             return started
         plan = started
     if audio_cache is not None and candidate.cut_kind != "pause":
         between = _between_kept_voices(
             project, plan, candidate, audio_cache=audio_cache, defaults=defaults
         )
-        if isinstance(between, _CutRejected):
+        if isinstance(between, CutRejected):
             return between
         plan = between
     if checks.end_before_next_onset and audio_cache is not None and candidate.cut_kind != "pause":
         shrunk = _shrink_to_next_onset(plan, candidate, audio_cache=audio_cache, defaults=defaults)
-        if isinstance(shrunk, _CutRejected):
+        if isinstance(shrunk, CutRejected):
             return shrunk
         plan = shrunk
     cut_start, cut_end = plan.start, plan.end
@@ -2279,7 +2044,7 @@ def _gate_cut_edges(
             session_air=session_air,
         )
         if isinstance(air, PauseAirSkip):
-            return _CutRejected(air.value)
+            return CutRejected(air.value)
         off_proposal = air.span != paced
         cut_start, cut_end = air.span
         heard_pause = air.silence_sec
@@ -2288,13 +2053,13 @@ def _gate_cut_edges(
             between = _between_kept_voices(
                 project, protected_plan, candidate, audio_cache=audio_cache, defaults=defaults
             )
-            if isinstance(between, _CutRejected):
+            if isinstance(between, CutRejected):
                 return between
             if checks.end_before_next_onset:
                 between = _shrink_to_next_onset(
                     between, candidate, audio_cache=audio_cache, defaults=defaults
                 )
-                if isinstance(between, _CutRejected):
+                if isinstance(between, CutRejected):
                     return between
             plan = between
             cut_start, cut_end = plan.start, plan.end
@@ -2314,7 +2079,7 @@ def _gate_cut_edges(
                 if bool(
                     defaults.get("tighten", {}).get("breath_handling", {}).get("enabled", True)
                 ):
-                    return _CutRejected("unsettled_edges")
+                    return CutRejected("unsettled_edges")
                 cut_start, cut_end = settled.start, settled.end
             voiced_flag = settled.flag
     elif candidate.cut_kind != "pause":
@@ -2329,18 +2094,18 @@ def _gate_cut_edges(
             word_index=word_index,
         )
         if breath_safe is None:
-            return _CutRejected("breath")
+            return CutRejected("breath")
         cut_start, cut_end = breath_safe
     protected = cut_start, cut_end
     acoustic = candidate.reason == ACOUSTIC_FILLER_REASON
     if cut_end - cut_start + 1e-9 < _cut_minimum_sec(candidate):
-        return _CutRejected("too_short")
+        return CutRejected("too_short")
     if candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, cut_start, cut_end):
-        return _CutRejected("reparandum")
+        return CutRejected("reparandum")
     if checks.keep_whole_words:
         covered = _covered_kept_word(project, candidate, cut_start, cut_end)
         if covered is not None:
-            return _CutRejected(f"kept_word:{covered}")
+            return CutRejected(f"kept_word:{covered}")
     if (
         checks.audible_only
         and audio_cache is not None
@@ -2349,14 +2114,14 @@ def _gate_cut_edges(
         )
         < audio_cache.profile.voice_floor_db
     ):
-        return _CutRejected("inaudible")
+        return CutRejected("inaudible")
     admissible_spans = None
     if checks.peer_scoped and candidate.cut_kind != "pause":
         span = SessionTimeline(project).exact_source_span(
             track_id, SourceSec(cut_start), SourceSec(cut_end)
         )
         if span is None:
-            return _CutRejected("source_geometry")
+            return CutRejected("source_geometry")
         admissible_spans = ((float(span[0]), float(span[1])),)
     try:
         resolved = _cut_scope(
@@ -2370,12 +2135,12 @@ def _gate_cut_edges(
             _admissible_spans=admissible_spans,
         )
     except ValueError:
-        return _CutRejected("scope")
-    if isinstance(resolved, _CutRejected):
+        return CutRejected("scope")
+    if isinstance(resolved, CutRejected):
         return resolved
     guard = resolved.guard
     if candidate.cut_kind != "pause" and guard is not None and guard.action == "skip":
-        return _CutRejected("scope")
+        return CutRejected("scope")
     plan = replace(plan, start=cut_start, end=cut_end)
     if audio_cache is not None and protected != before_protection and candidate.cut_kind != "pause":
         settled = _check_voiced_speech(
@@ -2391,10 +2156,10 @@ def _gate_cut_edges(
             peer_caches=_peer_audio_caches(project, track_id, checks.peer_scoped, audio_caches),
         )
         if (settled.start, settled.end) != protected:
-            return _CutRejected("unsettled_edges")
+            return CutRejected("unsettled_edges")
         voiced_flag = settled.flag
     if checks.refuse_attached_runs and acoustic and voiced_flag == "voiced_edge":
-        return _CutRejected("voiced_edge")
+        return CutRejected("voiced_edge")
     raised = (voiced_flag, _AIR_EDGES_FLAG if off_proposal else None)
     return _GatedCut(plan, guard, tuple(flag for flag in raised if flag), heard_pause)
 
@@ -2427,7 +2192,7 @@ def _prepare_candidate(
     timeline_caches: TrackRmsCacheSet | None = None,
     force_enabled: bool | None = None,
     _retention_retry: bool = False,
-) -> _PreparedCut | _CutRejected:
+) -> _PreparedCut | CutRejected:
     """Waveform-optimize, risk-assess and edge-check one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
     long as each call gets its own jump-measurement cache (below); audio_cache
@@ -2451,7 +2216,7 @@ def _prepare_candidate(
         )
         is None
     ):
-        return _CutRejected("source_geometry")
+        return CutRejected("source_geometry")
 
     opt, risk = optimize_and_assess(
         project,
@@ -2471,7 +2236,7 @@ def _prepare_candidate(
         # must never expand it back onto an ASR word.
         snapped = _clamp_to_candidate(candidate, cut_start, cut_end)
         if snapped is None:
-            return _CutRejected("bounds")
+            return CutRejected("bounds")
         cut_start, cut_end = snapped
 
     breaths = detect_adjacent_breath(
@@ -2485,7 +2250,7 @@ def _prepare_candidate(
     )
     extended = _clamp_to_candidate(candidate, *extend_cut_for_breaths(cut_start, cut_end, breaths))
     if extended is None:
-        return _CutRejected("bounds")
+        return CutRejected("bounds")
     cut_start, cut_end = extended
 
     if _cut_span_is_bleed_not_owner(
@@ -2496,7 +2261,7 @@ def _prepare_candidate(
         speaker_context=speaker_context,
         word_index=word_index,
     ):
-        return _CutRejected("not_owner")
+        return CutRejected("not_owner")
 
     mute_mode = _edit_mode(tighten) == "mute"
     paced = apply_filler_pacing(
@@ -2512,10 +2277,10 @@ def _prepare_candidate(
         keeps_time=mute_mode,
     )
     if paced is None:
-        return _CutRejected("pacing")
+        return CutRejected("pacing")
     paced_span = _clamp_to_candidate(candidate, paced.start, paced.end)
     if paced_span is None:
-        return _CutRejected("bounds")
+        return CutRejected("bounds")
     cut_start, cut_end = paced_span
     try:
         resolved = _cut_scope(
@@ -2528,14 +2293,14 @@ def _prepare_candidate(
             caches=timeline_caches,
         )
     except ValueError:
-        return _CutRejected("scope")
-    if isinstance(resolved, _CutRejected):
+        return CutRejected("scope")
+    if isinstance(resolved, CutRejected):
         return resolved
     # A ripple is a session cut whoever speaks over it: peer speech is a review flag the
     # person confirms at approval, never a narrower scope. Only a mute stays on its track.
     scope = "track" if mute_mode else "session"
     if candidate.cut_kind != "pause" and resolved.guard and resolved.guard.action == "skip":
-        return _CutRejected("scope")
+        return CutRejected("scope")
     plan = _CutPlan.for_cut(cut_start, cut_end, mute=mute_mode, pad=paced.pad)
     gated = _gate_cut_edges(
         project,
@@ -2553,7 +2318,7 @@ def _prepare_candidate(
     plan, guard, flags = gated.plan, gated.guard, gated.flags
     peer_observation_span = None
     if _clamp_to_candidate(candidate, plan.start, plan.end) != (plan.start, plan.end):
-        return _CutRejected("bounds")
+        return CutRejected("bounds")
     if candidate.cut_kind == "pause" and not mute_mode:
         if (
             SessionTimeline(project).exact_source_span(
@@ -2561,12 +2326,12 @@ def _prepare_candidate(
             )
             is None
         ):
-            return _CutRejected("source_geometry")
+            return CutRejected("source_geometry")
         from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
         from podcast_mcp.edits.timeline_ops import LaneUnavailable, bind_pause_effects
 
         words = _pause_words(project, candidate)
-        if isinstance(words, _CutRejected):
+        if isinstance(words, CutRejected):
             return words
         before, after = words
         timeline = SessionTimeline(project)
@@ -2578,7 +2343,7 @@ def _prepare_candidate(
         )
         span = timeline.exact_source_span(track_id, SourceSec(plan.start), SourceSec(plan.end))
         if before_span is None or after_span is None or span is None:
-            return _CutRejected("source_geometry")
+            return CutRejected("source_geometry")
         air = session_air or SessionAir(
             project,
             audio_caches={
@@ -2612,9 +2377,9 @@ def _prepare_candidate(
         )
         observation = air.pause_observation(*observation_span, acoustic=acoustic)
         if isinstance(observation, PauseAirSkip):
-            return _CutRejected(observation.value)
-        original = _original_pause_support(project, track_id, words, observation)
-        if isinstance(original, _CutRejected):
+            return CutRejected(observation.value)
+        original = cut_safety.original_pause_support(project, track_id, words, observation)
+        if isinstance(original, CutRejected):
             return original
         quiet = merge_intervals(
             (float(piece.source_start), float(piece.source_end)) for piece in original.pieces
@@ -2626,7 +2391,7 @@ def _prepare_candidate(
         shortfall = max(0.0, floor - retained)
         if shortfall > 1e-6:
             if _retention_retry or original.seconds < floor - 1e-6:
-                return _CutRejected("no_air")
+                return CutRejected("no_air")
             inside = [
                 (max(lo, plan.start), min(hi, plan.end))
                 for lo, hi in quiet
@@ -2690,12 +2455,12 @@ def _prepare_candidate(
                     force_enabled=force_enabled,
                     _retention_retry=True,
                 )
-                if isinstance(retry, _CutRejected):
+                if isinstance(retry, CutRejected):
                     continue
                 finished = _finish_candidate(project, retry, defaults, audio_cache=audio_cache)
-                if not isinstance(finished, _CutRejected):
+                if not isinstance(finished, CutRejected):
                     return replace(retry, candidate=candidate)
-            return _CutRejected("no_air")
+            return CutRejected("no_air")
         removal = RippleRemoval.of([TrackExtent(track_id, float(span[0]), float(span[1]))])
         loss = float(span[1] - span[0]) - (plan.replace_gap_sec or 0.0)
         heard = (
@@ -2705,9 +2470,9 @@ def _prepare_candidate(
         )
         gated = replace(gated, heard_pause=heard)
         if loss <= 0:
-            return _CutRejected("pause_not_shorter")
+            return CutRejected("pause_not_shorter")
         if heard is not None and pause_trim_is_imperceptible(loss, heard):
-            return _CutRejected("imperceptible")
+            return CutRejected("imperceptible")
         effects = bind_pause_effects(
             project,
             float(span[0]),
@@ -2716,7 +2481,7 @@ def _prepare_candidate(
             splice_fade_ms=splice_fade_ms,
         )
         if isinstance(effects, LaneUnavailable):
-            return _CutRejected("pause_effects", (effects,))
+            return CutRejected("pause_effects", (effects,))
         plan = replace(plan, effects=effects)
         if isinstance(observation, MeasuredPause):
             final_span = timeline.exact_source_span(
@@ -2725,7 +2490,7 @@ def _prepare_candidate(
             if final_span is None or not (
                 observation_span[0] <= final_span[0] < final_span[1] <= observation_span[1]
             ):
-                return _CutRejected("source_geometry")
+                return CutRejected("source_geometry")
             support = tuple(
                 (float(start), float(end))
                 for start, end in timeline.map_source_span(
@@ -2744,8 +2509,8 @@ def _prepare_candidate(
                     _admissible_spans=support,
                 )
             except ValueError:
-                return _CutRejected("scope")
-            if isinstance(resolved, _CutRejected):
+                return CutRejected("scope")
+            if isinstance(resolved, CutRejected):
                 return resolved
             guard = resolved.guard
             gated = replace(gated, guard=guard)
@@ -2789,7 +2554,7 @@ def _prepare_candidate(
 
     if risk.too_risky:
         if leave_in:
-            return _CutRejected("risky")
+            return CutRejected("risky")
         review_required = True
         reason = f"{reason}:risky"
 
@@ -2813,7 +2578,7 @@ def _prepare_pending_pause(
     defaults: dict[str, Any],
     *,
     force_enabled: bool | None = False,
-) -> _PreparedCut | _CutRejected:
+) -> _PreparedCut | CutRejected:
     defaults = {**defaults, "tighten": {**defaults.get("tighten", {}), "edit_mode": "ripple"}}
     candidate = _CutCandidate(
         track_id=edit.track_id,
@@ -2824,7 +2589,7 @@ def _prepare_pending_pause(
         decision_id=edit.id,
     )
     words = _pause_words(project, candidate)
-    if isinstance(words, _CutRejected):
+    if isinstance(words, CutRejected):
         return words
     _before, after = words
     timeline = SessionTimeline(project)
@@ -2836,7 +2601,7 @@ def _prepare_pending_pause(
     air = SessionAir(project, audio_caches=caches, word_indexes=indexes)
     span = timeline.exact_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
     if span is None:
-        return _CutRejected("source_geometry")
+        return CutRejected("source_geometry")
     heard = air.silence_around(float(span[0]), float(span[1]))
     candidate = replace(
         candidate,
@@ -2863,7 +2628,7 @@ def _finish_candidate(
     defaults: dict[str, Any],
     *,
     audio_cache: TrackAudioCache | None = None,
-) -> _AnalyzedCut | _CutRejected:
+) -> _AnalyzedCut | CutRejected:
     """Score the join of a prepared cut and size its fade: the costly half of its analysis."""
     tighten = defaults.get("tighten", {})
     candidate, plan, opt = prepared.candidate, prepared.plan, prepared.opt
@@ -2892,14 +2657,14 @@ def _finish_candidate(
                 audio_caches={track_id: audio_cache} if audio_cache is not None else None,
             )
             if jc.verdict == "fail":
-                return _CutRejected("join_continuity")
+                return CutRejected("join_continuity")
             if jc.verdict == "review":
                 review_required = True
                 reason = f"{reason}:join_review"
         except Exception as exc:
             log.debug("join continuity scoring skipped: %s", exc)
             if candidate.cut_kind == "pause":
-                return _CutRejected("join_continuity")
+                return CutRejected("join_continuity")
 
     mute = plan.join is cut_safety.CutJoin.MUTE
     if mute:
@@ -2948,7 +2713,7 @@ def _analyze_candidate(
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     session_air: SessionAir | None = None,
     timeline_caches: TrackRmsCacheSet | None = None,
-) -> _AnalyzedCut | _CutRejected:
+) -> _AnalyzedCut | CutRejected:
     prepared = _prepare_candidate(
         project,
         candidate,
@@ -2961,7 +2726,7 @@ def _analyze_candidate(
         session_air=session_air,
         timeline_caches=timeline_caches,
     )
-    if isinstance(prepared, _CutRejected):
+    if isinstance(prepared, CutRejected):
         return prepared
     return _finish_candidate(project, prepared, defaults, audio_cache=audio_cache)
 
@@ -2976,7 +2741,7 @@ def analyze_candidates(
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None,
     word_indexes: Mapping[str, CutWordIndex],
     max_workers: int | None = None,
-) -> list[_AnalyzedCut | _CutRejected]:
+) -> list[_AnalyzedCut | CutRejected]:
     """Analyze ``candidates`` in parallel, results in candidate order.
 
     Duplicate pause trims are dropped after the proposals have been resolved against each
@@ -2986,7 +2751,7 @@ def analyze_candidates(
     session_air = SessionAir(project, audio_caches=audio_caches, word_indexes=word_indexes)
     timeline_caches = shared_timeline_rms_caches(project)
 
-    def analyze(candidate: _CutCandidate) -> _AnalyzedCut | _CutRejected:
+    def analyze(candidate: _CutCandidate) -> _AnalyzedCut | CutRejected:
         prepared = _prepare_candidate(
             project,
             candidate,
@@ -2999,7 +2764,7 @@ def analyze_candidates(
             session_air=session_air,
             timeline_caches=timeline_caches,
         )
-        if isinstance(prepared, _CutRejected):
+        if isinstance(prepared, CutRejected):
             return prepared
         return _finish_candidate(
             project, prepared, defaults, audio_cache=audio_caches.get(candidate.track_id)

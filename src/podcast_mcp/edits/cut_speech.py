@@ -1,6 +1,6 @@
 """The speech guard: a ripple that cuts speech it did not select asks first.
 
-Every rippling edit plans its :class:`RippleRemoval` and asks :func:`clear_ripple`
+Every rippling edit plans its :class:`RippleRemoval` and asks ``cut_safety.clear_ripple``
 before it changes anything, approvals included (at approval time, from the current
 transcript). What the edit selected is per track (``RippleRemoval.selected``): a
 deleted clip's own extent, a named track's range. Speech is any scope track's
@@ -13,7 +13,7 @@ silence), or, where those parts have no such words, its own sound at speech leve
 ``confirm_cut_speech``, the edit returns a :class:`CutSpeechConfirmation` and changes
 nothing; confirmed, it applies and the speech it cut is recorded with it. With no
 other speech in the span it applies at once. The apply functions take a
-:class:`SpeechClearance`, which only :func:`clear_ripple` and a preview make, so no
+:class:`SpeechClearance`, which only ``cut_safety.clear_ripple`` and a preview make, so no
 ripple removes time without the guard.
 """
 
@@ -23,7 +23,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import Any, Final, Literal, overload
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel
 
@@ -336,58 +336,3 @@ def merge_cut_speech(speeches: Sequence[CutSpeech]) -> CutSpeech:
 
 def confirmation_for(speech: CutSpeech, *, owned: bool = True) -> CutSpeechConfirmation:
     return CutSpeechConfirmation(message=cut_speech_message(speech, owned=owned), speech=speech)
-
-
-@overload
-def clear_ripple(
-    project: EpisodeProject,
-    removal: RippleRemoval | None,
-    *,
-    confirm_cut_speech: Literal[True],
-    also_chosen: Sequence[SourceExtent] = (),
-    defaults: dict[str, Any] | None = None,
-    timeline_caches: TrackRmsCacheSet | None = None,
-) -> SpeechClearance: ...
-
-
-@overload
-def clear_ripple(
-    project: EpisodeProject,
-    removal: RippleRemoval | None,
-    *,
-    confirm_cut_speech: bool,
-    also_chosen: Sequence[SourceExtent] = (),
-    defaults: dict[str, Any] | None = None,
-    timeline_caches: TrackRmsCacheSet | None = None,
-) -> SpeechClearance | CutSpeechConfirmation: ...
-
-
-def clear_ripple(
-    project: EpisodeProject,
-    removal: RippleRemoval | None,
-    *,
-    confirm_cut_speech: bool,
-    also_chosen: Sequence[SourceExtent] = (),
-    defaults: dict[str, Any] | None = None,
-    timeline_caches: TrackRmsCacheSet | None = None,
-) -> SpeechClearance | CutSpeechConfirmation:
-    """The one guard every rippling path calls before it removes time.
-
-    Clears ``removal`` to apply, or asks to confirm the speech it would cut outside
-    what it selected (``removal.selected``, plus ``also_chosen`` for the rest of an
-    approval batch). Confirmed, the clearance carries that speech for the record.
-    """
-    if removal is None:
-        return SpeechClearance(None)
-    speech = assess_cut_speech(
-        project,
-        removal,
-        also_chosen=also_chosen,
-        defaults=defaults,
-        timeline_caches=timeline_caches,
-    )
-    if speech is None:
-        return SpeechClearance(removal)
-    if not confirm_cut_speech:
-        return confirmation_for(speech, owned=bool(removal.selected))
-    return SpeechClearance(removal, cut_speech=speech)

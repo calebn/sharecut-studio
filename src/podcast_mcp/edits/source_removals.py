@@ -3,20 +3,14 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from contextlib import ExitStack
-from dataclasses import dataclass
-from itertools import pairwise
 from typing import Literal
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
-from podcast_mcp.edits.cut_speech import (
-    CutSpeechConfirmation,
-    SourceExtent,
-    assess_cut_speech,
-    clear_ripple,
-)
+from podcast_mcp.edits.cut_safety import CutScopeHold, clear_ripple
+from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SourceExtent, assess_cut_speech
 from podcast_mcp.edits.filler_pacing import filler_pad_mode, pause_trim_is_imperceptible
 from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
@@ -32,9 +26,6 @@ from podcast_mcp.edits.timeline_ops import (
 )
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    clip_plays_lane,
-    clip_timeline_overlap_to_source,
-    origin_track_id_for_clip,
 )
 from podcast_mcp.models import (
     ClipJoinMode,
@@ -53,27 +44,6 @@ _PAD_EDGE_MATCH_SEC = 0.05
 _SOURCE_GEOMETRY_TOLERANCE_SEC = 1e-6
 
 
-@dataclass(frozen=True)
-class CutScopeHold:
-    edit_id: str
-    peers: tuple[str, ...]
-    reason: Literal[
-        "peer_speech",
-        "source_geometry",
-        "stored_track_pause",
-        "speaker_bleed",
-        "scope_unavailable",
-        "pause_not_shorter",
-        "pause_imperceptible",
-        "media_extent_unavailable",
-        "operation_scope",
-        "pause_air",
-        "pause_join",
-    ] = "peer_speech"
-    unavailable_lanes: tuple[LaneUnavailable, ...] = ()
-    detail: str | None = None
-
-
 _LANE_PROBLEMS = {
     "media_extent_unavailable": "has a recording whose length is unknown",
     "implicit_playback_with_parked_source": "plays audio the cut cannot measure",
@@ -90,27 +60,6 @@ def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
     return (
         f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(cause, _UNCHECKED_LANE)}"
     )
-
-
-def _source_remove_lanes(
-    project: EpisodeProject,
-    timeline: SessionTimeline,
-    edit: EditDecision,
-    start: TimelineSec,
-    end: TimelineSec,
-) -> frozenset[str]:
-    if edit.source_timeline_span is not None:
-        source_ids = project.equivalent_source_ids(edit.track_id, edit.source_id)
-        selected = frozenset(
-            clip.track_id
-            for clip in project.clips
-            if clip.source_id in source_ids
-            and clip_plays_lane(project, clip, edit.track_id)
-            and min(float(end), clip.timeline_end) > max(float(start), clip.timeline_start) + 1e-9
-        )
-        if selected:
-            return selected
-    return timeline.origin_placement_lanes(edit.track_id, start, end)
 
 
 def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
@@ -188,7 +137,7 @@ def resize_source_remove(
     if isinstance(current, CutScopeHold):
         raise ScopeChangedAtApproval([current], {}, {saved.id: cut_label(project, saved)})
     candidate = saved.model_copy(deep=True, update={"start": start, "end": end})
-    placement = _inspect_source_remove_placement_impl(project, candidate, check_witness=False)
+    placement = inspect_source_remove_placement(project, candidate, check_witness=False)
     if isinstance(placement, CutScopeHold):
         raise ScopeChangedAtApproval([placement], {}, {saved.id: cut_label(project, saved)})
     expected_start = float(current[0]) + (start - saved.start)
@@ -203,160 +152,6 @@ def resize_source_remove(
         start=float(placement[0]), end=float(placement[1])
     )
     return candidate
-
-
-def _inspect_source_remove_placement_impl(
-    project: EpisodeProject, edit: EditDecision, *, check_witness: bool
-) -> tuple[TimelineSec, TimelineSec] | CutScopeHold:
-    if (
-        edit.type != EditDecisionType.REMOVE
-        or edit.exact_range is not None
-        or edit.timebase != "source"
-    ):
-        raise ValueError("ordinary source remove required")
-    pause = (edit.reason or "").startswith("pause:")
-    if pause and edit.scope == "track":
-        return CutScopeHold(edit.id, (), "stored_track_pause")
-    timeline = SessionTimeline(project)
-    span: tuple[TimelineSec, TimelineSec] | None
-    if edit.source_timeline_span is not None:
-        lane_clips = [c for c in project.clips if clip_plays_lane(project, c, edit.track_id)]
-        if lane_clips:
-            spans = timeline.map_placements_source_span(
-                edit.track_id,
-                project.equivalent_source_ids(edit.track_id, edit.source_id),
-                SourceSec(edit.start),
-                SourceSec(edit.end),
-            )
-        elif None in project.equivalent_source_ids(edit.track_id, edit.source_id):
-            spans = timeline.map_source_span(
-                edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
-            )
-        else:
-            spans = []
-        expected = edit.source_timeline_span
-        if (
-            len(spans) != 1
-            or abs(float(spans[0][1] - spans[0][0]) - (edit.end - edit.start)) > 1e-6
-            or (
-                check_witness
-                and expected is not None
-                and (
-                    abs(float(spans[0][0]) - expected.start) > 1e-6
-                    or abs(float(spans[0][1]) - expected.end) > 1e-6
-                )
-            )
-        ):
-            return CutScopeHold(edit.id, (), "source_geometry")
-        span = (
-            (TimelineSec(expected.start), TimelineSec(expected.end))
-            if check_witness and expected is not None
-            else (spans[0][0], spans[0][1])
-        )
-        if _witnessed_source_span_has_unsafe_overlap(project, edit, *span):
-            return CutScopeHold(edit.id, (), "source_geometry")
-    else:
-        if edit.source_id is not None:
-            return CutScopeHold(edit.id, (), "source_geometry")
-        span = timeline.exact_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
-    if span is None or (
-        edit.source_timeline_span is None
-        and timeline.exact_timeline_source_span(
-            edit.track_id,
-            *span,
-            on_origin_lane=edit.scope == "track",
-        )
-        is None
-    ):
-        track = project.track_by_id(edit.track_id)
-        if (
-            track
-            and track.media
-            and not track.timeline_empty
-            and not any(
-                c.track_id == edit.track_id or origin_track_id_for_clip(project, c) == edit.track_id
-                for c in project.clips
-            )
-            and (track.media.duration_sec is None or not math.isfinite(track.media.duration_sec))
-        ):
-            return CutScopeHold(edit.id, (), "media_extent_unavailable")
-        return CutScopeHold(edit.id, (), "source_geometry")
-    lanes = _source_remove_lanes(project, timeline, edit, *span)
-    allowed = (
-        {edit.track_id}
-        if edit.scope == "track"
-        else set(ripple_track_ids(project, [edit.track_id]))
-    )
-    if not lanes or not lanes <= allowed:
-        return CutScopeHold(edit.id, (), "operation_scope")
-    return span
-
-
-def _witnessed_source_span_has_unsafe_overlap(
-    project: EpisodeProject,
-    edit: EditDecision,
-    start: TimelineSec,
-    end: TimelineSec,
-) -> bool:
-    source_ids = project.equivalent_source_ids(edit.track_id, edit.source_id)
-    lo_window, hi_window = float(start), float(end)
-    selected_pieces = []
-    for clip in project.clips:
-        lo = max(lo_window, clip.timeline_start)
-        hi = min(hi_window, clip.timeline_end)
-        if (
-            hi <= lo + _SOURCE_GEOMETRY_TOLERANCE_SEC
-            or clip.source_id not in source_ids
-            or not clip_plays_lane(project, clip, edit.track_id)
-        ):
-            continue
-        selected_pieces.append((clip, lo, hi))
-
-    selected_lanes = {clip.track_id for clip, _, _ in selected_pieces}
-    protected_lanes = selected_lanes | {edit.track_id}
-    for clip in project.clips:
-        if clip.track_id not in protected_lanes:
-            continue
-        lo = max(lo_window, clip.timeline_start)
-        hi = min(hi_window, clip.timeline_end)
-        if hi <= lo + _SOURCE_GEOMETRY_TOLERANCE_SEC:
-            continue
-        if clip.source_id not in source_ids or not clip_plays_lane(project, clip, edit.track_id):
-            return True
-        expected_lo = edit.start + (lo - lo_window)
-        expected_hi = edit.start + (hi - lo_window)
-        actual = clip_timeline_overlap_to_source(clip, lo, hi)
-        if actual is None:
-            return True
-        actual_lo, actual_hi = actual
-        if (
-            abs(actual_lo - expected_lo) > _SOURCE_GEOMETRY_TOLERANCE_SEC
-            or abs(actual_hi - expected_hi) > _SOURCE_GEOMETRY_TOLERANCE_SEC
-        ):
-            return True
-
-    if not selected_pieces:
-        return False
-    boundaries = sorted(
-        {
-            lo_window,
-            hi_window,
-            *(lo for _, lo, _ in selected_pieces),
-            *(hi for _, _, hi in selected_pieces),
-        }
-    )
-    for left, right in pairwise(boundaries):
-        if right <= left + _SOURCE_GEOMETRY_TOLERANCE_SEC:
-            continue
-        covering = [
-            clip
-            for clip, lo, hi in selected_pieces
-            if lo <= left + _SOURCE_GEOMETRY_TOLERANCE_SEC
-            and hi >= right - _SOURCE_GEOMETRY_TOLERANCE_SEC
-        ]
-        if len(covering) != 1:
-            return True
-    return False
 
 
 def inspect_source_remove(
@@ -573,7 +368,7 @@ def _consume_source_remove(
     """
     from podcast_mcp.edits import cut_safety
     from podcast_mcp.edits.cut_proof import shared_source_audio_caches, shared_timeline_rms_caches
-    from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
+    from podcast_mcp.edits.cut_safety import CutScopeUnavailable, resolve_cut_scope
     from podcast_mcp.edits.track_media import full_span_clip
 
     timeline_caches = shared_timeline_rms_caches(project)
@@ -593,18 +388,15 @@ def _consume_source_remove(
     witnessed = edit.source_timeline_span is not None
     consumed_inaudible_opt = use_inaudible_opt if pause or not witnessed else False
     if pause:
-        from podcast_mcp.edits.fillers import (
-            _CutRejected,
-            _finish_candidate,
-            _prepare_pending_pause,
-        )
+        from podcast_mcp.edits.cut_safety import CutRejected
+        from podcast_mcp.edits.fillers import _finish_candidate, _prepare_pending_pause
         from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
 
         defaults = load_defaults()
         preparation = _prepare_pending_pause(
             project, edit, defaults, force_enabled=use_inaudible_opt
         )
-        if isinstance(preparation, _CutRejected):
+        if isinstance(preparation, CutRejected):
             reason: Literal[
                 "pause_imperceptible",
                 "pause_not_shorter",
@@ -631,7 +423,7 @@ def _consume_source_remove(
             )
         prepared_pause = preparation
         finished = _finish_candidate(project, prepared_pause, defaults)
-        if isinstance(finished, _CutRejected):
+        if isinstance(finished, CutRejected):
             return CutScopeHold(edit.id, (), "pause_join", detail=finished.skip)
         if prepared_pause.peer_observation_span is not None and (
             finished.start != prepared_pause.plan.start or finished.end != prepared_pause.plan.end
@@ -703,7 +495,7 @@ def _consume_source_remove(
     tracks = (
         [edit.track_id] if removal is None else ripple_track_ids(project, removal.edited_track_ids)
     )
-    lanes = _source_remove_lanes(
+    lanes = cut_safety.source_remove_lanes(
         project, timeline, edit, TimelineSec(tl_start), TimelineSec(tl_end)
     )
     if not lanes or not lanes <= set(tracks):

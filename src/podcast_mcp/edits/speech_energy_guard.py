@@ -1,13 +1,7 @@
-"""Cross-track speech-energy guard for cut proposals and apply.
+"""Peer sound and word measurements for cut policy.
 
-Transcript-guided cuts miss unlabeled words. Before session-wide ripple, check
-whether another dialogue stem is audibly speaking in the mapped window and
-either skip, force review, or convert to a track-local punch (silence hole,
-no peer ripple). Both guards share their evidence: :func:`measure_peer_speech`
-is a peer's own sound, and :func:`speech_words_in` its unsuppressed words whose
-own voice reaches into the cut (:func:`word_voice_sounds_in`). The ripple speech
-guard (``edits/cut_speech.py``) reads words first; this guard reads sound and
-falls back to words only where a peer's sound cannot be read.
+``cut_safety`` owns cut scope and ripple disposition. These measurements share
+current playback evidence without deciding whether a caller may apply a cut.
 """
 
 from __future__ import annotations
@@ -18,7 +12,7 @@ import subprocess
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
-from typing import Any, Literal, NamedTuple, TypeAlias
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 
@@ -56,7 +50,6 @@ from podcast_mcp.engines.level_profile import (
 )
 from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import (
-    SessionTimeline,
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
     word_source_span,
@@ -65,7 +58,6 @@ from podcast_mcp.models import CutSpeechWord, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db
 from podcast_mcp.util.intervals import intersect_intervals, merge_intervals, subtract_intervals
-from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 log = logging.getLogger(__name__)
@@ -983,67 +975,6 @@ def guard_min_overlap_sec(defaults: dict[str, Any] | None = None) -> float:
     return float(_guard_cfg(defaults).get("min_overlap_sec", 0.03))
 
 
-def assess_cross_track_speech(
-    project: EpisodeProject,
-    cut_track_id: str,
-    src_start: float,
-    src_end: float,
-    *,
-    defaults: dict[str, Any] | None = None,
-    caches: TrackRmsCacheSet | None = None,
-    _admissible_spans: Sequence[tuple[float, float]] | None = None,
-) -> SpeechEnergyGuardResult:
-    """Return tracks that are speaking over the cut's mapped timeline window.
-
-    A peer's own sound decides. Where it cannot be read (no stem or source audio),
-    the peer's unsuppressed words whose own voice is in the window decide instead.
-    """
-    if src_end <= src_start or not speech_energy_guard_enabled(defaults):
-        return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
-
-    spans = (
-        list(_admissible_spans)
-        if _admissible_spans is not None
-        else SessionTimeline(project).map_source_span(
-            cut_track_id, SourceSec(src_start), SourceSec(src_end)
-        )
-    )
-    # A track-local hole inside the gap splits it into several mapped spans;
-    # peer speech in any span at or above min_overlap can block, not just the
-    # largest one (#793).
-    levels = measure_peer_speech(
-        project,
-        spans,
-        owner_track_ids=(cut_track_id,),
-        peer_track_ids=dialogue_track_ids(project),
-        defaults=defaults,
-        caches=caches,
-        _admissible_spans=_admissible_spans,
-    )
-    if levels is None:
-        return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
-    min_overlap = guard_min_overlap_sec(defaults)
-    blocking = levels.speaking + tuple(
-        tid
-        for tid, unread in levels.unread.items()
-        if tid not in levels.speaking
-        and speech_words_in(project, tid, unread, min_overlap, voiced=True)
-    )
-    if not blocking:
-        return SpeechEnergyGuardResult(
-            blocking_track_ids=(),
-            action=None,
-            cut_rms_db=levels.owner_rms_db,
-            other_rms_db=levels.peer_rms_db,
-        )
-    return SpeechEnergyGuardResult(
-        blocking_track_ids=blocking,
-        action=speech_energy_on_conflict(defaults),
-        cut_rms_db=levels.owner_rms_db,
-        other_rms_db=levels.peer_rms_db,
-    )
-
-
 class PeerSpeechBlocked(ValueError):
     """``on_conflict: skip`` and peers are speaking over the cut."""
 
@@ -1053,83 +984,3 @@ class PeerSpeechBlocked(ValueError):
             "leave in or review it"
         )
         self.peers = peers
-
-
-@dataclass(frozen=True)
-class ResolvedCutScope:
-    cause: Literal["session_clear", "intentional_track", "peer_speech", "speaker_bleed"]
-    guard: SpeechEnergyGuardResult | None = None
-
-    @property
-    def scope(self) -> Literal["session", "track"]:
-        scopes: dict[str, Literal["session", "track"]] = {
-            "session_clear": "session",
-            "intentional_track": "track",
-            "peer_speech": "track",
-            "speaker_bleed": "track",
-        }
-        return scopes[self.cause]
-
-
-@dataclass(frozen=True)
-class CutScopeUnavailable:
-    """Peer assessment failed without selecting an executable cut scope."""
-
-
-CutScopeResolution: TypeAlias = ResolvedCutScope | CutScopeUnavailable
-
-
-def resolve_cut_scope(
-    project: EpisodeProject,
-    cut_track_id: str,
-    src_start: float,
-    src_end: float,
-    *,
-    requested_scope: str = "session",
-    defaults: dict[str, Any] | None = None,
-    caches: TrackRmsCacheSet | None = None,
-    _admissible_spans: Sequence[tuple[float, float]] | None = None,
-) -> CutScopeResolution:
-    """Resolve current cut scope or report unavailable peer assessment."""
-    if requested_scope == "track":
-        return ResolvedCutScope("intentional_track")
-
-    try:
-        from podcast_mcp.engines.speaker_id import (
-            assess_speaker_cut_role,
-            load_all_profiles,
-        )
-        from podcast_mcp.transcript_context import load_transcript_context
-
-        if load_all_profiles(project):
-            ctx = load_transcript_context(project.workspace_path())
-            speaker = assess_speaker_cut_role(
-                project,
-                cut_track_id,
-                src_start,
-                src_end,
-                ctx.speaker_id,
-            )
-            if speaker and speaker.get("role") == "bleed":
-                return ResolvedCutScope("speaker_bleed")
-    except Exception as exc:
-        log.debug("speaker cut scope guard skipped: %s", exc, exc_info=True)
-
-    try:
-        from podcast_mcp.edits import cut_safety
-
-        guard = cut_safety.assess_cross_track_speech(
-            project,
-            cut_track_id,
-            src_start,
-            src_end,
-            defaults=defaults,
-            caches=caches,
-            _admissible_spans=_admissible_spans,
-        )
-    except (OSError, ValueError):
-        return CutScopeUnavailable()
-    if not guard.blocked:
-        return ResolvedCutScope("session_clear", guard)
-    # skip and review: never session-ripple over live peer speech.
-    return ResolvedCutScope("peer_speech", guard)

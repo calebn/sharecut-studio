@@ -319,3 +319,11 @@ original transcript order when words are unsorted. Candidate-specific retained
 boundary exclusions use a nearest-valid lookup against that span. The pause
 floor reads a per-proposal peer-word overlap index; acoustic gap checks read the
 peer tracks' voiced runs from the shared audio caches instead.
+
+### Cut-policy ownership
+
+`edits/cut_safety.py` owns proposed-join assessment, breath protection, peer-speech
+disposition, current source-placement validation, and original-recording pad eligibility.
+The detector modules supply measurements. The existing transaction writers consume the
+results. The remaining held-edge application and two-stage manual-intent work is tracked
+in [Manual cut intent](filler-cut-quality.md#decision-manual-cut-intent-bypasses-acoustic-vetoes).

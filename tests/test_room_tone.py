@@ -9,9 +9,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
-from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,
     insert_room_tone_pad,

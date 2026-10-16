@@ -49,12 +49,12 @@ from podcast_mcp.edits.chapters import (
     update_chapter,
 )
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline, require_clip_fade_baseline
+from podcast_mcp.edits.cut_safety import clear_ripple
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     SpeechClearance,
     UnconfirmedCutSpeech,
     assess_cut_speech,
-    clear_ripple,
 )
 from podcast_mcp.edits.decisions import (
     AskedEdits,

@@ -164,19 +164,15 @@ def _resolved(project, rows, *, existing=(), rejected=()):
     """``_resolve_analyzed_cuts`` over pause candidates analyzed to ``rows``
     (``(track_id, start, end)``); ``rejected`` indexes were lost in analysis (the join gate).
     Returns the tracks and spans that stand and the skip counts."""
-    from podcast_mcp.edits.fillers import (
-        _AnalyzedCut,
-        _CutCandidate,
-        _CutRejected,
-        _resolve_analyzed_cuts,
-    )
+    from podcast_mcp.edits.cut_safety import CutRejected
+    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
 
     candidates = [
         _CutCandidate(track_id, start, end, f"pause:{end - start:.2f}s", "pause")
         for track_id, start, end in rows
     ]
     results = [
-        _CutRejected("join_continuity")
+        CutRejected("join_continuity")
         if index in rejected
         else _AnalyzedCut(
             hit_id=c.hit_id,

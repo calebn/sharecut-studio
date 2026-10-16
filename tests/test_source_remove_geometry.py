@@ -7,12 +7,9 @@ import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
 from podcast_mcp.edits import cut_safety
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.ripple import RippleRemoval
-from podcast_mcp.edits.source_removals import (
-    CutScopeHold,
-    ScopeChangedAtApproval,
-    record_suggested_cut_speech,
-)
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval, record_suggested_cut_speech
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.models import (
@@ -137,36 +134,95 @@ def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
     assert decision.cut_speech == expected
 
 
+def _restricted_cut_access(code: str) -> set[str]:
+    restricted = {
+        "podcast_mcp.edits.breath_detect.protect_cut_breaths",
+        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech",
+        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.source_removals.inspect_source_remove_placement",
+        "podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl",
+        "podcast_mcp.edits.source_removals._witnessed_source_span_has_unsafe_overlap",
+        "podcast_mcp.edits.fillers._original_pause_support",
+        "podcast_mcp.edits.cut_speech.clear_ripple",
+    }
+    tree = ast.parse(code)
+    aliases: dict[str, str] = {}
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                qualified = f"{node.module}.{alias.name}"
+                aliases[alias.asname or alias.name] = qualified
+                if qualified in restricted:
+                    found.add(qualified)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                aliases[alias.asname or alias.name.split(".")[0]] = (
+                    alias.name if alias.asname else alias.name.split(".")[0]
+                )
+
+    def qualified_name(node: ast.expr) -> str:
+        if isinstance(node, ast.Name):
+            return aliases.get(node.id, node.id)
+        if isinstance(node, ast.Attribute):
+            return f"{qualified_name(node.value)}.{node.attr}"
+        return ""
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            qualified = qualified_name(node)
+            if qualified in restricted:
+                found.add(qualified)
+    return found
+
+
 def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
     source = Path(__file__).parents[1] / "src/podcast_mcp"
-    raw_guards = {
-        "podcast_mcp.edits.speech_energy_guard": {"assess_cross_track_speech"},
-        "podcast_mcp.edits.join_continuity": {"assess_proposed_cut"},
-        "podcast_mcp.edits.source_removals": {"inspect_source_remove_placement"},
+    consumers = {
+        str(path.relative_to(source)): hits
+        for path in source.rglob("*.py")
+        if (hits := _restricted_cut_access(path.read_text(encoding="utf-8")))
     }
-    consumers = []
-    for path in source.rglob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.ImportFrom) or node.module not in raw_guards:
-                continue
-            if any(alias.name in raw_guards[node.module] for alias in node.names):
-                consumers.append((str(path.relative_to(source)), node.module))
-    assert consumers == [
-        ("edits/cut_safety.py", "podcast_mcp.edits.join_continuity"),
-        ("edits/cut_safety.py", "podcast_mcp.edits.speech_energy_guard"),
-    ]
-    root = source / "edits"
+    assert consumers == {}
+    for code in (
+        "from podcast_mcp.edits.breath_detect import protect_cut_breaths as protect",
+        "from podcast_mcp.edits.speech_energy_guard import assess_cross_track_speech as assess",
+        "import podcast_mcp.edits.join_continuity as joins; joins.assess_proposed_cut()",
+        "from podcast_mcp.edits import source_removals as cuts; cuts.inspect_source_remove_placement()",
+        "import podcast_mcp.edits.source_removals; podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl()",
+        "from podcast_mcp.edits.source_removals import _witnessed_source_span_has_unsafe_overlap",
+        "from podcast_mcp.edits.fillers import _original_pause_support",
+    ):
+        assert _restricted_cut_access(code), code
     definitions = []
-    for path in root.glob("*.py"):
+    for path in (source / "edits").glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         definitions.extend(
-            path.name
+            (node.name, path.name)
             for node in ast.walk(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name in {"inspect_source_remove_placement", "protect_cut_breaths"}
+            and node.name
+            in {
+                "inspect_source_remove_placement",
+                "protect_cut_breaths",
+                "assess_cross_track_speech",
+                "assess_proposed_cut",
+                "original_pause_support",
+            }
         )
-    assert definitions == ["cut_safety.py", "cut_safety.py"]
+    assert sorted(definitions) == [
+        (name, "cut_safety.py")
+        for name in sorted(
+            {
+                "inspect_source_remove_placement",
+                "protect_cut_breaths",
+                "assess_cross_track_speech",
+                "assess_proposed_cut",
+                "original_pause_support",
+            }
+        )
+    ]
 
     project = EpisodeProject.create("pure source removal", "/tmp/fix1508-pure")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
@@ -283,7 +339,8 @@ def test_pause_proposal_after_hole_drops_crossing_span_and_keeps_safe_control(tm
     proposal = propose_tighten_edits(ws.project, cfg, intensity="aggressive")
     assert proposal.decisions == []
     assert proposal.skip_counts.get("no_air") == 1
-    from podcast_mcp.edits.source_removals import CutScopeHold, inspect_source_remove
+    from podcast_mcp.edits.cut_safety import CutScopeHold
+    from podcast_mcp.edits.source_removals import inspect_source_remove
 
     crossing = _cut("crossing", reason="pause:4.80s")
     crossing.start, crossing.end = 0.2, 4.7
@@ -407,17 +464,14 @@ def test_saved_final_optimizer_window_closes_over_origin_media(
 
 @pytest.mark.parametrize("cause", ["peer_speech", "speaker_bleed", "scope_unavailable"])
 def test_saved_scope_holds_keep_real_cause_and_audio(tmp_path: Path, monkeypatch, cause: str):
-    from podcast_mcp.edits.speech_energy_guard import (
-        CutScopeUnavailable,
-        ResolvedCutScope,
-        SpeechEnergyGuardResult,
-    )
+    from podcast_mcp.edits.cut_safety import CutScopeUnavailable, ResolvedCutScope
+    from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 
     ws = _workspace(tmp_path)
     ws.mutate("before pending", "after pending", lambda p: p.edit_decisions.append(_cut()))
     guard = SpeechEnergyGuardResult(("guest",), "review") if cause == "peer_speech" else None
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         lambda *_args, **_kwargs: (
             CutScopeUnavailable()
             if cause == "scope_unavailable"
@@ -514,7 +568,7 @@ def test_saved_auto_holds_replay_and_applies_unique_survivor_once(tmp_path: Path
 def test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor(
     tmp_path: Path, monkeypatch
 ):
-    from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
+    from podcast_mcp.edits.cut_safety import ResolvedCutScope
 
     ws = _workspace(tmp_path)
     late = _cut("late")
@@ -529,7 +583,7 @@ def test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor(
                 return ResolvedCutScope("speaker_bleed")
         return ResolvedCutScope("session_clear")
 
-    monkeypatch.setattr("podcast_mcp.edits.speech_energy_guard.resolve_cut_scope", scope)
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.resolve_cut_scope", scope)
     assert EditService(ws).apply_auto() == 1
     saved = load_project(ws.path)
     assert observed_durations == {5}
@@ -547,8 +601,8 @@ def test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor(
 def test_auto_restart_excludes_speech_chosen_only_by_freshly_held_punch(
     tmp_path: Path, monkeypatch
 ):
+    from podcast_mcp.edits.cut_safety import ResolvedCutScope
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
-    from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 
     ws = _workspace(tmp_path)
     punch = _cut("punch", scope="track")
@@ -581,7 +635,7 @@ def test_auto_restart_excludes_speech_chosen_only_by_freshly_held_punch(
 
     monkeypatch.setattr("podcast_mcp.edits.source_removals.optimize_timeline_cut_range", optimize)
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         lambda *_args, **_kwargs: ResolvedCutScope("session_clear"),
     )
     assert EditService(ws).apply_auto() == 0

@@ -15,10 +15,9 @@ from pause_policy_public_helpers import (
     write_wav,
 )
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.cut_safety import assess_cross_track_speech, resolve_cut_scope
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.speech_energy_guard import (
-    assess_cross_track_speech,
-    resolve_cut_scope,
     speech_energy_on_conflict,
     validate_speech_energy_on_conflict,
 )

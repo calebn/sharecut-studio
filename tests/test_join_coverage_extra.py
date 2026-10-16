@@ -292,7 +292,7 @@ def test_bootstrap_nisqa_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
 
 
 def test_maybe_ranker_applies(tmp_path: Path, minimal_project: Path, sample_wav: Path) -> None:
-    from podcast_mcp.edits.join_continuity import assess_proposed_cut
+    from podcast_mcp.edits.cut_safety import assess_proposed_cut
     from podcast_mcp.edits.join_ranker import JoinRankerModel, save_ranker
 
     project = load_project(minimal_project)

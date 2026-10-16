@@ -65,7 +65,7 @@ def test_unavailable_peer_assessment_cannot_publish_an_automatic_track_punch(
 def test_final_peer_assessment_failure_cannot_publish_after_initial_clearance(
     tmp_path, monkeypatch, failure
 ):
-    from podcast_mcp.edits.speech_energy_guard import assess_cross_track_speech
+    from podcast_mcp.edits.cut_safety import assess_cross_track_speech
 
     result, cfg = _fixture(tmp_path, monkeypatch)
     calls = []

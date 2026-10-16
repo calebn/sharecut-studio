@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.edits.cut_safety import ResolvedCutScope
 from podcast_mcp.edits.decisions import approve_edits
-from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.edits.transcript_cuts import (
     append_remove_decision,
     apply_edit_plan,
@@ -490,7 +490,7 @@ def test_trailing_energy_extends_when_next_word_overlaps(monkeypatch):
     monkeypatch.setattr("podcast_mcp.edits.filler_pacing.apply_filler_pacing", _fake_pace)
     monkeypatch.setattr(tc, "optimize_source_cut_range", _fake_opt)
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         lambda *a, **k: ResolvedCutScope("session_clear", None),
     )
     proj = _project_with_media()
@@ -528,7 +528,7 @@ def test_trailing_energy_clamped_when_next_word_has_lead_in(monkeypatch):
     monkeypatch.setattr("podcast_mcp.edits.filler_pacing.apply_filler_pacing", _fake_pace)
     monkeypatch.setattr(tc, "optimize_source_cut_range", _fake_opt)
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         lambda *a, **k: ResolvedCutScope("session_clear", None),
     )
     proj = _project_with_media()
@@ -747,7 +747,7 @@ def test_transcript_cut_uses_selected_source_under_session_ripple(tmp_path, monk
     ]
     a_before = proj.clips[0].model_dump(mode="json")
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         lambda *args, **kwargs: ResolvedCutScope("session_clear"),
     )
 
@@ -818,7 +818,7 @@ def test_transcript_cut_refuses_overlapping_unselected_source_without_mutation(m
     ]
     before = proj.model_dump(mode="json")
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         lambda *args, **kwargs: ResolvedCutScope("session_clear"),
     )
 
