@@ -129,7 +129,6 @@ def _two_track_filler_project() -> EpisodeProject:
 
 
 def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
-    """Serial and parallel filler runs produce identical grouped decisions."""
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
 
     defaults = {
