@@ -774,7 +774,7 @@ The strip covers the tool rail again. Its header keeps the shared Undo and
 Redo controls visible at peek, half and full height. The rail and header use
 one authorization check, one unavailable-action message and the existing
 `history.undo` / `history.redo` command bus path, including its wait for this
-tab's edit saves and refusal when one is still saving. History controls stay
+tab's edit saves (it queues behind a save that is still out and never refuses). History controls stay
 at least 44 CSS pixels square and do not overlap the resize or Close controls.
 
 The blade confirmation is a `fit` sheet, as tall as its question and its

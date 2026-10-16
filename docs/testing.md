@@ -1710,7 +1710,7 @@ test; other rows are whole tests.
 | Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped saved feedback pauses its remaining visible lifetime | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| compact header handles Undo while a save is pending | `gui/web/e2e-compat/compact-save-refusal.spec.ts` | Core flow | Pass | Pass | Not run |
+| compact header queues Undo behind a pending save | `gui/web/e2e-compat/compact-save-refusal.spec.ts` | Core flow | Pass | Pass | Not run |
 | unavailable compact history keeps geometry | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 32px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |

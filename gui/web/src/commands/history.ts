@@ -8,14 +8,12 @@ import {
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
-  DOCUMENT_SEND_WAIT_MS,
   editSavesInFlight,
   headLandedSince,
   savesLandedMark,
 } from "../state/documentSendOrder";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
-import { raceTimeout } from "../utils/raceTimeout";
 import { execute, registerCommand } from "./execute";
 import { flushPendingMix } from "./trackMix";
 import type { ExecuteResult } from "./types";
@@ -23,12 +21,6 @@ import type { ExecuteResult } from "./types";
 const STALE_COPY = {
   undo: "Can't undo: the project changed since. Nothing was undone.",
   redo: "Can't redo: the project changed since. Nothing was redone.",
-} as const;
-
-/** The wait for this tab's edit saves ran out: running the move now would act on the edit before them. */
-const STILL_SAVING_COPY = {
-  undo: "Your last edit is still saving. Nothing was undone.",
-  redo: "Your last edit is still saving. Nothing was redone.",
 } as const;
 
 const NO_HEAD = "Open a project first.";
@@ -64,11 +56,11 @@ function knownHead(projectPath: string): HistoryEntryId | null {
  * this tab, the head that move landed on. A press also waits behind the edit
  * saves this tab had in flight when it was made, and expects the head the
  * latest of this tab's own commands left, so Undo reverts the edit the person
- * just made. If those saves are still out after `DOCUMENT_SEND_WAIT_MS` the press
- * runs nothing and says the edit is still saving, rather than reverting the
- * edit before it and letting the slow one land after. A peer edit that arrives while a press waits its turn is never
- * adopted: the server refuses (`history_stale`) instead of reverting an edit
- * the person had not seen.
+ * just made. The wait has no cutoff of its own, because a press that gave up
+ * would be a lost tap; every save ends by its own transport timeout. A peer
+ * edit that arrives while a press waits its turn is never adopted: the server
+ * refuses (`history_stale`) instead of reverting an edit the person had not
+ * seen.
  */
 function moveHistory(
   action: "undo" | "redo",
@@ -109,21 +101,9 @@ function moveHistory(
       const aheadLanded = ahead ? await ahead : null;
       const afterMove = refuseObsolete();
       if (afterMove) return afterMove;
-      const saved = await raceTimeout(
-        savesAhead.then(() => true),
-        DOCUMENT_SEND_WAIT_MS,
-        () => false,
-      );
+      await savesAhead;
       const afterSave = refuseObsolete();
       if (afterSave) return afterSave;
-      if (!saved) {
-        useDawStore.getState().announceStatus(STILL_SAVING_COPY[action]);
-        return {
-          status: "disabled",
-          reason: STILL_SAVING_COPY[action],
-          announced: true,
-        };
-      }
       await flushPendingMix();
       const afterMix = refuseObsolete();
       if (afterMix) return afterMix;

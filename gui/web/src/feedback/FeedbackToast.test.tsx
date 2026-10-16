@@ -493,7 +493,7 @@ describe("FeedbackToast", () => {
         void trackEditSave("/tmp/ep", send);
       });
       const undo = screen.getByRole("button", { name: "Undo" });
-      expect(undo).toHaveAttribute("aria-disabled", "true");
+      expect(undo).toBeDisabled();
       await userEvent.setup().click(undo);
       expect(undoHistory).not.toHaveBeenCalled();
       expect(screen.queryByText(/still saving|Nothing was undone/)).toBeNull();

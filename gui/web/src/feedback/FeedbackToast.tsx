@@ -1,8 +1,18 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 import { shallow } from "zustand/shallow";
 import { executePointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
+import {
+  documentActivityBusy,
+  subscribeDocumentActivity,
+} from "../state/documentSendOrder";
 import { useDaw } from "../state/useDaw";
 import type { HistoryEntryId } from "../types/project";
 import { TOAST_MS, TOAST_UNDO_MS, Toast } from "../ui";
@@ -32,10 +42,15 @@ function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
 }
 
 export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
-  const { toast, headId } = useDaw((s) => ({
+  const { toast, headId, projectPath } = useDaw((s) => ({
     toast: s.feedbackToast,
     headId: s.project?.history?.head_id ?? null,
+    projectPath: s.projectPath,
   }));
+  // An edit still on its way makes this toast's entry stale once it lands, so its Undo waits.
+  const saving = useSyncExternalStore(subscribeDocumentActivity, () =>
+    documentActivityBusy(projectPath),
+  );
   const [undoing, setUndoing] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
   const [portal] = useState(() => {
@@ -204,7 +219,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
           ? () => void undo(toast.message, undoEntry)
           : undefined
       }
-      undoDisabledReason={undoing ? BUSY_REASON : undefined}
+      undoDisabledReason={undoing || saving ? BUSY_REASON : undefined}
       timeoutMs={undoEntry ? TOAST_UNDO_MS : TOAST_MS}
       visibility={visibility}
     />,
