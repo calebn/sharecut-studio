@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import sys
 import threading
-import time
 
 import pytest
 
@@ -123,13 +122,54 @@ def test_kill_detached_children_never_signals_a_reaped_pid(monkeypatch) -> None:
 def test_kill_detached_children_kills_a_child_another_thread_is_waiting_on() -> None:
     with detached_children():
         child = popen(_SLEEP)
-        waiter = threading.Thread(target=child.wait)
-        waiter.start()
-        time.sleep(0.2)
-        kill_detached_children()
-        waiter.join(timeout=5)
-    assert not waiter.is_alive()
-    assert child.returncode != 0
+        started = False
+        waiter: threading.Thread | None = None
+        try:
+            wait_lock_acquired = threading.Event()
+            original_wait_lock = child._waitpid_lock
+
+            class ObservedWaitLock:
+                def acquire(self, blocking=True, timeout=-1):
+                    acquired = original_wait_lock.acquire(blocking, timeout)
+                    if blocking and acquired:
+                        wait_lock_acquired.set()
+                    return acquired
+
+                def release(self):
+                    original_wait_lock.release()
+
+                def __enter__(self):
+                    self.acquire()
+                    return self
+
+                def __exit__(self, *_exc_info):
+                    self.release()
+                    return False
+
+            child._waitpid_lock = ObservedWaitLock()
+            waiter_errors: list[BaseException] = []
+
+            def wait_for_child() -> None:
+                try:
+                    child.wait()
+                except BaseException as exc:
+                    waiter_errors.append(exc)
+
+            waiter = threading.Thread(target=wait_for_child)
+            waiter.start()
+            started = True
+            assert wait_lock_acquired.wait(timeout=5), "waiter did not acquire the reap lock"
+            kill_detached_children()
+            waiter.join(timeout=5)
+            assert not waiter.is_alive()
+            assert waiter_errors == []
+            assert child.returncode != 0
+        finally:
+            if child.poll() is None:
+                child.kill()
+            if started and waiter is not None:
+                waiter.join(timeout=5)
+            child.wait(timeout=5)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="no nice")
