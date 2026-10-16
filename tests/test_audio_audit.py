@@ -2281,7 +2281,7 @@ def test_cached_and_uncached_window_reads_return_the_same_samples(tmp_path: Path
 def test_cache_window_length_rounds_apart_from_its_start():
     rate = 8_000
     cache = TrackRmsCache(np.arange(10 * rate, dtype=np.float32), rate)
-    t_start, t_end = 8000.4 / 8000, 8002.8 / 8000
+    t_start, t_end = 8000.6 / 8000, 8002.4 / 8000
     assert round(t_start * rate) + round((t_end - t_start) * rate) != round(t_end * rate)
     window = cache.window(t_start, t_end)
     assert window.size == round((t_end - t_start) * rate)
