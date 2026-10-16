@@ -75,16 +75,27 @@ export function bulkReviewQuestion(
 export function bulkReviewDoneMessage(
   action: BulkReviewAction,
   count: number,
-  outcome?: Pick<ReviewOutcome, "count" | "held">,
+  outcome?: Pick<ReviewOutcome, "held">,
 ): string {
   const held = outcome?.held ?? [];
-  if (action === "approve" && held.length > 0 && outcome?.count != null)
-    return bulkReviewHeldMessage(outcome.count, held);
+  if (action === "approve" && held.length > 0)
+    return bulkReviewHeldMessage(count, held);
   return `${action === "approve" ? "Approved" : "Rejected"} ${pendingEdits(count)}`;
 }
 
 /** A cut Approve all left pending, with the reason the list shows. */
 export type HeldCut = Readonly<{ id: string; label: string; reason: string }>;
+
+/**
+ * The first part of an Approve all pass that asked "Cut anyway" about the rest: the
+ * history entry it left and how many edits it applied. The Cut anyway step names the
+ * entry (`continues_head_id`) so the server undoes both parts as one step, and counts
+ * the applied edits into its toast.
+ */
+export type ReviewPassStart = Readonly<{
+  head: HistoryEntryId;
+  applied: number;
+}>;
 
 export type ReviewOutcome = Readonly<
   | {
@@ -109,6 +120,8 @@ export type ReviewOutcome = Readonly<
       count: number;
       historyHead: HistoryEntryId | null;
       held?: readonly HeldCut[];
+      /** Set on a Cut anyway that finished an Approve all pass. */
+      pass?: ReviewPassStart;
     }
 >;
 
@@ -239,7 +252,11 @@ export function pendingReviewFeedback(
         undo: null,
       }
     : {
-        message: bulkReviewDoneMessage(action, outcome.count, outcome),
+        message: bulkReviewDoneMessage(
+          action,
+          outcome.count + (outcome.pass?.applied ?? 0),
+          outcome,
+        ),
         undo: outcome.historyHead,
       };
 }

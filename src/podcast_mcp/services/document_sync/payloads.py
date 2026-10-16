@@ -164,6 +164,16 @@ class ApproveEditsPayload(BaseModel):
             "Without it one such cut refuses the whole batch."
         ),
     )
+    continues_head_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description=(
+            "Cut anyway after an Approve all that applied the rest: the history entry "
+            "that Approve all left (`history_head_id` of its reply). The entry this "
+            "command records names it, so one Undo takes back both parts."
+        ),
+    )
 
 
 class RejectEditsPayload(BaseModel):

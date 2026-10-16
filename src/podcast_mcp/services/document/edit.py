@@ -191,7 +191,11 @@ from podcast_mcp.effects.presets import (
 )
 from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.history.manager import apply_snapshot_to_project, snapshot_from_project
+from podcast_mcp.history.manager import (
+    PASS_CONTINUES_KEY,
+    apply_snapshot_to_project,
+    snapshot_from_project,
+)
 from podcast_mcp.history.rollback import RollbackOutcome
 from podcast_mcp.models import EditDecision, EditMode, EpisodeProject, TrackRole
 from podcast_mcp.models.episode import ExactRangeTarget
@@ -469,8 +473,12 @@ class EditService:
         held_out: list[HeldEdit] | None = None,
         asked_out: list[AskedEdits] | None = None,
         override_peer_holds: set[str] | None = None,
+        continues_head_id: str | None = None,
     ) -> int | CutSpeechConfirmation:
         """Apply pending edits; a suggested ripple over other speech asks to confirm first.
+
+        ``continues_head_id`` marks the entry as the second part of an Approve all pass
+        whose first part left that entry; Undo then takes back both (#1677).
 
         With ``held_out`` (Approve all), a cut that cannot apply safely stays pending and is
         reported there while every other selected edit applies. With ``asked_out`` too, a cut
@@ -515,7 +523,11 @@ class EditService:
                     "after approve edits",
                     mutate,
                     operation="approve_edits",
-                    params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
+                    params={
+                        "ids": ids,
+                        "confirm_cut_speech": confirm_cut_speech,
+                        **({PASS_CONTINUES_KEY: continues_head_id} if continues_head_id else {}),
+                    },
                     on_failure=on_failure,
                 )
         except UnconfirmedCutSpeech as asked:

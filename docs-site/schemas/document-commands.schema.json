@@ -1170,6 +1170,21 @@
           "title": "Confirm Cut Speech",
           "type": "boolean"
         },
+        "continues_head_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cut anyway after an Approve all that applied the rest: the history entry that Approve all left (`history_head_id` of its reply). The entry this command records names it, so one Undo takes back both parts.",
+          "title": "Continues Head Id"
+        },
         "hold_blocked": {
           "default": false,
           "description": "Approve all: a cut that cannot apply safely (another speaker is talking there, say) stays pending and is reported in `held`; every other edit applies. A cut that would cut other speech also stays pending: the reply carries the ask and `confirm_ids`, and confirming sends only those ids. Without it one such cut refuses the whole batch.",

@@ -98,6 +98,38 @@ def _behind_render_only(history: ProjectHistory, expected_head_id: str | None) -
     return None
 
 
+# What may sit between the first and last part of one Approve all pass: its own edits,
+# their "before" snapshots (no operation) and the automatic preview renders.
+_PASS_OPERATIONS = frozenset({None, "approve_edits", "render_preview"})
+
+# The history ``params`` key an Approve all's Cut anyway entry uses to name the pass's
+# first entry, so one Undo takes back both parts (#1677).
+PASS_CONTINUES_KEY = "continues_head_id"
+
+
+def _pass_start(history: ProjectHistory) -> int | None:
+    """The index of the first part of the pass the entry at the cursor finishes, or None.
+
+    The cursor entry names the first part in its ``params``. The pass is intact only while
+    that entry is an earlier ``approve_edits`` and everything from it to the cursor belongs
+    to the pass; another edit in between means this is no longer one pass, so Undo takes
+    back just the cursor entry."""
+    params = history.entries[history.cursor].params or {}
+    first_id = params.get(PASS_CONTINUES_KEY)
+    if not isinstance(first_id, str):
+        return None
+    ids = [entry.id for entry in history.entries[: history.cursor]]
+    if first_id not in ids:
+        return None
+    index = ids.index(first_id)
+    between = history.entries[index : history.cursor + 1]
+    if between[0].operation != "approve_edits" or any(
+        entry.operation not in _PASS_OPERATIONS for entry in between
+    ):
+        return None
+    return index
+
+
 @dataclass
 class HistoryStatus:
     cursor: int
@@ -148,7 +180,10 @@ class HistoryManager:
     def undo(
         self, project: EpisodeProject, *, expected_head_id: str | None = None
     ) -> HistoryStatus:
-        """Step back one entry; with ``expected_head_id``, only while that entry is the head."""
+        """Step back one entry; with ``expected_head_id``, only while that entry is the head.
+
+        An Approve all's Cut anyway entry names the pass's first entry
+        (``PASS_CONTINUES_KEY``), and Undo goes back over both parts as one step."""
         with project_commit_lock(project):
             return self._undo_locked(project, expected_head_id)
 
@@ -211,6 +246,9 @@ class HistoryManager:
             history.cursor = resumed
         else:
             _rewind_over_render_previews(history)
+        first = _pass_start(history) if history.cursor >= 0 else None
+        if first is not None:
+            history.cursor = first
         if not history.can_undo():
             raise ValueError("Nothing to undo")
         history.cursor -= 1
