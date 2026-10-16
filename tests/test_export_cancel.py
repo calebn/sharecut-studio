@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -184,20 +185,53 @@ def test_terminal_ctrl_c_during_mastering_lets_the_master_finish_then_cancels(
 
 def test_second_terminal_ctrl_c_quits_at_once_and_kills_ffmpeg(slow_export, tmp_path) -> None:
     cli = _TerminalCli(slow_export, tmp_path, mastering_sec=60)
-    cli.wait_until_mastering()
-    cli.ctrl_c()
-    time.sleep(0.3)
-    assert cli.alive(), "the first Ctrl+C must not stop an uninterruptible master"
-    started = time.monotonic()
-    cli.ctrl_c()
-    code, out, err = cli.finish(timeout=15)
+    ffmpeg_pids: list[int] = []
+    prefix = bytearray()
+    suffix = ""
+    stderr = cli.proc.stderr
+    encoding = stderr.encoding if stderr is not None else "utf-8"
+    errors = stderr.errors if stderr is not None else "strict"
+    try:
+        assert stderr is not None
+        cli.wait_until_mastering()
+        ffmpeg_pids = cli.ffmpeg_children()
+        cli.ctrl_c()
+        acknowledgement = b"Cancelling. Press Ctrl+C again to quit now.\n"
+        deadline = time.monotonic() + 5
+        while not prefix.endswith(acknowledgement):
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, "first Ctrl+C was not acknowledged"
+            ready, _, _ = select.select([stderr], [], [], remaining)
+            assert ready, "first Ctrl+C was not acknowledged"
+            data = os.read(stderr.fileno(), 1)
+            assert data, "CLI stderr closed before the first Ctrl+C acknowledgment"
+            prefix.extend(data)
+        assert cli.proc.poll() is None, "the first Ctrl+C must not stop an uninterruptible master"
+        started = time.monotonic()
+        cli.ctrl_c()
+        code, out, suffix = cli.finish(timeout=15)
+        err = prefix.decode(encoding or "utf-8", errors or "strict")
+        err = err.replace("\r\n", "\n").replace("\r", "\n") + suffix
 
-    assert time.monotonic() - started < 5
-    assert code == 130, err
-    assert "Traceback" not in err
-    assert out.strip() == ""
-    assert cli.ffmpeg_left_running() == []
-    assert slow_export.files() == slow_export.previous
+        assert time.monotonic() - started < 5
+        assert code == 130, err
+        assert "Traceback" not in err
+        assert out.strip() == ""
+        assert cli.ffmpeg_left_running() == []
+        assert slow_export.files() == slow_export.previous
+    except BaseException as failure:
+        try:
+            if cli.proc.poll() is None:
+                cli.end_by(signal.SIGHUP, ffmpeg_pids)
+            _, _, remaining_stderr = cli.finish(timeout=2)
+            if not suffix:
+                suffix = remaining_stderr
+            assert cli.ffmpeg_left_running() == [], "marked FFmpeg survived cleanup"
+        except BaseException as cleanup_error:
+            failure.add_note(f"cleanup: {cleanup_error!r}")
+        captured = prefix.decode(encoding or "utf-8", "replace")
+        failure.add_note(f"CLI stderr: {captured + suffix}")
+        raise
 
 
 def _command_of(pid: int) -> str:
