@@ -155,6 +155,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         (".nvmrc", Scope.GUI),
         (".agents/defaults/**", Scope.GUI),
         (".agents/**", Scope.OTHER),
+        (".cursor/**", Scope.OTHER),
         (".claude/**", Scope.OTHER),
         (".codex/**", Scope.OTHER),
         (".githooks/**", Scope.OTHER),
