@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "../e2e/overlayReachability";
 
@@ -25,8 +26,26 @@ async function sendSessionCommand(
   expect(response.ok(), await response.text()).toBe(true);
 }
 
-async function publishAgentRange(page: Page, clientId: string): Promise<void> {
-  await sendSessionCommand(page, clientId, 1, "SetRegion", {
+async function clearAgentRange(
+  page: Page,
+  clientId: string,
+  clientSeq: number,
+): Promise<void> {
+  await sendSessionCommand(page, clientId, clientSeq, "ClearRegion", {
+    stop: false,
+  });
+}
+
+function fixtureClientId(page: Page, purpose: string): string {
+  return `public-fixture-agent-${purpose}-${page.context().browser()?.browserType().name()}-${randomUUID()}`;
+}
+
+async function publishAgentRange(
+  page: Page,
+  clientId: string,
+  clientSeq: number,
+): Promise<void> {
+  await sendSessionCommand(page, clientId, clientSeq, "SetRegion", {
     start_sec: 4,
     end_sec: 9,
     playhead_sec: 4,
@@ -59,8 +78,9 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   page,
 }) => {
   await openHostProject(page);
-  const clientId = `public-fixture-agent-clip-${page.context().browser()?.browserType().name()}`;
-  await publishAgentRange(page, clientId);
+  const clientId = fixtureClientId(page, "clip");
+  await clearAgentRange(page, clientId, 1);
+  await publishAgentRange(page, clientId, 2);
 
   const barActions = page
     .locator(".daw-shell-transport")
@@ -133,15 +153,28 @@ test("a zero-start agent range arriving at short-tablet peek stays reachable", a
   const sheet = page.locator(".bottom-sheet--inspector");
   await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await expect(sheet.locator(".inspector-peek")).toBeVisible();
-  const clientId = `public-fixture-agent-peek-arrival-${page.context().browser()?.browserType().name()}`;
-  await publishZeroStartAgentRange(page, clientId, 1);
+  const title = await sheet.locator(".bottom-sheet-title").innerText();
+  const clientId = fixtureClientId(page, "peek-arrival");
+  await clearAgentRange(page, clientId, 1);
+  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+    0,
+  );
+  await publishZeroStartAgentRange(page, clientId, 2);
 
   const actions = sheet.getByRole("region", { name: "Range actions" });
   await expect(actions).toBeVisible();
+  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+    1,
+  );
+  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
+  await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
   await expect(actions.getByLabel("In")).toHaveValue("0");
   await expect(actions.getByLabel("Out")).toHaveValue("1");
   const reference = actions.getByRole("checkbox", { name: "reference" });
   const guest = actions.getByRole("checkbox", { name: "guest" });
+  await reference.check();
+  await expect(reference).toBeChecked();
+  await expect(guest).not.toBeChecked();
   await reference.uncheck();
   await guest.check();
   await expect(reference).not.toBeChecked();
@@ -159,8 +192,9 @@ test("a zero-start agent range arriving at short-tablet peek stays reachable", a
 
 test("a tablet track sheet owns the agent range controls", async ({ page }) => {
   await openHostProject(page);
-  const clientId = `public-fixture-agent-track-${page.context().browser()?.browserType().name()}`;
-  await publishAgentRange(page, clientId);
+  const clientId = fixtureClientId(page, "track");
+  await clearAgentRange(page, clientId, 1);
+  await publishAgentRange(page, clientId, 2);
   const trackName = page.locator(".track-title-text").first();
   const trackNameBox = await trackName.boundingBox();
   if (!trackNameBox) throw new Error("track name has no visible bounds");
@@ -212,8 +246,12 @@ test("agent range arrival and removal keep short-tablet peek state reachable", a
   await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
   const title = await sheet.locator(".bottom-sheet-title").innerText();
-  const clientId = `public-fixture-agent-peek-toggle-${page.context().browser()?.browserType().name()}`;
-  await publishZeroStartAgentRange(page, clientId, 1);
+  const clientId = fixtureClientId(page, "peek-toggle");
+  await clearAgentRange(page, clientId, 1);
+  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+    0,
+  );
+  await publishZeroStartAgentRange(page, clientId, 2);
 
   const actions = sheet.getByRole("region", { name: "Range actions" });
   await expect(
@@ -230,19 +268,26 @@ test("agent range arrival and removal keep short-tablet peek state reachable", a
 
   const reference = actions.getByRole("checkbox", { name: "reference" });
   const guest = actions.getByRole("checkbox", { name: "guest" });
+  await reference.check();
+  await expect(reference).toBeChecked();
+  await expect(guest).not.toBeChecked();
   await reference.uncheck();
   await guest.check();
-  await sendSessionCommand(page, clientId, 2, "ClearRegion", {
-    stop: false,
-  });
+  await clearAgentRange(page, clientId, 3);
   await expect(actions).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+    0,
+  );
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
   await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
 
-  await publishZeroStartAgentRange(page, clientId, 3);
+  await publishZeroStartAgentRange(page, clientId, 4);
   const restored = sheet.getByRole("region", { name: "Range actions" });
   await expect(restored).toBeVisible();
+  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+    1,
+  );
   await expect(
     restored.getByRole("checkbox", { name: "reference" }),
   ).not.toBeChecked();
