@@ -4,6 +4,7 @@ import multiprocessing
 import sqlite3
 import sys
 import time
+import traceback
 from contextlib import closing
 from multiprocessing.connection import Connection, wait
 from multiprocessing.process import BaseProcess
@@ -359,7 +360,23 @@ def _run_construction_actor(path: str, barrier: Any, sender: Connection) -> None
             sender.send(("progress", "reporting result"))
             sender.send(("result", ("ok", secret, None)))
         except BaseException as exc:
-            sender.send(("result", ("error", type(exc).__name__, str(exc))))
+            sender.send(
+                (
+                    "result",
+                    (
+                        "error",
+                        type(exc).__name__,
+                        "\n".join(
+                            (
+                                str(exc),
+                                f"sqlite_errorcode={getattr(exc, 'sqlite_errorcode', None)}",
+                                f"sqlite_errorname={getattr(exc, 'sqlite_errorname', None)}",
+                                "".join(traceback.format_exception(exc)),
+                            )
+                        ),
+                    ),
+                )
+            )
     finally:
         if registry:
             try:
