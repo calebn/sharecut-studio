@@ -1,4 +1,5 @@
 import type { AutomationEnvelope, AutomationPoint } from "../types/project";
+import { linearToDb } from "./audio";
 
 export const ENVELOPE_VALUE_MAX = 1.5;
 
@@ -106,4 +107,20 @@ export function sameEnvelopePoints(
       );
     })
   );
+}
+
+/**
+ * The volume envelope's gain in dB at a timeline time, or null when the track
+ * has no volume envelope points (the mix then applies no envelope at all).
+ */
+export function volumeEnvelopeDbAt(
+  envelopes: readonly AutomationEnvelope[] | undefined,
+  trackId: string,
+  timeSec: number,
+): number | null {
+  const points = findVolumeEnvelope(envelopes, trackId)?.points;
+  if (!points || points.length === 0) {
+    return null;
+  }
+  return linearToDb(envelopeValueAt(points, timeSec));
 }

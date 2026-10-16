@@ -82,4 +82,15 @@ describe("outputGainTitle", () => {
       "Plays at −3.0 dB: staging −1.0 dB, volume −2.0 dB. Change the volume in the track details",
     );
   });
+
+  it("names the volume envelope at the playhead, silence included", () => {
+    expect(outputGainTitle(-9, -1, -2, -6)).toBe(
+      "Plays at −9.0 dB: staging −1.0 dB, volume −2.0 dB, volume envelope −6.0 dB at the playhead. Change the volume in the track details",
+    );
+    expect(
+      outputGainTitle(Number.NEGATIVE_INFINITY, 0, 0, Number.NEGATIVE_INFINITY),
+    ).toBe(
+      "Plays at −∞ dB: staging 0.0 dB, volume 0.0 dB, volume envelope −∞ dB at the playhead. Change the volume in the track details",
+    );
+  });
 });

@@ -40,6 +40,11 @@ export interface TrackHeaderViewProps {
   dropEdge: "before" | "after" | null;
   mayReorder: boolean;
   mixer: ReactNode;
+  /**
+   * Volume envelope gain (dB) at the playhead; undefined when the track has no
+   * volume envelope. Added to the staging gain and saved volume in "Out".
+   */
+  envelopeDb?: number;
   playbackMeter?: ReactNode;
   longPress?: LongPressHandlers;
   onSelect: MouseEventHandler<HTMLButtonElement>;
@@ -65,6 +70,7 @@ export function TrackHeaderView({
   dropEdge,
   mayReorder,
   mixer,
+  envelopeDb,
   playbackMeter,
   longPress,
   onSelect,
@@ -75,7 +81,7 @@ export function TrackHeaderView({
   onDrop,
 }: TrackHeaderViewProps) {
   const label = track.label || track.id;
-  const outputDb = trackOutputGainDb(track);
+  const outputDb = trackOutputGainDb(track) + (envelopeDb ?? 0);
   const stagingDb = track.gain_db;
   const volumeDb = trackFaderDb(track);
   const identityStyle = {
@@ -171,7 +177,7 @@ export function TrackHeaderView({
       <div className="track-output-row">
         <span
           className="track-out-gain"
-          title={outputGainTitle(outputDb, stagingDb, volumeDb)}
+          title={outputGainTitle(outputDb, stagingDb, volumeDb, envelopeDb)}
         >
           Out {formatGainDb(outputDb)}
         </span>

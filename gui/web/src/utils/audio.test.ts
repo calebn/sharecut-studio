@@ -5,6 +5,7 @@ import {
   dbToLinear,
   formatGainDb,
   linearToDb,
+  roundGainDb,
   trackIsAudible,
   trackMuteState,
   trackOutputGainDb,
@@ -80,5 +81,13 @@ describe("saved volume helpers", () => {
     expect(formatGainDb(1.5)).toBe("+1.5 dB");
     expect(formatGainDb(-3)).toBe("\u22123.0 dB");
     expect(formatGainDb(-0.04)).toBe("0.0 dB");
+  });
+
+  it("labels silence as minus infinity, not a number", () => {
+    expect(formatGainDb(Number.NEGATIVE_INFINITY)).toBe("\u2212\u221e dB");
+    expect(roundGainDb(Number.NEGATIVE_INFINITY)).toBe(
+      Number.NEGATIVE_INFINITY,
+    );
+    expect(roundGainDb(-3.04)).toBe(-3);
   });
 });

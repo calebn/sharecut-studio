@@ -24,6 +24,8 @@ export type FaderPresentation =
   | {
       kind: "detailed";
       stagingDb: number;
+      /** Volume envelope gain at the playhead; undefined without an envelope. */
+      envelopeDb?: number;
       balance: BalancePresentation | null;
     };
 
@@ -88,7 +90,7 @@ export function TrackFaderView({
       </div>
     );
   }
-  const { stagingDb, balance } = presentation;
+  const { stagingDb, envelopeDb, balance } = presentation;
 
   return (
     <div className="track-fader">
@@ -119,8 +121,12 @@ export function TrackFaderView({
         {editable ? "" : "Only the host and editors can change the volume. "}
         Staging gain {formatGainDb(stagingDb)}; plays at{" "}
         {formatGainDb(
-          trackOutputGainDb({ gain_db: stagingDb, fader_db: value }),
+          trackOutputGainDb({ gain_db: stagingDb, fader_db: value }) +
+            (envelopeDb ?? 0),
         )}
+        {envelopeDb === undefined
+          ? ""
+          : ` with the volume envelope at ${formatGainDb(envelopeDb)} at the playhead`}
       </p>
       {balance ? (
         <p className="track-fader-note">

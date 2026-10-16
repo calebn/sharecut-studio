@@ -4,6 +4,7 @@ import { useDaw } from "../state/useDaw";
 import type { TrackView } from "../types/project";
 import { trackFaderDb } from "../utils/audio";
 import { TrackFaderView } from "./TrackFaderView";
+import { useVolumeEnvelopeDb } from "./useVolumeEnvelopeDb";
 
 export function TrackFader({ track }: { track: TrackView }) {
   const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
@@ -11,6 +12,7 @@ export function TrackFader({ track }: { track: TrackView }) {
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
   }));
+  const envelopeDb = useVolumeEnvelopeDb(track.id);
   const editable = canEditMix(projectPath, guestMode, shareCapabilities);
   return (
     <TrackFaderView
@@ -28,6 +30,7 @@ export function TrackFader({ track }: { track: TrackView }) {
       presentation={{
         kind: "detailed",
         stagingDb: track.gain_db,
+        envelopeDb,
         balance:
           track.role === "dialogue"
             ? {

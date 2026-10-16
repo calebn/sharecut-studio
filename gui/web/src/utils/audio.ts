@@ -81,9 +81,17 @@ export function trackOutputGainDb(
   return track.gain_db + trackFaderDb(track);
 }
 
-/** Signed gain label: "+1.5 dB", "−3.0 dB", "0.0 dB". */
+/** A gain rounded to the 0.1 dB the labels show; silence stays −Infinity. */
+export function roundGainDb(db: number): number {
+  return Math.round(db * 10) / 10;
+}
+
+/** Signed gain label: "+1.5 dB", "−3.0 dB", "0.0 dB"; silence reads "−∞ dB". */
 export function formatGainDb(db: number): string {
-  const rounded = Math.round(db * 10) / 10;
+  if (db === Number.NEGATIVE_INFINITY) {
+    return "\u2212\u221e dB";
+  }
+  const rounded = roundGainDb(db);
   if (rounded === 0) {
     return "0.0 dB";
   }

@@ -36,6 +36,26 @@ function slider() {
 }
 
 describe("TrackFaderView", () => {
+  it("adds the volume envelope at the playhead to what the track plays at", () => {
+    render(
+      <TrackFaderView
+        trackLabel="Mira voice"
+        savedDb={-6}
+        access={{ kind: "read-only" }}
+        presentation={{
+          kind: "detailed",
+          stagingDb: -2,
+          envelopeDb: Number.NEGATIVE_INFINITY,
+          balance: null,
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Only the host and editors can change the volume. Staging gain −2.0 dB; plays at −∞ dB with the volume envelope at −∞ dB at the playhead",
+      ),
+    ).toBeVisible();
+  });
   it("keeps draft output and staging notes local until native change commits", () => {
     const onCommit = vi.fn();
     render(<ControlledFader onCommit={onCommit} />);

@@ -7,6 +7,7 @@ import {
   sameEnvelopePoint,
   sameEnvelopePoints,
   sortedVolumePoints,
+  volumeEnvelopeDbAt,
   withVolumeEnvelopePoints,
 } from "./envelopes";
 
@@ -111,4 +112,44 @@ it("only recognizes the canonical volume parameter", () => {
       findVolumeEnvelope([{ track_id: "host", parameter, points: [] }], "host"),
     ).toBeUndefined();
   }
+});
+
+describe("volumeEnvelopeDbAt", () => {
+  const envelopes = [
+    {
+      track_id: "host",
+      parameter: "volume",
+      points: [
+        { id: "a", time: 0, value: 1 },
+        { id: "b", time: 10, value: 0.5 },
+        { id: "c", time: 20, value: 0 },
+      ],
+    },
+    { track_id: "pan-only", parameter: "pan", points: [] },
+  ];
+
+  it("reads unity as 0 dB, attenuation as negative dB and silence as -Infinity", () => {
+    expect(volumeEnvelopeDbAt(envelopes, "host", 0)).toBe(0);
+    expect(volumeEnvelopeDbAt(envelopes, "host", 10)).toBeCloseTo(-6.02, 2);
+    expect(volumeEnvelopeDbAt(envelopes, "host", 20)).toBe(
+      Number.NEGATIVE_INFINITY,
+    );
+  });
+
+  it("follows the playhead between points", () => {
+    expect(volumeEnvelopeDbAt(envelopes, "host", 5)).toBeCloseTo(-2.5, 1);
+  });
+
+  it("is null when the track has no volume envelope points", () => {
+    expect(volumeEnvelopeDbAt(envelopes, "guest", 3)).toBeNull();
+    expect(volumeEnvelopeDbAt(envelopes, "pan-only", 3)).toBeNull();
+    expect(volumeEnvelopeDbAt(undefined, "host", 3)).toBeNull();
+    expect(
+      volumeEnvelopeDbAt(
+        [{ track_id: "host", parameter: "volume", points: [] }],
+        "host",
+        3,
+      ),
+    ).toBeNull();
+  });
 });
