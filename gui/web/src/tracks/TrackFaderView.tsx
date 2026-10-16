@@ -20,7 +20,12 @@ export type BalancePresentation = Readonly<{
 }>;
 
 export type FaderPresentation =
-  | { kind: "compact"; descriptionId: string }
+  | {
+      kind: "compact";
+      descriptionId: string;
+      /** With a volume envelope, the gain the mix plays at the playhead is shown. */
+      playsAt?: { stagingDb: number; envelopeDb: number };
+    }
   | {
       kind: "detailed";
       stagingDb: number;
@@ -81,9 +86,21 @@ export function TrackFaderView({
     />
   );
   if (presentation.kind === "compact") {
+    const { playsAt } = presentation;
     return (
       <div className="track-fader track-fader--compact">
         {input}
+        {playsAt ? (
+          <span className="track-fader-plays-at">
+            Plays at{" "}
+            {formatGainDb(
+              trackOutputGainDb({
+                gain_db: playsAt.stagingDb,
+                fader_db: value,
+              }) + playsAt.envelopeDb,
+            )}
+          </span>
+        ) : null}
         <output htmlFor={id} className="track-fader-value">
           {formatGainDb(value)}
         </output>

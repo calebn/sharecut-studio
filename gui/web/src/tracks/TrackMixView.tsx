@@ -12,6 +12,9 @@ export type MixTrack = Readonly<{
   muteState: MuteState;
   solo: boolean;
   faderDb: number;
+  /** Staging gain and, with a volume envelope, its gain at the playhead. */
+  stagingDb: number;
+  envelopeDb?: number;
 }>;
 export type MixAccess =
   | { kind: "edit"; onVolume: (trackId: string, db: number) => void }
@@ -111,7 +114,14 @@ function MixRow({
       <TrackFaderView
         trackLabel={row.label}
         savedDb={row.faderDb}
-        presentation={{ kind: "compact", descriptionId }}
+        presentation={{
+          kind: "compact",
+          descriptionId,
+          playsAt:
+            row.envelopeDb === undefined
+              ? undefined
+              : { stagingDb: row.stagingDb, envelopeDb: row.envelopeDb },
+        }}
         access={
           access.kind === "edit"
             ? { kind: "edit", onCommit: (db) => access.onVolume(row.id, db) }

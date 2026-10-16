@@ -44,6 +44,7 @@ function ControlledMix(args: PreviewProps) {
       ),
       solo: Boolean(soloTracks[id]),
       faderDb: volumes[id] ?? 0,
+      stagingDb: 0,
     };
   });
   return args.loading ? (

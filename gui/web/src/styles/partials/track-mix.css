@@ -101,6 +101,16 @@
   font-size: var(--font-size-micro);
 }
 
+.track-fader--compact .track-fader-plays-at {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+  min-inline-size: 0;
+  font-size: var(--font-size-micro);
+  color: var(--color-text-secondary);
+}
+
 @container track-mix (max-width: 16rem) {
   .track-mix-row {
     grid-template-columns: var(--mix-identity-size) minmax(0, 1fr) var(

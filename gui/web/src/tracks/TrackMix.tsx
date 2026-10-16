@@ -8,6 +8,7 @@ import type { TrackView } from "../types/project";
 import { trackFaderDb, trackMuteState } from "../utils/audio";
 import { SoloChip } from "./SoloChip";
 import { type MixTrack, TrackMixView } from "./TrackMixView";
+import { useVolumeEnvelopeDbs } from "./useVolumeEnvelopeDb";
 
 export function TrackMix() {
   const {
@@ -25,9 +26,11 @@ export function TrackMix() {
     viewerMute: s.viewerMute,
     soloTracks: s.soloTracks,
   }));
+  const envelopeDbs = useVolumeEnvelopeDbs();
   const rows = useMemo(
-    () => (tracks ? projectMixRows(tracks, viewerMute, soloTracks) : []),
-    [tracks, viewerMute, soloTracks],
+    () =>
+      tracks ? projectMixRows(tracks, viewerMute, soloTracks, envelopeDbs) : [],
+    [tracks, viewerMute, soloTracks, envelopeDbs],
   );
   if (!tracks) return <TrackMixView state="loading" />;
   return (
@@ -55,6 +58,7 @@ function projectMixRows(
   tracks: readonly TrackView[],
   viewerMute: Record<string, boolean>,
   soloTracks: Record<string, boolean>,
+  envelopeDbs: Readonly<Record<string, number>>,
 ): readonly MixTrack[] {
   return tracks.map((track, index) => {
     const label = track.label || track.id;
@@ -71,6 +75,8 @@ function projectMixRows(
       ),
       solo: Boolean(soloTracks[track.id]),
       faderDb: trackFaderDb(track),
+      stagingDb: track.gain_db,
+      envelopeDb: envelopeDbs[track.id],
     };
   });
 }
