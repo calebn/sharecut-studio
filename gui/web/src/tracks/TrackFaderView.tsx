@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 import { useCommitRange } from "../hooks/useCommitRange";
 import { Button } from "../ui/Button";
 import {
@@ -23,8 +23,10 @@ export type FaderPresentation =
   | {
       kind: "compact";
       descriptionId: string;
-      /** With a volume envelope, the gain the mix plays at the playhead is shown. */
-      playsAt?: { stagingDb: number; envelopeDb: number };
+      /** Staging gain, so the fader can tell `playsAt` the track's base gain. */
+      stagingDb?: number;
+      /** Renders the plays-at line from the base gain (staging plus the fader). */
+      playsAt?: (baseDb: number) => ReactNode;
     }
   | {
       kind: "detailed";
@@ -86,21 +88,16 @@ export function TrackFaderView({
     />
   );
   if (presentation.kind === "compact") {
-    const { playsAt } = presentation;
+    const { playsAt, stagingDb: compactStagingDb } = presentation;
     return (
       <div className="track-fader track-fader--compact">
         {input}
-        {playsAt ? (
-          <span className="track-fader-plays-at">
-            Plays at{" "}
-            {formatGainDb(
-              trackOutputGainDb({
-                gain_db: playsAt.stagingDb,
-                fader_db: value,
-              }) + playsAt.envelopeDb,
-            )}
-          </span>
-        ) : null}
+        {playsAt?.(
+          trackOutputGainDb({
+            gain_db: compactStagingDb ?? 0,
+            fader_db: value,
+          }),
+        )}
         <output htmlFor={id} className="track-fader-value">
           {formatGainDb(value)}
         </output>

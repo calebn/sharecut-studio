@@ -32,6 +32,10 @@ function setup(
   );
 }
 describe("TrackMix volume envelope", () => {
+  beforeEach(() => {
+    useDawStore.setState({ playheadSec: 0 });
+  });
+
   function setupWithEnvelope() {
     const project = minimalProject({
       tracks,
@@ -61,6 +65,17 @@ describe("TrackMix volume envelope", () => {
     expect(rows[1]).not.toHaveTextContent("Plays at");
     act(() => useDawStore.setState({ playheadSec: 10 }));
     expect(rows[0]).toHaveTextContent("Plays at −11.0 dB");
+  });
+
+  it("follows a dragged fader and holds the last envelope point", () => {
+    setupWithEnvelope();
+    const rows = screen.getAllByRole("listitem");
+    fireEvent.input(screen.getByRole("slider", { name: "Volume Mira voice" }), {
+      target: { value: "-6" },
+    });
+    expect(rows[0]).toHaveTextContent("Plays at −8.0 dB");
+    act(() => useDawStore.setState({ playheadSec: 100 }));
+    expect(rows[0]).toHaveTextContent("Plays at −14.0 dB");
   });
 });
 

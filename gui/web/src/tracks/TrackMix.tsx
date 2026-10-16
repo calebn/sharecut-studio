@@ -8,7 +8,7 @@ import type { TrackView } from "../types/project";
 import { trackFaderDb, trackMuteState } from "../utils/audio";
 import { SoloChip } from "./SoloChip";
 import { type MixTrack, TrackMixView } from "./TrackMixView";
-import { useVolumeEnvelopeDbs } from "./useVolumeEnvelopeDb";
+import { TrackPlaysAt } from "./TrackPlaysAt";
 
 export function TrackMix() {
   const {
@@ -26,11 +26,9 @@ export function TrackMix() {
     viewerMute: s.viewerMute,
     soloTracks: s.soloTracks,
   }));
-  const envelopeDbs = useVolumeEnvelopeDbs();
   const rows = useMemo(
-    () =>
-      tracks ? projectMixRows(tracks, viewerMute, soloTracks, envelopeDbs) : [],
-    [tracks, viewerMute, soloTracks, envelopeDbs],
+    () => (tracks ? projectMixRows(tracks, viewerMute, soloTracks) : []),
+    [tracks, viewerMute, soloTracks],
   );
   if (!tracks) return <TrackMixView state="loading" />;
   return (
@@ -48,6 +46,9 @@ export function TrackMix() {
       }
       preview={guestHearsMixOnly(guestMode) ? "shared-full-mix" : "host"}
       soloStatus={<SoloChip />}
+      renderPlaysAt={(trackId, baseDb) => (
+        <TrackPlaysAt trackId={trackId} baseDb={baseDb} />
+      )}
       onMute={(trackId) => runPointerCommand("track.muteToggle", { trackId })}
       onSolo={(trackId) => runPointerCommand("track.soloToggle", { trackId })}
     />
@@ -58,7 +59,6 @@ function projectMixRows(
   tracks: readonly TrackView[],
   viewerMute: Record<string, boolean>,
   soloTracks: Record<string, boolean>,
-  envelopeDbs: Readonly<Record<string, number>>,
 ): readonly MixTrack[] {
   return tracks.map((track, index) => {
     const label = track.label || track.id;
@@ -76,7 +76,6 @@ function projectMixRows(
       solo: Boolean(soloTracks[track.id]),
       faderDb: trackFaderDb(track),
       stagingDb: track.gain_db,
-      envelopeDb: envelopeDbs[track.id],
     };
   });
 }

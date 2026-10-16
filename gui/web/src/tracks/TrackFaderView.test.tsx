@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { formatGainDb } from "../utils/audio";
 import { TrackFaderView, type TrackFaderViewProps } from "./TrackFaderView";
 
 const props: TrackFaderViewProps = {
@@ -97,23 +98,24 @@ describe("TrackFaderView", () => {
     expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
   });
 
-  it("compact presentation shows what the track plays at under a volume envelope", () => {
+  it("compact presentation hands the draft base gain to the plays-at line", () => {
     render(
       <TrackFaderView
         {...props}
         presentation={{
           kind: "compact",
           descriptionId: "permission",
-          playsAt: { stagingDb: -2, envelopeDb: -4 },
+          stagingDb: -2,
+          playsAt: (baseDb) => (
+            <span data-testid="plays-at">{formatGainDb(baseDb - 4)}</span>
+          ),
         }}
         access={{ kind: "edit", onCommit: vi.fn() }}
       />,
     );
-    expect(screen.getByText(/^Plays at/)).toHaveTextContent("Plays at −9.0 dB");
+    expect(screen.getByTestId("plays-at")).toHaveTextContent("−9.0 dB");
     fireEvent.input(slider(), { target: { value: "-6" } });
-    expect(screen.getByText(/^Plays at/)).toHaveTextContent(
-      "Plays at −12.0 dB",
-    );
+    expect(screen.getByTestId("plays-at")).toHaveTextContent("−12.0 dB");
   });
 
   it("compact presentation without an envelope shows no plays-at line", () => {
