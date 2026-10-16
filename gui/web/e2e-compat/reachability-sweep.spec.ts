@@ -1,7 +1,11 @@
+import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import { createRelocatedE2eProject } from "../e2e/liveProject";
 import { openHostProject } from "../e2e/overlayReachability";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { describeReach, type Reach, reachFailures } from "../e2e/reachability";
+import { withShareableProject } from "../e2e/shareableProject";
+import { openHostShare } from "../e2e/shareNavigation";
 import { setTheme, type Theme, withAppearance } from "../e2e/theme";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
@@ -104,14 +108,21 @@ const DENSE = [
   // button holds the floor.
   ".utterance-word",
   ".utterance-seek:not(.utterance-speaker)",
+  // The drawer's detent range is the keyboard route; a finger swipes the header or
+  // taps the resize buttons.
+  ".bottom-sheet-detent",
 ];
 
 /** The panels' interiors. */
 const PANELS = [".tab-content", ".mobile-text-mode", ".mobile-more-mode"];
 
-async function arrive(page: Page, cell: Cell) {
+async function arrive(
+  page: Page,
+  cell: Cell,
+  open: (page: Page) => Promise<void> = openHostProject,
+) {
   await page.setViewportSize({ width: cell.width, height: cell.height });
-  await openHostProject(page);
+  await open(page);
   if (cell.width <= 767) await openPhoneTimeline(page);
   await page.evaluate((px) => {
     document.documentElement.style.fontSize = `${px}px`;
@@ -144,6 +155,42 @@ function railRows(page: Page) {
           }),
       ).size,
   );
+}
+
+/** Select the first clip with a tap and sweep the surface that opens for it. */
+async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
+  const hit = page.locator(".lane-row .clip-hit").first();
+  await hit.scrollIntoViewIfNeeded();
+  const point = await hit.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const scroll = el.closest(".timeline-scroll")!.getBoundingClientRect();
+    const left = Math.max(box.left, scroll.left);
+    const right = Math.min(box.right, scroll.right, innerWidth);
+    const top = Math.max(box.top, scroll.top);
+    const bottom = Math.min(box.bottom, scroll.bottom, innerHeight);
+    return { x: (left + right) / 2, y: (top + bottom) / 2 };
+  });
+  await page.touchscreen.tap(point.x, point.y);
+  // A phone selection opens the drawer at its strip; the body shows from half height.
+  const expand = page.getByRole("button", { name: /^Expand to/ });
+  while (await expand.isVisible()) {
+    await expand.click();
+    await settle(page);
+    if (await page.locator(".modifier-badge").isVisible()) break;
+  }
+  await expect(page.locator(".modifier-badge")).toHaveText("Clip");
+  const surface = sheet ? ".bottom-sheet" : "aside.inspector";
+  await expect(page.locator(surface)).toBeVisible();
+  await settle(page);
+  const failures = await reachFailures(page, { scope: surface, dense: DENSE });
+  if (sheet) {
+    await page
+      .locator(".bottom-sheet")
+      .getByRole("button", { name: "Close" })
+      .click();
+    await expect(page.locator(".bottom-sheet")).toHaveCount(0);
+  }
+  return failures;
 }
 
 async function sweepCell(
@@ -190,6 +237,8 @@ async function sweepCell(
       .click();
     await expect(page.locator(".bottom-sheet")).toHaveCount(0);
   }
+
+  found["clip surface"] = await clipSurface(page, sheet);
 
   if (sheet) {
     await page
@@ -261,11 +310,100 @@ async function sweepCell(
     dense: DENSE,
   });
 
+  await page
+    .getByRole("button", { name: "Comment", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Comment", exact: true }),
+  ).toBeVisible();
+  await settle(page);
+  found["comments panel"] = await reachFailures(page, {
+    scope: PANELS.join(","),
+    skip: [".bottom-sheet-root"],
+    dense: DENSE,
+  });
+
   const report = Object.entries(found)
     .filter(([, failures]) => failures.length > 0)
     .map(([state, failures]) => `${state}\n${describeReach(failures)}`)
     .join("\n");
   return report ? `${cell.name}\n${report}` : "";
+}
+
+/**
+ * A copy of the fixture whose first track carries a volume envelope and an effect
+ * chain, so the track surface shows the envelope workspace and the Bypass toggles.
+ */
+function seededProject(prefix: string) {
+  const fixture = createRelocatedE2eProject(prefix);
+  const project = JSON.parse(fs.readFileSync(fixture.projectPath, "utf8"));
+  const trackId = project.timeline.tracks[0].id;
+  project.mix.automation_envelopes = [
+    {
+      track_id: trackId,
+      parameter: "volume",
+      points: [
+        { id: "sweep-first", time: 2, value: 0.6 },
+        { id: "sweep-second", time: 10, value: 1.4 },
+      ],
+    },
+  ];
+  project.mix.processing_chains = [
+    {
+      track_id: trackId,
+      effects: [
+        { effect: "highpass", params: { frequency: 80 }, bypass: false },
+        { effect: "afftdn", params: {}, bypass: true },
+      ],
+    },
+  ];
+  fs.writeFileSync(
+    fixture.projectPath,
+    `${JSON.stringify(project, null, 2)}\n`,
+  );
+  return fixture;
+}
+
+async function sweepSeededTrack(
+  page: Page,
+  projectPath: string,
+  cells: readonly Cell[],
+): Promise<string> {
+  const reports: string[] = [];
+  for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
+    await page.emulateMedia({
+      reducedMotion: reducedMotion ? "reduce" : "no-preference",
+    });
+    await arrive(page, cell, (p) => openHostShare(p, projectPath));
+    await setTheme(page, theme);
+    const trigger = page.locator(".track-header-open").first();
+    await trigger.focus();
+    await trigger.press("Enter");
+    const surface = cell.width <= 1180 ? ".bottom-sheet" : "aside.inspector";
+    await expect(page.locator(surface)).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: /^Bypass / }).first(),
+    ).toBeVisible();
+    await settle(page);
+    const track = await reachFailures(page, { scope: surface, dense: DENSE });
+    await page
+      .getByRole("button", { name: "Edit volume envelope", exact: true })
+      .click();
+    await expect(
+      page.getByRole("combobox", { name: "Envelope point" }),
+    ).toBeVisible();
+    await settle(page);
+    const envelope = await reachFailures(page, {
+      scope: surface,
+      dense: DENSE,
+    });
+    const failures = [...track, ...envelope];
+    if (failures.length > 0) {
+      reports.push(`${cell.name}\n${describeReach(failures)}`);
+    }
+  }
+  return reports.join("\n\n");
 }
 
 async function sweep(page: Page, cells: readonly Cell[]): Promise<string> {
@@ -297,4 +435,20 @@ test("a phone held sideways and an iPad keep every control a finger can use", as
   expect(await sweep(page, LANDSCAPES), "controls a finger cannot use").toBe(
     "",
   );
+});
+
+test("a track with an envelope and an effect chain keeps every control a finger can use", async ({
+  page,
+}) => {
+  const report = await withShareableProject(
+    (projectPath) =>
+      sweepSeededTrack(page, projectPath, [
+        ...PHONES,
+        ...TABLETS,
+        ...LANDSCAPES,
+      ]),
+    undefined,
+    seededProject,
+  );
+  expect(report, "controls a finger cannot use").toBe("");
 });

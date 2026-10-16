@@ -379,6 +379,12 @@ html[data-shell="phone"]
   cursor: pointer;
 }
 
+@media (pointer: coarse) {
+  .fx-bypass-toggle {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .fx-bypass-readonly {
   font-size: var(--font-size-caption);
   opacity: 0.7;
@@ -482,6 +488,13 @@ html[data-shell="phone"]
   inline-size: 100%;
   min-inline-size: 0;
   min-block-size: 2.75rem;
+}
+
+/* WebKit ignores min-block-size on a native select. */
+@media (pointer: coarse) {
+  .envelope-workspace select {
+    block-size: 2.75rem;
+  }
 }
 
 .envelope-workspace-actions {
