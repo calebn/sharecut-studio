@@ -40,9 +40,10 @@ from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
+    map_timeline_spans_over_clips,
 )
 from podcast_mcp.engines.ungated_audio import raw_evidence_layout_reason, raw_timeline_samples
-from podcast_mcp.models import EpisodeProject, TranscriptGateScope, TranscriptWord
+from podcast_mcp.models import Clip, EpisodeProject, TranscriptGateScope, TranscriptWord
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db_stream
 from podcast_mcp.util.intervals import (
     HalfOpenIntervalIndex,
@@ -833,18 +834,9 @@ def _compute_bleed_gate_plan(
         attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
     attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
     if source_clock and placements:
-        attenuation = merge_intervals(
-            (float(source_span[0]), float(source_span[1]))
-            for lo, hi in attenuation
-            for placement in placements
-            if (source_span := clip_timeline_overlap_to_source(placement.clip, lo, hi)) is not None
-        )
-        protected = merge_intervals(
-            (float(source_span[0]), float(source_span[1]))
-            for lo, hi in protected
-            for placement in placements
-            if (source_span := clip_timeline_overlap_to_source(placement.clip, lo, hi)) is not None
-        )
+        clips = [placement.clip for placement in placements]
+        attenuation = _source_clock_spans(clips, attenuation)
+        protected = _source_clock_spans(clips, protected)
     return BleedGatePlan(
         tuple(attenuation),
         tuple(protected),
@@ -853,6 +845,18 @@ def _compute_bleed_gate_plan(
         attenuation_db=policy.bleed_attenuation_db,
         bed_db=bed_db,
     )
+
+
+def _source_clock_spans(
+    clips: list[Clip], spans: list[tuple[float, float]]
+) -> list[tuple[float, float]]:
+    """Timeline ``spans`` as source-clock spans through ``clips``, merged.
+
+    One indexed pass finds each span's overlapping clips; mapping span by span through
+    every clip costs spans times clips (#1620).
+    """
+    mapped = map_timeline_spans_over_clips(clips, spans, merge_gap=0.0)
+    return merge_intervals((float(start), float(end)) for start, end in mapped)
 
 
 def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]:
