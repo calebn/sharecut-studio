@@ -675,7 +675,7 @@ swipes the header or taps the resize buttons. Page zoom is not that 32 px root:
 Safari Aa 200% shrinks the layout or visual viewport while rem stays 16 px, which
 the sweep never opens. `gui/web/e2e-compat/phone-transport-zoom.spec.ts` covers the
 compact transport and Listen timer at 197×329 CSS px, matching the measured
-iPhone 15 Pro Safari 200% layout viewport, and at 393×852 with a 32 px root. The
+iPhone 15 Pro Safari 200% layout viewport, and at 430×932 with a 32 px root. The
 WebKit case checks browser layout at that width; it does not reproduce native
 Safari's select painting or stand for a physical iPhone. `gui/web/e2e/reachability.ts` is the measuring helper. It
 leaves out only the canvas dense targets (fade corners, trim handles, clip
