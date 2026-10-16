@@ -87,6 +87,8 @@ The selection sheet groups actions in this order:
 
 The phone and the tablet build this sheet from one table of selection kinds, so what you can do with a selection is the same on both. While a sheet is open, no range control sits behind it. On a tablet, a clip sheet with an agent session range includes its In/Out fields, selected-track checkboxes and explicit **Use agent range on selected tracks** action; opening the sheet does not adopt the agent range.
 
+An iPad held sideways, 1180 or 1194 points wide (Air or Pro 11″), keeps the tablet shell, so Select, Blade, **Select range**, + Track and Import stay on the bottom tool rail instead of moving into Menu.
+
 Ordinary phone and tablet modifier sheets, and the Select range sheet while it
 is armed, scroll together, including the heading, actions, fields, help, errors,
 and audition controls. **Cancel range selection** stays in that same sheet
