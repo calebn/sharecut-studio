@@ -5,9 +5,10 @@ import wave
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, UnconfirmedCutSpeech
 from podcast_mcp.edits.ripple import EditMode
-from podcast_mcp.edits.source_removals import CutScopeHold, inspect_source_remove
+from podcast_mcp.edits.source_removals import inspect_source_remove
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.models import (

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
 from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.filler_pacing import (
     FillerPacingResult,
@@ -15,9 +16,8 @@ from podcast_mcp.edits.filler_pacing import (
     flanking_retained_words,
     shrink_cut_for_min_gap,
 )
-from podcast_mcp.edits.fillers import _CutRejected, analyze_fillers_and_pauses
+from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
-from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.edits.timeline_ops import insert_room_tone_pad
 from podcast_mcp.edits.transcript_cuts import cut_time_range
 from podcast_mcp.models import (
@@ -1003,7 +1003,7 @@ def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
         patch("podcast_mcp.edits.fillers.optimize_and_assess", return_value=(opt, risk)),
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
     ):
-        assert _analyze_candidate(project, candidate, defaults) == _CutRejected("not_owner")
+        assert _analyze_candidate(project, candidate, defaults) == CutRejected("not_owner")
 
 
 def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
@@ -1035,11 +1035,11 @@ def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             side_effect=ValueError("blocked"),
         ),
     ):
-        assert _analyze_candidate(project, candidate, defaults) == _CutRejected("scope")
+        assert _analyze_candidate(project, candidate, defaults) == CutRejected("scope")
 
 
 def test_analyze_candidate_marks_review_when_guard_requests() -> None:
@@ -1077,7 +1077,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", guard),
         ),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),
@@ -1124,7 +1124,7 @@ def test_analyze_candidate_blocked_peer_waits_for_review_as_a_padded_session_rip
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("peer_speech", guard),
         ),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),

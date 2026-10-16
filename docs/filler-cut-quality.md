@@ -34,15 +34,19 @@ Implementation: `edits/fillers.py`, `edits/cut_safety.py`, `edits/cut_quality.py
 
 ### Cut-safety authority
 
-`edits/cut_safety.py` owns the shared breath/onset edge check, peer-speech assessment,
-source-placement/pad-hull check, double-cut pad exclusions, and the cut-mode check
-table. Proposal analysis uses those predicates for its existing skip, review, and
-boundary labels. Mutation paths call the same authority against the final span before
-removing source or writing a mute. A changed splice edge stays pending; a pad never
-samples source seconds another pending cut still plays. Geometry and join-scoring
-implementations remain in their domain modules and are reached through this entry
-point. `tests/test_source_remove_geometry.py::test_cut_safety_boundary_owns_remove_placement_and_guard_imports` enforces the import boundary and unique production
-definitions.
+`edits/cut_safety.py` owns breath protection, peer-speech disposition, proposed-join
+assessment, source-placement checks, and original-recording pad eligibility. The
+measurement modules retain PCM, level, word, and join measurements. The owner checks
+physical recording identity, once-only source occurrences, registered beds, and pad
+receipts. `source_removals` and `fillers` consume those results without forwarding
+implementations. General `SessionTimeline` geometry remains independent.
+`tests/test_source_remove_geometry.py::test_cut_safety_boundary_owns_remove_placement_and_guard_imports`
+checks direct, aliased, module-qualified, and private access to the removed APIs.
+
+The #1403 consolidation remains incomplete. Pause application still re-enters candidate
+preparation. Exact-range proposals do not yet receive acoustic assessment. The shared
+held-edge application predicate and label-by-mode action table are still required.
+Existing `review_required` metadata is not evidence of acoustic measurement.
 
 ### Decision: Manual cut intent bypasses acoustic vetoes
 
@@ -54,6 +58,9 @@ decided-by: calebn
 evidence:
 - #1403 owner decision: https://github.com/calebn/sharecut-studio/issues/1403#issuecomment-6221464888
 - #1658 owner decision: https://github.com/calebn/sharecut-studio/pull/1658#issuecomment-6221465273
+- Approval decision: https://github.com/calebn/sharecut-studio/issues/1403#issuecomment-6222421759
+- Approval decision on PR: https://github.com/calebn/sharecut-studio/pull/1658#issuecomment-6222422242
+- Observed proposal gap: https://github.com/calebn/sharecut-studio/pull/1658#issuecomment-6222462273
 enforced-by:
 - tests/test_selected_range.py::test_only_trusted_context_marks_selected_boundaries_human
 - tests/test_selected_range.py::test_payload_cannot_forge_internal_boundary_intent
@@ -73,8 +80,19 @@ boundaries prevents intentional audible edits. Removing them for every command l
 automated and agentic edits unprotected. Capability, reason, snap choice, and range
 mode do not prove a human action. Only the host and review GUI document routes establish
 manual boundaries. Each persisted decision records its proposal origin separately from its
-current boundary intent. A programmatic retime resets only the latter. A direct **Approve**
-of an automated proposal remains unresolved.
+current boundary intent. A programmatic retime resets only the latter. A trusted explicit human **Approve** of an automated proposal supplies transient manual
+application intent. It does not change the proposal's programmatic origin or claim that
+the person selected its edges. Programmatic approval supplies no override. A GUI-started
+pipeline still generates programmatic decisions.
+
+The policy has two stages. Agent proposals must receive acoustic assessment before they
+are offered. Application must assess the current operation again, except for the acoustic
+vetoes a trusted human deliberately overrides. Both stages preserve selected bounds and
+structural integrity. A real isolated Lab probe found that `propose_range_cut_tool`
+created a pending exact cut inside a frozen word without acoustic assessment. That gap
+is an intentional behavior correction required by this decision, not refactor parity.
+The current implementation establishes provenance but does not yet enforce this complete
+two-stage policy or the human approval override. Enforcement remains pending #1403.
 
 ## Policy
 
@@ -288,6 +306,14 @@ enforced-by:
 - tests/test_approve_guard_blocked_ripple.py::test_a_mute_a_peer_speaks_over_still_applies_in_place_without_asking
 - docs-sync: decision-filler-cuts
 -->
+
+The manual-confirmation requirement in this decision is superseded by
+[D-manual-cut-intent](filler-cut-quality.md#decision-manual-cut-intent-bypasses-acoustic-vetoes).
+Trusted explicit human approval is an acoustic override, including peer speech.
+Programmatic calls retain acoustic checks, and both paths retain structural checks.
+Implementation of that distinction remains pending #1403; the tests above describe
+current behavior, not completed enforcement of the amendment.
+
 
 In ripple mode, a filler (or a manual NL cut) that a peer is speaking over is a
 pending suggestion marked `review_required` with the reason `:other_speaking:<peers>`.

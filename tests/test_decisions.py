@@ -169,7 +169,7 @@ def test_approve_remove_is_held_when_guard_cannot_resolve():
 
     with (
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             side_effect=ValueError("guard unavailable"),
         ),
         pytest.raises(ScopeChangedAtApproval, match="could not be checked"),

@@ -10,17 +10,18 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
-from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SpeechClearance, clear_ripple
-from podcast_mcp.edits.decisions import approve_edits
-from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, ripple_remove_clips
-from podcast_mcp.edits.source_removals import CutScopeHold, consume_source_remove
-from podcast_mcp.edits.speech_energy_guard import (
+from podcast_mcp.edits.cut_safety import (
+    CutScopeHold,
     ResolvedCutScope,
-    _voice_refs,
     assess_cross_track_speech,
-    measure_peer_speech,
+    clear_ripple,
     resolve_cut_scope,
 )
+from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SpeechClearance
+from podcast_mcp.edits.decisions import approve_edits
+from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, ripple_remove_clips
+from podcast_mcp.edits.source_removals import consume_source_remove
+from podcast_mcp.edits.speech_energy_guard import _voice_refs, measure_peer_speech
 from podcast_mcp.edits.timeline_ops import punch_delete
 from podcast_mcp.edits.transcript_cuts import add_remove_decision
 from podcast_mcp.engines.audio_audit import (
@@ -608,7 +609,7 @@ def test_resolve_cut_scope_speaker_none_continues_to_rms():
 
 def test_assess_empty_span_returns_safe() -> None:
     p = _two_track()
-    with patch("podcast_mcp.edits.speech_energy_guard.SessionTimeline") as ST:
+    with patch("podcast_mcp.edits.cut_safety.SessionTimeline") as ST:
         ST.return_value.map_source_span.return_value = []
         g = assess_cross_track_speech(
             p,
@@ -692,7 +693,7 @@ def test_resolve_cut_scope_track_scope_short_circuits() -> None:
 
 def test_assess_short_overlap_is_safe() -> None:
     p = _two_track()
-    with patch("podcast_mcp.edits.speech_energy_guard.SessionTimeline") as ST:
+    with patch("podcast_mcp.edits.cut_safety.SessionTimeline") as ST:
         ST.return_value.map_source_span.return_value = [(0.0, 0.01)]
         g = assess_cross_track_speech(
             p,

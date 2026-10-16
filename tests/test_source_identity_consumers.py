@@ -5,10 +5,11 @@ from typing import Any
 
 import pytest
 
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, update_pending_edit
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.pending_preview import _timeline_span
-from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_cuts import cut_text_match, cut_words, search_transcript
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.export.transcript import combined_transcript_markdown

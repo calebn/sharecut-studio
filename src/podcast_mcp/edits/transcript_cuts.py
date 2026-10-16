@@ -295,15 +295,18 @@ def add_remove_decision(
     if end <= start:
         raise ValueError("end must be greater than start")
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.cut_safety import inspect_source_remove_placement
+    from podcast_mcp.edits.cut_safety import (
+        CutScopeHold,
+        CutScopeUnavailable,
+        inspect_source_remove_placement,
+        resolve_cut_scope,
+    )
     from podcast_mcp.edits.filler_pacing import apply_filler_pacing
     from podcast_mcp.edits.source_removals import (
-        CutScopeHold,
         ScopeChangedAtApproval,
         record_suggested_cut_speech,
         require_source_remove,
     )
-    from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
 
     transcript = _cut_transcript_for_source(project, track_id, source_id) if source_aware else None
     if source_aware and transcript is None and source_id is not None:
@@ -328,7 +331,8 @@ def add_remove_decision(
         len(initial_spans) != 1
         or abs(float(initial_spans[0][1] - initial_spans[0][0]) - (end - start)) > 1e-6
     ):
-        from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+        from podcast_mcp.edits.cut_safety import CutScopeHold
+        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
     placement_witness = (
@@ -402,7 +406,8 @@ def add_remove_decision(
         len(final_spans) != 1
         or abs(float(final_spans[0][1] - final_spans[0][0]) - (cut_end - cut_start)) > 1e-6
     ):
-        from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+        from podcast_mcp.edits.cut_safety import CutScopeHold
+        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
     if source_aware:
@@ -611,8 +616,8 @@ def coalesce_edits(
     owned_ids = {row.id for row in owned}
     result = [row for row in project.edit_decisions if row.id not in owned_ids]
     merged_count = 0
+    from podcast_mcp.edits.cut_safety import CutScopeHold
     from podcast_mcp.edits.source_removals import (
-        CutScopeHold,
         ScopeChangedAtApproval,
         inspect_source_remove,
         require_source_remove,

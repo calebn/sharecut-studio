@@ -9,6 +9,7 @@ from pydantic import Field
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     LaneSourceExtent,
@@ -29,7 +30,6 @@ from podcast_mcp.edits.inaudible_cuts import (
 from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.source_removals import (
-    CutScopeHold,
     ScopeChangedAtApproval,
     consume_source_remove,
     cut_label,

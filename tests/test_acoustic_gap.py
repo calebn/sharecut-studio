@@ -21,12 +21,12 @@ from podcast_mcp.edits.acoustic_laugh import has_laugh_bursts
 from podcast_mcp.edits.acoustic_word import flag_possible_words, heard_a_word
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audition_context import _build_hypotheses
+from podcast_mcp.edits.cut_safety import CutRejected
 from podcast_mcp.edits.fillers import (
     _add_acoustic_candidates,
     _AnalyzedCut,
     _collect_candidates,
     _CutCandidate,
-    _CutRejected,
     _resolve_analyzed_cuts,
     analyze_fillers_and_pauses,
 )
@@ -677,7 +677,7 @@ def test_pause_trim_survives_when_acoustic_analysis_rejects_the_run() -> None:
     pause = _analyzed(0.4, 1.6, "pause:1.60s")
 
     kept = _resolve_analyzed_cuts(
-        [_PAUSE, _ACOUSTIC], [pause, _CutRejected("breath")], skip_counts=skips
+        [_PAUSE, _ACOUSTIC], [pause, CutRejected("breath")], skip_counts=skips
     )
 
     assert kept == [pause]
@@ -967,9 +967,7 @@ def test_bounded_candidate_with_empty_window_is_dropped_before_analysis(
         review_only=True,
     )
 
-    assert fillers._analyze_candidate(project, impossible, _e2e_defaults()) == _CutRejected(
-        "bounds"
-    )
+    assert fillers._analyze_candidate(project, impossible, _e2e_defaults()) == CutRejected("bounds")
 
 
 def test_summary_reports_acoustic_proposals_and_skips_separately() -> None:

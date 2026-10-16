@@ -15,10 +15,11 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
+from podcast_mcp.edits.cut_safety import CutScopeHold
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.room_tone import RecordedBedSample, SampleAbsent
-from podcast_mcp.edits.source_removals import CutScopeHold, inspect_source_remove
+from podcast_mcp.edits.source_removals import inspect_source_remove
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.timeline_ops import LaneSample, LaneUnavailable, room_tone_pad
 from podcast_mcp.engines.session_timeline import SessionTimeline

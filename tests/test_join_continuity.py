@@ -9,10 +9,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.cut_safety import assess_proposed_cut
 from podcast_mcp.edits.join_continuity import (
     JoinContinuityConfig,
     assess_project_joins,
-    assess_proposed_cut,
     score_splice_samples,
 )
 from podcast_mcp.engines.level_profile import LevelProfile
