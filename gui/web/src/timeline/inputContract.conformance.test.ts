@@ -36,7 +36,7 @@ import {
   type HitRouter,
   isReplayed,
 } from "./hitRouting";
-import { hitTargetProps } from "./hitTargets";
+import { hitTargetProps, resolveHits } from "./hitTargets";
 import {
   HIT_KIND_NAMES,
   HIT_KINDS,
@@ -194,6 +194,71 @@ const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
   );
 
 describe("touch paths", () => {
+  it("lets a point win its line after the line gained focus from editing", () => {
+    const line = button(hitTargetProps("envelope-line", "level", 0), {
+      left: 100,
+      top: 114,
+      right: 400,
+      bottom: 126,
+    });
+    const point = button(hitTargetProps("envelope-point", "point", 10), {
+      left: 195,
+      top: 115,
+      right: 205,
+      bottom: 125,
+    });
+    root.append(line, point);
+    const kinds = (x: number, y: number, pointerType: string, hit: Element) =>
+      resolveHits(root, { x, y }, pointerType, hit).map(
+        ({ candidate }) => candidate.kind,
+      );
+    expect(kinds(203, 116, "mouse", point)).toEqual([
+      "envelope-point",
+      "envelope-line",
+    ]);
+    expect(kinds(210, 120, "touch", line)).toEqual([
+      "envelope-point",
+      "envelope-line",
+    ]);
+    line.focus();
+    expect(document.activeElement).toBe(line);
+    expect(kinds(203, 116, "mouse", point)).toEqual([
+      "envelope-point",
+      "envelope-line",
+    ]);
+    expect(kinds(210, 120, "touch", line)).toEqual([
+      "envelope-point",
+      "envelope-line",
+    ]);
+    expect(kinds(300, 120, "touch", line)).toEqual(["envelope-line"]);
+    point.focus();
+    expect(kinds(203, 116, "mouse", point)).toEqual([
+      "envelope-point",
+      "envelope-line",
+    ]);
+    line.focus();
+    line.setAttribute("data-hit-selected", "true");
+    expect(kinds(203, 116, "mouse", point)).toEqual([
+      "envelope-line",
+      "envelope-point",
+    ]);
+    line.removeAttribute("data-hit-selected");
+    const other = button(
+      hitTargetProps("chapter", "marker", 10, { selected: true }),
+      {
+        left: 195,
+        top: 115,
+        right: 205,
+        bottom: 125,
+      },
+    );
+    root.append(other);
+    expect(kinds(203, 116, "mouse", point)[0]).toBe("chapter");
+    other.removeAttribute("data-hit-selected");
+    other.focus();
+    expect(kinds(203, 116, "mouse", point)[0]).toBe("chapter");
+  });
+
   it("arms a nearby flat point before the line and arms the line in its own reach", () => {
     const chooser: string[][] = [];
     router.dispose();
@@ -217,6 +282,8 @@ describe("touch paths", () => {
       bottom: 125,
     });
     root.append(line, point);
+    line.focus();
+    expect(document.activeElement).toBe(line);
     press(point, "pointerdown", 203, 116);
     router.longPress();
     expect(chooser.at(-1)).toEqual(["envelope-point", "envelope-line"]);
