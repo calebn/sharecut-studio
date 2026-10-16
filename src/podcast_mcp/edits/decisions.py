@@ -546,7 +546,6 @@ def update_pending_edit(
         edit.start = start
         edit.end = end
     require_source_remove(project, edit)
-    edit.boundary_intent = boundary_intent
     if snap:
         optimizer_kwargs: dict[str, Any] = {}
         if edit.source_id is not None:
@@ -575,6 +574,7 @@ def update_pending_edit(
             edit.cut_confidence = None
         edit.start = start
         edit.end = end
+    edit.boundary_intent = boundary_intent
     require_source_remove(project, edit)
     project.edit_decisions = [edit if row is original else row for row in project.edit_decisions]
     return edit
