@@ -197,7 +197,7 @@ from podcast_mcp.history.manager import (
     snapshot_from_project,
 )
 from podcast_mcp.history.rollback import RollbackOutcome
-from podcast_mcp.models import EditDecision, EditMode, EpisodeProject, TrackRole
+from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject, TrackRole
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
@@ -435,6 +435,7 @@ class EditService:
         reason: str,
         action_id: str,
         author: str | None = None,
+        boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
     ) -> RangeEditResult:
         from podcast_mcp.edits.range_edits import edit_selected_range
 
@@ -449,6 +450,7 @@ class EditService:
                 reason=reason,
                 action_id=action_id,
                 author=author,
+                boundary_intent=boundary_intent,
             ),
             operation="edit_selected_range",
             params={"action_id": action_id, "action": action},
@@ -695,6 +697,7 @@ class EditService:
         snap: bool = True,
         track_ids: list[str] | None = None,
         expected: PendingEditBaseline | None = None,
+        boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
     ) -> EditDecision:
         def mutate(p) -> EditDecision:
             return update_pending_edit(
@@ -704,6 +707,7 @@ class EditService:
                 end=end,
                 snap=snap,
                 track_ids=track_ids,
+                boundary_intent=boundary_intent,
             )
 
         with self.ws.transaction() as project:

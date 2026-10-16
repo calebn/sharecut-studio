@@ -3012,6 +3012,7 @@
         "type": "object"
       },
       "PendingEditBaseline": {
+        "additionalProperties": false,
         "description": "The saved identity and bounds a pending-edit update was based on.",
         "properties": {
           "end": {
@@ -6769,6 +6770,7 @@
         "type": "object"
       },
       "UpdatePendingEditPayload": {
+        "additionalProperties": false,
         "properties": {
           "end": {
             "title": "End",

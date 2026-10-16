@@ -440,8 +440,10 @@
     },
     "EditDecision": {
       "type": "object",
-      "required": ["id", "track_id", "type", "start", "end"],
+      "required": ["id", "track_id", "type", "start", "end", "proposal_origin", "boundary_intent"],
       "properties": {
+        "proposal_origin": { "type": "string", "enum": ["programmatic", "human"], "default": "programmatic" },
+        "boundary_intent": { "type": "string", "enum": ["programmatic", "human_boundaries"], "default": "programmatic" },
         "exact_range": { "anyOf": [{ "$ref": "#/$defs/ExactRangeTarget" }, { "type": "null" }], "default": null },
         "source_id": { "type": ["string", "null"], "default": null },
         "source_timeline_span": { "anyOf": [{ "$ref": "#/$defs/RangeInterval" }, { "type": "null" }], "default": null, "description": "Timeline placement witness for a source-aware ordinary transcript cut; does not grant exact-range approval" },

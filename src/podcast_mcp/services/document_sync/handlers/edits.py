@@ -7,7 +7,7 @@ from typing import Any
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaseline
-from podcast_mcp.models import EditMode
+from podcast_mcp.models import CutIntent, EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.util.coded_error import CodedValueError
@@ -68,6 +68,7 @@ def update_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
         snap=bool(p.get("snap", True)),
         track_ids=[str(t) for t in track_ids] if track_ids is not None else None,
         expected=PendingEditBaseline(**expected) if expected is not None else None,
+        boundary_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
     return {"edit": edit.model_dump()}
 
@@ -234,5 +235,6 @@ def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
             reason=p.get("_range_reason", "agent:range"),
             action_id=p["_action_id"],
             author=p.get("_author"),
+            boundary_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
         )
     )

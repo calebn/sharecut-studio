@@ -23,6 +23,7 @@ from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.document_sync import (
+    INTERACTIVE_COMMAND,
     DocumentConflictError,
     DocumentSyncService,
     document_command_from_body,
@@ -92,7 +93,12 @@ def post_document_command(
     svc = DocumentSyncService.open(project_path)
     cmd = document_command_from_body(body)
     try:
-        return svc.submit(cmd, structural_mode=body.structural_mode, range_policy="apply")
+        return svc.submit(
+            cmd,
+            structural_mode=body.structural_mode,
+            range_policy="apply",
+            trusted_context=INTERACTIVE_COMMAND,
+        )
     except DocumentConflictError as exc:
         raise document_conflict_error(exc) from exc
     except TranscriptRefineRequiredError as exc:
