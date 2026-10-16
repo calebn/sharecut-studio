@@ -62,6 +62,32 @@ describe("TrackFader (#386)", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("adds the volume envelope at the playhead to what the track plays at", () => {
+    renderFader();
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (!project) throw new Error("no project");
+      useDawStore.setState({
+        playheadSec: 1,
+        project: {
+          ...project,
+          envelopes: [
+            {
+              track_id: host.id,
+              parameter: "volume",
+              points: [{ id: "a", time: 0, value: 0.5 }],
+            },
+          ],
+        },
+      });
+    });
+    expect(
+      screen.getByText(
+        /plays at −11\.0 dB with the volume envelope at −6\.0 dB/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows a current or stale measurement beside staging gain", () => {
     renderFader({
       track: sampleTrack({
