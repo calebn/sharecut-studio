@@ -12,8 +12,8 @@ and hashes only.
 
 ## Verdict
 
-Bounded to three episodes, ten listening pairs not yet heard, and the shipped
-Whisper plus forced-aligner words.
+Bounded to three episodes, ten edited listening pairs with owner feedback, two
+unscored untouched controls, and the shipped Whisper plus forced-aligner words.
 
 1. **The rules run on three unseen recordings.** The pipeline finished on a 2020
    in-person room recording and a 2019 quiet-guest episode. On a 2024 Zoom
@@ -39,9 +39,13 @@ Whisper plus forced-aligner words.
    room recording changed in at least one (a proposal disappeared or an edge moved
    over 30 ms). Most come from the 12 dB burst-onset contrast
    (`word_onset._BURST_DB`) and the 6 dB rise, not from the breath level offsets.
-6. **Whether any of this is audible is inconclusive.** The listening pack
-   (12 items) is staged for the owner. Until it is heard, no difference above is
-   called a defect on listening grounds, and no threshold is changed.
+6. **Owner feedback reports residual fillers and a mid-breath join concern.**
+   The corrected October 15 feedback covers all ten edited pairs. Later owner
+   clarification locates L01 near output 2.5 seconds and L09 at the beginning
+   of its gap near output 2 seconds. Following-word clipping is not established.
+   Overall acceptance and usefulness remain incomplete. The listening does not
+   isolate audibility of gain, frame-grid or sample-format changes, so those
+   causal links remain inconclusive. No threshold is changed.
 
 Not covered: native 48 kHz audio, the three-speaker episode (`podcast_073`, held
 back), non-English speech, a run without the forced word aligner, live ASR under
@@ -285,13 +289,71 @@ per-recording estimate in the breath path, and no basis for a new threshold.
 
 ### Listening pack
 
-Staged for the owner, local only: 12 items (10 source/output pairs, 2 untouched
-regions) from the three sessions, drawn as 4 risky edits, 2 edits that vanish
-when a track is turned down 12 dB, 4 seeded-random edits and 2 random untouched
-stretches. It is rendered with `podcast play pending-preview` from the same code
-SHA. The owner's question is on #1273 (`needs-user-input`). Clipped words or lost
-speech are recorded apart from taste, and useful edits are counted so doing
-nothing cannot win. **Owner verdict: pending.**
+The local pack has 12 items, comprising ten source/output pairs and two untouched
+controls from the three sessions. It contains four risky edits, two edits that
+vanish when a track is turned down 12 dB, four seeded-random edits and two random
+untouched stretches. It was rendered with `podcast play pending-preview` at the
+original evaluation SHA. The files have not been regenerated for this correction.
+
+The [corrected October 15 owner feedback](https://github.com/calebn/sharecut-studio/issues/1273#issuecomment-6204646233)
+supersedes the earlier four-item summary and L07 speaker-attribution note.
+**All ten edited pairs have feedback.** L06 and L10 are untouched controls with
+no answers, not missing edited-pair responses. Feedback does not supply every
+structured field and does not constitute full-pack acceptance, full-master
+approval or merge signoff.
+
+| Item | Explicit answer or owner perception | Separate conservative inference |
+| --- | --- | --- |
+| L01-111-A | Original clipping/lost-speech answer was yes, with a possible end of "like" heard. Later clarified as residual filler near output 2.5 s. Clipping of the following word is unconfirmed. | None. Do not count this as confirmed following-word clipping. |
+| L02-111-A | No clipping/lost speech. | None. |
+| L03-111-B | "Sounds good, no bad edits". | No clipping/lost speech. |
+| L04-111-C | "Sounds good". | None. |
+| L05-111-C | Sounds good, but source and output sounded identical to the owner. | None. File identity is a separate measurement below. |
+| L06-111-D | Unanswered untouched control. | None. |
+| L07-030-A | No clipping/lost speech, sounds good. Owner confirms Victoria's speech. | None. |
+| L08-030-B | Edit sounds good and cuts a breath, but misses the "um" immediately afterward. | Useful edit = yes, qualified by the remaining filler. |
+| L09-030-C | Seems to cut mid breath. Later owner clarification places this at the beginning of the gap, near output 2 s. | None. Timing adds no speech-loss verdict or usefulness score. |
+| L10-030-D | Unanswered untouched control. | None. |
+| L11-016-A | No clipping heard. | None. |
+| L12-016-C | Other speaker's voice is preserved, but the beginning of the long "um" remains. | No clipping/lost speech, inferred from the other voice being preserved. Residual filler remains a concern. |
+
+Only the three values in the inference column are inferred structured answers.
+Other clipping/lost-speech and usefulness fields remain unknown. Exact defect
+timestamps were absent from the October 15 feedback. Later owner clarifications
+provide approximate output times for L01 and L09 only. Useful-edit scoring is
+incomplete; no aggregate success rate is claimed.
+
+#### Read-only artifact checks on October 16
+
+The saved WAVs, item metadata and original proposal results were inspected locally.
+File and decoded-PCM comparisons establish changes to audio, not their perceived
+quality. These checks are not a new independent listening verdict.
+
+| Item | Measured or saved evidence | Interpretation and remaining work |
+| --- | --- | --- |
+| L01 | Saved cut is source 178.225 to 178.520 s, with a 0.350 s replacement gap. Retained audio resumes near output 2.350 s. A 20 ms PCM block at output 2.500 s exactly matches source 178.670 s. | Retained source audio is present near the reported time; the PCM match does not identify the audible residue or prove damage to the following word. Saved ASR labels adjacent "like" tokens, the second with low confidence. Acoustic diagnosis must distinguish a trailing fragment from a repeated-token or alignment error; the mechanism remains unconfirmed. |
+| L05 | Source has 214,086 frames and output 208,433 at 44,100 Hz, about 128 ms shorter. Both file hashes and decoded-PCM hashes differ. The source has substantial signal near local 2.0 to 2.7 s; the corresponding output is near the noise floor. | The saved output is not an identical copy or demonstrated no-op. Preserve the owner's perceived similarity separately; usefulness remains unknown. |
+| L08 | Saved cut ends at source 2927.590 s. Saved ASR labels "Um" from 2927.390 to 2927.730 s. Replacement gap is 0.799 s. | The owner reports a missed filler. The annotation extends beyond the cut and suggests an ending-boundary investigation, but ASR is not acoustic ground truth. |
+| L09 | Saved cut is source 3937.280 to 3938.340 s, with a 0.901 s replacement gap beginning near output 2 s. Saved ASR labels a 20 ms "Um" with low confidence. | The owner locates the mid-breath concern at gap entry. Inspect that boundary acoustically without inferring lost speech from the annotation or timing answer. |
+| L12 | Saved cut is source 2621.7655 to 2622.53025 s, with a 0.6500375 s replacement gap. | Diagnose the owner-reported remaining filler acoustically. The existing annotations do not establish its exact location or mechanism. |
+
+Paced replacement gaps explain why some outputs are longer and why L05's net
+shortening is much smaller than its cut span. Duration alone does not establish
+whether a filler was fully removed.
+
+Local evidence remains in the existing `issue-1273/listen/` pack, including
+`answers.csv`, `answers-inference-receipt.md`, `_items-*.json` and each WAV pair.
+Original cut bounds and replacement gaps are in `results/r111-ctl.json`,
+`results/r030-ctl.json` and `results/r016-ctl.json`; saved ASR is under `asr/`.
+The pack builder is `tools/build_listen_1273.py`. Private recordings stay local.
+
+Remaining engineering work is bounded acoustic diagnosis of L01, L08 and L12
+residue and L09's gap-entry boundary, followed by routing confirmed defects
+through the existing issue/ledger policy. No algorithm defect's root cause is
+claimed here. No threshold tuning, production implementation, new corpus work or
+new recurring check is part of this correction. Any recording later used to guide
+a fix must become development material in the fixture catalog. The existing
+coordinator ownership and listening hold remain unchanged.
 
 ## Defects and where they went
 
@@ -302,6 +364,7 @@ nothing cannot win. **Owner verdict: pending.**
 | Bleed gate plans 0 spans on the quieter lane as recorded | yes, real recording | evidence on [#1374](https://github.com/calebn/sharecut-studio/issues/1374) |
 | Tighten proposals not gain invariant on two tracks | yes, real recording | ledger of [#1443](https://github.com/calebn/sharecut-studio/issues/1443) |
 | Frame-grid phase and sample-format dependence of edges | effect on the ear unknown | ledger of [#1449](https://github.com/calebn/sharecut-studio/issues/1449) |
+| Residual filler in L01, L08 and L12; mid-breath gap entry in L09 | owner-reported concerns on real recordings; following-word clipping and speech loss are not established by these concerns | evidence and bounded diagnosis remain on [#1273](https://github.com/calebn/sharecut-studio/issues/1273) |
 
 ## Commands
 
