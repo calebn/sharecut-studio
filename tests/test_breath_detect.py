@@ -981,7 +981,7 @@ def test_complete_breath_crossing_cut_end_keeps_its_onset(backend: str) -> None:
 
 
 def test_final_end_protection_reads_before_boundary() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
@@ -1053,7 +1053,7 @@ def test_crossing_breath_keeps_speech_protection(backend: str, protected: str) -
 
 
 def test_final_protection_is_unchanged_when_disabled() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     with patch("podcast_mcp.edits.breath_detect.load_mono_window") as read:
         disabled = protect_cut_breaths(
@@ -1146,7 +1146,7 @@ def test_crossing_breath_refines_only_a_safe_quiet_onset(backend: str, protectio
 
 
 def _protect(cut: tuple[float, float], *, placed=(), gap_floor=_FLOOR_RMS, **kw):
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",

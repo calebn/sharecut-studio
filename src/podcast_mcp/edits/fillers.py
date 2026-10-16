@@ -26,7 +26,6 @@ from podcast_mcp.edits.breath_detect import (
     detect_adjacent_breath,
     extend_cut_for_breaths,
     pause_air_span,
-    protect_cut_breaths,
 )
 from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
 from podcast_mcp.edits.cut_quality import (
@@ -36,6 +35,7 @@ from podcast_mcp.edits.cut_quality import (
     recommend_cut_fade_ms,
     recommend_prev_word_lead_out_ms,
 )
+from podcast_mcp.edits.cut_safety import protect_cut_breaths
 from podcast_mcp.edits.filler_pacing import (
     MIN_PACED_CUT_SEC,
     PacedPad,
