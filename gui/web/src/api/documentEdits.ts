@@ -234,7 +234,7 @@ function reviewOutcome(
   const first: ReviewPassStart | null =
     historyHead && typeof applied === "number" && applied > 0
       ? { head: historyHead, applied }
-      : null;
+      : earlier;
   const asking =
     choices && confirmIds && narrow ? narrow(confirmIds, first) : choices;
   if (asking && rippleOutcome(projectPath, result, asking).asked) {

@@ -23,6 +23,7 @@ import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import type { HistoryEntryId } from "../types/project";
 import { CutSpeechDialog } from "./CutSpeechDialog";
 import { CutSpeechDialogView } from "./CutSpeechDialogView";
 
@@ -282,6 +283,73 @@ describe("CutSpeechDialog", () => {
     expect(useDawStore.getState().feedbackToast).toMatchObject({
       message: "Approved 3 pending edits",
       undo: "0f9e8d7c6b5a",
+    });
+  });
+
+  it.each([
+    ["the first part applied nothing", "a1b2c3d4e5f6", 0],
+    ["the first reply names no history entry", null, 2],
+  ])(
+    "Cut anyway sends no pass marker when %s",
+    async (_name, head, applied) => {
+      const user = userEvent.setup();
+      submit.mockReset();
+      submit
+        .mockResolvedValueOnce({
+          ...ASKED,
+          history_head_id: head,
+          command: {
+            payload: { result: { count: applied, confirm_ids: ["e2"] } },
+          },
+        })
+        .mockResolvedValue({
+          ok: true,
+          history_head_id: "0f9e8d7c6b5a",
+          command: { payload: { result: { count: 1 } } },
+        });
+      render(<CutSpeechDialog />);
+
+      await approveEdits("/tmp/ep", ["e1", "e2"], false, true, undefined, true);
+      await user.click(
+        await screen.findByRole("button", { name: "Cut anyway" }),
+      );
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(sent(1)?.payload).not.toHaveProperty("continues_head_id");
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Approved 1 pending edit",
+        undo: "0f9e8d7c6b5a",
+      });
+    },
+  );
+
+  it("approveEdits chains the first part into the Cut anyway outcome", async () => {
+    submit.mockReset();
+    submit.mockResolvedValue({
+      ok: true,
+      history_head_id: "0f9e8d7c6b5a",
+      command: { payload: { result: { count: 1 } } },
+    });
+    const outcome = await approveEdits(
+      "/tmp/ep",
+      ["e2"],
+      true,
+      true,
+      undefined,
+      true,
+      { head: "a1b2c3d4e5f6" as HistoryEntryId, applied: 2 },
+    );
+
+    expect(sent(0)?.payload).toMatchObject({
+      ids: ["e2"],
+      continues_head_id: "a1b2c3d4e5f6",
+      confirm_cut_speech: true,
+    });
+    expect(outcome).toMatchObject({
+      asked: false,
+      count: 1,
+      historyHead: "0f9e8d7c6b5a",
+      pass: { head: "a1b2c3d4e5f6", applied: 2 },
     });
   });
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 from pause_policy_public_helpers import workspace
 from podcast_mcp.models import load_project
 from podcast_mcp.services.document_sync.handlers.edits import approve_edits
-from podcast_mcp.services.document_sync.handlers.history import undo_history
+from podcast_mcp.services.document import HistoryService
+from podcast_mcp.services.document_sync.handlers.history import redo_history, undo_history
 from test_approve_guard_blocked_ripple import _blocked_filler
 
 
@@ -114,58 +115,126 @@ def test_approving_several_cuts_at_once_leaves_one_history_entry(tmp_path, monke
     assert len(load_project(ws.path).history.entries) == before + 1
 
 
-def _approved_in_two_parts(tmp_path, monkeypatch, *, continues: bool = True):
-    """Approve all, then Cut anyway: the two steps of one pass. Returns each part's history head."""
+def _head(ws) -> str:
+    return load_project(ws.path).history.head_id()
+
+
+def _decisions(ws) -> set[str]:
+    return {e.id for e in load_project(ws.path).edit_decisions}
+
+
+def _two_part_pass(tmp_path, monkeypatch, *, between=None, marker="first"):
+    """Approve all, then Cut anyway. ``between`` runs after part one; ``marker`` is the
+    ``continues_head_id`` sent ("first" = the part-one head, None = none, else literal)."""
     result, asked = _with_plain_cut(tmp_path, monkeypatch)
+    plain = next(e for e in result.edit_decisions if e.id == "plain")
+    result.edit_decisions += [
+        plain.model_copy(update={"id": "other", "start": 4.0, "end": 4.2}),
+        plain.model_copy(update={"id": "later", "start": 5.5, "end": 5.6}),
+    ]
     ws = workspace(result)
     first = approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
-    first_head = load_project(ws.path).history.head_id()
+    first_head = _head(ws)
+    if between:
+        between(ws)
+    sent = first_head if marker == "first" else marker
     approve_edits(
         ws,
         {
             "ids": first["confirm_ids"],
             "hold_blocked": True,
             "confirm_cut_speech": True,
-            **({"continues_head_id": first_head} if continues else {}),
+            **({"continues_head_id": sent} if sent else {}),
         },
     )
-    return ws, asked, load_project(ws.path).history.head_id()
+    return ws, asked, _head(ws)
+
+
+def _preview(ws):
+    ws.mutate(
+        "before render preview",
+        "after render preview",
+        lambda p: p.edit_decisions.append(
+            next(e for e in p.edit_decisions if e.id == "later").model_copy(update={"id": "mark"})
+        ),
+        operation="render_preview",
+    )
 
 
 def test_one_undo_takes_back_the_whole_pass(tmp_path, monkeypatch):
-    ws, asked, second_head = _approved_in_two_parts(tmp_path, monkeypatch)
-    assert load_project(ws.path).edit_decisions == []
-
-    undo_history(ws, {"expected_head_id": second_head})
-
-    assert {e.id for e in load_project(ws.path).edit_decisions} == {"plain", asked.id}
-
-
-def test_without_the_pass_marker_undo_takes_back_only_the_cut_anyway_step(tmp_path, monkeypatch):
-    ws, asked, second_head = _approved_in_two_parts(tmp_path, monkeypatch, continues=False)
-
-    undo_history(ws, {"expected_head_id": second_head})
-
-    assert [e.id for e in load_project(ws.path).edit_decisions] == [asked.id]
-
-
-def test_a_marker_naming_an_entry_another_edit_follows_undoes_just_one_step(tmp_path, monkeypatch):
-    # The first part is no longer directly behind this one, so the pass is not intact.
-    result, asked = _with_plain_cut(tmp_path, monkeypatch)
-    ws = workspace(result)
-    approve_edits(ws, {"ids": ["plain"]})
-    first_head = load_project(ws.path).history.head_id()
-    ws.mutate(
-        "before later edit",
-        "after later edit",
-        lambda p: p.edit_decisions.append(asked.model_copy(update={"id": "later"})),
-        operation="later_edit",
-    )
-    approve_edits(
-        ws, {"ids": ["later"], "confirm_cut_speech": True, "continues_head_id": first_head}
-    )
-    head = load_project(ws.path).history.head_id()
+    ws, asked, head = _two_part_pass(tmp_path, monkeypatch)
+    assert _decisions(ws) == {"other", "later"}
 
     undo_history(ws, {"expected_head_id": head})
 
-    assert {e.id for e in load_project(ws.path).edit_decisions} == {asked.id, "later"}
+    assert _decisions(ws) == {"plain", asked.id, "other", "later"}
+
+
+def test_one_redo_brings_the_whole_pass_back(tmp_path, monkeypatch):
+    ws, _asked, head = _two_part_pass(tmp_path, monkeypatch)
+    undo_history(ws, {"expected_head_id": head})
+
+    redo_history(ws, {"expected_head_id": _head(ws)})
+
+    assert _decisions(ws) == {"other", "later"}
+    assert _head(ws) == head
+
+
+def test_the_first_parts_own_preview_render_stays_one_pass(tmp_path, monkeypatch):
+    ws, asked, head = _two_part_pass(tmp_path, monkeypatch, between=_preview)
+
+    undo_history(ws, {"expected_head_id": head})
+
+    # The whole pass is gone, back to before part one (the preview's marker with it).
+    assert _decisions(ws) == {"plain", asked.id, "other", "later"}
+
+
+def test_without_the_pass_marker_undo_takes_back_only_the_cut_anyway_step(tmp_path, monkeypatch):
+    ws, asked, head = _two_part_pass(tmp_path, monkeypatch, marker=None)
+
+    undo_history(ws, {"expected_head_id": head})
+
+    assert _decisions(ws) == {asked.id, "other", "later"}
+
+
+def test_another_approval_between_the_parts_is_not_undone_with_the_pass(tmp_path, monkeypatch):
+    ws, asked, head = _two_part_pass(
+        tmp_path, monkeypatch, between=lambda w: approve_edits(w, {"ids": ["other"]})
+    )
+
+    undo_history(ws, {"expected_head_id": head})
+
+    assert _decisions(ws) == {asked.id, "later"}
+
+
+def test_a_manual_snapshot_between_the_parts_is_not_undone_with_the_pass(tmp_path, monkeypatch):
+    ws, asked, head = _two_part_pass(
+        tmp_path, monkeypatch, between=lambda w: HistoryService(w).record("manual")
+    )
+
+    undo_history(ws, {"expected_head_id": head})
+
+    assert _decisions(ws) == {asked.id, "other", "later"}
+
+
+def test_a_stale_marker_naming_an_older_approval_undoes_one_step(tmp_path, monkeypatch):
+    result, asked = _with_plain_cut(tmp_path, monkeypatch)
+    plain = next(e for e in result.edit_decisions if e.id == "plain")
+    result.edit_decisions.append(plain.model_copy(update={"id": "other", "start": 4.0, "end": 4.2}))
+    ws = workspace(result)
+    approve_edits(ws, {"ids": ["other"]})
+    older = _head(ws)
+    first = approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
+    approve_edits(
+        ws,
+        {
+            "ids": first["confirm_ids"],
+            "hold_blocked": True,
+            "confirm_cut_speech": True,
+            "continues_head_id": older,
+        },
+    )
+
+    undo_history(ws, {"expected_head_id": _head(ws)})
+
+    assert _decisions(ws) == {asked.id}
