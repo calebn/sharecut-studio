@@ -921,6 +921,11 @@ def _pause_words(
     return before, after
 
 
+def _spans_agree(got: tuple[float, float] | None, want: tuple[float, float]) -> bool:
+    """Whether a span mapped there and back lands on ``want``, within float error (#1560)."""
+    return got is not None and all(abs(g - w) <= 1e-9 for g, w in zip(got, want, strict=True))
+
+
 def _original_pause_support(
     project: EpisodeProject,
     track_id: str,
@@ -1103,9 +1108,8 @@ def _original_pause_support(
             if hi <= lo:
                 continue
             mapped = timeline.exact_source_span(track_id, SourceSec(lo), SourceSec(hi))
-            if mapped is None or timeline.exact_timeline_source_span(track_id, *mapped) != (
-                SourceSec(lo),
-                SourceSec(hi),
+            if mapped is None or not _spans_agree(
+                timeline.exact_timeline_source_span(track_id, *mapped), (lo, hi)
             ):
                 continue
             for quiet_lo, quiet_hi in subtract_intervals(
@@ -1115,9 +1119,8 @@ def _original_pause_support(
                 source = timeline.exact_timeline_source_span(
                     track_id, TimelineSec(quiet_lo), TimelineSec(quiet_hi)
                 )
-                if source is not None and timeline.exact_source_span(track_id, *source) == (
-                    TimelineSec(quiet_lo),
-                    TimelineSec(quiet_hi),
+                if source is not None and _spans_agree(
+                    timeline.exact_source_span(track_id, *source), (quiet_lo, quiet_hi)
                 ):
                     pieces.append(
                         TimelineClipSpan(
