@@ -128,7 +128,7 @@ included, through the `.claude/skills` symlink to `.agents/skills`. Setup and tr
 Repo engineering and styling rules take precedence over upstream guidance;
 detector suppressions require explicit user approval.
 
-Tool-agnostic config under `.agents/` — [rules](.agents/rules/) (`engineering-standards.md`, `gui-styling.md`; not `.cursor/rules/`), [skills](.agents/skills/), [defaults](.agents/defaults/pipeline.yaml), [MCP](.agents/mcp.json). See [.agents/README.md](.agents/README.md).
+Tool-agnostic config under `.agents/` — [rules](.agents/rules/) (`engineering-standards.md`, `gui-styling.md`; not `.cursor/rules/` for engineering rules). The Cursor-native exception is [pstack-models.mdc](.cursor/rules/pstack-models.mdc) (identical copy at [.agents/rules/pstack-models.mdc](.agents/rules/pstack-models.mdc)) so Autopilot cloud checkouts see the operator bake-in. Native poteto still Reads `~/.cursor/rules/pstack-models.mdc`; copy the workspace file there before spawning Task. [skills](.agents/skills/), [defaults](.agents/defaults/pipeline.yaml), [MCP](.agents/mcp.json). See [.agents/README.md](.agents/README.md).
 
 ## Skills
 

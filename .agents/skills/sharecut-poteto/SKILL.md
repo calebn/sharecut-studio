@@ -36,6 +36,9 @@ description: Use for Sharecut repository contributor work, issue implementation,
    automatically for a panel. Reuse valid evidence that still covers the current head.
    Use Standard service when available. Do not use Fast service unless requested.
    Do not claim a service tier or execution model the harness does not expose.
+   Native poteto still Reads `~/.cursor/rules/pstack-models.mdc`. Autopilot/cloud
+   owners copy workspace `.cursor/rules/pstack-models.mdc` to that path before
+   spawning Task. Do not duplicate that copy in this companion.
 
 The native workflow does not grant permission to merge. Follow the user's current
 grant and the repository gates before merge.

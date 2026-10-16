@@ -1,0 +1,26 @@
+---
+description: pstack per-role model choices (overrides skill defaults)
+alwaysApply: true
+---
+# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
+# `inherit-parent` or `auto`: omit Task model (parent chat).
+# budget: medium (high)
+# Never Fast (`*-fast`). Never xhigh or max. Override native poteto-mode defaults.
+# Keep `.cursor/rules/pstack-models.mdc` and `.agents/rules/pstack-models.mdc` identical.
+feature, refactoring: composer-2.5
+bug-fix: composer-2.5
+perf-issue: composer-2.5
+hillclimb: composer-2.5
+judgment and prose: cursor-grok-4.6-high
+hardest tasks: cursor-grok-4.6-high
+how explorer: grok-4.7-high
+how explainer: cursor-grok-4.6-high
+why investigators: grok-4.7-high
+why synthesizer: cursor-grok-4.6-high
+reflect tooling: grok-4.7-high
+reflect judgment, divergent, synthesizer: cursor-grok-4.6-high
+arena runners: cursor-grok-4.6-high, grok-4.7-high
+arena cross-judge pool: cursor-grok-4.6-high, grok-4.7-high
+swarm workers: grok-4.7-high
+architect runners: cursor-grok-4.6-high, grok-4.7-high
+interrogate reviewers: cursor-grok-4.6-high, grok-4.7-high
