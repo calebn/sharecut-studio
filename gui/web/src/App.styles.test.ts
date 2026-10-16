@@ -170,6 +170,21 @@ describe("App styles", () => {
     expect(chips![1]).toMatch(/align-items:\s*center/);
   });
 
+  it("wraps collapsed transport and Listen hero controls instead of clipping them (#1636)", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const transport = readFileSync(
+      join(here, "styles/partials/transport.css"),
+      "utf8",
+    );
+    const collapsed = transport.match(/\.transport--collapsed \{([^}]*)\}/);
+    expect(collapsed).toBeTruthy();
+    expect(collapsed![1]).toMatch(/flex-wrap:\s*wrap/);
+    const hero = transport.match(/\.listen-hero-controls \{([^}]*)\}/);
+    expect(hero).toBeTruthy();
+    expect(hero![1]).toMatch(/flex-wrap:\s*wrap/);
+    expect(hero![1]).not.toMatch(/grid-template-columns/);
+  });
+
   it("gives the collapsed transport icon buttons the touch target on a coarse pointer (#1388)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(
