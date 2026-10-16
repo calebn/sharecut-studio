@@ -199,21 +199,21 @@ def test_mcp_notification_progress_no_loop_is_noop():
 @pytest.mark.asyncio
 async def test_mcp_notification_progress_schedules_and_cancels_prior():
     calls: list[tuple] = []
+    done = asyncio.Event()
 
     class Ctx:
         async def report_progress(self, progress, total, message):
             calls.append((progress, total, message))
+            if message == "done":
+                done.set()
 
     reporter = McpNotificationProgress(Ctx())
     reporter.start("t", "Task", total=2)
     reporter.update("t", 1, message="a")
     reporter.update("t", 2, message="b")
     reporter.end("t", message="done")
-    # Let scheduled tasks run
-
-    await asyncio.sleep(0)
-    assert calls
-    assert calls[-1][2] == "done"
+    await asyncio.wait_for(done.wait(), timeout=1)
+    assert calls == [(2.0, 2.0, "done")]
 
 
 @pytest.mark.asyncio
@@ -439,9 +439,12 @@ async def test_install_mcp_progress_with_context_uses_notification_reporter():
         def __init__(self) -> None:
             self.calls: list[tuple] = []
             self.meta = Meta()
+            self.done = asyncio.Event()
 
         async def report_progress(self, progress, total, message):
             self.calls.append((progress, total, message))
+            if message == "done":
+                self.done.set()
 
     class FakeServer:
         def add_tool(self, fn, name=None, **kwargs):
@@ -457,8 +460,8 @@ async def test_install_mcp_progress_with_context_uses_notification_reporter():
     result = await server.call_tool("t", {}, context=ctx)
     assert result["ctx"] is True
 
-    await asyncio.sleep(0)
-    assert ctx.calls
+    await asyncio.wait_for(ctx.done.wait(), timeout=1)
+    assert ctx.calls == [(0.0, None, "done")]
 
 
 @pytest.mark.asyncio
@@ -483,7 +486,6 @@ async def test_install_mcp_progress_skips_notifications_without_token():
     install_mcp_progress(server)
     ctx = Ctx()
     result = await server.call_tool("t", {}, context=ctx)
-    await asyncio.sleep(0)
     assert result["null"] is True
     assert ctx.calls == []
 
