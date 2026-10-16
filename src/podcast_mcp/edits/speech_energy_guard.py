@@ -1116,7 +1116,9 @@ def resolve_cut_scope(
         log.debug("speaker cut scope guard skipped: %s", exc, exc_info=True)
 
     try:
-        guard = assess_cross_track_speech(
+        from podcast_mcp.edits import cut_safety
+
+        guard = cut_safety.assess_cross_track_speech(
             project,
             cut_track_id,
             src_start,

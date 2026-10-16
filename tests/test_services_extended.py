@@ -1515,7 +1515,7 @@ def test_edit_preview_inaudible_cut(minimal_project, sample_wav) -> None:
 
 def test_edit_join_quality_proposed_cut(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.services.document.edit.assess_proposed_cut") as assess:
+    with patch("podcast_mcp.edits.cut_safety.assess_proposed_cut") as assess:
         assess.return_value.to_dict.return_value = {
             "track_id": "host",
             "verdict": "fail",

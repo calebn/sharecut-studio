@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
+from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.source_removals import (
+    CutScopeHold,
     ScopeChangedAtApproval,
-    inspect_source_remove_placement,
     record_suggested_cut_speech,
 )
 from podcast_mcp.edits.tighten import propose_tighten_edits
@@ -135,7 +137,37 @@ def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
     assert decision.cut_speech == expected
 
 
-def test_source_remove_placement_keeps_its_remove_only_contract():
+def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
+    source = Path(__file__).parents[1] / "src/podcast_mcp"
+    raw_guards = {
+        "podcast_mcp.edits.speech_energy_guard": {"assess_cross_track_speech"},
+        "podcast_mcp.edits.join_continuity": {"assess_proposed_cut"},
+        "podcast_mcp.edits.source_removals": {"inspect_source_remove_placement"},
+    }
+    consumers = []
+    for path in source.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or node.module not in raw_guards:
+                continue
+            if any(alias.name in raw_guards[node.module] for alias in node.names):
+                consumers.append((str(path.relative_to(source)), node.module))
+    assert consumers == [
+        ("edits/cut_safety.py", "podcast_mcp.edits.join_continuity"),
+        ("edits/cut_safety.py", "podcast_mcp.edits.speech_energy_guard"),
+    ]
+    root = source / "edits"
+    definitions = []
+    for path in root.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        definitions.extend(
+            path.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name in {"inspect_source_remove_placement", "protect_cut_breaths"}
+        )
+    assert definitions == ["cut_safety.py", "cut_safety.py"]
+
     project = EpisodeProject.create("pure source removal", "/tmp/fix1508-pure")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
     project.clips = [
@@ -152,8 +184,8 @@ def test_source_remove_placement_keeps_its_remove_only_contract():
     remove = mute.model_copy(update={"id": "remove", "type": EditDecisionType.REMOVE})
 
     with pytest.raises(ValueError, match="ordinary source remove required"):
-        inspect_source_remove_placement(project, mute)
-    assert inspect_source_remove_placement(project, remove) == (1, 2)
+        cut_safety.inspect_source_remove_placement(project, mute)
+    assert cut_safety.inspect_source_remove_placement(project, remove) == (1, 2)
 
 
 def _replay(project: EpisodeProject) -> None:
@@ -174,6 +206,10 @@ def test_saved_ordinary_remove_refuses_replayed_source(tmp_path: Path, reason: s
         project.edit_decisions = [_cut(reason=reason, scope=scope)]
 
     ws.mutate("before replay", "after replay", setup)
+    assert isinstance(
+        cut_safety.inspect_source_remove_placement(ws.project, ws.project.edit_decisions[0]),
+        CutScopeHold,
+    )
     before = ws.path.read_bytes()
     with pytest.raises(ScopeChangedAtApproval) as held:
         EditService(ws).approve(["cut"], confirm_cut_speech=True)
@@ -512,7 +548,6 @@ def test_auto_restart_excludes_speech_chosen_only_by_freshly_held_punch(
     tmp_path: Path, monkeypatch
 ):
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
-    from podcast_mcp.edits.source_removals import inspect_source_remove_placement
     from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 
     ws = _workspace(tmp_path)
@@ -531,7 +566,7 @@ def test_auto_restart_excludes_speech_chosen_only_by_freshly_held_punch(
 
     ws.mutate("before auto", "after auto", setup)
     before = [(c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips]
-    assert inspect_source_remove_placement(ws.project, punch) == (1, 2)
+    assert cut_safety.inspect_source_remove_placement(ws.project, punch) == (1, 2)
 
     def optimize(_project, _tid, start, _end, **_kwargs):
         return OptimizedCutRange(

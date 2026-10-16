@@ -14,6 +14,7 @@ from podcast_mcp.edits import (
     apply_edit_plan,
     approve_edits,
     build_edit_context_json,
+    cut_safety,
     cut_text_match,
     cut_time_range,
     cut_utterance,
@@ -83,7 +84,6 @@ from podcast_mcp.edits.inaudible_cuts import (
 from podcast_mcp.edits.join_continuity import (
     assess_existing_join,
     assess_project_joins,
-    assess_proposed_cut,
 )
 from podcast_mcp.edits.join_labels import record_label
 from podcast_mcp.edits.join_modes import (
@@ -997,7 +997,7 @@ class EditService:
         tid = self._resolve(track_id, speaker)
         tb: Literal["timeline", "source"] = "timeline" if timebase == "timeline" else "source"
         if cut_start is not None and cut_end is not None:
-            return assess_proposed_cut(
+            return cut_safety.assess_proposed_cut(
                 self.ws.project,
                 tid,
                 float(cut_start),

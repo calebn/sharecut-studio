@@ -28,9 +28,7 @@ def test_unavailable_peer_assessment_cannot_save_a_manual_track_punch(
     def unavailable(*_args, **_kwargs):
         raise failure("literal peer assessment unavailable")
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", unavailable
-    )
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_cross_track_speech", unavailable)
     with pytest.raises(ScopeChangedAtApproval) as held:
         add_remove_decision(
             result,
@@ -55,9 +53,7 @@ def test_unavailable_peer_assessment_cannot_publish_an_automatic_track_punch(
     def unavailable(*_args, **_kwargs):
         raise failure("literal peer assessment unavailable")
 
-    monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech", unavailable
-    )
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_cross_track_speech", unavailable)
     proposal = propose_tighten_edits(result, cfg, intensity="medium")
 
     assert proposal.decisions == []
@@ -81,7 +77,7 @@ def test_final_peer_assessment_failure_cannot_publish_after_initial_clearance(
         return assess_cross_track_speech(*args, **kwargs)
 
     monkeypatch.setattr(
-        "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech",
+        "podcast_mcp.edits.cut_safety.assess_cross_track_speech",
         unavailable_after_clearance,
     )
     proposal = propose_tighten_edits(result, cfg, intensity="medium")

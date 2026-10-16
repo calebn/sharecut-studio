@@ -93,10 +93,10 @@ def describe_sounds(
 
 def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> bool:
     """True when a peer track is speaking over the decision's span."""
-    from podcast_mcp.edits.speech_energy_guard import assess_cross_track_speech
+    from podcast_mcp.edits import cut_safety
 
     try:
-        return assess_cross_track_speech(
+        return cut_safety.assess_cross_track_speech(
             project, decision.track_id, decision.start, decision.end
         ).blocked
     except (OSError, ValueError):

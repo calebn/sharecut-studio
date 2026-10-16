@@ -45,7 +45,8 @@ def source_remove_timeline_spans(
     if edit.type != EditDecisionType.REMOVE or edit.timebase != "source":
         return None
     if edit.source_timeline_span is not None:
-        from podcast_mcp.edits.source_removals import CutScopeHold, inspect_source_remove_placement
+        from podcast_mcp.edits.cut_safety import inspect_source_remove_placement
+        from podcast_mcp.edits.source_removals import CutScopeHold
 
         placement = inspect_source_remove_placement(project, edit)
         if isinstance(placement, CutScopeHold):
