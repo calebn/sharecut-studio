@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { createRelocatedE2eProject } from "../e2e/liveProject";
 import { openHostProject } from "../e2e/overlayReachability";
+import { openSuggestedPendingEdit } from "../e2e/pendingEdit";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { describeReach, type Reach, reachFailures } from "../e2e/reachability";
 import { withShareableProject } from "../e2e/shareableProject";
@@ -85,6 +86,8 @@ const LANDSCAPES: readonly Cell[] = [
     rootPx: 16,
   },
 ];
+
+const REACHABILITY_CELLS = [...PHONES, ...TABLETS, ...LANDSCAPES];
 
 /**
  * Canvas targets reach 44 px through the dense-target pattern
@@ -446,13 +449,67 @@ test("a track with an envelope and an effect chain keeps every control a finger 
 }) => {
   const report = await withShareableProject(
     (projectPath) =>
-      sweepSeededTrack(page, projectPath, [
-        ...PHONES,
-        ...TABLETS,
-        ...LANDSCAPES,
-      ]),
+      sweepSeededTrack(page, projectPath, [...REACHABILITY_CELLS]),
     undefined,
     seededProject,
   );
+  expect(report, "controls a finger cannot use").toBe("");
+});
+
+test("pending-edit and transcript-word sheet bodies keep every control reachable", async ({
+  page,
+}) => {
+  const report = await withShareableProject(async (projectPath) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openSuggestedPendingEdit(page, projectPath);
+    const reports: string[] = [];
+    const scanSelection = async (
+      label: string,
+      selectionScreen: "impact" | "text",
+    ) => {
+      for (const cell of PHONES) {
+        await page.setViewportSize({ width: cell.width, height: cell.height });
+        await page.evaluate((px) => {
+          document.documentElement.style.fontSize = `${px}px`;
+        }, cell.rootPx);
+        const primary = page.getByRole("navigation", { name: "Primary" });
+        if (selectionScreen === "impact") {
+          await primary.getByRole("button", { name: "More" }).click();
+          const hub = page.locator(".mobile-more-hub");
+          if (await hub.isVisible()) {
+            await hub.getByRole("button", { name: "Impact" }).click();
+          }
+        } else {
+          await primary.getByRole("button", { name: "Text" }).click();
+        }
+        const surface = ".bottom-sheet-body";
+        const body = page.locator(surface);
+        await expect(body).toBeVisible();
+        await expect(body, `${cell.name} ${label} body`).toContainText(label);
+        await settle(page);
+        const failures = await reachFailures(page, {
+          scope: surface,
+          dense: DENSE,
+        });
+        if (failures.length > 0) {
+          reports.push(`${cell.name}\n${describeReach(failures)}`);
+        }
+      }
+    };
+
+    await scanSelection("Ask", "impact");
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const primary = page.getByRole("navigation", { name: "Primary" });
+    await primary.getByRole("button", { name: "Text" }).click();
+    const word = page
+      .locator(".transcript-list [data-transcript-word]")
+      .first();
+    await expect(word).toBeVisible();
+    await page.getByRole("button", { name: /^Correct:/ }).click();
+    await word.click();
+    await scanSelection("Suppress", "text");
+    return reports.join("\n\n");
+  });
   expect(report, "controls a finger cannot use").toBe("");
 });
