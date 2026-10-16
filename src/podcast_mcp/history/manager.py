@@ -98,36 +98,65 @@ def _behind_render_only(history: ProjectHistory, expected_head_id: str | None) -
     return None
 
 
-# What may sit between the first and last part of one Approve all pass: its own edits,
-# their "before" snapshots (no operation) and the automatic preview renders.
-_PASS_OPERATIONS = frozenset({None, "approve_edits", "render_preview"})
-
 # The history ``params`` key an Approve all's Cut anyway entry uses to name the pass's
-# first entry, so one Undo takes back both parts (#1677).
+# first entry, so one Undo takes back both parts and one Redo brings them back (#1677).
 PASS_CONTINUES_KEY = "continues_head_id"
+
+# Label of the "before" snapshot ``EditService.approve`` records ahead of its own entry.
+_APPROVE_BEFORE_LABEL = "before approve edits"
+# ... and the one ``services/pipeline/service.py`` records ahead of an automatic preview.
+_PREVIEW_BEFORE_LABEL = "before render preview"
+
+
+def _is_pass(history: ProjectHistory, first: int, last: int) -> bool:
+    """Whether entries ``first`` and ``last`` are the two parts of one Approve all pass.
+
+    ``last`` names ``first`` by id, ``first`` is an ``approve_edits`` entry, and nothing but
+    the first part's automatic preview renders and ``last``'s own "before approve edits"
+    snapshot sits between them. Any other entry (another approval, a manual snapshot, a
+    merged save) means this is no longer one pass."""
+    entries = history.entries
+    if not 0 <= first < last < len(entries):
+        return False
+    if entries[first].operation != "approve_edits":
+        return False
+    if (entries[last].params or {}).get(PASS_CONTINUES_KEY) != entries[first].id:
+        return False
+    between = entries[first + 1 : last]
+    if between and (
+        between[-1].operation is None
+        and between[-1].label == _APPROVE_BEFORE_LABEL
+        and not between[-1].params
+    ):
+        between = between[:-1]
+    return all(
+        entry.operation == "render_preview"
+        or (entry.operation is None and entry.label == _PREVIEW_BEFORE_LABEL)
+        for entry in between
+    )
 
 
 def _pass_start(history: ProjectHistory) -> int | None:
     """The index of the first part of the pass the entry at the cursor finishes, or None.
 
-    The cursor entry names the first part in its ``params``. The pass is intact only while
-    that entry is an earlier ``approve_edits`` and everything from it to the cursor belongs
-    to the pass; another edit in between means this is no longer one pass, so Undo takes
-    back just the cursor entry."""
-    params = history.entries[history.cursor].params or {}
-    first_id = params.get(PASS_CONTINUES_KEY)
+    When the pass is not intact, Undo takes back just the cursor entry."""
+    first_id = (history.entries[history.cursor].params or {}).get(PASS_CONTINUES_KEY)
     if not isinstance(first_id, str):
         return None
-    ids = [entry.id for entry in history.entries[: history.cursor]]
-    if first_id not in ids:
-        return None
-    index = ids.index(first_id)
-    between = history.entries[index : history.cursor + 1]
-    if between[0].operation != "approve_edits" or any(
-        entry.operation not in _PASS_OPERATIONS for entry in between
-    ):
-        return None
-    return index
+    for index in range(history.cursor - 1, -1, -1):
+        if history.entries[index].id == first_id:
+            return index if _is_pass(history, index, history.cursor) else None
+    return None
+
+
+def _pass_end(history: ProjectHistory, first: int) -> int | None:
+    """The index of the Cut anyway entry that finishes the pass starting at ``first``, or None."""
+    for index in range(first + 1, len(history.entries)):
+        if (history.entries[index].params or {}).get(PASS_CONTINUES_KEY) == history.entries[
+            first
+        ].id:
+            return index if _is_pass(history, first, index) else None
+    return None
 
 
 @dataclass
@@ -265,6 +294,10 @@ class HistoryManager:
         if not history.can_redo():
             raise ValueError("Nothing to redo")
         history.cursor += 1
+        # Redo mirrors Undo: stepping onto the first part of a pass brings back both.
+        last = _pass_end(history, history.cursor)
+        if last is not None:
+            history.cursor = last
         entry = history.entries[history.cursor]
         apply_snapshot_to_project(project, self._read_snapshot(project, entry))
         project.history = history

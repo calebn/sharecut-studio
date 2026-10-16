@@ -197,7 +197,7 @@ def _preview_render(project_path: Path, decision_id: str) -> None:
 def test_a_second_undo_after_two_approvals_each_followed_by_a_preview_reverts_the_first(
     minimal_project,
 ):
-    """Approve all that asks Cut anyway is two edits, each with its own auto preview (#1675).
+    """Two edits, each with its own auto preview, undo one at a time (#1675).
 
     The first Undo lands on the first edit's preview. The next one must revert that edit,
     not step onto the edit entry itself, which shows the same edits and looks like a no-op."""
