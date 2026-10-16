@@ -8,7 +8,7 @@ import {
 
 test.use({ hasTouch: true, isMobile: true, actionTimeout: 15_000 });
 
-const IPHONE_15_PRO = { width: 393, height: 852 };
+const IPHONE_15_PLUS = { width: 430, height: 932 };
 const SAFARI_AA_200_LAYOUT_VIEWPORT = { width: 197, height: 329 };
 
 async function moreHub(page: Page) {
@@ -94,7 +94,7 @@ test("phone zoom keeps the compact transport and Listen timer inside the viewpor
 test("compact transport at 200% text keeps More History below the bar (#1636)", async ({
   page,
 }) => {
-  await page.setViewportSize(IPHONE_15_PRO);
+  await page.setViewportSize(IPHONE_15_PLUS);
   await openHostProject(page);
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "32px";
