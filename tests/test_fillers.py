@@ -1991,6 +1991,106 @@ def test_analyze_rejects_when_cut_scope_is_skipped():
     assert result == _CutRejected("scope")
 
 
+def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
+    import numpy as np
+
+    from podcast_mcp.edits.audio_cache import TrackAudioCache
+    from podcast_mcp.edits.cut_quality import CutRisk
+    from podcast_mcp.edits.fillers import (
+        _CutCandidate,
+        _word_indexes,
+        analyze_candidates,
+    )
+    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+    from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
+
+    words = [
+        TranscriptWord(text="um", start=1.0, end=1.2),
+        TranscriptWord(text="uh", start=1.25, end=1.45),
+    ]
+    project = _project_with_transcript(words)
+    project.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="/tmp/ws/raw/guest.wav", duration_sec=30.0),
+        )
+    )
+    project.clips.append(
+        Clip(
+            id="c2",
+            track_id="guest",
+            source_start=0.0,
+            source_end=30.0,
+            timeline_start=0.0,
+        )
+    )
+    project.transcripts.append(
+        Transcript(
+            track_id="guest",
+            words=[TranscriptWord(text="yeah", start=1.1, end=1.35)],
+        )
+    )
+    candidate = _CutCandidate(
+        track_id="host",
+        start=1.0,
+        end=1.45,
+        reason="filler:um",
+        cut_kind="filler",
+    )
+    silent = TrackRmsCache(np.zeros(16_000 * 3, dtype=np.float32), 16_000)
+    sentinel_cache = TrackAudioCache(silent, silent)
+    audio_caches = {"host": sentinel_cache, "guest": sentinel_cache}
+    timeline_caches = TrackRmsCacheSet()
+    scope_caches: list[TrackRmsCacheSet | None] = []
+
+    def fake_opt(*_args, **_kwargs):
+        return (
+            OptimizedCutRange(
+                start=1.0,
+                end=1.45,
+                mode="vocal_transcript_guided",
+                shifted_start_ms=0.0,
+                shifted_end_ms=0.0,
+                confidence=0.9,
+                details={},
+            ),
+            CutRisk(score=0.0, reasons=[]),
+        )
+
+    def capture_resolve(*_args, **kwargs):
+        scope_caches.append(kwargs.get("caches"))
+        return ResolvedCutScope("session_clear", None)
+
+    with (
+        patch(
+            "podcast_mcp.edits.cut_proof.shared_timeline_rms_caches",
+            return_value=timeline_caches,
+        ) as shared_timeline,
+        patch(
+            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            side_effect=capture_resolve,
+        ),
+        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+    ):
+        analyze_candidates(
+            project,
+            [candidate],
+            {"tighten": {"filler_words": ["um"]}},
+            audio_caches=audio_caches,
+            speaker_context=None,
+            peer_indexes=None,
+            word_indexes=_word_indexes(project, [candidate]),
+            max_workers=1,
+        )
+
+    shared_timeline.assert_called_once_with(project)
+    assert scope_caches
+    assert all(cache is timeline_caches for cache in scope_caches)
+
+
 def test_analyze_marks_review_when_peer_speech_requires_it():
     from types import SimpleNamespace
 
