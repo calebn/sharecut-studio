@@ -31,6 +31,39 @@ function setup(
     </DawProvider>,
   );
 }
+describe("TrackMix volume envelope", () => {
+  function setupWithEnvelope() {
+    const project = minimalProject({
+      tracks,
+      envelopes: [
+        {
+          track_id: "mira",
+          parameter: "volume",
+          points: [
+            { id: "a", time: 0, value: 1 },
+            { id: "b", time: 10, value: 0.5 },
+          ],
+        },
+      ],
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    return render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackMix />
+      </DawProvider>,
+    );
+  }
+
+  it("shows what a track with an envelope plays at, following the playhead", () => {
+    setupWithEnvelope();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Plays at −5.0 dB");
+    expect(rows[1]).not.toHaveTextContent("Plays at");
+    act(() => useDawStore.setState({ playheadSec: 10 }));
+    expect(rows[0]).toHaveTextContent("Plays at −11.0 dB");
+  });
+});
+
 describe("TrackMix", () => {
   beforeEach(() => {
     vi.mocked(execute).mockClear();

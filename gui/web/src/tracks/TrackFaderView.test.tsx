@@ -97,6 +97,36 @@ describe("TrackFaderView", () => {
     expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
   });
 
+  it("compact presentation shows what the track plays at under a volume envelope", () => {
+    render(
+      <TrackFaderView
+        {...props}
+        presentation={{
+          kind: "compact",
+          descriptionId: "permission",
+          playsAt: { stagingDb: -2, envelopeDb: -4 },
+        }}
+        access={{ kind: "edit", onCommit: vi.fn() }}
+      />,
+    );
+    expect(screen.getByText(/^Plays at/)).toHaveTextContent("Plays at −9.0 dB");
+    fireEvent.input(slider(), { target: { value: "-6" } });
+    expect(screen.getByText(/^Plays at/)).toHaveTextContent(
+      "Plays at −12.0 dB",
+    );
+  });
+
+  it("compact presentation without an envelope shows no plays-at line", () => {
+    render(
+      <TrackFaderView
+        {...props}
+        presentation={{ kind: "compact", descriptionId: "permission" }}
+        access={{ kind: "read-only" }}
+      />,
+    );
+    expect(screen.queryByText(/^Plays at/)).toBeNull();
+  });
+
   it("Reset commits zero and returns focus when its button disables", async () => {
     const onCommit = vi.fn();
     render(<ControlledFader onCommit={onCommit} />);
