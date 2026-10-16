@@ -703,9 +703,16 @@ async def test_proxy_ws_successful_bridge():
 
     client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
     sent: list[dict] = []
+    first_local_frame_sent = asyncio.Event()
 
     async def send(payload: dict) -> None:
         sent.append(payload)
+        if (
+            payload.get("type") == "ws_data"
+            and payload.get("id") == "sid-ok"
+            and payload.get("text") == '{"ok":true}'
+        ):
+            first_local_frame_sent.set()
 
     class _FakeLocal:
         def __init__(self) -> None:
@@ -750,13 +757,17 @@ async def test_proxy_ws_successful_bridge():
                 streams=streams,
             )
         )
-        for _ in range(100):
-            if "sid-ok" in streams and any(m.get("type") == "ws_data" for m in sent):
-                break
-            await asyncio.sleep(0.01)
-        streams["sid-ok"].queue.put_nowait('{"from":"relay"}')
-        streams["sid-ok"].queue.put_nowait(None)
-        await asyncio.wait_for(task, timeout=3.0)
+        try:
+            await asyncio.wait_for(first_local_frame_sent.wait(), timeout=3.0)
+            stream = streams.get("sid-ok")
+            assert stream is not None
+            stream.queue.put_nowait('{"from":"relay"}')
+            stream.queue.put_nowait(None)
+            await asyncio.wait_for(task, timeout=3.0)
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     texts = [m.get("text") for m in sent if m.get("type") == "ws_data"]
     assert '{"ok":true}' in texts
@@ -898,7 +909,9 @@ async def test_run_once_ws_dispatch_paths():
         {"type": "weird"},
     ]
     outbox: list[str] = []
-    close_sent = asyncio.Event()
+    local_entered = asyncio.Event()
+    guest_received = asyncio.Event()
+    s1_close_sent = asyncio.Event()
     idx = {"i": 0}
 
     class _FakeLocal:
@@ -916,9 +929,11 @@ async def test_run_once_ws_dispatch_paths():
         async def send(self, text: str) -> None:
             if text == "hello-guest":
                 self._done.set()
+                guest_received.set()
 
     class _LocalCtx:
         async def __aenter__(self):
+            local_entered.set()
             return _FakeLocal()
 
         async def __aexit__(self, *a):
@@ -933,18 +948,21 @@ async def test_run_once_ws_dispatch_paths():
 
         async def send(self, data: str) -> None:
             outbox.append(data)
-            if "ws_close" in data:
-                close_sent.set()
+            reply = _json.loads(data)
+            if reply.get("type") == "ws_close" and reply.get("id") == "s1":
+                s1_close_sent.set()
 
         async def recv(self) -> str:
             i = idx["i"]
             if i >= len(messages):
                 raise RuntimeError("test-end")
             idx["i"] = i + 1
-            # Pace after ws_open so _proxy_ws can register the stream
-            if messages[i].get("type") in {"ws_data", "ws_close"} and messages[i].get("id") == "s1":
-                await asyncio.sleep(0.05)
-            return _json.dumps(messages[i])
+            message = messages[i]
+            if message.get("type") == "ws_data" and message.get("id") == "s1":
+                await local_entered.wait()
+            elif message.get("type") == "ws_close" and message.get("id") == "s1":
+                await guest_received.wait()
+            return _json.dumps(message)
 
     def _connect(url, **kwargs):
         if "relay" in str(url):
@@ -954,7 +972,9 @@ async def test_run_once_ws_dispatch_paths():
     with patch.object(websockets, "connect", side_effect=_connect):
         with pytest.raises(RuntimeError, match="test-end"):
             await asyncio.wait_for(client._run_once(), timeout=5.0)
-        await asyncio.wait_for(close_sent.wait(), timeout=2)
+        assert local_entered.is_set()
+        assert guest_received.is_set()
+        await asyncio.wait_for(s1_close_sent.wait(), timeout=2)
 
     joined = "\n".join(outbox)
     assert "hello" in joined
