@@ -80,6 +80,36 @@ describe("TrackHeaderView", () => {
       ),
     ).toMatch(/border-style:\s*dashed/);
   });
+  it("adds the volume envelope at the playhead to Out, silence reading minus infinity", () => {
+    const { rerender } = renderHeader({ envelopeDb: -6 });
+    const out = screen.getByText("Out −6.0 dB");
+    expect(out).toHaveAttribute(
+      "title",
+      expect.stringContaining("volume envelope −6.0 dB at the playhead"),
+    );
+    expect(out).not.toHaveAttribute("aria-live");
+    rerender(
+      <TrackHeaderView
+        track={track}
+        trackIndex={0}
+        selected={false}
+        muteState="off"
+        stemClass="fresh"
+        wholeReasons={[]}
+        hasRegional={false}
+        headerHighlight={false}
+        dropHighlight={false}
+        dragging={false}
+        dropEdge={null}
+        mayReorder={false}
+        mixer={mixer}
+        envelopeDb={Number.NEGATIVE_INFINITY}
+        onSelect={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Out −∞ dB")).toBeInTheDocument();
+  });
+
   it("renders accessible production track details from props", async () => {
     const { container, onSelect } = renderHeader();
     const open = screen.getByRole("button", {

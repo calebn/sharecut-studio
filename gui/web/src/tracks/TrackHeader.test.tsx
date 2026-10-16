@@ -36,6 +36,58 @@ function projectWithTrack() {
   });
 }
 
+describe("TrackHeader Out readout", () => {
+  function renderWithEnvelope(
+    points: { id: string; time: number; value: number }[],
+  ) {
+    const project = {
+      ...projectWithTrack(),
+      envelopes: [{ track_id: "guest", parameter: "volume", points }],
+    };
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    return render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+  }
+
+  it("follows the playhead through the volume envelope", () => {
+    renderWithEnvelope([
+      { id: "a", time: 0, value: 1 },
+      { id: "b", time: 10, value: 0.5 },
+      { id: "c", time: 20, value: 0 },
+    ]);
+    expect(screen.getByText("Out 0.0 dB")).toBeInTheDocument();
+    act(() => useDawStore.setState({ playheadSec: 10 }));
+    expect(screen.getByText("Out −6.0 dB")).toBeInTheDocument();
+    act(() => useDawStore.setState({ playheadSec: 25 }));
+    expect(screen.getByText("Out −∞ dB")).toBeInTheDocument();
+  });
+
+  it("stays at the static output gain without an envelope", () => {
+    const project = projectWithTrack();
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+    act(() => useDawStore.setState({ playheadSec: 10 }));
+    expect(screen.getByText("Out 0.0 dB")).toBeInTheDocument();
+  });
+});
+
 describe("TrackHeader", () => {
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/p.json", projectWithTrack());

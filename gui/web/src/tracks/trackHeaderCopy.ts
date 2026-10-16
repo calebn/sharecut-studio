@@ -49,11 +49,20 @@ export function reorderHandleTitle(
   return `Drag to reorder, or select the track and press ${up} / ${down}`;
 }
 
-/** Tooltip for the "Out" readout: what plays, and where to change it. */
+/**
+ * Tooltip for the "Out" readout: what plays, and where to change it. With a
+ * volume envelope, `out` already includes its gain at the playhead.
+ */
 export function outputGainTitle(
   out: number,
   staging: number,
   volume: number,
+  envelope?: number,
 ): string {
-  return `Plays at ${formatGainDb(out)}: staging ${formatGainDb(staging)}, volume ${formatGainDb(volume)}. Change the volume in the track details`;
+  const parts = `staging ${formatGainDb(staging)}, volume ${formatGainDb(volume)}`;
+  const withEnvelope =
+    envelope === undefined
+      ? parts
+      : `${parts}, volume envelope ${formatGainDb(envelope)} at the playhead`;
+  return `Plays at ${formatGainDb(out)}: ${withEnvelope}. Change the volume in the track details`;
 }

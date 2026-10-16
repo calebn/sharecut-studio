@@ -11,6 +11,7 @@ import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
 import { TrackPlaybackMeter } from "./TrackPlaybackMeter";
 import { setTrackReorderData } from "./trackReorder";
 import { useTrackMuteState } from "./useTrackMuteState";
+import { useVolumeEnvelopeDb } from "./useVolumeEnvelopeDb";
 
 interface TrackHeaderProps {
   track: TrackView;
@@ -67,6 +68,7 @@ export function TrackHeader({
   }));
   const mayReorder =
     reorderEnabled && canIngestMedia(projectPath, guestMode, shareCapabilities);
+  const envelopeDb = useVolumeEnvelopeDb(track.id);
   const muteState = useTrackMuteState(track.id, track.muted);
   const breakdown = useStaleRenderBreakdown(project);
   // Same source as the status bar and transport: a track with no audio has
@@ -146,6 +148,7 @@ export function TrackHeader({
       dropEdge={dropEdge}
       mayReorder={mayReorder}
       mixer={<TrackMuteSoloButtons trackId={track.id} />}
+      envelopeDb={envelopeDb}
       playbackMeter={
         <TrackPlaybackMeter
           trackId={track.id}
