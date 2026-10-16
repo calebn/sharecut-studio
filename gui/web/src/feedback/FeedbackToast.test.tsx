@@ -9,6 +9,7 @@ import {
 } from "../commands/history";
 import { activateDocumentScope } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
+import { trackEditSave } from "../state/documentSendOrder";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
@@ -472,6 +473,37 @@ describe("FeedbackToast", () => {
     expect(
       screen.queryByRole("button", { name: "Undo" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("disables Undo while this tab's own edit is still saving, then enables it once the edit lands", async () => {
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore
+        .getState()
+        .announceStatus("Applied 6, held 4", { undo: entry("host-reorder") });
+    });
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+
+    let finish!: () => void;
+    const send = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    try {
+      act(() => {
+        void trackEditSave("/tmp/ep", send);
+      });
+      const undo = screen.getByRole("button", { name: "Undo" });
+      expect(undo).toHaveAttribute("aria-disabled", "true");
+      await userEvent.setup().click(undo);
+      expect(undoHistory).not.toHaveBeenCalled();
+      expect(screen.queryByText(/still saving|Nothing was undone/)).toBeNull();
+    } finally {
+      await act(async () => {
+        finish();
+        await send;
+      });
+    }
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
   });
 
   it("keeps Undo through the moment the change is announced before the project shows its head, and drops it once another edit lands", () => {

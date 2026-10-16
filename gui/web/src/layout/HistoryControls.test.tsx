@@ -337,8 +337,9 @@ describe("CompactHistoryControls", () => {
       );
     });
 
-    it(`refuses header ${label} while a save remains pending`, async () => {
+    it(`keeps header ${label} waiting while a save stays pending, with no refusal`, async () => {
       vi.useFakeTimers();
+      const scopeAtPress = documentScope();
       const save = beginDocumentSend(
         "/tmp/history-controls",
         `stalled-${action}`,
@@ -347,14 +348,26 @@ describe("CompactHistoryControls", () => {
         render(<CompactHistoryControls />);
         fireEvent.click(screen.getByRole("button", { name: label }));
         await act(async () => {
-          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS);
+          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS * 4);
         });
         expect(move).not.toHaveBeenCalled();
-        expect(useDawStore.getState().statusAnnouncement).toBe(
-          `Your last edit is still saving. Nothing was ${action === "undo" ? "undone" : "redone"}.`,
+        expect(useDawStore.getState().statusAnnouncement).toBe("");
+        noteSaveLanded(
+          "/tmp/history-controls",
+          HISTORY_ROOT_ID,
+          documentScope(),
         );
+        save.finish();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(move).toHaveBeenCalledWith("/tmp/history-controls", {
+          scope: scopeAtPress,
+          expectedHeadId: HISTORY_ROOT_ID,
+        });
       } finally {
         save.finish();
+        vi.useRealTimers();
       }
     });
   }

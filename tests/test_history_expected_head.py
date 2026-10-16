@@ -185,6 +185,37 @@ def test_toolbar_undo_skips_preview_render_at_tip(minimal_project):
     assert _decision_ids(minimal_project) == {"host-hit"}
 
 
+def _preview_render(project_path: Path, decision_id: str) -> None:
+    ProjectWorkspace.open(project_path).mutate(
+        "before render preview",
+        "after render preview",
+        lambda p: p.edit_decisions.append(_decision(decision_id, 3.0)),
+        operation="render_preview",
+    )
+
+
+def test_a_second_undo_after_two_approvals_each_followed_by_a_preview_reverts_the_first(
+    minimal_project,
+):
+    """Approve all that asks Cut anyway is two edits, each with its own auto preview (#1675).
+
+    The first Undo lands on the first edit's preview. The next one must revert that edit,
+    not step onto the edit entry itself, which shows the same edits and looks like a no-op."""
+    _seed(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+    _host_reject(svc)
+    _preview_render(minimal_project, "render-1")
+    _agent_edit(minimal_project)
+    _preview_render(minimal_project, "render-2")
+
+    _undo(svc, _status(minimal_project)["head_id"], seq=2)
+    assert _decision_ids(minimal_project) == {"render-1"}
+
+    _undo(svc, _status(minimal_project)["head_id"], seq=3)
+
+    assert _decision_ids(minimal_project) == {"host-hit"}
+
+
 def test_toast_undo_still_reverts_its_change_after_a_preview_render_landed(minimal_project):
     _seed(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
