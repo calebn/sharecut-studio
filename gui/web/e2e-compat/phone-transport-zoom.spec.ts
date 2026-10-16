@@ -8,11 +8,8 @@ import {
 
 test.use({ hasTouch: true, isMobile: true, actionTimeout: 15_000 });
 
-const IPHONE_15_PLUS = { width: 430, height: 932 };
-const SAFARI_AA_200_LAYOUT_VIEWPORT = {
-  width: IPHONE_15_PLUS.width / 2,
-  height: IPHONE_15_PLUS.height / 2,
-};
+const IPHONE_15_PRO = { width: 393, height: 852 };
+const SAFARI_AA_200_LAYOUT_VIEWPORT = { width: 197, height: 329 };
 
 async function moreHub(page: Page) {
   await page
@@ -47,7 +44,7 @@ async function chromeReachable(page: Page, scope: string) {
   expect(failures, describeReach(failures)).toEqual([]);
 }
 
-test("compact transport wraps at a 200% page-zoom layout width (#1636)", async ({
+test("phone zoom keeps the compact transport and Listen timer inside the viewport (#1636)", async ({
   page,
 }) => {
   await page.setViewportSize(SAFARI_AA_200_LAYOUT_VIEWPORT);
@@ -86,12 +83,18 @@ test("compact transport wraps at a 200% page-zoom layout width (#1636)", async (
   expect(timeBox!.x + timeBox!.width).toBeLessThanOrEqual(
     SAFARI_AA_200_LAYOUT_VIEWPORT.width + 1,
   );
+  const timerOverflow = await page
+    .locator(".listen-hero-time")
+    .evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(timerOverflow, "the current and total times fit the Listen card").toBe(
+    0,
+  );
 });
 
 test("compact transport at 200% text keeps More History below the bar (#1636)", async ({
   page,
 }) => {
-  await page.setViewportSize(IPHONE_15_PLUS);
+  await page.setViewportSize(IPHONE_15_PRO);
   await openHostProject(page);
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "32px";
