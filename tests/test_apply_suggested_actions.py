@@ -175,6 +175,16 @@ def test_the_batch_entry_remembers_each_sound_so_a_client_can_list_it(
     assert sounds["um"]["label"] and sounds["um"]["label"] != "filler:um"
 
 
+def test_the_batch_entry_lists_a_laugh_nobody_talks_over_as_left(
+    tmp_path, sample_wav, monkeypatch
+) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: False)
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
+
+    assert _batch_sounds(path)["laugh"]["action"] == "leave"
+
+
 def test_a_revised_batch_lists_its_new_actions(tmp_path, sample_wav, monkeypatch) -> None:
     path = _project(tmp_path, sample_wav)
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)

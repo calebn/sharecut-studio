@@ -178,7 +178,7 @@ async function runReviseSuggested(
       return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
     }
     try {
-      const { queued, summary, historyHead } = await applySuggestedActions(
+      const { queued, historyHead } = await applySuggestedActions(
         s.projectPath,
         null,
         { [id]: action },
@@ -189,9 +189,14 @@ async function runReviseSuggested(
         next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
         return { status: "ok" };
       }
-      next.announceStatus(summary ?? "Changed the sound", {
-        undo: historyHead,
-      });
+      // The server summary counts the whole re-applied batch; this change is one sound,
+      // and Undo puts back the batch from before it.
+      next.announceStatus(
+        "Changed the sound. Undo puts back the whole batch.",
+        {
+          undo: historyHead,
+        },
+      );
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);

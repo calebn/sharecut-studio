@@ -396,7 +396,7 @@ describe("tighten commands", () => {
         true,
       );
       expect(useDawStore.getState().feedbackToast).toMatchObject({
-        message: "Applied 2 suggested actions",
+        message: "Changed the sound. Undo puts back the whole batch.",
         undo: "h1",
       });
     });
