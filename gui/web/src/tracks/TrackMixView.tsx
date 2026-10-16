@@ -12,9 +12,7 @@ export type MixTrack = Readonly<{
   muteState: MuteState;
   solo: boolean;
   faderDb: number;
-  /** Staging gain and, with a volume envelope, its gain at the playhead. */
   stagingDb: number;
-  envelopeDb?: number;
 }>;
 export type MixAccess =
   | { kind: "edit"; onVolume: (trackId: string, db: number) => void }
@@ -28,6 +26,8 @@ export type TrackMixViewProps =
       preview: "host" | "shared-full-mix";
       /** The Solo on chip, shown above the rows while any track is soloed. */
       soloStatus?: ReactNode;
+      /** A track's plays-at line under its fader, from its base gain. */
+      renderPlaysAt?: (trackId: string, baseDb: number) => ReactNode;
       onMute: (trackId: string) => void;
       onSolo: (trackId: string) => void;
     };
@@ -41,7 +41,8 @@ export function TrackMixView(props: TrackMixViewProps) {
       </div>
     );
   }
-  const { rows, access, preview, soloStatus, onMute, onSolo } = props;
+  const { rows, access, preview, soloStatus, renderPlaysAt, onMute, onSolo } =
+    props;
   return (
     <div className="track-mix" tabIndex={-1}>
       {soloStatus}
@@ -68,6 +69,7 @@ export function TrackMixView(props: TrackMixViewProps) {
               row={row}
               access={access}
               descriptionId={descriptionId}
+              renderPlaysAt={renderPlaysAt}
               onMute={onMute}
               onSolo={onSolo}
             />
@@ -82,12 +84,14 @@ function MixRow({
   row,
   access,
   descriptionId,
+  renderPlaysAt,
   onMute,
   onSolo,
 }: {
   row: MixTrack;
   access: MixAccess;
   descriptionId: string;
+  renderPlaysAt?: (trackId: string, baseDb: number) => ReactNode;
   onMute: (trackId: string) => void;
   onSolo: (trackId: string) => void;
 }) {
@@ -117,10 +121,10 @@ function MixRow({
         presentation={{
           kind: "compact",
           descriptionId,
-          playsAt:
-            row.envelopeDb === undefined
-              ? undefined
-              : { stagingDb: row.stagingDb, envelopeDb: row.envelopeDb },
+          stagingDb: row.stagingDb,
+          playsAt: renderPlaysAt
+            ? (baseDb) => renderPlaysAt(row.id, baseDb)
+            : undefined,
         }}
         access={
           access.kind === "edit"

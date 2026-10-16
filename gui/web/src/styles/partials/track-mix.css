@@ -102,11 +102,11 @@
 }
 
 .track-fader--compact .track-fader-plays-at {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  pointer-events: none;
+  display: block;
   min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-micro);
   color: var(--color-text-secondary);
 }

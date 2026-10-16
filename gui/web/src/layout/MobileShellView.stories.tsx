@@ -183,6 +183,7 @@ function PhonePreview(args: PreviewProps) {
                         muteState: "off",
                         solo: false,
                         faderDb: 0,
+                        stagingDb: 0,
                       },
                     ]}
                     access={{ kind: "listen" }}
