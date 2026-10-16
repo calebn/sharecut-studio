@@ -417,10 +417,18 @@ class _PeerCopy:
             own_samples, self.samples, frames, self.lag, sample_rate=EVIDENCE_RATE
         )
 
-    def timbre_windows(self, own_samples: np.ndarray, judged: np.ndarray) -> np.ndarray:
-        """Frames of each fifth of a second whose ``judged`` frames sound like the copy."""
+    def timbre_windows(
+        self, own_samples: np.ndarray, judged: np.ndarray, undecided: np.ndarray
+    ) -> np.ndarray:
+        """Frames of each fifth of a second whose ``judged`` frames sound like the copy.
+
+        Only windows holding an ``undecided`` frame are read: elsewhere level already
+        decided, and the answer is False.
+        """
         width = round(_TIMBRE_WINDOW_SEC / _OWNER_HOP_SEC)
-        frames = np.flatnonzero(judged)
+        read = np.zeros(-(-judged.size // width), dtype=bool)
+        read[np.flatnonzero(undecided) // width] = True
+        frames = np.flatnonzero(judged & np.repeat(read, width)[: judged.size])
         like = np.zeros(-(-judged.size // width), dtype=bool)
         if frames.size:
             similarity = self.similarity(own_samples, frames)
@@ -567,13 +575,15 @@ def _own_voice(
     reach = sum((copy.power(own.size, held=True) for copy in copies), np.zeros(own.size))
     excess = own - 10 * np.log10(reach + noise)
     above = excess > _OWN_HOLD_MARGIN_DB
+    clear = excess > max([_OWN_MARGIN_DB, *(copy.spread_db for copy in copies)])
+    bridged = bridge_short_dips(above, _OWNER_BRIDGE_FRAMES)
+    undecided = bridged & ~clear
     copy_like = np.zeros(own.size, dtype=bool)
     for copy in copies:
         copy_like |= copy.timbre_windows(
-            own_samples, above & (copy.power(own.size, held=False) > noise)
+            own_samples, above & (copy.power(own.size, held=False) > noise), undecided
         )
-    clear = excess > max([_OWN_MARGIN_DB, *(copy.spread_db for copy in copies)])
-    heard = (bridge_short_dips(above, _OWNER_BRIDGE_FRAMES) & ~copy_like) | clear
+    heard = (bridged & ~copy_like) | clear
     hot = excess > _OWN_MARGIN_DB
     least = round(_MIN_OWN_SEC / _OWNER_HOP_SEC)
     runs = [
@@ -645,7 +655,7 @@ def _lane_signals(project: EpisodeProject, track_id: str) -> list[np.ndarray]:
         else raw_timeline_samples(project, track_id, sample_rate=EVIDENCE_RATE)
     )
     gain = np.float32(track_profile(mono, EVIDENCE_RATE).voice_gain)
-    if _channels_are_one_signal(channels * gain):
+    if (channels == channels[:, :1]).all() or _channels_are_one_signal(channels * gain):
         return [mono * gain]
     return [np.ascontiguousarray(channel) * gain for channel in channels.T]
 
