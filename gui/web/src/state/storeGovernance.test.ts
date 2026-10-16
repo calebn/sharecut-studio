@@ -523,6 +523,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     file: "timeline/useVisibleChunks.ts",
     reason: "reads the current scroll position to draw only the visible chunk",
   },
+  {
+    file: "tracks/useVolumeEnvelopeDb.ts",
+    reason:
+      "selects the playhead only to a rounded dB (undefined without an envelope), so a consumer re-renders when its readout changes, not on every tick",
+  },
 ];
 
 /** Files with a hot-field read outside `allow` (excluding test files). Pure, for a planted-fixture test and the whole-src scan. */
