@@ -172,7 +172,6 @@ async def test_stop_tasks_cancels_and_logs_failures(caplog):
     assert sleeper_task.cancelled()
     assert any("pump exit" in rec.message for rec in caplog.records)
 
-    # A second call is a no-op — nothing left to cancel, nothing new logged.
     caplog.clear()
     await conn.stop_tasks()
     assert caplog.records == []
@@ -251,13 +250,12 @@ async def test_ws_task_set_stop_without_outer_cancel_returns_normally():
     tasks = WsTaskSet("test")
     t = tasks.spawn(_sleeper())
     await asyncio.wait_for(started.wait(), 2)
-    await tasks.stop()  # must not raise
+    await tasks.stop()
     assert t.cancelled()
 
 
 @pytest.mark.asyncio
 async def test_ws_task_set_stop_in_finally_keeps_the_delivered_cancel():
-    """stop() in a finally unwinding a delivered cancel must not swap the exception."""
     tasks = WsTaskSet("test")
     stop_outcome: list[str] = []
 
@@ -288,7 +286,7 @@ async def test_ws_task_set_stop_in_finally_keeps_the_delivered_cancel():
 
 
 @pytest.mark.asyncio
-async def test_ws_task_set_logs_failures_and_is_reusable(caplog):
+async def test_ws_task_set_logs_failures(caplog):
     boomed = asyncio.Event()
 
     async def _boom() -> None:
@@ -302,8 +300,16 @@ async def test_ws_task_set_logs_failures_and_is_reusable(caplog):
         await tasks.stop()
     assert any("owner ws pump exit" in rec.message for rec in caplog.records)
     caplog.clear()
-    await tasks.stop()  # empty set: no-op
+    await tasks.stop()
     assert caplog.records == []
+
+
+@pytest.mark.asyncio
+async def test_ws_task_set_is_reusable_after_stop():
+    tasks = WsTaskSet("owner ws")
+    first = tasks.spawn(_until_cancelled())
+    await tasks.stop()
+    assert first.cancelled()
 
     started = asyncio.Event()
 
@@ -311,7 +317,7 @@ async def test_ws_task_set_logs_failures_and_is_reusable(caplog):
         started.set()
         await _until_cancelled()
 
-    t = tasks.spawn(_sleeper())  # reusable after stop (session record attach/detach)
+    t = tasks.spawn(_sleeper())
     await asyncio.wait_for(started.wait(), 2)
     await tasks.stop()
     assert t.cancelled()
