@@ -478,6 +478,7 @@
 
 .listen-hero-time .timecode {
   max-inline-size: 100%;
+  flex-wrap: wrap;
 }
 
 .listen-hero-controls {
