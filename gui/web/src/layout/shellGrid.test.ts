@@ -27,6 +27,19 @@ describe("shell grid areas", () => {
     expect(tracks[4]).toBe("var(--shell-tabs-row)");
   });
 
+  it("lets the phone transport row grow so wrapped chrome cannot cover More (#1636)", () => {
+    const phone = rule(responsiveCss, ".daw-shell--phone");
+    const rows = /grid-template-rows:([^;]*);/.exec(phone)?.[1] ?? "";
+    const tracks = rows.trim().split(/\s+(?![^(]*\))/);
+    expect(tracks[2]).toBe("minmax(var(--transport-height), auto)");
+    const grown = rule(
+      layoutCss,
+      ".daw-shell--phone .daw-shell-transport > .transport, .daw-shell--tablet .daw-shell-transport > .transport.transport--collapsed",
+    );
+    expect(grown).toMatch(/block-size:\s*auto/);
+    expect(grown).toMatch(/min-block-size:\s*var\(--transport-height\)/);
+  });
+
   it("never lets a layout or banner class re-declare the grid", () => {
     for (const css of [layoutCss, responsiveCss]) {
       for (const [sel, body] of rules(css)) {
