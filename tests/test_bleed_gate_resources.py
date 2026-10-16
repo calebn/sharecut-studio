@@ -139,3 +139,43 @@ def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch
     measured_rms = caches.caches["guest"].rms_db(2.1, 2.5)
     assert measured_rms is not None
     assert measured_rms == pytest.approx(baseline_rms - (12 if state == "stale" else 0), abs=0.01)
+
+
+def test_source_clock_spans_match_mapping_each_span_through_each_clip():
+    import numpy as np
+
+    from podcast_mcp.engines.bleed_gate import _source_clock_spans
+    from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
+    from podcast_mcp.models import Clip
+    from podcast_mcp.util.intervals import merge_intervals
+
+    rng = np.random.default_rng(1620)
+    clips = []
+    at = 0.0
+    source = 5.0
+    for i in range(40):
+        length = float(rng.uniform(0.2, 6.0))
+        source += float(rng.uniform(0.0, 3.0))
+        clips.append(
+            Clip(
+                id=f"c{i}",
+                track_id="t",
+                source_start=source,
+                source_end=source + length,
+                timeline_start=at,
+            )
+        )
+        source += length
+        at += length
+    spans = []
+    for _ in range(300):
+        start = float(rng.uniform(-1.0, at + 1.0))
+        spans.append((start, start + float(rng.choice([0.0, 1e-10, 0.02, 0.4, 3.0, 25.0]))))
+    expected = merge_intervals(
+        (float(mapped[0]), float(mapped[1]))
+        for lo, hi in spans
+        for clip in clips
+        if (mapped := clip_timeline_overlap_to_source(clip, lo, hi)) is not None
+    )
+    assert _source_clock_spans(clips, spans) == expected
+    assert expected

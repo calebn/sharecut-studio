@@ -167,6 +167,11 @@ class _TrackIndex:
     # to a constant-size window; duplicated segments break that guarantee.
     source_monotonic: bool
     timeline_monotonic: bool
+    # Running maximum of each sorted axis's span ends: spans before the first one
+    # whose running end passes a query's start cannot overlap it, so an index with
+    # duplicated segments still narrows candidates to the spans from there on.
+    source_end_reach: tuple[float, ...] = ()
+    timeline_end_reach: tuple[float, ...] = ()
 
 
 def _is_monotonic(spans: tuple[_Span, ...], *, axis: str) -> bool:
@@ -190,24 +195,26 @@ def _build_index(clip_keys: tuple[_ClipKey, ...]) -> _TrackIndex:
         source_starts=tuple(s.source_start for s in by_source),
         source_monotonic=_is_monotonic(by_source, axis="source"),
         timeline_monotonic=_is_monotonic(by_timeline, axis="timeline"),
+        source_end_reach=tuple(itertools.accumulate((s.source_end for s in by_source), max)),
+        timeline_end_reach=tuple(itertools.accumulate((s.timeline_end for s in by_timeline), max)),
     )
 
 
 def _candidates_source(idx: _TrackIndex, lo: float, hi: float) -> tuple[_Span, ...]:
     """Spans that could overlap [lo, hi] on the source axis."""
-    if not idx.source_monotonic:
-        return idx.by_source
-    start = max(0, bisect_right(idx.source_starts, lo + _EPS) - 1)
     stop = bisect_right(idx.source_starts, hi + _EPS)
+    if not idx.source_monotonic:
+        return idx.by_source[bisect_right(idx.source_end_reach, lo + _EPS) : stop]
+    start = max(0, bisect_right(idx.source_starts, lo + _EPS) - 1)
     return idx.by_source[start:stop]
 
 
 def _candidates_timeline(idx: _TrackIndex, lo: float, hi: float) -> tuple[_Span, ...]:
     """Spans that could overlap [lo, hi] on the timeline axis."""
-    if not idx.timeline_monotonic:
-        return idx.by_timeline
-    start = max(0, bisect_right(idx.timeline_starts, lo + _EPS) - 1)
     stop = bisect_right(idx.timeline_starts, hi + _EPS)
+    if not idx.timeline_monotonic:
+        return idx.by_timeline[bisect_right(idx.timeline_end_reach, lo + _EPS) : stop]
+    start = max(0, bisect_right(idx.timeline_starts, lo + _EPS) - 1)
     return idx.by_timeline[start:stop]
 
 
