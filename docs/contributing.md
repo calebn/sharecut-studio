@@ -344,6 +344,7 @@ Portable selection hints (any MCP client). Detail: [`.agents/rules/engineering-s
 ## Time handling (source vs timeline clock)
 
 Use `util.media_identity.same_recording` for physical recording comparisons.
+Inside a `batch_scope`, each recording's identity stat is the first call's.
 Keep source IDs for transcript provenance. Exact removal checks include primary
 media placements on other lanes and hold for matching unclipped playback.
 Ordinary point mappings retain their existing lane semantics. Assign pause

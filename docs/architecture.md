@@ -422,7 +422,8 @@ Narrative handoff selection belongs to `EditService.suggest_handoff_cut`. Omitte
 ### Timebase: source vs timeline clock
 
 `util.media_identity.same_recording` compares canonical paths and existing physical
-files, including hardlinks. Distinct missing files prove no equivalence. Identical
+files, including hardlinks. Inside a `batch_scope`, each distinct resolved path uses
+the first `Path.stat`. Distinct missing files prove no equivalence. Identical
 missing paths preserve metadata geometry but cannot authorize an audio edit.
 Exact removal geometry inventories the queried recording across every stored
 placement, including another lane's primary media. A matching unclipped lane
