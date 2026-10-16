@@ -218,14 +218,15 @@ No other fallback exists.
 | **More** | Hub → **Search commands** (opens Commands and shortcuts), Mix sheet, Comments, History, Impact, Tighten, Pipeline, settings | Track mixing, long-lived panels, command discovery |
 
 The compact header transport (Timeline, Text, More) and the Listen hero wrap
-their controls when the row is tighter than Play, Stop, time, Comment, Fit and
-Menu (Safari page zoom at 200% on a phone, or 200% text). The phone transport
-grid row grows with that wrap (`minmax(var(--transport-height), auto)`), so
-More hub rows such as History start below the bar instead of scrolling under
-overflow. Targets stay `--touch-min`. This is not pinch-zoom on the timeline.
+their controls when one row cannot hold Play, Stop, time, Comment, Fit and
+Menu. That happens at Safari page zoom 200% on a phone, and at 200% text. The
+phone transport grid row grows with that wrap
+(`minmax(var(--transport-height), auto)`), so More hub rows such as History
+start below the bar instead of scrolling under overflow. Targets stay
+`--touch-min`. This is not pinch-zoom on the timeline.
 `gui/web/e2e-compat/phone-transport-zoom.spec.ts` uses a 215×466 layout viewport
 as a page-zoom substitute (half of iPhone 15 Plus CSS) plus a 32 px root at
-430×932; a physical iPhone Safari 200% Aa zoom remains a Mac-simulator check.
+430×932. A physical iPhone Safari 200% Aa zoom remains a Mac-simulator check.
 
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
