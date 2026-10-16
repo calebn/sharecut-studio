@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
+import { layer } from "../e2e/lifecycleAudit";
 import {
   openPhoneTimeline,
   rememberInspectorDetent,
@@ -34,6 +35,7 @@ test.describe("feedback host Close", () => {
       await rememberInspectorDetent(page, "full");
       await openHostShare(page, projectPath);
       await buildFixture(page, projectPath, "e2e-feedback-host-lifetime");
+      await layer(page, "Volume envelope", true);
       await postDocumentCommand(
         page,
         "e2e-feedback-host-label",
