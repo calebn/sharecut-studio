@@ -312,11 +312,11 @@ def test_a_pause_trim_ends_before_a_quiet_onset_that_cannot_be_refined(
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
 @pytest.mark.parametrize("edge", [5.20, 5.30])
 def test_final_start_retains_complete_quiet_tail(backend: str, edge: float) -> None:
-    from podcast_mcp.edits import breath_detect
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
-        result = breath_detect.protect_cut_breaths(
+        result = protect_cut_breaths(
             _host_project(_fixture_words()),
             "host",
             edge,
@@ -523,7 +523,7 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
     ],
 )
 def test_complete_breath_geometry_and_idempotence(backend, bounds, expected) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.00, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     defaults = {"tighten": {"breath_handling": {"vad_backend": backend}}}
@@ -549,7 +549,7 @@ def test_complete_breath_geometry_and_idempotence(backend, bounds, expected) -> 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
 def test_distinct_breaths_shrink_both_original_edges(backend) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((4.90, 5.08, 0.026), (5.20, 5.38, 0.026))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
@@ -568,7 +568,7 @@ def test_distinct_breaths_shrink_both_original_edges(backend) -> None:
 def test_enabled_protection_suppresses_unavailable_or_incomplete_evidence(failure) -> None:
     import numpy as np
 
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.0, 5.60 if failure == "long" else 5.24, 0.026))
     bounds = (0.0, 0.10) if failure == "begin" else (5.12, 5.40)
@@ -591,7 +591,7 @@ def test_enabled_protection_suppresses_unavailable_or_incomplete_evidence(failur
 
 
 def test_floor_only_and_unrelated_protected_activity_are_clear() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from test_breath_detect import _harmonic_tone
 
     cache = _cache_with_breaths()
@@ -602,7 +602,7 @@ def test_floor_only_and_unrelated_protected_activity_are_clear() -> None:
 
 
 def test_shrink_recomputes_kept_word_eligibility() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from podcast_mcp.models import Transcript, TranscriptWord
 
     project = _host_project(_fixture_words())
@@ -616,7 +616,7 @@ def test_shrink_recomputes_kept_word_eligibility() -> None:
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
 @pytest.mark.parametrize("tail", ["voiced", "sibilant", "kept"])
 def test_completed_quiet_tail_cannot_hide_protected_activity(backend, tail) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from test_breath_detect import _harmonic_tone, _sibilant_noise
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
@@ -724,7 +724,7 @@ def _project_with_wav(tmp_path, cache):
 def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
     tmp_path, protected_edge, neighbor_mode
 ) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from podcast_mcp.edits.tighten import apply_tighten_decisions
     from podcast_mcp.edits.transcript_cuts import append_remove_decision, coalesce_edits
 
@@ -819,7 +819,7 @@ def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -
     ],
 )
 def test_a_faded_edge_keeps_breaths_whole_and_never_removes_one(backend, bounds, expected) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.00, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
@@ -835,7 +835,7 @@ def test_a_faded_edge_keeps_breaths_whole_and_never_removes_one(backend, bounds,
 
 
 def test_a_faded_edge_never_removes_a_breath_run_whose_onset_runs_on() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     # A long quiet lead-in keeps the breath from being traced back to room tone; its
     # in-band run alone still fills most of the cut.
@@ -853,7 +853,7 @@ def test_a_faded_edge_never_removes_a_breath_run_whose_onset_runs_on() -> None:
 
 @pytest.mark.parametrize("evidence", ["missing", "silent", "longer_than_a_breath"])
 def test_a_faded_edge_may_sit_where_no_breath_is_found(evidence) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.0, 5.60, 0.026))
     if evidence == "silent":

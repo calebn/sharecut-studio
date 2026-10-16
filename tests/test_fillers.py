@@ -2875,7 +2875,7 @@ def test_audio_padded_filler_with_edges_in_activity_is_proposed(tmp_path):
     import numpy as np
 
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     # Room tone 35 dB over the floor joins the um's onset and tail into one run that
     # is too long to be a breath, as on the lab tape (#978).
