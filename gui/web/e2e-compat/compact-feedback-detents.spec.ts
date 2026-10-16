@@ -57,12 +57,12 @@ for (const {
         (value) => localStorage.setItem("daw_theme", value),
         theme,
       );
-      if (
+      const fallbackMenu =
         viewport.width === 844 &&
         rootPx === 32 &&
         inspector === "Envelope" &&
-        theme === "dark"
-      ) {
+        theme === "dark";
+      if (fallbackMenu) {
         await page.addInitScript(() => {
           Object.defineProperty(HTMLElement.prototype, "showPopover", {
             value: undefined,
@@ -102,6 +102,10 @@ for (const {
       await page.setViewportSize(viewport);
       if (viewport.width < 768) await openPhoneTimeline(page);
       await layer(page, "Volume envelope", true);
+      if (fallbackMenu) {
+        await layer(page, "Volume envelope", false);
+        await layer(page, "Volume envelope", true);
+      }
       await setTheme(page, theme);
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       await setZoom(page, 3);

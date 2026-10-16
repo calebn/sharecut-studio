@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -91,12 +97,128 @@ describe("Menu", () => {
     try {
       render(<Fixture />);
       await user.click(screen.getByRole("button", { name: "Open" }));
-      expect(screen.getByRole("menu", { hidden: true })).toHaveAttribute(
-        "aria-label",
-        "Test menu",
-      );
+      const panel = screen.getByRole("menu", { hidden: true });
+      expect(panel).toHaveAttribute("aria-label", "Test menu");
+      expect(panel).not.toHaveAttribute("popover");
+      expect(panel.parentElement).toBe(document.body);
+      expect(peekMenuOpen()).toBe(true);
       await user.click(screen.getByRole("button", { name: "Open" }));
       expect(screen.queryByRole("menu", { hidden: true })).toBeNull();
+      expect(peekMenuOpen()).toBe(false);
+    } finally {
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
+  });
+
+  it("keeps a fallback checkbox mounted and updates it on click", async () => {
+    const user = userEvent.setup();
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    function CheckboxMenu() {
+      const [open, setOpen] = useState(false);
+      const [checked, setChecked] = useState(false);
+      return (
+        <Menu
+          open={open}
+          onOpenChange={setOpen}
+          label="Choices"
+          trigger={(t) => (
+            <button ref={t.ref} onClick={t.onClick}>
+              Open
+            </button>
+          )}
+        >
+          <MenuItem>First</MenuItem>
+          <label>
+            <input
+              type="checkbox"
+              role="menuitemcheckbox"
+              aria-checked={checked}
+              checked={checked}
+              onChange={() => setChecked((value) => !value)}
+            />
+            Choice
+          </label>
+        </Menu>
+      );
+    }
+    try {
+      render(<CheckboxMenu />);
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      const choice = screen.getByRole("menuitemcheckbox", { name: "Choice" });
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      fireEvent.mouseDown(choice, { button: 0 });
+      expect(choice).toHaveFocus();
+      await user.click(choice);
+      expect(
+        screen.getByRole("menuitemcheckbox", { name: "Choice" }),
+      ).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+    } finally {
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
+  });
+
+  it("closes a fallback menu on Escape and outside press", async () => {
+    const user = userEvent.setup();
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    try {
+      render(
+        <>
+          <Fixture />
+          <button>Outside</button>
+        </>,
+      );
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("menu")).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      await user.click(screen.getByRole("button", { name: "Outside" }));
+      expect(screen.queryByRole("menu")).toBeNull();
+    } finally {
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
+  });
+
+  it("uses trigger-relative Tab order for a fallback portal", async () => {
+    const user = userEvent.setup();
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    try {
+      render(
+        <>
+          <button>Before</button>
+          <Fixture />
+          <button>After</button>
+        </>,
+      );
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus(),
+      );
+      await user.tab();
+      expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+      expect(screen.queryByRole("menu")).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus(),
+      );
+      await user.tab({ shift: true });
+      expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
+      expect(screen.queryByRole("menu")).toBeNull();
     } finally {
       proto.showPopover = showPopover;
       proto.hidePopover = hidePopover;

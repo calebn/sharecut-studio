@@ -4,22 +4,28 @@ import {
   useCallback,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
 } from "react";
+import { createPortal } from "react-dom";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
 import { enterTopLayerPanel } from "./topLayerFloor";
 import { useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
 
-/**
- * Places the open panel against the visual viewport (and above the phone nav
- * when there is one): below the trigger, flipped above it when that side has
- * more room, clamped `--menu-edge-margin` inside every edge. The panel is a
- * `popover` in the top layer, so no sheet's overflow, size container or
- * stacking context between it and the trigger can clip or bury it.
- */
 function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
-  const viewport = visualViewportBox(document.querySelector(".mobile-nav"));
+  if (panel.dataset.menuMode === "fallback") {
+    const rowSize = getComputedStyle(trigger).getPropertyValue(
+      "--menu-item-min-block-size",
+    );
+    if (rowSize) {
+      panel.style.setProperty("--menu-item-min-block-size", rowSize.trim());
+    }
+  }
+  const ownerDocument = trigger.ownerDocument;
+  const viewport = visualViewportBox(
+    ownerDocument.querySelector(".mobile-nav"),
+  );
   const natural = {
     width: panel.offsetWidth,
     height: panel.scrollHeight + panel.offsetHeight - panel.clientHeight,
@@ -35,8 +41,9 @@ function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
     },
   );
   const rootPx =
-    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
-    16;
+    Number.parseFloat(
+      getComputedStyle(ownerDocument.documentElement).fontSize,
+    ) || 16;
   const set = (name: string, value: string) => {
     if (panel.style.getPropertyValue(name) !== value) {
       panel.style.setProperty(name, value);
@@ -86,21 +93,29 @@ export function Menu({
   const menuId = menuIdProp ?? autoId;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const attachPanel = useCallback((panel: HTMLDivElement) => {
-    panelRef.current = panel;
-    const topLayer = typeof panel.showPopover === "function";
-    if (topLayer) {
-      panel.showPopover();
-    }
-    const leave = enterTopLayerPanel();
-    return () => {
-      leave();
-      if (topLayer) {
-        panel.hidePopover();
-      }
-      panelRef.current = null;
-    };
-  }, []);
+  const mode = useMemo<"native" | "fallback" | null>(() => {
+    if (!open) return null;
+    const proto =
+      typeof window === "undefined" ? null : window.HTMLElement.prototype;
+    return typeof proto?.showPopover === "function" &&
+      typeof proto.hidePopover === "function"
+      ? "native"
+      : "fallback";
+  }, [open]);
+  const attachPanel = useCallback(
+    (panel: HTMLDivElement) => {
+      if (!mode) return;
+      panelRef.current = panel;
+      if (mode === "native") panel.showPopover();
+      const leave = mode === "native" ? enterTopLayerPanel() : null;
+      return () => {
+        leave?.();
+        if (mode === "native") panel.hidePopover();
+        if (panelRef.current === panel) panelRef.current = null;
+      };
+    },
+    [mode],
+  );
 
   const close = useCallback(() => {
     onOpenChange(false);
@@ -132,9 +147,45 @@ export function Menu({
     };
   }, [open]);
 
-  useMenuKeyboard({ open, panelRef, close });
+  useMenuKeyboard({
+    open,
+    panelRef,
+    close,
+    fallbackTriggerRef: mode === "fallback" ? triggerRef : undefined,
+  });
 
   useOutsidePointerDown([panelRef, triggerRef], close, open);
+
+  const panel =
+    open && mode ? (
+      <div
+        ref={attachPanel}
+        id={menuId}
+        className="ui-menu-panel ui-menu-popup"
+        data-menu-mode={mode}
+        popover={mode === "native" ? "manual" : undefined}
+        role="menu"
+        aria-label={label}
+        onMouseDown={(event) => {
+          if (event.button !== 0 || !(event.target instanceof Element)) return;
+          const item =
+            event.target.closest<HTMLElement>('[role^="menuitem"]') ??
+            event.target
+              .closest("label")
+              ?.querySelector<HTMLElement>('[role^="menuitem"]');
+          if (!item || !event.currentTarget.contains(item)) return;
+          event.preventDefault();
+          item.focus({ preventScroll: true });
+        }}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            close();
+          }
+        }}
+      >
+        {children}
+      </div>
+    ) : null;
 
   return (
     <div
@@ -156,23 +207,12 @@ export function Menu({
         onClick: () => onOpenChange(!open),
         ref: triggerRef,
       })}
-      {open ? (
-        <div
-          ref={attachPanel}
-          id={menuId}
-          className="ui-menu-panel ui-menu-popup"
-          popover="manual"
-          role="menu"
-          aria-label={label}
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              close();
-            }
-          }}
-        >
-          {children}
-        </div>
-      ) : null}
+      {mode === "fallback" && panel
+        ? createPortal(
+            panel,
+            (triggerRef.current?.ownerDocument ?? document).body,
+          )
+        : panel}
     </div>
   );
 }
