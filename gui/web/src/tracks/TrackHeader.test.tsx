@@ -70,6 +70,28 @@ describe("TrackHeader Out readout", () => {
     expect(screen.getByText("Out −∞ dB")).toBeInTheDocument();
   });
 
+  it("updates when the envelope itself changes", () => {
+    renderWithEnvelope([{ id: "a", time: 0, value: 1 }]);
+    expect(screen.getByText("Out 0.0 dB")).toBeInTheDocument();
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (!project) throw new Error("no project");
+      useDawStore.setState({
+        project: {
+          ...project,
+          envelopes: [
+            {
+              track_id: "guest",
+              parameter: "volume",
+              points: [{ id: "a", time: 0, value: 0.5 }],
+            },
+          ],
+        },
+      });
+    });
+    expect(screen.getByText("Out −6.0 dB")).toBeInTheDocument();
+  });
+
   it("stays at the static output gain without an envelope", () => {
     const project = projectWithTrack();
     useDawStore.getState().hydrate("/tmp/p.json", project);
