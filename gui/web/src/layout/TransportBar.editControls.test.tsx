@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
@@ -410,6 +410,25 @@ describe("TransportBar desktop edit controls", () => {
       ).toBeVisible();
     },
   );
+
+  it("lists Select a range with Select and Blade in the collapsed Timeline tools", async () => {
+    const user = userEvent.setup();
+    render(<TransportBar />);
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+    const tools = screen.getByRole("group", { name: "Timeline tools" });
+    expect(
+      within(tools)
+        .getAllByRole("menuitem")
+        .map((el) => el.textContent?.trim()),
+    ).toEqual([
+      expect.stringMatching(/^Select tool/),
+      expect.stringMatching(/^Blade tool/),
+      expect.stringMatching(/^Select a range/),
+    ]);
+    expect(
+      screen.queryByRole("group", { name: "Selection" }),
+    ).not.toBeInTheDocument();
+  });
 
   it("disables collapsed tools while the project loads", async () => {
     const user = userEvent.setup();

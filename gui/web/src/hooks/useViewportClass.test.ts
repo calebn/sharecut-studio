@@ -24,10 +24,12 @@ describe("shellBreakpointFromWidth", () => {
     expect(shellBreakpointFromWidth(PHONE_MAX_PX + 1)).toBe("tablet");
     expect(shellBreakpointFromWidth(TABLET_MAX_PX)).toBe("tablet");
     expect(shellBreakpointFromWidth(1180)).toBe("tablet");
+    expect(shellBreakpointFromWidth(1194)).toBe("tablet");
   });
 
   it("classifies desktop", () => {
     expect(shellBreakpointFromWidth(TABLET_MAX_PX + 1)).toBe("desktop");
+    expect(shellBreakpointFromWidth(1195)).toBe("desktop");
     expect(shellBreakpointFromWidth(1920)).toBe("desktop");
   });
 });
