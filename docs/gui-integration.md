@@ -321,7 +321,7 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ### Responsive shells
 
-The phone and tablet selection sheets render one body from `SELECTION_SURFACES` (`inspector/selectionSurface.tsx`) through `useSelectionSheet`; see [gui-mobile.md](gui-mobile.md#one-selection-surface-table). `ShellBreakpoint` is defined once, in `state/types.ts`.
+The phone and tablet selection sheets render one body from `SELECTION_SURFACES` (`inspector/selectionSurface.tsx`) through `useSelectionSheet`; on tablet, an agent session range stays in the open selection sheet, including compact peek. See [gui-mobile.md](gui-mobile.md#one-selection-surface-table). `ShellBreakpoint` is defined once, in `state/types.ts`.
 
 Every button inside `.modifier-footer-actions`, including nested menu triggers
 and preview modes, has a minimum height of `--touch-min` on coarse pointers and
