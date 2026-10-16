@@ -689,38 +689,40 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       ]);
     });
 
-    const SAVING = {
-      undo: "Your last edit is still saving. Nothing was undone.",
-      redo: "Your last edit is still saving. Nothing was redone.",
-    } as const;
-
     for (const action of ["undo", "redo"] as const) {
       const move = action === "undo" ? undoHistory : redoHistory;
 
-      it(`runs no ${action} while a live send is still out after the host send wait, and says so`, async () => {
+      it(`keeps a ${action} pressed behind a live send that stays out past the host send wait, and runs it once the send lands`, async () => {
         vi.useFakeTimers();
         try {
-          const stalled = beginDocumentSend("/tmp/ep", "stalled");
+          const slow = beginDocumentSend("/tmp/ep", "slow");
           const press = execute(`history.${action}`);
-          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS - 1);
+          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS * 4);
           expect(move).not.toHaveBeenCalled();
-          await vi.advanceTimersByTimeAsync(1);
-          expect(await press).toEqual({
-            status: "disabled",
-            reason: SAVING[action],
-            announced: true,
-          });
-          stalled.finish();
-          expect(move).not.toHaveBeenCalled();
-          expect(useDawStore.getState().statusAnnouncement).toBe(
-            SAVING[action],
-          );
+          expect(useDawStore.getState().statusAnnouncement).toBe("");
+
+          noteSaveLanded("/tmp/ep", head("after-slow-send"), documentScope());
+          slow.finish();
+          expect(await press).toEqual({ status: "ok" });
+          expect(vi.mocked(move).mock.calls).toEqual([
+            [
+              "/tmp/ep",
+              {
+                expectedHeadId: "after-slow-send",
+                scope: expect.objectContaining({
+                  path: expect.any(String),
+                  generation: expect.any(Number),
+                }),
+              },
+            ],
+          ]);
+          expect(useDawStore.getState().statusAnnouncement).toBe("");
         } finally {
           vi.useRealTimers();
         }
       });
 
-      it(`runs no ${action} while a save is still loading its boundary token after the host send wait`, async () => {
+      it(`keeps a ${action} pressed behind a save still loading its boundary token past the host send wait`, async () => {
         vi.useFakeTimers();
         try {
           const slowToken = new Promise<void>((resolve) => {
@@ -734,13 +736,13 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
             ),
           );
           const press = execute(`history.${action}`);
-          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS + 1_000);
-          expect(await press).toEqual({
-            status: "disabled",
-            reason: SAVING[action],
-            announced: true,
-          });
+          await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS);
           expect(move).not.toHaveBeenCalled();
+          await vi.advanceTimersByTimeAsync(1_000);
+          expect(await press).toEqual({ status: "ok" });
+          expect(vi.mocked(move).mock.calls.map((call) => call[1])).toEqual([
+            expect.objectContaining({ expectedHeadId: "after-trim" }),
+          ]);
         } finally {
           vi.useRealTimers();
         }

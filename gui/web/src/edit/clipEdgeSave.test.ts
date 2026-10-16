@@ -56,7 +56,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("a trim whose boundary token never loads drops its save, and Undo works again", async () => {
+it("a trim whose boundary token never loads drops its save, and an Undo pressed meanwhile waits for it instead of being refused", async () => {
   const save = saveClipEdge(
     "/tmp/ep",
     clipRow({ id: "c1", track_id: "t1", source_start: 0, source_end: 5 }),
@@ -66,17 +66,14 @@ it("a trim whose boundary token never loads drops its save, and Undo works again
     "The server didn't answer. Nothing was saved.",
   );
 
-  const refused = execute("history.undo");
+  const queued = execute("history.undo");
   await vi.advanceTimersByTimeAsync(5_000);
-  await refused;
-  expect(useDawStore.getState().statusAnnouncement).toBe(
-    "Your last edit is still saving. Nothing was undone.",
-  );
+  expect(useDawStore.getState().statusAnnouncement).toBe("");
   expect(undoHistory).not.toHaveBeenCalled();
 
   await vi.advanceTimersByTimeAsync(DOCUMENT_COMMAND_TIMEOUT_MS);
   await failure;
-
-  await execute("history.undo");
+  await queued;
   expect(undoHistory).toHaveBeenCalledTimes(1);
+  expect(useDawStore.getState().statusAnnouncement).not.toMatch(/still saving/);
 });
