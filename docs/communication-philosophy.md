@@ -296,9 +296,10 @@ the empty state, not a separate discovery task.
   refuses an undo whose entry is no longer the latest, and the toast then
   says "Can't undo: the project changed since. Nothing was undone.", so
   it never reverses someone else's edit. An Undo or Redo pressed while this
-  tab's own edit is still saving, five seconds past the press, runs nothing
-  and says "Your last edit is still saving. Nothing was undone." ("…Nothing
-  was redone."), so it never reverses the edit before the slow one. Tighten apply, skip and Apply
+  tab's own edit is still saving waits for that edit and then runs on it, so
+  it never reverses the edit before the slow one and the tap is never lost.
+  A toast's Undo is disabled with the busy reason while an edit is saving,
+  because the edit makes its entry stale. Tighten apply, skip and Apply
   eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
   Mute, single pending-edit Approve and Reject, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
@@ -561,7 +562,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   it was held on.
 - 2026-10-08 — Undo while an edit is still saving (#1181 round 9): once the
   wait for the tab's own saves runs out, Undo and Redo run nothing and say so,
-  in the same plain form as the stale-head refusal. The roll across a gap that
+  in the same plain form as the stale-head refusal (superseded 2026-10-16,
+  #1675: they wait with no cutoff and then run). The roll across a gap that
   the server refuses reads "These clips have a gap between them, so there is
   no join to roll. Move one clip to touch the other, or trim an edge instead."
 - 2026-10-07 — Share dialog (#1027): Stop sharing and End room confirm in
@@ -603,6 +605,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   description, and returns focus to the control that opened it in
   Safari too; the toast steps off the control just pressed.
 
+- 2026-10-16 Undo and Redo pressed while this tab's own edit is still saving wait for it and then run (#1675); the five-second "Your last edit is still saving" refusal is gone. A toast's Undo is disabled with the busy reason while an edit is saving, since the edit makes its entry stale.
 - 2026-10-16 The envelope-point select, the effect Bypass toggles and the comment composer's fields and track picks hold the 44 px floor on touch (#1445); the reachability sweep also covers the clip sheet, the Comments panel and a track with an envelope and an effect chain.
 - 2026-10-16 The phone Mix sheet shows **Plays at {dB}** over a fader whose track has a volume envelope (#1645), so a phone host can read the level at the playhead without opening the inspector. It stays plain text.
 - 2026-10-16 The track header's **Out** readout follows the volume envelope at the playhead (#1642): it is the gain the mix plays (staging, saved volume and envelope), and silence reads `−∞ dB`. It stays plain text, so playback does not announce it.
