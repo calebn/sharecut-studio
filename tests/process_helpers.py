@@ -15,7 +15,6 @@ from podcast_mcp.util.project_state import project_commit_lock_path
 
 @contextmanager
 def observe_failed_commit_lock_attempt(project: EpisodeProject, observed: Event) -> Iterator[None]:
-    """Signal after the project's cached file lock fails a real acquisition attempt."""
     lock = shared_file_lock(project_commit_lock_path(project))
     original = lock._acquire_with_fork_tracking
 
