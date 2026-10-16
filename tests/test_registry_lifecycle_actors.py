@@ -8,7 +8,7 @@ from contextlib import closing
 from multiprocessing.connection import Connection, wait
 from multiprocessing.process import BaseProcess
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -403,6 +403,69 @@ def test_concurrent_registry_construction_shares_one_schema_and_secret(tmp_path:
             registry.close()
     finally:
         _cleanup_registry_actors(started, [endpoint for pipe in pipes for endpoint in pipe])
+
+
+def test_construction_actor_reports_sqlite_cause_to_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sqlite_error = sqlite3.OperationalError("distinctive readonly failure")
+    sqlite_error.sqlite_errorcode = 1032
+    sqlite_error.sqlite_errorname = "SQLITE_READONLY_DBMOVED"
+    sqlite_error.add_note("controlled SQLite actor diagnostic")
+
+    def fail_construction(path: Path) -> None:
+        cause = ValueError("controlled lower-level failure")
+        raise sqlite_error from cause
+
+    class Sender:
+        def __init__(self) -> None:
+            self.messages: list[tuple[str, Any]] = []
+
+        def send(self, message: tuple[str, Any]) -> None:
+            self.messages.append(message)
+
+        def close(self) -> None:
+            return None
+
+    class Receiver:
+        def __init__(self, messages: list[tuple[str, Any]]) -> None:
+            self.messages = list(messages)
+
+        def poll(self) -> bool:
+            return bool(self.messages)
+
+        def recv(self) -> tuple[str, Any]:
+            return self.messages.pop(0)
+
+    class Process:
+        pid = 17
+        exitcode = 0
+        sentinel = object()
+
+    sender = Sender()
+    monkeypatch.setitem(
+        _run_construction_actor.__globals__, "SqliteShareRegistry", fail_construction
+    )
+    monkeypatch.setitem(
+        _observe_registry_actors.__globals__, "wait", lambda objects, timeout: objects
+    )
+
+    _construction_actor("unused.db", None, cast(Connection, sender))
+
+    with pytest.raises(AssertionError) as caught:
+        _observe_registry_actors(
+            cast(list[BaseProcess], [Process()]),
+            cast(list[Connection], [Receiver(sender.messages)]),
+            timeout=1,
+        )
+
+    diagnostic = str(caught.value)
+    assert "distinctive readonly failure" in diagnostic
+    assert "sqlite_errorcode=1032" in diagnostic
+    assert "sqlite_errorname=SQLITE_READONLY_DBMOVED" in diagnostic
+    assert "controlled SQLite actor diagnostic" in diagnostic
+    assert "controlled lower-level failure" in diagnostic
+    assert "fail_construction" in diagnostic
 
 
 @pytest.mark.parametrize("stage", ["wal_read", "retry_sleep"])
