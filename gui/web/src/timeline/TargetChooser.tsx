@@ -175,6 +175,7 @@ function TargetGlyph({
 /** The held finger's choices on a chip, by the target's drag axis. */
 const DRAG_HINT: Record<DragAxis, string> = {
   x: "Slide sideways to drag · lift to select",
+  y: "Slide vertically to drag · lift to select",
   xy: "Slide to drag · lift to select",
   none: "Lift to select",
 };
@@ -191,8 +192,10 @@ function AxisCue({ axis }: { axis: DragAxis }) {
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M6 17 2 22l4 5M38 17l4 5-4 5" />
-      {axis === "xy" ? <path d="M17 6l5-4 5 4M17 38l5 4 5-4" /> : null}
+      {axis !== "y" ? <path d="M6 17 2 22l4 5M38 17l4 5-4 5" /> : null}
+      {axis === "xy" || axis === "y" ? (
+        <path d="M17 6l5-4 5 4M17 38l5 4 5-4" />
+      ) : null}
     </svg>
   );
 }

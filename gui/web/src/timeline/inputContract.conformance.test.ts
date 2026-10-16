@@ -89,6 +89,7 @@ const project = minimalProject({
 const TARGET: Record<HitKind, { id: string; sec: number }> = {
   join: { id: "c2", sec: 10 },
   "envelope-point": { id: "e1", sec: 16 },
+  "envelope-line": { id: "level", sec: 0 },
   "pending-start": { id: "p1", sec: 20 },
   "pending-end": { id: "p1", sec: 24 },
   "pending-flag": { id: "p1", sec: 20 },
@@ -301,7 +302,7 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
       vi.runAllTimers();
       expect(log.slice(0, 2)).toEqual([
         "pointerdown@200,112",
-        "pointermove@230,112",
+        contract.axis === "y" ? "pointermove@200,112" : "pointermove@230,112",
       ]);
     },
   );
@@ -367,7 +368,9 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
         ? ["pointermove@230,132"]
         : contract.axis === "x"
           ? ["pointermove@230,112"]
-          : [],
+          : contract.axis === "y"
+            ? ["pointermove@200,132"]
+            : [],
     );
   });
 

@@ -47,7 +47,7 @@ function renderView(
   };
 }
 
-function capture(circle: SVGCircleElement) {
+function capture(circle: SVGElement) {
   let pointer: number | null = null;
   const release = vi.fn((pointerId: number) => {
     pointer = null;
@@ -67,6 +67,207 @@ describe("EnvelopeOverlayView", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     document.body.onkeydown = null;
+  });
+
+  it("shows a focusable empty line without saving, then commits one pair from its exact empty origin", async () => {
+    const { container, onCommitPoints, holdGeometry, release } = renderView({
+      points: [],
+      baselinePoints: [],
+      timelineEnd: 20,
+    });
+    const line = screen.getByRole("slider", { name: "Envelope level" });
+    expect(line).toHaveAttribute("aria-valuenow", "1");
+    expect(onCommitPoints).not.toHaveBeenCalled();
+    capture(line as unknown as SVGElement);
+    fireEvent.pointerDown(line, {
+      pointerId: 1,
+      pointerType: "mouse",
+      button: 0,
+      clientY: 30,
+    });
+    fireEvent.pointerMove(line, { pointerId: 1, clientY: 46 });
+    expect(line).toHaveAttribute("aria-valuenow", "0.625");
+    fireEvent.pointerUp(line, { pointerId: 1 });
+    await vi.waitFor(() => expect(onCommitPoints).toHaveBeenCalledTimes(1));
+    const [next, origin] = onCommitPoints.mock.calls[0]!;
+    expect(origin).toEqual([]);
+    expect(next).toMatchObject([
+      { time: 0, value: 0.625 },
+      { time: 20, value: 0.625 },
+    ]);
+    expect(next[0].id).not.toBe(next[1].id);
+    expect(holdGeometry).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+    await expectNoA11yViolations(container);
+  });
+
+  it("preserves saved flat point order and ignores a shaped line", async () => {
+    const flat = [
+      { id: "late", time: 5, value: 0.5 },
+      { id: "early", time: 0, value: 0.5 },
+    ];
+    const { onCommitPoints, rerender } = renderView({
+      points: [...flat].reverse(),
+      baselinePoints: flat,
+      timelineEnd: 10,
+    });
+    const line = screen.getByRole("slider", { name: "Envelope level" });
+    fireEvent.keyDown(line, { key: "ArrowUp" });
+    expect(line).toHaveAttribute("aria-valuenow", "0.51");
+    fireEvent.keyUp(line, { key: "ArrowUp" });
+    await vi.waitFor(() => expect(onCommitPoints).toHaveBeenCalledTimes(1));
+    expect(onCommitPoints).toHaveBeenCalledWith(
+      [
+        { id: "late", time: 5, value: 0.51 },
+        { id: "early", time: 0, value: 0.51 },
+      ],
+      flat,
+    );
+    rerender(
+      <EnvelopeOverlayView
+        points={points}
+        baselinePoints={points}
+        zoomPxPerSec={10}
+        width={200}
+        height={72}
+        visibleChunks={[0, 0]}
+        editable
+        selectedPointId={null}
+        onSelectTrack={vi.fn()}
+        captureSelection={() => vi.fn()}
+        onCommitPoints={onCommitPoints}
+        onCommitError={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("slider", { name: "Envelope level" })).toBeNull();
+  });
+
+  it("cancels an unsubmitted line draft on Escape and a competing baseline", () => {
+    const { rerender, onCommitPoints } = renderView({
+      points: [],
+      baselinePoints: [],
+      timelineEnd: 10,
+    });
+    const line = screen.getByRole("slider", { name: "Envelope level" });
+    fireEvent.keyDown(line, { key: "ArrowDown" });
+    fireEvent.keyDown(line, { key: "Escape" });
+    fireEvent.keyUp(line, { key: "ArrowDown" });
+    expect(onCommitPoints).not.toHaveBeenCalled();
+    fireEvent.keyDown(line, { key: "ArrowDown" });
+    rerender(
+      <EnvelopeOverlayView
+        points={[{ id: "new", time: 0, value: 0.7 }]}
+        baselinePoints={[{ id: "new", time: 0, value: 0.7 }]}
+        zoomPxPerSec={10}
+        width={200}
+        height={72}
+        visibleChunks={[0, 0]}
+        editable
+        selectedPointId={null}
+        onSelectTrack={vi.fn()}
+        captureSelection={() => vi.fn()}
+        onCommitPoints={onCommitPoints}
+        onCommitError={vi.fn()}
+      />,
+    );
+    fireEvent.keyUp(line, { key: "ArrowDown" });
+    expect(onCommitPoints).not.toHaveBeenCalled();
+  });
+
+  it("does not save a click or an empty line returned to unity", () => {
+    const { onCommitPoints } = renderView({
+      points: [],
+      baselinePoints: [],
+      timelineEnd: 10,
+    });
+    const line = screen.getByRole("slider", { name: "Envelope level" });
+    fireEvent.pointerDown(line, { pointerId: 1, clientY: 30 });
+    fireEvent.pointerUp(line, { pointerId: 1 });
+    fireEvent.keyDown(line, { key: "ArrowDown" });
+    fireEvent.keyDown(line, { key: "ArrowUp" });
+    fireEvent.keyUp(line, { key: "ArrowUp" });
+    expect(onCommitPoints).not.toHaveBeenCalled();
+  });
+
+  it("cancels an unsubmitted line pointer gesture without rolling back an accepted command", async () => {
+    let resolveCommit: (value: unknown) => void = () => {};
+    const onCommitPoints = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveCommit = resolve;
+        }),
+    );
+    const { rerender } = renderView({
+      points: [],
+      baselinePoints: [],
+      timelineEnd: 10,
+      onCommitPoints,
+    });
+    const line = screen.getByRole("slider", { name: "Envelope level" });
+    fireEvent.pointerDown(line, { pointerId: 1, clientY: 30 });
+    fireEvent.pointerMove(line, { pointerId: 1, clientY: 46 });
+    fireEvent.pointerCancel(line, { pointerId: 1 });
+    expect(onCommitPoints).not.toHaveBeenCalled();
+    fireEvent.pointerDown(line, { pointerId: 2, clientY: 30 });
+    fireEvent.pointerMove(line, { pointerId: 2, clientY: 46 });
+    fireEvent.pointerUp(line, { pointerId: 2 });
+    expect(onCommitPoints).toHaveBeenCalledTimes(1);
+    fireEvent.pointerDown(line, { pointerId: 3, clientY: 30 });
+    fireEvent.pointerMove(line, { pointerId: 3, clientY: 46 });
+    fireEvent.pointerUp(line, { pointerId: 3 });
+    expect(onCommitPoints).toHaveBeenCalledTimes(1);
+    rerender(
+      <EnvelopeOverlayView
+        points={points}
+        baselinePoints={points}
+        zoomPxPerSec={10}
+        width={200}
+        height={72}
+        visibleChunks={[0, 0]}
+        editable
+        selectedPointId={null}
+        onSelectTrack={vi.fn()}
+        captureSelection={() => vi.fn()}
+        onCommitPoints={onCommitPoints}
+        onCommitError={vi.fn()}
+      />,
+    );
+    await act(async () => resolveCommit({}));
+    expect(onCommitPoints).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses distinct touch identities for different flat lines and leaves a read-only guide inert", () => {
+    const props = {
+      points: [] as AutomationPoint[],
+      baselinePoints: [] as AutomationPoint[],
+      timelineEnd: 10,
+      zoomPxPerSec: 10,
+      width: 200,
+      height: 72,
+      visibleChunks: [0, 0] as const,
+      selectedPointId: null,
+      onSelectTrack: vi.fn(),
+      captureSelection: () => vi.fn(),
+      onCommitPoints: vi.fn().mockResolvedValue({}),
+      onCommitError: vi.fn(),
+    };
+    const { container } = render(
+      <>
+        <EnvelopeOverlayView {...props} editable />
+        <EnvelopeOverlayView {...props} editable />
+        <EnvelopeOverlayView {...props} editable={false} />
+      </>,
+    );
+    const lines = [...container.querySelectorAll(".envelope-svg rect")];
+    expect(lines).toHaveLength(3);
+    expect(lines[0]!.getAttribute("data-hit-id")).not.toBe(
+      lines[1]!.getAttribute("data-hit-id"),
+    );
+    expect(lines[0]).toHaveAttribute("data-hit-kind", "envelope-line");
+    expect(lines[1]).toHaveAttribute("data-hit-kind", "envelope-line");
+    expect(lines[2]).not.toHaveAttribute("data-hit-kind");
+    expect(lines[2]).toHaveAttribute("aria-disabled", "true");
+    expect(lines[2]).toHaveAttribute("tabindex", "-1");
   });
 
   it("renders named points with an accessible label and no axe violations", async () => {

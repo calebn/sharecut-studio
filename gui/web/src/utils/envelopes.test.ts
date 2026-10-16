@@ -4,15 +4,43 @@ import {
   clampEnvelopeValue,
   envelopeValueAt,
   findVolumeEnvelope,
+  flatEnvelopeLevel,
   replaceEnvelopePoint,
   sameEnvelopePoint,
   sameEnvelopePoints,
+  setFlatEnvelopeLevel,
   sortedVolumePoints,
   volumeEnvelopeDbAt,
   withVolumeEnvelopePoints,
 } from "./envelopes";
 
 describe("envelopes", () => {
+  it("classifies exact flatness and preserves raw point identity and order", () => {
+    const raw = [
+      { id: "late", time: 5, value: 0.6 },
+      { id: "early", time: 0, value: 0.6 },
+    ];
+    expect(flatEnvelopeLevel([])).toBe(1);
+    expect(flatEnvelopeLevel(raw)).toBe(0.6);
+    expect(
+      flatEnvelopeLevel([{ ...raw[0]!, value: 0.6000001 }, raw[1]!]),
+    ).toBeNull();
+    expect(
+      setFlatEnvelopeLevel(raw, 0.4, 10, { start: "x", end: "y" }),
+    ).toEqual([
+      { id: "late", time: 5, value: 0.4 },
+      { id: "early", time: 0, value: 0.4 },
+    ]);
+    expect(setFlatEnvelopeLevel([], 0.4, 10, { start: "x", end: "y" })).toEqual(
+      [
+        { id: "x", time: 0, value: 0.4 },
+        { id: "y", time: 10, value: 0.4 },
+      ],
+    );
+    expect(setFlatEnvelopeLevel([], 0.4, 0, { start: "x", end: "y" })).toEqual([
+      { id: "x", time: 0, value: 0.4 },
+    ]);
+  });
   const envelopes = [
     {
       track_id: "host",

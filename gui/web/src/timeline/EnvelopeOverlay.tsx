@@ -37,6 +37,7 @@ export function EnvelopeOverlay({
 }: EnvelopeOverlayProps) {
   const {
     projectPath,
+    timelineEnd,
     guestMode,
     shareCapabilities,
     projectEpoch,
@@ -45,6 +46,7 @@ export function EnvelopeOverlay({
     announceStatus,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
+    timelineEnd: s.project?.timeline_duration_sec ?? 0,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     projectEpoch: s.projectEpoch,
@@ -86,6 +88,7 @@ export function EnvelopeOverlay({
     <EnvelopeOverlayView
       key={`${projectEpoch}:${trackId}`}
       points={points}
+      timelineEnd={timelineEnd}
       baselinePoints={findVolumeEnvelope(envelopes, trackId)?.points ?? []}
       zoomPxPerSec={zoomPxPerSec}
       width={width}

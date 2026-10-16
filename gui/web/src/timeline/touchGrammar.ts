@@ -25,6 +25,7 @@ export function armedDetents(
 /** How to move an armed target, by its axes. */
 const ARM_HINT = {
   x: "drag sideways to move it",
+  y: "drag vertically to move it",
   xy: "drag to move it",
   none: "",
 } as const;

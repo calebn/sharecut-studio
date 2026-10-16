@@ -460,8 +460,14 @@ and owner acceptance limits.
 The track’s **Add volume envelope** or **Edit volume envelope** action opens
 `EnvelopeWorkspace` without changing the shared layer visibility or creating
 automation. If the shared layer is hidden, choose **Show volume envelope**
-before adding, editing, or deleting points. Its point
-list selects by immutable ID; **Add point** and **Edit point** open numeric time
+before adding, editing, or deleting points. The flat line can be dragged
+vertically to set a constant gain without placing a
+point. The shown empty line starts at unity and showing it saves nothing.
+Dragging it saves equal-level endpoint anchors in one undoable edit. The line
+is a focusable slider; arrow keys adjust it by 0.01, and Home/End choose the
+range limits. A saved flat line remains adjustable. A shaped curve uses its
+individual point controls. The point list selects by immutable ID;
+**Add point** and **Edit point** open numeric time
 and level drafts. Time and Level use decimal text fields so wheel scrolling
 does not step the draft values; the existing numeric validation reports errors.
 **Save point**, **Delete point**, and removing the last point
