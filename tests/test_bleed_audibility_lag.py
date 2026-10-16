@@ -115,7 +115,10 @@ def test_copy_lag_outside_the_source_lane_keeps_the_steady_lag(
     caches = build_track_rms_caches(project)
     steady = caches.copy_path("guest", "host").lag_sec
     steps = LagSteps(
-        (LagSegment(start_sec=0.0, shift_sec=-0.12, frames=1, correlation=0.9),),
+        (
+            LagSegment(start_sec=0.0, shift_sec=-0.12, frames=1, correlation=0.9),
+            LagSegment(start_sec=1.0, shift_sec=-0.24, frames=1, correlation=0.9),
+        ),
         step_cost=1.0,
     )
     adjusted = copy_lag_at_timeline(
