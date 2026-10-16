@@ -17,6 +17,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec
 
@@ -97,6 +98,58 @@ def test_identity_errors_are_not_missing_media(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "stat", denied)
     with pytest.raises(PermissionError, match="denied"):
         same_recording(first, second)
+
+
+def test_same_recording_stats_each_path_once_inside_a_batch_scope(tmp_path, monkeypatch):
+    _, first, alias, different = _project(tmp_path)
+    real = Path.stat
+    seen: list[str] = []
+
+    def counting(self, *args, **kwargs):
+        seen.append(str(self))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", counting)
+
+    assert same_recording(first, alias) is True
+    first_pair = len(seen)
+    assert same_recording(first, alias) is True
+    assert first_pair >= 2
+    assert len(seen) == first_pair * 2
+
+    seen.clear()
+    with batch_scope():
+        assert same_recording(first, alias) is True
+        after_pair = len(seen)
+        assert same_recording(first, alias) is True
+        assert same_recording(alias, first) is True
+        assert len(seen) == after_pair
+        assert same_recording(first, different) is False
+        after_different = len(seen)
+        assert same_recording(first, different) is False
+        assert len(seen) == after_different
+    assert after_pair >= 2
+    assert after_different > after_pair
+
+
+def test_exact_source_span_scan_stats_each_recording_once(tmp_path, monkeypatch):
+    project, _, _, _ = _project(tmp_path)
+    real = Path.stat
+    seen: list[str] = []
+
+    def counting(self, *args, **kwargs):
+        seen.append(str(self))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", counting)
+    timeline = SessionTimeline(project)
+    with batch_scope():
+        timeline.exact_source_span("host", SourceSec(0.5), SourceSec(0.7))
+        after_one = len(seen)
+        for _ in range(39):
+            timeline.exact_source_span("host", SourceSec(0.5), SourceSec(0.7))
+    assert after_one > 0
+    assert len(seen) == after_one
 
 
 def test_alias_transcript_fallback_and_exact_source_provenance(tmp_path):

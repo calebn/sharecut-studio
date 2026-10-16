@@ -20,9 +20,9 @@ def batch_scope() -> Iterator[None]:
 
     A batch such as Approve all proves every cut against the same stems and the same
     workspace. Inside the scope a repeat decode of an unchanged file, the level caches built
-    from it, and a repeat path resolution are the first one's, so the batch pays one pass
-    per file, not one per edit. A nested scope shares the outer one. Everything is freed on
-    exit.
+    from it, a repeat path resolution, and each recording's identity stat are the first
+    one's, so the batch pays one pass per file, not one per edit. A nested scope shares the
+    outer one. Everything is freed on exit.
     """
     if _scope.get() is not None:
         yield
