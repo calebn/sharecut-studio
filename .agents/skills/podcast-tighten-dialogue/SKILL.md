@@ -25,7 +25,9 @@ Never bulk-apply on a production episode without explicit user sign-off. Do not
 flip `tighten.enabled`. The pipeline's `apply_sound_actions` step is separate: on
 `tighten.apply_non_speech` (on by default) it applies each non-speech sound's
 suggested action in one undo step and leaves filler, pause, repetition and
-restart proposals alone; set the key `false` to leave those sounds pending.
+restart proposals alone; set the key `false` to leave those sounds pending. When
+tighten analysis did not run, that step finds the sounds itself without the
+Whisper word probe (#1608).
 
 ## Policy (from `.agents/defaults/pipeline.yaml`)
 

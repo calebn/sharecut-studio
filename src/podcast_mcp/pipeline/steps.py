@@ -446,6 +446,19 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
     return f"{applied} tighten cuts applied"
 
 
+def _sound_scan_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
+    """Copy of ``defaults`` with Whisper word probe off (#1608).
+
+    Acoustic defaults already Leave or Lower, so the probe cannot cut a real word
+    and only adds the Whisper load.
+    """
+    tighten = dict(defaults.get("tighten") or {})
+    gap = dict(tighten.get("acoustic_gap_filler") or {})
+    gap["word_probe"] = False
+    tighten["acoustic_gap_filler"] = gap
+    return {**defaults, "tighten": tighten}
+
+
 def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     """Propose and apply each non-speech sound's suggested action, in this one step (#1434).
 
@@ -477,7 +490,9 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
             scratch = project.model_copy(deep=True)
             found = [
                 d
-                for d in propose_tighten_edits(scratch, defaults, replace_existing=True).decisions
+                for d in propose_tighten_edits(
+                    scratch, _sound_scan_defaults(defaults), replace_existing=True
+                ).decisions
                 if is_non_speech_sound(d.reason)
             ]
             project.edit_decisions = [
