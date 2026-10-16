@@ -354,7 +354,10 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
   13–28 dB over the copy. Windows of a fifth of a second keep one side from outvoting
   a word beside it. In synthetic trials with a lab-like 10 dB copy spread, a 150 ms
   "mm" 4 or 6 dB over the copy was kept in 24 of 24 at 0.2 and 0.3 s windows and
-  lost in 5 of 24 at 0.4 s. Kept sound is protected with or without a transcript
+  lost in 5 of 24 at 0.4 s. The timbre is read only in windows that hold a frame
+  level left undecided (sound held through dips that is not more than the spread over
+  the expected level); a window of sound clearly over the copy is kept whatever its timbre, so
+  it is not read (#1668). Kept sound is protected with or without a transcript
   word, so untranscribed backchannels, laughs, and own words reconcile gave to the
   peer stay at full level. Unsuppressed own words protect their connected voiced
   runs, which stop where a peer is talking, and untranscribed placements stay
@@ -374,7 +377,8 @@ down on one channel read as copy there (#1094). A frame is reduced only where ev
 channel reads as copy, and the bed that picks mute or attenuate is the loudest
 channel's. Channels are decoded as recorded, so a quad or other tagged layout keeps
 every channel apart. A lane whose channels carry one signal, such as a call app's
-dual-mono track, is judged once on ffmpeg's mono mixdown, as before. Lossy codecs
+dual-mono track, is judged once on ffmpeg's mono mixdown, as before. Channels that
+are bit-identical are one signal without the level comparison below. Lossy codecs
 decode the two copies of one channel slightly apart, so "one signal" means that no
 frame has a channel-to-first-channel difference that is both above the lane's noise
 floor and within 7.7 dB of the loudest channel within 50 ms. A codec's noise follows
