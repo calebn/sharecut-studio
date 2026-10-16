@@ -6,6 +6,7 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import suggested_actions
+from podcast_mcp.edits.acoustic_gap import AcousticGapConfig
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -111,3 +112,27 @@ def test_with_tighten_off_the_step_looks_for_sounds_itself(sounds_project, monke
     assert summary == "Applied 1 lower."
     # The scan's spoken filler was dropped and the sounds it replaced are gone; the old filler stays.
     assert sorted(e.id for e in sounds_project.edit_decisions if not e.applied) == ["um"]
+
+
+def test_with_tighten_off_the_scan_skips_the_word_probe(sounds_project, monkeypatch):
+    defaults = load_defaults()
+    seen = {}
+
+    def propose(project, cfg, *, replace_existing):
+        seen["word_probe"] = AcousticGapConfig.from_tighten(cfg.get("tighten")).word_probe
+        seen["caller_word_probe"] = AcousticGapConfig.from_tighten(
+            defaults.get("tighten")
+        ).word_probe
+        seen["same_defaults"] = cfg is defaults
+        return type("Proposal", (), {"decisions": []})()
+
+    monkeypatch.setattr(steps, "propose_tighten_edits", propose)
+
+    summary = steps.apply_sound_actions(sounds_project, defaults)
+
+    assert summary == "no non-speech sounds to act on"
+    assert seen == {
+        "word_probe": False,
+        "caller_word_probe": True,
+        "same_defaults": False,
+    }

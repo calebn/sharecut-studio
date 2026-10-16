@@ -747,6 +747,7 @@ enforced-by:
 - tests/test_apply_suggested_actions.py::test_one_sound_can_change_after_the_batch_without_undoing_the_others
 - tests/test_apply_sound_actions_step.py::test_the_defaults_apply_sounds_without_turning_tighten_on
 - tests/test_apply_sound_actions_step.py::test_the_step_acts_on_sounds_and_leaves_spoken_proposals_pending
+- tests/test_apply_sound_actions_step.py::test_with_tighten_off_the_scan_skips_the_word_probe
 - tests/test_acoustic_gap.py::test_a_laugh_like_run_is_proposed_and_flagged
 - tests/test_acoustic_gap.py::test_a_likely_laugh_is_held_for_review_and_named_in_the_summary
 - tests/test_acoustic_gap.py::test_a_span_the_model_hears_as_a_word_is_flagged_held_and_named_in_the_summary
@@ -1129,7 +1130,11 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   review flag it never hides a proposal, is never cut by the pipeline, and its suggested action, applied by Apply suggested actions and by the pipeline's `apply_sound_actions` step, is Leave (#1434). A shape test (voiced length, spectral motion)
   cannot do this job: on the lab tape a drawn-out "Then" (0.98 s) moves less than several
   "umm", and backchannels move as much as words. `tighten.acoustic_gap_filler.word_probe:
-  false` turns the listening off; a Whisper model that is not installed leaves the proposals
+  false` turns the listening off. The pipeline's `apply_sound_actions` self-scan (when
+  `analyze_fillers_pauses` did not run) uses that off setting for the scan only (#1608): a
+  possible missed word stays an unclear sound or likely laugh, whose default action leaves
+  the audio in place (Leave, or Lower on overlap), so a real word is still not cut. A Whisper
+  model that is not installed leaves the proposals
   unlabelled and counts `word_probe:unavailable`. A span whose Whisper decode fails counts
   `word_probe:failed` and Propose still returns the rest; the human summary names both
   (`N word probe unavailable`, `N word probe failed`). Listening reports a named
