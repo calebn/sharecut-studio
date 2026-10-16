@@ -19,7 +19,14 @@ from podcast_mcp.edits.review_versions import get_version, version_audio_path
 from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
 from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import EpisodeProject, load_project, save_project
+from podcast_mcp.models import (
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    load_project,
+    save_project,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.guest_progress import guest_ws_progress_sink
 from podcast_mcp.services.collaboration.review import ReviewService
@@ -902,6 +909,39 @@ def test_guest_review_audio_with_the_mix_gone_reads_the_fixed_message(world: Wor
         assert response.status_code == 404
         assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
         assert response.json() == {"detail": REVIEW_AUDIO_GONE_MESSAGE}
+
+    (world.workspace / "artifacts" / "premix.wav").unlink()
+    client = _client(world)
+    missing_mix = client.get(f"/api/review/{world.token}/daw/audio?kind=premix", headers=RELAYED)
+
+    project_path = world.workspace / "episode.project.json"
+    project = load_project(project_path)
+    track_id = "track-private-id"
+    project.tracks.append(
+        Track(
+            id=track_id,
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+        )
+    )
+    save_project(project, project_path)
+
+    missing_stem = client.get(
+        f"/api/review/{world.token}/daw/audio?kind=stem&track_id={track_id}", headers=RELAYED
+    )
+
+    assert missing_mix.status_code == 404
+    assert missing_mix.headers["x-sharecut-error-code"] == "no_mix"
+    assert missing_mix.json() == {"detail": "No mix is available yet. Ask the host to refresh it."}
+    assert not world.leaks(missing_mix.text)
+    assert missing_stem.status_code == 404
+    assert missing_stem.headers["x-sharecut-error-code"] == "file_not_found"
+    assert missing_stem.json() == {
+        "detail": "Processed audio is unavailable yet. Ask the host to refresh the mix."
+    }
+    assert not world.leaks(missing_stem.text)
+    assert track_id not in missing_stem.text
 
 
 def test_host_still_reads_the_path_when_the_mix_is_gone(world: World) -> None:
