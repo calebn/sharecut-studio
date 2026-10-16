@@ -303,7 +303,7 @@ for (const {
             await exposeControl(
               page,
               page.getByRole("button", {
-                name: "Remove volume envelope",
+                name: "Delete point",
                 exact: true,
               }),
               receipts,
