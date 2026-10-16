@@ -493,7 +493,7 @@ html[data-shell="phone"]
 /* WebKit ignores min-block-size on a native select. */
 @media (pointer: coarse) {
   .envelope-workspace select {
-    block-size: 2.75rem;
+    block-size: var(--touch-min);
   }
 }
 

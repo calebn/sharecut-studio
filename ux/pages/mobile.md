@@ -63,7 +63,7 @@ controls on a coarse pointer so landscape panels stay inside the panel. Pipeline
 selects and the From / Only shortcuts row are 44 CSS px tall on touch. At large text
 or in a short window, the Pipeline toolbar scrolls with the panel and the Transcript
 panel scrolls as a whole, so neither covers the rows under it.
-The envelope-point select, the effect **Bypass** toggles and the comment fields are 44 CSS px tall on touch too.
+The envelope-point select, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
 
 The overlay toggles in **More** (Pending edits, Markers, Comments and the rest) are whole rows at least 44 CSS px tall on touch.
 
