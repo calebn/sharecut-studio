@@ -178,6 +178,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Add comment | `comment.draftAt` | Host or a link that can comment | Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu |
 | Switch editor tab | `view.setTab` | Project loaded | Args: { tab: DawTab } |
 | Switch phone mode | `view.setMobileMode` | Project loaded | Args: { mode: MobileMode, destination?: MoreDestination } |
+| Change an applied sound | `tighten.reviseSuggested` | tightenPanelOpen | Args: { id: string, action: cut \| shorten \| lower \| leave }: ApplySuggestedActions revise of the latest batch |
 | Go to tighten hit | `tighten.goToHit` | tightenPanelOpen | Args: { id?: string }: seek + select pending |
 
 ## Governance
