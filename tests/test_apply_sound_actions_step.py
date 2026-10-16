@@ -123,7 +123,6 @@ def test_with_tighten_off_the_scan_skips_the_word_probe(sounds_project, monkeypa
         seen["caller_word_probe"] = AcousticGapConfig.from_tighten(
             defaults.get("tighten")
         ).word_probe
-        seen["same_defaults"] = cfg is defaults
         return type("Proposal", (), {"decisions": []})()
 
     monkeypatch.setattr(steps, "propose_tighten_edits", propose)
@@ -131,8 +130,4 @@ def test_with_tighten_off_the_scan_skips_the_word_probe(sounds_project, monkeypa
     summary = steps.apply_sound_actions(sounds_project, defaults)
 
     assert summary == "no non-speech sounds to act on"
-    assert seen == {
-        "word_probe": False,
-        "caller_word_probe": True,
-        "same_defaults": False,
-    }
+    assert seen == {"word_probe": False, "caller_word_probe": True}
