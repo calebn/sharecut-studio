@@ -322,14 +322,20 @@ class TrackRmsCache:
         return cls(samples=samples, sample_rate=sample_rate, recording_profile=profile)
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
-        i0 = int(max(0.0, t_start - self.timeline_offset_sec) * self.sample_rate)
-        i1 = int(max(0.0, t_end - self.timeline_offset_sec) * self.sample_rate)
+        lo = max(0.0, t_start - self.timeline_offset_sec)
+        hi = max(0.0, t_end - self.timeline_offset_sec)
+        i0 = round(lo * self.sample_rate)
+        i1 = i0 + round((hi - lo) * self.sample_rate)
         if i1 <= i0 or i0 >= self.samples.size:
             return None
         return i0, min(i1, self.samples.size)
 
     def window(self, t_start: float, t_end: float) -> np.ndarray:
-        """Raw sample slice for [t_start, t_end) timeline seconds; empty if out of range."""
+        """Raw sample slice for [t_start, t_end) timeline seconds; empty if out of range.
+
+        The start and the length are each rounded to a sample, as ``session_air.lane_window``
+        reads the same window uncached, so both readers return the same samples (#1560).
+        """
         rng = self._index_range(t_start, t_end)
         if rng is None:
             return np.empty(0, dtype=self.samples.dtype)
@@ -1085,6 +1091,10 @@ def compute_word_audibility_map(
     likeness: during crosstalk a soft own word sits under a louder peer at the lag but
     sounds like its own speaker. Such a word keeps its 0-lag verdict, ``reason:
     unlike_copy``. ``copy_lag_ms`` reports the lags used.
+
+    A track without a cache is read window by window from its clips, with the same
+    samples a cache serves (#1560). Voice floors and mic paths come from the caches, so a
+    set with no cache for a track cannot judge ``inaudible`` or ``bleed`` there.
     """
     pol = policy or AnalysisPolicy.from_defaults()
     if pol.transcript_mode == "off":

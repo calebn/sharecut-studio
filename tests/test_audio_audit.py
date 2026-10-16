@@ -2218,3 +2218,22 @@ def test_reconcile_verdicts_do_not_depend_on_balance_gain_or_recording_gain(
     assert _own_word_verdict(_voice_scale_caches(), project, start=1.0) == base
     for gains in ((4.0, 1.0), (1.0, 4.0), (0.25, 0.25)):
         assert _own_word_verdict(_voice_scale_caches(*gains), project, start=1.0) == base
+
+
+@pytest.mark.parametrize(
+    ("t_start", "t_end"),
+    [(4.00175, 4.08175), (508.348981, 508.408981), (0.0, 0.1), (12.3, 12.4)],
+)
+def test_cache_window_reads_the_samples_the_uncached_reader_does(t_start, t_end):
+    rate = 8_000
+    cache = TrackRmsCache(np.arange(600 * rate, dtype=np.float32), rate)
+    window = cache.window(t_start, t_end)
+    assert window.size == round((t_end - t_start) * rate)
+    assert window[0] == round(t_start * rate)
+
+
+def test_cache_window_before_the_offset_clamps_to_the_cache_start():
+    cache = TrackRmsCache(np.arange(8_000, dtype=np.float32), 8_000, timeline_offset_sec=1.0)
+    window = cache.window(0.5, 1.5)
+    assert window.size == 4_000
+    assert window[0] == 0
