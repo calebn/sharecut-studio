@@ -1195,8 +1195,6 @@ def test_render_lock_is_reentrant_and_serializes_threads(minimal_project):
                 raise errors[0]
     assert not a.is_alive()
     assert b is None or not b.is_alive()
-    if errors:
-        raise errors[0]
     assert order == ["b"]
     assert render_lock_path(ws.project).is_file()
 
@@ -1274,8 +1272,6 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project):
                 raise errors[0]
     assert not te.is_alive()
     assert tr is None or not tr.is_alive()
-    if errors:
-        raise errors[0]
     assert errors == []
     assert state["max"] == 1
     assert eng.mix_tracks.call_count == 2
