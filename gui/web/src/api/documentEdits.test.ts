@@ -28,6 +28,7 @@ import {
 } from "../state/offlineStore";
 import { ApiError } from "../utils/apiError";
 import {
+  applySuggestedActions,
   clearSupersededCorrectionConflicts,
   correctTranscriptPhrase,
   correctTranscriptWord,
@@ -682,6 +683,16 @@ describe("pending cut suggestions", () => {
         snap: false,
         expected,
       },
+      undefined,
+    );
+  });
+
+  it("sends revise with the overrides and no ids", async () => {
+    await applySuggestedActions("/tmp/p.json", null, { a: "leave" }, true);
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "ApplySuggestedActions",
+      { overrides: { a: "leave" }, revise: true },
       undefined,
     );
   });

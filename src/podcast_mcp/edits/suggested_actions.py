@@ -76,13 +76,16 @@ def describe_sounds(
     for decision in decisions:
         info = sound_label_and_action(decision.reason)
         mapped = edit_timeline_range(project, decision)
+        action = actions[decision.id]
+        if action == "lower" and not another_speaker_over(project, decision):
+            action = "leave"  # what apply_suggested_to_project will do with it
         rows.append(
             {
                 "id": decision.id,
                 "label": info[0] if info else decision.reason,
                 "track_id": decision.track_id,
                 "timeline_start": mapped[0] if mapped else None,
-                "action": actions[decision.id],
+                "action": action,
             }
         )
     return rows
