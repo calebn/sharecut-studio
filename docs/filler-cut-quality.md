@@ -80,7 +80,8 @@ boundaries prevents intentional audible edits. Removing them for every command l
 automated and agentic edits unprotected. Capability, reason, snap choice, and range
 mode do not prove a human action. Only the host and review GUI document routes establish
 manual boundaries. Each persisted decision records its proposal origin separately from its
-current boundary intent. A programmatic retime resets only the latter. A trusted explicit human **Approve** of an automated proposal supplies transient manual
+current boundary intent. A programmatic retime resets only the latter, including a snapped resize of a
+source-witnessed proposal. A trusted explicit human **Approve** of an automated proposal supplies transient manual
 application intent. It does not change the proposal's programmatic origin or claim that
 the person selected its edges. Programmatic approval supplies no override. A GUI-started
 pipeline still generates programmatic decisions.

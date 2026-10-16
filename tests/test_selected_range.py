@@ -370,6 +370,41 @@ def test_only_trusted_context_marks_selected_boundaries_human(minimal_project):
         CutIntent.PROGRAMMATIC,
     )
 
+    svc.ws.project.edit_decisions.append(
+        EditDecision(
+            id="witnessed-human-nudge",
+            track_id="b",
+            type="remove",
+            start=30.0,
+            end=31.0,
+            source_timeline_span=RangeInterval(start=10.0, end=11.0),
+            proposal_origin=ProposalOrigin.PROGRAMMATIC,
+            boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        )
+    )
+    svc.ws.save()
+    svc.submit(
+        DocumentCommand(
+            type="UpdatePendingEdit",
+            payload={"id": "witnessed-human-nudge", "start": 30.1, "end": 31.1, "snap": True},
+            client_id="host",
+            client_seq=None,
+            role="viewer",
+        )
+    )
+    saved = load_project(minimal_project)
+    witnessed = next(e for e in saved.edit_decisions if e.id == "witnessed-human-nudge")
+    assert (witnessed.start, witnessed.end) == (30.1, 31.1)
+    assert witnessed.source_timeline_span is not None
+    assert (
+        witnessed.source_timeline_span.start,
+        witnessed.source_timeline_span.end,
+    ) == pytest.approx((10.1, 11.1))
+    assert (witnessed.proposal_origin, witnessed.boundary_intent) == (
+        ProposalOrigin.PROGRAMMATIC,
+        CutIntent.PROGRAMMATIC,
+    )
+
 
 @pytest.mark.parametrize("command_type", ["EditSelectedRange", "UpdatePendingEdit"])
 def test_payload_cannot_forge_internal_boundary_intent(command_type):
