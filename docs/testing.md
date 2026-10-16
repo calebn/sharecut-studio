@@ -654,8 +654,8 @@ browser grid.
 whether a finger can use the touch surfaces. At the shell boundaries (360, 390,
 767, 768, 820, 1180, 1181 wide, a phone held sideways and an iPad held sideways)
 and at 16 px and 32 px root text it asserts, for every interactive control in
-the shell chrome, the track sheet or inspector, the armed Select range controls
-and Listen, that the control
+the shell chrome, the track sheet or inspector, the clip sheet or inspector, the
+armed Select range controls and Listen, that the control
 
 - is at least 44 CSS px, measured as its layout box (`offsetWidth` and
   `offsetHeight`, or the label of a checkbox) so a transition or transform
@@ -666,8 +666,12 @@ and Listen, that the control
 
 It also holds the editing rail to one row (#1347) and sweeps the Transcript and
 Pipeline panels whole at every size and text scale, the Find and replace row and
-the Add term row included (#1433, #1445). A control inside a closed `<details>`
-is not measured until it opens. `gui/web/e2e/reachability.ts` is the measuring helper. It
+the Add term row included (#1433, #1445), and the Comments panel. A fourth test seeds
+a copy of the fixture whose first track has a volume envelope and an effect chain, so
+the track surface and the envelope workspace show the Envelope point select and the
+Bypass toggles. A control inside a closed `<details>` is not measured until it opens.
+The sheet's hidden detent range is the keyboard route to the drawer height; a finger
+swipes the header or taps the resize buttons. `gui/web/e2e/reachability.ts` is the measuring helper. It
 leaves out only the canvas dense targets (fade corners, trim handles, clip
 bodies, the ruler, the deselect strip, the track row's open overlay), which meet
 the floor through the dense-target pattern, the track grip, which has Move
@@ -1652,6 +1656,7 @@ test; other rows are whole tests.
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | tablet and desktop shells keep every control a finger can use across 768 to 1181 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a track with an envelope and an effect chain keeps every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the tablet sheet lays its related and more zones out like the inspector above them | `gui/web/e2e-compat/selection-sheet-zones.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Reject all asks with the count, then one Undo brings the pending edits back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |

@@ -151,7 +151,9 @@ floor too (#1445). On touch, in a window under 40rem tall (`@container app`, so 
 counts) the Pipeline toolbar scrolls with its panel instead of sticking, and the
 Transcript panel scrolls as a whole with the list keeping at least 16rem, so
 neither covers the rows beneath it. `e2e-compat/reachability-sweep.spec.ts` sweeps
-both panels whole at every cell.
+both panels whole at every cell. The envelope-point select, the effect Bypass toggles and the comment composer's
+fields hold the floor too, and the same sweep measures them (a seeded track for the
+first two, the Comments panel for the last).
 
 Round 9 (#1181) moved the strip above the tool rail after an Undo tap could
 nudge a pending edit. Issue #1205 moves the shared Undo and Redo controls into

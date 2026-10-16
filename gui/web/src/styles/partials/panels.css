@@ -211,6 +211,8 @@ html[data-shell="phone"] .impact-pending-select {
 }
 
 @media (pointer: coarse) {
+  .comment-compose input,
+  .comment-compose textarea,
   .comment-compose .comment-time-chip,
   .comment-compose .comment-time-field,
   .comment-compose-submit > .primary {
