@@ -8,9 +8,11 @@ import {
 
 test.use({ hasTouch: true, isMobile: true, actionTimeout: 15_000 });
 
-/** Half of iPhone 15 Plus CSS (430×932). Safari 200% page zoom substitute. */
-const PAGE_ZOOM_LAYOUT = { width: 215, height: 466 };
 const IPHONE_15_PLUS = { width: 430, height: 932 };
+const SAFARI_AA_200_LAYOUT_VIEWPORT = {
+  width: IPHONE_15_PLUS.width / 2,
+  height: IPHONE_15_PLUS.height / 2,
+};
 
 async function moreHub(page: Page) {
   await page
@@ -48,7 +50,7 @@ async function chromeReachable(page: Page, scope: string) {
 test("compact transport wraps at a 200% page-zoom layout width (#1636)", async ({
   page,
 }) => {
-  await page.setViewportSize(PAGE_ZOOM_LAYOUT);
+  await page.setViewportSize(SAFARI_AA_200_LAYOUT_VIEWPORT);
   await openHostProject(page);
   await expect(page.locator(".daw-shell--phone")).toBeVisible();
   await moreHub(page);
@@ -82,7 +84,7 @@ test("compact transport wraps at a 200% page-zoom layout width (#1636)", async (
   const timeBox = await time.boundingBox();
   expect(timeBox).not.toBeNull();
   expect(timeBox!.x + timeBox!.width).toBeLessThanOrEqual(
-    PAGE_ZOOM_LAYOUT.width + 1,
+    SAFARI_AA_200_LAYOUT_VIEWPORT.width + 1,
   );
 });
 
