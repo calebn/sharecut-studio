@@ -44,7 +44,7 @@ from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import document_db_path, document_server_seq
 from podcast_mcp.services.session_sync.log import SyncStore
-from process_helpers import reap
+from process_helpers import observe_failed_commit_lock_attempt, reap
 
 # win32 has no SIGKILL: os.kill with any signal but CTRL_C/CTRL_BREAK_EVENT calls
 # TerminateProcess there (no Python cleanup either), with the signal number as exit code.
@@ -372,28 +372,15 @@ def _submit_then_die_at(project_path: str, point: str, marker: str, reached=None
     raise AssertionError(f"kill point {point} never fired")
 
 
-def _submit_waiting_on_the_lock(project_path: str, locking, results) -> None:
-    import podcast_mcp.services.app.workspace as workspace
+def _submit_waiting_on_the_lock(project_path: str, blocked, results) -> None:
     from podcast_mcp.util import project_state
 
-    # Bounded: a lock the killed writer kept would surface as filelock.Timeout (the
-    # routes' 503 project_busy) instead of hanging for the default 30 s.
     project_state.PROJECT_COMMIT_LOCK_TIMEOUT_SEC = WAITER_LOCK_TIMEOUT_SEC
     svc = DocumentSyncService.open(project_path)
-    real_commit_lock = workspace.project_commit_lock
-
-    @contextmanager
-    def announce_then_lock(project: Any) -> Iterator[None]:
-        # Set right before the lock acquire, so the parent's "blocked" check does not
-        # rest on spawn or import timing.
-        locking.set()
-        with real_commit_lock(project):
-            yield
-
-    workspace.project_commit_lock = announce_then_lock  # type: ignore[assignment]
     started = time.monotonic()
     try:
-        result = svc.submit(_crash_command(WAITER_ID, 3, "second"))
+        with observe_failed_commit_lock_attempt(svc.project, blocked):
+            result = svc.submit(_crash_command(WAITER_ID, 3, "second"))
         results.put(("ok", int(result["server_seq"]), time.monotonic() - started))
     except Exception as exc:
         results.put((type(exc).__name__, None, time.monotonic() - started))
@@ -473,15 +460,14 @@ def test_writer_blocked_on_the_project_lock_proceeds_when_the_holder_is_killed(
 ):
     go = _CTX.Event()
     crasher, _marker, reached = _start_crash_at(seeded_project, point, tmp_path, go=go)
-    locking, results = _CTX.Event(), _CTX.Queue()
+    blocked, results = _CTX.Event(), _CTX.Queue()
     waiter = _CTX.Process(
-        target=_submit_waiting_on_the_lock, args=(str(seeded_project), locking, results)
+        target=_submit_waiting_on_the_lock, args=(str(seeded_project), blocked, results)
     )
     try:
         assert reached.wait(60), "the crasher never reached its kill point"
         waiter.start()
-        assert locking.wait(60), "the waiter never reached the project lock"
-        time.sleep(0.5)
+        assert blocked.wait(60), "the waiter never made a busy project-lock attempt"
         assert waiter.is_alive(), "the waiter should block on the holder's project lock"
         go.set()
         # Drain before joining: a child with queued data blocks at exit until it is read.
