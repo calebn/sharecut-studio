@@ -7,6 +7,11 @@ import type { PendingEditView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import {
+  isSoundAction,
+  revisableSuggestedBatch,
+  type SoundAction,
+} from "../utils/suggestedBatch";
+import {
   applySuggestedSummary,
   isTightenPending,
   listTightenHits,
@@ -163,6 +168,42 @@ async function runApplySuggested(ids: string[]): Promise<ExecuteResult> {
     : { status: "disabled", reason: "Tighten action in progress" };
 }
 
+async function runReviseSuggested(
+  id: string,
+  action: SoundAction,
+): Promise<ExecuteResult> {
+  const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
+    const s = useDawStore.getState();
+    if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
+      return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
+    }
+    try {
+      const { queued, summary, historyHead } = await applySuggestedActions(
+        s.projectPath,
+        null,
+        { [id]: action },
+        true,
+      );
+      const next = useDawStore.getState();
+      if (queued) {
+        next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+        return { status: "ok" };
+      }
+      next.announceStatus(summary ?? "Changed the sound", {
+        undo: historyHead,
+      });
+      return { status: "ok" };
+    } catch (e) {
+      const msg = errorMessage(e);
+      useDawStore.getState().announceStatus(`Change failed: ${msg}`);
+      return { status: "disabled", reason: msg };
+    }
+  });
+  return result.ran
+    ? result.value
+    : { status: "disabled", reason: "Tighten action in progress" };
+}
+
 function resolveApplyAllArgs(args: Record<string, unknown>): {
   listedIds: string[] | null;
 } {
@@ -229,6 +270,24 @@ export function registerTightenCommands(): void {
       return { status: "disabled", reason: "Nothing to apply" };
     }
     return runApplySuggested(ids);
+  });
+
+  registerCommand("tighten.reviseSuggested", async (args) => {
+    const { id, action } = args;
+    if (typeof id !== "string" || !id || !isSoundAction(action)) {
+      return { status: "disabled", reason: "Pick a sound and an action" };
+    }
+    const project = useDawStore.getState().project;
+    if (
+      !project ||
+      !revisableSuggestedBatch(project).some((sound) => sound.id === id)
+    ) {
+      return {
+        status: "disabled",
+        reason: "Only the latest applied batch can be changed",
+      };
+    }
+    return runReviseSuggested(id, action);
   });
 
   registerCommand("tighten.previewHit", async (args) => {

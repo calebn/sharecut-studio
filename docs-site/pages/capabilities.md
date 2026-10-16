@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**121** capabilities · **105** Sharecut Studio commands · **54** keyed · **182** MCP tools · **17** skills on rows (+ **19** hub skills).
+**122** capabilities · **106** Sharecut Studio commands · **54** keyed · **182** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -44,6 +44,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Apply tighten hit | project | `tighten.applyHit` | `Enter` | — | `tightenPanel` | `approve_edits_tool` | `podcast edit approve` | `podcast-tighten-dialogue` | — | none · none |
 | Skip tighten hit | project | `tighten.skipHit` | `Backspace` | — | `tightenPanel` | `reject_edits_tool` | `podcast edit reject` | `podcast-tighten-dialogue` | — | none · none |
 | Apply suggested actions | project | `tighten.applySuggested` | `Mod+Shift+Enter` | — | `tightenPanel` | `apply_suggested_actions_tool` | `podcast edit apply-suggested` | `podcast-tighten-dialogue` | — | none · none |
+| Change an applied sound | project | `tighten.reviseSuggested` | — (per-sound select in the last applied batch) | — | `tightenPanel` | `apply_suggested_actions_tool` | `podcast edit apply-suggested` | `podcast-tighten-dialogue` | — | none · none |
 | Preview tighten hit | session | `tighten.previewHit` | `P` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Go to tighten hit | session | `tighten.goToHit` | — (pointer/row action; seek+select) | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |
 | Restore layout | view | `layout.default` | `Mod+1` | — | `layoutChip` | — | — | — | — | none · none |

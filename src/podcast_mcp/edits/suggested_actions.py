@@ -64,6 +64,30 @@ def suggested_action_for(decision: EditDecision) -> SuggestedAction | None:
     return info[1] if info else None
 
 
+def describe_sounds(
+    project: EpisodeProject, decisions: list[EditDecision], actions: dict[str, str]
+) -> list[dict[str, Any]]:
+    """What the batch history entry remembers of each sound, so a client can list the batch.
+
+    A sound leaves ``edit_decisions`` once its action applies, so its label and place on the
+    timeline are read here, before the batch runs.
+    """
+    rows: list[dict[str, Any]] = []
+    for decision in decisions:
+        info = sound_label_and_action(decision.reason)
+        mapped = edit_timeline_range(project, decision)
+        rows.append(
+            {
+                "id": decision.id,
+                "label": info[0] if info else decision.reason,
+                "track_id": decision.track_id,
+                "timeline_start": mapped[0] if mapped else None,
+                "action": actions[decision.id],
+            }
+        )
+    return rows
+
+
 def another_speaker_over(project: EpisodeProject, decision: EditDecision) -> bool:
     """True when a peer track is speaking over the decision's span."""
     from podcast_mcp.edits.speech_energy_guard import assess_cross_track_speech

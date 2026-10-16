@@ -4,8 +4,12 @@ import { hostFetch } from "../api/documentTransport";
 import type { Answer, Question } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { answerQuestions } from "../test/ask";
-import { minimalProject, wavResponse } from "../test/fixtures";
-import type { PendingEditView } from "../types/project";
+import {
+  COMMENTER_CAPABILITIES,
+  minimalProject,
+  wavResponse,
+} from "../test/fixtures";
+import { HISTORY_ROOT_ID, type PendingEditView } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
 import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
 
@@ -343,5 +347,127 @@ describe("tighten commands", () => {
       trackId: "host",
     });
     expect(s.playheadSec).toBe(1);
+  });
+
+  describe("reviseSuggested", () => {
+    function withBatch(cursor = 1) {
+      useDawStore.getState().hydrate(
+        "/tmp/p.json",
+        minimalProject({
+          history: {
+            cursor,
+            head_id: HISTORY_ROOT_ID,
+            can_undo: true,
+            can_redo: false,
+            groups: [
+              {
+                kind: "mutation",
+                before_index: 0,
+                after_index: 1,
+                operation: "apply_suggested_actions",
+                params: {
+                  sounds: [
+                    {
+                      id: "um",
+                      label: "Filler word",
+                      track_id: "host",
+                      timeline_start: 1,
+                      action: "cut",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      );
+      useDawStore.setState({ guestMode: null, shareCapabilities: [] });
+    }
+
+    it("revises the latest batch with the one changed sound and announces an undo", async () => {
+      withBatch();
+      expect(
+        await execute("tighten.reviseSuggested", { id: "um", action: "leave" }),
+      ).toEqual({ status: "ok" });
+      expect(applySuggestedActions).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        null,
+        { um: "leave" },
+        true,
+      );
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Applied 2 suggested actions",
+        undo: "h1",
+      });
+    });
+
+    it("refuses a sound that is not in the latest batch", async () => {
+      withBatch();
+      const result = await execute("tighten.reviseSuggested", {
+        id: "nope",
+        action: "leave",
+      });
+      expect(result).toEqual({
+        status: "disabled",
+        reason: "Only the latest applied batch can be changed",
+      });
+      expect(applySuggestedActions).not.toHaveBeenCalled();
+    });
+
+    it("refuses once the batch is no longer the latest edit", async () => {
+      withBatch(0);
+      const result = await execute("tighten.reviseSuggested", {
+        id: "um",
+        action: "leave",
+      });
+      expect(result.status).toBe("disabled");
+      expect(applySuggestedActions).not.toHaveBeenCalled();
+    });
+
+    it("refuses an action the server does not know", async () => {
+      withBatch();
+      const result = await execute("tighten.reviseSuggested", {
+        id: "um",
+        action: "mute",
+      });
+      expect(result).toEqual({
+        status: "disabled",
+        reason: "Pick a sound and an action",
+      });
+      expect(applySuggestedActions).not.toHaveBeenCalled();
+    });
+
+    it("is not allowed for a viewer who cannot apply edits", async () => {
+      withBatch();
+      useDawStore.setState({
+        projectPath: "share:test",
+        guestMode: "edit",
+        shareCapabilities: COMMENTER_CAPABILITIES,
+      });
+      const result = await execute("tighten.reviseSuggested", {
+        id: "um",
+        action: "leave",
+      });
+      expect(result.status).toBe("disabled");
+      expect(applySuggestedActions).not.toHaveBeenCalled();
+    });
+
+    it("says what failed when the server refuses", async () => {
+      withBatch();
+      vi.mocked(applySuggestedActions).mockRejectedValueOnce(
+        new Error("Nothing to revise"),
+      );
+      const result = await execute("tighten.reviseSuggested", {
+        id: "um",
+        action: "leave",
+      });
+      expect(result).toEqual({
+        status: "disabled",
+        reason: "Nothing to revise",
+      });
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Change failed: Nothing to revise",
+      );
+    });
   });
 });

@@ -310,11 +310,15 @@ export interface SuggestedActionsOutcome {
   historyHead: HistoryEntryId | null;
 }
 
-/** Apply every listed sound's own suggested action in one undo step. */
+/**
+ * Apply every listed sound's own suggested action in one undo step. With `revise`, change
+ * `overrides` sounds of the batch just applied instead (it takes no `ids`).
+ */
 export async function applySuggestedActions(
   projectPath: string,
   ids: string[] | null,
   overrides: Record<string, string> = {},
+  revise = false,
 ): Promise<SuggestedActionsOutcome> {
   const result = await submitDocumentCommand(
     projectPath,
@@ -322,6 +326,7 @@ export async function applySuggestedActions(
     {
       ...(ids ? { ids } : {}),
       ...(Object.keys(overrides).length ? { overrides } : {}),
+      ...(revise ? { revise: true } : {}),
     },
   );
   if (result.queued === true)

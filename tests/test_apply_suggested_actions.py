@@ -147,6 +147,49 @@ def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
 
 
+def _batch_sounds(path: str) -> dict[str, dict]:
+    entries = HistoryService(ProjectWorkspace.open(path)).list_entries()["entries"]
+    batch = [e for e in entries if e["operation"] == "apply_suggested_actions"][-1]
+    return {row["id"]: row for row in batch["params"]["sounds"]}
+
+
+def test_the_batch_entry_remembers_each_sound_so_a_client_can_list_it(
+    tmp_path, sample_wav, monkeypatch
+) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
+
+    sounds = _batch_sounds(path)
+
+    assert sorted(sounds) == ["laugh", "um", "word"]
+    assert sounds["um"] == {
+        "id": "um",
+        "label": sounds["um"]["label"],
+        "track_id": "host",
+        "timeline_start": 1.0,
+        "action": "cut",
+    }
+    assert sounds["laugh"]["action"] == "lower"
+    assert sounds["laugh"]["timeline_start"] == 3.0
+    assert sounds["um"]["label"] and sounds["um"]["label"] != "filler:um"
+
+
+def test_a_revised_batch_lists_its_new_actions(tmp_path, sample_wav, monkeypatch) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
+        overrides={"um": "leave"}, revise=True
+    )
+
+    sounds = _batch_sounds(path)
+
+    assert sounds["um"]["action"] == "leave"
+    assert sounds["laugh"]["action"] == "lower"
+    assert sounds["um"]["timeline_start"] == 1.0
+
+
 def test_revise_that_applies_nothing_keeps_the_batch(tmp_path, sample_wav, monkeypatch) -> None:
     path = _project(tmp_path, sample_wav)
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["um"])

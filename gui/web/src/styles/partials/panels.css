@@ -1635,6 +1635,55 @@ button.history-row {
   color: var(--color-text-secondary);
 }
 
+.tighten-applied {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tighten-applied-heading {
+  margin: 0;
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+}
+
+.tighten-applied-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tighten-applied-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.tighten-applied-what {
+  flex: 1 1 8rem;
+  min-inline-size: 0;
+}
+
+.tighten-applied-action {
+  min-block-size: var(--control-height);
+}
+
+@media (pointer: coarse) {
+  .tighten-applied-row .linkish {
+    min-block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+  }
+
+  .tighten-applied-action {
+    block-size: var(--touch-min);
+  }
+}
+
 .tighten-table-wrap {
   overflow: auto;
   min-height: 0;
