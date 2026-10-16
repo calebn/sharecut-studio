@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { place } from "../test/hitDom";
 import type { AutomationPoint } from "../types/project";
 import { EnvelopeOverlayView } from "./EnvelopeOverlayView";
+import { resolveHits } from "./hitTargets";
 
 const points: AutomationPoint[] = [
   { id: "early", time: 0, value: 1 },
@@ -205,6 +207,32 @@ describe("EnvelopeOverlayView", () => {
     fireEvent.click(line, { detail: 1 });
     expect(selected).toHaveBeenCalledTimes(1);
     expect(save).not.toHaveBeenCalled();
+  });
+
+  it("routes the next point press to that point after editing the flat line", () => {
+    const flat = [
+      { id: "start", time: 0, value: 0.5 },
+      { id: "next", time: 5, value: 0.5 },
+    ];
+    const { container, onCommitPoints } = renderView({
+      points: flat,
+      baselinePoints: flat,
+    });
+    const overlay = container.querySelector(".envelope-overlay")!;
+    const line = container.querySelector(".envelope-line-target")!;
+    const point = container.querySelectorAll(
+      '[data-hit-kind="envelope-point"]',
+    )[1];
+    place(line, { left: 100, top: 114, right: 400, bottom: 126 });
+    place(point, { left: 195, top: 115, right: 205, bottom: 125 });
+    fireEvent.pointerDown(line, { pointerId: 1, clientY: 120 });
+    fireEvent.pointerUp(line, { pointerId: 1, clientY: 120 });
+    expect(document.activeElement).toBe(line);
+    expect(
+      resolveHits(overlay, { x: 203, y: 116 }, "mouse", point)[0].candidate
+        .kind,
+    ).toBe("envelope-point");
+    expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
   it("does not select a track from a drag's trailing click or a read-only guide", async () => {

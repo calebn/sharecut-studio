@@ -95,7 +95,7 @@ function readTarget(element: Element): DomTarget | null {
     rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
     selected:
       element.getAttribute("data-hit-selected") === "true" ||
-      element === document.activeElement,
+      (kind !== "envelope-line" && element === document.activeElement),
   };
 }
 
