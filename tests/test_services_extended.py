@@ -2044,14 +2044,10 @@ def test_publish_stem_keeps_the_old_pair_until_the_new_bytes_land(
     assert list(stem.parent.glob("*.partial*")) == []
 
 
-def test_overlapping_stem_renders_publish_one_at_a_time(
-    minimal_project, sample_wav, caplog
-) -> None:
-    import logging
-    import time
-
+def test_overlapping_stem_renders_publish_one_at_a_time(minimal_project, sample_wav) -> None:
     from podcast_mcp.engines.play_audit import read_stem_hash, track_render_hash
     from podcast_mcp.pipeline import steps
+    from render_lock_signal import render_contention_signal
 
     ws_a = _dialogue_workspace(minimal_project, sample_wav)
     ws_b = ProjectWorkspace.open(minimal_project)
@@ -2067,7 +2063,7 @@ def test_overlapping_stem_renders_publish_one_at_a_time(
         marker = str(snapshot.clips[0].source_end)
         if marker == "2.0":
             in_a.set()
-            release.wait(5)
+            assert release.wait(5)
         out.write_bytes(marker.encode())
         return out
 
@@ -2083,28 +2079,35 @@ def test_overlapping_stem_renders_publish_one_at_a_time(
         ) as rendered,
         patch("podcast_mcp.services.document.play.schedule_stem_waveforms"),
         patch("podcast_mcp.pipeline.steps.schedule_stem_waveforms"),
-        caplog.at_level(logging.INFO, logger="podcast_mcp.util.project_state"),
+        render_contention_signal(ws_a.project.workspace_path()) as contended,
     ):
         ta = threading.Thread(target=run, args=(lambda: PlayService(ws_a).ensure_stem("host"),))
         ta.start()
-        assert in_a.wait(5)
-        tb = threading.Thread(
-            target=run,
-            args=(
-                lambda: steps.assemble_timeline(ws_b.project, {"performance": {"max_workers": 1}}),
-            ),
-        )
-        tb.start()
-        deadline = time.monotonic() + 5
-        while "waiting for another render" not in caplog.text and time.monotonic() < deadline:
-            time.sleep(0.02)
-        assert "waiting for another render" in caplog.text
-        assert rendered.call_count == 1
-        release.set()
-        ta.join(10)
-        tb.join(10)
+        tb = None
+        try:
+            assert in_a.wait(5)
+            tb = threading.Thread(
+                target=run,
+                args=(
+                    lambda: steps.assemble_timeline(
+                        ws_b.project, {"performance": {"max_workers": 1}}
+                    ),
+                ),
+            )
+            tb.start()
+            assert contended.wait(5)
+            assert rendered.call_count == 1
+        finally:
+            release.set()
+            ta.join(10)
+            if tb is not None:
+                tb.join(10)
+            if errors:
+                raise errors[0]
     assert not ta.is_alive()
-    assert not tb.is_alive()
+    assert tb is None or not tb.is_alive()
+    if errors:
+        raise errors[0]
     assert errors == []
     stem = ws_b.project.artifacts_dir() / "tracks" / "host.wav"
     assert stem.read_bytes() == b"1.0"
