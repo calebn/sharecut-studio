@@ -6,6 +6,14 @@ Volume automation belongs to a track and uses destination timeline seconds. It m
 
 An empty envelope has unity gain. A saved curve with exactly one point supplies constant gain throughout the track. When the GUI adds the first point, it inserts endpoint anchors at the prior curve value; changing an interior point therefore leaves that value at the ends. With multiple points, the first value holds before the first time, distinct times interpolate linearly, and the last value holds after the last time. A first point at 0 seconds with gain 1 therefore preserves unity automation. Gain values are linear multipliers: 0 silences and 1 is unity. Backend point times must be finite and nonnegative; values must be finite. Backend validation does not impose the GUI’s gain range on other envelope parameters or current domain callers.
 
+The GUI's visible empty line is an implicit unity guide. Dragging it vertically
+creates equal-level anchors at timeline start and end in one `SetEnvelope` edit;
+a zero-duration timeline gets one point at time zero. A saved flat curve stays
+draggable, and its existing point IDs, times, and order remain intact. The GUI
+classifies flatness by exact saved value equality, so an authored shaped curve
+never becomes a whole-line target through rounding. Showing the layer or a
+no-change gesture still saves nothing.
+
 The current point-array domain also supports coincident times as explicit steps. Stable time ordering preserves saved order within a tie: the preceding interval approaches the first point in that group, and the last point supplies the value at and after the timestamp. A group at the first timestamp holds its first value before that timestamp. GUI creation may reject a new collision without discarding or merging saved points.
 
 ## Rendering and playback caches

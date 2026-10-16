@@ -896,6 +896,16 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   pointer-events: auto;
 }
 
+.envelope-overlay .envelope-svg .envelope-line-target {
+  pointer-events: auto;
+  cursor: ns-resize;
+}
+
+.envelope-overlay .envelope-svg .envelope-line-target:focus-visible {
+  stroke: var(--color-accent);
+  stroke-width: var(--focus-ring-width);
+}
+
 .envelope-overlay .envelope-svg circle.envelope-point-selected {
   fill: var(--color-timeline-lane);
   stroke: var(--color-envelope-line);

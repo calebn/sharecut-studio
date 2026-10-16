@@ -459,7 +459,7 @@ export function attachHitRouting(
     armed: Extract<Phase, { kind: "grabbed" }>,
     at: HitPoint,
   ): HitPoint => {
-    const wantX = at.x + armed.offset.x;
+    const wantX = armed.axis === "y" ? armed.from.x : at.x + armed.offset.x;
     const y = armed.axis === "x" ? armed.from.y : at.y + armed.offset.y;
     if (!armed.detents) return { x: wantX, y };
     const step = detentMove(armed.detents, wantX);

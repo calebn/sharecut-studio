@@ -33,6 +33,28 @@ export function sortedVolumePoints(
   return [...env.points].sort((a, b) => a.time - b.time);
 }
 
+export function flatEnvelopeLevel(
+  points: readonly AutomationPoint[],
+): number | null {
+  if (points.length === 0) return 1;
+  const level = points[0]!.value;
+  return points.every((point) => point.value === level) ? level : null;
+}
+
+export function setFlatEnvelopeLevel(
+  points: readonly AutomationPoint[],
+  value: number,
+  timelineEnd: number,
+  endpointIds: Readonly<{ start: string; end: string }>,
+): AutomationPoint[] {
+  const level = clampEnvelopeValue(value);
+  if (points.length) return points.map((point) => ({ ...point, value: level }));
+  const start = { id: endpointIds.start, time: 0, value: level };
+  return timelineEnd > 0
+    ? [start, { id: endpointIds.end, time: timelineEnd, value: level }]
+    : [start];
+}
+
 /** Positions closer than this are the same point (drag jitter, float noise). */
 export const ENVELOPE_POINT_EPSILON = 1e-6;
 

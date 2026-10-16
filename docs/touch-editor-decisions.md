@@ -24,6 +24,7 @@ evidence:
 - 2026-10-06 owner, relayed by the coordinator: Editor links edit volume envelopes as the host does; Commenter and Viewer links cannot
 - #1051 phone test, round 3: pinch also moved a clip edge, dense clusters were guesswork, and the inspector covered the timeline
 - #1051 owner asked for one input framework "so the input language becomes familiar"
+- #1337: the shown flat envelope line is a vertical target in the same grammar; long-press arms it, one-finger movement before arming scrolls, and a second finger cancels its unsubmitted draft
 - #1051 round 1: candidate A (fan-out chooser) chosen; the offset loupe and hold-to-zoom cannot separate targets at one time position
 - #1051 round 4a phone test (2026-10-06): pinch never edits, collapse is remembered, hold-to-repeat and soft stops work
 - #1051 round 4b fix (2026-10-07): the first 4b cut made the clip body a create-menu surface, so touch clip moves were lost; the coordinator restored them under the approved grammar, since a clip body drags in time

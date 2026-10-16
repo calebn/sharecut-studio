@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useMountedRef } from "../hooks/useMountedRef";
 import type { AutomationPoint } from "../types/project";
 import {
   clampEnvelopeValue,
   ENVELOPE_POINT_EPSILON,
+  flatEnvelopeLevel,
   replaceEnvelopePoint,
   sameEnvelopePoint,
   sameEnvelopePoints,
+  setFlatEnvelopeLevel,
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
 import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
@@ -15,12 +17,18 @@ import { timelineTestIds } from "./selectors";
 
 type EnvelopeDrag = {
   pointerId: number;
-  selectPoint: (pointId: string) => void;
-  target: SVGCircleElement;
-  pointId: string;
+  target: SVGElement;
   origin: AutomationPoint[];
   points: AutomationPoint[];
-};
+} & (
+  | { kind: "point"; pointId: string; selectPoint: (pointId: string) => void }
+  | {
+      kind: "line";
+      startY: number;
+      startLevel: number;
+      endpointIds: { start: string; end: string };
+    }
+);
 
 function releaseCapture(drag: EnvelopeDrag | null): void {
   if (drag?.target.hasPointerCapture?.(drag.pointerId)) {
@@ -58,6 +66,7 @@ function releaseHeld(ref: { current: (() => void) | null }): void {
 
 export interface EnvelopeOverlayViewProps {
   points: AutomationPoint[];
+  timelineEnd?: number;
   baselinePoints: readonly AutomationPoint[];
   zoomPxPerSec: number;
   width: number;
@@ -82,6 +91,7 @@ export interface EnvelopeOverlayViewProps {
 /** Prop-driven envelope overlay used by the live adapter and the catalog. */
 export function EnvelopeOverlayView({
   points,
+  timelineEnd = 0,
   baselinePoints,
   zoomPxPerSec,
   width,
@@ -96,9 +106,13 @@ export function EnvelopeOverlayView({
   holdGeometry,
 }: EnvelopeOverlayViewProps) {
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
+  const lineId = useId();
   // Kept mounted outside the chunk range: unmounting would drop pointer
   // capture mid-drag or keyboard focus.
   const [dragPointId, setDragPointId] = useState<string | null>(null);
+  const [lineKeyLevel, setLineKeyLevel] = useState<number | null>(null);
+  const lineKeyOrigin = useRef<AutomationPoint[] | null>(null);
+  const lineKeyIds = useRef<{ start: string; end: string } | null>(null);
   // By id, not index: a re-sort or delete keeps the focused circle (same key).
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const dragRef = useRef<EnvelopeDrag | null>(null);
@@ -113,6 +127,7 @@ export function EnvelopeOverlayView({
       dragRef.current = null;
       releaseCapture(drag);
       releaseHeld(releaseHold);
+      lineKeyOrigin.current = null;
     },
     [],
   );
@@ -127,41 +142,50 @@ export function EnvelopeOverlayView({
     setDragPointId(null);
   }, [baselinePoints]);
 
+  useEffect(() => {
+    if (editable) return;
+    const drag = dragRef.current;
+    dragRef.current = null;
+    releaseCapture(drag);
+    releaseHeld(releaseHold);
+    setDraft(null);
+    setDragPointId(null);
+    lineKeyOrigin.current = null;
+    lineKeyIds.current = null;
+    setLineKeyLevel(null);
+  }, [editable]);
+
+  useEffect(() => {
+    if (
+      lineKeyOrigin.current &&
+      !sameEnvelopePoints(lineKeyOrigin.current, baselinePoints)
+    ) {
+      lineKeyOrigin.current = null;
+      lineKeyIds.current = null;
+      setLineKeyLevel(null);
+    }
+  }, [baselinePoints]);
+
   const [c0, c1] = visibleChunks;
   const sorted = draft ?? points;
+  const flatLevel = flatEnvelopeLevel(sorted);
+  const shownLevel =
+    flatLevel === null ? null : clampEnvelopeValue(lineKeyLevel ?? flatLevel);
   const x0 = c0 * VIEWPORT_CHUNK_PX;
   const x1 = Math.min(width, (c1 + 1) * VIEWPORT_CHUNK_PX);
   const xOf = (p: AutomationPoint) => p.time * zoomPxPerSec;
-  if (sorted.length === 0) {
-    const y = valueToY(1, height);
-    return (
-      <div
-        className="envelope-overlay"
-        data-testid={timelineTestIds.envelope}
-        style={{ left: x0, width: x1 - x0, height }}
-      >
-        <svg width={x1 - x0} height={height} className="envelope-svg">
-          <polyline
-            fill="none"
-            stroke="var(--color-envelope-line)"
-            strokeWidth="1.5"
-            points={`0,${y} ${x1 - x0},${y}`}
-            pointerEvents="none"
-            aria-hidden="true"
-          />
-        </svg>
-      </div>
-    );
-  }
   // Points in the chunk, plus one each side so edge segments still draw.
   let first = sorted.findIndex((p) => xOf(p) >= x0);
   first = first < 0 ? sorted.length - 1 : Math.max(0, first - 1);
   let last = sorted.findIndex((p) => xOf(p) > x1);
   last = last < 0 ? sorted.length - 1 : last;
-  const polyline = sorted
-    .slice(first, last + 1)
-    .map((p) => `${xOf(p) - x0},${valueToY(p.value, height)}`)
-    .join(" ");
+  const polyline =
+    shownLevel !== null
+      ? `0,${valueToY(shownLevel, height)} ${x1 - x0},${valueToY(shownLevel, height)}`
+      : sorted
+          .slice(first, last + 1)
+          .map((p) => `${xOf(p) - x0},${valueToY(p.value, height)}`)
+          .join(" ");
 
   const clearDrag = () => {
     const drag = dragRef.current;
@@ -171,6 +195,34 @@ export function EnvelopeOverlayView({
     setDraft(null);
     releaseCapture(drag);
     releaseHeld(releaseHold);
+  };
+
+  const commitLine = async (
+    next: AutomationPoint[],
+    origin: AutomationPoint[],
+  ) => {
+    if (
+      sameEnvelopePoints(next, origin) ||
+      (origin.length === 0 && next[0]?.value === 1)
+    ) {
+      setDraft(null);
+      releaseHeld(releaseHold);
+      return;
+    }
+    if (commitLock.current) return;
+    commitLock.current = true;
+    try {
+      await onCommitPoints(next, origin);
+      if (mounted.current) setDraft(null);
+    } catch (error) {
+      if (mounted.current) {
+        setDraft(null);
+        onCommitError(error);
+      }
+    } finally {
+      commitLock.current = false;
+      releaseHeld(releaseHold);
+    }
   };
 
   const commit = async (
@@ -263,6 +315,179 @@ export function EnvelopeOverlayView({
             pointerEvents="none"
             aria-hidden="true"
           />
+          {shownLevel !== null && (
+            <rect
+              x={0}
+              y={valueToY(shownLevel, height) - 6}
+              width={x1 - x0}
+              height={12}
+              fill="transparent"
+              className={editable ? "envelope-line-target" : undefined}
+              {...(editable
+                ? hitTargetProps("envelope-line", lineId, 0, {
+                    detail: shownLevel.toFixed(2),
+                  })
+                : {})}
+              role="slider"
+              tabIndex={editable ? 0 : -1}
+              aria-label="Envelope level"
+              aria-valuemin={0}
+              aria-valuemax={1.5}
+              aria-valuenow={shownLevel}
+              aria-valuetext={`${shownLevel} gain`}
+              aria-disabled={!editable}
+              onBlur={(e) => {
+                if (dragRef.current?.target === e.currentTarget) clearDrag();
+                lineKeyOrigin.current = null;
+                lineKeyIds.current = null;
+                setLineKeyLevel(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  clearDrag();
+                  lineKeyOrigin.current = null;
+                  lineKeyIds.current = null;
+                  setLineKeyLevel(null);
+                  return;
+                }
+                if (!editable || commitLock.current || dragRef.current) return;
+                const current = lineKeyLevel ?? flatLevel ?? 1;
+                const next =
+                  e.key === "Home"
+                    ? 0
+                    : e.key === "End"
+                      ? 1.5
+                      : e.key === "ArrowUp" || e.key === "ArrowRight"
+                        ? clampEnvelopeValue(current + 0.01)
+                        : e.key === "ArrowDown" || e.key === "ArrowLeft"
+                          ? clampEnvelopeValue(current - 0.01)
+                          : null;
+                if (next === null) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (!lineKeyOrigin.current) {
+                  lineKeyOrigin.current = baselinePoints.map((point) => ({
+                    ...point,
+                  }));
+                  lineKeyIds.current = {
+                    start: crypto.randomUUID(),
+                    end: crypto.randomUUID(),
+                  };
+                }
+                setLineKeyLevel(Number(next.toFixed(3)));
+              }}
+              onKeyUp={(e) => {
+                if (
+                  ![
+                    "Home",
+                    "End",
+                    "ArrowUp",
+                    "ArrowRight",
+                    "ArrowDown",
+                    "ArrowLeft",
+                  ].includes(e.key)
+                )
+                  return;
+                e.preventDefault();
+                e.stopPropagation();
+                const origin = lineKeyOrigin.current;
+                const ids = lineKeyIds.current;
+                lineKeyOrigin.current = null;
+                lineKeyIds.current = null;
+                if (origin && ids && lineKeyLevel !== null) {
+                  void commitLine(
+                    setFlatEnvelopeLevel(
+                      origin,
+                      lineKeyLevel,
+                      timelineEnd,
+                      ids,
+                    ),
+                    origin,
+                  );
+                }
+                setLineKeyLevel(null);
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (
+                  !editable ||
+                  dragRef.current ||
+                  commitLock.current ||
+                  lineKeyOrigin.current ||
+                  (e.pointerType === "mouse" && e.button !== 0)
+                )
+                  return;
+                e.preventDefault();
+                const target = e.currentTarget;
+                target.focus({ preventScroll: true });
+                if (document.activeElement !== target) return;
+                const origin = baselinePoints.map((point) => ({ ...point }));
+                dragRef.current = {
+                  kind: "line",
+                  pointerId: e.pointerId,
+                  target,
+                  origin,
+                  points: origin,
+                  startY: e.clientY,
+                  startLevel: shownLevel,
+                  endpointIds: {
+                    start: crypto.randomUUID(),
+                    end: crypto.randomUUID(),
+                  },
+                };
+                try {
+                  releaseHold.current = holdGeometry?.() ?? null;
+                  target.setPointerCapture?.(e.pointerId);
+                } catch (error) {
+                  clearDrag();
+                  onCommitError(error);
+                }
+              }}
+              onPointerMove={(e) => {
+                const drag = dragRef.current;
+                if (
+                  !drag ||
+                  drag.kind !== "line" ||
+                  drag.pointerId !== e.pointerId
+                )
+                  return;
+                e.stopPropagation();
+                const level = clampEnvelopeValue(
+                  drag.startLevel +
+                    ((drag.startY - e.clientY) * 1.5) / (height - 8),
+                );
+                const next = setFlatEnvelopeLevel(
+                  drag.origin,
+                  level,
+                  timelineEnd,
+                  drag.endpointIds,
+                );
+                dragRef.current = { ...drag, points: next };
+                setDraft(next);
+              }}
+              onPointerUp={(e) => {
+                const drag = dragRef.current;
+                if (
+                  !drag ||
+                  drag.kind !== "line" ||
+                  drag.pointerId !== e.pointerId
+                )
+                  return;
+                e.stopPropagation();
+                dragRef.current = null;
+                releaseCapture(drag);
+                void commitLine(drag.points, drag.origin);
+              }}
+              onPointerCancel={(e) => {
+                if (dragRef.current?.pointerId === e.pointerId) clearDrag();
+              }}
+              onLostPointerCapture={(e) => {
+                if (dragRef.current?.pointerId === e.pointerId) clearDrag();
+              }}
+            />
+          )}
           {sorted.map((p, i) => {
             const pinned =
               p.id === dragPointId ||
@@ -330,6 +555,7 @@ export function EnvelopeOverlayView({
                   if (document.activeElement !== target) return;
                   const copy = sorted.map((pt) => ({ ...pt }));
                   dragRef.current = {
+                    kind: "point",
                     pointerId: e.pointerId,
                     selectPoint: captureSelection(),
                     target,
@@ -349,7 +575,12 @@ export function EnvelopeOverlayView({
                 }}
                 onPointerMove={(e) => {
                   const drag = dragRef.current;
-                  if (!drag || drag.pointerId !== e.pointerId) return;
+                  if (
+                    !drag ||
+                    drag.kind !== "point" ||
+                    drag.pointerId !== e.pointerId
+                  )
+                    return;
                   e.stopPropagation();
                   const svg = drag.target.ownerSVGElement;
                   if (!svg) {
@@ -373,7 +604,12 @@ export function EnvelopeOverlayView({
                 }}
                 onPointerUp={(e) => {
                   const drag = dragRef.current;
-                  if (!drag || drag.pointerId !== e.pointerId) return;
+                  if (
+                    !drag ||
+                    drag.kind !== "point" ||
+                    drag.pointerId !== e.pointerId
+                  )
+                    return;
                   e.stopPropagation();
                   dragRef.current = null;
                   setDragPointId(null);
