@@ -3888,3 +3888,11 @@ def test_a_pause_with_a_source_hole_retains_original_air_or_holds(floor, propose
     else:
         assert result == _CutRejected("no_air")
     assert project.model_dump(mode="json") == before
+
+
+def test_spans_agree_within_float_error_of_a_round_trip():
+    from podcast_mcp.edits.fillers import _spans_agree
+
+    assert _spans_agree((1.2, 1.2 + 2.45), (1.2, 3.65))
+    assert not _spans_agree((1.2, 3.66), (1.2, 3.65))
+    assert not _spans_agree(None, (1.2, 3.65))
