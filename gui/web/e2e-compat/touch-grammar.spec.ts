@@ -1192,7 +1192,10 @@ test("#1154: a touch ripple trim over the guest's speech applies as one manual t
   });
   expect(starts).toHaveLength(4);
   expect(starts.slice(0, 3)).toEqual([0, 10, 40]);
-  expect(starts[3]).toBeGreaterThan(44);
+  // The edge follows the finger: 6 steps of pps px is 6.0 to 6.2 s at this
+  // zoom, so the clip starts at 50 minus that (a paused playhead near the edge
+  // can stop it a little earlier, so the bound does not depend on where it is).
+  expect(starts[3]).toBeGreaterThan(43.5);
   expect(starts[3]).toBeLessThan(50);
   expect(after.guest).not.toEqual(before.guest);
   expect(trims()).toHaveLength(1);
