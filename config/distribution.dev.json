@@ -9,5 +9,7 @@
   "privacy_url": "https://github.com/calebn/sharecut-studio/blob/main/PRIVACY.md",
   "repository_url": "https://github.com/calebn/sharecut-studio",
   "release_manifest_url": null,
-  "bootstrap_cdn_base": null
+  "bootstrap_cdn_base": null,
+  "updater_endpoint": null,
+  "updater_public_key": null
 }

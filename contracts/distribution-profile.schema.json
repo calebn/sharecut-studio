@@ -13,7 +13,19 @@
     "privacy_url",
     "repository_url",
     "release_manifest_url",
-    "bootstrap_cdn_base"
+    "bootstrap_cdn_base",
+    "updater_endpoint",
+    "updater_public_key"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": ["updater_endpoint"],
+        "properties": { "updater_endpoint": { "type": "null" } }
+      },
+      "then": { "properties": { "updater_public_key": { "type": "null" } } },
+      "else": { "properties": { "updater_public_key": { "type": "string" } } }
+    }
   ],
   "properties": {
     "$schema": { "type": "string" },
@@ -48,6 +60,16 @@
     "bootstrap_cdn_base": {
       "type": ["string", "null"],
       "pattern": "^https://"
+    },
+    "updater_endpoint": {
+      "type": ["string", "null"],
+      "pattern": "^https://"
+    },
+    "updater_public_key": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "^[A-Za-z0-9+/=_-]+$"
     }
   }
 }
