@@ -34,6 +34,26 @@ fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// Puts the menu back if a worker panics mid-step instead of leaving it disabled.
+struct PanicRestore<'a>(&'a UpdateController);
+
+impl Drop for PanicRestore<'_> {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            self.0.transition(|s| Some(s.recover()));
+        }
+    }
+}
+
+/// How an offer was reached. Only a click on the menu item itself may show the
+/// recording refusal as a modal; everything else could land while recording.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Origin {
+    Click,
+    ManualCheck,
+    Launch,
+}
+
 impl UpdateController {
     fn snapshot(&self) -> UpdateState {
         locked(&self.state).clone()
@@ -109,9 +129,9 @@ pub fn on_menu_click(app: &AppHandle) {
         let state = ctl.snapshot();
         if state.restartable() {
             restart_now(&win);
-        } else if let Some(version) = state.available_version().map(str::to_owned) {
+        } else if let Some(version) = state.retry_version().map(str::to_owned) {
             *locked(&ctl.declined) = None;
-            offer(&app, &win, &version, true);
+            offer(&app, &win, &version, Origin::Click);
         } else {
             manual_check(&app, &win);
         }
@@ -131,6 +151,7 @@ pub fn start_launch_check(app: &AppHandle) {
         if ctl.transition(UpdateState::begin_check).is_none() {
             return;
         }
+        let restore = PanicRestore(&ctl);
         let update = match check(&app) {
             Ok(Some(update)) => update,
             Ok(None) => {
@@ -146,6 +167,7 @@ pub fn start_launch_check(app: &AppHandle) {
         let version = update.version.clone();
         *locked(&ctl.pending) = Some(update);
         ctl.transition(|s| Some(s.finish_check(Some(&version))));
+        drop(restore);
         loop {
             let Some(win) = app.get_webview_window("main") else {
                 return;
@@ -161,7 +183,7 @@ pub fn start_launch_check(app: &AppHandle) {
                 sharecut::LaunchPrompt::Skip => return,
                 sharecut::LaunchPrompt::Wait => thread::sleep(sharecut::GUARD_POLL_INTERVAL),
                 sharecut::LaunchPrompt::Show => {
-                    offer(&app, &win, &version, false);
+                    offer(&app, &win, &version, Origin::Launch);
                     return;
                 }
             }
@@ -181,17 +203,45 @@ fn current_install_mode() -> sharecut::InstallMode {
     )
 }
 
-fn dir_writable(dir: &std::path::Path) -> bool {
+/// Create and remove a probe file. On success returns the owner id of the new
+/// file, which is this process's effective user id (0 where ids do not apply).
+fn probe_dir(dir: &std::path::Path) -> Option<u32> {
     let probe = dir.join(format!(".sharecut-write-probe-{}", std::process::id()));
-    let created = std::fs::OpenOptions::new()
+    let file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&probe)
-        .is_ok();
-    if created {
-        let _ = std::fs::remove_file(&probe);
+        .ok()?;
+    #[cfg(unix)]
+    let owner = {
+        use std::os::unix::fs::MetadataExt;
+        file.metadata().map(|meta| meta.uid()).unwrap_or(u32::MAX)
+    };
+    #[cfg(not(unix))]
+    let owner = 0;
+    drop(file);
+    let _ = std::fs::remove_file(&probe);
+    Some(owner)
+}
+
+#[cfg(target_os = "macos")]
+fn owns_bundle(euid: u32, dir: &std::path::Path, exe: &std::path::Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let Some(bundle) = exe
+        .ancestors()
+        .find(|path| path.extension().is_some_and(|ext| ext == "app"))
+    else {
+        return true;
+    };
+    match (std::fs::metadata(bundle), std::fs::metadata(dir)) {
+        (Ok(bundle), Ok(dir)) => sharecut::may_replace_bundle(euid, bundle.uid(), dir.uid()),
+        _ => false,
     }
-    created
+}
+
+#[cfg(not(target_os = "macos"))]
+fn owns_bundle(_euid: u32, _dir: &std::path::Path, _exe: &std::path::Path) -> bool {
+    true
 }
 
 /// Why this install cannot update itself, if it cannot. The plugin would
@@ -203,15 +253,18 @@ fn install_blocker(version: &str) -> Option<String> {
     let exe = std::env::current_exe().ok()?;
     let appimage = std::env::var_os("APPIMAGE").map(PathBuf::from);
     let dir = sharecut::install_dir(std::env::consts::OS, &exe, appimage.as_deref())?;
-    sharecut::placement_notice(std::env::consts::OS, &exe, dir_writable(&dir))
+    let writable = probe_dir(&dir).is_some_and(|euid| owns_bundle(euid, &dir, &exe));
+    sharecut::placement_notice(std::env::consts::OS, &exe, writable)
 }
 
 fn guard_allows(win: &WebviewWindow) -> bool {
     sharecut::may_update(crate::close_guard_decision(win))
 }
 
-/// A modal sheet can cover the recording UI, so while the guard is active the
-/// message goes to the log and the menu label carries the state instead.
+/// A modal sheet can cover the recording UI, so every notice goes through this
+/// guard re-read; while recording it is logged instead and the menu label
+/// carries the state. The one exception is the recording refusal shown right
+/// after the user's own click on the menu item (or on Restart).
 fn notify_if_idle(win: &WebviewWindow, text: &str) {
     if guard_allows(win) {
         notify(win, text);
@@ -263,24 +316,27 @@ fn manual_check(app: &AppHandle, win: &WebviewWindow) {
     if ctl.transition(UpdateState::begin_check).is_none() {
         return;
     }
-    match check(app) {
+    let restore = PanicRestore(&ctl);
+    let result = check(app);
+    drop(restore);
+    match result {
         Ok(Some(update)) => {
             let version = update.version.clone();
             *locked(&ctl.pending) = Some(update);
             ctl.transition(|s| Some(s.finish_check(Some(&version))));
-            offer(app, win, &version, true);
+            offer(app, win, &version, Origin::ManualCheck);
         }
         Ok(None) => {
             *locked(&ctl.pending) = None;
             ctl.transition(|s| Some(s.finish_check(None)));
-            notify(
+            notify_if_idle(
                 win,
                 &sharecut::up_to_date_message(&app.package_info().version.to_string()),
             );
         }
         Err(err) => {
             ctl.transition(|s| Some(s.fail_check()));
-            notify(
+            notify_if_idle(
                 win,
                 &sharecut::check_failure_message(failure_kind(&err), &err.to_string()),
             );
@@ -288,22 +344,19 @@ fn manual_check(app: &AppHandle, win: &WebviewWindow) {
     }
 }
 
-/// Ask once whether to install `version`. `interactive` is true when the user
-/// asked, so a refusal is explained; the launch prompt stays silent instead.
-fn offer(app: &AppHandle, win: &WebviewWindow, version: &str, interactive: bool) {
+/// Ask once whether to install `version`.
+fn offer(app: &AppHandle, win: &WebviewWindow, version: &str, origin: Origin) {
     let Some(ctl) = app.try_state::<UpdateController>() else {
         return;
     };
     if let Some(notice) = install_blocker(version) {
-        if interactive {
-            notify(win, &notice);
+        if origin != Origin::Launch {
+            notify_if_idle(win, &notice);
         }
         return;
     }
     if !guard_allows(win) {
-        if interactive {
-            notify(win, sharecut::RECORDING_REFUSAL_MESSAGE);
-        }
+        refuse_for_recording(win, origin);
         return;
     }
     if ctl.prompting.swap(true, Ordering::AcqRel) {
@@ -324,9 +377,17 @@ fn offer(app: &AppHandle, win: &WebviewWindow, version: &str, interactive: bool)
         .blocking_show();
     ctl.prompting.store(false, Ordering::Release);
     if confirmed {
-        install(app, win);
+        install(app, win, origin);
     } else {
         *locked(&ctl.declined) = Some(version.to_string());
+    }
+}
+
+fn refuse_for_recording(win: &WebviewWindow, origin: Origin) {
+    if origin == Origin::Click {
+        notify(win, sharecut::RECORDING_REFUSAL_MESSAGE);
+    } else {
+        notify_if_idle(win, sharecut::RECORDING_REFUSAL_MESSAGE);
     }
 }
 
@@ -360,62 +421,114 @@ fn download(win: &WebviewWindow, update: &Update) -> Result<Vec<u8>, tauri_plugi
     bytes
 }
 
-/// Download, stop the engine, install, and relaunch. The recording guard is
-/// read at click time, after the download, and at the exit request itself. There
-/// is no override, so a possibly live recording is never interrupted by an update.
-fn install(app: &AppHandle, win: &WebviewWindow) {
+struct LiveInstall<'a> {
+    app: &'a AppHandle,
+    win: &'a WebviewWindow,
+    ctl: &'a UpdateController,
+    update: &'a Update,
+}
+
+impl sharecut::InstallSteps for LiveInstall<'_> {
+    type Bytes = Vec<u8>;
+
+    fn guard_allows(&mut self) -> bool {
+        guard_allows(self.win)
+    }
+
+    fn placement_blocker(&mut self) -> Option<String> {
+        install_blocker(&self.update.version)
+    }
+
+    fn download(&mut self) -> Result<Vec<u8>, sharecut::StepError> {
+        self.ctl.transition(UpdateState::begin_download);
+        let bytes = download(self.win, self.update).map_err(step_error)?;
+        self.ctl.transition(UpdateState::begin_install);
+        Ok(bytes)
+    }
+
+    fn stop_engine(&mut self) {
+        crate::shutdown_sidecar(self.app);
+    }
+
+    fn install(&mut self, bytes: &Vec<u8>) -> Result<(), sharecut::StepError> {
+        self.update.install(bytes).map_err(step_error)
+    }
+
+    fn request_restart(&mut self) {
+        self.ctl.transition(UpdateState::finish_install);
+        request_restart(self.app);
+    }
+
+    fn respawn_engine(&mut self) -> bool {
+        match crate::respawn_engine(self.app) {
+            Ok(()) => true,
+            Err(err) => {
+                eprintln!(
+                    "Sharecut Studio: could not restart the engine after a failed update: {err}"
+                );
+                false
+            }
+        }
+    }
+}
+
+fn step_error(err: tauri_plugin_updater::Error) -> sharecut::StepError {
+    sharecut::StepError {
+        kind: failure_kind(&err),
+        detail: err.to_string(),
+    }
+}
+
+/// Run the install and show its outcome. The step order lives in
+/// `sharecut::run_install`; the recording guard is read at click time, after the
+/// download, and at the exit request. There is no override.
+fn install(app: &AppHandle, win: &WebviewWindow, origin: Origin) {
     let Some(ctl) = app.try_state::<UpdateController>() else {
         return;
     };
     let Some(update) = locked(&ctl.pending).clone() else {
         return;
     };
-    if !guard_allows(win) {
-        notify(win, sharecut::RECORDING_REFUSAL_MESSAGE);
-        return;
-    }
-    if let Some(notice) = install_blocker(&update.version) {
-        notify(win, &notice);
-        return;
-    }
-    if ctl.transition(UpdateState::begin_download).is_none() {
-        return;
-    }
-    let bytes = match download(win, &update) {
-        Ok(bytes) => bytes,
-        Err(err) => {
+    let restore = PanicRestore(&ctl);
+    let outcome = sharecut::run_install(&mut LiveInstall {
+        app,
+        win,
+        ctl: &ctl,
+        update: &update,
+    });
+    drop(restore);
+    match outcome {
+        sharecut::InstallOutcome::Restarting => {}
+        sharecut::InstallOutcome::RefusedByGuard => refuse_for_recording(win, origin),
+        sharecut::InstallOutcome::Blocked(notice) => notify_if_idle(win, &notice),
+        sharecut::InstallOutcome::DownloadFailed(error) => {
             ctl.transition(|s| Some(s.back_to_available()));
             notify_if_idle(
                 win,
-                &sharecut::install_failure_message(failure_kind(&err), &err.to_string()),
+                &sharecut::install_failure_message(error.kind, &error.detail),
             );
-            return;
         }
-    };
-    ctl.transition(UpdateState::begin_install);
-    if !guard_allows(win) || install_blocker(&update.version).is_some() {
-        ctl.transition(|s| Some(s.back_to_available()));
-        eprintln!("Sharecut Studio: update install skipped; recording or install location changed");
-        return;
+        sharecut::InstallOutcome::Skipped => {
+            ctl.transition(|s| Some(s.back_to_available()));
+            eprintln!(
+                "Sharecut Studio: update install skipped; recording or install location changed, download discarded"
+            );
+        }
+        sharecut::InstallOutcome::InstallFailed { error, respawned } => {
+            ctl.transition(|s| Some(s.fail_install()));
+            let detail = sharecut::install_failure_message(error.kind, &error.detail);
+            let tail = if respawned {
+                "Sharecut Studio is still on the old version."
+            } else {
+                "The engine was stopped, so restart Sharecut Studio."
+            };
+            notify_if_idle(win, &format!("{detail} {tail}"));
+        }
     }
-    // The engine runs from inside the bundle being replaced, and the Windows
-    // installer exits this process, so the engine is stopped before the swap.
-    crate::shutdown_sidecar(app);
-    if let Err(err) = update.install(&bytes) {
-        ctl.transition(|s| Some(s.back_to_available()));
-        let detail = sharecut::install_failure_message(failure_kind(&err), &err.to_string());
-        notify_if_idle(
-            win,
-            &format!("{detail} The engine was stopped, so restart Sharecut Studio."),
-        );
-        return;
-    }
-    ctl.transition(UpdateState::finish_install);
-    request_restart(app);
 }
 
 fn request_restart(app: &AppHandle) {
-    RESTART_PENDING.store(true, Ordering::Release);
+    sharecut::arm_restart(&RESTART_PENDING);
     app.exit(0);
 }
 
@@ -428,28 +541,17 @@ fn restart_now(win: &WebviewWindow) {
     }
 }
 
-/// Called from `ExitRequested`. Reads the recording guard at the moment of
-/// exit, so a pending update restart is either allowed or cleared right there.
+/// Called from `ExitRequested`; the decision is `sharecut::exit_gate`.
 pub fn gate_exit(app: &AppHandle) -> sharecut::RestartGate {
-    let pending = RESTART_PENDING.load(Ordering::Acquire);
-    if !pending {
-        return sharecut::RestartGate::NotPending;
-    }
-    let guard = match app.get_webview_window("main") {
+    sharecut::exit_gate(&RESTART_PENDING, || match app.get_webview_window("main") {
         Some(win) => crate::close_guard_decision(&win),
         None => sharecut::close_decision_from_url(None),
-    };
-    let gate = sharecut::restart_gate(pending, guard);
-    if gate == sharecut::RestartGate::Refuse {
-        RESTART_PENDING.store(false, Ordering::Release);
-        eprintln!("Sharecut Studio: update restart withheld during recording");
-    }
-    gate
+    })
 }
 
 /// True once when the exit that just happened was an approved update restart.
 pub fn take_restart_on_exit() -> bool {
-    RESTART_PENDING.swap(false, Ordering::AcqRel)
+    sharecut::take_restart(&RESTART_PENDING)
 }
 
 #[cfg(test)]

@@ -464,8 +464,10 @@ Windows) runs one on request. The steps are: download and verify the
 signature, re-read the recording guard, check that the install location is
 writable, stop the engine, install, and relaunch. The engine runs from inside
 the bundle being replaced, so it is always stopped before the swap on every
-platform. If the install fails after that, the message tells the user to restart
-the app. Once files are replaced the item reads **Restart to Finish Update…**
+platform. If the install fails after that, the host starts the engine again on
+the old version, the item reads **Update failed — retry…**, and the message says
+Sharecut Studio is still on the old version (only if the engine cannot restart
+does it say to restart the app). Once files are replaced the item reads **Restart to Finish Update…**
 instead of downloading again.
 
 - **Recording.** No update is downloaded-and-installed, and no relaunch happens,
@@ -477,8 +479,13 @@ instead of downloading again.
   recording UI. The menu label carries the state and the 60 second guard poll
   re-offers a launch update later; a version the user declined is not offered
   again that session.
+- **Recording during a download.** If a recording starts while a long download
+  runs, the install is skipped, the download is discarded, and the item stays on
+  **Update to vX Available…**.
 - **Unwritable location.** The host probes the folder that holds the app (the
-  `.app` parent on macOS, the AppImage parent on Linux). If it is not writable
+  `.app` parent on macOS, the AppImage parent on Linux). On macOS the host also
+  needs to own the `.app` or its parent folder, because `/Applications` is sticky
+  and another user's bundle cannot be swapped. If it is not writable or owned
   it does not self-install, because the plugin would raise an administrator
   prompt with no time limit. It shows a notice instead: "Move Sharecut Studio to
   Applications first" for a disk image or translocated app, otherwise

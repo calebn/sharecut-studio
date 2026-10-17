@@ -85,10 +85,12 @@ pub use sidecar::{
     sidecar_log_path, sidecar_owns_listen,
 };
 pub use update::{
-    check_failure_message, install_dir, install_failure_message, install_mode, is_offered,
-    launch_prompt, manual_download_message, may_update, offer_message, placement_notice,
-    progress_percent, restart_gate, up_to_date_message, FailureKind, InstallMode, LaunchPrompt,
-    RestartGate, UpdateState, UpdaterConfig, GUARD_POLL_INTERVAL, RECORDING_REFUSAL_MESSAGE,
+    arm_restart, check_failure_message, exit_gate, install_dir, install_failure_message,
+    install_mode, is_offered, launch_prompt, manual_download_message, may_replace_bundle,
+    may_update, offer_message, placement_notice, progress_percent, restart_gate, run_install,
+    take_restart, up_to_date_message, FailureKind, InstallMode, InstallOutcome, InstallSteps,
+    LaunchPrompt, RestartGate, StepError, UpdateState, UpdaterConfig, GUARD_POLL_INTERVAL,
+    RECORDING_REFUSAL_MESSAGE,
 };
 
 #[cfg(test)]

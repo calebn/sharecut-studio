@@ -4,6 +4,7 @@
 //! takes is decided here so it can be tested without a WebView.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::close_guard::CloseDecision;
@@ -70,6 +71,10 @@ pub enum UpdateState {
     Installing {
         version: String,
     },
+    /// The install failed after the engine was restarted on the old version.
+    InstallFailed {
+        version: String,
+    },
     /// Files are replaced; only a relaunch is left.
     Restartable {
         version: String,
@@ -81,9 +86,11 @@ impl UpdateState {
     pub fn begin_check(&self) -> Option<UpdateState> {
         match self {
             UpdateState::Idle => Some(UpdateState::Checking { known: None }),
-            UpdateState::Available { version } => Some(UpdateState::Checking {
-                known: Some(version.clone()),
-            }),
+            UpdateState::Available { version } | UpdateState::InstallFailed { version } => {
+                Some(UpdateState::Checking {
+                    known: Some(version.clone()),
+                })
+            }
             _ => None,
         }
     }
@@ -114,9 +121,11 @@ impl UpdateState {
 
     pub fn begin_download(&self) -> Option<UpdateState> {
         match self {
-            UpdateState::Available { version } => Some(UpdateState::Downloading {
-                version: version.clone(),
-            }),
+            UpdateState::Available { version } | UpdateState::InstallFailed { version } => {
+                Some(UpdateState::Downloading {
+                    version: version.clone(),
+                })
+            }
             _ => None,
         }
     }
@@ -136,6 +145,36 @@ impl UpdateState {
             UpdateState::Installing { version } => Some(UpdateState::Restartable {
                 version: version.clone(),
             }),
+            _ => None,
+        }
+    }
+
+    pub fn fail_install(&self) -> UpdateState {
+        match self {
+            UpdateState::Installing { version } => UpdateState::InstallFailed {
+                version: version.clone(),
+            },
+            other => other.clone(),
+        }
+    }
+
+    /// Where a worker that panicked mid-step leaves the menu.
+    pub fn recover(&self) -> UpdateState {
+        match self {
+            UpdateState::Checking { .. } => self.fail_check(),
+            UpdateState::Downloading { .. } | UpdateState::Installing { .. } => {
+                self.back_to_available()
+            }
+            other => other.clone(),
+        }
+    }
+
+    /// The version a menu click should offer again, including after a failed install.
+    pub fn retry_version(&self) -> Option<&str> {
+        match self {
+            UpdateState::Available { version } | UpdateState::InstallFailed { version } => {
+                Some(version)
+            }
             _ => None,
         }
     }
@@ -170,6 +209,7 @@ impl UpdateState {
             UpdateState::Available { version } => format!("Update to v{version} Available…"),
             UpdateState::Downloading { .. } => "Downloading Update…".to_string(),
             UpdateState::Installing { .. } => "Installing Update…".to_string(),
+            UpdateState::InstallFailed { .. } => "Update failed — retry…".to_string(),
             UpdateState::Restartable { .. } => "Restart to Finish Update…".to_string(),
         }
     }
@@ -177,7 +217,10 @@ impl UpdateState {
     pub fn menu_enabled(&self) -> bool {
         matches!(
             self,
-            UpdateState::Idle | UpdateState::Available { .. } | UpdateState::Restartable { .. }
+            UpdateState::Idle
+                | UpdateState::Available { .. }
+                | UpdateState::InstallFailed { .. }
+                | UpdateState::Restartable { .. }
         )
     }
 }
@@ -250,6 +293,91 @@ pub fn restart_gate(pending: bool, guard: CloseDecision) -> RestartGate {
         (true, true) => RestartGate::Proceed,
         (true, false) => RestartGate::Refuse,
     }
+}
+
+/// Replacing a bundle needs ownership of it, or of the folder it sits in
+/// (`/Applications` is sticky, so a bundle owned by someone else cannot be swapped).
+pub fn may_replace_bundle(euid: u32, bundle_uid: u32, parent_uid: u32) -> bool {
+    euid == 0 || bundle_uid == euid || parent_uid == euid
+}
+
+/// The ExitRequested decision. A refused restart is disarmed here, in the same
+/// step that read the guard, so it can never fire on a later quit.
+pub fn exit_gate(pending: &AtomicBool, read_guard: impl FnOnce() -> CloseDecision) -> RestartGate {
+    if !pending.load(Ordering::Acquire) {
+        return RestartGate::NotPending;
+    }
+    let gate = restart_gate(true, read_guard());
+    if gate == RestartGate::Refuse {
+        pending.store(false, Ordering::Release);
+    }
+    gate
+}
+
+pub fn arm_restart(pending: &AtomicBool) {
+    pending.store(true, Ordering::Release);
+}
+
+/// True once when the exit that just happened was an approved update restart.
+pub fn take_restart(pending: &AtomicBool) -> bool {
+    pending.swap(false, Ordering::AcqRel)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StepError {
+    pub kind: FailureKind,
+    pub detail: String,
+}
+
+/// Side effects of one install, in the order `run_install` performs them.
+pub trait InstallSteps {
+    type Bytes;
+    fn guard_allows(&mut self) -> bool;
+    fn placement_blocker(&mut self) -> Option<String>;
+    fn download(&mut self) -> Result<Self::Bytes, StepError>;
+    fn stop_engine(&mut self);
+    fn install(&mut self, bytes: &Self::Bytes) -> Result<(), StepError>;
+    fn request_restart(&mut self);
+    fn respawn_engine(&mut self) -> bool;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum InstallOutcome {
+    RefusedByGuard,
+    Blocked(String),
+    DownloadFailed(StepError),
+    /// The guard or the install location changed during the download.
+    Skipped,
+    InstallFailed {
+        error: StepError,
+        respawned: bool,
+    },
+    Restarting,
+}
+
+/// Guard, preflight, download, guard again, stop the engine, install, relaunch.
+/// The engine is stopped only once nothing can refuse the install any more.
+pub fn run_install<S: InstallSteps>(steps: &mut S) -> InstallOutcome {
+    if !steps.guard_allows() {
+        return InstallOutcome::RefusedByGuard;
+    }
+    if let Some(notice) = steps.placement_blocker() {
+        return InstallOutcome::Blocked(notice);
+    }
+    let bytes = match steps.download() {
+        Ok(bytes) => bytes,
+        Err(error) => return InstallOutcome::DownloadFailed(error),
+    };
+    if !steps.guard_allows() || steps.placement_blocker().is_some() {
+        return InstallOutcome::Skipped;
+    }
+    steps.stop_engine();
+    if let Err(error) = steps.install(&bytes) {
+        let respawned = steps.respawn_engine();
+        return InstallOutcome::InstallFailed { error, respawned };
+    }
+    steps.request_restart();
+    InstallOutcome::Restarting
 }
 
 /// What the launch-time check should do on each poll of the recording guard.
@@ -524,6 +652,224 @@ mod tests {
             Some("Sharecut Studio can't update itself from this location. Download the new version from the Sharecut Studio site.")
         );
         assert_eq!(placement_notice("linux", Path::new("/opt/a"), true), None);
+    }
+
+    #[derive(Default)]
+    struct Mock {
+        calls: Vec<&'static str>,
+        guard: Vec<bool>,
+        blocker: Option<String>,
+        download_fails: bool,
+        install_fails: bool,
+        respawns: bool,
+    }
+
+    impl InstallSteps for Mock {
+        type Bytes = u8;
+        fn guard_allows(&mut self) -> bool {
+            self.calls.push("guard");
+            if self.guard.is_empty() {
+                true
+            } else {
+                self.guard.remove(0)
+            }
+        }
+        fn placement_blocker(&mut self) -> Option<String> {
+            self.calls.push("preflight");
+            self.blocker.clone()
+        }
+        fn download(&mut self) -> Result<u8, StepError> {
+            self.calls.push("download");
+            if self.download_fails {
+                Err(step_error("net"))
+            } else {
+                Ok(7)
+            }
+        }
+        fn stop_engine(&mut self) {
+            self.calls.push("stop");
+        }
+        fn install(&mut self, bytes: &u8) -> Result<(), StepError> {
+            assert_eq!(*bytes, 7);
+            self.calls.push("install");
+            if self.install_fails {
+                Err(step_error("disk"))
+            } else {
+                Ok(())
+            }
+        }
+        fn request_restart(&mut self) {
+            self.calls.push("restart");
+        }
+        fn respawn_engine(&mut self) -> bool {
+            self.calls.push("respawn");
+            self.respawns
+        }
+    }
+
+    fn step_error(detail: &str) -> StepError {
+        StepError {
+            kind: FailureKind::Other,
+            detail: detail.to_string(),
+        }
+    }
+
+    #[test]
+    fn install_runs_guard_preflight_download_guard_stop_install_restart_in_order() {
+        let mut steps = Mock::default();
+        assert_eq!(run_install(&mut steps), InstallOutcome::Restarting);
+        assert_eq!(
+            steps.calls,
+            vec![
+                "guard",
+                "preflight",
+                "download",
+                "guard",
+                "preflight",
+                "stop",
+                "install",
+                "restart"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_recording_at_click_time_stops_before_anything_else() {
+        let mut steps = Mock {
+            guard: vec![false],
+            ..Mock::default()
+        };
+        assert_eq!(run_install(&mut steps), InstallOutcome::RefusedByGuard);
+        assert_eq!(steps.calls, vec!["guard"]);
+    }
+
+    #[test]
+    fn a_blocked_location_never_downloads() {
+        let mut steps = Mock {
+            blocker: Some("move it".into()),
+            ..Mock::default()
+        };
+        assert_eq!(
+            run_install(&mut steps),
+            InstallOutcome::Blocked("move it".into())
+        );
+        assert_eq!(steps.calls, vec!["guard", "preflight"]);
+    }
+
+    #[test]
+    fn a_recording_that_starts_during_the_download_skips_stop_and_install() {
+        let mut steps = Mock {
+            guard: vec![true, false],
+            ..Mock::default()
+        };
+        assert_eq!(run_install(&mut steps), InstallOutcome::Skipped);
+        assert_eq!(steps.calls, vec!["guard", "preflight", "download", "guard"]);
+    }
+
+    #[test]
+    fn a_download_error_never_stops_the_engine() {
+        let mut steps = Mock {
+            download_fails: true,
+            ..Mock::default()
+        };
+        assert_eq!(
+            run_install(&mut steps),
+            InstallOutcome::DownloadFailed(step_error("net"))
+        );
+        assert_eq!(steps.calls, vec!["guard", "preflight", "download"]);
+    }
+
+    #[test]
+    fn an_install_error_after_stopping_respawns_the_engine() {
+        let mut steps = Mock {
+            install_fails: true,
+            respawns: true,
+            ..Mock::default()
+        };
+        assert_eq!(
+            run_install(&mut steps),
+            InstallOutcome::InstallFailed {
+                error: step_error("disk"),
+                respawned: true
+            }
+        );
+        assert_eq!(
+            steps.calls,
+            vec![
+                "guard",
+                "preflight",
+                "download",
+                "guard",
+                "preflight",
+                "stop",
+                "install",
+                "respawn"
+            ]
+        );
+        let mut down = Mock {
+            install_fails: true,
+            ..Mock::default()
+        };
+        assert_eq!(
+            run_install(&mut down),
+            InstallOutcome::InstallFailed {
+                error: step_error("disk"),
+                respawned: false
+            }
+        );
+    }
+
+    #[test]
+    fn exit_gate_reads_the_guard_only_when_pending_and_disarms_a_refusal() {
+        let pending = AtomicBool::new(false);
+        let host = CloseDecision::Confirm(CloseRisk::Host);
+        assert_eq!(
+            exit_gate(&pending, || panic!("guard read while not pending")),
+            RestartGate::NotPending
+        );
+        arm_restart(&pending);
+        assert_eq!(exit_gate(&pending, || host), RestartGate::Refuse);
+        assert!(!take_restart(&pending));
+        arm_restart(&pending);
+        assert_eq!(
+            exit_gate(&pending, || CloseDecision::Allow),
+            RestartGate::Proceed
+        );
+        assert!(take_restart(&pending));
+        assert!(!take_restart(&pending));
+    }
+
+    #[test]
+    fn bundle_ownership_allows_owner_of_bundle_or_folder_or_root() {
+        assert!(may_replace_bundle(501, 501, 0));
+        assert!(may_replace_bundle(501, 0, 501));
+        assert!(may_replace_bundle(0, 502, 0));
+        assert!(!may_replace_bundle(501, 502, 0));
+    }
+
+    #[test]
+    fn a_failed_install_keeps_the_retry_visible_and_recovers_after_a_panic() {
+        let installing = available("1.2.0")
+            .begin_download()
+            .unwrap()
+            .begin_install()
+            .unwrap();
+        let failed = installing.fail_install();
+        assert_eq!(failed.menu_label(), "Update failed — retry…");
+        assert!(failed.menu_enabled());
+        assert_eq!(failed.retry_version(), Some("1.2.0"));
+        assert_eq!(failed.available_version(), None);
+        assert!(failed.begin_download().is_some());
+        assert_eq!(installing.recover(), available("1.2.0"));
+        assert_eq!(
+            available("1.2.0").begin_check().unwrap().recover(),
+            available("1.2.0")
+        );
+        assert_eq!(
+            UpdateState::Idle.begin_check().unwrap().recover(),
+            UpdateState::Idle
+        );
+        assert_eq!(failed.recover(), failed);
     }
 
     #[test]
