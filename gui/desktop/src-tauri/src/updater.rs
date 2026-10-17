@@ -529,7 +529,7 @@ fn install(app: &AppHandle, win: &WebviewWindow, origin: Origin) {
             } else {
                 "The engine was stopped, so restart Sharecut Studio."
             };
-            notify_if_idle(win, &format!("{detail} {tail}"));
+            notify_if_idle(win, &format!("{}. {tail}", detail.trim_end_matches('.')));
         }
     }
 }
