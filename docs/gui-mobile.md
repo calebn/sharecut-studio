@@ -112,20 +112,40 @@ held sideways) compact the editor:
   shell, at most 40rem tall, the regular inspector sheet for an `envelope` or
   `envelopePoint` selection (`editedLaneTrack`, class `bottom-sheet--lane-band`)
   takes the bottom tabs' row (`responsive.css`, the same `max-height: 40rem`
-  exception as the compact strip) and rests on the status row. The 9rem floor
-  above belongs to the compact drawer; this sheet has its own. `useKeepEditedLaneClear`
-  measures the pinned ruler and marker lane's bottom plus one lane height, caps
-  the sheet to what is left (`--sheet-lane-cap`, never under 9rem, honoured next to
-  the transcript's `--sheet-cap` as the smaller of the two) and scrolls the edited
-  lane into that band. The cap leaves 244px of sheet at 932×430 and 145px at
-  914×331, each under a whole 72px lane, so the sheet's body scrolls inside it.
-  A software keyboard lifts the cap (the sheet takes the visible slot)
-  because the form outranks the lane then. In a slot at least 36rem wide and at most 30rem tall
-  (`@container sheet-slot`, so a keyboard-shortened tablet counts too) the sheet pins
-  its header, puts the title and **Done** on one row, keeps the long help text
-  readable to a screen reader only, and lays the point form out as one row of
-  **Time**, **Level**, **Save point** and **Cancel**. Opening the form on touch
-  scrolls that row into the visible body with its heading. The open point
+  exception as the compact strip) and rests on the status row. The marker rows
+  (chapters, comments, social clips) stop pinning under the ruler while it is
+  open, so the lane sits right below the ruler and the rows are one scroll up
+  (`.marker-lane` and the header column's chrome lose `position: sticky`; a pinned
+  `::before` keeps the ruler's corner above the track names). At most 24rem tall
+  (914×331) the status line steps aside too, and the sheet rests on the screen's
+  edge until it closes. The 9rem floor above belongs to the compact drawer; this
+  sheet has its own. `useKeepEditedLaneClear` measures the ruler's bottom
+  (`pinnedChromeBottom`, which still reads the marker lane where it pins) plus one
+  lane height, caps the sheet to what is left (`--sheet-lane-cap`, never under 9rem,
+  honoured next to the transcript's `--sheet-cap` as the smaller of the two) and
+  scrolls the edited lane into that band. It runs again whenever the scroller,
+  the slot or the lane changes size, so a rotation that remounts the shell, which
+  resets the lane scroller, lands the lane back under the ruler. With the demo
+  project's three marker rows the whole 72px lane shows at 914×331, 932×430 and
+  844×390, over a sheet of 174px, 245px and 205px. A software keyboard lifts the
+  cap (the sheet takes the visible slot) because the form outranks the lane then.
+  On a window at most 40rem tall, in a slot at least 36rem wide
+  (`@media (max-height: 40rem)` around `@container sheet-slot`), the sheet is a
+  fixed header with a scrolling body: the sheet's own title row, then **Done**
+  beside the title on a row of its own that never scrolls, then the body. The long
+  help text is readable to a screen reader only, the point form is one row of
+  **Time**, **Level**, **Save point** and **Cancel**, and its "Add point" or "Edit
+  point" heading is readable to a screen reader only too, so the row of fields
+  fits. A tall iPad slot (1194×834, 1024×768) is not that window: it keeps the
+  regular form with its help text visible (Playwright asserts both). Opening the
+  form on touch scrolls the fields into the visible body, and a resize keeps the
+  open form in view. The open point
+  draft is store state (`envelopeDraft`), keyed to its project, track and
+  point and dropped when the selection leaves that target, so the phone and tablet
+  shells swapping on rotation do not lose what was typed. The sheet root pads
+  its sides with `env(safe-area-inset-left/right)` so nothing sits under the
+  notch or Dynamic Island held sideways; Playwright cannot emulate those insets, so only
+  a real iPhone proves them.
   draft is store state (`envelopeDraft`), keyed to its project, track and
   point and dropped when the selection leaves that target, so the phone and tablet
   shells swapping on rotation do not lose what was typed. The sheet root pads

@@ -15,6 +15,8 @@ export const MAX_TABS_FRACTION = 0.6;
 /** The fraction of that space a short window's CSS default takes (`responsive.css`). */
 export const SHORT_DEFAULT_TABS_FRACTION = 0.38;
 export const SHORT_MIN_TABS_HEIGHT_REM = 4.5;
+/** A window with no measurable height still leaves the panel a row to show. */
+const TABS_HEIGHT_FLOOR_REM = 1;
 
 export function remToPx(rem: number): number {
   if (typeof document === "undefined") {
@@ -41,7 +43,10 @@ export function minTabsHeightRem(availableBelowChromePx: number): number {
   );
   return shortDefault >= MIN_TABS_HEIGHT_REM
     ? MIN_TABS_HEIGHT_REM
-    : Math.min(shortDefault, SHORT_MIN_TABS_HEIGHT_REM);
+    : Math.max(
+        TABS_HEIGHT_FLOOR_REM,
+        Math.min(shortDefault, SHORT_MIN_TABS_HEIGHT_REM),
+      );
 }
 
 export function clampTabsHeightRem(
@@ -114,7 +119,13 @@ export function initTabsHeight(): number | null {
   if (stored == null) {
     return null;
   }
-  const rem = clampTabsHeightRem(stored, availableBelowChromePx());
+  const avail = availableBelowChromePx();
+  if (avail <= 0) {
+    // A hidden frame or minimized window measures nothing: keep the choice.
+    applyTabsHeight(stored);
+    return stored;
+  }
+  const rem = clampTabsHeightRem(stored, avail);
   if (rem !== stored) writeStoredRem(rem);
   applyTabsHeight(rem);
   return rem;
@@ -143,6 +154,7 @@ export function useTabsHeight(): {
   useEffect(() => {
     const syncMax = () => {
       const avail = availableBelowChromePx();
+      if (avail <= 0) return;
       const nextMax = clampTabsHeightRem(999, avail);
       setMaxRem(nextMax);
       setMinRem(minTabsHeightRem(avail));

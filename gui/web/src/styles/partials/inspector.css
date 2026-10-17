@@ -512,84 +512,107 @@ html[data-shell="phone"]
   white-space: normal;
 }
 
-/* A lane-editing sheet in a short, wide slot (a phone held sideways, or the
-   keyboard's shortened one) is one dense band, so the form fits beside the
-   lane it edits (#1694): the title and Done share a row, the controls wrap on
-   one row, the long help stays readable to a screen reader only, and the point
-   form is one row of Time, Level, Save and Cancel. */
-@container sheet-slot (min-width: 36rem) and (max-height: 30rem) {
-  .bottom-sheet--lane-band .modifier-inspector {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--space-3) var(--space-3);
-    padding-block: var(--space-3);
-  }
+/* A lane-editing sheet on a short window (a phone held sideways) is one dense
+   band, so the form fits beside the lane it edits (#1694): the title and Done
+   share a pinned row, only the body beneath scrolls, the controls wrap on one
+   row, the long help stays readable to a screen reader only, and the point
+   form is one row of Time, Level, Save and Cancel. A tall iPad keeps the
+   regular form and its visible help. */
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (max-height: 40rem) {
+  @container sheet-slot (min-width: 36rem) {
+    .bottom-sheet--lane-band .bottom-sheet-body .modifier-inspector {
+      display: grid;
+      flex: 1 1 auto;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto minmax(0, 1fr);
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      min-block-size: 0;
+      block-size: auto;
+      padding-block: var(--space-1) 0;
+      overflow: hidden;
+    }
 
-  .bottom-sheet--lane-band .modifier-header {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-0) var(--space-3);
-  }
+    .bottom-sheet--lane-band .modifier-header {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-0) var(--space-3);
+    }
 
-  .bottom-sheet--lane-band .modifier-subtitle {
-    margin: 0;
-  }
+    .bottom-sheet--lane-band .modifier-subtitle {
+      margin: 0;
+    }
 
-  .bottom-sheet--lane-band .modifier-body,
-  .bottom-sheet--lane-band .modifier-error,
-  .bottom-sheet--lane-band .modifier-footer {
-    grid-column: 1 / -1;
-  }
+    .bottom-sheet--lane-band .modifier-body,
+    .bottom-sheet--lane-band .modifier-error,
+    .bottom-sheet--lane-band .modifier-footer {
+      grid-column: 1 / -1;
+    }
 
-  .bottom-sheet--lane-band .modifier-body {
-    gap: var(--space-3);
-  }
+    .bottom-sheet--lane-band .modifier-body {
+      gap: var(--space-3);
+      min-block-size: 0;
+      align-self: stretch;
+      overflow: auto;
+    }
 
-  .bottom-sheet--lane-band .envelope-workspace {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: var(--space-3) var(--space-3);
-  }
+    .bottom-sheet--lane-band .envelope-workspace {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: var(--space-3) var(--space-3);
+    }
 
-  .bottom-sheet--lane-band .envelope-workspace-help {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+    .bottom-sheet--lane-band .envelope-workspace-help {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
 
-  .bottom-sheet--lane-band .envelope-workspace > label {
-    flex: 1 1 14rem;
-  }
+    .bottom-sheet--lane-band .envelope-workspace label {
+      gap: var(--space-1);
+    }
 
-  .bottom-sheet--lane-band .envelope-workspace > form {
-    flex: 1 1 100%;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
-    align-items: end;
-    gap: var(--space-3) var(--space-3);
-  }
+    .bottom-sheet--lane-band .envelope-workspace > label {
+      flex: 1 1 14rem;
+    }
 
-  .bottom-sheet--lane-band .envelope-workspace > form > :is(h3, p) {
-    grid-column: 1 / -1;
-    margin: 0;
-  }
+    .bottom-sheet--lane-band .envelope-workspace > form {
+      flex: 1 1 100%;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+      align-items: end;
+      gap: var(--space-3) var(--space-3);
+    }
 
-  /* On touch the form opens on its heading, so no keypad rises; reveal the
-     row of fields beneath it with the heading. */
-  .bottom-sheet--lane-band .envelope-workspace > form > h3 {
-    scroll-margin-block-end: 5rem;
-  }
+    .bottom-sheet--lane-band .envelope-workspace > form > :is(h3, p) {
+      grid-column: 1 / -1;
+      margin: 0;
+    }
 
-  .bottom-sheet--lane-band
-    .envelope-workspace
-    > form
-    > .envelope-workspace-actions {
-    display: contents;
+    /* On touch the form opens on its heading, so no keypad rises; reveal the
+     row of fields beneath it with the heading. The heading gives its row to
+     the fields and stays readable to a screen reader. */
+    .bottom-sheet--lane-band .envelope-workspace > form > h3 {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      scroll-margin-block-end: 4rem;
+    }
+
+    .bottom-sheet--lane-band
+      .envelope-workspace
+      > form
+      > .envelope-workspace-actions {
+      display: contents;
+    }
   }
 }
 

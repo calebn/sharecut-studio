@@ -11,10 +11,12 @@ import { remToPx } from "../hooks/useTabsHeight";
 import {
   capInspectorSheetForLane,
   inspectorSheetBottom,
+  inspectorSheetPanel,
 } from "../ui/compactSheet";
 import {
   KEEP_CLEAR_PX,
   keepTargetClear,
+  pinnedChromeBottom,
   useShortScreen,
 } from "./useCompactInspector";
 
@@ -31,9 +33,7 @@ function fit(trackId: string): void {
   const scroller = lane?.closest<HTMLElement>(".timeline-scroll");
   const slotBottom = inspectorSheetBottom();
   if (!lane || !scroller || slotBottom === null) return;
-  const pinnedBottom =
-    scroller.querySelector(".marker-lane")?.getBoundingClientRect().bottom ??
-    scroller.getBoundingClientRect().top;
+  const pinnedBottom = pinnedChromeBottom(scroller);
   const band =
     pinnedBottom + lane.getBoundingClientRect().height + KEEP_CLEAR_PX;
   capInspectorSheetForLane(Math.max(remToPx(MIN_SHEET_REM), slotBottom - band));
@@ -42,6 +42,17 @@ function fit(trackId: string): void {
   // the pinned ruler comes back down to sit just below it.
   const hidden = pinnedBottom - lane.getBoundingClientRect().top;
   if (hidden > 0) scroller.scrollTop -= hidden;
+  revealOpenForm();
+}
+
+/** A resize leaves the sheet's own scroll where it was; keep the open form in it. */
+function revealOpenForm(): void {
+  const form = inspectorSheetPanel()?.querySelector("form");
+  const body = form?.closest<HTMLElement>(".modifier-body");
+  if (!form || !body) return;
+  const below =
+    form.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+  if (below > 0) body.scrollTop += below;
 }
 
 export function useKeepEditedLaneClear(trackId: string | null): void {
@@ -51,6 +62,13 @@ export function useKeepEditedLaneClear(trackId: string | null): void {
     fit(trackId);
     const onResize = () => fit(trackId);
     window.addEventListener("resize", onResize);
+    // A rotation remounts the shell: the scroller and slot settle to their
+    // size after this effect, and the lane is brought back into view then.
+    const settle = new ResizeObserver(onResize);
+    for (const element of document.querySelectorAll(
+      `${laneSelector(trackId)}, .timeline-scroll, .bottom-sheet-root`,
+    ))
+      settle.observe(element);
     const keyboard = new MutationObserver(onResize);
     keyboard.observe(document.documentElement, {
       attributes: true,
@@ -58,6 +76,7 @@ export function useKeepEditedLaneClear(trackId: string | null): void {
     });
     return () => {
       window.removeEventListener("resize", onResize);
+      settle.disconnect();
       keyboard.disconnect();
       capInspectorSheetForLane(null);
       for (const scroller of document.querySelectorAll<HTMLElement>(

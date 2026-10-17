@@ -60,6 +60,20 @@ export interface CompactInspector {
 }
 
 /**
+ * Where a timeline scroller's pinned chrome ends: under the marker rows, or
+ * under the ruler alone while a lane-editing sheet lets the rows scroll.
+ */
+export function pinnedChromeBottom(scroller: HTMLElement): number {
+  const markers = scroller.querySelector(".marker-lane");
+  if (markers && getComputedStyle(markers).position === "sticky")
+    return markers.getBoundingClientRect().bottom;
+  return (
+    scroller.querySelector(".time-ruler")?.getBoundingClientRect().bottom ??
+    scroller.getBoundingClientRect().top
+  );
+}
+
+/**
  * Scrolls `locate`'s element, inside its timeline scroller, clear of the
  * compact sheet; the scroller gets bottom padding as deep as the sheet covers
  * it, so a target on the last lane can still rise above it.
@@ -77,9 +91,7 @@ export function keepTargetClear(locate: string): void {
     "--sheet-clearance",
     `${Math.max(0, Math.round(box.bottom - sheetTop))}px`,
   );
-  const chrome =
-    scroller.querySelector(".marker-lane")?.getBoundingClientRect().bottom ??
-    box.top;
+  const chrome = pinnedChromeBottom(scroller);
   const r = target.getBoundingClientRect();
   const delta = Math.min(r.bottom - (sheetTop - KEEP_CLEAR_PX), r.top - chrome);
   if (delta > 0) scroller.scrollTop += delta;

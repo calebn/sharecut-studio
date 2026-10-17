@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import {
   clampTabsHeightRem,
   DEFAULT_TABS_HEIGHT_REM,
@@ -6,6 +8,8 @@ import {
   MAX_TABS_FRACTION,
   MIN_TABS_HEIGHT_REM,
   minTabsHeightRem,
+  SHORT_DEFAULT_TABS_FRACTION,
+  SHORT_MIN_TABS_HEIGHT_REM,
   TABS_HEIGHT_STORAGE_KEY,
 } from "./useTabsHeight";
 
@@ -66,4 +70,48 @@ it("normalizes a finite out-of-bounds stored height at admission", () => {
   );
   localStorage.removeItem(TABS_HEIGHT_STORAGE_KEY);
   document.documentElement.style.removeProperty("--tabs-height");
+});
+
+describe("a window with no measurable height", () => {
+  it("keeps a positive floor and clamp", () => {
+    expect(minTabsHeightRem(0)).toBeGreaterThan(0);
+    expect(clampTabsHeightRem(12, 0)).toBeGreaterThan(0);
+  });
+
+  it("leaves a stored height alone when the window reports zero height", () => {
+    localStorage.setItem(TABS_HEIGHT_STORAGE_KEY, "10");
+    const heightSpy = vi.spyOn(window, "innerHeight", "get").mockReturnValue(0);
+    try {
+      expect(initTabsHeight()).toBe(10);
+      expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("10");
+    } finally {
+      heightSpy.mockRestore();
+      localStorage.removeItem(TABS_HEIGHT_STORAGE_KEY);
+      document.documentElement.style.removeProperty("--tabs-height");
+    }
+  });
+});
+
+describe("the short window default", () => {
+  const responsiveCss = fs.readFileSync(
+    path.join(process.cwd(), "src/styles/partials/responsive.css"),
+    "utf8",
+  );
+  const shortBlock = responsiveCss.slice(
+    responsiveCss.indexOf("Short viewport: prefer timeline"),
+  );
+
+  it("takes the fraction of the space the hook's floor assumes", () => {
+    const fraction = /\*\s*(0\.\d+)\s*\)/.exec(shortBlock)?.[1];
+    expect(Number(fraction)).toBe(SHORT_DEFAULT_TABS_FRACTION);
+  });
+
+  it("caps at the regular default height", () => {
+    const cap = /min\(\s*([\d.]+)rem/.exec(shortBlock)?.[1];
+    expect(Number(cap)).toBe(DEFAULT_TABS_HEIGHT_REM);
+  });
+
+  it("keeps the short floor under the regular floor", () => {
+    expect(SHORT_MIN_TABS_HEIGHT_REM).toBeLessThan(MIN_TABS_HEIGHT_REM);
+  });
 });
