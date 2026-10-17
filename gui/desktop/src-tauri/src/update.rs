@@ -5,6 +5,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use crate::close_guard::CloseDecision;
@@ -179,6 +180,10 @@ impl UpdateState {
         }
     }
 
+    pub fn is_installing(&self) -> bool {
+        matches!(self, UpdateState::Installing { .. })
+    }
+
     pub fn restartable(&self) -> bool {
         matches!(self, UpdateState::Restartable { .. })
     }
@@ -283,6 +288,8 @@ pub enum RestartGate {
     Proceed,
     /// The guard turned active: drop the pending restart and keep the app open.
     Refuse,
+    /// A bundle swap is under way: an exit not started by the restart waits.
+    Installing,
 }
 
 /// The last guard read happens inside the exit request itself, so a refused
@@ -303,15 +310,40 @@ pub fn may_replace_bundle(euid: u32, bundle_uid: u32, parent_uid: u32) -> bool {
 
 /// The ExitRequested decision. A refused restart is disarmed here, in the same
 /// step that read the guard, so it can never fire on a later quit.
-pub fn exit_gate(pending: &AtomicBool, read_guard: impl FnOnce() -> CloseDecision) -> RestartGate {
+pub fn exit_gate(
+    pending: &AtomicBool,
+    installing: bool,
+    read_guard: impl FnOnce() -> CloseDecision,
+) -> RestartGate {
     if !pending.load(Ordering::Acquire) {
-        return RestartGate::NotPending;
+        return if installing {
+            RestartGate::Installing
+        } else {
+            RestartGate::NotPending
+        };
     }
     let gate = restart_gate(true, read_guard());
     if gate == RestartGate::Refuse {
         pending.store(false, Ordering::Release);
     }
     gate
+}
+
+/// The engine port other code trusts for navigation and microphone access
+/// must not outlive the engine it named, or a squatter could inherit it.
+pub fn clear_engine_port(slot: &Mutex<Option<u16>>) {
+    if let Ok(mut port) = slot.lock() {
+        *port = None;
+    }
+}
+
+/// A respawn that races a quit must not leave an engine behind after exit.
+pub fn spawn_allowed(exiting: &AtomicBool) -> bool {
+    !exiting.load(Ordering::Acquire)
+}
+
+pub fn mark_exiting(exiting: &AtomicBool) {
+    exiting.store(true, Ordering::Release);
 }
 
 pub fn arm_restart(pending: &AtomicBool) {
@@ -334,6 +366,8 @@ pub trait InstallSteps {
     type Bytes;
     fn guard_allows(&mut self) -> bool;
     fn placement_blocker(&mut self) -> Option<String>;
+    /// Claim the single install slot; false when another install already holds it.
+    fn claim(&mut self) -> bool;
     fn download(&mut self) -> Result<Self::Bytes, StepError>;
     fn stop_engine(&mut self);
     fn install(&mut self, bytes: &Self::Bytes) -> Result<(), StepError>;
@@ -346,6 +380,8 @@ pub enum InstallOutcome {
     RefusedByGuard,
     Blocked(String),
     DownloadFailed(StepError),
+    /// Another install already holds the slot.
+    Busy,
     /// The guard or the install location changed during the download.
     Skipped,
     InstallFailed {
@@ -363,6 +399,9 @@ pub fn run_install<S: InstallSteps>(steps: &mut S) -> InstallOutcome {
     }
     if let Some(notice) = steps.placement_blocker() {
         return InstallOutcome::Blocked(notice);
+    }
+    if !steps.claim() {
+        return InstallOutcome::Busy;
     }
     let bytes = match steps.download() {
         Ok(bytes) => bytes,
@@ -658,7 +697,8 @@ mod tests {
     struct Mock {
         calls: Vec<&'static str>,
         guard: Vec<bool>,
-        blocker: Option<String>,
+        blockers: Vec<Option<String>>,
+        busy: bool,
         download_fails: bool,
         install_fails: bool,
         respawns: bool,
@@ -676,7 +716,15 @@ mod tests {
         }
         fn placement_blocker(&mut self) -> Option<String> {
             self.calls.push("preflight");
-            self.blocker.clone()
+            if self.blockers.is_empty() {
+                None
+            } else {
+                self.blockers.remove(0)
+            }
+        }
+        fn claim(&mut self) -> bool {
+            self.calls.push("claim");
+            !self.busy
         }
         fn download(&mut self) -> Result<u8, StepError> {
             self.calls.push("download");
@@ -723,6 +771,7 @@ mod tests {
             vec![
                 "guard",
                 "preflight",
+                "claim",
                 "download",
                 "guard",
                 "preflight",
@@ -746,7 +795,7 @@ mod tests {
     #[test]
     fn a_blocked_location_never_downloads() {
         let mut steps = Mock {
-            blocker: Some("move it".into()),
+            blockers: vec![Some("move it".into())],
             ..Mock::default()
         };
         assert_eq!(
@@ -763,7 +812,76 @@ mod tests {
             ..Mock::default()
         };
         assert_eq!(run_install(&mut steps), InstallOutcome::Skipped);
-        assert_eq!(steps.calls, vec!["guard", "preflight", "download", "guard"]);
+        assert_eq!(
+            steps.calls,
+            vec!["guard", "preflight", "claim", "download", "guard"]
+        );
+    }
+
+    #[test]
+    fn a_location_that_changes_only_after_the_download_skips_stop_and_install() {
+        let mut steps = Mock {
+            blockers: vec![None, Some("moved".into())],
+            ..Mock::default()
+        };
+        assert_eq!(run_install(&mut steps), InstallOutcome::Skipped);
+        assert_eq!(
+            steps.calls,
+            vec![
+                "guard",
+                "preflight",
+                "claim",
+                "download",
+                "guard",
+                "preflight"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_second_install_that_cannot_claim_the_slot_does_nothing() {
+        let mut steps = Mock {
+            busy: true,
+            ..Mock::default()
+        };
+        assert_eq!(run_install(&mut steps), InstallOutcome::Busy);
+        assert_eq!(steps.calls, vec!["guard", "preflight", "claim"]);
+    }
+
+    #[test]
+    fn each_outcome_leaves_the_menu_state_the_glue_expects() {
+        let offered = available("1.2.0");
+        let downloading = offered.begin_download().unwrap();
+        let installing = downloading.begin_install().unwrap();
+        assert_eq!(
+            installing.finish_install().unwrap(),
+            UpdateState::Restartable {
+                version: "1.2.0".into()
+            }
+        );
+        assert_eq!(downloading.back_to_available(), offered);
+        assert_eq!(installing.back_to_available(), offered);
+        assert_eq!(
+            installing.fail_install(),
+            UpdateState::InstallFailed {
+                version: "1.2.0".into()
+            }
+        );
+        assert_eq!(downloading.begin_download(), None);
+        assert_eq!(installing.begin_download(), None);
+        assert!(installing.is_installing());
+        assert!(!downloading.is_installing());
+    }
+
+    #[test]
+    fn engine_port_is_cleared_and_respawn_is_refused_once_exiting() {
+        let slot = Mutex::new(Some(8765u16));
+        clear_engine_port(&slot);
+        assert_eq!(*slot.lock().unwrap(), None);
+        let exiting = AtomicBool::new(false);
+        assert!(spawn_allowed(&exiting));
+        mark_exiting(&exiting);
+        assert!(!spawn_allowed(&exiting));
     }
 
     #[test]
@@ -776,7 +894,7 @@ mod tests {
             run_install(&mut steps),
             InstallOutcome::DownloadFailed(step_error("net"))
         );
-        assert_eq!(steps.calls, vec!["guard", "preflight", "download"]);
+        assert_eq!(steps.calls, vec!["guard", "preflight", "claim", "download"]);
     }
 
     #[test]
@@ -798,6 +916,7 @@ mod tests {
             vec![
                 "guard",
                 "preflight",
+                "claim",
                 "download",
                 "guard",
                 "preflight",
@@ -824,19 +943,33 @@ mod tests {
         let pending = AtomicBool::new(false);
         let host = CloseDecision::Confirm(CloseRisk::Host);
         assert_eq!(
-            exit_gate(&pending, || panic!("guard read while not pending")),
+            exit_gate(&pending, false, || panic!("guard read while not pending")),
             RestartGate::NotPending
         );
         arm_restart(&pending);
-        assert_eq!(exit_gate(&pending, || host), RestartGate::Refuse);
+        assert_eq!(exit_gate(&pending, false, || host), RestartGate::Refuse);
         assert!(!take_restart(&pending));
         arm_restart(&pending);
         assert_eq!(
-            exit_gate(&pending, || CloseDecision::Allow),
+            exit_gate(&pending, false, || CloseDecision::Allow),
             RestartGate::Proceed
         );
         assert!(take_restart(&pending));
         assert!(!take_restart(&pending));
+    }
+
+    #[test]
+    fn an_exit_during_the_bundle_swap_waits_without_reading_the_guard() {
+        let pending = AtomicBool::new(false);
+        assert_eq!(
+            exit_gate(&pending, true, || panic!("guard read during install")),
+            RestartGate::Installing
+        );
+        arm_restart(&pending);
+        assert_eq!(
+            exit_gate(&pending, true, || CloseDecision::Allow),
+            RestartGate::Proceed
+        );
     }
 
     #[test]
