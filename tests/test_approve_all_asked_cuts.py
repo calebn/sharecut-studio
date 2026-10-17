@@ -113,11 +113,14 @@ def test_continued_approval_undo_and_redo_move_both_entries(tmp_path, monkeypatc
     assert first["count"] == 1
     first_head = load_project(ws.path).history.head_id()
 
-    assert EditService(ws).approve(
-        [asked.id],
-        application_intent=CutIntent.HUMAN_BOUNDARIES,
-        continues_head_id=first_head,
-    ) == 1
+    assert (
+        EditService(ws).approve(
+            [asked.id],
+            application_intent=CutIntent.HUMAN_BOUNDARIES,
+            continues_head_id=first_head,
+        )
+        == 1
+    )
     complete_head = load_project(ws.path).history.head_id()
     assert load_project(ws.path).edit_decisions == []
 

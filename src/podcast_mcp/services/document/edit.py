@@ -537,11 +537,7 @@ class EditService:
                     operation="approve_edits",
                     params={
                         "ids": ids,
-                        **(
-                            {PASS_CONTINUES_KEY: continues_head_id}
-                            if continues_head_id
-                            else {}
-                        ),
+                        **({PASS_CONTINUES_KEY: continues_head_id} if continues_head_id else {}),
                     },
                     on_failure=on_failure,
                 )

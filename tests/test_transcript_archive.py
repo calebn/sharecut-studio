@@ -211,8 +211,13 @@ def test_cut_maps_each_recording_separately(minimal_project, operation):
         assert join["has_cutaway"] is False
 
 
-def test_history_undo_redo_restores_archive_and_active_words(minimal_project):
+def test_history_undo_redo_restores_archive_and_active_words(
+    minimal_project, sixty_second_silence_wav
+):
     project = _episode(minimal_project)
+    (project.workspace_path() / "raw" / "host.wav").write_bytes(
+        sixty_second_silence_wav.read_bytes()
+    )
     save_project(project, minimal_project)
     EditService(ProjectWorkspace.open(minimal_project)).cut_range(
         5, 15, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]

@@ -134,9 +134,9 @@ def test_approve_edits_tool_needs_ids(tmp_path) -> None:
         mcp_server.approve_edits_tool(path)  # type: ignore[call-arg]
 
 
-def test_cli_apply_suggested_is_one_undo_step(tmp_path, sample_wav) -> None:
+def test_cli_apply_suggested_is_one_undo_step(tmp_path, ten_second_silence_wav) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
-    _seed(path, sample_wav)
+    _seed(path, ten_second_silence_wav)
     runner = CliRunner()
     result = runner.invoke(
         app, ["edit", "apply-suggested", "--project", path, "--ids", "safe,risky"]

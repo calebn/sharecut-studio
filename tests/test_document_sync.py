@@ -282,7 +282,10 @@ def test_document_undo_redo_history(minimal_project):
     assert not any(e.id == "d1" for e in ws_after_redo.project.edit_decisions)
 
 
-def test_document_reject_and_approve_edits(minimal_project):
+def test_document_reject_and_approve_edits(minimal_project, ten_second_silence_wav):
+    (Path(minimal_project).parent / "raw" / "host.wav").write_bytes(
+        ten_second_silence_wav.read_bytes()
+    )
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [
         Track(
@@ -354,7 +357,12 @@ def test_document_reject_and_approve_edits(minimal_project):
     assert "d-approve" not in ids
 
 
-def test_document_update_pending_restore_refusal_and_guarded_undo(minimal_project):
+def test_document_update_pending_restore_refusal_and_guarded_undo(
+    minimal_project, ten_second_silence_wav
+):
+    (Path(minimal_project).parent / "raw" / "host.wav").write_bytes(
+        ten_second_silence_wav.read_bytes()
+    )
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [
         Track(

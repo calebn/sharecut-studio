@@ -48,7 +48,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 from ripple_helpers import ripple_cut, trim
 
 
-def _write_quiet_media(project):
+def _write_quiet_media(project, *, silence_spans=()):
     for track in project.tracks:
         if track.media is None:
             continue
@@ -56,6 +56,8 @@ def _write_quiet_media(project):
         voice(samples, 0, 0.8)
         voice(samples, 9.2, 9.8)
         samples[16000:144000] = 0
+        for start, end in silence_spans:
+            samples[round(start * 16000) : round(end * 16000)] = 0
         write_wav(project.workspace_path() / track.media.path, samples)
 
 
@@ -552,10 +554,12 @@ def test_approve_edits_matches_sequential_ripple(tmp_path):
     timeline_ranges = [(2.0, 2.2), (8.0, 9.0)]
 
     sequential = _approve_two_track_project(tmp_path)
+    _write_quiet_media(sequential, silence_spans=[(7.0, 10.0)])
     for start, end in reversed(sorted(timeline_ranges)):
         ripple_cut(sequential, start, end, use_inaudible_opt=False)
 
     approved = _approve_two_track_project(tmp_path)
+    _write_quiet_media(approved, silence_spans=[(7.0, 10.0)])
     approved.edit_decisions = [
         EditDecision(
             id="a",
