@@ -51,12 +51,13 @@ def test_nl_edit_and_preview_play(e2e_workspace) -> None:
     approve_args += ["--ids", ",".join(edit_ids)]
     asked = runner.invoke(app, approve_args)
     assert asked.exit_code == 1, asked.output
-    assert "held edges need audio review" in asked.output
+    assert "guest is speaking where the session cut would remove it" in asked.output
     unchanged = load_project(e2e_workspace)
     assert [clip for clip in unchanged.clips if clip.track_id == "guest"] == guest_clips
     assert unchanged.timeline.duration_sec == duration
     approve = runner.invoke(app, [*approve_args, "--yes"])
-    assert approve.exit_code == 1, approve.output
+    assert approve.exit_code == 2, approve.output
+    assert "No such option: --yes" in approve.output
     assert load_project(e2e_workspace).clips == unchanged.clips
     DocumentSyncService.open(e2e_workspace).submit(
         DocumentCommand(
