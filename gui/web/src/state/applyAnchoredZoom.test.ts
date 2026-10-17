@@ -136,11 +136,11 @@ describe("applyAnchoredZoom", () => {
     expect((210 + s.scrollLeft) / s.zoomPxPerSec).toBeCloseTo(1, 9);
     expect(s.scrollLeft).toBe(-190);
 
-    // Zooming out there would want −5 px: padded views allow it, unpadded
-    // views keep the 0 floor.
+    // Zooming out from the start would want −5 px: a zoom never opens a gap
+    // before time 0, padded or not.
     useDawStore.setState({ ...base, scrollLeft: 0, ...testLeadPx(200) });
     useDawStore.getState().applyAnchoredZoom(5, 10);
-    expect(useDawStore.getState().scrollLeft).toBe(-5);
+    expect(useDawStore.getState().scrollLeft).toBe(0);
     useDawStore.setState({ ...base, scrollLeft: 0, ...testLeadPx(0) });
     useDawStore.getState().applyAnchoredZoom(5, 10);
     s = useDawStore.getState();
@@ -165,14 +165,13 @@ describe("applyAnchoredZoom", () => {
     expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeCloseTo(30, 9);
   });
 
-  it("centers command zoom on the playhead, not a trailing line (#388)", () => {
-    // The line trails the playhead by 0.9 px (under the recenter threshold);
-    // repeated zoom-ins must not grow that into a seek.
+  it("keeps the playhead's time and place through command zoom (#388)", () => {
+    // A playhead left of center (time 0 loads beside the headers) stays put.
     useDawStore.setState({
       project: { timeline_duration_sec: 3600 } as never,
       zoomPxPerSec: 1,
       playheadSec: 105,
-      scrollLeft: 105 - 200 - 0.9,
+      scrollLeft: 105 - 150,
       ...testTimelineElement(fakeTimelineEl()),
       ...testLeadPx(200),
     });
@@ -182,7 +181,22 @@ describe("applyAnchoredZoom", () => {
         .applyAnchoredZoom(useDawStore.getState().zoomPxPerSec * ZOOM_STEP);
     }
     const s = useDawStore.getState();
-    expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeCloseTo(105, 9);
+    expect((s.scrollLeft + 150) / s.zoomPxPerSec).toBeCloseTo(105, 9);
+  });
+
+  it("keeps a playhead at time 0 beside the headers through command zoom", () => {
+    useDawStore.setState({
+      project: { timeline_duration_sec: 3600 } as never,
+      zoomPxPerSec: 10,
+      playheadSec: 0,
+      scrollLeft: 0,
+      ...testTimelineElement(fakeTimelineEl()),
+      ...testLeadPx(200),
+    });
+    useDawStore.getState().applyAnchoredZoom(20);
+    expect(useDawStore.getState().scrollLeft).toBe(0);
+    useDawStore.getState().applyAnchoredZoom(5);
+    expect(useDawStore.getState().scrollLeft).toBe(0);
   });
 
   it("keeps pinch zoom within the session on a padded view (#388)", () => {
@@ -196,10 +210,10 @@ describe("applyAnchoredZoom", () => {
     });
     useDawStore.getState().applyAnchoredZoom(2.5, 100);
     const s = useDawStore.getState();
-    expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeLessThanOrEqual(60);
+    expect(s.scrollLeft).toBeLessThanOrEqual(60 * s.zoomPxPerSec);
   });
 
-  it("keeps a fixed playhead centered through a fit (#385)", () => {
+  it("fits from time 0 with the playhead at its place, fixed playhead or not (#385, #1707)", () => {
     useDawStore.setState({
       project: { timeline_duration_sec: 60 } as never,
       playheadSec: 15,
@@ -210,10 +224,10 @@ describe("applyAnchoredZoom", () => {
     useDawStore.getState().fitToWindow(300);
     expect(useDawStore.getState().scrollLeft).toBe(0);
 
-    useDawStore.setState({ ...testLeadPx(150) });
+    useDawStore.setState({ ...testLeadPx(150), scrollLeft: 90 });
     useDawStore.getState().fitToWindow(300);
     const s = useDawStore.getState();
-    expect((s.scrollLeft + 150) / s.zoomPxPerSec).toBeCloseTo(15, 9);
+    expect(s.scrollLeft).toBe(0);
     expect(s.userZoomed).toBe(false);
   });
 

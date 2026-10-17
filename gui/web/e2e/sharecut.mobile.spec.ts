@@ -249,6 +249,18 @@ test.describe("Sharecut Studio mobile smoke", () => {
         .toBe(true);
     };
 
+    test("loads with time 0 beside the track headers and the playhead on it (#1707)", async ({
+      page,
+    }) => {
+      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await openPhoneTimeline(page);
+      const t = await readTimes(page);
+      // No empty gap: the ruler starts at the headers' edge, the line on it.
+      expect(Math.abs(t.timeLeft - t.viewLeft)).toBeLessThanOrEqual(1);
+      expect(Math.abs(t.lineX - t.viewLeft)).toBeLessThanOrEqual(2);
+      expect(parseTimecodeSec(t.current)).toBe(0);
+    });
+
     test("the line sits on the transport time from start to end", async ({
       page,
     }) => {

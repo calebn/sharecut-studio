@@ -1550,7 +1550,7 @@ origin or clock samples produce no preview. New samples correct the anchor;
 old or duplicate timestamped samples do not reset it.
 
 The preview may extend the scrollable visual canvas, including fixed-playhead
-lead/trail geometry, but does not extend saved-media ruler/seek authority or
+lead/end-pad geometry, but does not extend saved-media ruler/seek authority or
 scroll automatically. Playback position, transport timecode, committed clips,
 project revision and edit state remain independent. Recording frames do not
 rerender committed track lanes.

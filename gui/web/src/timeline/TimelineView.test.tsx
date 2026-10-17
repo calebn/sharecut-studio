@@ -24,10 +24,7 @@ import {
   MARKER_ROW_HEIGHT,
   RULER_HEIGHT,
 } from "../utils/layout";
-import {
-  domToLogicalScrollLeft,
-  scrollLeftToCenterSec,
-} from "../utils/timelineViewport";
+import { domToLogicalScrollLeft } from "../utils/timelineViewport";
 import { TimelineView } from "./TimelineView";
 import { useTimelineMetrics } from "./timelineMetrics";
 
@@ -320,22 +317,48 @@ describe("TimelineView fixed playhead (#385)", () => {
     return { ...view, scroller, userScrollTo, settle };
   }
 
-  it("pads the time column by half the viewport and registers the lead", () => {
+  it("pads the time column and loads with the playhead at time 0 beside the headers (#1707)", () => {
     const { container } = mountFixed();
     const area = container.querySelector(".timeline-area") as HTMLElement;
+    const needle = container.querySelector(".playhead--fixed") as HTMLElement;
     expect(area.style.getPropertyValue("--timeline-lead")).toBe("200px");
-    expect(area.style.getPropertyValue("--timeline-fixed-line")).toBe("200px");
+    expect(area.style.getPropertyValue("--timeline-lead-end")).toBe("400px");
+    expect(needle.style.getPropertyValue("--timeline-fixed-line")).toBe("0px");
+    // Logical scroll 0 is past the start pad: time 0 sits at the left edge.
+    expect(useDawStore.getState().scrollLeft).toBe(0);
     expect(timelineViewportRegistry.getLeadPx()).toBe(200);
+  });
+
+  it("moves the playhead to the center and holds it there as playback passes the middle", () => {
+    const { container, scroller } = mountFixed();
+    const needle = container.querySelector(".playhead--fixed") as HTMLElement;
+    act(() => useDawStore.getState().setPlayheadSec(10, "playback"));
+    expect(needle.style.getPropertyValue("--timeline-fixed-line")).toBe(
+      "100px",
+    );
+    expect(useDawStore.getState().scrollLeft).toBe(0);
+    act(() => useDawStore.getState().setPlayheadSec(30, "playback"));
+    expect(needle.style.getPropertyValue("--timeline-fixed-line")).toBe(
+      "200px",
+    );
+    expect(useDawStore.getState().scrollLeft).toBe(100);
+    expect(scroller.scrollLeft).toBe(300);
+  });
+
+  it("follows a playhead that moved while the timeline was away", () => {
+    useDawStore.setState({ playheadSec: 30, scrollLeft: 0 });
+    mountFixed();
+    expect(useDawStore.getState().scrollLeft).toBe(100);
   });
 
   it("treats a write's late echo as programmatic, a person's scroll as not", () => {
     const { scroller, userScrollTo, settle } = mountFixed();
     act(() => {
-      useDawStore.getState().setPlayheadSec(15);
+      useDawStore.getState().setPlayheadSec(30);
     });
-    // Recentered: 15 s × 10 px/s − 200 px center = −50 logical, 150 DOM.
-    expect(scroller.scrollLeft).toBe(150);
-    expect(useDawStore.getState().scrollLeft).toBe(-50);
+    // Recentered: 30 s × 10 px/s − 200 px center = 100 logical, 300 DOM.
+    expect(scroller.scrollLeft).toBe(300);
+    expect(useDawStore.getState().scrollLeft).toBe(100);
     act(() => {
       useDawStore.setState({ followingClientId: "leader" });
     });
@@ -343,29 +366,31 @@ describe("TimelineView fixed playhead (#385)", () => {
     // The write's scroll event can land after the programmatic flags clear:
     // it must neither unfollow nor seek.
     settle();
-    userScrollTo(150);
+    userScrollTo(300);
     expect(useDawStore.getState().followingClientId).toBe("leader");
 
-    userScrollTo(250); // a person: 100 px further, 10 s later
+    userScrollTo(400); // a person: 100 px further, 10 s later
     expect(useDawStore.getState().followingClientId).toBeNull();
-    expect(useDawStore.getState().playheadSec).toBeCloseTo(25, 9);
+    expect(useDawStore.getState().playheadSec).toBeCloseTo(40, 9);
 
-    userScrollTo(250.5); // under a pixel: not a move
-    expect(useDawStore.getState().playheadSec).toBeCloseTo(25, 9);
+    // The playhead moves with the content, sub-pixel scrolls included, so a
+    // slow drag never drifts from the finger.
+    userScrollTo(400.5);
+    expect(useDawStore.getState().playheadSec).toBeCloseTo(40.05, 9);
   });
 
   it("ends the scroll range at the session end below fit zoom (#388)", () => {
     // 5 px/s is below fit (400 px / 60 s): the canvas is the session, so the
-    // largest DOM scroll (lead + 300 + lead − 400) puts 60 s under the line
-    // with no write back.
+    // largest DOM scroll (lead + 300 + end lead − 400) puts the end at the
+    // left edge with no write back.
     useDawStore.setState({ zoomPxPerSec: 5 });
     const { container, scroller, userScrollTo, settle } = mountFixed();
     const time = container.querySelector(".timeline-time") as HTMLElement;
     expect(time.style.width).toBe("300px");
     settle();
-    userScrollTo(300);
+    userScrollTo(500);
     expect(useDawStore.getState().playheadSec).toBe(60);
-    expect(scroller.scrollLeft).toBe(300);
+    expect(scroller.scrollLeft).toBe(500);
   });
 
   it("recenters explicit seeks after panning to a live take beyond saved media", () => {
@@ -380,11 +405,11 @@ describe("TimelineView fixed playhead (#385)", () => {
     expect(scroller.scrollLeft).toBe(1_000);
 
     act(() => useDawStore.getState().setPlayheadSec(0));
-    expect(scroller.scrollLeft).toBe(0);
+    expect(scroller.scrollLeft).toBe(200);
 
     userScrollTo(1_000);
     act(() => useDawStore.getState().setPlayheadSec(15));
-    expect(scroller.scrollLeft).toBe(150);
+    expect(scroller.scrollLeft).toBe(200);
     expect(useDawStore.getState().playheadSec).toBe(15);
     act(() => useRecordHostStore.getState().setSnapshot(null));
   });
@@ -406,12 +431,12 @@ describe("TimelineView fixed playhead (#385)", () => {
     expect(view.scroller.scrollLeft).toBe(1_000);
     expect(useDawStore.getState().scrollLeft).toBe(800);
     act(() => useDawStore.getState().setPlayheadSec(15, "playback"));
-    expect(view.scroller.scrollLeft).toBe(150);
-    expect(useDawStore.getState().scrollLeft).toBe(-50);
+    expect(view.scroller.scrollLeft).toBe(200);
+    expect(useDawStore.getState().scrollLeft).toBe(0);
     act(() => useRecordHostStore.getState().setSnapshot(null));
   });
 
-  it("syncs loading scroll and recenters when the project arrives", () => {
+  it("syncs loading scroll and keeps a visible playhead when the project arrives", () => {
     useDawStore.setState({ project: null, scrollLeft: 120, playheadSec: 15 });
     const view = render(<TimelineView fixedPlayhead />);
     const scroller = view.container.querySelector(
@@ -439,11 +464,12 @@ describe("TimelineView fixed playhead (#385)", () => {
       ".timeline-scroll",
     ) as HTMLElement;
     expect(loadedScroller).not.toBe(scroller);
-    expect(loadedScroller.scrollLeft).toBe(150);
-    expect(useDawStore.getState().scrollLeft).toBe(-50);
+    // 15 s sits 25 px into the view: visible, so the view stays put.
+    expect(loadedScroller.scrollLeft).toBe(325);
+    expect(useDawStore.getState().scrollLeft).toBe(125);
   });
 
-  it("keeps the playhead through a fit", () => {
+  it("fits from time 0 and keeps the playhead's time", () => {
     const { scroller } = mountFixed();
     act(() => {
       useDawStore.getState().setPlayheadSec(15);
@@ -454,11 +480,9 @@ describe("TimelineView fixed playhead (#385)", () => {
     const s = useDawStore.getState();
     expect(s.userZoomed).toBe(false);
     expect(s.playheadSec).toBe(15);
-    const logical = domToLogicalScrollLeft(scroller.scrollLeft, 200);
-    expect(scrollLeftToCenterSec(logical, s.zoomPxPerSec, 400, 60)).toBeCloseTo(
-      15,
-      9,
-    );
+    // The whole session fits: logical scroll 0, time 0 beside the headers.
+    expect(domToLogicalScrollLeft(scroller.scrollLeft, 200)).toBe(0);
+    expect(s.scrollLeft).toBe(0);
   });
 
   it("refits on a new width only, not a height or header entry (#388)", () => {
@@ -482,11 +506,9 @@ describe("TimelineView fixed playhead (#385)", () => {
   });
 
   it("leaves no scroll before 0 or lead behind when unmounted", () => {
-    const { unmount } = mountFixed();
-    act(() => {
-      useDawStore.getState().setPlayheadSec(5);
-    });
-    expect(useDawStore.getState().scrollLeft).toBe(-150);
+    const { unmount, userScrollTo } = mountFixed();
+    userScrollTo(0); // a scrub back into the start pad
+    expect(useDawStore.getState().scrollLeft).toBe(-200);
     unmount();
     expect(useDawStore.getState().scrollLeft).toBe(0);
     expect(timelineViewportRegistry.getLeadPx()).toBe(0);

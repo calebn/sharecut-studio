@@ -21,7 +21,7 @@ Select a clip to open its inspector sheet. The two fade sliders preview while yo
 
 In Timeline, the time ruler and marker rows stay visible when you scroll through
 tracks. They move with the waveforms when you pan horizontally; the playhead
-stays centered. The phone shows a vertical scrollbar when tracks need more room;
+starts at 0 beside the track headers and holds the center once playback passes it. The phone shows a vertical scrollbar when tracks need more room;
 desktop keeps its scrollbar present so adding tracks does not shift the time view.
 
 While a take is recording or paused, an aggregate band and needle shows its

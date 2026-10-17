@@ -115,7 +115,9 @@ describe("useFixedPlayheadScroll", () => {
       el.dispatchEvent(new Event("scroll"));
     });
     expect(useDawStore.getState().followingClientId).toBeNull();
-    expect(useDawStore.getState().playheadSec).toBe(25);
+    // The playhead sits at the left edge (time 0 beside the headers), so the
+    // scroll to logical 50 moves it 50 px of time, 5 s.
+    expect(useDawStore.getState().playheadSec).toBe(5);
     expect(useDawStore.getState().scrollLeft).toBe(50);
   });
 
@@ -150,7 +152,8 @@ describe("useFixedPlayheadScroll", () => {
     act(() => {
       el.dispatchEvent(new Event("scroll"));
     });
-    expect(useDawStore.getState().playheadSec).toBe(15);
+    // Playhead 100 px in, scrolled 50 px on; the hook input still says 10 px/s.
+    expect(useDawStore.getState().playheadSec).toBe(5);
     timelineViewportRegistry.setTimelineElement(null);
   });
 
@@ -237,7 +240,7 @@ describe("useFixedPlayheadScroll", () => {
     );
     expect(el.scrollLeft).toBe(1000);
     act(() => useDawStore.getState().setPlayheadSec(0));
-    expect(el.scrollLeft).toBe(0);
-    expect(useDawStore.getState().scrollLeft).toBe(-200);
+    expect(el.scrollLeft).toBe(200);
+    expect(useDawStore.getState().scrollLeft).toBe(0);
   });
 });
