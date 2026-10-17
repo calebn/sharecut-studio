@@ -9,6 +9,8 @@ export type SheetPresentation = {
   content: ReactNode;
   onClose: () => void;
   onExpandedChange: (expanded: boolean) => void;
+  /** Extra class on the half sheet's panel; the inspector class by default. */
+  className?: string;
   /** The compact inspector (peek strip) in place of the half sheet. */
   compact?: CompactSheetProps;
 };

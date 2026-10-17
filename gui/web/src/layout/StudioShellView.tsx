@@ -182,7 +182,7 @@ export function StudioShellView({
           open={inspector.sheet.open}
           onClose={inspector.sheet.onClose}
           title="Inspector"
-          className={INSPECTOR_SHEET_CLASS}
+          className={inspector.sheet.className ?? INSPECTOR_SHEET_CLASS}
           expanded={inspector.sheet.expanded}
           onExpandedChange={inspector.sheet.onExpandedChange}
           {...inspector.sheet.compact}

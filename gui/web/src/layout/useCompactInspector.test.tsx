@@ -235,7 +235,7 @@ describe("keepTargetClear", () => {
     document.body.innerHTML = `
       <div class="timeline-scroll"><div class="marker-lane"></div>
         <button data-clip-id="c2"></button></div>
-      <div class="bottom-sheet-root"><div class="bottom-sheet bottom-sheet--compact"></div></div>`;
+      <div class="bottom-sheet-root"><div class="bottom-sheet bottom-sheet--inspector bottom-sheet--compact"></div></div>`;
     const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
     place(scroller, 52, 700);
     place(document.querySelector(".marker-lane")!, 52, 96);
@@ -256,7 +256,7 @@ describe("keepTargetClear", () => {
     document.body.innerHTML = `
       <div class="timeline-scroll"><div class="marker-lane"></div>
         <button data-clip-id="c2"></button></div>
-      <div class="bottom-sheet-root"><div class="bottom-sheet bottom-sheet--compact"></div></div>`;
+      <div class="bottom-sheet-root"><div class="bottom-sheet bottom-sheet--inspector bottom-sheet--compact"></div></div>`;
     const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
     place(scroller, 52, 700);
     place(document.querySelector(".marker-lane")!, 52, 96);
