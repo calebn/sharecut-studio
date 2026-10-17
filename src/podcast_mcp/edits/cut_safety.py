@@ -70,7 +70,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.models.episode import ExactRangeTarget
-from podcast_mcp.util.batch_scope import scoped_by_file
+from podcast_mcp.util.batch_scope import scoped, scoped_by_file
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -1700,6 +1700,11 @@ class PadEffect:
     clip_ids: frozenset[str]
 
 
+def native_pad_origins() -> dict[str, PadEffect]:
+    """Native tile IDs and original insertion effects, retained only for this batch."""
+    return scoped("cut_pad_origins", dict)
+
+
 def observe_source_cut(
     project: EpisodeProject,
     edit: EditDecision,
@@ -1961,6 +1966,9 @@ def complete_effect_receipts(
     clip_ids: tuple[str, ...] = (),
 ) -> list[CutScopeHold]:
     """Check provisional archives against the selected source-qualified decisions."""
+    from podcast_mcp.edits.clips_ops import clip_split_origin
+
+    pad_origins = native_pad_origins()
     old = before.editorial.edit_log
     rows = candidate.editorial.edit_log
     bad: set[str] = set()
@@ -2082,9 +2090,12 @@ def complete_effect_receipts(
                 and clip_plays_lane(candidate, clip, edit.track_id)
                 and min(edit.end, clip.source_end) - max(edit.start, clip.source_start) > 1e-6
                 and not (
-                    row.timeline_start is not None
-                    and clip.timeline_start >= row.timeline_start - 1e-6
-                    and clip.timeline_end
+                    (origin := pad_origins.get(clip_split_origin(clip.id, set(pad_origins)) or ""))
+                    is not None
+                    and origin.edit_id == edit.id
+                    and row.timeline_start is not None
+                    and origin.plan.at_time >= row.timeline_start - 1e-6
+                    and origin.plan.at_time + origin.plan.seconds
                     <= row.timeline_start + float(row.params.get("replace_gap_sec") or 0) + 1e-6
                     and any(
                         sample["track_id"] == clip.track_id

@@ -23,6 +23,13 @@ can be nonzero even when the returned timeline geometry is exact.
 - **Non-dialogue tracks** (music, sfx, intro, outro) — waveform-only snapping; no transcript dependency.
 - **Joins** — per-clip `join_in_mode` controls render behavior (see **Fade vs crossfade** below).
 
+Borrowed room-tone tiles keep their native insertion identity within the current
+edit batch. Later ripples may move those tiles away from their archive's original
+timeline position. Receipt checks follow native split descendants and still bind
+each surviving tile to its originating edit, original insertion window, and
+archived source samples. A separate copy of the same samples does not inherit
+that identity. The batch releases these facts when it ends.
+
 ## DAW snap overlay
 
 Sharecut Studio paints a **quiet wash** from the loaded peak-pyramid tiles (max-pooled per CSS pixel over the mounted tile range, at 8 px/s and above) and **snap ticks** from `GET /api/waveform-snap` / guest `daw/waveform-snap` (`EditService.waveform_snap_window`). That reuses `preview_inaudible_cut` and windowed `silence_islands_from_hops` — not a second snapper. Blade/trim/pending-edge drag magnets to those ticks (`snap=true` on `UpdatePendingEdit` is the same optimizer). Viewers get the wash; Commenters and Editors get ticks + magnet. Ticks load around the dragged trim edge, else the blade hover inside the clip, else the paused playhead inside it, after an 80 ms debounce; a playing playhead does not fetch ticks. Overlay fetches abort when that focus moves and must not stall pointer or play.
