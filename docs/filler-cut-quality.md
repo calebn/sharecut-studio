@@ -47,6 +47,10 @@ checks direct, aliased, module-qualified, and private access to the removed APIs
 same decoded PCM, word index, voiced-frame thresholds and breath evidence used by
 preparation. Application never calls the optimizer to compare or replace stored bounds.
 `assess_held_pause` checks the current retained original air and binds current effects.
+The pipeline carries its configured breath handling into application. Disabling
+breath handling selects geometric pause observations, which do not require a
+measurable room level. Original quiet support, the retained pause floor, native
+source geometry, and any actual pad sample requirements still apply.
 Source remove, mute and exact-range writers consume the resulting checked geometry in
 their existing mutation. Exact-range and ordinary source proposals are measured before
 publication; uncertain edges retain their selected bounds and an `acoustic_review`
@@ -209,8 +213,8 @@ edge protection, a non-pause cut checks only its finalized mapped removal;
 approval repeats that check on the current validated removal geometry.
 Pause cuts refresh that evidence only after a completed acoustic observation
 and successful original-air retention and effect checks. The final mapped
-removal must stay inside that observation's request bounds. Approval prepares
-the pause again and checks its finished bounds before using fresh mapped spans.
+removal must stay inside that observation's request bounds. Approval checks
+the pause's stored bounds and completed effects before using fresh mapped spans.
 Geometric observations retain the generic query. Peer sound inside a pause
 still requires session review and excludes automatic application.
 The local floor is `max(S − 25 dB, R + 6 dB)`, using the peer's live-frame

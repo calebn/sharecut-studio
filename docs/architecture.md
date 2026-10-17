@@ -730,6 +730,11 @@ recording, source and fill phase. This preserves occurrence identity when a rang
 cut gives both survivors new IDs while another play uses identical source bounds.
 The links expire with the batch and are not project metadata. An untraced graph
 with multiple possible BEFORE occurrences still refuses assessment.
+Native pad insertion also records tile IDs and originating edits in that batch.
+Archive checks follow those tiles through native splits and later ripples while
+checking their archived source samples and original insertion window. Historical
+archive timeline positions do not describe a tile's position after another cut.
+Unattributed copies cannot use the pad exception to retain consumed source.
 Mute deltas compare the native source-sample envelope (bounds, fade lengths and gain),
 not its clip-local seconds. Splitting or shifting a clip therefore does not attribute
 an unchanged inherited mute, or a surviving portion of its native recipe, to the new

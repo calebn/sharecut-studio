@@ -279,13 +279,13 @@ def _apply_replace_gap_pad(
         )
         before_ids = {clip.id for clip in project.clips}
         report = insert_bound_room_tone_pad(project, plan)
-        effects.append(
-            cut_safety.PadEffect(
-                edit.id,
-                plan,
-                frozenset(clip.id for clip in project.clips if clip.id not in before_ids),
-            )
+        effect = cut_safety.PadEffect(
+            edit.id,
+            plan,
+            frozenset(clip.id for clip in project.clips if clip.id not in before_ids),
         )
+        effects.append(effect)
+        cut_safety.native_pad_origins().update((clip_id, effect) for clip_id in effect.clip_ids)
         samples = report["pad_samples"]
     else:
         insert_gap(project, pad_start_sec, gap)

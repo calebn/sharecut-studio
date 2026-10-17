@@ -9,6 +9,8 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.effects.presets import add_effect, apply_preset_to_chain
+from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
@@ -22,6 +24,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.pipeline import steps
+from podcast_mcp.util.timebase import SourceSec
 from source_review_helpers import finite_primary_recording
 
 
@@ -187,7 +190,7 @@ def test_compress_tracks_rerun_same_params_is_quiet(
 
 
 @pytest.mark.parametrize("placed", [True, False, "primary"])
-def test_analyze_and_tighten_steps(minimal_project, placed):
+def test_analyze_and_tighten_steps(minimal_project, placed, tmp_path):
     proj = load_project(minimal_project)
     proj.tracks = [Track(id="host", label="Host")]
     if placed is not False:
@@ -235,17 +238,55 @@ def test_analyze_and_tighten_steps(minimal_project, placed):
         return
     assert [e.reason for e in proj.edit_decisions] == ["filler:um", "pause:1.80s:solo"]
     assert all(not e.review_required for e in proj.edit_decisions)
-    held_pause = proj.edit_decisions[1].model_dump(mode="json")
+    offered = {e.id: (e.start, e.end) for e in proj.edit_decisions}
+    before_audio = tmp_path / "before.wav"
+    render_track_from_timeline(proj, proj.tracks[0], before_audio, defaults)
     summary = steps.tighten_from_transcript(proj, defaults)
-    assert summary == "1 tighten cuts applied"
-    assert [edit.model_dump(mode="json") for edit in proj.edit_decisions] == [held_pause]
-    assert proj.timeline.duration_sec == pytest.approx(2.1)
-    assert [record.reason for record in proj.editorial.edit_log] == ["filler:um"]
-    assert [record.params.get("replace_gap_sec") for record in proj.editorial.edit_log] == [None]
+    assert summary == "2 tighten cuts applied"
+    assert proj.edit_decisions == []
+    assert proj.timeline.duration_sec == pytest.approx(0.87)
+    assert sorted((c.source_start, c.source_end, c.timeline_start) for c in proj.clips) == [
+        pytest.approx((0, 0.1, 0)),
+        pytest.approx((1.43, 2.2, 0.1)),
+    ]
+    assert [record.reason for record in proj.editorial.edit_log] == [
+        "pause:1.80s:solo",
+        "filler:um",
+    ]
+    assert {
+        record.decision_ids[0]: (record.source_start, record.source_end)
+        for record in proj.editorial.edit_log
+    } == offered
+    assert [record.params.get("replace_gap_sec") for record in proj.editorial.edit_log] == [
+        None,
+        None,
+    ]
+    assert all(record.params["pad_samples"] == [] for record in proj.editorial.edit_log)
     assert [(w.text, w.start, w.end) for w in proj.transcripts[0].words] == [("hi", 2.0, 2.2)]
+    assert [
+        (entry.ordinal, entry.word.text, entry.word.start, entry.word.end)
+        for entry in proj.transcripts[0].archived_words
+    ] == [(0, "um", 0.1, 0.2)]
+    timeline = SessionTimeline(proj)
+    quiet = timeline.exact_source_span("host", SourceSec(1.43), SourceSec(2.0))
+    assert quiet == pytest.approx((0.1, 0.67))
+    assert quiet[1] - quiet[0] >= defaults["tighten"]["min_retained_solo_pause_sec"]
+    onset, end = timeline.exact_source_span("host", SourceSec(1.99), SourceSec(2.2))
+    assert onset - quiet[0] == pytest.approx(0.56)
+    after_audio = tmp_path / "after.wav"
+    render_track_from_timeline(proj, proj.tracks[0], after_audio, defaults)
+    with wave.open(str(before_audio)) as original, wave.open(str(after_audio)) as rendered:
+        assert original.getframerate() == rendered.getframerate() == 16_000
+        rendered.setpos(round(quiet[0] * 16_000))
+        quiet_pcm = array("h", rendered.readframes(round((onset - quiet[0]) * 16_000)))
+        assert len(quiet_pcm) == 8960
+        assert max(abs(sample) for sample in quiet_pcm) <= 1
+        original.setpos(round(1.99 * 16_000))
+        rendered.setpos(round(onset * 16_000))
+        assert rendered.readframes(round((end - onset) * 16_000)) == original.readframes(3360)
+    applied = proj.model_dump(mode="json")
     assert steps.tighten_from_transcript(proj, defaults) == "0 tighten cuts applied"
-    assert [edit.model_dump(mode="json") for edit in proj.edit_decisions] == [held_pause]
-    assert proj.timeline.duration_sec == pytest.approx(2.1)
+    assert proj.model_dump(mode="json") == applied
 
 
 def test_tighten_steps_skip_when_disabled(minimal_project):

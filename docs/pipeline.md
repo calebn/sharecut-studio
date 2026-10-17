@@ -197,6 +197,11 @@ Each step returns a short human-readable **summary** (counts of tracks, cuts, su
 
 ## Configurable run (GUI / MCP)
 
+Tighten application uses the run's supplied settings, including
+`tighten.breath_handling.enabled`. It does not reload global defaults between
+proposal and application. Disabled breath handling uses geometric pause checks;
+the original quiet floor and structural checks still apply.
+
 On phones, selecting a Pipeline step opens its parameters in a modal Dialog with
 a visible Close button, Escape dismissal, and focus restoration. Wider shells
 show the same form inline.
