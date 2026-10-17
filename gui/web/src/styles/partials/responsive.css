@@ -96,6 +96,7 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
   html[data-shell="tablet"]:has(.bottom-sheet--lane-band)
   :is(.marker-lane, .track-headers-chrome) {
     position: relative;
+    inset-block-start: auto;
     z-index: var(--z-content);
   }
 
@@ -125,6 +126,7 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
 @media (max-height: 24rem) {
   html[data-shell="tablet"] :is(.marker-lane, .track-headers-chrome) {
     position: relative;
+    inset-block-start: auto;
     z-index: var(--z-content);
   }
 

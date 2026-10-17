@@ -492,12 +492,32 @@ test("914x331 idle: a touch tap on the guest track header opens its details and 
   await withDemoProject(async (projectPath) => {
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
     await expect(page.locator(".daw-shell--tablet")).toBeVisible();
-    await page
-      .getByRole("button", {
-        name: `Open track details, ${DEMO_TRACK}`,
-        exact: true,
-      })
-      .tap();
+    const header = page.getByRole("button", {
+      name: `Open track details, ${DEMO_TRACK}`,
+      exact: true,
+    });
+    await header.scrollIntoViewIfNeeded();
+    const point = await header.evaluate((el) => {
+      const title = el
+        .closest(".track-header-row")!
+        .querySelector(".track-title, .track-chip")!
+        .getBoundingClientRect();
+      const x = title.left + title.width / 2;
+      const y = title.top + title.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      return {
+        x,
+        y,
+        onScreen: y > 0 && y < innerHeight,
+        hitsHeader: hit === el || (hit !== null && el.contains(hit)),
+      };
+    });
+    expect(point.onScreen, "the guest name is on screen").toBe(true);
+    expect(
+      point.hitsHeader,
+      "a touch on the guest name reaches the header",
+    ).toBe(true);
+    await page.touchscreen.tap(point.x, point.y);
     await expect(
       page.getByRole("button", { name: "Add volume envelope", exact: true }),
     ).toBeVisible();
@@ -590,9 +610,12 @@ test("914x331 with a failed save and the envelope sheet open: the status line ke
   page,
 }) => {
   await page.addInitScript(() => {
-    indexedDB.open = () => {
-      throw new Error("queue unreadable");
-    };
+    Object.defineProperty(IDBFactory.prototype, "open", {
+      configurable: true,
+      value: () => {
+        throw new Error("queue unreadable");
+      },
+    });
   });
   await page.setViewportSize({ width: 914, height: 331 });
   await withDemoProject(async (projectPath) => {
@@ -605,7 +628,7 @@ test("914x331 with a failed save and the envelope sheet open: the status line ke
   });
 });
 
-test("a soloed track keeps Clear solo tappable at 914x331 while the envelope sheet is open", async ({
+test("a soloed track keeps Clear solo tappable at the top of the timeline at 914x331 while the envelope sheet is open", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 914, height: 331 });
@@ -619,7 +642,10 @@ test("a soloed track keeps Clear solo tappable at 914x331 while the envelope she
     await expect(page.locator(".solo-chip")).toBeVisible();
     await openEnvelope(page);
     const chip = page.locator(".solo-chip");
-    await expect(chip).toBeVisible();
+    await page.locator(".timeline-scroll").evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await expect(chip).toBeInViewport();
     const hit = await chip.evaluate((el) => {
       const r = el.getBoundingClientRect();
       const top = document.elementFromPoint(

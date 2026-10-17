@@ -223,6 +223,44 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   }
 }
 
+/* The shortest landscape window (914x331) with the status line kept has no
+   room for a title row above Done: the sheet's Expand and Close sit on the
+   same row as the lane's name and Done, and the title stays readable to a
+   screen reader only (#1694). */
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (max-height: 24rem) {
+  @container sheet-slot (min-width: 36rem) {
+    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector)
+      .bottom-sheet-chrome {
+      block-size: 0;
+      border-block-end: 0;
+    }
+
+    .bottom-sheet--lane-band:has(.modifier-inspector) .bottom-sheet-header {
+      position: absolute;
+      inset-block-start: var(--space-1);
+      inset-inline-end: var(--space-4);
+      z-index: var(--z-local-chrome);
+      padding: 0;
+      min-block-size: 0;
+    }
+
+    .bottom-sheet--lane-band:has(.modifier-inspector) .bottom-sheet-title {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .bottom-sheet--lane-band:has(.modifier-inspector)
+      .modifier-primary-actions {
+      margin-inline-end: calc(var(--touch-min) * 2.5 + var(--space-4));
+    }
+  }
+}
+
 @keyframes bottom-sheet-up {
   from {
     transform: translateY(12%);
