@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { pendingEditView } from "../test/fixtures";
-import type { HistoryEntryId } from "../types/project";
 import {
   bulkReviewDoneMessage,
   bulkReviewQuestion,
@@ -119,23 +118,6 @@ describe("pendingReviewFeedback", () => {
     ).toEqual({
       message: "Approved 2 pending edits",
       undo: head,
-    });
-  });
-});
-
-describe("an Approve all pass", () => {
-  it("counts the whole pass", () => {
-    expect(
-      pendingReviewFeedback("approve", {
-        queued: false,
-        count: 4,
-        historyHead: "second" as HistoryEntryId,
-        held: [],
-        pass: { head: "first" as HistoryEntryId, applied: 6 },
-      }),
-    ).toEqual({
-      message: "Approved 10 pending edits",
-      undo: "second",
     });
   });
 });

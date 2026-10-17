@@ -10,7 +10,6 @@ from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.models import CutIntent, load_project
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync.handlers.edits import approve_edits
-from podcast_mcp.services.document_sync.handlers.history import redo_history, undo_history
 from test_approve_guard_blocked_ripple import _blocked_filler
 
 
@@ -104,29 +103,3 @@ def test_approving_several_cuts_at_once_leaves_one_history_entry(tmp_path, monke
 
     assert reply["count"] == 2
     assert len(load_project(ws.path).history.entries) == before + 1
-
-
-def test_continued_approval_undo_and_redo_move_both_entries(tmp_path, monkeypatch):
-    result, asked = _with_plain_cut(tmp_path, monkeypatch)
-    ws = workspace(result)
-    first = approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
-    assert first["count"] == 1
-    first_head = load_project(ws.path).history.head_id()
-
-    assert (
-        EditService(ws).approve(
-            [asked.id],
-            application_intent=CutIntent.HUMAN_BOUNDARIES,
-            continues_head_id=first_head,
-        )
-        == 1
-    )
-    complete_head = load_project(ws.path).history.head_id()
-    assert load_project(ws.path).edit_decisions == []
-
-    undo_history(ws, {"expected_head_id": complete_head})
-
-    assert {edit.id for edit in load_project(ws.path).edit_decisions} == {"plain", asked.id}
-    redo_history(ws, {"expected_head_id": load_project(ws.path).history.head_id()})
-    assert load_project(ws.path).edit_decisions == []
-    assert load_project(ws.path).history.head_id() == complete_head

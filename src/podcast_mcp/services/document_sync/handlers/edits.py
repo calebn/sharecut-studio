@@ -18,10 +18,8 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     hold_blocked = p.get("hold_blocked") is True
     held: list[HeldEdit] = []
     asked: list[AskedEdits] = []
-    continues = p.get("continues_head_id")
     outcome = EditService(ws).approve(
         ids,
-        continues_head_id=str(continues) if continues is not None else None,
         allow_exact=p.get("_allow_exact") is True,
         application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
         held_out=held if hold_blocked else None,

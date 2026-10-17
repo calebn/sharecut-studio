@@ -185,7 +185,6 @@ from podcast_mcp.effects.presets import (
 from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.history.manager import (
-    PASS_CONTINUES_KEY,
     apply_snapshot_to_project,
     snapshot_from_project,
 )
@@ -493,7 +492,6 @@ class EditService:
         held_out: list[HeldEdit] | None = None,
         asked_out: list[AskedEdits] | None = None,
         override_peer_holds: set[str] | None = None,
-        continues_head_id: str | None = None,
     ) -> int | CutSpeechConfirmation:
         """Apply pending edits with fresh complete-effect assessment.
 
@@ -535,10 +533,7 @@ class EditService:
                     "after approve edits",
                     mutate,
                     operation="approve_edits",
-                    params={
-                        "ids": ids,
-                        **({PASS_CONTINUES_KEY: continues_head_id} if continues_head_id else {}),
-                    },
+                    params={"ids": ids},
                     on_failure=on_failure,
                 )
         except UnconfirmedCutSpeech as asked:
