@@ -9,7 +9,11 @@ import {
 } from "../commands/history";
 import { activateDocumentScope } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
-import { trackEditSave } from "../state/documentSendOrder";
+import {
+  noteSaveLanded,
+  trackDocumentDrain,
+  trackEditSave,
+} from "../state/documentSendOrder";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
@@ -475,35 +479,146 @@ describe("FeedbackToast", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("disables Undo while this tab's own edit is still saving, then enables it once the edit lands", async () => {
-    render(<FeedbackToast />);
-    act(() => {
-      useDawStore
-        .getState()
-        .announceStatus("Applied 6, held 4", { undo: entry("host-reorder") });
+  describe("while this tab's own edit is still saving", () => {
+    const STALE_BY_SAVE =
+      "Can't undo: another edit saved first. Nothing was undone.";
+    let finish: () => void = () => {};
+    let send: Promise<void> = Promise.resolve();
+    let endDrain: () => void = () => {};
+    let drain: Promise<void> = Promise.resolve();
+    afterEach(async () => {
+      finish();
+      endDrain();
+      await Promise.all([send, drain]);
     });
-    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
-
-    let finish!: () => void;
-    const send = new Promise<void>((resolve) => {
-      finish = resolve;
-    });
-    try {
+    const startSave = () => {
+      send = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
       act(() => {
         void trackEditSave("/tmp/ep", send);
       });
-      const undo = screen.getByRole("button", { name: "Undo" });
-      expect(undo).toBeDisabled();
-      await userEvent.setup().click(undo);
-      expect(undoHistory).not.toHaveBeenCalled();
-      expect(screen.queryByText(/still saving|Nothing was undone/)).toBeNull();
-    } finally {
+    };
+    const settleSave = async () => {
       await act(async () => {
         finish();
         await send;
       });
-    }
-    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    };
+    const announce = () =>
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Applied 6, held 4", { undo: entry("host-reorder") });
+      });
+
+    it("says why Undo waits and keeps it pressable", async () => {
+      render(<FeedbackToast />);
+      announce();
+      expect(screen.queryByText("Undo ready after save")).toBeNull();
+      startSave();
+      const undo = screen.getByRole("button", { name: "Undo" });
+      expect(undo).toBeEnabled();
+      expect(screen.getByText("Undo ready after save")).toBeVisible();
+      await expectNoA11yViolations(document.body);
+      await settleSave();
+      expect(screen.queryByText("Undo ready after save")).toBeNull();
+    });
+
+    it("queues a press and runs it once the save settles on the toast's entry", async () => {
+      const user = userEvent.setup();
+      render(<FeedbackToast />);
+      announce();
+      startSave();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      expect(undoHistory).not.toHaveBeenCalled();
+      expect(screen.getByText("Undo runs after save")).toBeVisible();
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Undo runs after save",
+      );
+      await settleSave();
+      await vi.waitFor(() =>
+        expect(undoHistory).toHaveBeenCalledWith(
+          "/tmp/ep",
+          expect.objectContaining({ expectedHeadId: "host-reorder" }),
+        ),
+      );
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Undone: Applied 6, held 4",
+        ),
+      );
+    });
+
+    it("waits for an offline drain the same way, and an unrelated send that leaves history alone does not strand it", async () => {
+      const user = userEvent.setup();
+      render(<FeedbackToast />);
+      announce();
+      drain = new Promise<void>((resolve) => {
+        endDrain = resolve;
+      });
+      act(() => trackDocumentDrain("/tmp/ep", drain));
+      expect(screen.getByText("Undo ready after save")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      expect(undoHistory).not.toHaveBeenCalled();
+      await act(async () => {
+        endDrain();
+        await drain;
+      });
+      await vi.waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
+    });
+
+    it("drops a queued press with the reason when a save lands after the toast's edit, and sends nothing", async () => {
+      const user = userEvent.setup();
+      render(<FeedbackToast />);
+      announce();
+      startSave();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      act(() => {
+        noteSaveLanded(
+          "/tmp/ep",
+          entry("later-save"),
+          activateDocumentScope("/tmp/ep"),
+        );
+        atHead("later-save", 400);
+      });
+      await settleSave();
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(STALE_BY_SAVE),
+      );
+      expect(undoHistory).not.toHaveBeenCalled();
+    });
+
+    it("keeps one Undo for a whole Approve all: the first part's queued press is dropped, the pass toast's Undo takes both parts", async () => {
+      const user = userEvent.setup();
+      render(<FeedbackToast />);
+      announce();
+      startSave();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      act(() => {
+        noteSaveLanded(
+          "/tmp/ep",
+          entry("cut-anyway"),
+          activateDocumentScope("/tmp/ep"),
+        );
+        atHead("cut-anyway", 400);
+        useDawStore.getState().announceStatus("Approved 10 pending edits", {
+          undo: entry("cut-anyway"),
+        });
+      });
+      await settleSave();
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(STALE_BY_SAVE),
+      );
+      expect(undoHistory).not.toHaveBeenCalled();
+      expect(screen.getByText("Approved 10 pending edits")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      expect(undoHistory).toHaveBeenCalledTimes(1);
+      expect(undoHistory).toHaveBeenCalledWith(
+        "/tmp/ep",
+        expect.objectContaining({ expectedHeadId: "cut-anyway" }),
+      );
+    });
   });
 
   it("keeps Undo through the moment the change is announced before the project shows its head, and drops it once another edit lands", () => {
