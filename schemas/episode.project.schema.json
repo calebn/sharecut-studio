@@ -465,7 +465,7 @@
         "cut_speech": {
           "anyOf": [{ "$ref": "#/$defs/CutSpeech" }, { "type": "null" }],
           "default": null,
-          "description": "Other speakers' speech a suggested session ripple cuts, recorded when it was suggested; approving it needs confirm_cut_speech"
+          "description": "Other speakers' speech a suggested session ripple cuts, recorded when it was suggested; a programmatic approval holds it for review, and a trusted human approval ripples as suggested"
         },
         "track_ids": {
           "type": ["array", "null"],
