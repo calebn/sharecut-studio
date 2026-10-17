@@ -21,6 +21,7 @@ use tauri_plugin_shell::ShellExt;
 #[cfg(unix)]
 use sharecut::cli_links;
 mod media_capture;
+mod updater;
 
 struct SidecarHandle {
     child: Child,
@@ -171,11 +172,22 @@ fn handle_exit_requested(app: &tauri::AppHandle) -> Option<sharecut::CloseRisk> 
     }
 }
 
+#[cfg(windows)]
+fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, Submenu};
+
+    let Some(check_updates) = updater::menu_item(app)? else {
+        return Menu::new(app);
+    };
+    let help_menu = Submenu::with_items(app, "Help", true, &[&check_updates])?;
+    Menu::with_items(app, &[&help_menu])
+}
+
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     #[cfg(target_os = "macos")]
     use tauri::menu::{AboutMetadata, WINDOW_SUBMENU_ID};
-    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID};
+    use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID};
 
     let package = app.package_info();
     #[cfg(target_os = "macos")]
@@ -200,6 +212,7 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
         true,
         Some("CmdOrCtrl+Q"),
     )?;
+    let check_updates = updater::menu_item(app)?;
     let install_cli = MenuItem::with_id(
         app,
         cli_links::INSTALL_MENU_ID,
@@ -214,32 +227,38 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
         true,
         None::<&str>,
     )?;
-    #[cfg(target_os = "linux")]
-    let app_menu = Submenu::with_items(
-        app,
-        package.name.clone(),
-        true,
-        &[&install_cli, &remove_cli],
-    )?;
     #[cfg(target_os = "macos")]
-    let app_menu = Submenu::with_items(
-        app,
-        package.name.clone(),
-        true,
-        &[
-            &PredefinedMenuItem::about(app, None, Some(about))?,
-            &PredefinedMenuItem::separator(app)?,
-            &install_cli,
-            &remove_cli,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::services(app, None)?,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::hide(app, None)?,
-            &PredefinedMenuItem::hide_others(app, None)?,
-            &PredefinedMenuItem::separator(app)?,
-            &guarded_quit,
-        ],
-    )?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let mut app_items: Vec<&dyn IsMenuItem<tauri::Wry>> = Vec::new();
+    #[cfg(target_os = "macos")]
+    let about_item = PredefinedMenuItem::about(app, None, Some(about))?;
+    #[cfg(target_os = "macos")]
+    {
+        app_items.push(&about_item);
+        app_items.push(&separator);
+    }
+    if let Some(check_updates) = &check_updates {
+        app_items.push(check_updates);
+    }
+    app_items.push(&install_cli);
+    app_items.push(&remove_cli);
+    #[cfg(target_os = "macos")]
+    let (services, hide, hide_others) = (
+        PredefinedMenuItem::services(app, None)?,
+        PredefinedMenuItem::hide(app, None)?,
+        PredefinedMenuItem::hide_others(app, None)?,
+    );
+    #[cfg(target_os = "macos")]
+    app_items.extend([
+        &separator as &dyn IsMenuItem<tauri::Wry>,
+        &services,
+        &separator,
+        &hide,
+        &hide_others,
+        &separator,
+        &guarded_quit,
+    ]);
+    let app_menu = Submenu::with_items(app, package.name.clone(), true, &app_items)?;
     let edit_menu = Submenu::with_items(
         app,
         "Edit",
@@ -715,6 +734,36 @@ fn engine_navigation_allowed(url: &str, engine_port: Option<u16>) -> bool {
     cfg!(debug_assertions) && sharecut::is_allowed_webview_navigation(url, Some(FALLBACK_PORT))
 }
 
+fn shutdown_sidecar(app: &tauri::AppHandle) {
+    let taken = app
+        .try_state::<SidecarState>()
+        .and_then(|state| state.0.lock().ok().and_then(|mut guard| guard.take()));
+    let Some(mut handle) = taken else {
+        return;
+    };
+    if let Some(path) = &handle.listen_path {
+        if let Err(err) = std::fs::remove_file(path) {
+            if err.kind() != io::ErrorKind::NotFound {
+                eprintln!(
+                    "Sharecut Studio: could not remove listen file {}: {err}",
+                    path.display()
+                );
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        let pid = handle.child.id();
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    let _ = handle.child.kill();
+    let _ = handle.child.wait();
+}
+
 fn main() {
     #[cfg(target_os = "linux")]
     if std::env::var_os("APPIMAGE").is_some() {
@@ -728,6 +777,11 @@ fn main() {
     }
     let engine_port = Arc::new(Mutex::new(None::<u16>));
     let nav_port = engine_port.clone();
+    let updater_config = sharecut::updater_config();
+    let mut context = tauri::generate_context!();
+    if let Some(updater_config) = updater_config {
+        updater::inject_config(context.config_mut(), updater_config);
+    }
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_main_window(app);
@@ -742,16 +796,31 @@ fn main() {
                 })
                 .build(),
         );
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    let builder = builder.menu(native_menu).on_menu_event(|app, event| {
-        if sharecut::is_guarded_quit_menu_item(event.id().as_ref()) {
-            app.exit(0);
-        } else if event.id().as_ref() == cli_links::INSTALL_MENU_ID {
-            cli_action(app, true);
-        } else if event.id().as_ref() == cli_links::REMOVE_MENU_ID {
-            cli_action(app, false);
-        }
-    });
+    let builder = if updater_config.is_some() {
+        builder.plugin(tauri_plugin_updater::Builder::new().build())
+    } else {
+        builder
+    };
+    // Windows has no native menu unless the updater needs one.
+    let builder = if cfg!(windows) && updater_config.is_none() {
+        builder
+    } else {
+        builder.menu(native_menu).on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+            if sharecut::is_guarded_quit_menu_item(id) {
+                app.exit(0);
+            } else if id == updater::MENU_ID {
+                updater::on_menu_click(app);
+            } else {
+                #[cfg(unix)]
+                if id == cli_links::INSTALL_MENU_ID {
+                    cli_action(app, true);
+                } else if id == cli_links::REMOVE_MENU_ID {
+                    cli_action(app, false);
+                }
+            }
+        })
+    };
     builder
         .manage(SidecarState(Mutex::new(None)))
         .manage(LastOpenedShare(Mutex::new(None)))
@@ -807,6 +876,7 @@ fn main() {
                                     open_engine_window(&handle, port);
                                     #[cfg(unix)]
                                     prompt_cli_once(&handle);
+                                    updater::start_launch_check(&handle);
                                 }
                                 Err(_) => {
                                     show_sidecar_error(&handle, "engine port lock poisoned");
@@ -833,11 +903,14 @@ fn main() {
             }
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building Sharecut Studio")
         .run(|app_handle, event| {
             match event {
-                RunEvent::ExitRequested { api, .. } => {
+                RunEvent::ExitRequested { api, .. } => match updater::gate_exit(app_handle) {
+                    sharecut::RestartGate::Proceed => {}
+                    sharecut::RestartGate::Refuse => api.prevent_exit(),
+                    sharecut::RestartGate::NotPending => {
                     if let Some(risk) = handle_exit_requested(app_handle) {
                         api.prevent_exit();
                         if let Some(webview) = app_handle.get_webview_window("main") {
@@ -846,33 +919,12 @@ fn main() {
                             eprintln!("Sharecut Studio: could not show close confirmation");
                         }
                     }
-                }
+                    }
+                },
                 RunEvent::Exit => {
-                    let taken = app_handle.try_state::<SidecarState>().and_then(|state| {
-                        state.0.lock().ok().and_then(|mut guard| guard.take())
-                    });
-                    if let Some(mut handle) = taken {
-                    if let Some(path) = &handle.listen_path {
-                        if let Err(err) = std::fs::remove_file(path) {
-                            if err.kind() != io::ErrorKind::NotFound {
-                                eprintln!(
-                                    "Sharecut Studio: could not remove listen file {}: {err}",
-                                    path.display()
-                                );
-                            }
-                        }
-                    }
-                    #[cfg(windows)]
-                    {
-                        let pid = handle.child.id();
-                        let _ = Command::new("taskkill")
-                            .args(["/PID", &pid.to_string(), "/T", "/F"])
-                            .stdout(std::process::Stdio::null())
-                            .stderr(std::process::Stdio::null())
-                            .status();
-                    }
-                    let _ = handle.child.kill();
-                    let _ = handle.child.wait();
+                    shutdown_sidecar(app_handle);
+                    if updater::take_restart_on_exit() {
+                        tauri::process::restart(&app_handle.env());
                     }
                 }
                 _ => {}

@@ -73,6 +73,11 @@ fn generate_distribution_constants() {
     if profile["version"].as_u64() != Some(1) {
         panic!("distribution profile version must be 1");
     }
+    let updater_endpoint = optional_string(&profile, "updater_endpoint");
+    let updater_public_key = optional_string(&profile, "updater_public_key");
+    if (updater_endpoint == "None") != (updater_public_key == "None") {
+        panic!("distribution profile updater_endpoint and updater_public_key must be set together");
+    }
     let generated = format!(
         "pub const PRODUCT_NAME: &str = {:?};\n\
          pub const BUNDLE_IDENTIFIER: &str = {:?};\n\
@@ -82,7 +87,9 @@ fn generate_distribution_constants() {
          pub const PRIVACY_URL: &str = {:?};\n\
          pub const REPOSITORY_URL: &str = {:?};\n\
          pub const RELEASE_MANIFEST_URL: Option<&str> = {};\n\
-         pub const BOOTSTRAP_CDN_BASE: Option<&str> = {};\n",
+         pub const BOOTSTRAP_CDN_BASE: Option<&str> = {};\n\
+         pub const UPDATER_ENDPOINT: Option<&str> = {};\n\
+         pub const UPDATER_PUBLIC_KEY: Option<&str> = {};\n",
         string_field(&profile, "product_name"),
         string_field(&profile, "bundle_identifier"),
         string_array(&profile, "deep_link_schemes"),
@@ -92,6 +99,8 @@ fn generate_distribution_constants() {
         string_field(&profile, "repository_url"),
         optional_string(&profile, "release_manifest_url"),
         optional_string(&profile, "bootstrap_cdn_base"),
+        updater_endpoint,
+        updater_public_key,
     );
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR")).join("distribution.rs");
     fs::write(out, generated).expect("write generated distribution constants");
