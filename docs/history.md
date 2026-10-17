@@ -302,7 +302,8 @@ when the saves settle with the expected head it would have had without the wait.
 keeps its entry, so if a later save moved the head first the server refuses it
 (`history_stale`), the move is `dropped`, and the status says "Can't undo: the project
 changed since. Nothing was undone." The server stays the one authority on staleness. A
-refusal does not replace a toast that still offers Undo for the newer step: a
+refusal replaces the toast whose Undo was refused, so that Undo never vanishes without a
+reason (#1690), and does not replace a toast that still offers Undo for a newer step: a
 logical approval recorded across two commands keeps one Undo on the pass toast.
 There is no per-command
 "writes history" flag: every document command moves the head, so the client cannot tell
