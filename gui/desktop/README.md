@@ -65,6 +65,15 @@ artifacts and upload to object storage; do not put object storage credentials or
 in this repo. Apple Silicon notarized DMGs can stay `make desktop-build` on a
 Mac with `APPLE_*`.
 
+## In-app updates
+
+Builds whose distribution profile sets `updater_endpoint` and `updater_public_key` check for signed updates through `tauri-plugin-updater`. Profiles without them (the dev profile) register no plugin, no menu item, and make no update request.
+
+- The Rust host injects the endpoint and key into the plugin config at startup (`updater::inject_config`); `tauri.conf.json` carries no `plugins.updater` block and no `bundle.createUpdaterArtifacts`. The release overlay sets `createUpdaterArtifacts` because Tauri then requires `TAURI_SIGNING_PRIVATE_KEY` at bundle time.
+- Everything runs natively from the **Check for Updates…** menu item (app menu on macOS, app menu on Linux, **Help** on Windows) and a quiet check after the engine passes health. The webview gets no updater command, so `capabilities/default.json`, the CSP, and `remote.urls` are unchanged.
+- An update is never downloaded or installed while the `sc_close_guard` marker is present or unreadable, at click time, after the download, and before the restart. There is no override. Decisions live in `src/update.rs`; `src/updater.rs` is the plugin glue.
+- Linux installs outside an AppImage (`.deb`) only show a message that a new package is available.
+
 ## AppImage command line tools
 
 Run the AppImage itself with `--cli <podcast arguments>` or `--mcp <podcast-mcp arguments>`. The native **Install Command Line Tools…** menu installs `~/.local/bin/podcast` and `podcast-mcp` wrappers that invoke the absolute AppImage path. The first successful engine launch offers this once. Keep the AppImage at that path, or use the menu to remove the wrappers before moving it and reinstall them afterward. Existing unrelated files and links are left alone.
