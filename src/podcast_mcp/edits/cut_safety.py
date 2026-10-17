@@ -496,38 +496,16 @@ class OriginalQuietSupport:
         )
 
 
-@dataclass(frozen=True)
-class _KnownPad:
-    """Samples a pad borrowed, and how the pad's own tiles are told from a user's clips."""
-
-    source_start: float
-    source_end: float
-    window: tuple[float, float] | None
-    clip_ids: frozenset[str]
-
-
-def _inside_known_pad(clip: Clip, pads: Sequence[_KnownPad]) -> bool:
-    """Whether a clip is a tile that a recorded pad laid, not original audio.
+def _inside_known_pad(clip: Clip, pads: Sequence[tuple[float, float]]) -> bool:
+    """Whether a clip is a tile cut from a recorded pad's samples, not original audio.
 
     A copy of samples is not the audio it copies, so the original clip that those samples
-    came from stays original quiet. A user clip that merely plays the same source range
-    elsewhere is a real second play, so the tile must also be one the pad record names,
-    or sit in the timeline window the pad filled.
+    came from stays original quiet.
     """
-    from podcast_mcp.edits.clips_ops import clip_split_origin
-
     return any(
-        pad.source_start - _SOURCE_GEOMETRY_TOLERANCE_SEC <= clip.source_start
-        and clip.source_end <= pad.source_end + _SOURCE_GEOMETRY_TOLERANCE_SEC
-        and (
-            clip_split_origin(clip.id, set(pad.clip_ids)) in pad.clip_ids
-            or (
-                pad.window is not None
-                and pad.window[0] - _SOURCE_GEOMETRY_TOLERANCE_SEC <= clip.timeline_start
-                and clip.timeline_end <= pad.window[1] + _SOURCE_GEOMETRY_TOLERANCE_SEC
-            )
-        )
-        for pad in pads
+        lo - _SOURCE_GEOMETRY_TOLERANCE_SEC <= clip.source_start
+        and clip.source_end <= hi + _SOURCE_GEOMETRY_TOLERANCE_SEC
+        for lo, hi in pads
     )
 
 
@@ -600,7 +578,7 @@ def original_pause_support(
                     return OriginalQuietSupport(())
             except (CodedError, OSError, ValueError):
                 continue
-    known_pads: list[_KnownPad] = []
+    known_pads: list[tuple[float, float]] = []
     for record in project.editorial.edit_log:
         gap = record.params.get("replace_gap_sec")
         pad_purpose = record.operation in {"fill_with_room_tone", "insert_room_tone_pad"} or (
@@ -649,20 +627,7 @@ def original_pause_support(
                 or hi <= lo
             ):
                 return CutRejected("source_geometry")
-            window = (
-                (float(record.timeline_start), float(record.timeline_start) + float(gap))
-                if record.timeline_start is not None
-                and isinstance(gap, (int, float))
-                and not isinstance(gap, bool)
-                else None
-            )
-            named = record.params.get("clips")
-            clip_ids = frozenset(
-                entry["clip_id"]
-                for entry in (named if isinstance(named, (list, tuple)) else ())
-                if isinstance(entry, dict) and isinstance(entry.get("clip_id"), str)
-            )
-            known_pads.append(_KnownPad(lo, hi, window, clip_ids))
+            known_pads.append((lo, hi))
     allowed = set(ripple_track_ids(project, [track_id]))
     ignored = IgnoredWordRegions(project)
     pieces = []
