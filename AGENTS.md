@@ -14,7 +14,7 @@ All changes to this repo must follow **SOLID** and **DRY**, include **tests as y
 
 The product is in beta and has no users. Breaking changes are allowed; backward compatibility is not a requirement. Migrate all current callers, tests, and docs to the new contract, then delete obsolete implementations. Do not retain compatibility-only overloads, aliases, or fallbacks for old APIs or project formats at runtime. Preserve distinct paths only when they serve a current product workflow.
 
-**Upgrade rule (owner, 2026-10-17).** A change to the project file's shape, or anything else that breaks backward compatibility of data a user already has, ships in the same change with tooling that upgrades older project files: a one-shot `podcast` CLI command the user runs, with tests that upgrade a fixture of the old shape. The old shape is then unsupported at runtime. Enforced by #1702. See [docs/beta-plan.md § Compatibility](docs/beta-plan.md#compatibility).
+**Upgrade rule (owner, 2026-10-17).** It takes effect once the first beta tester build ships. Until then, format breaks need no migration and no upgrade tooling. After that build ships, a change to the project file's shape, or anything else that breaks backward compatibility of data a user already has, ships in the same change with tooling that upgrades older project files: a one-shot `podcast` CLI command the user runs, with tests that upgrade a fixture of the old shape. The old shape is then unsupported at runtime, and no runtime compatibility code is kept in either phase. Enforced by #1702. See [docs/beta-plan.md § Compatibility](docs/beta-plan.md#compatibility).
 
 ## Beta plan (current scope)
 
