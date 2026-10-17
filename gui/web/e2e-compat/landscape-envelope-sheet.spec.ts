@@ -1,6 +1,9 @@
+import path from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "../e2e/documentCommand";
+import { repoRoot } from "../e2e/env";
 import { openEnvelopeTrackDetails } from "../e2e/envelopeCreationEvidence";
+import { createRelocatedE2eProject } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 
@@ -15,7 +18,8 @@ import { withShareableProject } from "../e2e/shareableProject";
 
 test.use({ hasTouch: true, isMobile: true });
 
-const VIEWPORTS = [
+type Viewport = { width: number; height: number; keyboard: number };
+const VIEWPORTS: Viewport[] = [
   { width: 932, height: 430, keyboard: 170 },
   { width: 914, height: 331, keyboard: 130 },
 ];
@@ -90,10 +94,22 @@ async function expectInSheet(control: Locator, label: string) {
     const r = el.getBoundingClientRect();
     const sheet = el.closest(".bottom-sheet")!.getBoundingClientRect();
     const slot = el.closest(".bottom-sheet-root")!.getBoundingClientRect();
+    let top = Math.max(sheet.top, slot.top, 0);
+    let bottom = Math.min(sheet.bottom, slot.bottom, innerHeight);
+    for (
+      let parent = el.parentElement;
+      parent && parent !== el.closest(".bottom-sheet")!.parentElement;
+      parent = parent.parentElement
+    ) {
+      if (getComputedStyle(parent).overflowY === "visible") continue;
+      const clip = parent.getBoundingClientRect();
+      top = Math.max(top, clip.top);
+      bottom = Math.min(bottom, clip.bottom);
+    }
     return {
       r: { top: r.top, bottom: r.bottom, height: r.height },
-      top: Math.max(sheet.top, slot.top, 0),
-      bottom: Math.min(sheet.bottom, slot.bottom, innerHeight),
+      top,
+      bottom,
     };
   });
   expect(geometry.r.height, `${label} has a box`).toBeGreaterThan(0);
@@ -105,100 +121,126 @@ async function expectInSheet(control: Locator, label: string) {
   );
 }
 
-for (const vp of VIEWPORTS) {
-  const size = `${vp.width}x${vp.height}`;
+async function editedLaneInReach(page: Page, vp: Viewport) {
+  await page.setViewportSize(vp);
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await seed(page, projectPath);
+    await openEnvelope(page);
 
-  test(`${size}: the edited lane stays above the sheet and Add point and Done are in reach`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(vp);
-    await withShareableProject(async (projectPath) => {
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(".daw-shell--tablet")).toBeVisible();
-      await seed(page, projectPath);
-      await openEnvelope(page);
-
-      await expect(page.locator(".bottom-tabs")).toBeHidden();
-      const band = await laneBand(page, TRACK_INDEX);
-      expect(band.visible).toBe(band.laneHeight);
-      await expectInSheet(
-        page.getByRole("button", { name: "Add point", exact: true }),
-        "Add point",
-      );
-      await expectInSheet(
-        page.getByRole("button", { name: "Done", exact: true }),
-        "Done",
-      );
-    });
-  });
-
-  test(`${size}: the form, Save and Cancel are visible with the lane, and with the keyboard up`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(vp);
-    await withShareableProject(async (projectPath) => {
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(".daw-shell--tablet")).toBeVisible();
-      await seed(page, projectPath);
-      await openEnvelope(page);
-      await page.getByRole("button", { name: "Add point", exact: true }).tap();
-
-      const time = page.getByLabel("Time (seconds on timeline)");
-      const level = page.getByLabel("Level (×)");
-      const save = page.getByRole("button", { name: "Save point" });
-      const cancel = page
-        .locator(".bottom-sheet")
-        .getByRole("button", { name: "Cancel" });
-      const band = await laneBand(page, TRACK_INDEX);
-      expect(band.visible).toBe(band.laneHeight);
-      for (const [control, label] of [
-        [time, "Time"],
-        [level, "Level"],
-        [save, "Save point"],
-        [cancel, "Cancel"],
-      ] as const)
-        await expectInSheet(control, label);
-
-      await setKeyboard(page, vp.keyboard);
-      await level.focus();
-      for (const [control, label] of [
-        [time, "Time"],
-        [level, "Level"],
-        [save, "Save point"],
-        [cancel, "Cancel"],
-      ] as const)
-        await expectInSheet(control, `${label} with keyboard`);
-      const done = page.getByRole("button", { name: "Done", exact: true });
-      await done.scrollIntoViewIfNeeded();
-      await expectInSheet(done, "Done with keyboard");
-    });
-  });
-
-  test(`${size}: Add point, Save and Cancel run from inside the sheet`, async ({
-    page,
-  }) => {
-    await page.setViewportSize(vp);
-    await withShareableProject(async (projectPath) => {
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-      await expect(page.locator(".daw-shell--tablet")).toBeVisible();
-      await seed(page, projectPath);
-      await openEnvelope(page);
-      await page.getByRole("button", { name: "Add point", exact: true }).tap();
-      await page
-        .locator(".bottom-sheet")
-        .getByRole("button", { name: "Cancel" })
-        .tap();
-      await expect(page.getByLabel("Level (×)")).toHaveCount(0);
-      await page.getByRole("button", { name: "Add point", exact: true }).tap();
-      await page.getByLabel("Level (×)").fill("0.5");
-      await page.getByRole("button", { name: "Save point" }).tap();
-      await expect(page.getByLabel("Level (×)")).toHaveCount(0);
-      await expect(
-        page.getByRole("combobox", { name: /Envelope point/ }),
-      ).toBeVisible();
-    });
+    await expect(page.locator(".bottom-tabs")).toBeHidden();
+    const band = await laneBand(page, TRACK_INDEX);
+    expect(band.visible).toBe(band.laneHeight);
+    await expectInSheet(
+      page.getByRole("button", { name: "Add point", exact: true }),
+      "Add point",
+    );
+    await expectInSheet(
+      page.getByRole("button", { name: "Done", exact: true }),
+      "Done",
+    );
   });
 }
+
+async function formInReach(page: Page, vp: Viewport) {
+  await page.setViewportSize(vp);
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await seed(page, projectPath);
+    await openEnvelope(page);
+    await page.getByRole("button", { name: "Add point", exact: true }).tap();
+
+    const time = page.getByLabel("Time (seconds on timeline)");
+    const level = page.getByLabel("Level (×)");
+    const save = page.getByRole("button", { name: "Save point" });
+    const cancel = page
+      .locator(".bottom-sheet")
+      .getByRole("button", { name: "Cancel" });
+    const band = await laneBand(page, TRACK_INDEX);
+    expect(band.visible).toBe(band.laneHeight);
+    for (const [control, label] of [
+      [time, "Time"],
+      [level, "Level"],
+      [save, "Save point"],
+      [cancel, "Cancel"],
+    ] as const)
+      await expectInSheet(control, label);
+
+    await setKeyboard(page, vp.keyboard);
+    await level.focus();
+    for (const [control, label] of [
+      [time, "Time"],
+      [level, "Level"],
+      [save, "Save point"],
+      [cancel, "Cancel"],
+    ] as const)
+      await expectInSheet(control, `${label} with keyboard`);
+    const done = page.getByRole("button", { name: "Done", exact: true });
+    await done.scrollIntoViewIfNeeded();
+    await expectInSheet(done, "Done with keyboard");
+  });
+}
+
+async function formRuns(page: Page, vp: Viewport) {
+  await page.setViewportSize(vp);
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await seed(page, projectPath);
+    await openEnvelope(page);
+    await page.getByRole("button", { name: "Add point", exact: true }).tap();
+    await page
+      .locator(".bottom-sheet")
+      .getByRole("button", { name: "Cancel" })
+      .tap();
+    await expect(page.getByLabel("Level (×)")).toHaveCount(0);
+    await page.getByRole("button", { name: "Add point", exact: true }).tap();
+    await page.getByLabel("Level (×)").fill("0.5");
+    await page.getByRole("button", { name: "Save point" }).tap();
+    await expect(page.getByLabel("Level (×)")).toHaveCount(0);
+    await expect(
+      page.getByRole("combobox", { name: /Envelope point/ }),
+    ).toBeVisible();
+  });
+}
+
+test("932x430: the edited lane stays above the sheet and Add point and Done are in reach", async ({
+  page,
+}) => {
+  await editedLaneInReach(page, VIEWPORTS[0]!);
+});
+
+test("932x430: the form, Save and Cancel are visible with the lane, and with the keyboard up", async ({
+  page,
+}) => {
+  await formInReach(page, VIEWPORTS[0]!);
+});
+
+test("932x430: Add point, Save and Cancel run from inside the sheet", async ({
+  page,
+}) => {
+  await formRuns(page, VIEWPORTS[0]!);
+});
+
+test("914x331: the edited lane stays above the sheet and Add point and Done are in reach", async ({
+  page,
+}) => {
+  await editedLaneInReach(page, VIEWPORTS[1]!);
+});
+
+test("914x331: the form, Save and Cancel are visible with the lane, and with the keyboard up", async ({
+  page,
+}) => {
+  await formInReach(page, VIEWPORTS[1]!);
+});
+
+test("914x331: Add point, Save and Cancel run from inside the sheet", async ({
+  page,
+}) => {
+  await formRuns(page, VIEWPORTS[1]!);
+});
 
 test("a typed envelope draft survives rotating from portrait to landscape", async ({
   page,
@@ -248,4 +290,197 @@ test("the bottom panel splitter can shrink a short window's default panel", asyn
     const after = (await tabs.boundingBox())!.height;
     expect(after).toBeLessThan(before);
   });
+});
+
+const DEMO_ROOT = path.join(repoRoot, "tests/fixtures/sharecut_ux_demo");
+const DEMO_TRACK = "guest";
+const DEMO_LANE = 1;
+const DEMO_VIEWPORTS: Viewport[] = [
+  { width: 914, height: 331, keyboard: 130 },
+  { width: 932, height: 430, keyboard: 170 },
+  { width: 844, height: 390, keyboard: 150 },
+];
+
+/** The demo project has chapter, comment and social marker rows above its lanes. */
+function withDemoProject(fn: (projectPath: string) => Promise<void>) {
+  return withShareableProject(fn, undefined, (prefix) =>
+    createRelocatedE2eProject(prefix, undefined, DEMO_ROOT),
+  );
+}
+
+/**
+ * With every marker row the guest lane starts under the editing rail (a layout
+ * this spec does not change), so its header opens from the keyboard.
+ */
+async function openGuestDetails(page: Page) {
+  const header = page.getByRole("button", {
+    name: `Open track details, ${DEMO_TRACK}`,
+    exact: true,
+  });
+  await expect(header).toBeAttached();
+  await header.focus();
+  await page.keyboard.press("Enter");
+}
+
+async function openDemoEnvelope(page: Page, projectPath: string) {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+  await openGuestDetails(page);
+  await page
+    .getByRole("button", { name: "Add volume envelope", exact: true })
+    .tap();
+  await page
+    .getByRole("button", { name: "Show volume envelope", exact: true })
+    .tap();
+  await page.getByRole("button", { name: "Add point", exact: true }).tap();
+  await expect(page.getByLabel("Level (×)")).toBeVisible();
+}
+
+/** The control's centre is the control (not covered), and it is on screen. */
+async function expectTappable(control: Locator, label: string) {
+  await expectInSheet(control, label);
+  const hit = await control.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const top = document.elementFromPoint(
+      r.x + r.width / 2,
+      r.y + r.height / 2,
+    );
+    return !!top && (top === el || el.contains(top) || top.contains(el));
+  });
+  expect(hit, `${label} is not covered`).toBe(true);
+}
+
+async function expectLaneFullyVisible(page: Page, label: string) {
+  await expect
+    .poll(
+      async () => {
+        const band = await laneBand(page, DEMO_LANE);
+        return band.visible - band.laneHeight;
+      },
+      { message: `${label}: the edited lane is fully visible` },
+    )
+    .toBe(0);
+}
+
+async function expectFormAndDoneReachable(page: Page, label: string) {
+  for (const [control, name] of [
+    [page.getByLabel("Time (seconds on timeline)"), "Time"],
+    [page.getByLabel("Level (×)"), "Level"],
+    [page.getByRole("button", { name: "Save point" }), "Save point"],
+    [
+      page.locator(".bottom-sheet").getByRole("button", { name: "Cancel" }),
+      "Cancel",
+    ],
+    [page.getByRole("button", { name: "Done", exact: true }), "Done"],
+  ] as const)
+    await expectTappable(control, `${label} ${name}`);
+  for (const name of ["Time (seconds on timeline)", "Level (×)"])
+    await expectInSheet(
+      page.locator("label", { has: page.getByLabel(name) }),
+      `${label} ${name} label`,
+    );
+}
+
+async function demoLaneAndFormWithKeyboard(page: Page, vp: Viewport) {
+  await page.setViewportSize(vp);
+  await withDemoProject(async (projectPath) => {
+    await openDemoEnvelope(page, projectPath);
+    const label = `${vp.width}x${vp.height}`;
+    await expectLaneFullyVisible(page, label);
+    await expectFormAndDoneReachable(page, label);
+    await setKeyboard(page, vp.keyboard);
+    await page.getByLabel("Level (×)").focus();
+    await expectFormAndDoneReachable(page, `${label} with keyboard`);
+  });
+}
+
+async function demoRotationKeepsLane(page: Page, vp: Viewport) {
+  await page.setViewportSize({ width: vp.height, height: vp.width });
+  await withDemoProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await openPhoneTimeline(page);
+    await openGuestDetails(page);
+    await page
+      .getByRole("button", { name: "Add volume envelope", exact: true })
+      .tap();
+    await page
+      .getByRole("button", { name: "Show volume envelope", exact: true })
+      .tap();
+    await page.getByRole("button", { name: "Add point", exact: true }).tap();
+    await page.setViewportSize(vp);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await expect(page.getByLabel("Level (×)")).toBeVisible();
+    const label = `${vp.width}x${vp.height} after rotation`;
+    await expectLaneFullyVisible(page, label);
+    await expect(() => expectFormAndDoneReachable(page, label)).toPass();
+  });
+}
+
+test("914x331 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
+  page,
+}) => {
+  await demoLaneAndFormWithKeyboard(page, DEMO_VIEWPORTS[0]!);
+});
+
+test("932x430 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
+  page,
+}) => {
+  await demoLaneAndFormWithKeyboard(page, DEMO_VIEWPORTS[1]!);
+});
+
+test("844x390 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
+  page,
+}) => {
+  await demoLaneAndFormWithKeyboard(page, DEMO_VIEWPORTS[2]!);
+});
+
+test("rotating a phone to 932x430 with the form open leaves the edited lane fully visible", async ({
+  page,
+}) => {
+  await demoRotationKeepsLane(page, DEMO_VIEWPORTS[1]!);
+});
+
+test("rotating a phone to 844x390 with the form open leaves the edited lane fully visible", async ({
+  page,
+}) => {
+  await demoRotationKeepsLane(page, DEMO_VIEWPORTS[2]!);
+});
+
+async function formLayout(page: Page, vp: { width: number; height: number }) {
+  await page.setViewportSize(vp);
+  return withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await seed(page, projectPath);
+    await openEnvelope(page);
+    await page.getByRole("button", { name: "Add point", exact: true }).tap();
+    const time = await page
+      .getByLabel("Time (seconds on timeline)")
+      .boundingBox();
+    const level = await page.getByLabel("Level (×)").boundingBox();
+    const help = await page
+      .getByText(/^Time is measured on the timeline/)
+      .boundingBox();
+    return {
+      oneRow: Math.abs(time!.y - level!.y) < 1,
+      helpHeight: help?.height ?? 0,
+    };
+  });
+}
+
+test("1194x834 iPad landscape keeps the regular envelope form and its visible help", async ({
+  page,
+}) => {
+  const layout = await formLayout(page, { width: 1194, height: 834 });
+  expect(layout.oneRow).toBe(false);
+  expect(layout.helpHeight).toBeGreaterThan(8);
+});
+
+test("932x430 phone landscape shows the dense one-row envelope form without the help copy", async ({
+  page,
+}) => {
+  const layout = await formLayout(page, { width: 932, height: 430 });
+  expect(layout.oneRow).toBe(true);
+  expect(layout.helpHeight).toBeLessThanOrEqual(1);
 });
