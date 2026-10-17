@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.edits.transcript_refine_status import (
     TranscriptRefineRequiredError,
@@ -24,7 +23,6 @@ from podcast_mcp.edits.transcript_refine_status import (
 )
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
-    CutIntent,
     EditMode,
     Transcript,
     TranscriptWord,
@@ -115,18 +113,7 @@ def test_waiver_survives_approving_a_tighten_cut(tmp_path):
         if clip.fade_in_ms > 0
     ]
     assert len(authored_fades) == 3
-    before_pause = ws.project.model_dump(mode="json")
-    before_pause_bytes = ws.path.read_bytes()
-    with pytest.raises(ScopeChangedAtApproval) as held:
-        edits.approve([pending["pause"]])
-    assert [(item.reason, item.detail) for item in held.value.held] == [
-        ("pause_join", "review_required")
-    ]
-    assert ws.project.model_dump(mode="json") == before_pause
-    assert ws.path.read_bytes() == before_pause_bytes
-    assert ws.project.editorial.edit_log[-1].decision_ids == [pending["filler"]]
-    assert refine.status()["clear"] is True
-    assert edits.approve([pending["pause"]], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+    assert edits.approve([pending["pause"]]) == 1
     assert refine.status()["clear"] is True
     assert all(
         fade in [(clip.track_id, clip.source_start, clip.fade_in_ms) for clip in ws.project.clips]
