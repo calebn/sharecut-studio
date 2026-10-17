@@ -434,7 +434,7 @@ def test_updater_fields_are_required_and_both_or_neither() -> None:
         distribution_profile_from_mapping(raw)
 
 
-def test_updater_profile_emits_plugin_config_and_artifacts() -> None:
+def test_updater_profile_emits_plugin_config_only() -> None:
     raw = _valid_profile()
     raw["updater_endpoint"] = "HTTPS://CDN.Example.Test/desktop/latest.json"
     raw["updater_public_key"] = PUBLIC_KEY
@@ -446,14 +446,10 @@ def test_updater_profile_emits_plugin_config_and_artifacts() -> None:
         "endpoints": ["https://cdn.example.test/desktop/latest.json"],
         "pubkey": PUBLIC_KEY,
     }
-    assert overlay["bundle"] == {"createUpdaterArtifacts": True}
-
-    unsigned = tauri_distribution_overlay(profile, updater_artifacts=False)
-    assert "bundle" not in unsigned
-    assert "updater" in unsigned["plugins"]
+    assert "bundle" not in overlay
 
 
-def test_profile_without_updater_emits_neither_plugin_nor_artifacts() -> None:
+def test_profile_without_updater_emits_no_updater_plugin() -> None:
     overlay = tauri_distribution_overlay(distribution_profile_from_mapping(_valid_profile()))
     assert "updater" not in overlay["plugins"]
     assert "bundle" not in overlay
@@ -494,7 +490,8 @@ def test_updater_public_key_rejects_malformed_and_private_material(
     raw["updater_public_key"] = key
     with pytest.raises(DistributionProfileError, match=message) as caught:
         distribution_profile_from_mapping(raw)
-    assert str(key) not in str(caught.value) or key == ""
+    if isinstance(key, str) and len(key) >= 40:
+        assert key[10:40] not in str(caught.value)
 
 
 def test_updater_public_key_field_is_not_mistaken_for_a_secret_name() -> None:
@@ -507,27 +504,24 @@ def test_updater_public_key_field_is_not_mistaken_for_a_secret_name() -> None:
         distribution_profile_from_mapping(raw)
 
 
-def test_generator_can_omit_updater_artifacts(tmp_path: Path) -> None:
+def test_generator_overlay_never_requests_tauri_updater_artifacts(tmp_path: Path) -> None:
     raw = _valid_profile()
     raw["updater_endpoint"] = "https://cdn.example.test/latest.json"
     raw["updater_public_key"] = PUBLIC_KEY
     profile = tmp_path / "distribution.json"
     profile.write_text(json.dumps(raw), encoding="utf-8")
+    out = tmp_path / "overlay.json"
     script = ROOT / "scripts" / "generate_distribution_config.py"
-    outputs = {}
-    for name, extra in (("full", []), ("unsigned", ["--no-updater-artifacts"])):
-        out = tmp_path / f"{name}.json"
-        done = subprocess.run(
-            [sys.executable, str(script), "--profile", str(profile), "--output", str(out), *extra],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        assert done.returncode == 0, done.stderr
-        outputs[name] = json.loads(out.read_text(encoding="utf-8"))
-    assert outputs["full"]["bundle"]["createUpdaterArtifacts"] is True
-    assert "bundle" not in outputs["unsigned"]
-    assert outputs["unsigned"]["plugins"]["updater"]["pubkey"] == PUBLIC_KEY
+    done = subprocess.run(
+        [sys.executable, str(script), "--profile", str(profile), "--output", str(out)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stderr
+    overlay = json.loads(out.read_text(encoding="utf-8"))
+    assert overlay["plugins"]["updater"]["pubkey"] == PUBLIC_KEY
+    assert "bundle" not in overlay
 
 
 def test_distributor_check_reports_updater_state(tmp_path: Path) -> None:
@@ -558,3 +552,16 @@ def test_profiles_validate_against_the_json_schema() -> None:
         jsonschema.validate(document, schema)
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate({k: v for k, v in dev.items() if k != "updater_public_key"}, schema)
+
+
+def test_schema_requires_updater_fields_to_be_both_set_or_both_null() -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads((ROOT / "contracts" / "distribution-profile.schema.json").read_text())
+    base = _valid_profile()
+    jsonschema.validate(base, schema)
+    for fields in (
+        {"updater_endpoint": "https://c.example.test/l.json", "updater_public_key": None},
+        {"updater_endpoint": None, "updater_public_key": PUBLIC_KEY},
+    ):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(base | fields, schema)

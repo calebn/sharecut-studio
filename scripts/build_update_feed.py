@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse
 
-# Tauri 2 updater artifacts (bundle.createUpdaterArtifacts = true).
+# Tauri 2 updater artifacts: the shipped bundle plus its minisign .sig.
 PLATFORM_SUFFIXES: dict[str, tuple[str, ...]] = {
     "darwin-aarch64": (".app.tar.gz",),
     "darwin-x86_64": (".app.tar.gz",),

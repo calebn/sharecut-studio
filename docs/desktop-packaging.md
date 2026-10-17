@@ -347,7 +347,7 @@ on protection rules.
 | `APPLE_TEAM_ID` | Team ID |
 | `APPLE_API_KEY` / `APPLE_API_ISSUER` / `APPLE_API_KEY_P8` | App Store Connect API key id, issuer UUID, base64 `.p8` (written to a temp `APPLE_API_KEY_PATH`) |
 | `WINDOWS_SIGN_CERT_PFX_B64` / `WINDOWS_SIGN_CERT_PASSWORD` | Authenticode PFX (OV or EV) |
-| `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Tauri updater minisign private key (content or path) and its password (empty when the key has none). Used only when the supplied profile carries an updater public key. See [§ In-app updates](#in-app-updates). Never the same material as the Apple or Authenticode credentials. |
+| `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Tauri updater minisign private key (content or path) and its password (empty when the key has none). Used only when the supplied profile carries an updater public key, and only by the signing step. See [§ In-app updates](#in-app-updates). Never the same material as the Apple or Authenticode credentials. |
 
 **macOS:** when `sign` and the Apple secrets are set, import the PKCS#12 into a
 temporary keychain after both `npm ci` steps. Ordinary builds freeze the sidecar
@@ -446,8 +446,9 @@ checks that the key decodes to a minisign **public** key file and refuses
 anything that decodes to a private or secret key, without echoing the value. The
 checked-in development profile has both `null`, so contributor builds never
 check for updates. `tauri_distribution_overlay` writes
-`plugins.updater = {endpoints, pubkey}` and `bundle.createUpdaterArtifacts = true`
-when they are set, and neither when they are not. `podcast config check --mode
+`plugins.updater = {endpoints, pubkey}` when they are set, and nothing when they
+are not. It never sets `bundle.createUpdaterArtifacts`: Tauri would then need the
+private key during the build. `podcast config check --mode
 distributor` reports the state (a warning when updates are disabled).
 
 **Guard rule.** A build only takes an update whose signature verifies against
@@ -455,6 +456,35 @@ the public key baked into that build. The key is a trust root in the same way as
 the Apple Developer ID. Keep `bundle_identifier` stable across releases: the
 updater replaces the installed app in place, and a changed identifier makes
 the update a different app to the OS.
+
+**Host flow.** The native host drives the updater from Rust; the loopback
+page gets no updater command. A quiet check runs after the engine is healthy,
+and **Check for Updates…** (the app menu on macOS and Linux, **Help** on
+Windows) runs one on request. The steps are: download and verify the
+signature, re-read the recording guard, check that the install location is
+writable, stop the engine, install, and relaunch. The engine runs from inside
+the bundle being replaced, so it is always stopped before the swap on every
+platform. If the install fails after that, the message tells the user to restart
+the app. Once files are replaced the item reads **Restart to Finish Update…**
+instead of downloading again.
+
+- **Recording.** No update is downloaded-and-installed, and no relaunch happens,
+  while the `sc_close_guard` marker is present or unreadable. The guard is read
+  at click time, after the download, and inside the exit request itself. There
+  is no "update anyway" choice. A click while recording gets the message
+  "Finish or stop recording first, then check for updates again." Failures that
+  happen while the guard is active are logged, not shown, so no sheet covers the
+  recording UI. The menu label carries the state and the 60 second guard poll
+  re-offers a launch update later; a version the user declined is not offered
+  again that session.
+- **Unwritable location.** The host probes the folder that holds the app (the
+  `.app` parent on macOS, the AppImage parent on Linux). If it is not writable
+  it does not self-install, because the plugin would raise an administrator
+  prompt with no time limit. It shows a notice instead: "Move Sharecut Studio to
+  Applications first" for a disk image or translocated app, otherwise
+  a pointer to the download page.
+- **Network timeouts.** The feed check has a 30 second limit. The download has
+  only connect and read-stall limits, so a large bundle on a slow link is not cut off.
 
 **Key roles and rotation.** The updater key pair is separate from Apple and
 Authenticode credentials. The private key signs every update bundle. The
@@ -473,12 +503,28 @@ password only in `desktop-signing` secrets and the operator's password manager:
 npm --prefix gui/desktop run tauri -- signer generate -w ~/.tauri/sharecut-updater.key
 ```
 
-**Build behavior.** With an updater profile and `sign=true` on a source
-reachable from `main`, the workflow requires the `TAURI_SIGNING_PRIVATE_KEY`
-secret (it fails closed when empty) and passes it to the Tauri bundle steps
-only; secrets are never echoed. Tauri then writes updater bundles and `.sig`
-files next to the installers, and each leg uploads them under a separate
-artifact name. The installer artifact names do not change.
+**Signing flow.** Builds never see the updater private key. The build runs
+with the ordinary overlay and produces the installers. Then one step,
+[`scripts/sign_updater_artifacts.sh`](../scripts/sign_updater_artifacts.sh), signs
+the final shipped bytes with `tauri signer sign --app-version <version>`. The
+key and password are in the environment of that one step only. CI and a local
+operator run this same script, so they produce identical artifacts:
+
+- macOS: `stage_updater_bundle.sh` tars the signed and notarized `.app` into
+  `<Product>_<version>_<arch>.app.tar.gz` with the `.app` directory at the
+  archive root, the layout Tauri's own updater tarball has. It then extracts the
+  tarball and, for a signed build, runs `codesign --verify --deep --strict` and
+  `stapler validate` on the app inside. `sign_updater_bundle.sh` signs the
+  tarball.
+- Windows: the final NSIS `*-setup.exe`, after any Authenticode signing. Because
+  signing happens last, no re-sign step exists.
+- Linux: the AppImage.
+
+In CI this runs only with an updater profile and `sign=true` on a source
+reachable from `main`. The workflow fails closed before the build when the
+`TAURI_SIGNING_PRIVATE_KEY` secret is empty. Each leg uploads its bundle and
+`.sig` under a separate artifact name. The installer artifact names do not
+change.
 
 | Leg | Updater artifact | Contents |
 |-----|------------------|----------|
@@ -489,19 +535,18 @@ artifact name. The installer artifact names do not change.
 
 Notes on the table:
 
-- Tauri names the macOS tarball after the product only, so
-  [`scripts/stage_updater_bundle.sh`](../scripts/stage_updater_bundle.sh) adds the
-  version and architecture. It copies the tarball from the app Tauri already
-  signed and notarized (the DMG step copies, never rebuilds, that app). For a
-  signed build it extracts the tarball and runs `codesign --verify --deep
-  --strict` and `stapler validate` on it, which is the proof that the updater
-  payload is the notarized app.
-- Authenticode rewrites the NSIS installer, which would invalidate the minisign
-  signature Tauri made earlier. The workflow runs `tauri signer sign` on the
-  final installer afterward.
+- The version and architecture in the macOS name let Intel and Apple Silicon
+  bundles share one feed directory. The DMG step copies, never rebuilds, the
+  notarized app, so the tarball holds the same app as the DMG.
+- `--app-version` binds the version into the signature's trusted comment. The
+  locked CLI (`@tauri-apps/cli` 2.12.1) supports the flag.
 - A build without the trusted `sign=true` path (forks, feature branches, unsigned
-  dogfood) omits `createUpdaterArtifacts`, uploads no updater artifacts, and
-  says so in the job summary: it is not updatable from the feed.
+  dogfood) skips the signing step, uploads no updater artifacts, and says so in
+  the job summary: it is not updatable from the feed.
+- `build_update_feed.py` does not verify minisign signatures: that needs an
+  Ed25519 library, which the project does not depend on. The guards are the
+  signing step and a round trip, installing an older build and updating it from
+  the real feed.
 - Windows ships **unsigned** for the beta ([§ Beta signing status](#beta-signing-status)).
   The minisign signature still protects the update, but a SmartScreen warning
   appears on first install. On a real Windows machine, verify that the NSIS
@@ -552,23 +597,27 @@ Upload the bundles first, then publish `latest.json` last, so the feed never
 points at a missing file. Hosting (`cdn.sharecut.studio`) and cache invalidation
 belong to the private operations repository.
 
-**Apple Silicon without CI.** CI builds Apple Silicon natively, so the arm64
-bundle is a first-class feed entry. When an operator builds it locally instead
-(for example to notarize on their own account), run on an arm64 Mac with the
-Apple variables from [§ Local codesign and notarization](#local-codesign-and-notarization):
+**Local operator build.** `make desktop-build` follows the same flow. It holds the
+key out of the build and hands it to `sign_updater_artifacts.sh` at the end, so
+it needs `TAURI_SIGNING_PRIVATE_KEY` (content or path) when the profile has an
+updater, and stops before building when it is missing.
+`SHARECUT_SKIP_UPDATER_ARTIFACTS=1` builds without an update bundle. CI builds
+Apple Silicon natively, so the arm64 bundle is a first-class feed entry. To build
+it on an arm64 Mac instead (for example to notarize on the operator's own
+account), set the Apple variables from
+[§ Local codesign and notarization](#local-codesign-and-notarization), then:
 
 ```bash
 export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/sharecut-updater.key   # path or content
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD='…'
 PODCAST_DISTRIBUTION_PROFILE=./distribution.json make desktop-build
-scripts/stage_updater_bundle.sh dl
+UPD=gui/desktop/src-tauri/target/release/bundle/updater
 scripts/build_update_feed.py --version 0.2.0 --base-url "$BASE" \
-  --platform darwin-aarch64=dl/*_aarch64.app.tar.gz --merge latest.json --output latest.json
+  --platform darwin-aarch64=$UPD/*_aarch64.app.tar.gz --merge latest.json --output latest.json
 ```
 
-`make desktop-build` stops with a clear error when the profile has an updater and
-`TAURI_SIGNING_PRIVATE_KEY` is unset; `SHARECUT_SKIP_UPDATER_ARTIFACTS=1` builds
-without updater artifacts.
+A Linux AppImage from `make desktop-linux-appimage-docker` is signed afterward
+with `scripts/sign_updater_bundle.sh <file>`.
 
 ## Identity / testers
 

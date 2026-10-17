@@ -583,24 +583,28 @@ def test_release_bundle_predicate_rejects_untrusted_checkout_and_failed_extensio
         assert result.stdout.strip() == str(expected).lower()
 
 
-def test_updater_signing_key_only_reaches_trusted_signed_steps() -> None:
+def test_updater_signing_key_reaches_only_the_dedicated_sign_step() -> None:
     data = load_github_yaml(BUILD)
-    text = BUILD.read_text(encoding="utf-8")
     job = data["jobs"]["bundle"]
-    gate = "steps.signing.outputs.updater == 'yes' && secrets."
-    assert text.count(gate + "TAURI_SIGNING_PRIVATE_KEY ||") == text.count(
-        gate + "TAURI_SIGNING_PRIVATE_KEY_PASSWORD ||"
-    )
-    # Every other reference to the secret is the fail-closed check in "Resolve signing flags".
+    holders = [
+        step.get("name")
+        for step in job["steps"]
+        if "TAURI_SIGNING" in str(step.get("env", {})) or "TAURI_SIGNING" in str(step.get("run"))
+    ]
+    assert holders == ["Resolve signing flags", "Sign updater bundle"]
     resolve = next(s for s in job["steps"] if s.get("name") == "Resolve signing flags")
+    assert "secrets.TAURI_SIGNING_PRIVATE_KEY !=" in resolve["env"]["HAS_UPDATER_KEY"]
+    assert "TAURI_SIGNING_PRIVATE_KEY" not in resolve["env"]
     assert resolve["if"] == "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
-    assert "TAURI_SIGNING_PRIVATE_KEY secret" in resolve["run"]
-    assert "set +x" in resolve["run"]
+    sign = next(s for s in job["steps"] if s.get("name") == "Sign updater bundle")
+    assert sign["if"] == "${{ env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}"
+    assert "set +x" in sign["run"]
+    assert "sign_updater_artifacts.sh" in sign["run"]
     for other in data["jobs"]["prepare-extension-runtime"]["steps"]:
         assert "TAURI_SIGNING" not in str(other)
-    for step in job["steps"]:
-        if step is not resolve:
-            assert "TAURI_SIGNING" not in (step.get("run") or ""), step.get("name")
+    text = BUILD.read_text(encoding="utf-8")
+    assert "createUpdaterArtifacts" not in text
+    assert "--no-updater-artifacts" not in text
 
 
 def test_unsigned_builds_skip_updater_artifacts_and_say_so() -> None:
@@ -609,8 +613,6 @@ def test_unsigned_builds_skip_updater_artifacts_and_say_so() -> None:
         "SIGNED_RELEASE: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
         in text
     )
-    assert "overlay_flags=(--no-updater-artifacts)" in text
-    assert "SHARECUT_SKIP_UPDATER_ARTIFACTS" in text
     assert "this build is not updatable from the feed" in text
     job = load_github_yaml(BUILD)["jobs"]["bundle"]
     upload = next(s for s in job["steps"] if s.get("name") == "Upload updater artifacts")
@@ -620,16 +622,65 @@ def test_unsigned_builds_skip_updater_artifacts_and_say_so() -> None:
     assert installer["with"]["name"] == "${{ matrix.artifact }}"
 
 
-def test_updater_tarball_is_staged_after_the_notarized_app_and_windows_is_resigned() -> None:
+def test_updater_signing_follows_every_final_bundle_step() -> None:
     job = load_github_yaml(BUILD)["jobs"]["bundle"]
     names = [step.get("name") for step in job["steps"]]
-    assert names.index("Tauri bundle (macOS app)") < names.index("Stage macOS updater bundle")
-    assert names.index("Stage macOS updater bundle") < names.index("Upload updater artifacts")
-    assert names.index("Sign Windows NSIS installer") < names.index(
-        "Re-sign Windows updater signature"
-    )
-    resign = next(s for s in job["steps"] if s.get("name") == "Re-sign Windows updater signature")
-    assert "signer sign" in resign["run"]
-    stage = (ROOT / "scripts" / "stage_updater_bundle.sh").read_text(encoding="utf-8")
-    assert "stapler validate" in stage
-    assert "codesign --verify --deep --strict" in stage
+    sign_at = names.index("Sign updater bundle")
+    for earlier in (
+        "Tauri bundle (macOS app)",
+        "Pack DMG",
+        "Sign Windows NSIS installer",
+        "Linux AppImage",
+    ):
+        assert names.index(earlier) < sign_at, earlier
+    assert sign_at < names.index("Clean up Apple keychain")
+    assert sign_at < names.index("Upload updater artifacts")
+    assert "Re-sign Windows updater signature" not in names
+    assert "Stage macOS updater bundle" not in names
+
+
+def _run_blocks() -> list[tuple[str, str]]:
+    data = load_github_yaml(BUILD)
+    blocks = []
+    for job_name, job in data["jobs"].items():
+        for step in job["steps"]:
+            if step.get("run"):
+                blocks.append((f"{job_name}/{step.get('name')}", step["run"]))
+    return blocks
+
+
+def test_every_run_block_parses_under_the_system_bash() -> None:
+    """macOS runners ship bash 3.2; /bin/bash on macOS is the same parser."""
+    assert Path("/bin/bash").exists()
+    for label, block in _run_blocks():
+        script = re.sub(r"\$\{\{.*?\}\}", "EXPR", block, flags=re.S)
+        done = subprocess.run(
+            ["/bin/bash", "-n"], input=script, text=True, capture_output=True, check=False
+        )
+        assert done.returncode == 0, f"{label}: {done.stderr}"
+
+
+def test_workflow_shell_has_no_unguarded_empty_array_expansion() -> None:
+    """bash 3.2 with `set -u` aborts on "${empty[@]}"; guard it or avoid arrays."""
+    for label, block in _run_blocks():
+        arrays = set(re.findall(r"^\s*(\w+)=\(\s*\)", block, flags=re.M))
+        for name in arrays:
+            bad = re.search(rf'(?<!\+)"\$\{{{name}\[@\]\}}"', block)
+            assert bad is None or f"${{{name}[@]+" in block, f"{label}: {name}"
+
+
+def test_scripts_parse_under_the_system_bash() -> None:
+    for name in (
+        "sign_updater_bundle.sh",
+        "stage_updater_bundle.sh",
+        "sign_updater_artifacts.sh",
+        "build_desktop.sh",
+        "build_linux_appimage.sh",
+    ):
+        done = subprocess.run(
+            ["/bin/bash", "-n", str(ROOT / "scripts" / name)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert done.returncode == 0, f"{name}: {done.stderr}"

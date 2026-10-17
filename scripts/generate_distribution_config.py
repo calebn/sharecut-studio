@@ -34,11 +34,6 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Remove spaces for Linux packaging tools that cannot handle them.",
     )
-    parser.add_argument(
-        "--no-updater-artifacts",
-        action="store_true",
-        help="Omit bundle.createUpdaterArtifacts (build has no updater signing key).",
-    )
     args = parser.parse_args(argv)
     try:
         profile = load_distribution_profile(args.profile)
@@ -50,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.output is None:
         parser.error("--output is required unless --check-only is used")
-    overlay = tauri_distribution_overlay(profile, updater_artifacts=not args.no_updater_artifacts)
+    overlay = tauri_distribution_overlay(profile)
     if args.compact_product_name:
         compact = compact_product_name(profile)
         overlay["productName"] = compact

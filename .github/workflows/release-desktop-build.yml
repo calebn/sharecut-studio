@@ -11,8 +11,9 @@
 #
 # In-app updates: when the distribution profile carries an updater public key
 # and `sign` is true on a trusted source, the Tauri updater signing key
-# (TAURI_SIGNING_PRIVATE_KEY) makes each leg also emit signed updater artifacts,
-# uploaded under separate `*-updater` artifact names. Unsigned builds skip them.
+# (TAURI_SIGNING_PRIVATE_KEY) signs each leg's final bundle in one dedicated
+# step after the build, uploaded under separate `*-updater` artifact names.
+# Build steps never see the key. Unsigned builds skip updater artifacts.
 #
 # Runner labels: `macos-15` is arm64 (native Apple Silicon build).
 # Intel runner label: https://docs.github.com/en/actions/reference/runners/github-hosted-runners
@@ -464,22 +465,19 @@ jobs:
           if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("updater_public_key") else 1)' "$profile_path"; then
             updater_profile=yes
           fi
-          # Updater artifacts need the signing key, which only the trusted
-          # sign=true path holds. Any other build keeps the updater plugin
-          # config but produces no updater artifacts.
+          # Builds never see the updater key. Only the trusted sign=true path
+          # signs updater bundles, in a separate step after the build.
           updater_artifacts=no
-          overlay_flags=(--no-updater-artifacts)
           if [[ "$updater_profile" == "yes" && "$SIGNED_RELEASE" == "true" ]]; then
             updater_artifacts=yes
-            overlay_flags=()
           fi
           python3 scripts/generate_distribution_config.py \
             --profile "$profile_path" \
-            --output "$overlay" "${overlay_flags[@]}"
+            --output "$overlay"
           python3 scripts/generate_distribution_config.py \
             --profile "$profile_path" \
             --output "$compact_overlay" \
-            --compact-product-name "${overlay_flags[@]}"
+            --compact-product-name
           python3 - "$overlay" "$unsigned_overlay" <<'PY'
           import json
           import sys
@@ -498,7 +496,6 @@ jobs:
             printf 'PODCAST_DISTRIBUTION_TAURI_UNSIGNED_CONFIG=%s\n' "$unsigned_overlay"
             printf 'PODCAST_UPDATER_PROFILE=%s\n' "$updater_profile"
             printf 'PODCAST_UPDATER_ARTIFACTS=%s\n' "$updater_artifacts"
-            printf 'SHARECUT_SKIP_UPDATER_ARTIFACTS=%s\n' "$([[ "$updater_artifacts" == "yes" ]] && echo 0 || echo 1)"
           } >> "$GITHUB_ENV"
 
       - name: Resolve signing flags
@@ -514,7 +511,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           WINDOWS_SIGN_CERT_PFX_B64: ${{ secrets.WINDOWS_SIGN_CERT_PFX_B64 }}
           WINDOWS_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
           set +x
           set -euo pipefail
@@ -530,7 +527,7 @@ jobs:
             fi
           fi
           if [[ "${PODCAST_UPDATER_PROFILE}" == "yes" ]]; then
-            if [[ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]]; then
+            if [[ "${HAS_UPDATER_KEY}" != "true" ]]; then
               echo "::error::sign=true with an updater profile requires the TAURI_SIGNING_PRIVATE_KEY secret" >&2
               exit 1
             fi
@@ -770,9 +767,6 @@ jobs:
       - name: Tauri bundle (Windows NSIS)
         if: matrix.bundle == 'nsis'
         working-directory: gui/desktop
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           set +x
           npm run tauri -- build --bundles nsis --config "$PODCAST_DISTRIBUTION_TAURI_COMPACT_CONFIG"
@@ -793,31 +787,11 @@ jobs:
           fi
           ./scripts/sign_windows_authenticode.sh "${files[@]}"
 
-      # Authenticode rewrites the installer, which invalidates the minisign
-      # signature Tauri made over the unsigned bytes. Sign the final file again.
-      - name: Re-sign Windows updater signature
-        if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle == 'nsis' && steps.signing.outputs.windows == 'yes' && steps.signing.outputs.updater == 'yes' }}
-        working-directory: gui/desktop
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
-        run: |
-          set +x
-          set -euo pipefail
-          shopt -s nullglob
-          files=(src-tauri/target/release/bundle/nsis/*-setup.exe)
-          [[ ${#files[@]} -eq 1 ]] || { echo "::error::expected one NSIS installer to re-sign" >&2; exit 1; }
-          rm -f "${files[0]}.sig"
-          npm run tauri -- signer sign "${files[0]}" > /dev/null
-          test -s "${files[0]}.sig"
-
       - name: Tauri bundle (macOS app)
         if: matrix.bundle == 'app'
         working-directory: gui/desktop
         env:
           APPLE_SIGN_ENABLED: ${{ steps.signing.outputs.apple }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           set +x
           if [[ "${APPLE_SIGN_ENABLED}" == "yes" ]]; then
@@ -852,27 +826,13 @@ jobs:
           fi
           codesign --verify --deep --strict "${apps[0]}"
 
-      # Tauri builds the updater tarball from the app it just signed and
-      # notarized; the DMG step above only copies that app. The stage script
-      # renames the tarball with its architecture and, for a signed build,
-      # proves the tarball holds a valid, stapled app.
-      - name: Stage macOS updater bundle
-        if: ${{ matrix.bundle == 'app' && env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}
-        run: ./scripts/stage_updater_bundle.sh gui/desktop/src-tauri/target/release/bundle/updater
-
       - name: Linux AppImage
         if: matrix.bundle == 'appimage'
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: ./scripts/build_linux_appimage.sh
 
       - name: Linux Debian package
         if: matrix.bundle == 'appimage'
         working-directory: gui/desktop
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: npm run tauri -- build --bundles deb --config "$PODCAST_DISTRIBUTION_TAURI_CONFIG"
 
       - name: Verify Debian CLI paths
@@ -895,6 +855,19 @@ jobs:
           path: gui/desktop/src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
           retention-days: 14
+
+      # The only step that holds the updater private key. It signs the final
+      # shipped bytes (macOS: tar.gz of the notarized app; Windows: the setup.exe
+      # after any Authenticode; Linux: the AppImage), so no build step, package
+      # install or smoke test ever sees the key.
+      - name: Sign updater bundle
+        if: ${{ env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set +x
+          ./scripts/sign_updater_artifacts.sh
 
       - name: Clean up Apple keychain
         if: ${{ always() && matrix.bundle == 'app' }}

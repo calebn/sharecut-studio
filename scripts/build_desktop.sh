@@ -16,18 +16,27 @@ fi
 cd "$ROOT"
 
 DIST_OVERLAY="$ROOT/gui/desktop/src-tauri/target/distribution/tauri.conf.json"
-overlay_flags=()
-if [[ "${SHARECUT_SKIP_UPDATER_ARTIFACTS:-}" == "1" ]]; then
-  overlay_flags+=(--no-updater-artifacts)
-fi
 python3 "$ROOT/scripts/generate_distribution_config.py" \
-  --profile "$DIST_PROFILE" --output "$DIST_OVERLAY" \
-  ${overlay_flags[@]+"${overlay_flags[@]}"}
-if grep -q '"createUpdaterArtifacts"' "$DIST_OVERLAY" && [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
-  echo "error: this profile has an updater, so the build needs TAURI_SIGNING_PRIVATE_KEY" >&2
-  echo "       (path to or content of the updater private key). For a build that" >&2
-  echo "       cannot update, set SHARECUT_SKIP_UPDATER_ARTIFACTS=1." >&2
-  exit 1
+  --profile "$DIST_PROFILE" --output "$DIST_OVERLAY"
+
+# The updater private key is held back from every build step and handed only to
+# scripts/sign_updater_artifacts.sh at the end. SHARECUT_SKIP_UPDATER_ARTIFACTS=1
+# builds without an update bundle even when the profile has an updater.
+signing_env=()
+for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PATH TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+  if [[ -n "${!name:-}" ]]; then
+    signing_env+=("$name=${!name}")
+  fi
+  unset "$name"
+done
+sign_updater=0
+if [[ "${SHARECUT_SKIP_UPDATER_ARTIFACTS:-}" != "1" ]] && grep -q '"updater"' "$DIST_OVERLAY"; then
+  sign_updater=1
+  if [[ ${#signing_env[@]} -eq 0 ]]; then
+    echo "error: this profile has an updater; the signing step needs TAURI_SIGNING_PRIVATE_KEY" >&2
+    echo "       (key content or path). Set SHARECUT_SKIP_UPDATER_ARTIFACTS=1 to skip it." >&2
+    exit 1
+  fi
 fi
 export PODCAST_DISTRIBUTION_PROFILE="$DIST_PROFILE"
 export PODCAST_DISTRIBUTION_TAURI_CONFIG="$DIST_OVERLAY"
@@ -70,5 +79,10 @@ fi
     npm run tauri -- build --config "$DIST_OVERLAY"
   fi
 )
+
+if [[ "$sign_updater" == "1" ]]; then
+  echo "==> Sign updater bundle"
+  env "${signing_env[@]}" "$ROOT/scripts/sign_updater_artifacts.sh"
+fi
 
 echo "desktop build OK — see gui/desktop/src-tauri/target/release/bundle/"

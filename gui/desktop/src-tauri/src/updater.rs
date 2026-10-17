@@ -2,6 +2,7 @@
 //! decisions in `sharecut::update`. Everything here runs natively: the loopback
 //! renderer never receives an updater capability or command.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread;
@@ -15,7 +16,9 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 pub const MENU_ID: &str = "sharecut-check-for-updates";
-const NETWORK_TIMEOUT: Duration = Duration::from_secs(30);
+const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
 static RESTART_PENDING: AtomicBool = AtomicBool::new(false);
 const DIALOG_TITLE: &str = "Software Update";
 
@@ -23,6 +26,7 @@ struct UpdateController {
     item: MenuItem<Wry>,
     state: Mutex<UpdateState>,
     pending: Mutex<Option<Update>>,
+    declined: Mutex<Option<String>>,
     prompting: AtomicBool,
 }
 
@@ -36,16 +40,21 @@ impl UpdateController {
     }
 
     /// Apply `next` when `decide` returns one, and mirror it on the menu item.
+    /// The menu hops to the main thread, which may itself be waiting on this
+    /// controller, so the state lock is released first.
     fn transition(&self, decide: impl FnOnce(&UpdateState) -> Option<UpdateState>) -> Option<()> {
-        let mut state = locked(&self.state);
-        let next = decide(&state)?;
+        let next = {
+            let mut state = locked(&self.state);
+            let next = decide(&state)?;
+            *state = next.clone();
+            next
+        };
         if let Err(err) = self.item.set_text(next.menu_label()) {
             eprintln!("Sharecut Studio: could not update the update menu label: {err}");
         }
         if let Err(err) = self.item.set_enabled(next.menu_enabled()) {
             eprintln!("Sharecut Studio: could not update the update menu state: {err}");
         }
-        *state = next;
         Some(())
     }
 }
@@ -82,6 +91,7 @@ pub fn menu_item(app: &AppHandle<Wry>) -> tauri::Result<Option<MenuItem<Wry>>> {
         item: item.clone(),
         state: Mutex::new(UpdateState::Idle),
         pending: Mutex::new(None),
+        declined: Mutex::new(None),
         prompting: AtomicBool::new(false),
     });
     Ok(Some(item))
@@ -96,9 +106,14 @@ pub fn on_menu_click(app: &AppHandle) {
         ) else {
             return;
         };
-        match ctl.snapshot().available_version().map(str::to_owned) {
-            Some(version) => offer(&app, &win, &version, true),
-            None => manual_check(&app, &win),
+        let state = ctl.snapshot();
+        if state.restartable() {
+            restart_now(&win);
+        } else if let Some(version) = state.available_version().map(str::to_owned) {
+            *locked(&ctl.declined) = None;
+            offer(&app, &win, &version, true);
+        } else {
+            manual_check(&app, &win);
         }
     });
 }
@@ -131,12 +146,17 @@ pub fn start_launch_check(app: &AppHandle) {
         let version = update.version.clone();
         *locked(&ctl.pending) = Some(update);
         ctl.transition(|s| Some(s.finish_check(Some(&version))));
-        let mode = current_install_mode();
         loop {
             let Some(win) = app.get_webview_window("main") else {
                 return;
             };
-            let offered = ctl.snapshot().available_version() == Some(version.as_str());
+            let offered =
+                sharecut::is_offered(&ctl.snapshot(), locked(&ctl.declined).as_deref(), &version);
+            let mode = if install_blocker(&version).is_some() {
+                sharecut::InstallMode::ManualDownload
+            } else {
+                sharecut::InstallMode::SelfInstall
+            };
             match sharecut::launch_prompt(mode, crate::close_guard_decision(&win), offered) {
                 sharecut::LaunchPrompt::Skip => return,
                 sharecut::LaunchPrompt::Wait => thread::sleep(sharecut::GUARD_POLL_INTERVAL),
@@ -150,11 +170,54 @@ pub fn start_launch_check(app: &AppHandle) {
 }
 
 fn current_install_mode() -> sharecut::InstallMode {
-    sharecut::install_mode(std::env::consts::OS, std::env::var_os("APPIMAGE").is_some())
+    let system_package = matches!(
+        tauri::utils::platform::bundle_type(),
+        Some(tauri::utils::config::BundleType::Deb | tauri::utils::config::BundleType::Rpm)
+    );
+    sharecut::install_mode(
+        std::env::consts::OS,
+        std::env::var_os("APPIMAGE").is_some(),
+        system_package,
+    )
+}
+
+fn dir_writable(dir: &std::path::Path) -> bool {
+    let probe = dir.join(format!(".sharecut-write-probe-{}", std::process::id()));
+    let created = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&probe)
+        .is_ok();
+    if created {
+        let _ = std::fs::remove_file(&probe);
+    }
+    created
+}
+
+/// Why this install cannot update itself, if it cannot. The plugin would
+/// otherwise raise an administrator prompt that blocks with no limit.
+fn install_blocker(version: &str) -> Option<String> {
+    if current_install_mode() == sharecut::InstallMode::ManualDownload {
+        return Some(sharecut::manual_download_message(version));
+    }
+    let exe = std::env::current_exe().ok()?;
+    let appimage = std::env::var_os("APPIMAGE").map(PathBuf::from);
+    let dir = sharecut::install_dir(std::env::consts::OS, &exe, appimage.as_deref())?;
+    sharecut::placement_notice(std::env::consts::OS, &exe, dir_writable(&dir))
 }
 
 fn guard_allows(win: &WebviewWindow) -> bool {
     sharecut::may_update(crate::close_guard_decision(win))
+}
+
+/// A modal sheet can cover the recording UI, so while the guard is active the
+/// message goes to the log and the menu label carries the state instead.
+fn notify_if_idle(win: &WebviewWindow, text: &str) {
+    if guard_allows(win) {
+        notify(win, text);
+    } else {
+        eprintln!("Sharecut Studio: update notice withheld during recording: {text}");
+    }
 }
 
 fn notify(win: &WebviewWindow, text: &str) {
@@ -167,8 +230,21 @@ fn notify(win: &WebviewWindow, text: &str) {
 }
 
 fn check(app: &AppHandle) -> Result<Option<Update>, tauri_plugin_updater::Error> {
-    let updater = app.updater_builder().timeout(NETWORK_TIMEOUT).build()?;
-    tauri::async_runtime::block_on(updater.check())
+    let updater = app
+        .updater_builder()
+        .timeout(CHECK_TIMEOUT)
+        .configure_client(|client| {
+            client
+                .connect_timeout(CONNECT_TIMEOUT)
+                .read_timeout(READ_TIMEOUT)
+        })
+        .build()?;
+    let found = tauri::async_runtime::block_on(updater.check())?;
+    // The check timeout is per request; the download body must not inherit it.
+    Ok(found.map(|mut update| {
+        update.timeout = None;
+        update
+    }))
 }
 
 fn failure_kind(err: &tauri_plugin_updater::Error) -> sharecut::FailureKind {
@@ -218,9 +294,9 @@ fn offer(app: &AppHandle, win: &WebviewWindow, version: &str, interactive: bool)
     let Some(ctl) = app.try_state::<UpdateController>() else {
         return;
     };
-    if current_install_mode() == sharecut::InstallMode::ManualDownload {
+    if let Some(notice) = install_blocker(version) {
         if interactive {
-            notify(win, &sharecut::manual_download_message(version));
+            notify(win, &notice);
         }
         return;
     }
@@ -249,6 +325,8 @@ fn offer(app: &AppHandle, win: &WebviewWindow, version: &str, interactive: bool)
     ctl.prompting.store(false, Ordering::Release);
     if confirmed {
         install(app, win);
+    } else {
+        *locked(&ctl.declined) = Some(version.to_string());
     }
 }
 
@@ -282,9 +360,9 @@ fn download(win: &WebviewWindow, update: &Update) -> Result<Vec<u8>, tauri_plugi
     bytes
 }
 
-/// Download, install, and restart. The recording guard is read at click time,
-/// again after the download, and once more before the restart. There is no
-/// override, so a possibly live recording is never interrupted by an update.
+/// Download, stop the engine, install, and relaunch. The recording guard is
+/// read at click time, after the download, and at the exit request itself. There
+/// is no override, so a possibly live recording is never interrupted by an update.
 fn install(app: &AppHandle, win: &WebviewWindow) {
     let Some(ctl) = app.try_state::<UpdateController>() else {
         return;
@@ -296,6 +374,10 @@ fn install(app: &AppHandle, win: &WebviewWindow) {
         notify(win, sharecut::RECORDING_REFUSAL_MESSAGE);
         return;
     }
+    if let Some(notice) = install_blocker(&update.version) {
+        notify(win, &notice);
+        return;
+    }
     if ctl.transition(UpdateState::begin_download).is_none() {
         return;
     }
@@ -303,7 +385,7 @@ fn install(app: &AppHandle, win: &WebviewWindow) {
         Ok(bytes) => bytes,
         Err(err) => {
             ctl.transition(|s| Some(s.back_to_available()));
-            notify(
+            notify_if_idle(
                 win,
                 &sharecut::install_failure_message(failure_kind(&err), &err.to_string()),
             );
@@ -311,29 +393,39 @@ fn install(app: &AppHandle, win: &WebviewWindow) {
         }
     };
     ctl.transition(UpdateState::begin_install);
-    if !guard_allows(win) {
+    if !guard_allows(win) || install_blocker(&update.version).is_some() {
         ctl.transition(|s| Some(s.back_to_available()));
-        notify(win, sharecut::RECORDING_REFUSAL_MESSAGE);
+        eprintln!("Sharecut Studio: update install skipped; recording or install location changed");
         return;
     }
-    // The Windows installer exits this process and replaces files the engine
-    // holds open, so the engine must already be gone.
-    if cfg!(windows) {
-        crate::shutdown_sidecar(app);
-    }
+    // The engine runs from inside the bundle being replaced, and the Windows
+    // installer exits this process, so the engine is stopped before the swap.
+    crate::shutdown_sidecar(app);
     if let Err(err) = update.install(&bytes) {
         ctl.transition(|s| Some(s.back_to_available()));
         let detail = sharecut::install_failure_message(failure_kind(&err), &err.to_string());
-        let restart_hint = if cfg!(windows) {
-            " The engine was stopped, so restart Sharecut Studio."
-        } else {
-            ""
-        };
-        notify(win, &format!("{detail}{restart_hint}"));
+        notify_if_idle(
+            win,
+            &format!("{detail} The engine was stopped, so restart Sharecut Studio."),
+        );
         return;
     }
+    ctl.transition(UpdateState::finish_install);
+    request_restart(app);
+}
+
+fn request_restart(app: &AppHandle) {
     RESTART_PENDING.store(true, Ordering::Release);
     app.exit(0);
+}
+
+/// Menu action once files are replaced: relaunch, guarded like the install.
+fn restart_now(win: &WebviewWindow) {
+    if guard_allows(win) {
+        request_restart(win.app_handle());
+    } else {
+        notify(win, sharecut::RECORDING_REFUSAL_MESSAGE);
+    }
 }
 
 /// Called from `ExitRequested`. Reads the recording guard at the moment of
@@ -350,20 +442,7 @@ pub fn gate_exit(app: &AppHandle) -> sharecut::RestartGate {
     let gate = sharecut::restart_gate(pending, guard);
     if gate == sharecut::RestartGate::Refuse {
         RESTART_PENDING.store(false, Ordering::Release);
-        if let Some(ctl) = app.try_state::<UpdateController>() {
-            ctl.transition(|_| Some(UpdateState::Idle));
-        }
-        if let Some(win) = app.get_webview_window("main") {
-            win.dialog()
-                .message(format!(
-                    "The update is installed. {}",
-                    sharecut::RECORDING_REFUSAL_MESSAGE
-                ))
-                .title(DIALOG_TITLE)
-                .buttons(MessageDialogButtons::Ok)
-                .parent(&win)
-                .show(|_| {});
-        }
+        eprintln!("Sharecut Studio: update restart withheld during recording");
     }
     gate
 }

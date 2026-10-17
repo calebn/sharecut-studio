@@ -17,6 +17,16 @@
     "updater_endpoint",
     "updater_public_key"
   ],
+  "allOf": [
+    {
+      "if": {
+        "required": ["updater_endpoint"],
+        "properties": { "updater_endpoint": { "type": "null" } }
+      },
+      "then": { "properties": { "updater_public_key": { "type": "null" } } },
+      "else": { "properties": { "updater_public_key": { "type": "string" } } }
+    }
+  ],
   "properties": {
     "$schema": { "type": "string" },
     "version": { "const": 1 },

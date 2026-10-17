@@ -328,13 +328,12 @@ def load_distribution_profile(path: Path | None = None) -> DistributionProfile:
     return distribution_profile_from_mapping(raw)
 
 
-def tauri_distribution_overlay(
-    profile: DistributionProfile, *, updater_artifacts: bool = True
-) -> dict[str, Any]:
+def tauri_distribution_overlay(profile: DistributionProfile) -> dict[str, Any]:
     """Return the Tauri config fragment generated from one validated profile.
 
-    ``updater_artifacts=False`` keeps the updater plugin config but omits
-    ``bundle.createUpdaterArtifacts``, for builds that have no signing key.
+    The overlay never sets ``bundle.createUpdaterArtifacts``: updater bundles
+    are signed after the build by ``scripts/sign_updater_artifacts.sh``, so the
+    build steps never hold the updater private key.
     """
     mobile: list[dict[str, Any]] = []
     for origin in profile.allowed_https_share_origins:
@@ -375,6 +374,4 @@ def tauri_distribution_overlay(
             "endpoints": [profile.updater_endpoint],
             "pubkey": profile.updater_public_key,
         }
-        if updater_artifacts:
-            overlay["bundle"] = {"createUpdaterArtifacts": True}
     return overlay

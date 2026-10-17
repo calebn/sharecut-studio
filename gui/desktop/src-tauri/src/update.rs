@@ -3,6 +3,7 @@
 //! `updater.rs` in the binary drives the Tauri updater plugin; every branch it
 //! takes is decided here so it can be tested without a WebView.
 
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::close_guard::CloseDecision;
@@ -42,9 +43,10 @@ pub enum InstallMode {
     ManualDownload,
 }
 
-/// `os` is `std::env::consts::OS`; `appimage` is whether `APPIMAGE` is set.
-pub fn install_mode(os: &str, appimage: bool) -> InstallMode {
-    if os == "linux" && !appimage {
+/// `os` is `std::env::consts::OS`; `appimage` is whether `APPIMAGE` is set;
+/// `system_package` is whether the build was bundled as a deb or rpm.
+pub fn install_mode(os: &str, appimage: bool, system_package: bool) -> InstallMode {
+    if os == "linux" && (!appimage || system_package) {
         InstallMode::ManualDownload
     } else {
         InstallMode::SelfInstall
@@ -66,6 +68,10 @@ pub enum UpdateState {
         version: String,
     },
     Installing {
+        version: String,
+    },
+    /// Files are replaced; only a relaunch is left.
+    Restartable {
         version: String,
     },
 }
@@ -124,6 +130,20 @@ impl UpdateState {
         }
     }
 
+    /// The new version is on disk, so the next step is only a relaunch.
+    pub fn finish_install(&self) -> Option<UpdateState> {
+        match self {
+            UpdateState::Installing { version } => Some(UpdateState::Restartable {
+                version: version.clone(),
+            }),
+            _ => None,
+        }
+    }
+
+    pub fn restartable(&self) -> bool {
+        matches!(self, UpdateState::Restartable { .. })
+    }
+
     /// A refused or failed install leaves the update on offer for another try.
     pub fn back_to_available(&self) -> UpdateState {
         match self {
@@ -150,11 +170,15 @@ impl UpdateState {
             UpdateState::Available { version } => format!("Update to v{version} Available…"),
             UpdateState::Downloading { .. } => "Downloading Update…".to_string(),
             UpdateState::Installing { .. } => "Installing Update…".to_string(),
+            UpdateState::Restartable { .. } => "Restart to Finish Update…".to_string(),
         }
     }
 
     pub fn menu_enabled(&self) -> bool {
-        matches!(self, UpdateState::Idle | UpdateState::Available { .. })
+        matches!(
+            self,
+            UpdateState::Idle | UpdateState::Available { .. } | UpdateState::Restartable { .. }
+        )
     }
 }
 
@@ -162,6 +186,49 @@ impl UpdateState {
 /// There is deliberately no "update anyway" path, unlike quitting.
 pub fn may_update(decision: CloseDecision) -> bool {
     decision == CloseDecision::Allow
+}
+
+/// An offer the user already declined is not shown again by the launch check.
+pub fn is_offered(state: &UpdateState, declined: Option<&str>, version: &str) -> bool {
+    state.available_version() == Some(version) && declined != Some(version)
+}
+
+/// The directory whose write access decides whether the app can replace itself.
+/// `None` where no pre-flight applies (Windows installers elevate on their own).
+pub fn install_dir(os: &str, exe: &Path, appimage: Option<&Path>) -> Option<PathBuf> {
+    match os {
+        "macos" => exe
+            .ancestors()
+            .find(|path| path.extension().is_some_and(|ext| ext == "app"))
+            .and_then(Path::parent)
+            .map(Path::to_path_buf),
+        "linux" => appimage.and_then(Path::parent).map(Path::to_path_buf),
+        _ => None,
+    }
+}
+
+fn runs_from_disk_image(os: &str, exe: &Path) -> bool {
+    os == "macos"
+        && (exe
+            .components()
+            .any(|part| part.as_os_str() == "AppTranslocation")
+            || exe.starts_with("/Volumes"))
+}
+
+/// A notice when the app cannot replace itself where it is installed.
+pub fn placement_notice(os: &str, exe: &Path, writable: bool) -> Option<String> {
+    if runs_from_disk_image(os, exe) {
+        Some(
+            "Move Sharecut Studio to Applications first, then check for updates again.".to_string(),
+        )
+    } else if writable {
+        None
+    } else {
+        Some(
+            "Sharecut Studio can't update itself from this location. Download the new version from the Sharecut Studio site."
+                .to_string(),
+        )
+    }
 }
 
 /// What an exit request means while an update restart may be pending.
@@ -280,10 +347,23 @@ mod tests {
 
     #[test]
     fn only_linux_without_appimage_installs_manually() {
-        assert_eq!(install_mode("linux", false), InstallMode::ManualDownload);
-        assert_eq!(install_mode("linux", true), InstallMode::SelfInstall);
-        assert_eq!(install_mode("macos", false), InstallMode::SelfInstall);
-        assert_eq!(install_mode("windows", false), InstallMode::SelfInstall);
+        assert_eq!(
+            install_mode("linux", false, false),
+            InstallMode::ManualDownload
+        );
+        assert_eq!(install_mode("linux", true, false), InstallMode::SelfInstall);
+        assert_eq!(
+            install_mode("linux", true, true),
+            InstallMode::ManualDownload
+        );
+        assert_eq!(
+            install_mode("macos", false, false),
+            InstallMode::SelfInstall
+        );
+        assert_eq!(
+            install_mode("windows", false, false),
+            InstallMode::SelfInstall
+        );
     }
 
     #[test]
@@ -369,6 +449,81 @@ mod tests {
         assert!(!may_update(CloseDecision::Confirm(CloseRisk::Host)));
         assert!(!may_update(CloseDecision::Confirm(CloseRisk::Guest)));
         assert!(!may_update(CloseDecision::Confirm(CloseRisk::Unknown)));
+    }
+
+    #[test]
+    fn an_installed_update_offers_a_restart_not_another_download() {
+        let installing = available("1.2.0")
+            .begin_download()
+            .unwrap()
+            .begin_install()
+            .unwrap();
+        let done = installing.finish_install().unwrap();
+        assert_eq!(
+            done,
+            UpdateState::Restartable {
+                version: "1.2.0".into()
+            }
+        );
+        assert!(done.restartable());
+        assert_eq!(done.menu_label(), "Restart to Finish Update…");
+        assert!(done.menu_enabled());
+        assert_eq!(done.begin_check(), None);
+        assert_eq!(done.begin_download(), None);
+        assert_eq!(done.available_version(), None);
+        assert_eq!(UpdateState::Idle.finish_install(), None);
+    }
+
+    #[test]
+    fn a_declined_version_is_not_offered_again() {
+        let state = available("1.2.0");
+        assert!(is_offered(&state, None, "1.2.0"));
+        assert!(!is_offered(&state, Some("1.2.0"), "1.2.0"));
+        assert!(is_offered(&state, Some("1.1.0"), "1.2.0"));
+        assert!(!is_offered(&UpdateState::Idle, None, "1.2.0"));
+        assert!(!is_offered(&state, None, "1.3.0"));
+    }
+
+    #[test]
+    fn install_dir_is_the_parent_of_the_bundle_or_appimage() {
+        let exe = Path::new("/Applications/Sharecut Studio.app/Contents/MacOS/sharecut");
+        assert_eq!(
+            install_dir("macos", exe, None),
+            Some(PathBuf::from("/Applications"))
+        );
+        assert_eq!(
+            install_dir(
+                "linux",
+                Path::new("/tmp/.mount_x/usr/bin/sharecut"),
+                Some(Path::new("/home/me/apps/Sharecut.AppImage"))
+            ),
+            Some(PathBuf::from("/home/me/apps"))
+        );
+        assert_eq!(install_dir("linux", exe, None), None);
+        assert_eq!(install_dir("windows", exe, None), None);
+    }
+
+    #[test]
+    fn placement_notice_explains_disk_images_and_read_only_installs() {
+        let applications = Path::new("/Applications/Sharecut Studio.app/Contents/MacOS/sharecut");
+        let dmg = Path::new("/Volumes/Sharecut Studio/Sharecut Studio.app/Contents/MacOS/sharecut");
+        let translocated = Path::new(
+            "/private/var/folders/x/AppTranslocation/ABC/d/Sharecut Studio.app/Contents/MacOS/sharecut",
+        );
+        assert_eq!(placement_notice("macos", applications, true), None);
+        assert_eq!(
+            placement_notice("macos", dmg, true).as_deref(),
+            Some("Move Sharecut Studio to Applications first, then check for updates again.")
+        );
+        assert_eq!(
+            placement_notice("macos", translocated, false).as_deref(),
+            Some("Move Sharecut Studio to Applications first, then check for updates again.")
+        );
+        assert_eq!(
+            placement_notice("macos", applications, false).as_deref(),
+            Some("Sharecut Studio can't update itself from this location. Download the new version from the Sharecut Studio site.")
+        );
+        assert_eq!(placement_notice("linux", Path::new("/opt/a"), true), None);
     }
 
     #[test]

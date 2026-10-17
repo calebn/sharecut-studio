@@ -16,13 +16,8 @@ fi
 cd "$ROOT"
 
 DIST_OVERLAY="$ROOT/gui/desktop/src-tauri/target/distribution/tauri-linux.conf.json"
-overlay_flags=()
-if [[ "${SHARECUT_SKIP_UPDATER_ARTIFACTS:-}" == "1" ]]; then
-  overlay_flags+=(--no-updater-artifacts)
-fi
 python3 "$ROOT/scripts/generate_distribution_config.py" \
-  --profile "$DIST_PROFILE" --output "$DIST_OVERLAY" --compact-product-name \
-  ${overlay_flags[@]+"${overlay_flags[@]}"}
+  --profile "$DIST_PROFILE" --output "$DIST_OVERLAY" --compact-product-name
 export PODCAST_DISTRIBUTION_PROFILE="$DIST_PROFILE"
 
 export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
