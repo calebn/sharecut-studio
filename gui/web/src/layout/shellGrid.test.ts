@@ -74,4 +74,13 @@ describe("shell grid areas", () => {
     }
     expect(rule(responsiveCss, ".daw-shell--phone")).toContain('"nav"');
   });
+
+  it("keeps the collapsed drawer's reopen handle on the zero-height tabs row", () => {
+    const body = rule(layoutCss, ".daw-shell > .drawer-reopen");
+    expect(body).toMatch(/grid-area:\s*tabs/);
+    expect(body).toMatch(/block-size:\s*0/);
+    expect(rule(responsiveCss, ".daw-shell--layout-timeline")).toMatch(
+      /--shell-tabs-row:\s*0/,
+    );
+  });
 });

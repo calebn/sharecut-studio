@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
@@ -16,6 +17,7 @@ function renderSplitter(overrides: Partial<BottomTabsSplitterViewProps> = {}) {
     userSet: true,
     onResize: vi.fn(),
     onReset: vi.fn(),
+    onCollapse: vi.fn(),
     ...overrides,
   };
   const utils = render(
@@ -24,6 +26,33 @@ function renderSplitter(overrides: Partial<BottomTabsSplitterViewProps> = {}) {
     </div>,
   );
   return { ...utils, props };
+}
+
+/** Applies each requested height the way the live adapter does, so a drag sees its own paint. */
+function renderLiveSplitter(heightRem = 12.5) {
+  const onCollapse = vi.fn();
+  const onResize = vi.fn();
+  function Live() {
+    const [height, setHeight] = useState(heightRem);
+    return (
+      <div className="bottom-tabs" style={{ height: 200 }}>
+        <BottomTabsSplitterView
+          heightRem={height}
+          minRem={8}
+          maxRem={24}
+          userSet
+          onResize={(rem) => {
+            onResize(rem);
+            setHeight(Math.min(24, Math.max(8, rem)));
+          }}
+          onReset={vi.fn()}
+          onCollapse={onCollapse}
+        />
+      </div>
+    );
+  }
+  render(<Live />);
+  return { onCollapse, onResize };
 }
 
 describe("BottomTabsSplitterView", () => {
@@ -81,7 +110,7 @@ describe("BottomTabsSplitterView", () => {
     expect(sep.getAttribute("aria-valuetext")).toBe("12.5 rem");
     expect(sep.getAttribute("tabindex")).toBe("0");
     expect(sep.getAttribute("title")).toBe(
-      "Drag or arrows to resize · Shift for larger steps · Escape cancels · Enter or double-click resets",
+      "Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets",
     );
     await expectNoA11yViolations(container);
   });
@@ -98,7 +127,7 @@ describe("BottomTabsSplitterView", () => {
     expect(props.onResize).toHaveBeenLastCalledWith(13);
   });
 
-  it("Home/End jump to max/min and Enter or double-click resets", async () => {
+  it("Home jumps to max, End collapses, and Enter or double-click resets", async () => {
     const { props } = renderSplitter();
     const sep = screen.getByRole("separator", {
       name: "Resize editor panels",
@@ -107,7 +136,8 @@ describe("BottomTabsSplitterView", () => {
     await userEvent.keyboard("{Home}");
     expect(props.onResize).toHaveBeenLastCalledWith(24);
     await userEvent.keyboard("{End}");
-    expect(props.onResize).toHaveBeenLastCalledWith(8);
+    expect(props.onCollapse).toHaveBeenCalledTimes(1);
+    expect(props.onResize).toHaveBeenCalledTimes(1);
     await userEvent.keyboard("{Enter}");
     expect(props.onReset).toHaveBeenCalledTimes(1);
     await userEvent.dblClick(sep);
@@ -164,6 +194,7 @@ describe("BottomTabsSplitterView", () => {
       userSet: true,
       onResize: vi.fn(),
       onReset: vi.fn(),
+      onCollapse: vi.fn(),
     };
     render(
       <div
@@ -201,6 +232,7 @@ describe("BottomTabsSplitterView", () => {
           userSet
           onResize={onResize}
           onReset={onReset}
+          onCollapse={vi.fn()}
         />
       </div>,
     );
@@ -244,6 +276,7 @@ describe("BottomTabsSplitterView", () => {
           userSet
           onResize={onResize}
           onReset={onReset}
+          onCollapse={vi.fn()}
         />
       </div>,
     );
@@ -267,6 +300,7 @@ describe("BottomTabsSplitterView", () => {
           userSet
           onResize={onResize}
           onReset={vi.fn()}
+          onCollapse={vi.fn()}
         />
       </div>,
     );
@@ -276,5 +310,56 @@ describe("BottomTabsSplitterView", () => {
       fireEvent.keyDown(sep, { key });
     expect(parentKeys).toEqual([]);
     expect(onResize).not.toHaveBeenCalled();
+  });
+
+  it("collapses on release past the minimum and shows the pending state while armed", () => {
+    const props = renderLiveSplitter();
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 380 });
+    expect(sep).not.toHaveAttribute("data-collapse-armed");
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 420 });
+    expect(sep).toHaveAttribute("data-collapse-armed");
+    expect(sep).toHaveAttribute("aria-valuetext", "Release to collapse");
+    expect(props.onCollapse).not.toHaveBeenCalled();
+    fireEvent.pointerUp(sep, { pointerId: 1 });
+    expect(props.onCollapse).toHaveBeenCalledTimes(1);
+    expect(sep).not.toHaveAttribute("data-collapse-armed");
+  });
+
+  it("releases a drag inside the overshoot band at the minimum without collapsing", () => {
+    const props = renderLiveSplitter();
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 380 });
+    expect(props.onResize).toHaveBeenLastCalledWith(8);
+    fireEvent.pointerUp(sep, { pointerId: 1 });
+    expect(props.onCollapse).not.toHaveBeenCalled();
+  });
+
+  it("collapses a drag that starts at the minimum and never paints a new height", () => {
+    const props = renderLiveSplitter(8);
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 340 });
+    expect(sep).toHaveAttribute("data-collapse-armed");
+    fireEvent.pointerUp(sep, { pointerId: 1 });
+    expect(props.onResize).not.toHaveBeenCalled();
+    expect(props.onCollapse).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape and capture loss cancel an armed drag without collapsing", () => {
+    const props = renderLiveSplitter();
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 440 });
+    fireEvent.keyDown(sep, { key: "Escape" });
+    fireEvent.pointerUp(sep, { pointerId: 1 });
+    expect(props.onCollapse).not.toHaveBeenCalled();
+    fireEvent.pointerDown(sep, { pointerId: 2, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 2, clientY: 440 });
+    fireEvent.lostPointerCapture(sep, { pointerId: 2 });
+    expect(props.onCollapse).not.toHaveBeenCalled();
+    expect(sep).not.toHaveAttribute("data-collapse-armed");
   });
 });

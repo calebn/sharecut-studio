@@ -21,8 +21,12 @@ const offlineStore = vi.hoisted(() => ({
 
 vi.mock("../state/offlineStore", () => offlineStore);
 
+const viewport = vi.hoisted(() => ({
+  shell: "tablet" as "phone" | "tablet",
+}));
+
 vi.mock("../hooks/useViewportClass", () => ({
-  useViewportClass: () => "tablet" as const,
+  useViewportClass: () => viewport.shell,
   PHONE_MAX_PX: 767,
   TABLET_MAX_PX: 1194,
   shellBreakpointFromWidth: () => "tablet" as const,
@@ -223,6 +227,53 @@ describe("StudioShell tablet peek", () => {
     expect(
       screen.getByRole("separator", { name: "Resize editor panels" }),
     ).toBeTruthy();
+  });
+
+  it("remembers a collapsed drawer per device and forgets it on restore", () => {
+    localStorage.removeItem("sharecut.tabsCollapsed");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Show editor panels" }),
+    ).toBeNull();
+    act(() => {
+      useDawStore.getState().setLayoutMode("timeline");
+    });
+    expect(localStorage.getItem("sharecut.tabsCollapsed")).toBe("1");
+    expect(
+      screen.getByRole("button", { name: "Show editor panels" }),
+    ).toBeTruthy();
+    act(() => {
+      useDawStore.getState().setLayoutMode("text");
+    });
+    expect(localStorage.getItem("sharecut.tabsCollapsed")).toBeNull();
+    act(() => {
+      useDawStore.getState().setLayoutMode("timeline");
+    });
+    act(() => {
+      useDawStore.getState().setActiveTab("comments");
+    });
+    expect(useDawStore.getState().layoutMode).toBe("default");
+    expect(localStorage.getItem("sharecut.tabsCollapsed")).toBeNull();
+  });
+
+  it("leaves the stored choice alone while the phone shell is up", () => {
+    localStorage.setItem("sharecut.tabsCollapsed", "1");
+    viewport.shell = "phone";
+    try {
+      render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+          <StudioShell />
+        </DawProvider>,
+      );
+      expect(localStorage.getItem("sharecut.tabsCollapsed")).toBe("1");
+    } finally {
+      viewport.shell = "tablet";
+      localStorage.removeItem("sharecut.tabsCollapsed");
+    }
   });
 
   it("clears html data-shell and data-layout on unmount", () => {

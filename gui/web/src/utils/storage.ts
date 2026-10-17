@@ -22,3 +22,11 @@ export function writeLocal(key: string, value: string): void {
     /* SecurityError / quota: preference just is not persisted */
   }
 }
+
+export function removeLocal(key: string): void {
+  try {
+    globalThis.localStorage?.removeItem(key);
+  } catch {
+    /* SecurityError: nothing to clear */
+  }
+}

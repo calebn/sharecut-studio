@@ -418,6 +418,48 @@ html[data-shell="phone"] .guest-attention-dismiss {
   }
 }
 
+/* Timeline layout: the drawer is collapsed (its row is 0). The handle sits on
+ * the row's line, the main area's bottom edge, and its hit area reaches up
+ * over the timeline like the splitter's does. */
+.daw-shell > .drawer-reopen {
+  grid-area: tabs;
+  align-self: end;
+  position: relative;
+  block-size: 0;
+  z-index: var(--z-shell-chrome);
+}
+
+.drawer-reopen-handle {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: var(--touch-min);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.drawer-reopen-handle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .drawer-reopen-handle:hover .bottom-tabs-splitter-grip {
+    background: var(--color-accent);
+  }
+}
+
+.bottom-tabs-splitter[data-collapse-armed] .bottom-tabs-splitter-grip {
+  background: var(--color-accent);
+}
+
 .tab-bar {
   display: flex;
   gap: 0;

@@ -31,6 +31,7 @@ function presentation(): StudioShellViewProps {
       activeTab: "transcript",
       pipelineRunning: true,
       splitter: <span>Panel splitter</span>,
+      reopenHandle: <span>Reopen handle</span>,
       content: <p>Transcript turn</p>,
       onTabChange: vi.fn(),
     },
@@ -238,6 +239,21 @@ describe("StudioShellView", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Menu (Ctrl+I)");
     await expectNoA11yViolations(document.body);
   });
+
+  it.each([
+    ["default", true, false],
+    ["timeline", false, true],
+    ["text", false, false],
+  ] as const)(
+    "in the %s layout shows the splitter %s and the reopen handle %s",
+    (layout, splitter, handle) => {
+      const props = presentation();
+      props.layout = layout;
+      render(<StudioShellView {...props} />);
+      expect(!!screen.queryByText("Panel splitter")).toBe(splitter);
+      expect(!!screen.queryByText("Reopen handle")).toBe(handle);
+    },
+  );
 
   it("renders tablet tools and sheet and omits the splitter in text focus", async () => {
     const props = presentation();

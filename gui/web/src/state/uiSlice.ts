@@ -5,6 +5,7 @@ import {
   readCompactInspectorView,
   writeCompactInspectorView,
 } from "../utils/compactInspectorPref";
+import { readDrawerCollapsed } from "../utils/drawerCollapsedPref";
 import {
   readLaneHeightPref,
   stepLaneHeightPx,
@@ -434,7 +435,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     pointerKind: "fine" as PointerKind,
     mobileMode: "listen" as MobileMode,
     moreDestination: "hub" as MoreDestination,
-    layoutMode: "default" as LayoutMode,
+    layoutMode: (readDrawerCollapsed() ? "timeline" : "default") as LayoutMode,
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
     drawnLaneHeightPx: null as number | null,
