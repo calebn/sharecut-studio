@@ -180,7 +180,11 @@ def test_deleted_original_sample_is_excluded_after_split_and_move_with_alias_rec
                     "source_start": 2,
                     "source_end": 2.25,
                 }
-            ]
+            ],
+            "clips": [
+                {"clip_id": "sample-a", "track_id": "host"},
+                {"clip_id": "sample-b", "track_id": "host"},
+            ],
         },
     )
     support = _support(result)
