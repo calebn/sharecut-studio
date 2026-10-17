@@ -597,10 +597,12 @@ Source/mixed approval retains narrative refinement. Trusted CLI/host adapters an
 guests can approve and reject exact proposals; host MCP agent calls cannot. IDs are
 validated before authority lookup.
 
-Permission to apply and human acoustic intent are separate. Trusted interactive document
-routes provide the internal context for selected ranges, cut/delete/trim gestures,
-pending-bound edits and explicit approval. Guest MCP remains programmatic even with
-Editor capabilities. Submitted intent, author, role, confirmation and snap flags cannot
+Permission to apply and human acoustic intent are separate. The host document route
+provides the internal context for selected ranges, cut/delete/trim gestures,
+pending-bound edits and explicit approval, but only for the host `viewer` role; the
+`agent` and `cli` roles stay programmatic there. Guests stay programmatic on the share
+route and in guest MCP, even with Editor capabilities, so a guest cannot waive the host
+agent's acoustic check. Submitted intent, author, confirmation and snap flags cannot
 supply this context. Human approval of an agent proposal changes only transient application
 intent; its persisted `proposal_origin` remains programmatic. Exact and source proposal
 assessment preserves selected bounds and records measured risk before offering the row;

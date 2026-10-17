@@ -23,9 +23,9 @@ from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.document_sync import (
-    INTERACTIVE_COMMAND,
     DocumentConflictError,
     DocumentSyncService,
+    command_context_for_role,
     document_command_from_body,
 )
 from podcast_mcp.util.proxy_paths import is_relayed_request
@@ -97,7 +97,7 @@ def post_document_command(
             cmd,
             structural_mode=body.structural_mode,
             range_policy="apply",
-            trusted_context=INTERACTIVE_COMMAND,
+            trusted_context=command_context_for_role(cmd.role),
         )
     except DocumentConflictError as exc:
         raise document_conflict_error(exc) from exc

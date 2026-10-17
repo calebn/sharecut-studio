@@ -13,6 +13,7 @@ if TYPE_CHECKING:
         DocumentCommand,
         DocumentCommandType,
         TrustedCommandContext,
+        command_context_for_role,
     )
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
     from podcast_mcp.services.document_sync.host_submit import (
@@ -66,6 +67,7 @@ __all__ = [
     "ViewProjection",
     "WordTimingTargetPayload",
     "after_agent_mutation",
+    "command_context_for_role",
     "document_command_from_body",
     "document_command_json_schema",
     "document_command_types_for_caps",
@@ -95,6 +97,7 @@ _MODULE_BY_NAME = {
     "DocumentCommandBody": "payloads",
     "DocumentCommandType": "commands",
     "INTERACTIVE_COMMAND": "commands",
+    "command_context_for_role": "commands",
     "PROGRAMMATIC_COMMAND": "commands",
     "TrustedCommandContext": "commands",
     "DocumentConflictError": "errors",

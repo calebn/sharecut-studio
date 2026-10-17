@@ -85,8 +85,8 @@ from podcast_mcp.services.collaboration import (
 from podcast_mcp.services.document import EditService, cross_process_lease
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
-    INTERACTIVE_COMMAND,
     DocumentSyncService,
+    command_context_for_role,
     document_command_from_body,
     document_hub_key,
 )
@@ -558,7 +558,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
                 range_policy="apply",
                 structural_mode=body.structural_mode,
                 author=share_author(row),
-                trusted_context=INTERACTIVE_COMMAND,
+                trusted_context=command_context_for_role(cmd.role),
             )
         )
 
