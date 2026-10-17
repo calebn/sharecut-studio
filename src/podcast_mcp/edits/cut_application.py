@@ -12,6 +12,7 @@ from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.clips_ops import (
     abutting_pairs,
+    clip_split_origin,
     clips_for_track,
     punch_timeline_range_from_clips,
     set_track_clips,
@@ -570,6 +571,8 @@ def _write_join_fades(
 ) -> dict:
     """Set per-join fade lengths on clip boundaries from applied edit decisions."""
     cfg = defaults or load_defaults()
+    pad_origins = cut_safety.native_pad_origins()
+    pad_origin_ids: set[str | None] = {*pad_origins}
     by_track: dict[str, list[EditDecision]] = {}
     for d in decisions:
         by_track.setdefault(d.track_id, []).append(d)
@@ -578,6 +581,11 @@ def _write_join_fades(
     contributors: dict[str, frozenset[str]] = {}
     for tid, decs in by_track.items():
         for left, right in abutting_pairs(clips_for_track(project, tid)):
+            if any(
+                clip_split_origin(clip.id, pad_origin_ids) in pad_origin_ids
+                for clip in (left, right)
+            ):
+                continue
             join_src = left.source_end
             matching = [
                 d for d in decs if abs(d.end - join_src) < 0.08 or abs(d.start - join_src) < 0.08

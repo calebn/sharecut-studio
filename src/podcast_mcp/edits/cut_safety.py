@@ -1298,6 +1298,22 @@ def complete_effect_acoustics(
     joins: dict[str, str] = {}
     heard_caches: dict[str, TrackAudioCache] = {}
     source_caches: dict[Path, TrackAudioCache] = {}
+    join_subjects: dict[str, tuple[str, Path] | None] = {}
+    join_scored: set[str] = set()
+    if defaults.get("tighten", {}).get("join_continuity_gate", False):
+        from podcast_mcp.util.tracks import recording_audio_path
+
+        for edit_id, pause in (pauses or {}).items():
+            if pause is None or edit_id in manual_ids or edit_id in paused:
+                continue
+            edit = next((item for item in project.edit_decisions if item.id == edit_id), None)
+            try:
+                if edit is None:
+                    raise ValueError("pause contributor has no current edit")
+                recording = recording_audio_path(project, edit.track_id, edit.source_id)
+                join_subjects[edit_id] = (edit.track_id, recording.resolve(strict=True))
+            except (KeyError, OSError, ValueError, subprocess.SubprocessError):
+                join_subjects[edit_id] = None
     flags: dict[str, list[str]] = {
         edit_id: ["audio_unavailable"] for edit_id in unavailable - manual_ids - paused
     }
@@ -1351,6 +1367,26 @@ def complete_effect_acoustics(
             and effect.join is CutJoin.SPLICE
             and defaults.get("tighten", {}).get("join_continuity_gate", False)
         ):
+            quality_ids = []
+            for edit_id in ids:
+                if edit_id not in join_subjects:
+                    continue
+                subject = join_subjects[edit_id]
+                if subject is None:
+                    joins[edit_id] = "audio_unavailable"
+                    continue
+                if effect.track_id != subject[0]:
+                    continue
+                try:
+                    matches_recording = same_recording(effect.recording, subject[1])
+                except (KeyError, OSError, ValueError, subprocess.SubprocessError):
+                    joins[edit_id] = "audio_unavailable"
+                    continue
+                if matches_recording:
+                    quality_ids.append(edit_id)
+            if not quality_ids:
+                continue
+            join_scored.update(quality_ids)
             try:
                 report = assess_proposed_cut(
                     project,
@@ -1370,10 +1406,14 @@ def complete_effect_acoustics(
                             edit_id,
                             "review_required" if report.verdict == "review" else "join_continuity",
                         )
-                        for edit_id in ids
+                        for edit_id in quality_ids
                     )
             except (OSError, ValueError, subprocess.SubprocessError):
-                joins.update((edit_id, "audio_unavailable") for edit_id in ids)
+                joins.update((edit_id, "audio_unavailable") for edit_id in quality_ids)
+    joins.update(
+        (edit_id, "audio_unavailable")
+        for edit_id in join_subjects.keys() - join_scored - joins.keys()
+    )
     for edit_id, pause in (pauses or {}).items():
         if edit_id in manual_ids or not isinstance(pause, HeldPause):
             continue

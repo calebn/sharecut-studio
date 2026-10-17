@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -88,7 +89,7 @@ def _cut(edit_id: str = "cut", *, reason: str = "filler:um", scope: str = "sessi
     )
 
 
-@pytest.mark.parametrize("operation", ["extension", "late_fade", "live_plan"])
+@pytest.mark.parametrize("operation", ["extension", "late_fade", "late_pad_fade", "live_plan"])
 def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, operation):
     from podcast_mcp.edits import cut_application as decisions
     from podcast_mcp.edits.ripple import plan_trim
@@ -162,6 +163,8 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
             ws.reload()
     else:
         edit = _cut()
+        if operation == "late_pad_fade":
+            edit.replace_gap_sec = 0.25
         ws.mutate("before proposal", "after proposal", lambda p: p.edit_decisions.append(edit))
         original = decisions._write_join_fades
 
@@ -175,6 +178,18 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
         monkeypatch.setattr(decisions, "_write_join_fades", bad_fade)
 
         def apply():
+            if operation == "late_pad_fade":
+                from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
+
+                monkeypatch.setattr(decisions, "filler_pad_mode", lambda *args: "room_tone")
+                monkeypatch.setattr(
+                    "podcast_mcp.edits.timeline_ops.room_tone_span",
+                    lambda *args, **kwargs: OwnQuietSample(Sample(3.0, 3.25, -70.0, None)),
+                )
+                return decisions.apply_auto_edits(
+                    ws.project,
+                    defaults(mode="room_tone"),
+                )
             return decisions.apply_auto_edits(ws.project, defaults())
 
     before = ws.project.model_dump(mode="json")
@@ -193,7 +208,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
     if operation in {"extension", "live_plan"}:
         with pytest.raises(ScopeChangedAtApproval, match="held edges"):
             apply()
-    else:
+    elif operation in {"late_fade", "late_pad_fade"}:
         assert apply() == 0
     assert ws.project.model_dump(mode="json") == before
     assert {
@@ -599,6 +614,91 @@ def test_completed_effects_bind_repeated_physical_occurrences(tmp_path, aliased)
             cut_safety.completed_audio_effects(
                 project, candidate, frozenset({"remove"}), defaults={}
             )
+
+
+def test_pause_join_quality_uses_selected_physical_recording(tmp_path, monkeypatch):
+    selected_ws = _workspace(tmp_path / "selected-recording")
+    selected = selected_ws.project
+    alias_path = tmp_path / "selected-recording" / "raw/host-alias.wav"
+    alias_path.hardlink_to(tmp_path / "selected-recording" / "raw/host.wav")
+    selected.sources = [SourceRecording(id="host-alias", path="raw/host-alias.wav")]
+    next(clip for clip in selected.clips if clip.track_id == "host").source_id = "host-alias"
+    pause = _cut("pause", reason="pause:1s")
+    pause.source_id = None
+    selected.edit_decisions = [pause]
+    changed = selected.model_copy(deep=True)
+    from podcast_mcp.edits.ripple import ripple_remove_clips, ripple_track_ids
+    from podcast_mcp.util.batch_scope import batch_scope
+
+    with batch_scope():
+        ripple_remove_clips(changed, [(1, 2)], ripple_track_ids(selected, ["host"]))
+        pause_effects = cut_safety.completed_audio_effects(
+            selected, changed, frozenset({pause.id}), defaults={}
+        )
+        calls = []
+        verdicts = {"host": "pass", "guest": "review"}
+
+        def score(project, track_id, start, end, **kwargs):
+            calls.append((track_id, start, end))
+            return SimpleNamespace(verdict=verdicts[track_id])
+
+        monkeypatch.setattr(cut_safety, "assess_proposed_cut", score)
+        pause_holds = cut_safety.complete_effect_acoustics(
+            selected,
+            pause_effects,
+            defaults={"tighten": {"join_continuity_gate": True}},
+            pauses={pause.id: cut_safety.HeldPause((), 0.5, (0, 6))},
+        )
+        assert calls == [("host", 1, 2)]
+        assert pause_holds == []
+
+        for verdict, reason in (("review", "review_required"), ("fail", "join_continuity")):
+            verdicts["host"] = verdict
+            calls.clear()
+            pause_holds = cut_safety.complete_effect_acoustics(
+                selected,
+                pause_effects,
+                defaults={"tighten": {"join_continuity_gate": True}},
+                pauses={pause.id: cut_safety.HeldPause((), 0.5, (0, 6))},
+            )
+            assert calls == [("host", 1, 2)]
+            assert [(hold.reason, hold.detail) for hold in pause_holds] == [("pause_join", reason)]
+
+        def unavailable(*args, **kwargs):
+            raise OSError("selected recording could not be scored")
+
+        monkeypatch.setattr(cut_safety, "assess_proposed_cut", unavailable)
+        pause_holds = cut_safety.complete_effect_acoustics(
+            selected,
+            pause_effects,
+            defaults={"tighten": {"join_continuity_gate": True}},
+            pauses={pause.id: cut_safety.HeldPause((), 0.5, (0, 6))},
+        )
+        assert [(hold.reason, hold.detail) for hold in pause_holds] == [
+            ("pause_join", "audio_unavailable")
+        ]
+
+        monkeypatch.setattr(cut_safety, "assess_proposed_cut", score)
+        selected.edit_decisions.clear()
+        pause_holds = cut_safety.complete_effect_acoustics(
+            selected,
+            pause_effects,
+            defaults={"tighten": {"join_continuity_gate": True}},
+            pauses={pause.id: cut_safety.HeldPause((), 0.5, (0, 6))},
+        )
+        assert [(hold.reason, hold.detail) for hold in pause_holds] == [
+            ("pause_join", "audio_unavailable")
+        ]
+        selected.edit_decisions = [pause.model_copy(update={"source_id": "missing"})]
+        pause_holds = cut_safety.complete_effect_acoustics(
+            selected,
+            pause_effects,
+            defaults={"tighten": {"join_continuity_gate": True}},
+            pauses={pause.id: cut_safety.HeldPause((), 0.5, (0, 6))},
+        )
+        assert [(hold.reason, hold.detail) for hold in pause_holds] == [
+            ("pause_join", "audio_unavailable")
+        ]
 
 
 @pytest.mark.parametrize("occurrence", [0, 1])
