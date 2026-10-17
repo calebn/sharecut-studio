@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 import hashlib
 from pathlib import Path
 from types import SimpleNamespace
@@ -226,7 +227,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
         assert clip.fade_in_ms == 600
 
 
-@pytest.mark.parametrize("predicate", ["placement", "receipts"])
+@pytest.mark.parametrize("predicate", ["placement", "hull", "receipts"])
 def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, predicate):
     from pause_policy_public_helpers import add_bed
     from podcast_mcp.edits import cut_application
@@ -234,7 +235,7 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
     configure(monkeypatch, defaults())
     ws = _workspace(tmp_path)
     edit = _cut()
-    if predicate == "placement":
+    if predicate in ("placement", "hull"):
         add_bed(ws.project, tmp_path)
         add_bed(ws.project, tmp_path, "guest")
         edit.replace_gap_sec = 0.25
@@ -246,7 +247,17 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
             tile.timeline_start += 0.05
             return result
 
-        monkeypatch.setattr(cut_application, "insert_bound_room_tone_pad", displace_tile)
+        if predicate == "hull":
+            planned = cut_application.room_tone_pad
+            monkeypatch.setattr(
+                cut_application,
+                "room_tone_pad",
+                lambda *args, **kwargs: dataclasses.replace(
+                    plan := planned(*args, **kwargs), at_time=plan.at_time + 3.0
+                ),
+            )
+        else:
+            monkeypatch.setattr(cut_application, "insert_bound_room_tone_pad", displace_tile)
     else:
         ws.project.edit_decisions = [edit.model_copy(deep=True)]
         assert cut_application.approve_edits(ws.project, [edit.id]) == 1
@@ -263,8 +274,13 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
     with pytest.raises(ScopeChangedAtApproval) as held:
         cut_application.approve_edits(ws.project, [edit.id])
     assert held.value.ids == (edit.id,)
-    assert held.value.held[0].detail == (
-        "pad_source_binding" if predicate == "placement" else "source_receipt"
+    assert (
+        held.value.held[0].detail
+        == (
+            {"placement": "pad_source_binding", "hull": "pad_hull", "receipts": "source_receipt"}[
+                predicate
+            ]
+        )
     )
     assert ws.project.model_dump(mode="json") == before
     assert {
@@ -272,11 +288,13 @@ def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, pre
     } == files
     monkeypatch.setattr(
         cut_safety,
-        f"complete_effect_{predicate}",
-        lambda *args, **kwargs: None if predicate == "placement" else [],
+        f"complete_effect_{'receipts' if predicate == 'receipts' else 'placement'}",
+        lambda *args, **kwargs: [] if predicate == "receipts" else None,
     )
     assert cut_application.approve_edits(ws.project, [edit.id]) == 1
-    if predicate == "placement":
+    if predicate == "hull":
+        assert len(ws.project.editorial.edit_log) == 1
+    elif predicate == "placement":
         tile = next(c for c in ws.project.clips if c.source_id == "room-tone-host")
         assert (tile.timeline_start, tile.timeline_end) == pytest.approx((1.05, 1.3))
         assert len(ws.project.editorial.edit_log) == 1
@@ -1591,3 +1609,26 @@ def test_saved_track_seed_cannot_shrink_away_an_origin_placement_on_another_lane
         ("guest", 0, 6, 0),
         ("guest", 2, 6, 2),
     ]
+
+
+def test_a_witnessed_cut_of_a_source_played_twice_is_refused_and_applies_nothing(
+    tmp_path, monkeypatch
+):
+    from podcast_mcp.edits import cut_application
+
+    configure(monkeypatch, defaults())
+    ws = _workspace(tmp_path)
+    project = ws.project
+    project.clips.append(
+        Clip(id="host-again", track_id="host", source_start=0, source_end=6, timeline_start=6)
+    )
+    project.timeline.duration_sec = 12
+    edit = _cut()
+    edit.source_timeline_span = RangeInterval(start=1, end=2)
+    project.edit_decisions = [edit]
+    before = project.model_dump(mode="json")
+    for intent in (CutIntent.PROGRAMMATIC, CutIntent.HUMAN_BOUNDARIES):
+        with pytest.raises(ScopeChangedAtApproval) as held:
+            cut_application.approve_edits(project, [edit.id], application_intent=intent)
+        assert held.value.held[0].reason == "source_geometry"
+        assert project.model_dump(mode="json") == before
