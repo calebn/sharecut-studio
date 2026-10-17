@@ -5,6 +5,7 @@ pub mod cli_links;
 mod close_guard;
 mod share_url;
 mod sidecar;
+mod update;
 
 use std::process::Command;
 
@@ -19,6 +20,8 @@ pub struct DistributionMetadata {
     pub privacy_url: &'static str,
     pub repository_url: &'static str,
     pub release_manifest_url: Option<&'static str>,
+    pub updater_endpoint: Option<&'static str>,
+    pub updater_public_key: Option<&'static str>,
 }
 
 /// Return the public distribution metadata embedded by the build script.
@@ -28,7 +31,17 @@ pub const fn distribution_metadata() -> DistributionMetadata {
         privacy_url: distribution::PRIVACY_URL,
         repository_url: distribution::REPOSITORY_URL,
         release_manifest_url: distribution::RELEASE_MANIFEST_URL,
+        updater_endpoint: distribution::UPDATER_ENDPOINT,
+        updater_public_key: distribution::UPDATER_PUBLIC_KEY,
     }
+}
+
+/// Signed in-app update settings, or `None` when this build has no updater.
+pub const fn updater_config() -> Option<UpdaterConfig> {
+    update::updater_config(
+        distribution::UPDATER_ENDPOINT,
+        distribution::UPDATER_PUBLIC_KEY,
+    )
 }
 
 /// Apply public build-time distribution links to a Python sidecar command.
@@ -71,6 +84,12 @@ pub use sidecar::{
     parse_listen_json, random_boot_token, read_health_response, sidecar_listen_path,
     sidecar_log_path, sidecar_owns_listen,
 };
+pub use update::{
+    check_failure_message, install_dir, install_failure_message, install_mode, is_offered,
+    launch_prompt, manual_download_message, may_update, offer_message, placement_notice,
+    progress_percent, restart_gate, up_to_date_message, FailureKind, InstallMode, LaunchPrompt,
+    RestartGate, UpdateState, UpdaterConfig, GUARD_POLL_INTERVAL, RECORDING_REFUSAL_MESSAGE,
+};
 
 #[cfg(test)]
 mod distribution_tests {
@@ -106,6 +125,22 @@ mod distribution_tests {
     }
 
     #[test]
+    fn updater_config_follows_the_embedded_profile_fields() {
+        let metadata = distribution_metadata();
+        assert_eq!(metadata.updater_endpoint, distribution::UPDATER_ENDPOINT);
+        assert_eq!(
+            updater_config(),
+            metadata
+                .updater_endpoint
+                .zip(metadata.updater_public_key)
+                .map(|(endpoint, public_key)| UpdaterConfig {
+                    endpoint,
+                    public_key,
+                })
+        );
+    }
+
+    #[test]
     fn applies_or_removes_optional_release_manifest() {
         let mut command = Command::new("sidecar");
         command.env("PODCAST_DISTRIBUTION_RELEASE_MANIFEST_URL", "stale");
@@ -116,6 +151,8 @@ mod distribution_tests {
                 privacy_url: "https://privacy.example.test",
                 repository_url: "https://code.example.test/repository",
                 release_manifest_url: Some("https://downloads.example.test/latest.json"),
+                updater_endpoint: None,
+                updater_public_key: None,
             },
         );
 
