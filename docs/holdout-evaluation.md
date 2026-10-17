@@ -1,9 +1,10 @@
 # Holdout evaluation: breath and onset rules (#1273)
 
 First evaluation slice of #1273: does the breath and word-onset behavior hold on
-recordings that did not guide it? A [second slice](#second-slice-two-more-sessions-from-different-conditions-1273)
-adds two more sessions from different conditions. Run 2026-10-13 to 2026-10-14 on `origin/main`
-at `fe8e143dc8f5f16eaf05d87b714b87ea437ef0b2` with the shipped defaults. Source
+recordings that did not guide it? Run 2026-10-13 to 2026-10-14 on `origin/main`
+at `fe8e143dc8f5f16eaf05d87b714b87ea437ef0b2` with the shipped defaults. A
+[second slice](#second-slice-two-more-sessions-from-different-conditions-1273)
+adds two more sessions from different conditions. Source
 sessions and their development/holdout status are in
 [fixture-catalog.md](fixture-catalog.md#source-sessions-provenance-and-developmentholdout-status).
 
@@ -374,7 +375,8 @@ numbers, commands and hashes only.
 mode. No source file, threshold or test changed in the PR that holds this
 section, and no number below was fed back into a threshold. Ran 2026-10-16 to
 2026-10-17 on a shared machine (load average 5 to 27, every job at `nice -n 10`).
-No timing is reported except where a step did not finish.
+Only wall times of whole shipped runs and of steps that did not finish are
+reported.
 
 ### Provenance of the second-slice sessions
 
@@ -389,8 +391,8 @@ session notes.
 
 How they differ from the first slice's three: 111 is a 2024 pair of two Zoom
 exports, while 040 (2020) pairs a local recorder file with one Zoom export. 030 is
-one room recorder file; 018 is two mics, so it has both bleed and per-lane
-reads. 016 shares the year and the two-raw layout with 018 but its tracks are
+one room recorder file; if 018 is two mics in one room, as inferred, it has both
+bleed and per-lane reads. 016 shares the year and the two-raw layout with 018 but its tracks are
 7 dB apart with almost no bleed. 018 has no bounce in the catalogue and 040's
 bounces were not copied (they score content cuts, which this slice does not).
 
@@ -413,7 +415,8 @@ not part of the repo and not a fix. The 040 shipped run above did not use it.
 Same definition as the first slice: `propose_tighten_edits` after merge, stems,
 reconcile and precorrect with the refine and align gates waived, from a seeded
 transcript (first ASR with the forced aligner saved once, seeded into every
-variant).
+variant). The 040 transcribe log reports 16 suspect hallucinations and 7 aligned
+words with no acoustic evidence, so every 040 variant inherits those words.
 
 | Episode | Proposals | Kinds | With `voiced_edge` | Review required | Skips worth noting |
 | --- | --- | --- | --- | --- | --- |
@@ -450,18 +453,22 @@ the same amount.
 What each result shows:
 
 - **Gain (positive on these two, unlike 111 and 016).** Turning the busy track down
-  12 or 24 dB removes no proposal on either recording and moves no edge. The
-  1 to 3 "moved" rows are borderline spans whose review flag label flips (next
-  bullet), not level effects. The `peer_speaking` skip counts are identical
-  across the gain variants. The first slice's loss of 61 and 87 proposals on 111,
+  12 or 24 dB removes no proposal on either recording and moves no edge. On 040
+  the 2 to 3 "moved" rows are review flag labels that also flip with no level
+  change (next bullet). On 018 the one "moved" row at -12 and -24 dB (not at
+  0 dB) is a different, small, gain-dependent flag change: the span
+  `cut_filler_2241120_2241420` gains the suffix `:other_speaking:track11` in its
+  reason when Track11 is turned down. Its edges do not move. The `peer_speaking`
+  skip counts are identical across the gain variants. The first slice's loss of 61 and 87 proposals on 111,
   and the quiet-guest inversion on 016, did not reproduce on either new session.
-  So the cross-track exposure in [#1443](https://github.com/calebn/sharecut-studio/issues/1443)
+  So the cross-track exposure recorded in [#1443](https://github.com/calebn/sharecut-studio/issues/1443)
   is recording-specific, and these two recordings are not a counterexample to it.
-- **Review-flag labels flip on identical or equivalent input.** Every "moved" row
-  in the gain, reorder and rerun checks (8 on 040, 1 each in the two 018 gain
-  rows) is a flag label on a span whose edges did not move (`acoustic` against
-  `acoustic:possible_word`; 4 distinct spans on 040). The set, the edges,
-  `applied` and the review state agree. Precision finding for the ledger,
+  The 018 flag change is a ledger line for #1443's cross-track reads, not a
+  proposal-level failure.
+- **Review-flag labels flip on identical or equivalent input (040).** The 8
+  "moved" rows in the 040 gain, reorder and rerun checks are a flag label on a
+  span whose edges did not move (`acoustic` against `acoustic:possible_word`;
+  4 distinct spans). The set, the edges, `applied` and the review state agree. Precision finding for the ledger,
   [#1449](https://github.com/calebn/sharecut-studio/issues/1449).
 - **Track order and reruns.** Exact on 018. On 040 the only difference is the flag
   label above.
@@ -567,7 +574,7 @@ shipped Whisper plus forced-aligner words.
    finished on the 2020 remote call. On the 2019 two-mic recording it stopped at
    `reconcile_transcript` ([#1685](https://github.com/calebn/sharecut-studio/issues/1685),
    outside the breath and onset rules, in the J1 path).
-2. **Gain invariance held on both (positive; does not retire #1443).** No proposal
+2. **Gain invariance held on both (positive; does not retire the exposure recorded in #1443).** No proposal
    was lost and no edge moved when the busy track dropped 12 or 24 dB.
    The failure on the first slice's 111 and 016 is therefore recording-specific.
 3. **Edge placement still depends on the 10 ms frame grid (negative, effect on the
