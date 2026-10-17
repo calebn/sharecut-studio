@@ -100,7 +100,9 @@ enforced-by:
 
 An intentional manual user edit may apply without acoustic-safety vetoes. Programmatic
 and agentic decisions keep those checks. Intent follows the acting role, not the route: only
-the host `viewer` role is a manual user; guest, `agent` and `cli` roles are programmatic. This decision does not remove finite bounds,
+the host `viewer` role is a manual user; guest, `agent` and `cli` roles are programmatic.
+The host route trusts the declared role, so a local process that claims `viewer` is treated
+as the host. This decision does not remove finite bounds,
 finalized-edge preservation, current-placement validation, structural validity, pad
 hull checks, or data-integrity checks. It does not make every approval or every edit
 path manual. #1403 defines which trusted entry points establish manual intent and
