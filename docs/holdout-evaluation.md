@@ -558,16 +558,25 @@ seeded-random plain edits and one random untouched stretch. No item is of the
 | H11 | 040 | random | 0.5 s out of a 14.9 s pause | click at the join |
 | H12 | 040 | control | no edit, 8 s | a miss |
 
-**Not yet heard.** No answers exist for this pack. Until the owner listens, no
-difference above is called a defect or a success on listening grounds. The
-questions the owner answers per item are the same as the first pack: clipped word
-or lost speech (separate from taste), and whether the edit was useful, so doing
-nothing cannot win by default. The pack, its README and an empty `answers.csv`
-are local: `holdout-1273b/work/listen/`.
+**Heard by the owner.** The questions per item were the same as the first pack:
+clipped word or lost speech (separate from taste), and whether the edit was
+useful, so doing nothing cannot win by default. The pack, its README and
+`answers.csv` are local: `holdout-1273b/work/listen/`.
 
-### Bounded verdict (before listening)
+| Items | Clipped word or lost speech | Useful edit |
+| --- | --- | --- |
+| H01 to H05 (018), H07 to H11 (040): 10 edited pairs | no on all 10 | yes on 9; no on H01 |
+| H06 (018), H12 (040): untouched controls | not applicable | leaving them uncut is fine |
 
-Bounded to two more recordings, twelve listening items not yet heard, and the
+H01 is a taste finding, not a clipping defect: the cut filler `like` was spoken
+with a laugh, the laugh carries the tone, and the edit sounds odd without it.
+It is filed as [#1691](https://github.com/calebn/sharecut-studio/issues/1691).
+For H06 the owner thought a later processing step would probably cut something
+there, so it did not need to be caught at this position.
+
+### Bounded verdict
+
+Bounded to two more recordings, ten edited pairs and two controls heard, and the
 shipped Whisper plus forced-aligner words.
 
 1. **The rules run on one of the two new recordings.** The full shipped pipeline
@@ -585,7 +594,13 @@ shipped Whisper plus forced-aligner words.
 5. **Threshold sensitivity is small except for one constant.** 11 of 51 and 67 of
    163 proposals changed in at least one of 26 runs. `below_speech_loudest_db`
    alone adds 46 (018, 0.8x) or drops 23 (040, 1.2x). This is not a defect call.
-6. **Whether any of this is audible is inconclusive** until the pack is heard.
+6. **Listening (10 edited pairs heard): 0 of 10 clipped a word or lost speech,
+   9 of 10 were useful edits, and 1 is a taste finding** (H01, a filler spoken
+   with a laugh, [#1691](https://github.com/calebn/sharecut-studio/issues/1691)).
+   The sample is small. No success rate beyond these counts is claimed, and the
+   measured differences in points 2 to 5 are not called audible defects on this
+   evidence. No threshold was tuned. The stall on 018 in point 1 is a separate
+   blocker; its fix is in PR #1689, under verification.
 
 Not covered: native 48 kHz audio, three or more speakers, non-English speech, a
 run without the forced aligner, live ASR under the transformed inputs, a shipped
