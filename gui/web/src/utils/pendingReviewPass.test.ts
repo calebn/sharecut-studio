@@ -123,12 +123,11 @@ describe("pendingReviewFeedback", () => {
   });
 });
 
-describe("a Cut anyway that finishes an Approve all pass", () => {
+describe("an Approve all pass", () => {
   it("counts the whole pass", () => {
     expect(
       pendingReviewFeedback("approve", {
         queued: false,
-        asked: false,
         count: 4,
         historyHead: "second" as HistoryEntryId,
         held: [],
