@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { clientXToTimelineSec } from "./timelinePointer";
 import {
-  centerSecToScrollLeft,
   domToLogicalScrollLeft,
+  fixedLineOffsetPx,
   fixedPlayheadCanvasSize,
+  fixedPlayheadEndLeadPx,
   fixedPlayheadLeadPx,
   fixedPlayheadLinePx,
+  followScrollLeft,
   logicalToDomScrollLeft,
   MIN_TIMELINE_WIDTH_PX,
+  maxLogicalScrollLeft,
   measureTimelineColumns,
   minLogicalScrollLeft,
-  scrollLeftToCenterSec,
+  scrollLeftToLineSec,
   timelineCanvasSize,
   timelineHeaderOffsetWidth,
   timelineTimeViewportWidth,
@@ -112,51 +115,74 @@ describe("fixed-playhead geometry", () => {
   const viewport = 375;
   const zoom = viewport / 60; // fit zoom for a 60 s session
 
-  it("pads each side by the viewport's center offset", () => {
+  it("pads half a viewport before time 0 and a whole one after the end", () => {
     expect(viewportCenterOffsetPx(viewport)).toBe(187.5);
     expect(viewportCenterOffsetPx(-10)).toBe(0);
-    expect(fixedPlayheadLeadPx(viewport)).toBe(
-      viewportCenterOffsetPx(viewport),
-    );
-    expect(fixedPlayheadLinePx(64, 311)).toBe(64 + 155.5);
+    // Whole pixels: a browser holds logical 0 exactly.
+    expect(fixedPlayheadLeadPx(viewport)).toBe(187);
+    expect(fixedPlayheadEndLeadPx(viewport)).toBe(375);
+    expect(fixedPlayheadEndLeadPx(-10)).toBe(0);
+    expect(fixedPlayheadLinePx(64, 155.5)).toBe(64 + 155.5);
   });
 
-  it("can center every time from 0 to the end at fit zoom (#385)", () => {
+  it("loads with time 0 beside the headers, the playhead at its true place (#1707)", () => {
+    expect(fixedLineOffsetPx(0, zoom, 0, viewport)).toBe(0);
+    expect(fixedLineOffsetPx(10, zoom, 0, viewport)).toBeCloseTo(10 * zoom, 9);
+  });
+
+  it("keeps the playhead inside the view", () => {
+    expect(fixedLineOffsetPx(0, zoom, 200, viewport)).toBe(0);
+    expect(fixedLineOffsetPx(60, zoom, -500, viewport)).toBe(viewport);
+  });
+
+  it("follows the playhead to the center but never before time 0", () => {
+    expect(followScrollLeft(0, zoom, viewport)).toBe(0);
+    expect(followScrollLeft(10, zoom, viewport)).toBe(0);
+    expect(followScrollLeft(30, zoom, viewport)).toBeCloseTo(
+      30 * zoom - viewport / 2,
+      9,
+    );
+  });
+
+  it("moves the time by exactly what a scroll moves the content", () => {
+    // Playhead 40 px in; scrolling 100 px advances it by 100 px of time.
+    const sec = scrollLeftToLineSec(100, 40, zoom, 60);
+    expect(sec).toBeCloseTo(140 / zoom, 9);
+    expect(scrollLeftToLineSec(-500, 40, zoom, 60)).toBe(0);
+    expect(scrollLeftToLineSec(10_000, 40, zoom, 60)).toBe(60);
+  });
+
+  it("can put every time under a playhead anywhere in the view (#385)", () => {
     const lead = fixedPlayheadLeadPx(viewport);
-    const { widthPx, durationSec } = timelineCanvasSize(60, zoom, viewport);
-    // DOM scroll range with the time column padded by `lead` on each side.
-    const maxDomScroll = lead + widthPx + lead - viewport;
-    for (const sec of [0, 0.5, 15, 30, 59.5, durationSec]) {
-      const logical = centerSecToScrollLeft(sec, zoom, viewport);
-      const dom = logicalToDomScrollLeft(logical, lead);
-      expect(dom, `${sec}s`).toBeGreaterThanOrEqual(0);
-      expect(dom, `${sec}s`).toBeLessThanOrEqual(maxDomScroll + 1e-9);
-      expect(domToLogicalScrollLeft(dom, lead)).toBe(logical);
-      expect(
-        scrollLeftToCenterSec(logical, zoom, viewport, durationSec),
-      ).toBeCloseTo(sec, 9);
+    const endLead = fixedPlayheadEndLeadPx(viewport);
+    const { widthPx } = fixedPlayheadCanvasSize(60, zoom);
+    // DOM scroll range with the time column padded by both leads.
+    const maxDomScroll = lead + widthPx + endLead - viewport;
+    expect(domToLogicalScrollLeft(maxDomScroll, lead)).toBeCloseTo(
+      maxLogicalScrollLeft(60, zoom),
+      9,
+    );
+    for (const lineX of [0, lead]) {
+      for (const sec of [0, 0.5, 15, 30, 59.5, 60]) {
+        const logical = sec * zoom - lineX;
+        const dom = logicalToDomScrollLeft(logical, lead);
+        expect(dom, `${sec}s at ${lineX}`).toBeGreaterThanOrEqual(-1e-9);
+        expect(dom, `${sec}s at ${lineX}`).toBeLessThanOrEqual(
+          maxDomScroll + 1e-9,
+        );
+        expect(scrollLeftToLineSec(logical, lineX, zoom, 60)).toBeCloseTo(
+          sec,
+          9,
+        );
+      }
     }
   });
 
-  it("clamps the center time to the given end", () => {
-    expect(scrollLeftToCenterSec(-500, zoom, viewport, 60)).toBe(0);
-    expect(scrollLeftToCenterSec(10_000, zoom, viewport, 60)).toBe(60);
-    // Below fit the canvas outlasts the session; callers pass the session end.
-    expect(scrollLeftToCenterSec(10_000, zoom / 2, viewport, 60)).toBe(60);
-  });
-
   it("sizes a fixed-playhead canvas to the session, even below fit", () => {
-    // Below fit (5 px/s < 400/60) the range must still end at 60 s.
-    const lead = fixedPlayheadLeadPx(viewport);
     const { widthPx, durationSec } = fixedPlayheadCanvasSize(60, 5);
     expect(widthPx).toBe(300);
     expect(durationSec).toBe(60);
-    const maxDom = lead + widthPx + lead - viewport;
-    const maxLogical = domToLogicalScrollLeft(maxDom, lead);
-    expect(scrollLeftToCenterSec(maxLogical, 5, viewport, 60)).toBe(60);
-    expect(
-      scrollLeftToCenterSec(minLogicalScrollLeft(lead), 5, viewport, 60),
-    ).toBe(0);
+    expect(maxLogicalScrollLeft(60, 5)).toBe(300);
   });
 
   it("floors logical scroll at −lead, or +0 when unpadded", () => {
@@ -164,10 +190,10 @@ describe("fixed-playhead geometry", () => {
     expect(Object.is(minLogicalScrollLeft(0), 0)).toBe(true);
   });
 
-  it("agrees with the pointer mapping at the viewport's center", () => {
+  it("agrees with the pointer mapping at the playhead's place", () => {
     const scrollLeft = 123;
-    expect(scrollLeftToCenterSec(scrollLeft, zoom, viewport, 60)).toBe(
-      clientXToTimelineSec(viewport / 2, { left: 0 }, scrollLeft, zoom, 60),
+    expect(scrollLeftToLineSec(scrollLeft, 80, zoom, 60)).toBe(
+      clientXToTimelineSec(80, { left: 0 }, scrollLeft, zoom, 60),
     );
   });
 });

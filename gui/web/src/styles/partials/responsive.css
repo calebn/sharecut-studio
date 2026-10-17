@@ -6,8 +6,9 @@
 
 .timeline-area--fixed-playhead .playhead--fixed {
   position: absolute;
-  /* Center of the time viewport (header plus half its width), measured by
-     TimelineView with the scroll math, so a scrollbar gutter can't shift it. */
+  /* The playhead's place in the time viewport (header plus its offset),
+     measured by FixedPlayheadNeedle with the scroll math, so a scrollbar
+     gutter can't shift it. */
   inset-inline-start: var(--timeline-fixed-line, 50%);
   inset-block: 0;
   inline-size: 0.125rem;
@@ -18,10 +19,12 @@
   pointer-events: none;
 }
 
-/* Half-viewport lead pads (TimelineView sets --timeline-lead) so the scroll
-   can put any time, 0 and the end included, under the center line (#385). */
+/* Lead pads (TimelineView sets --timeline-lead and --timeline-lead-end): half
+   a viewport before time 0 and a whole one after the end, so a scrub can put
+   any time under the playhead wherever it sits (#385, #1707). The timeline
+   loads scrolled past the first pad, time 0 beside the headers. */
 .timeline-area--fixed-playhead .timeline-time {
-  margin-inline: var(--timeline-lead, 0);
+  margin-inline: var(--timeline-lead, 0) var(--timeline-lead-end, 0);
 }
 
 .timeline-area--fixed-playhead .timeline-scroll {
@@ -46,6 +49,7 @@
 
 .timeline-area--fixed-playhead .lane-seek::after {
   inset-inline-start: 100%;
+  inline-size: var(--timeline-lead-end, 0);
 }
 
 /* Desktop/tablet focus layouts: only the main/tabs track sizes change. */

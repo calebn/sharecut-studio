@@ -101,14 +101,24 @@ export function viewportCenterOffsetPx(viewportWidthPx: number): number {
 }
 
 /**
- * Fixed-playhead (phone) timelines pad the time column by the center offset
- * on each side, so every time from 0 to the end can sit under the center line
- * even at fit zoom. Store `scrollLeft` stays logical (time × zoom from the
- * column's left edge); the scroller's DOM `scrollLeft` is logical + lead, so
- * a logical value can go as low as −lead.
+ * Fixed-playhead (phone) timelines pad the time column so the playhead can
+ * be scrubbed to any time. The start pad is the center offset: scrolling back
+ * from a centered playhead can reach time 0 under the line. Store `scrollLeft`
+ * stays logical (time × zoom from the column's left edge); the scroller's DOM
+ * `scrollLeft` is logical + this lead, so a logical value can go as low as
+ * −lead. A timeline loads at logical 0 with time 0 right after the headers.
  */
 export function fixedPlayheadLeadPx(viewportWidthPx: number): number {
-  return viewportCenterOffsetPx(viewportWidthPx);
+  // Whole pixels, so logical 0 is a scroll position a browser can hold.
+  return Math.floor(viewportCenterOffsetPx(viewportWidthPx));
+}
+
+/**
+ * The end pad is a full viewport: a playhead left of center (a fresh load, a
+ * pan) still scrubs to the session end, which then sits at the left edge.
+ */
+export function fixedPlayheadEndLeadPx(viewportWidthPx: number): number {
+  return Math.floor(Math.max(0, viewportWidthPx));
 }
 
 /**
@@ -129,12 +139,67 @@ export function minLogicalScrollLeft(leadPx: number): number {
   return leadPx > 0 ? -leadPx : 0;
 }
 
-/** Where the fixed line sits in the scroller: past the headers, at center. */
-export function fixedPlayheadLinePx(
-  headerPx: number,
+/**
+ * Where the playhead sits in the time viewport (px from its left edge): its
+ * true place, kept inside the view. At load that is the left edge; playback
+ * and seeks bring it to the center and hold it there.
+ */
+export function fixedLineOffsetPx(
+  sec: number,
+  zoomPxPerSec: number,
+  scrollLeft: number,
   viewportWidthPx: number,
 ): number {
-  return headerPx + viewportCenterOffsetPx(viewportWidthPx);
+  const x = sec * zoomPxPerSec - scrollLeft;
+  return Math.min(Math.max(0, viewportWidthPx), Math.max(0, x));
+}
+
+/** Where the fixed line sits in the scroller: past the headers, at its offset. */
+export function fixedPlayheadLinePx(
+  headerPx: number,
+  lineOffsetPx: number,
+): number {
+  return headerPx + lineOffsetPx;
+}
+
+/** Highest logical scroll: the session end at the left edge. */
+export function maxLogicalScrollLeft(
+  sessionSec: number,
+  zoomPxPerSec: number,
+): number {
+  return Math.max(0, sessionSec) * Math.max(zoomPxPerSec, 0);
+}
+
+/**
+ * Time under the playhead after the view scrolls to `scrollLeft` with the
+ * playhead held at `lineOffsetPx`: a scroll moves the time by exactly what it
+ * moved the content.
+ */
+export function scrollLeftToLineSec(
+  scrollLeft: number,
+  lineOffsetPx: number,
+  zoomPxPerSec: number,
+  maxSec: number,
+): number {
+  return clientXToTimelineSec(
+    lineOffsetPx,
+    { left: 0 },
+    scrollLeft,
+    zoomPxPerSec,
+    maxSec,
+  );
+}
+
+/**
+ * Logical scroll that centers `sec`, but never before time 0: near the start
+ * the playhead stays left of center instead of opening a gap before 0.
+ */
+export function followScrollLeft(
+  sec: number,
+  zoomPxPerSec: number,
+  viewportWidthPx: number,
+): number {
+  return Math.max(0, centerSecToScrollLeft(sec, zoomPxPerSec, viewportWidthPx));
 }
 
 export function logicalToDomScrollLeft(
@@ -164,22 +229,6 @@ export function centerSecToScrollLeft(
   viewportWidthPx: number,
 ): number {
   return sec * zoomPxPerSec - viewportCenterOffsetPx(viewportWidthPx);
-}
-
-/** Time at the center of the time viewport, clamped to [0, maxSec]. */
-export function scrollLeftToCenterSec(
-  scrollLeft: number,
-  zoomPxPerSec: number,
-  viewportWidthPx: number,
-  maxSec: number,
-): number {
-  return clientXToTimelineSec(
-    viewportCenterOffsetPx(viewportWidthPx),
-    { left: 0 },
-    scrollLeft,
-    zoomPxPerSec,
-    maxSec,
-  );
 }
 
 /**

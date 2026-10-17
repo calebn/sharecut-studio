@@ -29,7 +29,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Needs attention** | Host pending edits and host/guest offline conflicts |
 | **Offline queue** | Guest edits waiting until the network returns |
 | **Presence** | Who is in the session (avatars, ghost cursors). Click to follow. |
-| **Follow** | Slave viewport (desktop/tablet) or listen-along with a centered playhead (phone); Esc or local navigation (including keyboard seek) stops |
+| **Follow** | Slave viewport (desktop/tablet) or listen-along with the phone playhead (starts at 0, holds the center once passed); Esc or local navigation (including keyboard seek) stops |
 | **Online sharing** | The host's computer making its links reachable from the internet. Share says “Guests can open your links”, “Reconnecting…”, “Not reachable online” or “Online sharing is off”; a local-only host sees no line |
 | **MCP URL** | The address an AI assistant (an MCP client such as Claude or ChatGPT) uses for one review link: `{base}/mcp/{token}/mcp`. Share mints it only when the host ticks **Allow AI assistants (MCP)**, and the assistant gets that link's permissions |
 | **Full mix / Edited stems / Original** | What you’re hearing: all tracks mixed with edits and effects, each track on its own (not mixed) with edits and effects, or the source audio without edits or effects |

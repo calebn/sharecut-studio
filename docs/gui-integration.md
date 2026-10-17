@@ -595,7 +595,7 @@ Click an avatar (desktop) or **Menu / More → People** (tablet/phone) to follow
 | Shell | Look | Hear | Degradation |
 |-------|------|------|-------------|
 | Desktop / tablet | Viewport (zoom + pan), tab, transcript scroll, selection, canvas ghosts (no duplicate playhead) | Audition Full mix/Edited stems/Original, mute, solo | — |
-| Phone | Tab → Listen/Text/More mapping; playhead at the Ferrite center needle. Zoom/scroll is **not** copied. | Same as desktop when capable | Host-only tabs stay More-hub-unavailable; banner names the tab |
+| Phone | Tab → Listen/Text/More mapping; playhead on the Ferrite needle (starts at 0, holds the center once passed). Zoom/scroll is **not** copied. | Same as desktop when capable | Host-only tabs stay More-hub-unavailable; banner names the tab |
 | Guest share | Transcript / Comments tabs only | Mix only | Banner: “· in Pipeline (host-only)”, “· auditioning FX”; “· Listening in Mix” when Mix is forced |
 
 Guests stay on Mix at the store (`setAuditionMode`), TransportBar, `transport.audition`, Follow (`planFollowUi` always applies Mix), and session snapshots (force Mix; never copy host mute/solo). Track inspector **Preview effects at track start** goes through `transport.audition` and is disabled for guests.

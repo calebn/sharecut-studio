@@ -14,15 +14,17 @@ import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import {
-  centerSecToScrollLeft,
   domToLogicalScrollLeft,
+  fixedLineOffsetPx,
   fixedPlayheadCanvasSize,
+  fixedPlayheadEndLeadPx,
   fixedPlayheadLeadPx,
+  followScrollLeft,
   logicalToDomScrollLeft,
   minLogicalScrollLeft,
   PLAYHEAD_MOVE_MIN_PX,
   SCROLL_SYNC_EPS_PX,
-  scrollLeftToCenterSec,
+  scrollLeftToLineSec,
   timelineCanvasSize,
 } from "../utils/timelineViewport";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
@@ -44,10 +46,13 @@ type ScrollBinding = Readonly<{
   timeViewportPx: number;
   leadPx: number;
   writeScroll: WriteScroll;
+  /** The seek revision a person's own scroll made; it must not recenter. */
+  scrubRevisionRef: RefObject<number>;
 }>;
 
 type ScrollResult = Readonly<{
   leadPx: number;
+  endLeadPx: number;
   canvas: Readonly<{ widthPx: number; durationSec: number }>;
   binding: ScrollBinding;
   onScroll: () => void;
@@ -67,13 +72,18 @@ export function useFixedPlayheadScroll({
   const setPlayheadSec = useDawStore((s) => s.setPlayheadSec);
   const stopFollow = useDawStore((s) => s.stopFollow);
   const applyAnchoredZoom = useDawStore((s) => s.applyAnchoredZoom);
+  // A scrub seeks the audio like any seek, but the view is already where the
+  // person put it, so the recenter skips this revision.
+  const scrubRevisionRef = useRef(-1);
   // Set while a pinch or wheel zoom applies its anchored scroll, so the
   // scroll events it causes neither seek nor unfollow.
   const anchoringZoom = useRef(false);
-  // Fixed playhead: pad the time column by the viewport's center offset on
-  // each side so every time, 0 and the end included, can sit under the
-  // center line. Store scroll stays logical; the DOM scroll is logical + lead.
+  // Fixed playhead: pad the time column (half a viewport before time 0, a
+  // whole one after the end) so every time can be scrubbed to the playhead
+  // wherever it sits. The timeline loads at logical scroll 0, time 0 beside
+  // the headers. Store scroll stays logical; the DOM scroll is logical + lead.
   const leadPx = fixedPlayhead ? fixedPlayheadLeadPx(timeViewportPx) : 0;
+  const endLeadPx = fixedPlayhead ? fixedPlayheadEndLeadPx(timeViewportPx) : 0;
   // Layout effect: zoom anchoring reads the lead in the commit that applies
   // the new margins. A logical scroll before −lead has nowhere to go.
   useLayoutEffect(() => {
@@ -140,23 +150,29 @@ export function useFixedPlayheadScroll({
         stopFollow("local");
       }
       if (fixedPlayhead) {
-        const sec = scrollLeftToCenterSec(
-          logicalLeft,
+        // A scroll moves the time by exactly what it moved the content: the
+        // playhead stays where it sits in the view.
+        const { playheadSec, scrollLeft: storedLeft } = useDawStore.getState();
+        const lineX = fixedLineOffsetPx(
+          playheadSec,
           zoomPxPerSec,
+          storedLeft,
           timeViewportPx,
-          canvasSec,
         );
         const recordState = useRecordHostStore.getState().snapshot?.state;
         const visualOnlyScroll =
           (recordState === "recording" || recordState === "paused") &&
-          logicalLeft >
-            centerSecToScrollLeft(canvasSec, zoomPxPerSec, timeViewportPx);
-        const playheadSec = useDawStore.getState().playheadSec;
-        if (
-          !visualOnlyScroll &&
-          Math.abs(sec - playheadSec) * zoomPxPerSec > PLAYHEAD_MOVE_MIN_PX
-        ) {
+          logicalLeft + lineX > canvasSec * zoomPxPerSec;
+        const sec = scrollLeftToLineSec(
+          logicalLeft,
+          lineX,
+          zoomPxPerSec,
+          canvasSec,
+        );
+        if (!visualOnlyScroll && sec !== playheadSec) {
           setPlayheadSec(sec);
+          scrubRevisionRef.current =
+            useDawStore.getState().playheadSeekRevision;
         }
       }
     }
@@ -172,10 +188,25 @@ export function useFixedPlayheadScroll({
     });
   };
   const binding = useMemo<ScrollBinding>(
-    () => ({ scrollRef, fixedPlayhead, timeViewportPx, leadPx, writeScroll }),
+    () => ({
+      scrollRef,
+      fixedPlayhead,
+      timeViewportPx,
+      leadPx,
+      writeScroll,
+      scrubRevisionRef,
+    }),
     [scrollRef, fixedPlayhead, timeViewportPx, leadPx, writeScroll],
   );
-  return { leadPx, canvas, binding, onScroll, applyZoomAt, writeScroll };
+  return {
+    leadPx,
+    endLeadPx,
+    canvas,
+    binding,
+    onScroll,
+    applyZoomAt,
+    writeScroll,
+  };
 }
 
 /**
@@ -198,74 +229,108 @@ export function TimelineScrollSync({ binding }: { binding: ScrollBinding }) {
 }
 
 /**
- * Fixed playhead: transport/seek recenters on the playhead. Pinch and
- * pointer zoom keep the time under the fingers still and move the playhead
- * to the new center; fit and command zoom (menu, keys) anchor at the line
- * (dawStore), so they keep it.
+ * Fixed playhead: the playhead sits where it is in the view (time 0 beside
+ * the headers on load) and the view follows it only once it passes the
+ * center, so playback holds it there. A seek recenters at once, but never
+ * past time 0. A scrub keeps the playhead where it sits (the scroll handler
+ * moves the time). Pinch and pointer zoom keep the time under the fingers
+ * still and move the playhead to the new time at its place; fit and command
+ * zoom (menu, keys) keep the playhead's time and place (dawStore).
  */
 export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
-  const { scrollRef, leadPx, writeScroll, fixedPlayhead, timeViewportPx } =
-    binding;
+  const {
+    scrollRef,
+    leadPx,
+    writeScroll,
+    fixedPlayhead,
+    timeViewportPx,
+    scrubRevisionRef,
+  } = binding;
   const playheadSec = useDawStore((s) => s.playheadSec);
   const playheadSeekRevision = useDawStore((s) => s.playheadSeekRevision);
   const zoomPxPerSec = useDawStore((s) => s.zoomPxPerSec);
   const scrollLeft = useDawStore((s) => s.scrollLeft);
-  const isPlaying = useDawStore((s) => s.isPlaying);
   const userZoomed = useDawStore((s) => s.userZoomed);
   const project = useDawStore((s) => s.project);
   const recordState = useRecordHostStore((s) => s.snapshot?.state);
   const setScrollLeft = useDawStore((s) => s.setScrollLeft);
   const setPlayheadSec = useDawStore((s) => s.setPlayheadSec);
-  const prevZoomRef = useRef(zoomPxPerSec);
-  const prevPlayheadRef = useRef(playheadSec);
-  const prevSeekRevisionRef = useRef(playheadSeekRevision);
+  const readyRef = useRef(false);
+  const prevRef = useRef({
+    zoom: zoomPxPerSec,
+    playhead: playheadSec,
+    scroll: scrollLeft,
+    seekRevision: playheadSeekRevision,
+  });
 
   useEffect(() => {
     const el = scrollRef.current;
-    // Track every zoom, even while unpadded, so a later switch to a fixed
+    // Track every change, even while unpadded, so a later switch to a fixed
     // playhead does not read an old zoom as a pinch.
-    const zoomChanged = prevZoomRef.current !== zoomPxPerSec;
-    prevZoomRef.current = zoomPxPerSec;
-    const playheadChanged = prevPlayheadRef.current !== playheadSec;
-    prevPlayheadRef.current = playheadSec;
+    const prev = prevRef.current;
+    prevRef.current = {
+      zoom: zoomPxPerSec,
+      playhead: playheadSec,
+      scroll: scrollLeft,
+      seekRevision: playheadSeekRevision,
+    };
+    const zoomChanged = prev.zoom !== zoomPxPerSec;
+    const playheadChanged = prev.playhead !== playheadSec;
     const seekRevisionChanged =
-      prevSeekRevisionRef.current !== playheadSeekRevision;
-    prevSeekRevisionRef.current = playheadSeekRevision;
+      prev.seekRevision !== playheadSeekRevision &&
+      playheadSeekRevision !== scrubRevisionRef.current;
     if (!el || !fixedPlayhead || !project || timeViewportPx <= 0) {
       return;
     }
+    const sessionSec = project.timeline_duration_sec;
+    // The first look at a mounted timeline (a tab switch, a loaded project)
+    // follows a playhead that moved while it was away.
+    const firstLook = !readyRef.current;
+    readyRef.current = true;
 
+    // A pan past the saved end (recording preview) leaves the view alone.
     const visualOnlyScroll =
       (recordState === "recording" || recordState === "paused") &&
-      scrollLeft >
-        centerSecToScrollLeft(
-          project.timeline_duration_sec,
-          zoomPxPerSec,
-          timeViewportPx,
-        );
+      scrollLeft > playheadSec * zoomPxPerSec;
     if (visualOnlyScroll && !playheadChanged && !seekRevisionChanged) return;
 
     if (zoomChanged && userZoomed) {
-      const centerSec = scrollLeftToCenterSec(
-        scrollLeft,
-        zoomPxPerSec,
+      const lineX = fixedLineOffsetPx(
+        prev.playhead,
+        prev.zoom,
+        prev.scroll,
         timeViewportPx,
-        project.timeline_duration_sec,
+      );
+      const lineSec = scrollLeftToLineSec(
+        scrollLeft,
+        lineX,
+        zoomPxPerSec,
+        sessionSec,
       );
       if (
-        Math.abs(centerSec - playheadSec) * zoomPxPerSec >
+        Math.abs(lineSec - playheadSec) * zoomPxPerSec >
         PLAYHEAD_MOVE_MIN_PX
       ) {
-        setPlayheadSec(centerSec);
+        setPlayheadSec(lineSec);
+        scrubRevisionRef.current = useDawStore.getState().playheadSeekRevision;
       }
       return;
     }
 
-    const target = centerSecToScrollLeft(
-      playheadSec,
-      zoomPxPerSec,
-      timeViewportPx,
-    );
+    if (!seekRevisionChanged && !playheadChanged && !firstLook) return;
+    // A session that fits the view has nothing to scroll to but its start.
+    if (sessionSec * zoomPxPerSec <= timeViewportPx) {
+      if (seekRevisionChanged && scrollLeft !== 0) {
+        writeScroll(el, 0, leadPx);
+        setScrollLeft(0);
+      }
+      return;
+    }
+    const rawLineX = playheadSec * zoomPxPerSec - scrollLeft;
+    const pastCenter = rawLineX > timeViewportPx / 2;
+    const offView = rawLineX < 0 || rawLineX > timeViewportPx;
+    if (!seekRevisionChanged && !pastCenter && !offView) return;
+    const target = followScrollLeft(playheadSec, zoomPxPerSec, timeViewportPx);
     const current = domToLogicalScrollLeft(el.scrollLeft, leadPx);
     if (Math.abs(current - target) > PLAYHEAD_MOVE_MIN_PX) {
       writeScroll(el, target, leadPx);
@@ -281,12 +346,12 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     recordState,
     setScrollLeft,
     setPlayheadSec,
-    isPlaying,
     userZoomed,
     leadPx,
     timeViewportPx,
     writeScroll,
     scrollRef,
+    scrubRevisionRef,
   ]);
   return null;
 }

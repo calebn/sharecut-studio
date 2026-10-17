@@ -906,7 +906,11 @@ test("phone fixed playhead clock follows native horizontal scroll and exposed ru
       await expect
         .poll(async () => Math.abs((await value()) - expected))
         .toBeLessThanOrEqual(1 / scale.pxPerSecond);
-      expect(await lineX()).toBeCloseTo(origin.x, 1);
+      // A seek brings the playhead to the center (or leaves it left of center
+      // near the start), inside the time viewport, never past it.
+      const afterSeek = await lineX();
+      expect(afterSeek).toBeGreaterThanOrEqual(origin.x - 1);
+      expect(afterSeek).toBeLessThanOrEqual(viewport!.x + viewport!.width);
       expect(Math.abs((await clock()) - (await value()))).toBeLessThanOrEqual(
         0.001,
       );

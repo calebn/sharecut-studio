@@ -11,9 +11,9 @@ import {
   writeLaneHeightPref,
 } from "../utils/laneHeightPref";
 import {
-  centerSecToScrollLeft,
+  fixedLineOffsetPx,
+  maxLogicalScrollLeft,
   measureTimelineColumns,
-  minLogicalScrollLeft,
   timelineTimeViewportWidth,
   viewportCenterOffsetPx,
 } from "../utils/timelineViewport";
@@ -576,17 +576,22 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         noteZoomPointerClientX(clientX);
       }
       const lead = timelineViewportRegistry.getLeadPx();
+      // A fixed playhead's view may sit before time 0 (a scrub back from a
+      // centered playhead); a zoom keeps that scroll but never opens it.
+      const minScrollLeft = lead > 0 ? Math.min(0, get().scrollLeft) : 0;
+      const endSec = get().project?.timeline_duration_sec ?? 0;
       if (lead > 0 && clientX == null) {
-        // Command zoom (menu, keys) on a fixed playhead centers on the
-        // playhead's time, not the line's pixel: the line may trail the
-        // playhead by up to a pixel, and zooming in would grow that gap.
-        const endSec = get().project?.timeline_duration_sec ?? 0;
+        // Command zoom (menu, keys) on a fixed playhead keeps the playhead's
+        // time and its place in the view.
+        const lineX = fixedLineOffsetPx(
+          get().playheadSec,
+          currentZoom,
+          get().scrollLeft,
+          timeWidth,
+        );
         const scrollLeft = Math.min(
-          centerSecToScrollLeft(endSec, z, timeWidth),
-          Math.max(
-            minLogicalScrollLeft(lead),
-            centerSecToScrollLeft(get().playheadSec, z, timeWidth),
-          ),
+          maxLogicalScrollLeft(endSec, z),
+          Math.max(minScrollLeft, get().playheadSec * z - lineX),
         );
         set({ zoomPxPerSec: z, scrollLeft, userZoomed: true });
         return;
@@ -614,16 +619,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         rectLeft,
         scrollLeft: get().scrollLeft,
         sessionSec,
-        minScrollLeft: minLogicalScrollLeft(lead),
-        // A padded view's range ends with the session end under the line.
-        maxScrollLeft:
-          lead > 0
-            ? centerSecToScrollLeft(
-                get().project?.timeline_duration_sec ?? 0,
-                z,
-                timeWidth,
-              )
-            : undefined,
+        minScrollLeft,
+        // A padded view's range ends with the session end at the left edge.
+        maxScrollLeft: lead > 0 ? maxLogicalScrollLeft(endSec, z) : undefined,
       });
       // Store first; TimelineView applies el.scrollLeft in useLayoutEffect after
       // the wider (duration * zoom) content commits — avoids browser clamp.
@@ -821,12 +819,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       const duration = sessionSecOf(get());
       if (duration > 0 && viewportWidth > 0) {
         const zoom = fitZoomPxPerSec(viewportWidth, duration);
-        // A fixed playhead stays on the line through a fit.
-        const scrollLeft =
-          timelineViewportRegistry.getLeadPx() > 0
-            ? centerSecToScrollLeft(get().playheadSec, zoom, viewportWidth)
-            : 0;
-        set({ zoomPxPerSec: zoom, scrollLeft, userZoomed: false });
+        // The whole session fits, so a fit starts at time 0 and the playhead
+        // sits at its place in it, fixed playhead or not.
+        set({ zoomPxPerSec: zoom, scrollLeft: 0, userZoomed: false });
       }
     },
     measureTimelineViewport: () => {

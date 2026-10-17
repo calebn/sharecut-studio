@@ -50,7 +50,6 @@ import {
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
   domToLogicalScrollLeft,
-  fixedPlayheadLinePx,
   measureTimelineColumns,
   timelineHeaderEl,
 } from "../utils/timelineViewport";
@@ -69,6 +68,7 @@ import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
 import { DetentMark } from "./DetentMark";
 import { attachDragWatch } from "./dragWatch";
+import { FixedPlayheadNeedle } from "./FixedPlayheadNeedle";
 import { selectFollowColorIndex } from "./followTarget";
 import { HitRouterProvider } from "./hitRouterContext";
 import {
@@ -331,6 +331,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   });
   const {
     leadPx,
+    endLeadPx,
     canvas: { widthPx: width, durationSec: canvasSec },
     writeScroll,
   } = scroll;
@@ -877,7 +878,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                 ...(fixedPlayhead
                   ? {
                       "--timeline-lead": `${leadPx}px`,
-                      "--timeline-fixed-line": `${fixedPlayheadLinePx(headerOffsetPx, timeViewportPx)}px`,
+                      "--timeline-lead-end": `${endLeadPx}px`,
                     }
                   : {}),
                 ...(followingClientId
@@ -894,9 +895,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               <ProsodyStatusAnnouncer overlay={prosodyLatest} />
             ) : null}
             {fixedPlayhead ? (
-              <div className="playhead playhead--fixed" aria-hidden>
+              <FixedPlayheadNeedle
+                headerOffsetPx={headerOffsetPx}
+                timeViewportPx={timeViewportPx}
+              >
                 <FollowPlayheadChip />
-              </div>
+              </FixedPlayheadNeedle>
             ) : null}
             <div
               className="timeline-scroll"
@@ -918,7 +922,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                 >
                   <RecordingOverlay
                     zoomPxPerSec={zoomPxPerSec}
-                    trailingPadPx={leadPx}
+                    trailingPadPx={endLeadPx}
                   />
                   <TimeRuler
                     durationSec={canvasSec}
