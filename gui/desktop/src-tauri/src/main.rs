@@ -31,6 +31,9 @@ struct SidecarHandle {
 
 struct SidecarState(Mutex<Option<SidecarHandle>>);
 
+/// The loopback port of the running engine, shared with navigation checks.
+struct EnginePortState(Arc<Mutex<Option<u16>>>);
+
 struct LastOpenedShare(Mutex<Option<(String, Instant)>>);
 
 /// State kept only by the native host while a confirmation dialog is visible.
@@ -734,6 +737,30 @@ fn engine_navigation_allowed(url: &str, engine_port: Option<u16>) -> bool {
     cfg!(debug_assertions) && sharecut::is_allowed_webview_navigation(url, Some(FALLBACK_PORT))
 }
 
+fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
+    let child = spawn_sidecar()?;
+    *app.state::<SidecarState>()
+        .0
+        .lock()
+        .map_err(|_| "sidecar lock poisoned".to_string())? = Some(child);
+    Ok(())
+}
+
+/// Bring the engine back after an update install failed, on the old version.
+fn respawn_engine(app: &tauri::AppHandle) -> Result<(), String> {
+    let port_slot = app.state::<EnginePortState>();
+    if let Ok(mut port) = port_slot.0.lock() {
+        *port = None;
+    }
+    start_sidecar(app)?;
+    let port = wait_for_engine(app, Duration::from_secs(45))?;
+    if let Ok(mut slot) = port_slot.0.lock() {
+        *slot = Some(port);
+    }
+    open_engine_window(app, port);
+    Ok(())
+}
+
 fn shutdown_sidecar(app: &tauri::AppHandle) {
     let taken = app
         .try_state::<SidecarState>()
@@ -823,6 +850,7 @@ fn main() {
     };
     builder
         .manage(SidecarState(Mutex::new(None)))
+        .manage(EnginePortState(engine_port.clone()))
         .manage(LastOpenedShare(Mutex::new(None)))
         .manage(CloseGuardState(Mutex::new(CloseGuardStatus::default())))
         .on_window_event(|window, event| {
@@ -857,9 +885,8 @@ fn main() {
             }
             let handle = app.handle().clone();
             let engine_port = engine_port.clone();
-            match spawn_sidecar() {
-                Ok(child) => {
-                    *app.state::<SidecarState>().0.lock().unwrap() = Some(child);
+            match start_sidecar(app.handle()) {
+                Ok(()) => {
                     thread::spawn(move || {
                         let health = wait_for_engine(&handle, Duration::from_secs(45));
                         if !wait_for_main_window(&handle) {
