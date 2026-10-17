@@ -2097,15 +2097,6 @@ def _prepare_candidate(
     # measure the join jump at the same boundaries in the common case (no breath
     # extension moved them) -- share one measurement instead of taking it twice.
     jump_cache: dict[tuple[str, float], float | None] = {}
-    if (
-        _edit_mode(tighten) != "mute"
-        and SessionTimeline(project).exact_source_span(
-            track_id, SourceSec(candidate.start), SourceSec(candidate.end)
-        )
-        is None
-    ):
-        return CutRejected("source_geometry")
-
     opt, risk = optimize_and_assess(
         project,
         track_id,
@@ -2210,13 +2201,6 @@ def _prepare_candidate(
     if _clamp_to_candidate(candidate, plan.start, plan.end) != (plan.start, plan.end):
         return CutRejected("bounds")
     if candidate.cut_kind == "pause" and not mute_mode:
-        if (
-            SessionTimeline(project).exact_source_span(
-                track_id, SourceSec(plan.start), SourceSec(plan.end)
-            )
-            is None
-        ):
-            return CutRejected("source_geometry")
         from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent
         from podcast_mcp.edits.timeline_ops import LaneUnavailable, bind_pause_effects
 
