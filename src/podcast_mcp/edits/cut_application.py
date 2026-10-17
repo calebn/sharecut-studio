@@ -569,7 +569,6 @@ def _write_join_fades(
     *,
     defaults: dict | None = None,
 ) -> dict:
-    """Set per-join fade lengths on clip boundaries from applied edit decisions."""
     cfg = defaults or load_defaults()
     pad_origins = cut_safety.native_pad_origins()
     pad_origin_ids: set[str | None] = {*pad_origins}
@@ -1073,7 +1072,6 @@ def apply_prefix_edits(
 
 
 def apply_auto_edits(project: EpisodeProject, defaults: dict | None = None) -> int:
-    """Apply filler/pause edits (ripple REMOVE or mute-in-place MUTE)."""
     return apply_prefix_edits(
         project, ("filler:", "pause:"), config_key="tighten", defaults=defaults
     )
@@ -1222,7 +1220,6 @@ def apply_lower(
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
 ) -> bool:
-    """Turn the decision's span down on its own track; True when a clip took it."""
     published = project
     project = project.model_copy(deep=True)
     mapped = cut_safety.inspect_source_remove_placement(
@@ -1379,7 +1376,6 @@ def apply_edit_plan(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> list[EditDecision]:
-    """Prepare a plan privately and assess requested applications before publication."""
     from podcast_mcp.edits.transcript_cuts import add_remove_decision
 
     candidate = project.model_copy(deep=True)

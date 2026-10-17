@@ -125,7 +125,6 @@ class PlacedSource:
 
 
 def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
-    """Source bindings and gain ramps in the renderer's completed audio graph."""
     result: list[PlacedSource] = []
 
     def visit(node: Audio, at: float, ramps: tuple[GainRamp, ...]) -> None:

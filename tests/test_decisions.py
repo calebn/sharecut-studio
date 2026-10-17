@@ -709,7 +709,6 @@ def test_apply_prefix_edits_pads_at_the_held_join(tmp_path):
         defaults.return_value = {"tighten": {"inaudible_opt": True}}
         assert apply_prefix_edits(proj, "filler:", config_key="tighten") == 1
     host = clips_for_track(proj, "host")
-    # The held join stays at 2.0; application never adopts the optimizer suggestion.
     assert len(host) == 2
     assert host[0].timeline_end == pytest.approx(2.0)
     assert host[1].timeline_start == pytest.approx(2.0 + 0.3)

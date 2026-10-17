@@ -143,7 +143,6 @@ def render_track_from_timeline(
     *,
     engine: FFmpegEngine | None = None,
 ) -> Path:
-    """Render saved timeline clips, their joins, and source-bound mute regions."""
     if not track.media:
         raise ValueError(f"track {track.id} has no media")
 

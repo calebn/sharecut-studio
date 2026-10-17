@@ -86,7 +86,6 @@ def breath_level_floor(noise_floor_rms: float, speech_rms: float) -> float:
 
 
 def breath_level_band(noise_floor_rms: float, speech_rms: float) -> LevelBand | None:
-    """Band between the room tone and the speech level, or ``None`` without contrast."""
     lo = breath_level_floor(noise_floor_rms, speech_rms)
     hi = speech_rms * db_to_amplitude(-BREATH_BELOW_SPEECH_DB[0])
     if not (0.0 < lo < hi):

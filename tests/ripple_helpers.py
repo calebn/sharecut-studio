@@ -24,7 +24,6 @@ def trim(
     source_sec: float,
     mode: EditMode = EditMode.RIPPLE,
 ) -> dict:
-    """Move one clip edge in ``mode``, in the mechanical geometry fixture."""
     plan = plan_trim(project, clip_id, edge, source_sec, mode)
     if plan.unchanged:
         return {"operation": "trim_clip_edge", "unchanged": True}
@@ -37,7 +36,6 @@ def shorten_gaps(
     *,
     use_inaudible_opt: bool | None = None,
 ) -> dict:
-    """Ripple out each pause longer than ``max_gap_sec``, in the mechanical geometry fixture."""
     removal = plan_shorten_word_gaps(project, max_gap_sec, use_inaudible_opt=use_inaudible_opt)
     if removal is None:
         return {"operation": "shorten_word_gaps", "affected_tracks": []}

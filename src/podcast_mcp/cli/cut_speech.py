@@ -1,5 +1,3 @@
-"""Report programmatic cuts held for interactive review."""
-
 from __future__ import annotations
 
 from collections.abc import Callable

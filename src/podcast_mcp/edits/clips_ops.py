@@ -35,7 +35,6 @@ def _split_parents() -> dict[str, str]:
 
 
 def clip_split_origin(clip_id: str | None, before_ids: set[str | None]) -> str | None:
-    """Resolve native split descendants against this operation's BEFORE clips."""
     parents = _split_parents()
     while clip_id is not None and clip_id not in before_ids and clip_id in parents:
         clip_id = parents[clip_id]
