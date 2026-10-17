@@ -306,7 +306,7 @@ release manifest notes say so. The signing hooks in the funnel below stay in
 place, so adding a certificate later changes secrets, not code.
 
 Who provides what for a distributor build (the table in
-[setup.md § Self-hosting configuration](setup.md#self-hosting-and-distribution-configuration)
+[setup.md § Configuration boundary](setup.md#configuration-boundary)
 has the full split): the distributor provides the identity profile, signing
 certificates, notarization credentials, object store and hosting. This tree
 provides the validated profile schema, the reusable build workflow and the
