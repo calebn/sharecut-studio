@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   clampTabsHeightRem,
@@ -11,6 +12,7 @@ import {
   SHORT_DEFAULT_TABS_FRACTION,
   SHORT_MIN_TABS_HEIGHT_REM,
   TABS_HEIGHT_STORAGE_KEY,
+  useTabsHeight,
 } from "./useTabsHeight";
 
 describe("clampTabsHeightRem", () => {
@@ -84,6 +86,26 @@ describe("a window with no measurable height", () => {
     try {
       expect(initTabsHeight()).toBe(10);
       expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("10");
+    } finally {
+      heightSpy.mockRestore();
+      localStorage.removeItem(TABS_HEIGHT_STORAGE_KEY);
+      document.documentElement.style.removeProperty("--tabs-height");
+    }
+  });
+});
+
+describe("the mounted hook in a window with no measurable height", () => {
+  it("keeps the stored height through mount and resize", () => {
+    localStorage.setItem(TABS_HEIGHT_STORAGE_KEY, "10");
+    const heightSpy = vi.spyOn(window, "innerHeight", "get").mockReturnValue(0);
+    try {
+      const { result, unmount } = renderHook(() => useTabsHeight());
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+      expect(result.current.heightRem).toBe(10);
+      expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("10");
+      unmount();
     } finally {
       heightSpy.mockRestore();
       localStorage.removeItem(TABS_HEIGHT_STORAGE_KEY);
