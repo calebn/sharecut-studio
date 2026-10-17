@@ -699,7 +699,7 @@ def _apply_mute_edit(
         {
             "scope": getattr(edit, "scope", "session") or "session",
             "mute": True,
-            "source_id": edit.source_id,
+            **({"source_id": edit.source_id} if edit.source_id is not None else {}),
             # What reverting subtracts: the muted region, fades included.
             "per_track_source": {edit.track_id: list(span)} if written else {},
         },
