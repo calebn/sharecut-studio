@@ -147,8 +147,8 @@ def test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused(
         "guest:suggest",
     )
     assert (proposal.proposal_origin, proposal.boundary_intent) == (
-        ProposalOrigin.HUMAN,
-        CutIntent.HUMAN_BOUNDARIES,
+        ProposalOrigin.PROGRAMMATIC,
+        CutIntent.PROGRAMMATIC,
     )
     assert _clip_spans(path) == [(0.0, 2.0)]
     direct = _command(client, token, "CutRange", {"start": 0.2, "end": 0.6, "mode": "ripple"})

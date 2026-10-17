@@ -97,3 +97,8 @@ class TrustedCommandContext:
 
 PROGRAMMATIC_COMMAND = TrustedCommandContext()
 INTERACTIVE_COMMAND = TrustedCommandContext(boundary_intent=CutIntent.HUMAN_BOUNDARIES)
+
+
+def command_context_for_role(role: ClientRole) -> TrustedCommandContext:
+    """Only the host's own viewer role stamps a human cut; every other actor is programmatic."""
+    return INTERACTIVE_COMMAND if role == "viewer" else PROGRAMMATIC_COMMAND

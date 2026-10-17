@@ -94,10 +94,13 @@ enforced-by:
 - tests/test_selected_range.py::test_payload_cannot_forge_internal_boundary_intent
 - tests/test_selected_range.py::test_propose_range_cut_tool_assesses_edges_and_human_approval_overrides
 - tests/test_guest_transcript_selection.py::test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused
+- tests/test_manual_cut_intent_role.py::test_host_route_intent_follows_the_actor_role
+- tests/test_manual_cut_intent_role.py::test_guest_editor_never_stamps_human_intent
 -->
 
 An intentional manual user edit may apply without acoustic-safety vetoes. Programmatic
-and agentic decisions keep those checks. This decision does not remove finite bounds,
+and agentic decisions keep those checks. Intent follows the acting role, not the route: only
+the host `viewer` role is a manual user; guest, `agent` and `cli` roles are programmatic. This decision does not remove finite bounds,
 finalized-edge preservation, current-placement validation, structural validity, pad
 hull checks, or data-integrity checks. It does not make every approval or every edit
 path manual. #1403 defines which trusted entry points establish manual intent and
