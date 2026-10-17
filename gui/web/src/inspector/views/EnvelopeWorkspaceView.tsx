@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { NudgeField } from "../../edit/nudge";
 import { NUDGE_KINDS } from "../../edit/nudge";
+import type { EnvelopeForm } from "../../state/types";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
@@ -22,13 +23,6 @@ export type EnvelopeError = {
   message: string;
 };
 
-export type EnvelopeForm = {
-  kind: "add" | "edit";
-  pointId: string;
-  time: string;
-  level: string;
-  notice?: string;
-};
 export type EnvelopeWorkspaceViewProps = {
   trackId?: string;
   nudgeRun?: ReturnType<typeof useNudgeRun>;

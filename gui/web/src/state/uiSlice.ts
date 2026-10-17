@@ -42,6 +42,7 @@ import type {
   CommentDraft,
   DawStore,
   DawTab,
+  EnvelopeDraftEntry,
   LaneHeightMode,
   LayerVisibility,
   LayoutMode,
@@ -176,6 +177,7 @@ type UiSlice = Pick<
   | "layers"
   | "commentMode"
   | "commentDraft"
+  | "envelopeDraft"
   | "transcriptFollowPlayhead"
   | "transcriptTimingRequest"
   | "setTranscriptTimingRequest"
@@ -233,6 +235,7 @@ type UiSlice = Pick<
   | "setCommentMode"
   | "toggleCommentMode"
   | "setCommentDraft"
+  | "setEnvelopeDraft"
   | "setToolMode"
   | "setSelectedTrackIds"
   | "toggleTrackSelected"
@@ -414,6 +417,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     } satisfies LayerVisibility,
     commentMode: false,
     commentDraft: null as CommentDraft | null,
+    envelopeDraft: null as EnvelopeDraftEntry | null,
     transcriptFollowPlayhead: true,
     transcriptTimingRequest: null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
@@ -657,6 +661,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         };
       }),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
+    setEnvelopeDraft: (envelopeDraft) => set({ envelopeDraft }),
     setToolMode: (toolMode: ToolMode) =>
       set({
         toolMode,
