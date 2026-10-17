@@ -265,6 +265,7 @@ export const createProjectSlice: StateCreator<
       projectPath,
       projectEpoch: samePath ? get().projectEpoch : get().projectEpoch + 1,
       project: initialProject,
+      envelopeDraft: null,
       heldTrim: null,
       guestMode,
       shareCapabilities,

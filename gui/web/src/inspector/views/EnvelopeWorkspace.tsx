@@ -3,6 +3,7 @@ import { setEnvelope } from "../../api";
 import { useMountedRef } from "../../hooks/useMountedRef";
 import { canEditEnvelopes } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import type { EnvelopeDraft } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import type { AutomationPoint } from "../../types/project";
 import { focusAndReveal } from "../../ui/focusAndReveal";
@@ -22,15 +23,8 @@ import { randomUuid } from "../../utils/randomUuid";
 import { useNudgeRun } from "../useNudgeRun";
 import {
   type EnvelopeError,
-  type EnvelopeForm,
   EnvelopeWorkspaceView,
 } from "./EnvelopeWorkspaceView";
-
-type Draft = {
-  form: EnvelopeForm;
-  origin: AutomationPoint[];
-  endpointIds: { start: string; end: string } | null;
-};
 
 export function EnvelopeWorkspace({
   trackId,
@@ -58,7 +52,19 @@ export function EnvelopeWorkspace({
     layers: state.layers,
     pointerKind: state.pointerKind,
   }));
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const draftEntry = useDaw((state) => state.envelopeDraft);
+  const setEnvelopeDraft = useDaw((state) => state.setEnvelopeDraft);
+  const draft =
+    draftEntry?.projectPath === projectPath &&
+    draftEntry.projectEpoch === projectEpoch &&
+    draftEntry.trackId === trackId &&
+    draftEntry.pointId === pointId
+      ? draftEntry.draft
+      : null;
+  const setDraft = (next: EnvelopeDraft | null) =>
+    setEnvelopeDraft(
+      next && { projectPath, projectEpoch, trackId, pointId, draft: next },
+    );
   const nudgeRun = useNudgeRun();
   const [error, setError] = useState<EnvelopeError | null>(null);
   const [collisionId, setCollisionId] = useState<string | null>(null);

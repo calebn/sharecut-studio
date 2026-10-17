@@ -2,6 +2,7 @@ import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
 import type {
+  AutomationPoint,
   HistoryEntryId,
   ProjectView,
   Selection,
@@ -97,6 +98,36 @@ export type MoreDestination =
   | "impact"
   | "tighten"
   | "pipeline";
+
+/** The envelope point form's text. */
+export type EnvelopeForm = {
+  kind: "add" | "edit";
+  pointId: string;
+  time: string;
+  level: string;
+  notice?: string;
+};
+
+/** An open envelope point form and the baseline it was opened against. */
+export type EnvelopeDraft = {
+  form: EnvelopeForm;
+  origin: AutomationPoint[];
+  endpointIds: { start: string; end: string } | null;
+};
+
+/**
+ * An open envelope point draft and the target it belongs to. It lives in the
+ * store, not in the form, so it outlives the phone and tablet shells swapping
+ * on rotation; `dawStore` drops it when the selection leaves its target.
+ */
+export type EnvelopeDraftEntry = {
+  projectPath: string;
+  projectEpoch: number;
+  trackId: string;
+  /** The selected point of the workspace that opened it; null for the track's envelope. */
+  pointId: string | null;
+  draft: EnvelopeDraft;
+};
 
 export interface CommentDraft {
   startSec: number;
@@ -204,6 +235,7 @@ export interface DawState {
   layers: LayerVisibility;
   commentMode: boolean;
   commentDraft: CommentDraft | null;
+  envelopeDraft: EnvelopeDraftEntry | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
   transcriptTimingRequest: TranscriptInlineEditRequest | null;
@@ -464,6 +496,7 @@ export interface DawState {
   setCommentMode: (on: boolean) => void;
   toggleCommentMode: () => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
+  setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
   setToolMode: (mode: ToolMode) => void;
   setSelectedTrackIds: (ids: string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
