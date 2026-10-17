@@ -31,7 +31,7 @@ on:
         required: false
         default: ""
       sign:
-        description: Sign macOS/Windows when the matching secrets are present
+        description: Sign macOS/Windows when the matching secrets are present; with an updater profile also sign updater bundles (needs TAURI_SIGNING_PRIVATE_KEY on every leg, Linux included)
         type: boolean
         required: false
         default: false

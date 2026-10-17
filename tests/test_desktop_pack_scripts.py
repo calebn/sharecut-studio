@@ -115,6 +115,7 @@ def test_desktop_build_scripts_resolve_relative_profiles_from_the_callers_direct
         "CARGO_TARGET_DIR": str(tmp_path / "target"),
         "SHARECUT_SIDECAR_OUT": str(tmp_path / "sidecar"),
         "SKIP_APPIMAGE_SMOKE": "1",
+        "SHARECUT_SKIP_UPDATER_ARTIFACTS": "1",
     }
 
     completed = subprocess.run(
