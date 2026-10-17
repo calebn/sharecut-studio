@@ -1213,16 +1213,16 @@ def _before_occurrences(
             and same_recording(previous.source.path, source.path)
         ]
         origin = clip_split_origin(source.clip_id, before_ids)
-        same_clip = [i for i in qualified if old[i].source.clip_id == origin]
+        containing = [
+            i
+            for i in qualified
+            if old[i].source.src_start <= source.src_start + _SOURCE_GEOMETRY_TOLERANCE_SEC
+            and old[i].source.src_end >= source.src_end - _SOURCE_GEOMETRY_TOLERANCE_SEC
+        ]
         matches = (
-            same_clip
+            [i for i in containing if old[i].source.clip_id == origin]
             if origin in before_ids
-            else [
-                i
-                for i in qualified
-                if old[i].source.src_start <= source.src_start + _SOURCE_GEOMETRY_TOLERANCE_SEC
-                and old[i].source.src_end >= source.src_end - _SOURCE_GEOMETRY_TOLERANCE_SEC
-            ]
+            else containing
         )
         if source.is_fill:
             parents = [

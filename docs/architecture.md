@@ -728,6 +728,8 @@ The native split kernel records child-to-parent clip IDs in the current edit bat
 Completed effects follow those links to the nearest BEFORE clip, then qualify its
 recording, source and fill phase. This preserves occurrence identity when a range
 cut gives both survivors new IDs while another play uses identical source bounds.
+A surviving leaf binds only to a BEFORE leaf whose source span contains it, so two mute
+fills of one clip that sit at the same lead from their holes stay two occurrences.
 The links expire with the batch and are not project metadata. An untraced graph
 with multiple possible BEFORE occurrences still refuses assessment.
 Native pad insertion also records tile IDs and originating edits in that batch.
