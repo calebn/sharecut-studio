@@ -106,28 +106,40 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
     content: "";
     position: sticky;
     inset-block-start: 0;
-    z-index: var(--z-timeline-chrome);
+    z-index: var(--z-content);
     flex: 0 0 auto;
     box-sizing: border-box;
     block-size: var(--ruler-height);
     margin-block-end: calc(-1 * var(--ruler-height));
     background: var(--color-bg-base);
     border-block-end: 1px solid var(--color-border);
+    pointer-events: none;
   }
 }
 
-/* A phone held sideways at its shortest has no room for the status line as
-   well: the sheet rests on the screen's edge until it closes (#1694). */
+/* A phone held sideways at its shortest (914x331) cannot spare 72px of lane
+   for pinned marker rows even when idle: they scroll with the lanes, one scroll
+   up, and only the ruler stays pinned. The status line stays, because it holds
+   the save state and the polite live region (#1448, #1694). */
 /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
 @media (max-height: 24rem) {
-  html[data-shell="tablet"]:has(.bottom-sheet--lane-band) {
-    --status-height: 0rem;
+  html[data-shell="tablet"] :is(.marker-lane, .track-headers-chrome) {
+    position: relative;
+    z-index: var(--z-content);
   }
 
-  html[data-shell="tablet"]:has(.bottom-sheet--lane-band)
-    .daw-shell
-    > .status-bar {
-    display: none;
+  html[data-shell="tablet"] .track-headers::before {
+    content: "";
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--z-content);
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    block-size: var(--ruler-height);
+    margin-block-end: calc(-1 * var(--ruler-height));
+    background: var(--color-bg-base);
+    border-block-end: 1px solid var(--color-border);
+    pointer-events: none;
   }
 }
 
