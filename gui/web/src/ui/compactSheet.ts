@@ -4,8 +4,24 @@
  * clear of them. Every inspector sheet carries `INSPECTOR_SHEET_CLASS`; the
  * compact one (#1051 round 3) also carries `COMPACT_SHEET_CLASS`.
  */
+import type { Selection } from "../types/project";
+
 export const INSPECTOR_SHEET_CLASS = "bottom-sheet--inspector";
 export const COMPACT_SHEET_CLASS = "bottom-sheet--compact";
+
+/**
+ * Marks a regular inspector sheet whose target is a lane (a volume envelope):
+ * on a short screen the tabs row gives way and the sheet leaves that lane in
+ * view above it (`useKeepEditedLaneClear`, `responsive.css`).
+ */
+export const LANE_BAND_SHEET_CLASS = "bottom-sheet--lane-band";
+
+/** The track whose lane `selection`'s sheet must leave in view, or null. */
+export function editedLaneTrack(selection: Selection): string | null {
+  return selection?.kind === "envelope" || selection?.kind === "envelopePoint"
+    ? selection.trackId
+    : null;
+}
 
 export function compactSheetPanel(): HTMLElement | null {
   return document.querySelector<HTMLElement>(`.${COMPACT_SHEET_CLASS}`);
@@ -21,11 +37,6 @@ function restingTop(panel: HTMLElement | null): number | null {
   if (!panel || !root) return null;
   // The panel's resting top: its entrance animation moves the drawn box.
   return root.getBoundingClientRect().bottom - panel.offsetHeight;
-}
-
-/** The open compact sheet's resting top in viewport px, or null when none is open. */
-export function compactSheetTop(): number | null {
-  return restingTop(compactSheetPanel());
 }
 
 /** The open inspector sheet's resting top in viewport px, or null when none is open. */
@@ -49,4 +60,16 @@ export function capInspectorSheet(height: number | null): void {
   if (!panel) return;
   if (height === null) panel.style.removeProperty("--sheet-cap");
   else panel.style.setProperty("--sheet-cap", `${Math.round(height)}px`);
+}
+
+/**
+ * The same for the band a lane-editing sheet leaves its lane. It has a cap of
+ * its own, because the transcript's lifts `--sheet-cap` on every selection;
+ * `bottom-sheet.css` honours the smaller of the two.
+ */
+export function capInspectorSheetForLane(height: number | null): void {
+  const panel = inspectorSheetPanel();
+  if (!panel) return;
+  if (height === null) panel.style.removeProperty("--sheet-lane-cap");
+  else panel.style.setProperty("--sheet-lane-cap", `${Math.round(height)}px`);
 }

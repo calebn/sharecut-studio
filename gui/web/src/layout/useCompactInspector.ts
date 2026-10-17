@@ -26,8 +26,9 @@ import type { BottomSheet } from "../ui/BottomSheet";
 import {
   COMPACT_SHEET_CLASS,
   compactSheetPanel,
-  compactSheetTop,
   INSPECTOR_SHEET_CLASS,
+  inspectorSheetPanel,
+  inspectorSheetTop,
 } from "../ui/compactSheet";
 import { DRAWER_MOTION_ATTR } from "../ui/useDrawerSwipe";
 import { useResizeObserver } from "../ui/useResizeObserver";
@@ -47,6 +48,10 @@ const readShort = () =>
   typeof globalThis.matchMedia === "function" &&
   globalThis.matchMedia(SHORT_SCREEN_MQ).matches;
 
+export function useShortScreen(): boolean {
+  return useMediaQueryStore(subscribeShort, readShort, () => false);
+}
+
 export interface CompactInspector {
   peek: PeekTarget;
   view: CompactInspectorView;
@@ -62,8 +67,8 @@ export interface CompactInspector {
 export function keepTargetClear(locate: string): void {
   const target = document.querySelector(locate);
   const scroller = target?.closest<HTMLElement>(".timeline-scroll");
-  const panel = compactSheetPanel();
-  const sheetTop = compactSheetTop();
+  const panel = inspectorSheetPanel();
+  const sheetTop = inspectorSheetTop();
   if (!target || !scroller || !panel || sheetTop === null) return;
   // A moving drawer fills its slot; the clearance waits for it to rest.
   if (panel.hasAttribute(DRAWER_MOTION_ATTR)) return;
@@ -96,7 +101,7 @@ function clearClearance(): void {
 export function useCompactInspector(
   shell: "phone" | "tablet" | null,
 ): CompactInspector | null {
-  const short = useMediaQueryStore(subscribeShort, readShort, () => false);
+  const short = useShortScreen();
   const {
     project,
     selection,

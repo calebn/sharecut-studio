@@ -74,6 +74,22 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
   display: none;
 }
 
+/* The same on a short screen for a sheet that edits a lane (a volume
+   envelope): the tabs row would take the room the lane and the form share
+   (#1694). The editor panels return when the sheet closes. */
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (max-height: 40rem) {
+  html[data-shell="tablet"]:has(.bottom-sheet--lane-band) .daw-shell {
+    --shell-tabs-row: 0;
+  }
+
+  html[data-shell="tablet"]:has(.bottom-sheet--lane-band)
+    .daw-shell
+    > .bottom-tabs {
+    display: none;
+  }
+}
+
 .daw-shell--layout-text {
   --shell-main-row: minmax(7.5rem, 28vh);
   --shell-tabs-row: minmax(0, 1fr);

@@ -274,22 +274,18 @@ describe("EnvelopeWorkspace", () => {
     await level("0.25");
     first.unmount();
     act(() => {
-      useDawStore
-        .getState()
-        .setSelection({
-          kind: "envelopePoint",
-          trackId: "host",
-          pointId: "early",
-        });
+      useDawStore.getState().setSelection({
+        kind: "envelopePoint",
+        trackId: "host",
+        pointId: "early",
+      });
     });
     act(() => {
-      useDawStore
-        .getState()
-        .setSelection({
-          kind: "envelopePoint",
-          trackId: "host",
-          pointId: "late",
-        });
+      useDawStore.getState().setSelection({
+        kind: "envelopePoint",
+        trackId: "host",
+        pointId: "late",
+      });
     });
     mount();
     expect(screen.queryByLabelText("Level (×)")).toBeNull();

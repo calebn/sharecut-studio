@@ -11,10 +11,16 @@ import type {
 import { useDaw } from "../state/useDaw";
 import type { Selection } from "../types/project";
 import {
+  editedLaneTrack,
+  INSPECTOR_SHEET_CLASS,
+  LANE_BAND_SHEET_CLASS,
+} from "../ui/compactSheet";
+import {
   type CompactSheetProps,
   compactSheetProps,
   useCompactInspector,
 } from "./useCompactInspector";
+import { useKeepEditedLaneClear } from "./useKeepEditedLaneClear";
 
 /**
  * The shells that carry a selection sheet. `armedOpens`: Select range alone
@@ -62,6 +68,8 @@ export interface SelectionSheet {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onClose: () => void;
+  /** The panel's class when it is not the compact inspector. */
+  className: string;
   compact: CompactSheetProps | undefined;
   /** The editing rail is inert while a full-height compact sheet covers it. */
   coversTools: boolean;
@@ -105,6 +113,9 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       mobileMode,
       moreDestination,
     });
+  const laneTrack =
+    open && shell === "tablet" && !compact ? editedLaneTrack(selection) : null;
+  useKeepEditedLaneClear(laneTrack);
   const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
   const rangeActionsInSheet =
     open &&
@@ -121,6 +132,10 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       setSelection(null);
       setSheetExpanded(false);
     },
+    className:
+      laneTrack === null
+        ? INSPECTOR_SHEET_CLASS
+        : `${INSPECTOR_SHEET_CLASS} ${LANE_BAND_SHEET_CLASS}`,
     compact: compact ? compactSheetProps(compact) : undefined,
     coversTools: open && compact != null && !compact.stowed,
     content: (
