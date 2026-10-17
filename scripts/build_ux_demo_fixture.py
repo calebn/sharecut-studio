@@ -64,6 +64,8 @@ def main() -> int:
                 "applied": False,
                 "cut_confidence": 0.82,
                 "boundary_mode": "inaudible",
+                "proposal_origin": "programmatic",
+                "boundary_intent": "programmatic",
             }
         ],
         "edit_log": [],
@@ -71,6 +73,7 @@ def main() -> int:
             {"time": 0.0, "title": "Cold open", "image_url": None},
             {"time": 8.0, "title": "Guest joins", "image_url": None},
         ],
+        "speaker_splits": [],
     }
 
     # Low-confidence + suppressed word for Text mode chips
@@ -224,20 +227,14 @@ Screenshots for the UX site: `make ux-demo-screens`.
         encoding="utf-8",
     )
 
-    # Validate via models when available
-    try:
-        sys.path.insert(0, str(ROOT / "src"))
-        from podcast_mcp.project_store import ProjectStore
+    sys.path.insert(0, str(ROOT / "src"))
+    from podcast_mcp.project_store import ProjectStore
 
-        proj = ProjectStore(out).load()
-        assert proj.meta.name == "Sharecut Studio UX demo"
-        assert any(not d.applied for d in proj.edit_decisions)
-        assert proj.review and len(proj.review.comments) >= 2
-        print(
-            f"wrote {out} ({len(proj.edit_decisions)} pending, {len(proj.review.comments)} comments)"
-        )
-    except Exception as exc:
-        print(f"wrote {out} (skip model validate: {exc})")
+    proj = ProjectStore(out).load()
+    assert proj.meta.name == "Sharecut Studio UX demo"
+    assert any(not d.applied for d in proj.edit_decisions)
+    assert proj.review and len(proj.review.comments) >= 2
+    print(f"wrote {out} ({len(proj.edit_decisions)} pending, {len(proj.review.comments)} comments)")
     return 0
 
 
