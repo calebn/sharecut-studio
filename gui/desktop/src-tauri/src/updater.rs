@@ -375,12 +375,12 @@ fn offer(app: &AppHandle, win: &WebviewWindow, version: &str, origin: Origin) {
         ))
         .parent(win)
         .blocking_show();
-    ctl.prompting.store(false, Ordering::Release);
     if confirmed {
         install(app, win, origin);
     } else {
         *locked(&ctl.declined) = Some(version.to_string());
     }
+    ctl.prompting.store(false, Ordering::Release);
 }
 
 fn refuse_for_recording(win: &WebviewWindow, origin: Origin) {
@@ -439,14 +439,18 @@ impl sharecut::InstallSteps for LiveInstall<'_> {
         install_blocker(&self.update.version)
     }
 
+    fn claim(&mut self) -> bool {
+        self.ctl.transition(UpdateState::begin_download).is_some()
+    }
+
     fn download(&mut self) -> Result<Vec<u8>, sharecut::StepError> {
-        self.ctl.transition(UpdateState::begin_download);
         let bytes = download(self.win, self.update).map_err(step_error)?;
         self.ctl.transition(UpdateState::begin_install);
         Ok(bytes)
     }
 
     fn stop_engine(&mut self) {
+        sharecut::clear_engine_port(&self.app.state::<crate::EnginePortState>().0);
         crate::shutdown_sidecar(self.app);
     }
 
@@ -454,6 +458,8 @@ impl sharecut::InstallSteps for LiveInstall<'_> {
         self.update.install(bytes).map_err(step_error)
     }
 
+    // On Windows `update.install` exits the process, so this relaunch branch
+    // only runs on macOS and Linux.
     fn request_restart(&mut self) {
         self.ctl.transition(UpdateState::finish_install);
         request_restart(self.app);
@@ -466,6 +472,7 @@ impl sharecut::InstallSteps for LiveInstall<'_> {
                 eprintln!(
                     "Sharecut Studio: could not restart the engine after a failed update: {err}"
                 );
+                crate::show_sidecar_error(self.app, &err);
                 false
             }
         }
@@ -498,7 +505,7 @@ fn install(app: &AppHandle, win: &WebviewWindow, origin: Origin) {
     });
     drop(restore);
     match outcome {
-        sharecut::InstallOutcome::Restarting => {}
+        sharecut::InstallOutcome::Restarting | sharecut::InstallOutcome::Busy => {}
         sharecut::InstallOutcome::RefusedByGuard => refuse_for_recording(win, origin),
         sharecut::InstallOutcome::Blocked(notice) => notify_if_idle(win, &notice),
         sharecut::InstallOutcome::DownloadFailed(error) => {
@@ -543,9 +550,14 @@ fn restart_now(win: &WebviewWindow) {
 
 /// Called from `ExitRequested`; the decision is `sharecut::exit_gate`.
 pub fn gate_exit(app: &AppHandle) -> sharecut::RestartGate {
-    sharecut::exit_gate(&RESTART_PENDING, || match app.get_webview_window("main") {
-        Some(win) => crate::close_guard_decision(&win),
-        None => sharecut::close_decision_from_url(None),
+    let installing = app
+        .try_state::<UpdateController>()
+        .is_some_and(|ctl| ctl.snapshot().is_installing());
+    sharecut::exit_gate(&RESTART_PENDING, installing, || {
+        match app.get_webview_window("main") {
+            Some(win) => crate::close_guard_decision(&win),
+            None => sharecut::close_decision_from_url(None),
+        }
     })
 }
 
@@ -557,6 +569,26 @@ pub fn take_restart_on_exit() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inject_config_adds_the_updater_plugin_entry() {
+        let mut config = tauri::Config::default();
+        inject_config(
+            &mut config,
+            UpdaterConfig {
+                endpoint: "https://downloads.example.test/latest.json",
+                public_key: "PUBLIC-KEY",
+            },
+        );
+
+        assert_eq!(
+            config.plugins.0.get("updater"),
+            Some(&serde_json::json!({
+                "endpoints": ["https://downloads.example.test/latest.json"],
+                "pubkey": "PUBLIC-KEY",
+            }))
+        );
+    }
 
     #[test]
     fn plugin_config_deserializes_into_the_updater_plugin_config() {

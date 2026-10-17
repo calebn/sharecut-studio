@@ -55,15 +55,16 @@ Unsigned unless `APPLE_*` signing env vars are set — see
 make desktop-build
 ```
 
-Windows NSIS + Linux AppImage + macOS Intel DMG: iron Linux in Docker first
+Windows NSIS + Linux AppImage + macOS Intel and Apple Silicon DMGs: iron Linux in Docker first
 (`make desktop-linux-appimage-docker`), then GitHub **Actions → release-desktop → Run workflow**
 (no push/PR/tag; installer CI is manual). Leave **sign** unchecked for unsigned
 dogfood; check it only when Environment `desktop-signing` secrets exist (see
 [desktop-packaging.md § CI signing funnel](../../docs/desktop-packaging.md#ci-signing-funnel)).
-The Intel job is native `macos-15-intel` (not Rosetta on arm64). Download the
+The Intel job is native `macos-15-intel` and the Apple Silicon job is native
+`macos-15`; each checks `uname -m`, so neither is Rosetta-built. Download the
 artifacts and upload to object storage; do not put object storage credentials or signing certs
-in this repo. Apple Silicon notarized DMGs can stay `make desktop-build` on a
-Mac with `APPLE_*`.
+in this repo. An operator can still build a notarized DMG locally with
+`make desktop-build` on a Mac with `APPLE_*`.
 
 ## In-app updates
 
