@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import subprocess
@@ -24,6 +25,15 @@ from podcast_mcp.services.support.config_check import ConfigMode, run_config_che
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _minisign_file(comment: str, body: bytes) -> str:
+    text = f"untrusted comment: {comment}\n{base64.b64encode(body).decode()}\n"
+    return base64.b64encode(text.encode()).decode()
+
+
+PUBLIC_KEY = _minisign_file("minisign public key: placeholder", b"Ed" + bytes(range(40)))
+SECRET_KEY = _minisign_file("rsign encrypted secret key", b"Ed" + bytes(range(100)))
+
+
 def _valid_profile() -> dict[str, object]:
     return {
         "version": 1,
@@ -36,6 +46,8 @@ def _valid_profile() -> dict[str, object]:
         "repository_url": "https://code.example.test/repo",
         "release_manifest_url": "https://download.example.test/latest.json",
         "bootstrap_cdn_base": None,
+        "updater_endpoint": None,
+        "updater_public_key": None,
     }
 
 
@@ -403,3 +415,153 @@ def test_config_check_rejects_distributor_without_origins_and_unknown_mode(tmp_p
 
     with pytest.raises(ValueError, match="unsupported config mode"):
         run_config_checks(cast(ConfigMode, "unknown"))
+
+
+def test_updater_fields_are_required_and_both_or_neither() -> None:
+    raw = _valid_profile()
+    del raw["updater_endpoint"]
+    with pytest.raises(DistributionProfileError, match="updater_endpoint is required"):
+        distribution_profile_from_mapping(raw)
+
+    raw = _valid_profile()
+    raw["updater_endpoint"] = "https://cdn.example.test/latest.json"
+    with pytest.raises(DistributionProfileError, match="both be set or both be null"):
+        distribution_profile_from_mapping(raw)
+
+    raw = _valid_profile()
+    raw["updater_public_key"] = PUBLIC_KEY
+    with pytest.raises(DistributionProfileError, match="both be set or both be null"):
+        distribution_profile_from_mapping(raw)
+
+
+def test_updater_profile_emits_plugin_config_only() -> None:
+    raw = _valid_profile()
+    raw["updater_endpoint"] = "HTTPS://CDN.Example.Test/desktop/latest.json"
+    raw["updater_public_key"] = PUBLIC_KEY
+    profile = distribution_profile_from_mapping(raw)
+
+    overlay = tauri_distribution_overlay(profile)
+    assert profile.updater_endpoint == "https://cdn.example.test/desktop/latest.json"
+    assert overlay["plugins"]["updater"] == {
+        "endpoints": ["https://cdn.example.test/desktop/latest.json"],
+        "pubkey": PUBLIC_KEY,
+    }
+    assert "bundle" not in overlay
+
+
+def test_profile_without_updater_emits_no_updater_plugin() -> None:
+    overlay = tauri_distribution_overlay(distribution_profile_from_mapping(_valid_profile()))
+    assert "updater" not in overlay["plugins"]
+    assert "bundle" not in overlay
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ["http://cdn.example.test/latest.json", "https://127.0.0.1/latest.json", "cdn.example.test"],
+)
+def test_updater_endpoint_must_be_public_https(endpoint: str) -> None:
+    raw = _valid_profile()
+    raw["updater_endpoint"] = endpoint
+    raw["updater_public_key"] = PUBLIC_KEY
+    with pytest.raises(DistributionProfileError, match="updater_endpoint"):
+        distribution_profile_from_mapping(raw)
+
+
+@pytest.mark.parametrize(
+    ("key", "message"),
+    [
+        ("", "non-empty"),
+        (123, "non-empty"),
+        (PUBLIC_KEY + "\n", "without whitespace"),
+        (PUBLIC_KEY[:20] + " " + PUBLIC_KEY[20:], "without whitespace"),
+        ("A" * 2049, "at most 2048"),
+        (SECRET_KEY, "holds a private key"),
+        (_minisign_file("minisign public key: AB", b"Ed" + bytes(10)), "minisign public key file"),
+        (_minisign_file("minisign public key: AB", b"XX" + bytes(40)), "minisign public key file"),
+        (base64.b64encode(b"Ed" + bytes(40)).decode(), "minisign public key file"),
+        ("not*base64", "without whitespace"),
+    ],
+)
+def test_updater_public_key_rejects_malformed_and_private_material(
+    key: object, message: str
+) -> None:
+    raw = _valid_profile()
+    raw["updater_endpoint"] = "https://cdn.example.test/latest.json"
+    raw["updater_public_key"] = key
+    with pytest.raises(DistributionProfileError, match=message) as caught:
+        distribution_profile_from_mapping(raw)
+    if isinstance(key, str) and len(key) >= 40:
+        assert key[10:40] not in str(caught.value)
+
+
+def test_updater_public_key_field_is_not_mistaken_for_a_secret_name() -> None:
+    raw = _valid_profile()
+    raw["updater_endpoint"] = "https://cdn.example.test/latest.json"
+    raw["updater_public_key"] = PUBLIC_KEY
+    assert distribution_profile_from_mapping(raw).updater_public_key == PUBLIC_KEY
+    raw["updater_private_key"] = SECRET_KEY
+    with pytest.raises(DistributionProfileError, match="looks like a secret"):
+        distribution_profile_from_mapping(raw)
+
+
+def test_generator_overlay_never_requests_tauri_updater_artifacts(tmp_path: Path) -> None:
+    raw = _valid_profile()
+    raw["updater_endpoint"] = "https://cdn.example.test/latest.json"
+    raw["updater_public_key"] = PUBLIC_KEY
+    profile = tmp_path / "distribution.json"
+    profile.write_text(json.dumps(raw), encoding="utf-8")
+    out = tmp_path / "overlay.json"
+    script = ROOT / "scripts" / "generate_distribution_config.py"
+    done = subprocess.run(
+        [sys.executable, str(script), "--profile", str(profile), "--output", str(out)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stderr
+    overlay = json.loads(out.read_text(encoding="utf-8"))
+    assert overlay["plugins"]["updater"]["pubkey"] == PUBLIC_KEY
+    assert "bundle" not in overlay
+
+
+def test_distributor_check_reports_updater_state(tmp_path: Path) -> None:
+    raw = _valid_profile()
+    path = tmp_path / "distribution.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    off = run_config_checks("distributor", distribution_profile=path)
+    assert off.passed is True
+    assert any("in-app updates disabled" in check.message for check in off.checks)
+
+    raw["updater_endpoint"] = "https://cdn.example.test/latest.json"
+    raw["updater_public_key"] = PUBLIC_KEY
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    on = run_config_checks("distributor", distribution_profile=path)
+    assert any("updater endpoint and public key set" in check.message for check in on.checks)
+    assert PUBLIC_KEY not in "".join(check.message for check in on.checks)
+
+
+def test_profiles_validate_against_the_json_schema() -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads((ROOT / "contracts" / "distribution-profile.schema.json").read_text())
+    with_updater = _valid_profile() | {
+        "updater_endpoint": "https://cdn.example.test/latest.json",
+        "updater_public_key": PUBLIC_KEY,
+    }
+    dev = json.loads((ROOT / "config" / "distribution.dev.json").read_text())
+    for document in (dev, _valid_profile(), with_updater):
+        jsonschema.validate(document, schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({k: v for k, v in dev.items() if k != "updater_public_key"}, schema)
+
+
+def test_schema_requires_updater_fields_to_be_both_set_or_both_null() -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads((ROOT / "contracts" / "distribution-profile.schema.json").read_text())
+    base = _valid_profile()
+    jsonschema.validate(base, schema)
+    for fields in (
+        {"updater_endpoint": "https://c.example.test/l.json", "updater_public_key": None},
+        {"updater_endpoint": None, "updater_public_key": PUBLIC_KEY},
+    ):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(base | fields, schema)

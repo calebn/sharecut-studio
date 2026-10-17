@@ -575,7 +575,7 @@ distribution profile. Configuration is split by responsibility:
 |------|-------------|------------------------|
 | Local | Project files and optional machine preferences | Loopback GUI, editing, pipeline, export, development desktop profile |
 | Self-hosted collaboration | Relay domain/TLS, strong host token, and optionally an S3-compatible store | Relay/tunnel protocol, guest UI, local media-proxy fallback, redacted example |
-| Desktop distributor | Public identity/trust profile plus private signing and deployment credentials | Validated schema, Tauri overlay generator, reusable build scripts |
+| Desktop distributor | Public identity/trust profile, private signing and deployment credentials, an updater key pair, and feed hosting (for example on `cdn.sharecut.studio`) | Validated schema, Tauri overlay generator, reusable build scripts, update feed builder (`scripts/build_update_feed.py`) |
 
 Host runtime configuration lives at `~/.config/podcast_mcp/relay.yaml`; copy
 [`config/relay.example.yaml`](../config/relay.example.yaml). Relay-field precedence
@@ -596,8 +596,10 @@ Desktop identity is build-time public data. Copy
 [`config/distribution.dev.json`](../config/distribution.dev.json), keep it free
 of credentials, and set `PODCAST_DISTRIBUTION_PROFILE` while building. The
 profile controls product name, bundle identifier, custom schemes, exact HTTPS
-share origins, support/privacy/repository URLs, release manifest URL, and the
-optional bootstrap CDN base. Rust and Tauri consume generated values from the
+share origins, support/privacy/repository URLs, release manifest URL, the
+optional bootstrap CDN base, and the in-app updater endpoint and public key
+(both `null` to disable updates; the private updater key is a CI secret,
+never a profile field). Rust and Tauri consume generated values from the
 same file; the Tauri host injects the public support, privacy, repository, and
 release-manifest values into its Python sidecar. Sidecar links accept only public
 HTTPS URLs and do not read relay configuration or preferences. Unlisted HTTPS
