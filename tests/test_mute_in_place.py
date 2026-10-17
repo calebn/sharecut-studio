@@ -8,7 +8,8 @@ import pytest
 
 from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits.clips_ops import split_clip_at
-from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, reject_edits
+from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
+from podcast_mcp.edits.decisions import reject_edits
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.mute_regions import (
     IgnoredWordRegions,
@@ -29,6 +30,7 @@ from podcast_mcp.engines.timeline_render import render_track_from_timeline, rend
 from podcast_mcp.models import (
     Clip,
     ClipMuteRegion,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     EditMode,
@@ -518,7 +520,7 @@ def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, i
     from unittest.mock import patch
 
     project = _noise_floor_project(tmp_path)
-    with patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value=pad_mode):
+    with patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value=pad_mode):
         assert approve_edits(project, ["m1"]) == 1
     (region,) = project.clips[0].mute_regions
     assert (None if region.fill is None else (region.fill.start_s, region.fill.end_s)) == fill
@@ -552,8 +554,14 @@ def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region,
     project.transcripts[0].words.append(TranscriptWord(text="go", start=1.3, end=1.8))
     project.edit_decisions[0].next_burst_sec = next_burst_sec
 
-    with patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="silence"):
-        assert approve_edits(project, ["m1"]) == 1
+    with patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="silence"):
+        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+
+        before = project.model_dump(mode="json")
+        with pytest.raises(ScopeChangedAtApproval):
+            approve_edits(project, ["m1"])
+        assert project.model_dump(mode="json") == before
+        assert approve_edits(project, ["m1"], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
 
     (muted,) = project.clips[0].mute_regions
     assert (muted.start_s, muted.end_s, muted.fade_out_ms, muted.fade_in_ms) == (
@@ -1357,9 +1365,12 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
 def test_revert_mute_error_paths_and_per_track_source(tmp_path):
     from podcast_mcp.edits.edit_log import revert_applied_edit
     from podcast_mcp.models import AppliedEditRecord
-    from source_review_helpers import _project
 
-    project = _project(tmp_path)
+    project = EpisodeProject.create("p", "/tmp/ws")
+    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="host-main", track_id="host", source_start=0, source_end=1, timeline_start=0)
+    ]
     add_source_mute(project.clips[0], ClipMuteRegion(start_s=0.4, end_s=0.7))
     project.editorial.edit_log = [
         AppliedEditRecord(
@@ -1459,9 +1470,10 @@ def test_paste_skips_invalid_mute_region_entries():
     assert [(r.start_s, r.end_s) for r in pasted[0].mute_regions] == [(0.1, 0.3)]
 
 
-def _um_uh_project() -> tuple[EpisodeProject, dict]:
-    project = EpisodeProject.create("p", "/tmp/ws")
-    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+def _um_uh_project(tmp_path) -> tuple[EpisodeProject, dict]:
+    from source_review_helpers import _project
+
+    project = _project(tmp_path)
     project.clips = [
         Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0)
     ]
@@ -1513,8 +1525,8 @@ def _propose_with_stubbed_dsp(project: EpisodeProject, defaults: dict, edit_mode
         return propose_tighten_edits(project, defaults, edit_mode=edit_mode)
 
 
-def test_mute_mode_does_not_repropose_an_approved_mute():
-    project, defaults = _um_uh_project()
+def test_mute_mode_does_not_repropose_an_approved_mute(tmp_path):
+    project, defaults = _um_uh_project(tmp_path)
     first = _propose_with_stubbed_dsp(project, defaults, "mute")
     assert [d.type for d in first.decisions] == [EditDecisionType.MUTE]
     assert "already_muted" not in first.skip_counts
@@ -1529,8 +1541,8 @@ def test_mute_mode_does_not_repropose_an_approved_mute():
     assert again.skip_counts["already_muted"] == 2
 
 
-def test_mute_mode_still_proposes_a_filler_outside_the_muted_span():
-    project, defaults = _um_uh_project()
+def test_mute_mode_still_proposes_a_filler_outside_the_muted_span(tmp_path):
+    project, defaults = _um_uh_project(tmp_path)
     project.clips[0].mute_regions = [ClipMuteRegion(start_s=0.5, end_s=0.6)]
 
     proposed = _propose_with_stubbed_dsp(project, defaults, "mute")
@@ -1540,7 +1552,7 @@ def test_mute_mode_still_proposes_a_filler_outside_the_muted_span():
 
 
 def test_ripple_mode_ignores_existing_mute_regions(tmp_path):
-    project, defaults = _um_uh_project()
+    project, defaults = _um_uh_project(tmp_path)
     project.meta.workspace_dir = str(tmp_path)
     project.tracks[0].media = MediaAsset(path="raw/host.wav", duration_sec=5)
     audio = room(5)
@@ -1626,7 +1638,7 @@ def _approved_silent_mute(tmp_path: Path) -> tuple[EpisodeProject, ClipMuteRegio
     from unittest.mock import patch
 
     project = _noise_floor_project(tmp_path)
-    with patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="silence"):
+    with patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="silence"):
         assert approve_edits(project, ["m1"]) == 1
     (region,) = project.clips[0].mute_regions
     return project, region, _render_samples(project)
@@ -1726,7 +1738,12 @@ def _trim(ws: ProjectWorkspace, edge: str, source_sec: float) -> None:
 
     token = boundary_context(ws.project, TrimBoundaryTarget(clip_id="c1", edge=edge)).token
     EditService(ws).trim_clip_edge(
-        "c1", edge, source_sec, mode=EditMode.RIPPLE, expected_token=token
+        "c1",
+        edge,
+        source_sec,
+        mode=EditMode.RIPPLE,
+        expected_token=token,
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
 
 

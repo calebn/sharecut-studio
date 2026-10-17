@@ -381,8 +381,8 @@ _PENDING_POOLS: set[tuple[str, FileRevision]] = set()
 def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) -> None:
     """Record the pool of each track that has none, now, on the caller's thread.
 
-    For a real approve (never a preview or a plan): the first one on a recording pays the
-    pick once, and every later one reads the record. A track that cannot be read is skipped.
+    Ingest and background warming record pools. Cut requests only read existing pools
+    or select live room tone without recording it. Unreadable tracks are skipped.
     """
     for track_id in dict.fromkeys(track_ids):
         try:

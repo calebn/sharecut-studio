@@ -97,21 +97,6 @@ const chooser = (page: Page) =>
   page.locator(".target-chooser:not(.is-closing)");
 const sheet = (page: Page) => page.locator(".bottom-sheet");
 
-/**
- * The trim at the 10 s join ripples over the guest's speech from 9.8 s, so
- * the host asks first (#1154); a finger confirms with Cut anyway.
- */
-async function cutAnyway(page: Page, finger: Finger): Promise<void> {
-  const dialog = page.getByRole("dialog", { name: "Cut guest's speech too?" });
-  await expect(dialog).toBeVisible();
-  const target = dialog.getByRole("button", { name: "Cut anyway" });
-  await target.click({ trial: true });
-  const button = await centerOfBox(target);
-  await finger.down(button);
-  await finger.up();
-  await expect(dialog).toBeHidden();
-}
-
 async function centerOfBox(locator: Locator): Promise<Point> {
   const box = await locator.boundingBox({ timeout: 5000 });
   if (!box) throw new Error("no box");
@@ -385,7 +370,6 @@ async function chipCase(
   await run(page, finger, (step) =>
     frame(page, info, `chip-${slug}-${browserName}-${step}`),
   );
-  if (moves) await cutAnyway(page, finger);
   const row = {
     case: name,
     input: finger.input,
@@ -639,7 +623,6 @@ async function dragStowsStrip(
   }
   json(info, `stowed-focus-${size}-${browserName}`, focusSteps);
   await finger.up();
-  await cutAnyway(page, finger);
   await page.waitForTimeout(900);
   const released = await sheetState(page);
   await frame(page, info, `stow-${size}-3-released-${browserName}`);

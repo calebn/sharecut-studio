@@ -23,8 +23,7 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         ids,
         continues_head_id=str(continues) if continues is not None else None,
         allow_exact=p.get("_allow_exact") is True,
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
-        allow_review=p.get("allow_review", True) is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
         held_out=held if hold_blocked else None,
         asked_out=asked if hold_blocked else None,
     )
@@ -37,7 +36,7 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         "held": [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held],
     }
     if asked:
-        # Applied what it could; these cuts wait for "Cut anyway", which sends only them.
+        # Report the remaining speech for interactive review.
         result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
         result["confirm_ids"] = list(asked[0].edit_ids)
     return result
@@ -49,6 +48,7 @@ def apply_suggested_actions(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str
         list(ids) if ids is not None else None,
         overrides=dict(p.get("overrides") or {}),
         revise=p.get("revise") is True,
+        application_intent=p["_boundary_intent"],
     )
 
 
@@ -93,7 +93,7 @@ def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         float(p["source_sec"]),
         mode=EditMode(p["mode"]),
         expected_token=str(p["expected_token"]),
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
 
 
@@ -173,7 +173,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         propose=structural is StructuralMutationMode.PROPOSE,
         reason=reason,
         author=p.get("_author"),
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
 
 
@@ -220,7 +220,7 @@ def cut_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         float(p["end"]),
         mode=EditMode(p["mode"]),
         track_ids=[str(t) for t in p.get("track_ids") or []],
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
 
 

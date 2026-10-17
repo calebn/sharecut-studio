@@ -4,10 +4,10 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
 from podcast_mcp.edits.timeline_ops import (
+    _write_ripple_delete,
     duplicate_segment,
     fill_with_room_tone,
     insert_gap,
@@ -15,7 +15,6 @@ from podcast_mcp.edits.timeline_ops import (
     move_by_text,
     move_segment,
     plan_ripple_delete_text,
-    ripple_delete,
     set_clip_fade,
     split_clip,
 )
@@ -345,7 +344,7 @@ def test_list_clips() -> None:
 def test_ripple_delete_text() -> None:
     p = _two_track_project()
     removal = plan_ripple_delete_text(p, "hello", use_inaudible_opt=False)
-    summary = ripple_delete(p, SpeechClearance(removal))
+    summary = _write_ripple_delete(p, removal)
     assert summary["operation"] == "ripple_delete"
 
 

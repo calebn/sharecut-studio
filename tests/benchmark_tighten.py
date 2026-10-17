@@ -21,7 +21,8 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
-from podcast_mcp.edits.decisions import approve_edits, edit_timeline_range
+from podcast_mcp.edits.cut_application import approve_edits
+from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
@@ -219,7 +220,7 @@ def run_tighten_benchmark(
 
         t1 = time.perf_counter()
         if approved:
-            approve_edits(project, approved, confirm_cut_speech=True)
+            approve_edits(project, approved)
         apply_tighten_decisions(project)
         result.apply_sec = time.perf_counter() - t1
 

@@ -2718,7 +2718,7 @@ def test_a_replacement_pad_counts_against_actual_played_loss(air_end, loss):
     from podcast_mcp.edits.fillers import _CutPlan
 
     pad = PacedPad(gap_sec=0.45, min_sec=0.45, retain=1, max_sec=0.45)
-    plan = _CutPlan.for_cut(1, air_end, mute=False, pad=pad)
+    plan = _CutPlan.for_cut(1, air_end, mute=False, pad=pad, reason="filler:fixture")
     assert plan.replace_gap_sec == pytest.approx(0.45)
     assert plan.end - plan.start - (plan.replace_gap_sec or 0) == pytest.approx(loss)
 
@@ -3183,7 +3183,7 @@ def test_cut_starting_in_a_kept_words_tail_starts_after_its_voice(tmp_path, reas
         track_id="host", start=0.85, end=1.1, reason=reason, cut_kind="filler"
     )
     # Pacing or snapping left the start inside the tail of "So".
-    plan = _CutPlan.for_cut(0.62, 1.1, mute=True, pad=None)
+    plan = _CutPlan.for_cut(0.62, 1.1, mute=True, pad=None, reason="filler:fixture")
 
     moved = _between_kept_voices(
         project,
@@ -3283,7 +3283,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
         )
         so = _between_kept_voices(
             project,
-            _CutPlan.for_cut(0.52, 1.2, mute=True, pad=None),
+            _CutPlan.for_cut(0.52, 1.2, mute=True, pad=None, reason="filler:fixture"),
             run,
             audio_cache=cache,
             defaults=load_defaults(),
@@ -3293,7 +3293,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
         )
         started = _start_at_filler_onset(
             project,
-            _CutPlan.for_cut(2.25, 2.6, mute=True, pad=None),
+            _CutPlan.for_cut(2.25, 2.6, mute=True, pad=None, reason="filler:fixture"),
             uh,
             audio_cache=cache,
             defaults=load_defaults(),
@@ -3364,7 +3364,7 @@ def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
 
     gated = _between_kept_voices(
         project,
-        _CutPlan.for_cut(0.72, 0.9, mute=True, pad=None),
+        _CutPlan.for_cut(0.72, 0.9, mute=True, pad=None, reason="filler:fixture"),
         candidate,
         audio_cache=build_track_audio_caches(project, {"host"})["host"],
         defaults=load_defaults(),
@@ -3465,7 +3465,7 @@ def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
     import numpy as np
 
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.engines.play_audit import premix_path
     from podcast_mcp.render import rerender_preview
 
@@ -3520,8 +3520,8 @@ def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_
     import numpy as np
 
     from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
-    from podcast_mcp.edits.decisions import approve_edits
 
     rate = 48_000
     noise = np.random.default_rng(3).standard_normal(round(0.05 * rate))
@@ -3564,8 +3564,8 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
     import numpy as np
 
     from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
-    from podcast_mcp.edits.decisions import approve_edits
 
     rate = 48_000
 
@@ -3667,7 +3667,9 @@ def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
         track_id="host", start=1.15, end=1.25, reason="filler:like", cut_kind="filler"
     )
     ungated_start_inside_prev_word_decay = 1.10
-    plan = _CutPlan.for_cut(ungated_start_inside_prev_word_decay, 1.26, mute=False, pad=None)
+    plan = _CutPlan.for_cut(
+        ungated_start_inside_prev_word_decay, 1.26, mute=False, pad=None, reason="filler:fixture"
+    )
     started = _start_at_filler_onset(project, plan, like, audio_cache=cache, defaults=defaults)
     assert isinstance(started, _CutPlan)
     gated = _between_kept_voices(project, started, like, audio_cache=cache, defaults=defaults)
@@ -3777,16 +3779,18 @@ def test_cut_plan_paces_its_pad_from_its_own_span():
     from podcast_mcp.edits.fillers import _CutPlan
 
     pad = PacedPad(gap_sec=0.0, min_sec=0.35, retain=0.85, max_sec=1.0)
-    plan = _CutPlan.for_cut(1.2, 1.3, mute=False, pad=pad)
+    plan = _CutPlan.for_cut(1.2, 1.3, mute=False, pad=pad, reason="filler:fixture")
 
     assert (plan.join, plan.replace_gap_sec) == (CutJoin.PADDED, pytest.approx(0.35))
     # An edge check that moves the left edge to the voice resizes the pad with it.
     assert replace(plan, start=0.5).replace_gap_sec == pytest.approx(0.68)
     # Air the cut took whole still sets the floor when the span shrinks inside it.
-    gap_plan = _CutPlan.for_cut(1.0, 2.0, mute=False, pad=replace(pad, gap_sec=1.1))
+    gap_plan = _CutPlan.for_cut(
+        1.0, 2.0, mute=False, pad=replace(pad, gap_sec=1.1), reason="filler:fixture"
+    )
     assert replace(gap_plan, end=1.5).replace_gap_sec == pytest.approx(0.935)
     # A mute keeps its time, so it inserts no pad.
-    mute = _CutPlan.for_cut(1.2, 1.3, mute=True, pad=pad)
+    mute = _CutPlan.for_cut(1.2, 1.3, mute=True, pad=pad, reason="filler:fixture")
     assert (mute.join, mute.replace_gap_sec) == (CutJoin.MUTE, None)
 
 
@@ -3985,11 +3989,3 @@ def test_a_pause_with_a_source_hole_retains_original_air_or_holds(floor, propose
     else:
         assert result == CutRejected("no_air")
     assert project.model_dump(mode="json") == before
-
-
-def test_spans_agree_within_float_error_of_a_round_trip():
-    from podcast_mcp.edits.cut_safety import _spans_agree
-
-    assert _spans_agree((1.2, 1.2 + 2.45), (1.2, 3.65))
-    assert not _spans_agree((1.2, 3.66), (1.2, 3.65))
-    assert not _spans_agree(None, (1.2, 3.65))

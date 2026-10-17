@@ -12,7 +12,6 @@ from podcast_mcp.models import (
     Clip,
     CutIntent,
     EditDecision,
-    EditDecisionType,
     EpisodeProject,
     MediaAsset,
     ProposalOrigin,
@@ -137,26 +136,6 @@ def test_source_by_id(minimal_project):
     found = proj.source_by_id("src-a")
     assert found is not None and found.path == "raw/a.wav"
     assert proj.source_by_id("missing") is None
-
-
-def test_edit_segments():
-    from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
-    eng = FFmpegEngine()
-    edits = [
-        EditDecision(
-            id="1",
-            track_id="host",
-            type=EditDecisionType.REMOVE,
-            start=0.5,
-            end=0.8,
-            applied=True,
-        )
-    ]
-    segs = eng.segments_after_edits(2.0, edits, "host")
-    assert len(segs) == 2
-    assert segs[0].start == 0.0 and segs[0].end == 0.5
-    assert segs[1].start == 0.8 and segs[1].end == 2.0
 
 
 def test_cut_intent_defaults_programmatic_but_serialized_projects_require_facts():

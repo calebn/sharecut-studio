@@ -71,7 +71,7 @@ def defaults(*, acoustic: bool = False, mode: str = "room_tone") -> dict:
 
 def configure(monkeypatch, cfg: dict) -> None:
     for target in (
-        "podcast_mcp.edits.source_removals.load_defaults",
+        "podcast_mcp.edits.cut_application.load_defaults",
         "podcast_mcp.edits.decisions.load_defaults",
         "podcast_mcp.edits.filler_pacing.load_defaults",
         "podcast_mcp.services.document.edit.load_defaults",
@@ -201,3 +201,30 @@ def primary_spans(result: EpisodeProject, tid="host"):
         for c in result.clips
         if c.track_id == tid and c.source_id is None
     )
+
+
+def prepare_pause(result, request, cfg, *, next_word=5):
+    from podcast_mcp.edits.cut_proof import shared_source_audio_caches
+    from podcast_mcp.edits.cut_safety import CutRejected
+    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate, _decision_for_analyzed
+
+    caches = shared_source_audio_caches(result)
+    analyzed = _analyze_candidate(
+        result,
+        _CutCandidate(
+            request.track_id,
+            request.start,
+            request.end,
+            request.reason,
+            "pause",
+            max_end=request.end,
+            min_start=request.start,
+            gap_end=next_word,
+            decision_id=request.id,
+        ),
+        cfg,
+        audio_cache=caches[request.track_id],
+        audio_caches=caches,
+    )
+    assert not isinstance(analyzed, CutRejected), analyzed
+    return _decision_for_analyzed(analyzed)

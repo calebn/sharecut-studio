@@ -797,7 +797,7 @@ describe("ClipBlock waveform", () => {
       });
     });
 
-    it("says Trim saved for a trim the host applies, and nothing when it asks first", async () => {
+    it("reports saved manual trims and structural refusals", async () => {
       const row = { ...clip, source_end: 2, timeline_end: 2 };
       const { container } = renderWithKeymap(row);
       const handle = container.querySelector(
@@ -811,10 +811,7 @@ describe("ClipBlock waveform", () => {
       );
 
       useDawStore.getState().announceStatus("");
-      vi.mocked(trimClipEdge).mockResolvedValueOnce({
-        queued: false,
-        asked: true,
-      });
+      vi.mocked(trimClipEdge).mockRejectedValueOnce(new Error("Clip moved"));
       fireEvent.keyDown(handle, { key: "ArrowLeft" });
       expect(container.querySelector(".trim-readout")).not.toBeNull();
       fireEvent.keyUp(handle, { key: "ArrowLeft" });
@@ -822,7 +819,7 @@ describe("ClipBlock waveform", () => {
       await waitFor(() =>
         expect(container.querySelector(".trim-readout")).toBeNull(),
       );
-      expect(useDawStore.getState().statusAnnouncement).toBe("");
+      expect(useDawStore.getState().statusAnnouncement).toContain("Clip moved");
     });
 
     it("keeps the captured pair through a delayed refusal and retries from restored fades", async () => {

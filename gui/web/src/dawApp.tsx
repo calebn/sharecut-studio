@@ -19,7 +19,6 @@ import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
 import { useDawKeymapListener } from "./keymap/listener";
 import { BounceDialog } from "./layout/BounceDialog";
 import { CheatsheetDialogs } from "./layout/CheatsheetDialogs";
-import { CutSpeechDialog } from "./layout/CutSpeechDialog";
 import { ExportDialog } from "./layout/ExportDialog";
 import { HostMcpDialog } from "./layout/HostMcpDialog";
 import { ShareDialog } from "./layout/ShareDialog";
@@ -210,7 +209,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       </div>
       <CheatsheetDialogs />
       <BounceDialog />
-      <CutSpeechDialog />
       <ExportDialog />
       <SplitSpeakersDialog />
       <ShareDialog />

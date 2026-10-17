@@ -17,6 +17,7 @@ from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
     ClipMuteRegion,
+    CutIntent,
     EditMode,
     EpisodeProject,
     load_project,
@@ -79,9 +80,6 @@ def _trimmed_nested_project(tmp_path: Path) -> EpisodeProject:
 def test_single_source_nested_follower_has_independent_authored_placement(tmp_path: Path) -> None:
     project = _trimmed_nested_project(tmp_path)
     engine = MagicMock(spec=FFmpegEngine)
-    engine.segments_after_edits.side_effect = lambda duration, *_args: [
-        MagicMock(start=0.0, end=duration)
-    ]
 
     render_track_from_timeline(
         project, project.tracks[0], tmp_path / "render.wav", {}, engine=engine
@@ -127,7 +125,7 @@ def test_saved_ripple_trim_renders_single_source_at_saved_positions(tmp_path: Pa
         6,
         mode=EditMode.RIPPLE,
         expected_token=boundary_context(workspace.project, target).token,
-        confirm_cut_speech=True,
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
 
     saved = load_project(project_path)
@@ -227,7 +225,7 @@ def test_saved_ripple_trim_keeps_nested_crossfade_at_saved_positions(
         6,
         mode=EditMode.RIPPLE,
         expected_token=boundary_context(workspace.project, target).token,
-        confirm_cut_speech=True,
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
 
     saved = load_project(project_path)

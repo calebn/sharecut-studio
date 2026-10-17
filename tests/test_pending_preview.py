@@ -27,7 +27,7 @@ from podcast_mcp.models import (
 
 @pytest.fixture(autouse=True)
 def _silent_pads(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("podcast_mcp.edits.source_removals.filler_pad_mode", lambda: "silence")
+    monkeypatch.setattr("podcast_mcp.edits.cut_application.filler_pad_mode", lambda: "silence")
 
 
 def _project() -> EpisodeProject:
@@ -138,6 +138,7 @@ def _rendered_project(minimal_project, edit: EditDecision):
     """Two dialogue tracks of amplitude-modulated tone, so fades and pads show in the samples.
 
     The guest is silent from 1 s to 4 s, so a host cut there ripples the whole session.
+    Quiet boundary collars keep the new fades off the voiced tone.
     A host burst at 5 s pushes the whole mix past the peak ceiling, so the premix is
     trimmed by headroom that no preview window measures on its own.
     """
@@ -151,6 +152,11 @@ def _rendered_project(minimal_project, edit: EditDecision):
             (
                 int(
                     (30000 if track_id == "host" and 240000 <= i < 264000 else 6000)
+                    * (
+                        0.001
+                        if any(abs(i / 48000 - edge) < 0.16 for edge in (edit.start, edit.end))
+                        else 1
+                    )
                     * math.sin(2 * math.pi * (330 + 110 * index) * i / 48000)
                     * (0.55 + 0.45 * math.sin(2 * math.pi * 3 * i / 48000))
                 )
@@ -198,7 +204,7 @@ def _premix_window(ws, start: float, end: float, *, approve: str | None = None):
     import tempfile
     from pathlib import Path
 
-    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.render import rerender_preview
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService

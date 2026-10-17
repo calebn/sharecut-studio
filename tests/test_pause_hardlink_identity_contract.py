@@ -38,7 +38,7 @@ def test_hardlink_replay_holds_without_mutation(tmp_path, monkeypatch, via_sourc
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert held.value.ids == ("cut",)
     assert held.value.held[0].reason == "source_geometry"
     assert files(tmp_path) == before_files
@@ -62,7 +62,7 @@ def test_implicit_hardlink_replay_holds_without_mutation(tmp_path, monkeypatch, 
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert held.value.ids == ("cut",)
     assert held.value.held[0].reason == "source_geometry"
     assert files(tmp_path) == before_files
@@ -82,7 +82,7 @@ def test_own_implicit_playback_and_parked_alias_hold(tmp_path, monkeypatch):
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert held.value.held[0].reason == "source_geometry"
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
@@ -104,7 +104,7 @@ def test_unclipped_silent_alias_or_different_media_is_consumable(
     music.timeline_empty = silent_alias
     result.edit_decisions = [_cut()]
     ws = workspace(result)
-    assert EditService(ws).approve(["cut"], confirm_cut_speech=True) == 1
+    assert EditService(ws).approve(["cut"]) == 1
     assert load_project(ws.path).timeline.duration_sec == 5
 
 
@@ -115,7 +115,7 @@ def test_single_hardlink_placement_is_consumable(tmp_path, monkeypatch):
     result.clips[0].source_id = "alias"
     result.edit_decisions = [_cut()]
     ws = workspace(result)
-    assert EditService(ws).approve(["cut"], confirm_cut_speech=True) == 1
+    assert EditService(ws).approve(["cut"]) == 1
     saved = load_project(ws.path)
     assert saved.timeline.duration_sec == 5
     assert [(c.source_start, c.source_end, c.timeline_start, c.source_id) for c in saved.clips] == [

@@ -180,10 +180,9 @@ enforced-by:
 roll first wherever both are in reach, however near the strip is. The grabbed
 edge moves, the neighbour's edge follows, and nothing later shifts. A touch
 long press at a join still opens the chooser, which offers each side's ripple
-trim. A touch trim drag commits like a mouse one: a ripple over another
-speaker's speech saves nothing and opens `CutSpeechDialog` (a bottom sheet on
-a phone), and Leave a gap resends it in gap mode
-(`e2e-compat/touch-grammar.spec.ts`, #1154).
+trim. A touch trim drag commits like a mouse one. Both carry trusted manual intent
+under D-manual-cut-intent, while structural limits remain mandatory
+(`e2e-compat/touch-grammar.spec.ts`, #1154, #1403).
 
 ### Superseded decision: Sheets have no drag gesture
 
@@ -844,8 +843,7 @@ consistent visual language", and for press-and-hold to repeat them.
 - **One edit per run.** Each step previews in the project, so the timeline
   draws it, and the run saves once when it ends: one document command and
   one Undo (`inspector/useNudgeRun.ts`). A failed save puts the saved value
-  back, and so does a ripple trim the host asks about first: it opens
-  `CutSpeechDialog`, whose Cut anyway or Leave a gap sends the trim again
+  back. A successful manual trim sends once with trusted interactive intent
   ([Edit modes](daw-editing.md#edit-modes-ripple-and-gap)).
 - **Boundaries.** Hard limits always stop a run: source bounds, a fade's
   room in its clip, envelope points keeping their order (1 ms apart) and the

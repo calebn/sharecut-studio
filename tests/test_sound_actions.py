@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits.sound_actions import (
-    SOUND_ACTIONS,
+from podcast_mcp.edits.cut_safety import (
+    SOUND_POLICY,
     SUGGESTED_ACTIONS,
     sound_kind,
-    sound_label_and_action,
+    sound_policy,
 )
 from podcast_mcp.edits.tighten import TightenProposal
 from podcast_mcp.models.episode import EditDecision
 
-# reason -> (kind, label, default action).  A new row in SOUND_ACTIONS needs a line here
+# reason -> (kind, label, default action).  A new row in SOUND_POLICY needs a line here
 # only when a detector emits its kind.
 CASES = [
     ("filler:um", "filler", "Filler word", "cut"),
@@ -50,17 +50,26 @@ CASES = [
 @pytest.mark.parametrize(("reason", "kind", "label", "action"), CASES)
 def test_default_label_and_action(reason: str, kind: str, label: str, action: str) -> None:
     assert sound_kind(reason) == kind
-    assert sound_label_and_action(reason) == (label, action)
+    for mode in ("ripple", "mute"):
+        row = sound_policy(reason, mode)
+        assert row is not None
+        assert (row.label, row.action, row.join.value) == (
+            label,
+            action,
+            "mute" if mode == "mute" else "splice",
+        )
 
 
 def test_non_tighten_reason_has_no_suggestion() -> None:
-    assert sound_label_and_action("manual cut") is None
-    assert sound_label_and_action(None) is None
+    assert sound_policy("manual cut") is None
+    assert sound_policy(None) is None
 
 
 def test_every_row_uses_a_known_action_and_every_case_kind_has_a_row() -> None:
-    assert all(row.action in SUGGESTED_ACTIONS for row in SOUND_ACTIONS.values())
-    assert all(kind in SOUND_ACTIONS for _, kind, _, _ in CASES)
+    assert all(row.action in SUGGESTED_ACTIONS for row in SOUND_POLICY.values())
+    assert all(
+        (kind, mode) in SOUND_POLICY for _, kind, _, _ in CASES for mode in ("ripple", "mute")
+    )
 
 
 def test_propose_payload_carries_label_and_action() -> None:

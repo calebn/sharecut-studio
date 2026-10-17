@@ -23,8 +23,7 @@ export type ClipEdgeChange =
 /**
  * Saves `change` to `clip`; a ripple trim moves every dialogue track. Returns false
  * when nothing was saved: `fresh` turned false once the trim's boundary token
- * arrived (the trim is dropped unsent), or the ripple would cut another
- * speaker's speech and the host asked first (`CutSpeechDialog` resubmits it).
+ * arrived (the trim is dropped unsent).
  * The save counts as in flight from the call, boundary token included, so an
  * Undo pressed meanwhile waits behind it (`trackEditSave`).
  */
@@ -61,7 +60,7 @@ async function send(
     [{ id, source_start, source_end, timeline_start, source_id }],
   );
   if (!fresh()) return false;
-  const { asked } = await trimClipEdge(
+  await trimClipEdge(
     projectPath,
     id,
     change.edge,
@@ -69,5 +68,5 @@ async function send(
     change.mode,
     boundary.token,
   );
-  return !asked;
+  return true;
 }

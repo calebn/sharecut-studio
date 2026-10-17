@@ -12,6 +12,7 @@ from pause_policy_public_helpers import (
     defaults,
     files,
     pause,
+    prepare_pause,
     primary_spans,
     project,
     room,
@@ -90,15 +91,16 @@ def _same_raw(played, tmp_path, timeline_start, source_start, seconds):
 def test_saved_and_suggested_retain_original_bilateral_air_without_a_pad(
     tmp_path, monkeypatch, mode, tail, end, duration, next_word, preview_end, left_fade, spans
 ):
-    _enabled(monkeypatch, mode)
-    ws = workspace(_placed(tmp_path, tail=tail))
+    cfg = _enabled(monkeypatch, mode)
+    result = _placed(tmp_path, tail=tail)
+    result.edit_decisions = [prepare_pause(result, result.edit_decisions[0], cfg)]
+    ws = workspace(result)
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     snapshot = ws.project.model_copy(deep=True)
 
-    assert apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "bilateral")) == (
-        pytest.approx(preview_end)
-    )
+    window = resolve_pending_preview(snapshot, "bilateral", pad_sec=0.7 if tail else 0.5)
+    assert apply_for_suggested(snapshot, window) == pytest.approx(preview_end)
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
     assert [(e.id, e.applied) for e in load_project(ws.path).edit_decisions] == [

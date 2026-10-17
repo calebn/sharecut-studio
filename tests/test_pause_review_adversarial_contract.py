@@ -75,7 +75,7 @@ def test_source_remove_refuses_replay_under_equivalent_media_path(tmp_path, monk
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval):
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
     assert load_project(ws.path).model_dump(mode="json") == before_model

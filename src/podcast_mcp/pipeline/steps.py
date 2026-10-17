@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
+from podcast_mcp.edits.cut_application import apply_suggested_to_project
 from podcast_mcp.edits.room_tone import ensure_room_tone_pools
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.mastering import (
@@ -443,7 +444,7 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
         prefer_parent=True,
     ) as prog:
         prog.set_phase("apply", "Applying tighten cuts…")
-        applied = apply_tighten_decisions(project)
+        applied = apply_tighten_decisions(project, defaults)
     return f"{applied} tighten cuts applied"
 
 
@@ -463,11 +464,9 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
     on).  Cuts the speech guard would hold apply as the session ripple and the summary
     counts them, so a pipeline run and Studio's Apply suggested actions agree.
     """
-    from podcast_mcp.edits.sound_actions import is_non_speech_sound
+    from podcast_mcp.edits.cut_safety import decision_policy, is_non_speech_sound
     from podcast_mcp.edits.suggested_actions import (
         SuggestedActionsResult,
-        apply_suggested_to_project,
-        suggested_action_for,
     )
     from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
     from podcast_mcp.pipeline.meta import step_noop_reason
@@ -496,11 +495,11 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
             ] + found
         prog.set_phase("apply", "Applying sound actions…")
         actions: dict[str, str] = {
-            e.id: action
+            e.id: policy.action
             for e in project.edit_decisions
             if not e.applied
             and is_non_speech_sound(e.reason)
-            and (action := suggested_action_for(e)) is not None
+            and (policy := decision_policy(e)) is not None
         }
         if not actions:
             return "no non-speech sounds to act on"

@@ -10,19 +10,17 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
+from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_safety import (
-    CutScopeHold,
     ResolvedCutScope,
     assess_cross_track_speech,
-    clear_ripple,
     resolve_cut_scope,
 )
-from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, SpeechClearance
-from podcast_mcp.edits.decisions import approve_edits
+from podcast_mcp.edits.cut_speech import assess_cut_speech
 from podcast_mcp.edits.ripple import RippleRemoval, TrackExtent, ripple_remove_clips
-from podcast_mcp.edits.source_removals import consume_source_remove
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.speech_energy_guard import _voice_refs, measure_peer_speech
-from podcast_mcp.edits.timeline_ops import punch_delete
+from podcast_mcp.edits.timeline_ops import _write_punch_delete
 from podcast_mcp.edits.transcript_cuts import add_remove_decision
 from podcast_mcp.engines.audio_audit import (
     _played_window,
@@ -35,6 +33,7 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.ungated_audio import raw_timeline_samples
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -468,8 +467,8 @@ def test_add_remove_decision_over_peer_speech_waits_for_review(monkeypatch):
     assert "other_speaking:guest" in (d.reason or "")
 
 
-def test_approve_an_explicit_gap_keeps_peer_clips():
-    p = _two_track()
+def test_approve_an_explicit_gap_keeps_peer_clips(tmp_path):
+    p = _project_with_peer_audio(tmp_path, np.zeros(10 * _SR))
     p.edit_decisions = [
         EditDecision(
             id="cut1",
@@ -522,7 +521,12 @@ def test_punch_delete_updates_one_track():
             confidence=1.0,
             details={},
         )
-        punch_delete(p, "host", 1.0, 1.5, use_inaudible_opt=False)
+        _write_punch_delete(
+            p,
+            "host",
+            1.0,
+            1.5,
+        )
     assert len(clips_for_track(p, "host")) == 2
     assert len(clips_for_track(p, "guest")) == 1
 
@@ -1366,8 +1370,8 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
         assert levels.speaking == (("guest",) if removed else ())
         assert levels.unread == {}
         removal = RippleRemoval.of([TrackExtent("host", *spans[0])])
-        clearance = clear_ripple(p, removal, confirm_cut_speech=False, defaults=_GUARD_ON)
-        assert isinstance(clearance, SpeechClearance) is (not removed)
+        clearance = assess_cut_speech(p, removal, defaults=_GUARD_ON)
+        assert (clearance is not None) is removed
         edit = EditDecision(
             id="native-boundary",
             track_id="host",
@@ -1380,34 +1384,26 @@ def test_sealed_peer_boundaries_follow_native_forward_removal(
             review_required=False,
             applied=False,
         )
-        result = consume_source_remove(
-            p,
-            edit,
-            confirm_cut_speech=False,
-            allow_review=True,
-            batch=(),
-            use_inaudible_opt=False,
-            record_log=False,
-        )
+        p.edit_decisions.append(edit)
+        snapshot = p.model_dump(mode="json")
         if removed:
-            assert isinstance(result, CutScopeHold)
-            assert result.reason == "peer_speech"
+            with pytest.raises(ScopeChangedAtApproval) as held:
+                approve_edits(p, [edit.id])
+            assert held.value.held[0].reason == "peer_speech"
             assert np.array_equal(_played_window(p, "guest", 0.0, 8.50004), before)
-            assert isinstance(clearance, CutSpeechConfirmation)
-            confirmed = consume_source_remove(
-                p,
-                edit.model_copy(update={"cut_speech": clearance.speech}),
-                confirm_cut_speech=True,
-                allow_review=True,
-                batch=(),
-                use_inaudible_opt=False,
-                record_log=False,
-            )
-            assert isinstance(confirmed, tuple)
+            assert clearance is not None
+            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
             assert np.count_nonzero(_played_window(p, "guest", 0.0, 6.50004)) == 0
             assert np.count_nonzero(raw_timeline_samples(p, "guest")) == 0
         else:
-            assert isinstance(result, tuple)
+            with pytest.raises(ScopeChangedAtApproval) as held:
+                approve_edits(p, [edit.id])
+            assert held.value.held[0].reason == "acoustic_edge"
+            assert held.value.held[0].detail == "breath_edge"
+            assert p.model_dump(mode="json") == snapshot
+            assert np.array_equal(_played_window(p, "guest", 0.0, 8.50004), before)
+            assert np.array_equal(raw_timeline_samples(p, "guest"), before_cache)
+            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
             after = _played_window(p, "guest", 0.0, 6.50004)
             assert np.count_nonzero(after) == 1
             assert after[after != 0].tolist() == before[before != 0].tolist()
@@ -1457,13 +1453,12 @@ def test_source_removal_preserves_nearest_even_split_endpoint(tmp_path: Path, ca
         assert levels is not None
         assert levels.speaking == (("guest",) if removed else ())
         assert levels.unread == {}
-        clearance = clear_ripple(
+        clearance = assess_cut_speech(
             p,
             RippleRemoval.of([TrackExtent("host", *spans[0])]),
-            confirm_cut_speech=False,
             defaults=_GUARD_ON,
         )
-        assert isinstance(clearance, SpeechClearance) is (not removed)
+        assert (clearance is not None) is removed
         edit = EditDecision(
             id="nearest-even-boundary",
             track_id="host",
@@ -1476,31 +1471,24 @@ def test_source_removal_preserves_nearest_even_split_endpoint(tmp_path: Path, ca
             review_required=False,
             applied=False,
         )
+        p.edit_decisions.append(edit)
         snapshot = p.model_dump(mode="json")
-        result = consume_source_remove(
-            p,
-            edit,
-            confirm_cut_speech=False,
-            allow_review=True,
-            batch=(),
-            use_inaudible_opt=False,
-            record_log=False,
-        )
         if removed:
-            assert isinstance(result, CutScopeHold)
-            assert result.reason == "peer_speech"
+            with pytest.raises(ScopeChangedAtApproval) as held:
+                approve_edits(p, [edit.id])
+            assert held.value.held[0].reason == "peer_speech"
             assert p.model_dump(mode="json") == snapshot
-            assert isinstance(clearance, CutSpeechConfirmation)
-            result = consume_source_remove(
-                p,
-                edit.model_copy(update={"cut_speech": clearance.speech}),
-                confirm_cut_speech=True,
-                allow_review=True,
-                batch=(),
-                use_inaudible_opt=False,
-                record_log=False,
-            )
-        assert isinstance(result, tuple)
+            assert clearance is not None
+            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+        else:
+            with pytest.raises(ScopeChangedAtApproval) as held:
+                approve_edits(p, [edit.id])
+            assert held.value.held[0].reason == "acoustic_edge"
+            assert held.value.held[0].detail == "breath_edge"
+            assert p.model_dump(mode="json") == snapshot
+            assert np.array_equal(_played_window(p, "guest", 0.0, 8.7001), before)
+            assert np.array_equal(raw_timeline_samples(p, "guest"), before_cache)
+            assert approve_edits(p, [edit.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
         for samples in (
             _played_window(p, "guest", 0.0, 8.7001),
             raw_timeline_samples(p, "guest"),

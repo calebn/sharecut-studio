@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -14,11 +15,13 @@ from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     CutSpeech,
     CutSpeechTrack,
     CutSpeechWord,
     EditDecision,
     EditDecisionType,
+    EditMode,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -28,7 +31,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.models.episode import ClipMuteRegion, RangeInterval, SourceRecording
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.util.coded_error import CodedValueError
@@ -50,6 +53,12 @@ def _workspace(tmp_path: Path) -> ProjectWorkspace:
         for tid in ("host", "guest")
     ]
     project.timeline.duration_sec = 6
+    for index, tid in enumerate(("host", "guest")):
+        samples = room(seed=1508 + index)
+        voice(samples, 0, 0.8)
+        voice(samples, 5, 5.8)
+        samples[14400:78400] = 0
+        write_wav(tmp_path / f"raw/{tid}.wav", samples)
     project.transcripts = [
         Transcript(
             track_id="host",
@@ -79,6 +88,213 @@ def _cut(edit_id: str = "cut", *, reason: str = "filler:um", scope: str = "sessi
     )
 
 
+@pytest.mark.parametrize("operation", ["extension", "late_fade", "live_plan"])
+def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, operation):
+    from podcast_mcp.edits import cut_application as decisions
+    from podcast_mcp.edits.ripple import plan_trim
+    from podcast_mcp.models import EditMode
+    from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
+
+    ws = _workspace(tmp_path)
+    audio = room(seed=1770)
+    voice(audio, 0, 0.8)
+    voice(audio, 1.85, 2.15) if operation == "extension" else voice(audio, 2.2, 2.5)
+    write_wav(tmp_path / "raw/host.wav", audio)
+    if operation == "extension":
+
+        def setup(project):
+            project.clips[0].source_end = 1
+            project.clips[0].fade_out_ms = 50
+
+        ws.mutate("before setup", "after setup", setup)
+        assert plan_trim(ws.project, "host", "out", 2, EditMode.GAP).removal is None
+
+        def apply():
+            ws.reload()
+            token = boundary_context(
+                ws.project, TrimBoundaryTarget(clip_id="host", edge="out", mode=EditMode.GAP)
+            ).token
+            return EditService(ws).trim_clip_edge(
+                "host", "out", 2, mode=EditMode.GAP, expected_token=token
+            )
+    elif operation == "live_plan":
+        from podcast_mcp.mcp.tools.edits import apply_edit_plan_tool
+
+        with ws.transaction():
+            pass
+
+        original_approve = decisions.approve_edits
+        original_write = decisions._write_source_remove
+        applying = False
+
+        def apply_selected(*args, **kwargs):
+            nonlocal applying
+            applying = True
+            try:
+                return original_approve(*args, **kwargs)
+            finally:
+                applying = False
+
+        def bad_plan_edge(project, *args, **kwargs):
+            result = original_write(project, *args, **kwargs)
+            if applying:
+                next(
+                    c for c in project.clips if c.track_id == "host" and c.source_start == 2
+                ).fade_in_ms = 600
+            return result
+
+        monkeypatch.setattr(decisions, "approve_edits", apply_selected)
+        monkeypatch.setattr(decisions, "_write_source_remove", bad_plan_edge)
+
+        def apply():
+            apply_edit_plan_tool(
+                str(ws.path),
+                [
+                    {
+                        "track_id": "host",
+                        "start": 1,
+                        "end": 2,
+                        "applied": True,
+                        "use_inaudible_opt": False,
+                    }
+                ],
+            )
+            ws.reload()
+    else:
+        edit = _cut()
+        ws.mutate("before proposal", "after proposal", lambda p: p.edit_decisions.append(edit))
+        original = decisions._write_join_fades
+
+        def bad_fade(project, edits, **kwargs):
+            result = original(project, edits, **kwargs)
+            for clip in project.clips:
+                if clip.track_id == "host" and clip.source_start == 2:
+                    clip.fade_in_ms = 600
+            return result
+
+        monkeypatch.setattr(decisions, "_write_join_fades", bad_fade)
+
+        def apply():
+            return decisions.apply_auto_edits(ws.project, defaults())
+
+    before = ws.project.model_dump(mode="json")
+    files = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    if operation in {"extension", "live_plan"}:
+        with pytest.raises(ScopeChangedAtApproval, match="held edges"):
+            apply()
+    else:
+        assert apply() == 0
+    assert ws.project.model_dump(mode="json") == before
+    assert {
+        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    } == files
+    monkeypatch.setattr(cut_safety, "complete_effect_acoustics", lambda *args, **kwargs: [])
+    apply()
+    assert len(ws.project.editorial.edit_log) == 1
+    if operation == "extension":
+        clip = next(c for c in ws.project.clips if c.id == "host")
+        assert (clip.source_end, clip.fade_out_ms) == (2, 50)
+    else:
+        assert not ws.project.edit_decisions
+        clip = next(c for c in ws.project.clips if c.track_id == "host" and c.source_start == 2)
+        assert clip.fade_in_ms == 600
+
+
+@pytest.mark.parametrize("predicate", ["placement", "receipts"])
+def test_completed_structural_policy_is_the_only_veto(tmp_path, monkeypatch, predicate):
+    from pause_policy_public_helpers import add_bed
+    from podcast_mcp.edits import cut_application
+
+    configure(monkeypatch, defaults())
+    ws = _workspace(tmp_path)
+    edit = _cut()
+    if predicate == "placement":
+        add_bed(ws.project, tmp_path)
+        add_bed(ws.project, tmp_path, "guest")
+        edit.replace_gap_sec = 0.25
+        original = cut_application.insert_bound_room_tone_pad
+
+        def displace_tile(project, plan):
+            result = original(project, plan)
+            tile = next(c for c in project.clips if c.source_id == "room-tone-host")
+            tile.timeline_start += 0.05
+            return result
+
+        monkeypatch.setattr(cut_application, "insert_bound_room_tone_pad", displace_tile)
+    else:
+        ws.project.edit_decisions = [edit.model_copy(deep=True)]
+        assert cut_application.approve_edits(ws.project, [edit.id]) == 1
+        # The same recording is placed again after the first receipt; it is now
+        # mechanically removable, so placement cannot mask a duplicate consumption.
+        ws.project.clips = [
+            Clip(id=tid, track_id=tid, source_start=0, source_end=6, timeline_start=0)
+            for tid in ("host", "guest")
+        ]
+        ws.project.timeline.duration_sec = 6
+    ws.project.edit_decisions = [edit]
+    before = ws.project.model_dump(mode="json")
+    files = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        cut_application.approve_edits(ws.project, [edit.id])
+    assert held.value.ids == (edit.id,)
+    assert held.value.held[0].detail == (
+        "pad_source_binding" if predicate == "placement" else "source_receipt"
+    )
+    assert ws.project.model_dump(mode="json") == before
+    assert {
+        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    } == files
+    monkeypatch.setattr(
+        cut_safety,
+        f"complete_effect_{predicate}",
+        lambda *args, **kwargs: None if predicate == "placement" else [],
+    )
+    assert cut_application.approve_edits(ws.project, [edit.id]) == 1
+    if predicate == "placement":
+        tile = next(c for c in ws.project.clips if c.source_id == "room-tone-host")
+        assert (tile.timeline_start, tile.timeline_end) == pytest.approx((1.05, 1.3))
+        assert len(ws.project.editorial.edit_log) == 1
+    else:
+        assert [r.decision_ids for r in ws.project.editorial.edit_log] == [[edit.id], [edit.id]]
+        assert [
+            (c.source_start, c.source_end) for c in ws.project.clips if c.track_id == "host"
+        ] == [(0, 1), (2, 6)]
+
+
+def test_new_id_cannot_remove_a_source_span_consumed_by_an_earlier_cut(tmp_path, monkeypatch):
+    from podcast_mcp.edits import cut_application
+    from podcast_mcp.services.document import EditService
+
+    ws = _workspace(tmp_path)
+    ws.mutate("before proposals", "after proposals", lambda project: project.edit_decisions.clear())
+    service = EditService(ws)
+    service.suggest_pending_edit("host", 1.0, 1.3)
+    previously_offered = ws.project.edit_decisions[-1].model_copy(deep=True)
+    service.suggest_pending_edit("host", 1.1, 1.2)
+    first_id = ws.project.edit_decisions[-1].id
+    assert first_id != previously_offered.id
+    assert service.approve([first_id]) == 1
+    assert any(edit.id == previously_offered.id for edit in ws.project.edit_decisions)
+    before_model = ws.project.model_dump(mode="json")
+    before_bytes = ws.path.read_bytes()
+
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        service.approve([previously_offered.id])
+    assert held.value.held[0].reason == "source_geometry"
+    assert ws.project.model_dump(mode="json") == before_model
+    assert ws.path.read_bytes() == before_bytes
+
+    from podcast_mcp.edits.cut_application import approve_edits
+
+    monkeypatch.setattr(
+        cut_application.cut_safety, "complete_effect_placement", lambda *a, **k: None
+    )
+    assert approve_edits(ws.project, [previously_offered.id]) == 1
+    rows = ws.project.editorial.edit_log
+    assert [(row.source_start, row.source_end) for row in rows] == [(1.1, 1.2), (1.0, 1.3)]
+    assert [row.decision_ids for row in rows] == [[first_id], [previously_offered.id]]
+
+
 def test_record_suggested_cut_speech_ignores_mute_without_remove_placement():
     project = EpisodeProject.create("pure source removal", "/tmp/fix1508-pure")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
@@ -98,6 +314,351 @@ def test_record_suggested_cut_speech_ignores_mute_without_remove_placement():
     record_suggested_cut_speech(project, mute)
 
     assert mute.cut_speech is None
+
+
+@pytest.mark.parametrize("scope", ["track", "session"])
+def test_remove_inside_an_accepted_mute_uses_the_heard_audio(tmp_path, monkeypatch, scope):
+    import numpy as np
+
+    from podcast_mcp.edits.audio_cache import JUMP_SAMPLE_RATE, recording_audio_cache
+    from podcast_mcp.edits.cut_application import approve_edits
+    from podcast_mcp.edits.cut_safety import assess_held_source as assess_source
+    from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE
+
+    project = EpisodeProject.create("muted source", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=5),
+        )
+    ]
+    project.clips = [
+        Clip(id="host-main", track_id="host", source_start=0, source_end=5, timeline_start=0.25)
+    ]
+    project.timeline.duration_sec = 5.25
+    audio = room(seconds=5, seed=1701, db=-70)
+    audio[16000:32000] += 0.1 * np.sin(2 * np.pi * 140 * np.arange(16000) / 16000)
+    audio[38400:48000] += 0.1 * np.sin(2 * np.pi * 220 * np.arange(9600) / 16000)
+    write_wav(tmp_path / "raw/host.wav", audio)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="spoken", start=1, end=2),
+                TranscriptWord(text="unrelated", start=2.4, end=3),
+            ],
+        )
+    ]
+    measured_caches = []
+    import tempfile
+    from hashlib import sha256
+
+    source_hash = sha256((tmp_path / "raw/host.wav").read_bytes()).hexdigest()
+    rendered_paths = []
+    rendered_caches = []
+    from podcast_mcp.engines import timeline_render
+
+    render = timeline_render.render_track_from_timeline
+
+    def record_render(snapshot, track, output, render_defaults):
+        rendered_paths.append(output)
+        assert Path(tempfile.gettempdir()) in output.parents
+        assert snapshot is not project
+        result = render(snapshot, track, output, render_defaults)
+        rendered_caches.append(recording_audio_cache(output))
+        return result
+
+    monkeypatch.setattr(timeline_render, "render_track_from_timeline", record_render)
+
+    def record_cache(*args, **kwargs):
+        measured_caches.append(kwargs["audio_cache"])
+        return assess_source(*args, **kwargs)
+
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_held_source", record_cache)
+    mute = EditDecision(
+        id="mute",
+        track_id="host",
+        type=EditDecisionType.MUTE,
+        start=0.9,
+        end=2.1,
+        reason="nl:range",
+        boundary_mode="exact",
+        scope="track",
+        review_required=False,
+        crossfade_ms=10,
+    )
+    project.edit_decisions = [mute]
+    assert approve_edits(project, [mute.id]) == 1
+    accepted = project.model_dump(mode="json")
+    remove = EditDecision(
+        id="remove",
+        track_id="host",
+        type=EditDecisionType.REMOVE,
+        start=1.3,
+        end=1.5,
+        reason="nl:range",
+        boundary_mode="exact",
+        scope=scope,
+        review_required=False,
+        crossfade_ms=10,
+    )
+    project.edit_decisions.append(remove)
+
+    assert approve_edits(project, [remove.id]) == 1
+    archives = project.editorial.edit_log
+    assert [record.decision_ids for record in archives] == [["mute"], ["remove"]]
+    assert (archives[1].source_start, archives[1].source_end) == (1.3, 1.5)
+    assert (archives[1].timeline_start, archives[1].timeline_end) == (1.55, 1.75)
+    assert (project.clips[0].source_start, project.clips[0].timeline_start) == (0, 0.25)
+    assert (project.clips[-1].source_end, project.clips[-1].timeline_start) == (
+        5,
+        pytest.approx(1.75 if scope == "track" else 1.55),
+    )
+    heard = next(cache for cache in measured_caches if cache.jump.timeline_offset_sec == -0.25)
+    source = recording_audio_cache(tmp_path / "raw/host.wav")
+    assert heard.jump.sample_rate == JUMP_SAMPLE_RATE
+    assert heard.waveform.sample_rate == PROFILE_SAMPLE_RATE
+    assert heard.jump.profile == source.jump.profile
+    assert heard.waveform.profile == source.waveform.profile
+    np.testing.assert_array_equal(heard.window(1.5, 1.51), rendered_caches[-1].window(1.75, 1.76))
+    assert accepted != project.model_dump(mode="json")
+    assert (archives[0].source_start, archives[0].source_end) == (0.9, 2.1)
+    assert (archives[0].timeline_start, archives[0].timeline_end) == (1.15, 2.35)
+    assert project.clips[-1].source_start == 1.5
+    assert rendered_paths and all(not path.parent.exists() for path in rendered_paths)
+    assert sha256((tmp_path / "raw/host.wav").read_bytes()).hexdigest() == source_hash
+
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+    from podcast_mcp.models import CutIntent
+
+    manual_mute = mute.model_copy(update={"id": "manual-mute", "start": 2.5, "end": 2.7})
+    project.edit_decisions.append(manual_mute)
+    assert (
+        approve_edits(project, [manual_mute.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+    )
+    quiet_cut = remove.model_copy(update={"id": "quiet-cut", "start": 2.25, "end": 2.35})
+    word_start = 2.65 if scope == "track" else 2.45
+    with tempfile.TemporaryDirectory(prefix="inherited-mute-pcm-") as folder:
+        before_path, after_path = Path(folder) / "before.wav", Path(folder) / "after.wav"
+        render(project, project.tracks[0], before_path, {})
+        project.edit_decisions.append(quiet_cut)
+        assert approve_edits(project, [quiet_cut.id]) == 1
+        render(project, project.tracks[0], after_path, {})
+        engine = FFmpegEngine()
+        before_audio = engine.decode_window_f32(before_path, 0, 84000, 16000, 1)
+        after_audio = engine.decode_window_f32(after_path, 0, 84000, 16000, 1)
+        first = round(word_start * 16000)
+        shifted = first if scope == "track" else first - 1600
+        assert len(before_audio[first : first + 9600]) == 9600
+        assert len(after_audio[shifted : shifted + 9600]) == 9600
+        np.testing.assert_array_equal(
+            before_audio[first : first + 9600], after_audio[shifted : shifted + 9600]
+        )
+    assert not Path(folder).exists()
+    assert [record.decision_ids for record in project.editorial.edit_log] == [
+        ["mute"],
+        ["remove"],
+        ["manual-mute"],
+        ["quiet-cut"],
+    ]
+    assert (
+        project.editorial.edit_log[-1].source_start,
+        project.editorial.edit_log[-1].source_end,
+    ) == (2.25, 2.35)
+    assert sha256((tmp_path / "raw/host.wav").read_bytes()).hexdigest() == source_hash
+    inside_cut = remove.model_copy(update={"id": "inside-cut", "start": 2.55, "end": 2.6})
+    project.edit_decisions.append(inside_cut)
+    assert approve_edits(project, [inside_cut.id]) == 1
+    assert len(project.editorial.edit_log) == 5
+    assert project.editorial.edit_log[-1].decision_ids == ["inside-cut"]
+    assert (
+        project.editorial.edit_log[-1].source_start,
+        project.editorial.edit_log[-1].source_end,
+    ) == (2.55, 2.6)
+    assert sha256((tmp_path / "raw/host.wav").read_bytes()).hexdigest() == source_hash
+
+
+def test_unrelated_recording_mute_does_not_qualify_an_effect(tmp_path):
+    project = EpisodeProject.create("separate recordings", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=5),
+        )
+    ]
+    project.sources = [SourceRecording(id="guest-recording", path="raw/guest.wav")]
+    project.clips = [
+        Clip(id="target", track_id="host", source_start=0, source_end=5, timeline_start=5.25),
+        Clip(
+            id="muted-other-recording",
+            track_id="host",
+            source_id="guest-recording",
+            source_start=0,
+            source_end=5,
+            timeline_start=0,
+            mute_regions=[ClipMuteRegion(start_s=1, end_s=2)],
+        ),
+    ]
+    audio = room(seconds=5, seed=1701, db=-70)
+    voice(audio, 1, 2)
+    write_wav(tmp_path / "raw/host.wav", audio)
+    write_wav(tmp_path / "raw/guest.wav", room(seconds=5))
+    candidate = project.model_copy(deep=True)
+    candidate.clips[0].source_start = 1.3
+    candidate.clips[0].timeline_start = 6.55
+    candidate.clips[0].fade_in_ms = 10
+    effects = cut_safety.completed_audio_effects(
+        project, candidate, frozenset({"remove"}), defaults={}
+    )
+    assert effects
+    assert all(effect.before is not None for effect in effects)
+    assert all(not cut_safety._effect_has_accepted_mute(project, effect) for effect in effects)
+    holds = cut_safety.complete_effect_acoustics(project, effects, defaults={})
+    assert [hold.edit_id for hold in holds] == ["remove"]
+    assert "voiced_edge" in holds[0].detail
+
+
+@pytest.mark.parametrize("aliased", [False, True])
+def test_completed_effects_bind_repeated_physical_occurrences(tmp_path, aliased):
+    path = tmp_path / "raw/host.wav"
+    audio = room(seconds=5, seed=1701, db=-70)
+    voice(audio, 1, 2)
+    write_wav(path, audio)
+    alias = tmp_path / "raw/alias.wav"
+    alias.hardlink_to(path)
+    project = EpisodeProject.create("repeated source", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=5),
+        )
+    ]
+    project.sources = [SourceRecording(id="alias", path="raw/alias.wav")]
+    project.clips = [
+        Clip(
+            id="muted",
+            track_id="host",
+            source_start=0,
+            source_end=5,
+            timeline_start=0,
+            source_id="alias" if aliased else None,
+            mute_regions=[ClipMuteRegion(start_s=1, end_s=2)],
+        ),
+        Clip(id="target", track_id="host", source_start=0, source_end=5, timeline_start=5.25),
+    ]
+    candidate = project.model_copy(deep=True)
+    candidate.clips[1].source_start = 1.3
+    candidate.clips[1].fade_in_ms = 10
+    effects = cut_safety.completed_audio_effects(
+        project, candidate, frozenset({"remove"}), defaults={}
+    )
+    assert effects
+    assert all(effect.before.source.clip_id == "target" for effect in effects)
+    assert all(not cut_safety._effect_has_accepted_mute(project, effect) for effect in effects)
+    removed = [
+        effect for effect in effects if effect.envelope is None and effect.start < effect.end
+    ]
+    assert [(effect.start, effect.end, effect.timeline_start) for effect in removed] == [
+        (0, 1.3, 5.25)
+    ]
+    retained = next(effect for effect in effects if effect.retained)
+    assert retained.timeline_start == 5.25
+    assert (
+        retained.before.timeline_start + retained.start - retained.before.source.src_start == 6.55
+    )
+    assert cut_safety.complete_effect_acoustics(project, effects, defaults={})
+    if not aliased:
+        candidate.clips[1].id = "unattributed-split"
+        with pytest.raises(ValueError, match="ambiguous BEFORE"):
+            cut_safety.completed_audio_effects(
+                project, candidate, frozenset({"remove"}), defaults={}
+            )
+    candidate = project.model_copy(deep=True)
+    candidate.clips.append(
+        project.clips[1].model_copy(update={"id": "duplicate", "timeline_start": 11})
+    )
+    if aliased:
+        with pytest.raises(ValueError, match="duplicated BEFORE"):
+            cut_safety.completed_audio_effects(
+                project, candidate, frozenset({"remove"}), defaults={}
+            )
+
+
+@pytest.mark.parametrize("occurrence", [0, 1])
+@pytest.mark.parametrize("aliased", [False, True])
+def test_public_range_cut_preserves_repeated_source_occurrences(tmp_path, occurrence, aliased):
+    path = tmp_path / "raw/host.wav"
+    write_wav(path, room(seconds=5, seed=1711, db=-70))
+    alias = tmp_path / "raw/alias.wav"
+    alias.hardlink_to(path)
+    source_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    project = EpisodeProject.create("repeated public range", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=5),
+        )
+    ]
+    project.sources = [SourceRecording(id="alias", path="raw/alias.wav")]
+    project.clips = [
+        Clip(id="first", track_id="host", source_start=0, source_end=5, timeline_start=0),
+        Clip(
+            id="second",
+            track_id="host",
+            source_start=0,
+            source_end=5,
+            timeline_start=5.25,
+            source_id="alias" if aliased else None,
+        ),
+    ]
+    project.timeline.duration_sec = 10.25
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="before", start=0.1, end=0.3),
+                TranscriptWord(text="after", start=4.5, end=4.7),
+            ],
+        )
+    ]
+    project_path = tmp_path / "episode.project.json"
+    save_project(project, project_path)
+    mark_refine_done(project, notes="literal quiet source fixture")
+    ws = ProjectWorkspace.open(project_path)
+    offset = 5.25 * occurrence
+    EditService(ws).cut_range(
+        offset + 1.3,
+        offset + 1.5,
+        mode=EditMode.RIPPLE,
+        track_ids=["host"],
+        use_inaudible_opt=False,
+    )
+    expected = (
+        [(0, 1.3, 0), (1.5, 5, 1.3), (0, 5, 5.05)]
+        if occurrence == 0
+        else [(0, 5, 0), (0, 1.3, 5.25), (1.5, 5, 6.55)]
+    )
+    for actual in (ws.project, load_project(project_path)):
+        assert len(actual.clips) == 3
+        for clip, geometry in zip(actual.clips, expected, strict=True):
+            assert (clip.source_start, clip.source_end, clip.timeline_start) == pytest.approx(
+                geometry
+            )
+        assert actual.clips[2 if occurrence == 0 else 0].id == (
+            "second" if occurrence == 0 else "first"
+        )
+        assert actual.timeline.duration_sec == pytest.approx(10.05)
+        assert len(actual.editorial.edit_log) == 1
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == source_hash
+    assert hashlib.sha256(alias.read_bytes()).hexdigest() == source_hash
 
 
 def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
@@ -134,7 +695,7 @@ def test_record_suggested_cut_speech_annotates_a_valid_remove(monkeypatch):
     assert decision.cut_speech == expected
 
 
-def _restricted_cut_access(code: str) -> set[str]:
+def _restricted_cut_access(code: str, *, caller: str = "") -> set[str]:
     restricted = {
         "podcast_mcp.edits.breath_detect.protect_cut_breaths",
         "podcast_mcp.edits.speech_energy_guard.assess_cross_track_speech",
@@ -144,8 +705,34 @@ def _restricted_cut_access(code: str) -> set[str]:
         "podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl",
         "podcast_mcp.edits.source_removals._witnessed_source_span_has_unsafe_overlap",
         "podcast_mcp.edits.fillers._original_pause_support",
+        "podcast_mcp.edits.fillers._check_voiced_speech",
+        "podcast_mcp.edits.sound_actions.sound_label_and_action",
+        "podcast_mcp.edits.suggested_actions.suggested_action_for",
         "podcast_mcp.edits.cut_speech.clear_ripple",
     }
+    if caller not in {"edits/cut_application.py", "edits/timeline_ops.py"}:
+        restricted.update(
+            f"podcast_mcp.edits.timeline_ops.{name}"
+            for name in (
+                "_write_ripple_delete",
+                "_write_punch_delete",
+                "_write_ripple_delete_clips",
+                "_write_punch_delete_clips",
+                "_write_punch_delete_range",
+                "_write_trim_clip_edge",
+            )
+        )
+    if caller != "edits/cut_application.py":
+        restricted.update(
+            f"podcast_mcp.edits.cut_application.{name}"
+            for name in (
+                "_apply_source_remove",
+                "_write_source_remove",
+                "_write_join_fades",
+                "_apply_mute_edit",
+                "_range_candidate",
+            )
+        )
     tree = ast.parse(code)
     aliases: dict[str, str] = {}
     found: set[str] = set()
@@ -182,10 +769,19 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
     consumers = {
         str(path.relative_to(source)): hits
         for path in source.rglob("*.py")
-        if (hits := _restricted_cut_access(path.read_text(encoding="utf-8")))
+        if (
+            hits := _restricted_cut_access(
+                path.read_text(encoding="utf-8"), caller=str(path.relative_to(source))
+            )
+        )
     }
     assert consumers == {}
     for code in (
+        "from podcast_mcp.edits.timeline_ops import _write_trim_clip_edge as write; write()",
+        "import podcast_mcp.edits.timeline_ops as ops; ops._write_ripple_delete()",
+        "from podcast_mcp.edits import timeline_ops; timeline_ops._write_punch_delete()",
+        "import podcast_mcp.edits.cut_application; podcast_mcp.edits.cut_application._write_join_fades()",
+        "from podcast_mcp.edits.cut_application import _apply_source_remove as consume; consume()",
         "from podcast_mcp.edits.breath_detect import protect_cut_breaths as protect",
         "from podcast_mcp.edits.speech_energy_guard import assess_cross_track_speech as assess",
         "import podcast_mcp.edits.join_continuity as joins; joins.assess_proposed_cut()",
@@ -193,6 +789,8 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
         "import podcast_mcp.edits.source_removals; podcast_mcp.edits.source_removals._inspect_source_remove_placement_impl()",
         "from podcast_mcp.edits.source_removals import _witnessed_source_span_has_unsafe_overlap",
         "from podcast_mcp.edits.fillers import _original_pause_support",
+        "from podcast_mcp.edits.fillers import _check_voiced_speech as check",
+        "from podcast_mcp.edits import sound_actions as sounds; sounds.sound_label_and_action()",
     ):
         assert _restricted_cut_access(code), code
     definitions = []
@@ -209,6 +807,10 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
                 "assess_cross_track_speech",
                 "assess_proposed_cut",
                 "original_pause_support",
+                "complete_effect_acoustics",
+                "_peer_policy",
+                "complete_effect_placement",
+                "complete_effect_receipts",
             }
         )
     assert sorted(definitions) == [
@@ -220,6 +822,10 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
                 "assess_cross_track_speech",
                 "assess_proposed_cut",
                 "original_pause_support",
+                "complete_effect_acoustics",
+                "_peer_policy",
+                "complete_effect_placement",
+                "complete_effect_receipts",
             }
         )
     ]
@@ -239,8 +845,7 @@ def test_cut_safety_boundary_owns_remove_placement_and_guard_imports():
     )
     remove = mute.model_copy(update={"id": "remove", "type": EditDecisionType.REMOVE})
 
-    with pytest.raises(ValueError, match="ordinary source remove required"):
-        cut_safety.inspect_source_remove_placement(project, mute)
+    assert cut_safety.inspect_source_remove_placement(project, mute) == (1, 2)
     assert cut_safety.inspect_source_remove_placement(project, remove) == (1, 2)
 
 
@@ -248,7 +853,9 @@ def _replay(project: EpisodeProject) -> None:
     project.clips.append(
         Clip(id="replay", track_id="host", source_start=1, source_end=2, timeline_start=6)
     )
-    project.clips[1].source_end = 7
+    project.clips.append(
+        Clip(id="guest-tail", track_id="guest", source_start=5, source_end=6, timeline_start=6)
+    )
     project.timeline.duration_sec = 7
 
 
@@ -268,15 +875,16 @@ def test_saved_ordinary_remove_refuses_replayed_source(tmp_path: Path, reason: s
     )
     before = ws.path.read_bytes()
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert held.value.ids == ("cut",)
     assert ws.path.read_bytes() == before
     saved = load_project(ws.path)
     assert saved.timeline.duration_sec == 7
     assert [(c.source_start, c.source_end, c.timeline_start) for c in saved.clips] == [
         (0, 6, 0),
-        (0, 7, 0),
+        (0, 6, 0),
         (1, 2, 6),
+        (5, 6, 6),
     ]
     assert [e.id for e in saved.edit_decisions] == ["cut"]
 
@@ -322,7 +930,9 @@ def test_pause_proposal_after_hole_drops_crossing_span_and_keeps_safe_control(tm
     prior = _cut("prior", reason="nl:range")
     prior.start, prior.end = 0.7, 4
     ws.mutate("before prior", "after prior", lambda p: p.edit_decisions.append(prior))
-    assert EditService(ws).approve(["prior"]) == 1
+    assert EditService(ws).approve(["prior"], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+    for tid in ("host", "guest"):
+        (tmp_path / f"raw/{tid}.wav").unlink()
     cfg = {
         "tighten": {
             "inaudible_opt": False,
@@ -339,8 +949,7 @@ def test_pause_proposal_after_hole_drops_crossing_span_and_keeps_safe_control(tm
     proposal = propose_tighten_edits(ws.project, cfg, intensity="aggressive")
     assert proposal.decisions == []
     assert proposal.skip_counts.get("no_air") == 1
-    from podcast_mcp.edits.cut_safety import CutScopeHold
-    from podcast_mcp.edits.source_removals import inspect_source_remove
+    from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 
     crossing = _cut("crossing", reason="pause:4.80s")
     crossing.start, crossing.end = 0.2, 4.7
@@ -403,10 +1012,9 @@ def test_saved_unresolved_or_intentionally_empty_identity_remove_holds(tmp_path:
 
 @pytest.mark.parametrize("unsafe", [False, True])
 @pytest.mark.parametrize("scope", ["session", "track"])
-def test_saved_final_optimizer_window_closes_over_origin_media(
+def test_saved_final_bounds_are_not_reoptimized_into_neighboring_media(
     tmp_path: Path, monkeypatch, unsafe: bool, scope: str
 ):
-    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
     ws = _workspace(tmp_path)
 
@@ -422,72 +1030,149 @@ def test_saved_final_optimizer_window_closes_over_origin_media(
                     timeline_start=6,
                 )
             )
-            project.clips[1].source_end = 6.2
+            project.clips.append(
+                Clip(
+                    id="guest-tail",
+                    track_id="guest",
+                    source_start=5.8,
+                    source_end=6,
+                    timeline_start=6,
+                )
+            )
             project.timeline.duration_sec = 6.2
 
     ws.mutate("before optimizer", "after optimizer", setup)
+
+    def forbidden_optimizer(*args, **kwargs):
+        pytest.fail("Applying held bounds must not optimize again")
+
     monkeypatch.setattr(
-        "podcast_mcp.edits.timeline_ops._optimized_ripple_span",
-        lambda *_args: (0.8, 2.2),
+        "podcast_mcp.edits.inaudible_cuts.optimize_timeline_cut_range", forbidden_optimizer
     )
-    monkeypatch.setattr(
-        "podcast_mcp.edits.source_removals.optimize_timeline_cut_range",
-        lambda *_args, **_kwargs: OptimizedCutRange(
-            start=0.8,
-            end=2.2,
-            mode="exact",
-            shifted_start_ms=-200,
-            shifted_end_ms=200,
-            confidence=1,
-            details={},
-        ),
+    assert EditService(ws).approve(["cut"]) == 1
+    saved = load_project(ws.path)
+    record = saved.editorial.edit_log[-1]
+    assert (record.source_start, record.source_end) == (1, 2)
+    assert (record.timeline_start, record.timeline_end) == (1, 2)
+    assert saved.timeline.duration_sec == pytest.approx(
+        (6.2 if unsafe else 6) - (1 if scope == "session" else 0)
     )
-    before = ws.path.read_bytes()
+    expected = [(0, 1, 0), (2, 6, 1 if scope == "session" else 2)]
     if unsafe:
-        with pytest.raises(ScopeChangedAtApproval):
-            EditService(ws).approve(["cut"])
-        assert ws.path.read_bytes() == before
-        assert ws.project.timeline.duration_sec == 6.2
-    else:
-        assert EditService(ws).approve(["cut"]) == 1
-        saved = load_project(ws.path)
-        record = saved.editorial.edit_log[-1]
-        assert (record.source_start, record.source_end) == pytest.approx((0.8, 2.2))
-        assert (record.timeline_start, record.timeline_end) == pytest.approx((0.8, 2.2))
-        assert saved.timeline.duration_sec == pytest.approx(4.6 if scope == "session" else 6)
-        assert [
-            (c.source_start, c.source_end, c.timeline_start)
-            for c in saved.clips
-            if c.track_id == "host"
-        ] == [(0, 0.8, 0), (2.2, 6, 0.8 if scope == "session" else 2.2)]
+        expected.append((0.8, 1, 5 if scope == "session" else 6))
+    assert [
+        (c.source_start, c.source_end, c.timeline_start)
+        for c in saved.clips
+        if c.track_id == "host"
+    ] == expected
 
 
-@pytest.mark.parametrize("cause", ["peer_speech", "speaker_bleed", "scope_unavailable"])
-def test_saved_scope_holds_keep_real_cause_and_audio(tmp_path: Path, monkeypatch, cause: str):
-    from podcast_mcp.edits.cut_safety import CutScopeUnavailable, ResolvedCutScope
-    from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
-
+@pytest.mark.parametrize(
+    ("sabotage", "reason", "manual_applies"),
+    [
+        ("held_edge", "acoustic_edge", True),
+        ("peer", "peer_speech", True),
+        ("placement", "source_geometry", False),
+        ("replay", "source_geometry", False),
+    ],
+)
+def test_apply_reassesses_real_sabotage_after_offer(
+    tmp_path: Path, monkeypatch, sabotage, reason, manual_applies
+):
     ws = _workspace(tmp_path)
-    ws.mutate("before pending", "after pending", lambda p: p.edit_decisions.append(_cut()))
-    guard = SpeechEnergyGuardResult(("guest",), "review") if cause == "peer_speech" else None
-    monkeypatch.setattr(
-        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
-        lambda *_args, **_kwargs: (
-            CutScopeUnavailable()
-            if cause == "scope_unavailable"
-            else ResolvedCutScope(cause, guard)
-        ),
-    )
+    EditService(ws).suggest_pending_edit("host", 1, 2)
+    (proposal,) = ws.project.edit_decisions
+    assert (proposal.start, proposal.end) == (1, 2)
+    assert "acoustic_review" not in proposal.reason
+    origin = proposal.proposal_origin
+    if sabotage in {"held_edge", "peer"}:
+        track = "host" if sabotage == "held_edge" else "guest"
+        audio = room(seed=1770)
+        voice(audio, 0, 0.8)
+        voice(audio, 5, 5.8)
+        audio[14400:78400] = 0
+        voice(audio, 0.95, 1.2) if sabotage == "held_edge" else voice(audio, 1.2, 1.6)
+        write_wav(tmp_path / f"raw/{track}.wav", audio)
+        if sabotage == "peer":
+            ws.mutate(
+                "before peer",
+                "after peer",
+                lambda p: p.transcripts.append(
+                    Transcript(
+                        track_id="guest", words=[TranscriptWord(text="new", start=1.2, end=1.6)]
+                    )
+                ),
+            )
+    elif sabotage == "placement":
+
+        def separate_source(project):
+            project.clips[0].source_end = 1.5
+            project.clips.append(
+                Clip(
+                    id="displaced",
+                    track_id="host",
+                    source_start=1.5,
+                    source_end=6,
+                    timeline_start=2,
+                )
+            )
+
+        ws.mutate("before placement", "after placement", separate_source)
+    else:
+        ws.mutate("before replay", "after replay", _replay)
     before = ws.path.read_bytes()
+    before_model = ws.project.model_dump(mode="json")
+    before_files = {
+        str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    }
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"])
-    assert held.value.held[0].reason == cause
-    assert held.value.ids == ("cut",)
+        EditService(ws).approve([proposal.id])
+    assert held.value.held[0].reason == reason
+    assert held.value.ids == (proposal.id,)
+    assert {
+        str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    } == before_files
     assert ws.path.read_bytes() == before
-    assert [(c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips] == [
-        (0, 6, 0),
-        (0, 6, 0),
-    ]
+    assert ws.project.model_dump(mode="json") == before_model
+    if manual_applies:
+        assert (
+            EditService(ws).approve([proposal.id], application_intent=CutIntent.HUMAN_BOUNDARIES)
+            == 1
+        )
+        record = ws.project.editorial.edit_log[-1]
+        assert (record.source_start, record.source_end) == (1, 2)
+        assert len(ws.project.editorial.edit_log) == 1
+        assert record.params.get("source_start", 1) == 1
+        if sabotage == "peer":
+            from podcast_mcp.services.document import HistoryService
+
+            HistoryService(ws).undo()
+            observations = []
+
+            def omit_only_peer_policy(evidence, **_kwargs):
+                observations.append(evidence)
+                return None
+
+            monkeypatch.setattr(cut_safety, "_peer_policy", omit_only_peer_policy)
+            assert EditService(ws).approve([proposal.id]) == 1
+            assert len(observations) == 1
+            evidence = observations[0]
+            assert evidence.mapped.cause == "peer_speech"
+            assert [t.track_id for t in evidence.removed.tracks] == ["guest"]
+            assert [
+                (w.timeline_start, w.timeline_end) for w in evidence.removed.tracks[0].words
+            ] == [(1.2, 1.6)]
+            saved = load_project(ws.path)
+            assert saved.edit_decisions == []
+            assert [(r.source_start, r.source_end) for r in saved.editorial.edit_log] == [(1, 2)]
+            assert [
+                (c.source_start, c.source_end) for c in saved.clips if c.track_id == "guest"
+            ] == [(0, 1), (2, 6)]
+    else:
+        with pytest.raises(ScopeChangedAtApproval):
+            EditService(ws).approve([proposal.id], application_intent=CutIntent.HUMAN_BOUNDARIES)
+        assert ws.path.read_bytes() == before
+        assert ws.project.edit_decisions[0].proposal_origin == origin
 
 
 @pytest.mark.parametrize("pad", [0.1, 1.0, 1.2])
@@ -573,7 +1258,50 @@ def test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor(
     ws = _workspace(tmp_path)
     late = _cut("late")
     late.start, late.end = 3, 4
-    ws.mutate("before auto", "after auto", lambda p: setattr(p, "edit_decisions", [_cut(), late]))
+    mute = _cut("mute")
+    mute.type = EditDecisionType.MUTE
+    mute.start, mute.end = 1.2, 1.4
+    ws.mutate(
+        "before auto", "after auto", lambda p: setattr(p, "edit_decisions", [_cut(), late, mute])
+    )
+    from podcast_mcp import project_merge
+    from podcast_mcp.edits import cut_application as decisions
+
+    base_model = ws.project.model_dump(mode="json")
+    base_files = {
+        str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    }
+    final_fades = decisions._write_join_fades
+    failed_archives = []
+
+    def fail_after_final_fades(candidate, selected, **kwargs):
+        final_fades(candidate, selected, **kwargs)
+        failed_archives.extend(r.decision_ids for r in candidate.editorial.edit_log)
+        assert ws.project.model_dump(mode="json") == base_model
+        raise RuntimeError("injected after final candidate fades")
+
+    monkeypatch.setattr(decisions, "_write_join_fades", fail_after_final_fades)
+    with pytest.raises(RuntimeError, match="injected after final candidate fades"):
+        EditService(ws).apply_auto()
+    assert failed_archives == [["mute"], ["late"], ["cut"]]
+    assert ws.project.model_dump(mode="json") == base_model
+    assert {
+        str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    } == base_files
+    monkeypatch.setattr(decisions, "_write_join_fades", final_fades)
+
+    adopted_clips = []
+    adopted_pending = []
+    adopted_archives = []
+    adopt = project_merge.adopt_project_state
+
+    def observe_adoption(destination, candidate):
+        adopted_clips.append([c.model_dump(mode="json") for c in candidate.clips])
+        adopted_pending.append([e.id for e in candidate.edit_decisions])
+        adopted_archives.append([r.model_dump(mode="json") for r in candidate.editorial.edit_log])
+        adopt(destination, candidate)
+
+    monkeypatch.setattr(project_merge, "adopt_project_state", observe_adoption)
     observed_durations: set[float] = set()
 
     def scope(project, _track_id, start, _end, **_kwargs):
@@ -584,11 +1312,20 @@ def test_saved_auto_restarts_after_fresh_scope_hold_without_duplicate_survivor(
         return ResolvedCutScope("session_clear")
 
     monkeypatch.setattr("podcast_mcp.edits.cut_safety.resolve_cut_scope", scope)
-    assert EditService(ws).apply_auto() == 1
+    assert EditService(ws).apply_auto() == 2
     saved = load_project(ws.path)
+    assert adopted_clips == [[c.model_dump(mode="json") for c in saved.clips]]
+    assert adopted_pending == [[e.id for e in saved.edit_decisions]]
+    assert adopted_archives == [[r.model_dump(mode="json") for r in saved.editorial.edit_log]]
+    host_left, host_right = [c for c in saved.clips if c.track_id == "host"]
+    assert len(host_left.mute_regions) == 1
+    assert host_left.mute_regions[0].start_s <= 1.2
+    assert host_left.mute_regions[0].end_s >= 1.4
+    assert host_left.fade_out_ms > 0
+    assert host_right.fade_in_ms > 0
     assert observed_durations == {5}
     assert [e.id for e in saved.edit_decisions] == ["cut"]
-    assert [r.decision_ids for r in saved.editorial.edit_log] == [["late"]]
+    assert [r.decision_ids for r in saved.editorial.edit_log] == [["mute"], ["late"]]
     assert saved.timeline.duration_sec == 5
     assert [(c.source_start, c.source_end, c.timeline_start) for c in saved.clips] == [
         (0, 3, 0),
@@ -602,7 +1339,6 @@ def test_auto_restart_excludes_speech_chosen_only_by_freshly_held_punch(
     tmp_path: Path, monkeypatch
 ):
     from podcast_mcp.edits.cut_safety import ResolvedCutScope
-    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
     ws = _workspace(tmp_path)
     punch = _cut("punch", scope="track")
@@ -622,18 +1358,16 @@ def test_auto_restart_excludes_speech_chosen_only_by_freshly_held_punch(
     before = [(c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips]
     assert cut_safety.inspect_source_remove_placement(ws.project, punch) == (1, 2)
 
-    def optimize(_project, _tid, start, _end, **_kwargs):
-        return OptimizedCutRange(
-            start=start,
-            end=4,
-            mode="exact",
-            shifted_start_ms=0,
-            shifted_end_ms=0,
-            confidence=1,
-            details={},
-        )
-
-    monkeypatch.setattr("podcast_mcp.edits.source_removals.optimize_timeline_cut_range", optimize)
+    punch.source_timeline_span = RangeInterval(start=2, end=3)
+    ws.mutate(
+        "before changed witness",
+        "after changed witness",
+        lambda p: setattr(p.edit_decisions[1], "source_timeline_span", punch.source_timeline_span),
+    )
+    peer = room(seed=1510)
+    voice(peer, 0, 0.2)
+    voice(peer, 4, 5)
+    write_wav(tmp_path / "raw/guest.wav", peer)
     monkeypatch.setattr(
         "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         lambda *_args, **_kwargs: ResolvedCutScope("session_clear"),
@@ -689,7 +1423,6 @@ def test_saved_hold_does_not_promise_batch_restore_when_rollback_is_unknown(
 def test_saved_track_seed_cannot_shrink_away_an_origin_placement_on_another_lane(
     tmp_path: Path, monkeypatch
 ):
-    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
     from podcast_mcp.models.episode import SourceRecording
 
     ws = _workspace(tmp_path)
@@ -712,26 +1445,10 @@ def test_saved_track_seed_cannot_shrink_away_an_origin_placement_on_another_lane
         project.edit_decisions = [cut]
 
     ws.mutate("before cross-lane seed", "after cross-lane seed", setup)
-    reads = []
-
-    def shrink(*_args, **_kwargs):
-        reads.append("optimized")
-        return OptimizedCutRange(
-            start=1,
-            end=1.8,
-            mode="exact",
-            shifted_start_ms=0,
-            shifted_end_ms=-1200,
-            confidence=1,
-            details={},
-        )
-
-    monkeypatch.setattr("podcast_mcp.edits.source_removals.optimize_timeline_cut_range", shrink)
     before = ws.path.read_bytes()
     with pytest.raises(ScopeChangedAtApproval) as held:
         EditService(ws).approve(["cut"])
     assert held.value.held[0].reason == "source_geometry"
-    assert reads == []
     assert ws.path.read_bytes() == before
     assert [
         (c.track_id, c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips

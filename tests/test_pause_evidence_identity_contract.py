@@ -64,7 +64,7 @@ def test_equivalent_path_replay_holds_without_mutation(tmp_path, monkeypatch, sp
     before_model = ws.project.model_dump(mode="json")
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
 
     assert held.value.ids == ("cut",)
     assert held.value.held[0].reason == "source_geometry"
@@ -84,7 +84,7 @@ def test_single_placement_alias_remains_consumable(tmp_path, monkeypatch, spelli
     result.edit_decisions = [_cut()]
     ws = workspace(result)
 
-    assert EditService(ws).approve(["cut"], confirm_cut_speech=True) == 1
+    assert EditService(ws).approve(["cut"]) == 1
 
     saved = load_project(ws.path)
     assert saved.timeline.duration_sec == 5
@@ -103,7 +103,7 @@ def test_different_file_on_music_does_not_block_host_remove(tmp_path, monkeypatc
     result.edit_decisions = [_cut()]
     ws = workspace(result)
 
-    assert EditService(ws).approve(["cut"], confirm_cut_speech=True) == 1
+    assert EditService(ws).approve(["cut"]) == 1
 
     saved = load_project(ws.path)
     assert [
@@ -132,8 +132,8 @@ def test_selected_approval_cannot_authorize_unavailable_join_evidence(tmp_path, 
         EditService(ws).approve(["stored-remove"])
 
     assert observed
-    assert held.value.held[0].reason == "pause_air"
-    assert held.value.held[0].detail == "no_air"
+    assert held.value.held[0].reason == "pause_join"
+    assert held.value.held[0].detail == "audio_unavailable"
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
     assert load_project(ws.path).model_dump(mode="json") == before_model

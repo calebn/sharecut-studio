@@ -9,8 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_safety import CutScopeHold
-from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.room_tone import OwnQuietSample, SampleAbsent, room_tone_span
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (
@@ -421,7 +421,7 @@ def _host_timeline(project: EpisodeProject) -> list[tuple[float, float]]:
     return [(round(c.timeline_start, 3), round(c.timeline_end, 3)) for c in clips]
 
 
-def _padded_filler(replace_gap_sec: float = 0.3) -> EditDecision:
+def _padded_filler(replace_gap_sec: float = 0.3, *, next_burst_sec: float = 4.6) -> EditDecision:
     return EditDecision(
         id="um",
         track_id="host",
@@ -431,6 +431,7 @@ def _padded_filler(replace_gap_sec: float = 0.3) -> EditDecision:
         boundary_mode="exact",
         review_required=False,
         replace_gap_sec=replace_gap_sec,
+        next_burst_sec=next_burst_sec,
         reason="filler:um",
     )
 
@@ -453,9 +454,11 @@ def test_a_live_track_with_no_room_tone_gets_a_silent_pad(
     tmp_path: Path, live_host: Callable[[], np.ndarray]
 ) -> None:
     project = _project(tmp_path, host=live_host(), guest=_gated_steady_word())
-    project.edit_decisions = [_padded_filler()]
+    project.edit_decisions = [
+        _padded_filler(next_burst_sec=4.55 if live_host is _chopped_by_speech else 4.6)
+    ]
 
-    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+    assert approve_edits(project, ["um"]) == 1
 
     record = project.editorial.edit_log[-1]
     assert record.params["pad_samples"] == []
@@ -490,7 +493,7 @@ def test_a_gated_track_keeps_its_silent_pad_while_the_live_track_gets_room_tone(
     project = _project(tmp_path, host=_host_audio(), guest=_gated_steady_word())
     project.edit_decisions = [_padded_filler()]
 
-    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+    assert approve_edits(project, ["um"]) == 1
 
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host"}
@@ -502,7 +505,7 @@ def test_without_the_voice_detector_a_live_room_still_gets_its_pad(tmp_path: Pat
     project = _project(tmp_path, host=_host_audio(), guest=_gated_steady_word())
     project.edit_decisions = [_padded_filler()]
 
-    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+    assert approve_edits(project, ["um"]) == 1
 
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host"}
@@ -512,7 +515,7 @@ def test_every_live_track_gets_its_own_room_tone_in_the_pad(tmp_path: Path) -> N
     project = _project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
     project.edit_decisions = [_padded_filler()]
 
-    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+    assert approve_edits(project, ["um"]) == 1
 
     record = project.editorial.edit_log[-1]
     assert {s["track_id"] for s in record.params["pad_samples"]} == {"host", "guest"}
@@ -521,7 +524,7 @@ def test_every_live_track_gets_its_own_room_tone_in_the_pad(tmp_path: Path) -> N
 def test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     project.edit_decisions = [_padded_filler()]
-    assert approve_edits(project, ["um"], confirm_cut_speech=True) == 1
+    assert approve_edits(project, ["um"]) == 1
     sample = project.editorial.edit_log[-1].params["pad_samples"][0]
     replayed = (sample["source_start"], sample["source_end"])
     assert replayed == (pytest.approx(5.15), pytest.approx(5.45))
@@ -540,7 +543,7 @@ def test_a_pause_trim_over_source_a_pad_replays_is_held_not_a_hull(tmp_path: Pat
     before = project.model_dump()
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, ["pause"], confirm_cut_speech=True)
+        approve_edits(project, ["pause"])
 
     assert held.value.held[0].reason == "source_geometry"
     assert project.model_dump() == before

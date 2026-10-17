@@ -7,51 +7,32 @@ from typing import Annotated, Any, Literal
 from pydantic import Field
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
-from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
-from podcast_mcp.edits.cut_safety import CutScopeHold
+from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     LaneSourceExtent,
     RecordingSourceExtent,
     SourceExtent,
-    UnconfirmedCutSpeech,
-    confirmation_for,
-    merge_cut_speech,
 )
 from podcast_mcp.edits.edit_impact import ImpactKind, record_impact
-from podcast_mcp.edits.edit_log import archive_decision
-from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
     OptimizedCutRange,
     optimize_source_cut_range,
 )
-from podcast_mcp.edits.join_modes import cap_fade_ms
-from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.source_removals import (
-    ScopeChangedAtApproval,
-    consume_source_remove,
-    cut_label,
     require_source_remove,
     resize_source_remove,
-)
-from podcast_mcp.edits.timeline_ops import (
-    mute_room_tone_fill,
-    split_clips_at,
 )
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
-    MUTE_FADE_MS,
-    ClipJoinMode,
-    ClipMuteRegion,
     CutIntent,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
 )
-from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError
 from podcast_mcp.util.review import reject_by_id
 
 
@@ -107,51 +88,6 @@ def retire_unplayed_pending(project: EpisodeProject) -> int:
     return len(stale)
 
 
-def apply_join_fades_from_decisions(
-    project: EpisodeProject,
-    decisions: list[EditDecision],
-    *,
-    defaults: dict | None = None,
-) -> dict:
-    """Set per-join fade lengths on clip boundaries from applied edit decisions."""
-    cfg = defaults or load_defaults()
-    by_track: dict[str, list[EditDecision]] = {}
-    for d in decisions:
-        by_track.setdefault(d.track_id, []).append(d)
-
-    affected: set[str] = set()
-    for tid, decs in by_track.items():
-        for left, right in abutting_pairs(clips_for_track(project, tid)):
-            join_src = left.source_end
-            matching = [
-                d for d in decs if abs(d.end - join_src) < 0.08 or abs(d.start - join_src) < 0.08
-            ]
-            if not matching:
-                continue
-            fade = max(d.crossfade_ms for d in matching)
-            if fade <= 0:
-                fade = recommend_cut_fade_ms(
-                    project,
-                    tid,
-                    left.source_end,
-                    right.source_start,
-                    cut_kind="filler",
-                    defaults=cfg,
-                )
-            fade = cap_fade_ms(project, tid, fade, cfg)
-            left.fade_out_ms = max(left.fade_out_ms, fade)
-            right.fade_in_ms = max(right.fade_in_ms, fade)
-            right.join_in_mode = ClipJoinMode.FADE
-            affected.add(tid)
-
-    return {
-        "operation": "apply_join_fades",
-        "affected_tracks": sorted(affected),
-        "clip_count": len(project.clips),
-        "timeline_duration_sec": project.timeline.duration_sec,
-    }
-
-
 def list_edit_decisions(
     project: EpisodeProject,
     *,
@@ -198,218 +134,6 @@ def _source_extents(removes: list[EditDecision]) -> dict[str, SourceExtent]:
 
 def _pre_pad_fade_out_ms() -> int:
     return int(_tighten_cfg().get("filler_pre_pad_fade_out_ms", 5))
-
-
-def _apply_mute_edit(
-    project: EpisodeProject,
-    edit: EditDecision,
-) -> tuple[float, float, list[str], dict]:
-    """Mute ``edit``'s source span in place, with the fill and fades a ripple pad gets.
-
-    The region spans the edit plus its fades, so the edit itself is silent: the clip
-    fades out into it as a padded cut fades into its pad, and back in after it over
-    the post-pad fade-in, which ends before ``edit.next_burst_sec``. Clips do not move.
-    """
-    mapped = edit_timeline_range(project, edit)
-    if mapped is None:
-        return 0.0, 0.0, [], {}
-    tl_start, tl_end = mapped
-    room_tone = filler_pad_mode() == "room_tone"
-    fade_out = _pre_pad_fade_out_ms()
-    fade_in = (
-        recommend_post_pad_fade_in_ms(
-            project,
-            edit.track_id,
-            edit.end,
-            next_burst_sec=edit.next_burst_sec,
-            defaults=load_defaults(),
-        )
-        or MUTE_FADE_MS
-    )
-    span = (max(0.0, edit.start - fade_out / 1000.0), edit.end + fade_in / 1000.0)
-    written = False
-    for clip in clips_for_track(project, edit.track_id):
-        if edit.end <= clip.source_start or edit.start >= clip.source_end:
-            continue
-        region = ClipMuteRegion(
-            start_s=span[0],
-            end_s=span[1],
-            fill=mute_room_tone_fill(project, clip, edit.start, edit.end) if room_tone else None,
-            fade_out_ms=fade_out,
-            fade_in_ms=fade_in,
-        )
-        if add_source_mute(clip, region):
-            written = True
-    track_ids = [edit.track_id] if written else []
-    return (
-        tl_start,
-        tl_end,
-        track_ids,
-        {
-            "scope": getattr(edit, "scope", "session") or "session",
-            "mute": True,
-            # What reverting subtracts: the muted region, fades included.
-            "per_track_source": {edit.track_id: list(span)} if written else {},
-        },
-    )
-
-
-def approve_edits(
-    project: EpisodeProject,
-    ids: list[str],
-    *,
-    confirm_cut_speech: bool = False,
-    allow_review: bool = True,
-    held_out: list[HeldEdit] | None = None,
-    asked_out: list[AskedEdits] | None = None,
-    override_peer_holds: set[str] | None = None,
-    accept_leaned_on: bool = False,
-) -> int:
-    """Apply the pending edits ``ids``.
-
-    ``override_peer_holds`` (Apply suggested actions): a cut held for another track's
-    speech or bleed applies as a session ripple instead, and its id is added to the set.
-    ``accept_leaned_on`` lets the rest of the batch apply beside a cut left pending: the
-    caller has already accepted the other speech those cuts clear (Apply suggested actions).
-
-    Each session remove clears the speech guard now, against the current transcript.
-    Unless ``confirm_cut_speech``, a batch whose ripples would cut speech outside their
-    suggested spans raises :class:`UnconfirmedCutSpeech` with every such remove's
-    speech; the caller's mutation rolls back, so nothing applies. A session remove a peer
-    is now speaking over raises :class:`ScopeChangedAtApproval` the same way. With
-    ``held_out`` (Approve all) such a remove is instead left pending and reported there,
-    in the clock the list shows, while every other edit applies. With ``asked_out`` too,
-    a remove that would cut other speech is also left pending and reported there with its
-    ask, so confirming re-runs only those edits and not the whole batch.
-    """
-    from podcast_mcp.edits.range_edits import apply_ranges
-
-    id_set = set(ids)
-    applied_ids: set[str] = set()
-    to_apply = [e for e in project.edit_decisions if e.id in id_set]
-    unplayed = sorted(unplayed_pending_ids(project, id_set))
-    if unplayed:
-        raise CodedValueError(
-            f"{len(unplayed)} proposal(s) point at audio that was cut away and no longer plays "
-            f"({', '.join(unplayed)}); reject them or run propose_edits again",
-            code="edit_span_not_played",
-        )
-    exact = [e for e in to_apply if e.exact_range is not None]
-    if exact:
-        apply_ranges(project, exact)
-        applied_ids.update(edit.id for edit in exact)
-    to_apply = [e for e in to_apply if e.exact_range is None]
-    # Mutes first (timeline-stable). Later removes first so earlier positions
-    # stay valid after ripple+pad. Splits run after removes.
-    mutes = [e for e in to_apply if e.type == EditDecisionType.MUTE]
-    removes = [e for e in to_apply if e.type == EditDecisionType.REMOVE]
-    splits = [e for e in to_apply if e.type == EditDecisionType.SPLIT]
-    for edit in sorted(mutes, key=lambda e: e.start, reverse=True):
-        tl_start, tl_end, track_ids, params = _apply_mute_edit(project, edit)
-        if not track_ids:
-            continue
-        archive_decision(
-            project,
-            edit,
-            operation="approve_edits",
-            timeline_start=tl_start,
-            timeline_end=tl_end,
-            track_ids=track_ids,
-            params=params,
-        )
-        applied_ids.add(edit.id)
-    batch = _source_extents(removes)
-    extents = batch.copy()
-    applied_removes: list[str] = []
-    partial = held_out is not None
-    # Named before any ripple moves anything, so a held cut reads as the list shows it.
-    labels = {e.id: cut_label(project, e) for e in removes}
-    # Where each cut sits on the timeline before anything ripples: another track's clip can
-    # shift its source time, so two cuts that overlap there need not be near in source time.
-    on_timeline = {e.id: edit_timeline_range(project, e) for e in removes}
-    asked: list[CutSpeechConfirmation] = []
-    asked_ids: list[str] = []
-    held: list[CutScopeHold] = []
-    for edit in sorted(removes, key=lambda e: e.start, reverse=True):
-        applied = consume_source_remove(
-            project,
-            edit,
-            confirm_cut_speech=confirm_cut_speech,
-            allow_review=allow_review,
-            batch=tuple(batch.values()),
-            use_inaudible_opt=False,
-            record_log=False,
-            override_peer_holds=override_peer_holds,
-        )
-        if isinstance(applied, CutSpeechConfirmation):
-            asked.append(applied)
-            asked_ids.append(edit.id)
-            batch.pop(edit.id)
-            continue
-        if isinstance(applied, CutScopeHold):
-            held.append(applied)
-            batch.pop(edit.id)
-            continue
-        tl_start, tl_end, track_ids, params = applied
-        if not track_ids:
-            continue
-        archive_decision(
-            project,
-            edit,
-            operation="approve_edits",
-            timeline_start=tl_start,
-            timeline_end=tl_end,
-            track_ids=track_ids,
-            params=params,
-        )
-        applied_ids.add(edit.id)
-        applied_removes.append(edit.id)
-    # An applied cut beside a left-pending one may have cleared speech on the assumption
-    # that the other removes it: then nothing applies on a guess, as before.
-    left_pending = (*asked_ids, *(h.edit_id for h in held))
-    leaned_on = not accept_leaned_on and any(
-        _near(extents[a], extents[x]) or _near_on_timeline(on_timeline[a], on_timeline[x])
-        for a in applied_removes
-        for x in left_pending
-    )
-    if asked:
-        confirmation = confirmation_for(merge_cut_speech([a.speech for a in asked]))
-        if asked_out is None or not partial or leaned_on:
-            raise UnconfirmedCutSpeech(confirmation)
-        asked_out.append(AskedEdits(tuple(asked_ids), confirmation))
-    if held:
-        error = ScopeChangedAtApproval(
-            held,
-            {tid: _speaker_name(project, tid) for h in held for tid in h.peers},
-            {h.edit_id: labels[h.edit_id] for h in held if h.edit_id in labels},
-        )
-        if held_out is None or leaned_on:
-            raise error
-        held_out.extend(
-            HeldEdit(h.edit_id, labels.get(h.edit_id, ""), error.reason_for(h)) for h in held
-        )
-    for edit in sorted(splits, key=lambda e: e.start, reverse=True):
-        at_time = float(edit.start)
-        tids = list(edit.track_ids) if edit.track_ids else [edit.track_id]
-        report = split_clips_at(project, at_time, tids, record_log=False)
-        archive_decision(
-            project,
-            edit,
-            operation="approve_split",
-            timeline_start=at_time,
-            timeline_end=at_time,
-            track_ids=list(report.get("affected_tracks") or tids),
-            params={
-                "at_time": at_time,
-                "track_ids": tids,
-                "split_source_by_track": report.get("split_source_by_track") or {},
-            },
-        )
-        applied_ids.add(edit.id)
-
-    before = len(project.edit_decisions)
-    project.edit_decisions = [e for e in project.edit_decisions if e.id not in applied_ids]
-    return before - len(project.edit_decisions)
 
 
 def reject_edits(project: EpisodeProject, ids: list[str]) -> int:
@@ -575,144 +299,12 @@ def update_pending_edit(
         edit.start = start
         edit.end = end
     edit.boundary_intent = boundary_intent
+    from podcast_mcp.edits.cut_safety import assess_source_offer
+
+    assess_source_offer(project, edit, defaults=load_defaults())
     require_source_remove(project, edit)
     project.edit_decisions = [edit if row is original else row for row in project.edit_decisions]
     return edit
-
-
-def _apply_auto_removes(
-    project: EpisodeProject,
-    removes: list[EditDecision],
-    *,
-    inaudible_opt: bool,
-    config_key: str,
-) -> set[str]:
-    """Ripple ``removes`` right to left, each counting the others as chosen.
-
-    Returns the ids of the removes held back because they would cut other speech.
-    """
-    batch = _source_extents(removes)
-    held: set[str] = set()
-    for edit in sorted(removes, key=lambda e: e.start, reverse=True):
-        applied = consume_source_remove(
-            project,
-            edit,
-            confirm_cut_speech=False,
-            allow_review=False,
-            batch=tuple(batch.values()),
-            use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
-            record_log=False,
-        )
-        if isinstance(applied, CutSpeechConfirmation | CutScopeHold):
-            held.add(edit.id)
-            batch.pop(edit.id)
-            continue
-        tl_start, tl_end, track_ids, params = applied
-        if not track_ids:
-            continue
-        edit.start = params["source_start"]
-        edit.end = params["source_end"]
-        edit.crossfade_ms = params.get("crossfade_ms", edit.crossfade_ms)
-        edit.replace_gap_sec = params["replace_gap_sec"]
-        archive_decision(
-            project,
-            edit,
-            operation="apply_prefix_edits",
-            timeline_start=tl_start,
-            timeline_end=tl_end,
-            track_ids=track_ids,
-            params={**params, "config_key": config_key},
-        )
-    return held
-
-
-def apply_prefix_edits(
-    project: EpisodeProject,
-    reason_prefix: str | tuple[str, ...],
-    *,
-    config_key: str,
-) -> int:
-    """Apply auto-approved REMOVE (ripple) or MUTE (in-place) edits for reason prefixes.
-
-    A remove whose ripple would cut other speech stays pending for review, and the
-    speech it covers is chosen by none of the removes that apply.
-    """
-    prefixes = (reason_prefix,) if isinstance(reason_prefix, str) else reason_prefix
-    applied_decisions: list[EditDecision] = []
-    for e in project.edit_decisions:
-        if e.review_required or e.type not in (
-            EditDecisionType.REMOVE,
-            EditDecisionType.MUTE,
-        ):
-            continue
-        reason = e.reason or ""
-        if not reason.startswith(prefixes):
-            continue
-        mapped = edit_timeline_range(project, e)
-        if mapped is None or mapped[1] <= mapped[0]:
-            continue
-        applied_decisions.append(e)
-
-    if not applied_decisions:
-        return 0
-
-    cfg_all = load_defaults()
-    cfg = cfg_all.get(config_key, {})
-    inaudible_opt = cfg.get("inaudible_opt", True)
-
-    mutes = [e for e in applied_decisions if e.type == EditDecisionType.MUTE]
-    removes = [e for e in applied_decisions if e.type == EditDecisionType.REMOVE]
-    for edit in sorted(mutes, key=lambda e: e.start, reverse=True):
-        tl_start, tl_end, track_ids, params = _apply_mute_edit(project, edit)
-        if not track_ids:
-            continue
-        params = {**params, "config_key": config_key}
-        archive_decision(
-            project,
-            edit,
-            operation="apply_prefix_edits",
-            timeline_start=tl_start,
-            timeline_end=tl_end,
-            track_ids=track_ids,
-            params=params,
-        )
-    remove_ids = {e.id for e in removes}
-    held: set[str] = set()
-    while True:
-        working = project.model_copy(deep=True)
-        newly = _apply_auto_removes(
-            working,
-            [e for e in working.edit_decisions if e.id in remove_ids - held],
-            inaudible_opt=inaudible_opt,
-            config_key=config_key,
-        )
-        if newly:
-            held |= newly
-            continue
-        from podcast_mcp.project_merge import adopt_project_state
-
-        adopt_project_state(project, working)
-        break
-    applied_decisions = [e for e in applied_decisions if e.id not in held]
-
-    apply_join_fades_from_decisions(
-        project,
-        [
-            e
-            for e in project.edit_decisions
-            if e.id in remove_ids - held and not (e.reason or "").startswith("pause:")
-        ],
-        defaults=cfg_all,
-    )
-    id_set = {e.id for e in applied_decisions}
-    before = len(project.edit_decisions)
-    project.edit_decisions = [e for e in project.edit_decisions if e.id not in id_set]
-    return before - len(project.edit_decisions)
-
-
-def apply_auto_edits(project: EpisodeProject) -> int:
-    """Apply filler/pause edits (ripple REMOVE or mute-in-place MUTE)."""
-    return apply_prefix_edits(project, ("filler:", "pause:"), config_key="tighten")
 
 
 def _impact_segment(

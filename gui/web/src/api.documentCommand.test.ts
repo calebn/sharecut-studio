@@ -911,57 +911,47 @@ describe("host document command queue", () => {
     );
   });
 
-  it.each([false, true])(
-    "preserves review authority %s through durable approval and replay",
-    async (allowReview) => {
-      enqueueHostCommand.mockResolvedValue({
-        persisted: true,
-        hadPredecessor: true,
-      });
-      const fetchSpy = vi.fn(
-        async (_url: string, _init?: RequestInit) =>
-          new Response(JSON.stringify({ ok: true }), { status: 200 }),
-      );
-      vi.stubGlobal("fetch", fetchSpy);
-      const { approveEdits, submitDocumentCommand } = await import("./api");
+  it("preserves the selected edits through durable approval and replay", async () => {
+    enqueueHostCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: true,
+    });
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const { approveEdits, submitDocumentCommand } = await import("./api");
 
-      expect(
-        await approveEdits(
-          "/tmp/episode.project.json",
-          ["a"],
-          false,
-          allowReview,
-        ),
-      ).toEqual({
-        queued: true,
-        asked: false,
-        count: null,
-        historyHead: null,
-        held: [],
-      });
-      const command = enqueueHostCommand.mock.calls[0][1] as {
-        command_id: string;
-        client_id: string;
-        client_seq: number;
-        payload: Record<string, unknown>;
-      };
-      expect(command.payload).toEqual({
-        ids: ["a"],
-        allow_review: allowReview,
-      });
+    expect(
+      await approveEdits("/tmp/episode.project.json", ["a"], false),
+    ).toEqual({
+      queued: true,
+      count: null,
+      historyHead: null,
+      held: [],
+    });
+    const command = enqueueHostCommand.mock.calls[0][1] as {
+      command_id: string;
+      client_id: string;
+      client_seq: number;
+      payload: Record<string, unknown>;
+    };
+    expect(command.payload).toEqual({
+      ids: ["a"],
+    });
 
-      await submitDocumentCommand(
-        "/tmp/episode.project.json",
-        "ApproveEdits",
-        command.payload,
-        { ...command, replaying: true },
-      );
-      const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-        payload: unknown;
-      };
-      expect(body.payload).toEqual({ ids: ["a"], allow_review: allowReview });
-    },
-  );
+    await submitDocumentCommand(
+      "/tmp/episode.project.json",
+      "ApproveEdits",
+      command.payload,
+      { ...command, replaying: true },
+    );
+    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
+      payload: unknown;
+    };
+    expect(body.payload).toEqual({ ids: ["a"] });
+  });
 
   it("reports an approval left queued behind older work", async () => {
     enqueueHostCommand.mockResolvedValue({
@@ -974,7 +964,6 @@ describe("host document command queue", () => {
       approveEdits("/tmp/episode.project.json", ["a"]),
     ).resolves.toEqual({
       queued: true,
-      asked: false,
       count: null,
       historyHead: null,
       held: [],
@@ -1001,7 +990,6 @@ describe("host document command queue", () => {
       approveEdits("/tmp/episode.project.json", ["a"]),
     ).resolves.toEqual({
       queued: false,
-      asked: false,
       count: 1,
       historyHead: "a1b2c3d4e5f6",
       held: [],
@@ -1034,9 +1022,6 @@ describe("host document command queue", () => {
     const outcome = await approveEdits(
       "/tmp/episode.project.json",
       ["a", "e2"],
-      false,
-      true,
-      undefined,
       true,
     );
     const sent = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
@@ -1076,7 +1061,6 @@ describe("host document command queue", () => {
       );
       expect(result).toEqual({
         queued: false,
-        asked: false,
         count,
         historyHead: head,
         held: [],

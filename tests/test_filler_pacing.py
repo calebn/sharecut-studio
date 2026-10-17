@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
-from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.filler_pacing import (
     FillerPacingResult,
     PacedPad,
@@ -282,15 +282,23 @@ def test_room_tone_expand_falls_back_when_gap_huge():
     assert paced.pad.seconds(paced.start, paced.end) == pytest.approx(0.28)
 
 
-def test_apply_auto_edits_with_silence_pads():
-    from podcast_mcp.edits.decisions import apply_auto_edits
+def test_apply_auto_edits_with_silence_pads(tmp_path):
+    from podcast_mcp.edits.cut_application import apply_auto_edits
 
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
         TranscriptWord(text="um", start=1.5, end=1.7),
         TranscriptWord(text="really", start=2.5, end=2.8),
     ]
+    from pause_policy_public_helpers import room, voice, write_wav
+
     project = _project(words, duration=10.0)
+    project.meta.workspace_dir = str(tmp_path)
+    project.tracks[0].media.path = "raw/host.wav"
+    audio = room(10)
+    for start, end in ((1.02, 1.17), (1.52, 1.68), (2.65, 2.78)):
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw" / "host.wav", audio)
     project.edit_decisions = [
         EditDecision(
             id="f1",
@@ -306,7 +314,7 @@ def test_apply_auto_edits_with_silence_pads():
     ]
     with (
         patch(
-            "podcast_mcp.edits.decisions.load_defaults",
+            "podcast_mcp.edits.cut_application.load_defaults",
             return_value={
                 "tighten": {
                     "inaudible_opt": False,
@@ -318,10 +326,10 @@ def test_apply_auto_edits_with_silence_pads():
             },
         ),
         patch(
-            "podcast_mcp.edits.source_removals.recommend_post_pad_fade_in_ms",
+            "podcast_mcp.edits.cut_application.recommend_post_pad_fade_in_ms",
             return_value=72,
         ),
-        patch("podcast_mcp.edits.source_removals.filler_pad_mode", return_value="silence"),
+        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="silence"),
     ):
         n = apply_auto_edits(project)
     assert n == 1
@@ -676,13 +684,21 @@ def test_shipped_defaults_fill_pads_with_room_tone():
     assert filler_pad_mode() == "room_tone"
 
 
-def test_approve_edits_applies_silence_pad_when_configured():
+def test_approve_edits_applies_silence_pad_when_configured(tmp_path):
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
         TranscriptWord(text="um", start=1.5, end=1.7),
         TranscriptWord(text="really", start=2.5, end=2.8),
     ]
+    from pause_policy_public_helpers import room, voice, write_wav
+
     project = _project(words, duration=10.0)
+    project.meta.workspace_dir = str(tmp_path)
+    project.tracks[0].media.path = "raw/host.wav"
+    audio = room(10)
+    for start, end in ((1.02, 1.17), (1.52, 1.68), (2.65, 2.78)):
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw" / "host.wav", audio)
     project.edit_decisions = [
         EditDecision(
             id="cut_1",
@@ -698,7 +714,7 @@ def test_approve_edits_applies_silence_pad_when_configured():
     ]
     before_dur = project.clips[0].timeline_end
     with patch(
-        "podcast_mcp.edits.source_removals.filler_pad_mode",
+        "podcast_mcp.edits.cut_application.filler_pad_mode",
         return_value="silence",
     ):
         removed = approve_edits(project, ["cut_1"])
@@ -713,13 +729,21 @@ def test_approve_edits_applies_silence_pad_when_configured():
     assert host[1].timeline_start - host[0].timeline_end == pytest.approx(0.28)
 
 
-def test_approve_edits_applies_room_tone_pad_when_configured():
+def test_approve_edits_applies_room_tone_pad_when_configured(tmp_path):
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
         TranscriptWord(text="um", start=1.5, end=1.7),
         TranscriptWord(text="really", start=2.5, end=2.8),
     ]
+    from pause_policy_public_helpers import room, voice, write_wav
+
     project = _project(words, duration=10.0)
+    project.meta.workspace_dir = str(tmp_path)
+    project.tracks[0].media.path = "raw/host.wav"
+    audio = room(10)
+    for start, end in ((1.02, 1.17), (1.52, 1.68), (2.65, 2.78)):
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw" / "host.wav", audio)
     project.edit_decisions = [
         EditDecision(
             id="cut_1",
@@ -734,7 +758,7 @@ def test_approve_edits_applies_room_tone_pad_when_configured():
         )
     ]
     with (
-        patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="room_tone"),
+        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="room_tone"),
         patch(
             "podcast_mcp.edits.timeline_ops.room_tone_span",
             return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),

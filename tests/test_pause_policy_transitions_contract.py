@@ -12,6 +12,7 @@ from pause_policy_public_helpers import (
     defaults,
     files,
     pause,
+    prepare_pause,
     primary_spans,
     project,
     room,
@@ -205,9 +206,9 @@ def test_real_optimizer_expansion_into_foreign_playback_holds_without_saved_chan
 def test_final_padded_to_splice_runs_enabled_policies_and_preserves_the_full_next_word(
     tmp_path, monkeypatch, topology
 ):
-    _enabled(monkeypatch, optimize=True)
+    cfg = _enabled(monkeypatch, optimize=True)
     result = _placed(tmp_path, topology=topology)
-    result.edit_decisions = [pause("retained", start=0.3, end=4.7)]
+    result.edit_decisions = [prepare_pause(result, pause("retained", start=0.3, end=4.7), cfg)]
     result.edit_decisions[0].applied = False
     ws = workspace(result)
     report = EditService(ws).join_quality(
@@ -337,7 +338,7 @@ def test_above_floor_inventory_reports_actual_pcm_rejection_and_a_clean_positive
 def test_known_gated_pad_lane_and_structurally_empty_lane_keep_distinct_receipts(
     tmp_path, monkeypatch
 ):
-    _enabled(monkeypatch)
+    cfg = _enabled(monkeypatch)
     result = _placed(tmp_path, topology="deleted", guest="gated")
     result.tracks.append(
         Track(id="empty", label="Empty", role=TrackRole.DIALOGUE, timeline_empty=True)
@@ -357,7 +358,7 @@ def test_known_gated_pad_lane_and_structurally_empty_lane_keep_distinct_receipts
     assert (guest.track_id, guest.cause.cause) == ("guest", "gated_live")
     assert isinstance(empty, LaneWithoutPlayback)
     assert empty.track_id == "empty"
-    result.edit_decisions = [pause("three-lanes", start=0.4, end=2)]
+    result.edit_decisions = [prepare_pause(result, pause("three-lanes", start=0.4, end=2), cfg)]
     result.edit_decisions[0].applied = False
     ws = workspace(result)
     assert EditService(ws).approve(["three-lanes"]) == 1
@@ -479,7 +480,7 @@ def test_existing_timing_jnd_uses_final_loss_in_a_literal_five_second_original_p
     for start, end in ((0, 0.5), (5.5, 5.7), (5.8, 6)):
         voice(audio, start, end)
     write_wav(tmp_path / "raw/host.wav", audio)
-    result.edit_decisions = [pause("jnd", start=1, end=2, gap=None)]
+    result.edit_decisions = [pause("jnd", start=1, end=1 + loss, gap=None)]
     result.edit_decisions[0].applied = False
     ws = workspace(result)
     before_files = files(tmp_path)
@@ -493,7 +494,7 @@ def test_existing_timing_jnd_uses_final_loss_in_a_literal_five_second_original_p
         jnd_checks.append((removed_sec, pause_sec, imperceptible))
         return imperceptible
 
-    monkeypatch.setattr(fillers, "pause_trim_is_imperceptible", observe_jnd)
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.pause_trim_is_imperceptible", observe_jnd)
 
     if eligible:
         assert EditService(ws).approve(["jnd"]) == 1
@@ -509,7 +510,7 @@ def test_existing_timing_jnd_uses_final_loss_in_a_literal_five_second_original_p
         with pytest.raises(CodedError) as held:
             EditService(ws).approve(["jnd"])
         assert [(h.edit_id, h.reason, h.detail) for h in held.value.held] == [
-            ("jnd", "pause_air", "no_air")
+            ("jnd", "pause_imperceptible", None)
         ]
         assert files(tmp_path) == before_files
         assert ws.project.model_dump(mode="json") == before_model
@@ -644,7 +645,7 @@ def test_automatic_original_shortage_leaves_a_real_filler_survivor_and_the_same_
     result = _placed(tmp_path, topology="deleted", guest="quiet")
     add_bed(result, tmp_path)
     audio = room(seed=1427)
-    for start, end in ((0, 0.2), (0.6, 0.8), (5, 5.2), (5.4, 5.8)):
+    for start, end in ((0, 0.2), (0.62, 0.78), (5, 5.2), (5.4, 5.8)):
         voice(audio, start, end)
     write_wav(tmp_path / "raw/host.wav", audio)
     result.transcripts[0].words.insert(1, TranscriptWord(text="um", start=0.6, end=0.8))

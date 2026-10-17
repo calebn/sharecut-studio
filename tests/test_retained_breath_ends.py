@@ -406,7 +406,7 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
 ) -> None:
     from dataclasses import replace
 
-    from podcast_mcp.edits.fillers import _VoicedSpeechCheck
+    from podcast_mcp.edits.cut_safety import VoicedEdgeAssessment
 
     cache = _cache_with_breaths()
     project = _project_with_wav(tmp_path, cache)
@@ -416,8 +416,8 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
         def between(project, plan, candidate, **kw):
             return replace(plan, start=walk_start) if walk == "between_kept_voices" else plan
 
-        def voiced_check(candidate, start, end, **kw):
-            return _VoicedSpeechCheck(walk_start if walk == "voiced" else start, end, None)
+        def voiced_check(start, end, **kw):
+            return VoicedEdgeAssessment(walk_start if walk == "voiced" else start, end, None)
 
         with (
             patch("podcast_mcp.edits.fillers._between_kept_voices", side_effect=between),
@@ -429,7 +429,7 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
                 "podcast_mcp.edits.fillers.apply_filler_pacing",
                 return_value=FillerPacingResult(4.90, 5.40),
             ),
-            patch("podcast_mcp.edits.fillers._check_voiced_speech", side_effect=voiced_check),
+            patch("podcast_mcp.edits.cut_safety.assess_voiced_edges", side_effect=voiced_check),
             patch(
                 "podcast_mcp.edits.cut_safety.resolve_cut_scope",
                 return_value=ResolvedCutScope("session_clear", None),
@@ -465,7 +465,7 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
 def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
     adjustment: str,
 ) -> None:
-    from podcast_mcp.edits.fillers import _VoicedSpeechCheck
+    from podcast_mcp.edits.cut_safety import VoicedEdgeAssessment
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     candidate = _CutCandidate(
@@ -477,10 +477,10 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
         min_start=5.30 if adjustment == "min_start" else None,
     )
 
-    def voiced_check(candidate, start, end, **kw):
+    def voiced_check(start, end, **kw):
         if adjustment == "voiced" and start == 4.90:
             start = 5.30
-        return _VoicedSpeechCheck(start, end, None)
+        return VoicedEdgeAssessment(start, end, None)
 
     with (
         patch(
@@ -493,7 +493,7 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
             return_value=FillerPacingResult(5.30 if adjustment == "pacing" else 4.90, 5.40),
         ),
         patch(
-            "podcast_mcp.edits.fillers._check_voiced_speech",
+            "podcast_mcp.edits.cut_safety.assess_voiced_edges",
             side_effect=voiced_check,
         ),
         patch(
@@ -641,7 +641,7 @@ def test_completed_quiet_tail_cannot_hide_protected_activity(backend, tail) -> N
 
 
 def test_proposal_to_exact_approval_preserves_complete_breath_source(tmp_path) -> None:
-    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.fillers import _apply_analyzed_cut
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
@@ -653,7 +653,7 @@ def test_proposal_to_exact_approval_preserves_complete_breath_source(tmp_path) -
         "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
-        assert approve_edits(project, [decision.id]) == 1
+        assert approve_edits(project, [decision.id], defaults={"tighten": _NO_FLOOR}) == 1
     assert any(clip.source_start <= 5.0 and clip.source_end >= 5.26 for clip in project.clips)
     _assert_original_breath_pcm(project, tmp_path, (5.0, 5.26))
 
@@ -674,7 +674,7 @@ def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
         "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
-        assert apply_tighten_decisions(project) == 1
+        assert apply_tighten_decisions(project, {"tighten": _NO_FLOOR}) == 1
     assert any(clip.source_start <= 5.0 and clip.source_end >= 5.26 for clip in project.clips)
     _assert_original_breath_pcm(project, tmp_path, (5.0, 5.26))
 
@@ -702,17 +702,20 @@ def _assert_original_breath_pcm(project, tmp_path, breath):
 
 
 def _project_with_wav(tmp_path, cache):
-    import wave
+    from test_waveform_pyramid import _write_raw_wav
 
     project = _host_project(_fixture_words())
     project.meta.workspace_dir = str(tmp_path)
     tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "host.wav"
-    with wave.open(str(path), "wb") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(16000)
-        handle.writeframes((cache.waveform.samples * 32767).astype("<i2").tobytes())
+    _write_raw_wav(
+        path,
+        cache.waveform.samples.astype("<f4").tobytes(),
+        channels=1,
+        sr=16000,
+        bits=32,
+        fmt_tag=3,
+    )
     project.tracks[0].media.path = "host.wav"
     project.tracks[0].media.duration_sec = 10.2
     project.clips[0].source_end = 10.2
@@ -778,7 +781,7 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
 
 
 def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -> None:
-    from podcast_mcp.edits.fillers import _VoicedSpeechCheck
+    from podcast_mcp.edits.cut_safety import VoicedEdgeAssessment
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     # Pacing leaves 5.30-5.38 of the gap; the breath's tail and the 50 ms average that
@@ -795,8 +798,8 @@ def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -
             return_value=FillerPacingResult(5.30, 5.38),
         ),
         patch(
-            "podcast_mcp.edits.fillers._check_voiced_speech",
-            return_value=_VoicedSpeechCheck(5.30, 5.38, None),
+            "podcast_mcp.edits.cut_safety.assess_voiced_edges",
+            return_value=VoicedEdgeAssessment(5.30, 5.38, None),
         ),
         patch(
             "podcast_mcp.edits.cut_safety.resolve_cut_scope",

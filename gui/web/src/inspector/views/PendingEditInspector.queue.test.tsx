@@ -68,7 +68,6 @@ describe("pending timing queue settlement", () => {
   beforeEach(() => {
     mocks.approveEdits.mockReset().mockResolvedValue({
       queued: true,
-      asked: false,
       count: null,
       historyHead: null,
     });

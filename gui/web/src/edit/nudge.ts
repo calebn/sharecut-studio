@@ -433,7 +433,7 @@ export function withNudge(
 /**
  * Saves `field` at `value` as one document command, against `origin`, the
  * project as it was saved when the nudges began. False when nothing saved:
- * a ripple trim over another speaker's speech asks first (`CutSpeechDialog`).
+ * a trusted manual trim retains structural boundary validation.
  */
 export async function saveNudge(
   projectPath: string,

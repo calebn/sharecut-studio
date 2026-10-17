@@ -107,15 +107,13 @@ describe("bulkReviewQuestion", () => {
 });
 
 describe("pendingReviewFeedback", () => {
-  it("announces a partial approve before Cut anyway", () => {
+  it("announces completed approval with its exact history head", () => {
     const head = "abc" as import("../types/project").HistoryEntryId;
     expect(
       pendingReviewFeedback("approve", {
         queued: false,
-        asked: true,
-        count: null,
+        count: 2,
         historyHead: head,
-        applied: 2,
         held: [],
       }),
     ).toEqual({

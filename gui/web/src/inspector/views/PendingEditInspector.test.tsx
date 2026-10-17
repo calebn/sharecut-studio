@@ -65,7 +65,6 @@ vi.mock("../../api", () => ({
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
   rejectEdits: vi.fn(async () => ({
     queued: false,
-    asked: false,
     count: 1,
     historyHead: null,
   })),
@@ -117,7 +116,6 @@ describe("PendingEditInspector", () => {
     refreshProject.mockReset();
     approveEdits.mockReset().mockResolvedValue({
       queued: false,
-      asked: false,
       count: 1,
       historyHead: null,
     });

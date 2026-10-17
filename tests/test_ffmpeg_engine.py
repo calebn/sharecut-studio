@@ -20,8 +20,6 @@ from podcast_mcp.engines.mastering import LoudnormPlan
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
-    EditDecision,
-    EditDecisionType,
     MediaAsset,
     ProcessingChain,
     ProcessingEffect,
@@ -244,44 +242,6 @@ def test_probe_parsed_from_json(tmp_path: Path):
     assert probe.duration_sec == 3.5
     assert probe.sample_rate == 44100
     assert probe.channels == 2
-
-
-def test_segments_after_edits_edge_cases():
-    eng = FFmpegEngine()
-    edits = [
-        EditDecision(
-            id="1",
-            track_id="host",
-            type=EditDecisionType.REMOVE,
-            start=0.5,
-            end=0.8,
-            applied=True,
-        ),
-        EditDecision(
-            id="2",
-            track_id="guest",
-            type=EditDecisionType.REMOVE,
-            start=0.0,
-            end=0.2,
-            applied=True,
-        ),
-        EditDecision(
-            id="3",
-            track_id="host",
-            type=EditDecisionType.REMOVE,
-            start=0.2,
-            end=0.4,
-            applied=False,
-        ),
-    ]
-    segs = eng.segments_after_edits(2.0, edits, "host")
-    assert len(segs) == 2
-    assert segs[0].end == 0.5
-    assert segs[1].start == 0.8
-
-    full = eng.segments_after_edits(1.5, [], "host")
-    assert len(full) == 1
-    assert full[0].start == 0.0 and full[0].end == 1.5
 
 
 def test_build_track_filter_all_effects_and_anull():

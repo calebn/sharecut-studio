@@ -175,6 +175,8 @@ test("idle desktop reaches an edit in removed audio through the status chip", as
       data.editorial.edit_decisions = [
         {
           id: "orphan",
+          proposal_origin: "programmatic",
+          boundary_intent: "programmatic",
           track_id: "reference",
           type: "remove",
           start: 30,

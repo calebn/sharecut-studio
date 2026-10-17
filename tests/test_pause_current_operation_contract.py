@@ -11,7 +11,6 @@ from pause_policy_public_helpers import (
     configure,
     defaults,
     files,
-    pause,
     primary_spans,
     project,
     room,
@@ -20,7 +19,7 @@ from pause_policy_public_helpers import (
     write_wav,
 )
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
-from podcast_mcp.models import EditDecisionType, TranscriptWord, load_project
+from podcast_mcp.models import CutIntent, EditDecisionType, TranscriptWord, load_project
 from podcast_mcp.services.document import EditService
 
 
@@ -44,8 +43,34 @@ def _stored_remove(tmp_path, *, rustle=False, seconds=6, seed=1214):
         TranscriptWord(text=f"word-{index}", start=start, end=end)
         for index, (start, end) in enumerate(intervals)
     ]
-    result.edit_decisions = [pause("stored-remove", start=0.3, end=4.7, gap=None)]
+    result.edit_decisions = [_prepared_remove(result, "stored-remove", 0.3, 4.7, 5)]
     return result
+
+
+def _prepared_remove(result, edit_id, start, end, next_word):
+    from podcast_mcp.edits.cut_proof import shared_source_audio_caches
+    from podcast_mcp.edits.cut_safety import CutRejected
+    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate, _decision_for_analyzed
+
+    caches = shared_source_audio_caches(result)
+    analyzed = _analyze_candidate(
+        result,
+        _CutCandidate(
+            "host",
+            start,
+            end,
+            "pause:prepared",
+            "pause",
+            max_end=end,
+            gap_end=next_word,
+            decision_id=edit_id,
+        ),
+        defaults(acoustic=False),
+        audio_cache=caches["host"],
+        audio_caches=caches,
+    )
+    assert not isinstance(analyzed, CutRejected), analyzed
+    return _decision_for_analyzed(analyzed)
 
 
 def _assert_original_splice(edited, *, operation):
@@ -97,7 +122,7 @@ def test_saved_remove_uses_ripple_policy_after_current_proposal_mode_changes_to_
     cfg = defaults(acoustic=False)
     cfg["tighten"]["edit_mode"] = "mute"
     configure(monkeypatch, cfg)
-    monkeypatch.setattr("podcast_mcp.edits.source_removals.load_defaults", lambda: cfg)
+    monkeypatch.setattr("podcast_mcp.edits.cut_application.load_defaults", lambda: cfg)
     original_config = copy.deepcopy(cfg)
     ws = workspace(_stored_remove(tmp_path, rustle=True))
     before_files = files(tmp_path)
@@ -105,7 +130,7 @@ def test_saved_remove_uses_ripple_policy_after_current_proposal_mode_changes_to_
     if delivery == "suggested":
         edited = ws.project.model_copy(deep=True)
         assert apply_for_suggested(edited, resolve_pending_preview(edited, "stored-remove")) == (
-            pytest.approx(1.05)
+            pytest.approx(0.8)
         )
         assert files(tmp_path) == before_files
         assert ws.project.model_dump(mode="json") == before_model
@@ -189,15 +214,18 @@ def test_explicitly_selected_manual_approval_keeps_its_fresh_review_authorizatio
     observed = _fresh_join_review(monkeypatch)
     ws = workspace(_stored_remove(tmp_path, seed=1512))
     assert ws.project.edit_decisions[0].review_required is False
-    assert EditService(ws).approve(["stored-remove"]) == 1
-    assert ("host", pytest.approx(0.3), pytest.approx(4.45), "source") in observed
+    assert (
+        EditService(ws).approve(["stored-remove"], application_intent=CutIntent.HUMAN_BOUNDARIES)
+        == 1
+    )
+    assert observed == []
     _assert_original_splice(load_project(ws.path), operation="approve_edits")
 
 
 def test_fresh_review_hold_does_not_prevent_an_independent_auto_survivor(tmp_path, monkeypatch):
     observed = _fresh_join_review(monkeypatch, independent=True)
     result = _stored_remove(tmp_path, seconds=12, seed=1512)
-    result.edit_decisions.append(pause("independent", start=5.4, end=10.7, gap=None))
+    result.edit_decisions.append(_prepared_remove(result, "independent", 5.4, 10.7, 11))
     ws = workspace(result)
     held_row = ws.project.edit_decisions[0].model_dump(mode="json")
     raw = (tmp_path / "raw/host.wav").read_bytes()

@@ -50,7 +50,7 @@ Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). S
 
 **Cut boundaries:** `docs/inaudible-cuts.md` covers `preview-cut` / `preview_inaudible_cut_tool` dry-run metadata. Tighten protects both final breath edges, including quiet onset and tail, and suppresses relevant uncertain crossings. See [filler cut quality](../../../docs/filler-cut-quality.md#policy).
 
-Pause trims use current complete word images and original placements to try bounded left, right, or bilateral contraction. Each attempt reruns all operation and safety gates. A pause holds when required original quiet or evidence is insufficient. Pause trims never add room-tone or silence padding, regardless of configured modes or stale saved pad values. A trim qualifies only when its final actual net loss is positive and meets the timing JND. Saved REMOVE pauses always replan as session ripples, regardless of the current proposal mode. Fresh join review holds automatic application. An explicit selected approval remains separately owner-authorized. Keep manual and nonpause room-tone workflows separate; unresolved or suspect pad sources remain on hold pending owner listening.
+Pause proposal preparation uses current complete word images and original placements to try bounded left, right, or bilateral contraction. Each preparation attempt reruns the operation and safety gates. Application measures the fixed proposed operation and current retained air; it never repeats preparation or resnaps the stored edges. A pause holds when required original quiet or evidence is insufficient. Pause trims never add room-tone or silence padding, regardless of configured modes or stale saved pad values. A trim qualifies only when its final actual net loss is positive and meets the timing JND. Saved REMOVE pauses remain session ripples, regardless of the current proposal mode. Fresh join review holds automatic application. Trusted human GUI approval supplies a transient acoustic override, preserving programmatic proposal origin. Agent approval and a GUI-started pipeline do not establish manual intent; structural/source/pad integrity still applies to both. Keep manual and nonpause room-tone workflows separate; unresolved or suspect pad sources remain on hold pending owner listening.
 
 ## When to use each effect
 
@@ -91,3 +91,11 @@ Pause trims use current complete word images and original placements to try boun
 - “Add noise reduction to the guest” → `add_effect_tool(speaker="guest", preset="noise_reduction")`
 
 Re-render with `render_preview` after chain changes.
+
+Application consumes held bounds without resnapping. The cut-domain owner finishes
+actual source, mute, pad and fade effects on a private project copy, assesses them,
+and publishes once through the existing workspace mutation. Programmatic calls
+cannot grant acoustic override with flags, text consent or saved labels. Trusted
+manual gestures and explicit interactive approval override acoustics only; source
+placement, pad hulls and archive integrity still hold. A refusal publishes no
+provisional archives, history or render artifacts.

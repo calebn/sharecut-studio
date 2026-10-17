@@ -78,14 +78,17 @@ class LevelBand:
     hi: float
 
 
+def breath_level_floor(noise_floor_rms: float, speech_rms: float) -> float:
+    return max(
+        noise_floor_rms * db_to_amplitude(_BREATH_ABOVE_FLOOR_DB),
+        speech_rms * db_to_amplitude(-BREATH_BELOW_SPEECH_DB[1]),
+    )
+
+
 def breath_level_band(noise_floor_rms: float, speech_rms: float) -> LevelBand | None:
     """Band between the room tone and the speech level, or ``None`` without contrast."""
-    quietest, loudest = BREATH_BELOW_SPEECH_DB
-    lo = max(
-        noise_floor_rms * db_to_amplitude(_BREATH_ABOVE_FLOOR_DB),
-        speech_rms * db_to_amplitude(-loudest),
-    )
-    hi = speech_rms * db_to_amplitude(-quietest)
+    lo = breath_level_floor(noise_floor_rms, speech_rms)
+    hi = speech_rms * db_to_amplitude(-BREATH_BELOW_SPEECH_DB[0])
     if not (0.0 < lo < hi):
         return None
     return LevelBand(lo=lo, hi=hi)
