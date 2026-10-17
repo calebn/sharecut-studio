@@ -92,7 +92,7 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
     """
     reason = decision.reason or ""
     policy = decision_policy(decision)
-    if policy is not None and policy.review:
+    if policy is not None and policy.proposal_review:
         return decision.applied
     if reason.startswith(("filler:", "pause:")):
         return decision.applied and decision.review_required

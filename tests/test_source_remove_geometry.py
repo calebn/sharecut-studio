@@ -179,6 +179,17 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
 
     before = ws.project.model_dump(mode="json")
     files = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    if operation == "extension":
+        key = ("breath_edge", "mute")
+        policy = cut_safety.CUT_ACTION_TABLE[key]
+        monkeypatch.delitem(cut_safety.CUT_ACTION_TABLE, key)
+        with pytest.raises(KeyError, match="breath_edge"):
+            apply()
+        assert ws.project.model_dump(mode="json") == before
+        assert {
+            p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+        } == files
+        monkeypatch.setitem(cut_safety.CUT_ACTION_TABLE, key, policy)
     if operation in {"extension", "live_plan"}:
         with pytest.raises(ScopeChangedAtApproval, match="held edges"):
             apply()
@@ -1105,6 +1116,14 @@ def test_apply_reassesses_real_sabotage_after_offer(
             )
     elif sabotage == "placement":
 
+        def set_mute_mode(project):
+            next(
+                edit for edit in project.edit_decisions if edit.id == proposal.id
+            ).type = EditDecisionType.MUTE
+
+        ws.mutate("before mute placement", "after mute placement", set_mute_mode)
+        (proposal,) = ws.project.edit_decisions
+
         def separate_source(project):
             project.clips[0].source_end = 1.5
             project.clips.append(
@@ -1125,6 +1144,15 @@ def test_apply_reassesses_real_sabotage_after_offer(
     before_files = {
         str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
     }
+    if sabotage == "placement":
+        key = ("source_geometry", "mute")
+        policy = cut_safety.CUT_ACTION_TABLE[key]
+        monkeypatch.delitem(cut_safety.CUT_ACTION_TABLE, key)
+        with pytest.raises(KeyError, match="source_geometry"):
+            EditService(ws).approve([proposal.id])
+        assert ws.path.read_bytes() == before
+        assert ws.project.model_dump(mode="json") == before_model
+        monkeypatch.setitem(cut_safety.CUT_ACTION_TABLE, key, policy)
     with pytest.raises(ScopeChangedAtApproval) as held:
         EditService(ws).approve([proposal.id])
     assert held.value.held[0].reason == reason
@@ -1134,6 +1162,12 @@ def test_apply_reassesses_real_sabotage_after_offer(
     } == before_files
     assert ws.path.read_bytes() == before
     assert ws.project.model_dump(mode="json") == before_model
+    if not manual_applies:
+        with pytest.raises(ScopeChangedAtApproval) as human_held:
+            EditService(ws).approve([proposal.id], application_intent=CutIntent.HUMAN_BOUNDARIES)
+        assert human_held.value.held[0].reason == "source_geometry"
+        assert ws.path.read_bytes() == before
+        assert ws.project.model_dump(mode="json") == before_model
     if manual_applies:
         assert (
             EditService(ws).approve([proposal.id], application_intent=CutIntent.HUMAN_BOUNDARIES)

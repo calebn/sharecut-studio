@@ -105,6 +105,7 @@ def _completed_holds(
     peers: cut_safety.PeerObservations | None = None,
     owned: bool = True,
     exact_ranges: Mapping[str, ExactRangeTarget] | None = None,
+    mode: cut_safety.CutMode | None = None,
 ) -> list[cut_safety.CutScopeHold]:
     placement = [
         hold
@@ -117,15 +118,27 @@ def _completed_holds(
         is not None
     ]
     if placement:
-        return placement
+        placement = cut_safety.apply_safety_actions(
+            before, placement, manual_ids=manual_ids, mode=mode
+        )
+        if placement:
+            return placement
     if peers is not None:
         peer = cut_safety._peer_policy(
             peers, edit_id=next(iter(ids)), manual=ids <= manual_ids, owned=owned
         )
+        edit = next((item for item in before.edit_decisions if item.id in ids), None)
+        peer_mode = mode or (cut_safety.edit_time_behavior(edit) if edit is not None else "ripple")
         if isinstance(peer, CutSpeechConfirmation):
-            raise UnconfirmedCutSpeech(peer)
-        if peer is not None:
-            return [peer]
+            policy = cut_safety.action_for_safety_observation("peer_speech", peer_mode)
+            if policy.action == "review":
+                raise UnconfirmedCutSpeech(peer)
+        elif peer is not None:
+            peer_holds = cut_safety.apply_safety_actions(
+                before, [peer], manual_ids=manual_ids, mode=peer_mode
+            )
+            if peer_holds:
+                return peer_holds
     if ids <= manual_ids:
         return []
     unavailable: frozenset[str] = frozenset()
@@ -138,17 +151,29 @@ def _completed_holds(
             contributors_by_clip=contributors_by_clip,
             introduced_clips=frozenset(clip_id for pad in pads for clip_id in pad.clip_ids),
         )
+    except cut_safety.DuplicateSourceOccurrence:
+        return cut_safety.apply_safety_actions(
+            before,
+            [cut_safety.CutScopeHold(edit_id, (), "source_geometry") for edit_id in ids],
+            manual_ids=manual_ids,
+            mode=mode,
+        )
     except (OSError, ValueError, subprocess.SubprocessError):
         effects = ()
         unavailable = ids
-    return cut_safety.complete_effect_acoustics(
+    return cut_safety.apply_safety_actions(
         before,
-        effects,
-        defaults=defaults,
+        cut_safety.complete_effect_acoustics(
+            before,
+            effects,
+            defaults=defaults,
+            manual_ids=manual_ids,
+            pauses=pauses,
+            join=join,
+            unavailable=unavailable,
+        ),
         manual_ids=manual_ids,
-        pauses=pauses,
-        join=join,
-        unavailable=unavailable,
+        mode=mode,
     )
 
 
@@ -171,6 +196,7 @@ def apply_trim(
         peers=cut_safety.PeerObservations(None, speech),
         owned=bool(plan.removal and plan.removal.selected),
         manual_ids=ids if application_intent is CutIntent.HUMAN_BOUNDARIES else frozenset(),
+        mode="ripple" if plan.mode is EditMode.RIPPLE else "mute",
     )
     if held:
         raise ScopeChangedAtApproval(held, {})
@@ -224,6 +250,7 @@ def apply_timeline_cut(
         peers=cut_safety.PeerObservations(None, speech),
         owned=bool(request.removal.selected),
         manual_ids=ids if application_intent is CutIntent.HUMAN_BOUNDARIES else frozenset(),
+        mode="ripple" if request.mode is EditMode.RIPPLE else "mute",
     )
     if held:
         raise ScopeChangedAtApproval(held, {})
@@ -1248,6 +1275,7 @@ def apply_lower(
         ids,
         defaults=load_defaults(),
         observation=observation,
+        mode="mute",
         manual_ids=ids
         if application_intent is CutIntent.HUMAN_BOUNDARIES
         or decision.boundary_intent is CutIntent.HUMAN_BOUNDARIES
