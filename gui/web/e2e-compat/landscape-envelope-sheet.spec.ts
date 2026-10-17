@@ -85,7 +85,7 @@ function laneBand(page: Page, index: number) {
 }
 
 /** Does `control` sit wholly inside the sheet's visible area and the viewport? */
-async function expectInSheet(page: Page, control: Locator, label: string) {
+async function expectInSheet(control: Locator, label: string) {
   const geometry = await control.evaluate((el) => {
     const r = el.getBoundingClientRect();
     const sheet = el.closest(".bottom-sheet")!.getBoundingClientRect();
@@ -122,12 +122,10 @@ for (const vp of VIEWPORTS) {
       const band = await laneBand(page, TRACK_INDEX);
       expect(band.visible).toBe(band.laneHeight);
       await expectInSheet(
-        page,
         page.getByRole("button", { name: "Add point", exact: true }),
         "Add point",
       );
       await expectInSheet(
-        page,
         page.getByRole("button", { name: "Done", exact: true }),
         "Done",
       );
@@ -159,7 +157,7 @@ for (const vp of VIEWPORTS) {
         [save, "Save point"],
         [cancel, "Cancel"],
       ] as const)
-        await expectInSheet(page, control, label);
+        await expectInSheet(control, label);
 
       await setKeyboard(page, vp.keyboard);
       await level.focus();
@@ -169,10 +167,10 @@ for (const vp of VIEWPORTS) {
         [save, "Save point"],
         [cancel, "Cancel"],
       ] as const)
-        await expectInSheet(page, control, `${label} with keyboard`);
+        await expectInSheet(control, `${label} with keyboard`);
       const done = page.getByRole("button", { name: "Done", exact: true });
       await done.scrollIntoViewIfNeeded();
-      await expectInSheet(page, done, "Done with keyboard");
+      await expectInSheet(done, "Done with keyboard");
     });
   });
 
