@@ -39,14 +39,16 @@ a fix.
 | Owner catalogue `podcast_030` (2020) | None committed. Local holdout copy only. | One stereo room recorder file, in person, 16-bit, floor near -52 dBFS | Owner holds the rights | **Holdout** |
 | Owner catalogue `podcast_016` (2019) | None committed. Local holdout copy only. | Two mono 24-bit raws, quiet guest about 7 dB under the host, almost no bleed | Owner holds the rights | **Holdout** |
 | Owner catalogue `podcast_073` (2021) | None committed. Local holdout copy only. | Three hot gated `_bip` bounces, already edited by the owner | Owner holds the rights | **Holdout, reserved, not yet run** (edited input, so it cannot test content cuts) |
+| Owner catalogue `podcast_040` (2020) | None committed. Local holdout copy only. | Remote call: one 24-bit local recorder track (named Host in the manifest, quiet, 23% active) and one 16-bit Zoom `audio_only` export (named Guest), 3466 s, two speakers inferred from file names | Owner holds the rights | **Holdout** (second slice) |
+| Owner catalogue `podcast_018` (2019) | None committed. Local holdout copy only. | In person, inferred: two equal-length mono 24-bit raws from one recorder, 2673.5 s, no digital silence, 0.5 s envelope correlation 0.22, both tracks peak at 0 dBFS | Owner holds the rights | **Holdout** (second slice) |
 
-The four owner-catalogue episodes are the #1273 holdout set. Their audio is
+The six owner-catalogue episodes are the #1273 holdout set. Their audio is
 private: it contains guests' voices and is never committed, uploaded or pasted.
 The owner holds the rights to the whole back catalogue, which satisfies the
 commercial-use gate that the public corpus candidates (Open Yap, AMI, DiPCo)
 would otherwise have to pass. Work only on copies, recreate them from the
 owner's source with the sha256 manifest, and delete scratch projects after
-use. Do not tune a threshold on these recordings. The first evaluation and its
+use. Do not tune a threshold on these recordings. The evaluations and their
 results are in [holdout-evaluation.md](holdout-evaluation.md).
 
 ### Regenerate
