@@ -1298,7 +1298,7 @@ def complete_effect_acoustics(
     joins: dict[str, str] = {}
     heard_caches: dict[str, TrackAudioCache] = {}
     source_caches: dict[Path, TrackAudioCache] = {}
-    join_subjects: dict[str, tuple[str, Path] | None] = {}
+    join_subjects: dict[str, tuple[str, float, Path] | None] = {}
     join_scored: set[str] = set()
     if defaults.get("tighten", {}).get("join_continuity_gate", False):
         from podcast_mcp.util.tracks import recording_audio_path
@@ -1311,7 +1311,40 @@ def complete_effect_acoustics(
                 if edit is None:
                     raise ValueError("pause contributor has no current edit")
                 recording = recording_audio_path(project, edit.track_id, edit.source_id)
-                join_subjects[edit_id] = (edit.track_id, recording.resolve(strict=True))
+                recording = recording.resolve(strict=True)
+                placements: list[tuple[str, float]] = []
+                unresolved_placement = False
+                for effect in effects:
+                    if (
+                        edit_id not in effect.contributors
+                        or effect.envelope is not None
+                        or effect.join is not CutJoin.SPLICE
+                        or effect.start >= effect.end
+                        or effect.start >= edit.end
+                        or effect.end <= edit.start
+                    ):
+                        continue
+                    try:
+                        if not same_recording(effect.recording, recording):
+                            continue
+                    except (OSError, ValueError, subprocess.SubprocessError):
+                        unresolved_placement = True
+                        continue
+                    if effect.before is None:
+                        unresolved_placement = True
+                        continue
+                    offset = effect.before.timeline_start - effect.before.source.src_start
+                    if not any(
+                        track_id == effect.track_id
+                        and abs(existing_offset - offset) <= _SOURCE_GEOMETRY_TOLERANCE_SEC
+                        for track_id, existing_offset in placements
+                    ):
+                        placements.append((effect.track_id, offset))
+                if unresolved_placement or len(placements) != 1:
+                    join_subjects[edit_id] = None
+                else:
+                    track_id, offset = next(iter(placements))
+                    join_subjects[edit_id] = (track_id, offset, recording)
             except (KeyError, OSError, ValueError, subprocess.SubprocessError):
                 join_subjects[edit_id] = None
     flags: dict[str, list[str]] = {
@@ -1375,10 +1408,13 @@ def complete_effect_acoustics(
                 if subject is None:
                     joins[edit_id] = "audio_unavailable"
                     continue
-                if effect.track_id != subject[0]:
+                if effect.before is None or effect.track_id != subject[0]:
+                    continue
+                offset = effect.before.timeline_start - effect.before.source.src_start
+                if abs(offset - subject[1]) > _SOURCE_GEOMETRY_TOLERANCE_SEC:
                     continue
                 try:
-                    matches_recording = same_recording(effect.recording, subject[1])
+                    matches_recording = same_recording(effect.recording, subject[2])
                 except (KeyError, OSError, ValueError, subprocess.SubprocessError):
                     joins[edit_id] = "audio_unavailable"
                     continue
