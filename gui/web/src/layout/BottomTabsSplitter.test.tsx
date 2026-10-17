@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { TABS_HEIGHT_STORAGE_KEY } from "../hooks/useTabsHeight";
+import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { BottomTabsSplitter } from "./BottomTabsSplitter";
 
@@ -214,5 +217,46 @@ describe("BottomTabsSplitter", () => {
     fireEvent.pointerMove(sep, { pointerId: 1, clientY: 300 });
     fireEvent.pointerUp(sep, { pointerId: 1 });
     expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBeNull();
+  });
+
+  describe("collapse to the tool rail", () => {
+    beforeEach(() => {
+      clearRegisteredCommands();
+      registerDawCommands();
+      useDawStore.setState({ layoutMode: "default" });
+    });
+
+    it("End runs Maximize timeline and keeps the stored height", async () => {
+      window.localStorage.setItem(TABS_HEIGHT_STORAGE_KEY, "18");
+      render(<BottomTabsSplitter />);
+      const sep = screen.getByRole("separator", {
+        name: "Resize editor panels",
+      });
+      sep.focus();
+      await userEvent.keyboard("{End}");
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().layoutMode).toBe("timeline"),
+      );
+      expect(window.localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("18");
+    });
+
+    it("dragging below the minimum collapses and reopening returns to the height held before the drag", async () => {
+      window.localStorage.setItem(TABS_HEIGHT_STORAGE_KEY, "18");
+      render(<BottomTabsSplitter />);
+      const sep = screen.getByRole("separator", {
+        name: "Resize editor panels",
+      });
+      fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+      fireEvent.pointerMove(sep, { pointerId: 1, clientY: 560 });
+      expect(window.localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("8");
+      fireEvent.pointerUp(sep, { pointerId: 1 });
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().layoutMode).toBe("timeline"),
+      );
+      expect(window.localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("18");
+      expect(
+        document.documentElement.style.getPropertyValue("--tabs-height"),
+      ).toBe("18rem");
+    });
   });
 });

@@ -43,6 +43,8 @@ export type StudioShellViewProps = {
     activeTab: PresenceTab;
     pipelineRunning: boolean;
     splitter: ReactNode;
+    /** The grab handle that reopens the drawer in the timeline layout. */
+    reopenHandle: ReactNode;
     content: ReactNode;
     onTabChange: (tab: PresenceTab) => void;
   };
@@ -172,6 +174,7 @@ export function StudioShellView({
             : null}
         </div>
       </section>
+      {layout === "timeline" ? panels.reopenHandle : null}
       {chrome.footer}
       {inspector.kind === "tablet" ? (
         <BottomSheet

@@ -36,6 +36,7 @@ const meta: Meta<typeof BottomTabsSplitterView> = {
     userSet: false,
     onResize: fn(),
     onReset: fn(),
+    onCollapse: fn(),
   },
 };
 export default meta;

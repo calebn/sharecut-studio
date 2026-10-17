@@ -35,8 +35,10 @@ import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
+import { writeDrawerCollapsed } from "../utils/drawerCollapsedPref";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import { BottomTabsSplitter } from "./BottomTabsSplitter";
+import { CollapsedDrawerHandle } from "./CollapsedDrawerHandle";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
@@ -123,6 +125,12 @@ function StudioShellAdapter({
       root.dataset.layout = layoutMode;
     }
   }, [shell, layoutMode, setShellBreakpoint]);
+
+  useEffect(() => {
+    // The phone has no layouts and resets to the default one, which must not
+    // forget what a tablet or desktop left collapsed.
+    if (shell !== "phone") writeDrawerCollapsed(layoutMode === "timeline");
+  }, [shell, layoutMode]);
 
   useEffect(() => {
     return () => {
@@ -263,6 +271,7 @@ function StudioShellAdapter({
         activeTab,
         pipelineRunning,
         splitter: <BottomTabsSplitter />,
+        reopenHandle: <CollapsedDrawerHandle />,
         content: panelContent,
         onTabChange: (tab) => runPointerCommand("view.setTab", { tab }),
       }}

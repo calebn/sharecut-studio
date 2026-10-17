@@ -24,7 +24,16 @@ export interface BottomTabsSplitterViewProps {
   onResize: (rem: number) => void;
   /** Clear the preference (double-click / Enter). */
   onReset: () => void;
+  /**
+   * Collapse the drawer to the tool rail: End, or a drag released more than
+   * `COLLAPSE_OVERSHOOT_REM` below the minimum. The stored height stays, so
+   * reopening returns to it.
+   */
+  onCollapse: () => void;
 }
+
+/** How far past the minimum a drag must pull before release collapses. */
+export const COLLAPSE_OVERSHOOT_REM = 1.5;
 
 /** Props-only horizontal drag handle above the bottom Transcript/Comments/History tabs. */
 export function BottomTabsSplitterView({
@@ -34,6 +43,7 @@ export function BottomTabsSplitterView({
   userSet,
   onResize,
   onReset,
+  onCollapse,
 }: BottomTabsSplitterViewProps) {
   const separatorRef = useRef<HTMLDivElement>(null);
   const [measuredRem, setMeasuredRem] = useState<number | null>(null);
@@ -49,8 +59,9 @@ export function BottomTabsSplitterView({
   useLayoutEffect(measure, [measure, heightRem, userSet]);
   useResizeObserver(() => separatorRef.current?.parentElement, measure);
 
-  const latest = useRef({ heightRem, userSet, onResize, onReset });
-  latest.current = { heightRem, userSet, onResize, onReset };
+  const [collapseArmed, setCollapseArmed] = useState(false);
+  const latest = useRef({ heightRem, userSet, onResize, onReset, onCollapse });
+  latest.current = { heightRem, userSet, onResize, onReset, onCollapse };
   const dragRef = useRef<{
     pointerId: number;
     target: HTMLDivElement;
@@ -58,24 +69,28 @@ export function BottomTabsSplitterView({
     startRem: number;
     prior: { heightRem: number; userSet: boolean };
     painted: number | null;
+    collapse: boolean;
   } | null>(null);
 
   const finish = useCallback((cancel: boolean) => {
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
+    setCollapseArmed(false);
     const current = latest.current;
+    const collapse = !cancel && drag.collapse;
     if (
       drag.painted !== null &&
       current.userSet &&
       current.heightRem === drag.painted &&
-      (cancel || drag.painted === drag.startRem)
+      (cancel || collapse || drag.painted === drag.startRem)
     ) {
       if (drag.prior.userSet) current.onResize(drag.prior.heightRem);
       else current.onReset();
     }
     if (drag.target.hasPointerCapture?.(drag.pointerId))
       drag.target.releasePointerCapture(drag.pointerId);
+    if (collapse) current.onCollapse();
   }, []);
 
   useEffect(() => () => finish(true), [finish]);
@@ -95,6 +110,7 @@ export function BottomTabsSplitterView({
       target: e.currentTarget,
       prior: { heightRem, userSet },
       painted: null,
+      collapse: false,
       startY: e.clientY,
       startRem:
         Number.isFinite(measured) && measured > 0 ? measured : heightRem,
@@ -112,10 +128,13 @@ export function BottomTabsSplitterView({
       return;
     }
     const dy = drag.startY - e.clientY;
-    const next = Math.min(
-      maxRem,
-      Math.max(minRem, pxToRem(remToPx(drag.startRem) + dy)),
-    );
+    const raw = pxToRem(remToPx(drag.startRem) + dy);
+    const collapse = raw < minRem - COLLAPSE_OVERSHOOT_REM;
+    if (collapse !== drag.collapse) {
+      drag.collapse = collapse;
+      setCollapseArmed(collapse);
+    }
+    const next = Math.min(maxRem, Math.max(minRem, raw));
     if (next === (drag.painted ?? drag.startRem)) return;
     drag.painted = next;
     onResize(next);
@@ -166,7 +185,7 @@ export function BottomTabsSplitterView({
     } else if (e.key === "End") {
       e.preventDefault();
       e.stopPropagation();
-      onResize(minRem);
+      onCollapse();
     } else if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
@@ -186,7 +205,8 @@ export function BottomTabsSplitterView({
       aria-valuemin={minRem}
       aria-valuemax={Math.round(maxRem * 10) / 10}
       aria-valuenow={valueNow}
-      aria-valuetext={`${valueNow} rem`}
+      aria-valuetext={collapseArmed ? "Release to collapse" : `${valueNow} rem`}
+      data-collapse-armed={collapseArmed ? "" : undefined}
       tabIndex={0}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -196,7 +216,7 @@ export function BottomTabsSplitterView({
       onBlur={() => finish(true)}
       onDoubleClick={() => onReset()}
       onKeyDown={onKeyDown}
-      title="Drag or arrows to resize · Shift for larger steps · Escape cancels · Enter or double-click resets"
+      title="Drag or arrows to resize · Shift for larger steps · End or drag past the bottom collapses · Escape cancels · Enter or double-click resets"
     >
       <span className="bottom-tabs-splitter-grip" aria-hidden />
     </div>

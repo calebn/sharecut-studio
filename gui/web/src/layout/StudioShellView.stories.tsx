@@ -179,8 +179,10 @@ function StudioPreview(args: PreviewProps) {
                 setHeight(Math.min(24, Math.max(8, next)));
               }}
               onReset={() => setHeight(12.5)}
+              onCollapse={() => setHeight(8)}
             />
           ),
+          reopenHandle: null,
           content:
             tab === "transcript" ? (
               <ShellStoryTranscript onSeek={args.onSeek} />
