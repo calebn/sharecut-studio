@@ -122,8 +122,14 @@ held sideways) compact the editor:
   when a save is failed or waiting and the row grows to a touch target. At most
   24rem tall (914×331) the marker rows scroll with the lanes in the idle layout
   too (`@media (max-height: 24rem)`), so the pinned rows never eat the lanes
-  and a touch-only user can tap a lane's header to open its details; 932×430,
-  1024×768 and 1194×834 keep them pinned. The 9rem floor above belongs to the compact drawer; this
+  and a touch-only user can tap a lane's name to open its details; 932×430,
+  1024×768 and 1194×834 keep them pinned. The **Solo on · Clear solo** chip lives
+  in the header column's chrome, so wherever the rows scroll it scrolls with them
+  (one scroll up), and the pinned corner no longer covers it. With the status line kept
+  there, the sheet at that height has no room for a title row above **Done**:
+  Expand and Close sit on the lane name's and Done's row
+  (`@media (max-height: 24rem)` in `bottom-sheet.css`) and the sheet's title is
+  readable to a screen reader only. The 9rem floor above belongs to the compact drawer; this
   sheet has its own. `useKeepEditedLaneClear` measures the ruler's bottom
   (`pinnedChromeBottom`, which still reads the marker lane where it pins) plus one
   lane height, caps the sheet to what is left (`--sheet-lane-cap`, never under 9rem,
