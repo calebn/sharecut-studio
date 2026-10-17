@@ -113,7 +113,12 @@ async function exercisePinnedRuler(page: Page): Promise<void> {
   await zoomTimelineIn(page, { maxSteps: 8, minRangePx: 100 });
   const scroller = page.locator(".timeline-scroll");
   await scroller.evaluate((element) => {
-    element.scrollLeft = element.scrollWidth - element.clientWidth;
+    // Near the end, with the session end well inside the view: a phone's end
+    // pad lets the end scroll under the track headers.
+    element.scrollLeft = Math.max(
+      1,
+      element.scrollWidth - element.clientWidth - element.clientWidth * 0.4,
+    );
   });
   await expect
     .poll(() => scroller.evaluate((element) => element.scrollLeft > 0))
