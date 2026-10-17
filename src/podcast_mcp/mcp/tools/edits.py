@@ -371,8 +371,8 @@ def apply_suggested_actions_tool(
 
     Each tighten proposal carries a ``label`` and a ``suggested_action`` (``propose_edits``
     shows them). This applies all of them, or only ``ids``: ``cut`` and ``shorten`` cut
-    (a cut held because another speaker is talking applies as a ripple across every
-    dialogue track, and ``cut_over_speaker`` counts those so you can tell the person),
+    (a cut held because another speaker is talking stays pending and is named in ``held``;
+    only a person's own Approve in the editor cuts over another speaker),
     ``lower`` turns a laugh down while another speaker talks over it (otherwise it is left),
     ``leave`` dismisses the proposal and keeps the audio. ``overrides`` maps a decision id to
     another action for that sound. Returns ``applied`` by action, ``cut_over_speaker``,
