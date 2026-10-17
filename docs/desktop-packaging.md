@@ -296,6 +296,22 @@ Mac App Store and Associated Domains entitlement stay deferred. CI signing hooks
 are [§ CI signing funnel](#ci-signing-funnel); attaching certs to Environment
 `desktop-signing` is owner-only.
 
+## Beta signing status
+
+Decision (owner, 2026-10-17): the beta ships with Apple Developer ID signing
+and notarization on both macOS installers, and with the Windows NSIS installer
+and Linux AppImage **unsigned**. Windows Authenticode waits for v1. A beta
+tester on Windows sees a SmartScreen "unknown publisher" warning, and the
+release manifest notes say so. The signing hooks in the funnel below stay in
+place, so adding a certificate later changes secrets, not code.
+
+Who provides what for a distributor build (the table in
+[setup.md § Self-hosting configuration](setup.md#self-hosting-and-distribution-configuration)
+has the full split): the distributor provides the identity profile, signing
+certificates, notarization credentials, object store and hosting. This tree
+provides the validated profile schema, the reusable build workflow and the
+packaging scripts.
+
 ## CI signing funnel
 
 Release automation lives in **this** (soon-public) repo as a reusable
