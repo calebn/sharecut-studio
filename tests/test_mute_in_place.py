@@ -604,6 +604,7 @@ def test_approve_reject_undo_mute(tmp_path, sample_wav):
         return approve_edits(p, ["m1"])
 
     ws.mutate("before approve mute", "after approve mute", _approve)
+    assert "source_id" not in ws.project.editorial.edit_log[0].params
     host = next(c for c in ws.project.clips if c.track_id == "host")
     assert host.mute_regions
     HistoryService(ws).undo()
