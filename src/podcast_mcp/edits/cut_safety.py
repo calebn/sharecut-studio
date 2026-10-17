@@ -61,6 +61,7 @@ from podcast_mcp.engines.session_timeline import (
     origin_track_id_for_clip,
 )
 from podcast_mcp.models import (
+    AppliedEditRecord,
     Clip,
     CutIntent,
     CutSpeech,
@@ -2030,6 +2031,33 @@ def complete_effect_placement(
     return None
 
 
+def _is_recorded_pad(
+    clip: Clip,
+    pad_origins: dict[str, PadEffect],
+    written_by_edit: dict[str, AppliedEditRecord],
+) -> bool:
+    """A native pad clip that the edit which laid it recorded: its window and its samples."""
+    from podcast_mcp.edits.clips_ops import clip_split_origin
+
+    origin = pad_origins.get(clip_split_origin(clip.id, set(pad_origins)) or "")
+    row = written_by_edit.get(origin.edit_id) if origin is not None else None
+    return (
+        origin is not None
+        and row is not None
+        and row.timeline_start is not None
+        and origin.plan.at_time >= row.timeline_start - 1e-6
+        and origin.plan.at_time + origin.plan.seconds
+        <= row.timeline_start + float(row.params.get("replace_gap_sec") or 0) + 1e-6
+        and any(
+            sample["track_id"] == clip.track_id
+            and sample.get("source_id") == clip.source_id
+            and clip.source_start >= sample["source_start"] - 1e-6
+            and clip.source_end <= sample["source_end"] + 1e-6
+            for sample in row.params.get("pad_samples", [])
+        )
+    )
+
+
 def complete_effect_receipts(
     before: EpisodeProject,
     candidate: EpisodeProject,
@@ -2040,8 +2068,6 @@ def complete_effect_receipts(
     trim: TrimPlan | None = None,
     clip_ids: tuple[str, ...] = (),
 ) -> list[CutScopeHold]:
-    from podcast_mcp.edits.clips_ops import clip_split_origin
-
     pad_origins = native_pad_origins()
     old = before.editorial.edit_log
     rows = candidate.editorial.edit_log
@@ -2135,6 +2161,11 @@ def complete_effect_receipts(
             )
             if row.params.get("per_track_source") != expected:
                 bad.update(ids)
+    written_by_edit = {
+        edit.id: written[0]
+        for edit in accepted
+        if len(written := [row for row in new_rows if edit.id in row.decision_ids]) == 1
+    }
     for edit in accepted:
         if edit.exact_range is not None and edit.type not in (
             EditDecisionType.REMOVE,
@@ -2163,22 +2194,7 @@ def complete_effect_receipts(
                 clip.source_id in source_ids
                 and clip_plays_lane(candidate, clip, edit.track_id)
                 and min(edit.end, clip.source_end) - max(edit.start, clip.source_start) > 1e-6
-                and not (
-                    (origin := pad_origins.get(clip_split_origin(clip.id, set(pad_origins)) or ""))
-                    is not None
-                    and origin.edit_id == edit.id
-                    and row.timeline_start is not None
-                    and origin.plan.at_time >= row.timeline_start - 1e-6
-                    and origin.plan.at_time + origin.plan.seconds
-                    <= row.timeline_start + float(row.params.get("replace_gap_sec") or 0) + 1e-6
-                    and any(
-                        sample["track_id"] == clip.track_id
-                        and sample.get("source_id") == clip.source_id
-                        and clip.source_start >= sample["source_start"] - 1e-6
-                        and clip.source_end <= sample["source_end"] + 1e-6
-                        for sample in row.params.get("pad_samples", [])
-                    )
-                )
+                and not _is_recorded_pad(clip, pad_origins, written_by_edit)
                 for clip in candidate.clips
             ):
                 bad.add(edit.id)
