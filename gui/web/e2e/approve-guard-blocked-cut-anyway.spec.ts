@@ -51,7 +51,9 @@ test("explicit interactive approval sends one command without an override flag",
       0,
     );
     await expect(
-      page.getByText("Approved 1 pending edit", { exact: true }),
+      page
+        .getByRole("region", { name: "Status messages" })
+        .getByText("Approved 1 pending edit", { exact: true }),
     ).toBeVisible();
   } finally {
     await page.unroute("**/api/document/command**");
