@@ -284,7 +284,7 @@ test("jog: a tap outside the pad finishes and saves", async ({
   expect(commands.filter((c) => c.type === "TrimClipEdge")).toHaveLength(1);
 });
 
-test("jog: a ripple over the guest's speech asks first, and Leave a gap keeps it", async ({
+test("jog: a ripple over the guest's speech applies as one manual trim", async ({
   page,
   context,
   browserName,
@@ -311,13 +311,25 @@ test("jog: a ripple over the guest's speech asks first, and Leave a gap keeps it
   await expect(page.locator(".trim-readout")).toContainText("Ripple");
   await frame(page, info, `precision-ripple-preview-${browserName}`);
   await finger.up();
-  const dialog = page.getByRole("dialog", { name: "Cut guest's speech too?" });
-  await expect(dialog).toBeVisible();
-  await frame(page, info, `precision-jog-cut-speech-asked-${browserName}`);
-  await dialog.getByRole("button", { name: "Leave a gap" }).click();
-  await expect(dialog).toBeHidden();
   const trims = () => commands.filter((c) => c.type === "TrimClipEdge");
-  await expect.poll(() => trims().length).toBe(2);
+  await expect.poll(() => trims().length).toBe(1);
+  await expect(
+    page.getByRole("dialog", { name: "Cut guest's speech too?" }),
+  ).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      (await projectJson(page, projectPath)).clips.tracks[TRACK].map(
+        (c) => c.timeline_start,
+      ),
+    )
+    .toHaveLength(4);
+  await expect
+    .poll(
+      async () =>
+        (await projectJson(page, projectPath)).clips.tracks[TRACK][3]
+          .timeline_start,
+    )
+    .toBeLessThan(50);
   const starts = (await projectJson(page, projectPath)).clips.tracks[TRACK].map(
     (c) => c.timeline_start,
   );
@@ -326,10 +338,10 @@ test("jog: a ripple over the guest's speech asks first, and Leave a gap keeps it
     starts,
     modes: trims().map((c) => c.payload.mode),
   });
-  expect(trims().map((c) => c.payload.mode)).toEqual(["ripple", "gap"]);
-  expect(starts.slice(0, 2)).toEqual([0, 10]);
-  expect(starts[2]).toBeGreaterThan(44);
-  expect(starts[3]).toBe(50);
+  expect(trims().map((c) => c.payload.mode)).toEqual(["ripple"]);
+  expect(starts.slice(0, 3)).toEqual([0, 10, 40]);
+  expect(starts[3]).toBeGreaterThan(44);
+  expect(starts[3]).toBeLessThan(50);
 });
 
 test("Auto drags directly when a step is 4 px wide at a deep zoom", async ({
