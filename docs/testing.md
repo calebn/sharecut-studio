@@ -1348,7 +1348,7 @@ a table later with `npm --prefix gui/web run profile:summary -- OUT`.
 | --- | --- | --- | --- |
 | Seek | `ruler-seek` | From 0 s, click the ruler at 25% of the session | slider and transport clock land within 1 px of the target (`targetSeconds`, `toleranceSeconds` in the report) |
 | Trim | `trim-cancel` | Drag the selected first clip's in handle 20 px, press Escape, release | no `TrimClipEdge` sent, saved clips and history head unchanged, no ghost left |
-| Trim | `trim-save` | Same drag, release, confirm "Cut anyway" when the host asks | saved `source_start` equals the sent `source_sec` and moved, `source_end` unchanged; then Undo (outside the window) restores the saved clips exactly and the original history head |
+| Trim | `trim-save` | Same drag and release; a person's ripple trim applies directly | saved `source_start` equals the sent `source_sec` and moved, `source_end` unchanged; then Undo (outside the window) restores the saved clips exactly and the original history head |
 
 A failed assertion records a `failed` sample, an `incomplete` report and a
 non-zero exit. The summary prints `INCOMPLETE` with the reason, and a failed
@@ -1403,8 +1403,7 @@ Limits. One fixture size on one desktop browser: no touch, no phones, no dark
 theme, no WebKit, no real audio, and nothing here says the 60 Hz floor holds on
 slower hardware (named-device runs stay in #960). The seek click is a ruler
 click, not held-pointer scrubbing. The first trim ripples later clips and the
-fixture has speech there, so the host asks and the sample includes the
-confirmation (`confirmedCutSpeech` in the report). Two `waveform-snap` reads
+fixture has speech there, and a person's trim applies without a prompt. Two `waveform-snap` reads
 finished around the seek window; the profile does not attribute them to the
 seek. Other tasks (range cut, fades, envelopes, track reorder, Mix, comments)
 and input-response budgets remain with #1035's deferred scope, #960 and #879.
@@ -1709,7 +1708,7 @@ test; other rows are whole tests.
 | a second finger cancels an armed drag and the create menu | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the crossfade grip drags only once a long press arms it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a long-press at a join offers the ripple trim, which shows where later clips go | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| #1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| #1154: a touch ripple trim over the guest's speech applies as one manual trim | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a plain mouse grab at a join rolls it, as on main | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -1764,7 +1763,7 @@ test; other rows are whole tests.
 | desktop: network boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | desktop: stale boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | Auto drags directly when a step is 4 px wide at a deep zoom | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
-| jog: a ripple over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
+| jog: a ripple over the guest's speech applies as one manual trim | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a second finger cancels the drag and saves nothing | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: moves a trim end exactly one 10 ms step and saves it | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a tap outside the pad finishes and saves | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |

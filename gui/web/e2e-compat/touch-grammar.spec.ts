@@ -1134,7 +1134,7 @@ async function rippleLanes(
   });
 }
 
-test("#1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it", async ({
+test("#1154: a touch ripple trim over the guest's speech applies as one manual trim", async ({
   page,
   context,
   browserName,
@@ -1143,6 +1143,7 @@ test("#1154: a touch ripple trim over the guest's speech asks first, and Leave a
   const pps = await setZoom(page, 1);
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
+  const before = (await projectJson(page, projectPath)).clips.tracks;
   const seam = await centerOf(
     page,
     `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
@@ -1161,31 +1162,28 @@ test("#1154: a touch ripple trim over the guest's speech asks first, and Leave a
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);
   // The reference clip from 40 s loses its first 6 s; the guest speaks from
-  // 43.5 s, so the ripple would cut "antonia pointed up to the sky".
+  // 43.5 s, so the ripple cuts "antonia pointed up to the sky". A person's
+  // trim is an explicit manual action, so it applies without asking.
   await finger.slide({ x: chip.x + 6 * pps, y: chip.y }, 12, 30);
   await expect(page.locator(".trim-readout")).toContainText("Ripple");
   await finger.up();
-  const dialog = page.getByRole("dialog", { name: "Cut guest's speech too?" });
-  await expect(dialog).toBeVisible();
-  await frame(page, info, `cut-speech-asked-${browserName}`);
   const trims = () => commands.filter((c) => c.type === "TrimClipEdge");
-  expect(trims().map((c) => c.payload.mode)).toEqual(["ripple"]);
+  await expect.poll(() => trims().length).toBe(1);
+  expect(trims()[0].payload.mode).toBe("ripple");
   expect(trims()[0].payload).not.toHaveProperty("confirm_cut_speech");
-  const asked = (await projectJson(page, projectPath)).clips.tracks;
-  expect(asked[TRACK].map((c) => c.timeline_start)).toEqual([0, 10, 40, 50]);
-
-  const leaveGap = await centerOfLocator(
-    dialog.getByRole("button", { name: "Leave a gap" }),
-  );
-  await tap(page, finger, leaveGap);
-  await expect(dialog).toBeHidden();
-  await expect.poll(() => trims().length).toBe(2);
-  expect(trims()[1].payload.mode).toBe("gap");
-  expect(trims()[1].payload).not.toHaveProperty("confirm_cut_speech");
+  await expect(
+    page.getByRole("dialog", { name: "Cut guest's speech too?" }),
+  ).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      (await projectJson(page, projectPath)).clips.tracks[TRACK].map(
+        (c) => c.timeline_start,
+      ),
+    )
+    .not.toEqual(before[TRACK].map((c) => c.timeline_start));
   const after = (await projectJson(page, projectPath)).clips.tracks;
   const starts = after[TRACK].map((c) => c.timeline_start);
-  await expect(page.locator(".guest-attention")).toHaveCount(0);
-  await frame(page, info, `cut-speech-gap-${browserName}`);
+  await frame(page, info, `cut-speech-ripple-${browserName}`);
   json(info, `cut-speech-${browserName}`, {
     pps,
     starts,
@@ -1193,13 +1191,11 @@ test("#1154: a touch ripple trim over the guest's speech asks first, and Leave a
     commands: trims().map((c) => c.payload),
   });
   expect(starts).toHaveLength(4);
-  expect(starts.slice(0, 2)).toEqual([0, 10]);
-  expect(starts[2]).toBeGreaterThan(44);
-  expect(starts[3]).toBe(50);
-  expect(after.guest).toEqual(asked.guest);
-  await expect(
-    page.getByRole("status").filter({ hasText: "Left a gap" }),
-  ).toHaveCount(1);
+  expect(starts.slice(0, 3)).toEqual([0, 10, 40]);
+  expect(starts[3]).toBeGreaterThan(44);
+  expect(starts[3]).toBeLessThan(50);
+  expect(after.guest).not.toEqual(before.guest);
+  expect(trims()).toHaveLength(1);
 });
 
 test("#1135: a plain mouse grab at a join rolls it, as on main", async ({
