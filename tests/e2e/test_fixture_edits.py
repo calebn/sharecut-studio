@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -57,7 +58,7 @@ def test_nl_edit_and_preview_play(e2e_workspace) -> None:
     assert unchanged.timeline.duration_sec == duration
     approve = runner.invoke(app, [*approve_args, "--yes"])
     assert approve.exit_code == 2, approve.output
-    assert "No such option: --yes" in approve.output
+    assert "No such option: --yes" in re.sub(r"\x1b\[[0-9;]*m", "", approve.output)
     assert load_project(e2e_workspace).clips == unchanged.clips
     DocumentSyncService.open(e2e_workspace).submit(
         DocumentCommand(
