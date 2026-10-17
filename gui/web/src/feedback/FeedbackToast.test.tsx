@@ -596,6 +596,25 @@ describe("FeedbackToast", () => {
       expect(screen.getByText(STALE)).toBeVisible();
     });
 
+    it("says why on screen when the server refuses a queued press before this tab has seen the peer's edit", async () => {
+      const user = userEvent.setup();
+      refuseAsStale();
+      render(<FeedbackToast />);
+      announce();
+      startSave();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      await settleSave();
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(STALE),
+      );
+      expect(undoHistory).toHaveBeenCalledTimes(1);
+      expect(useDawStore.getState().feedbackToast?.message).toBe(STALE);
+      expect(screen.getByText(STALE)).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Undo" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("keeps one Undo for a whole Approve all: the first part's queued press is dropped, the pass toast's Undo takes both parts", async () => {
       const user = userEvent.setup();
       refuseAsStale();
