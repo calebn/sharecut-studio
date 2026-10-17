@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import suggested_actions
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig
@@ -36,6 +37,11 @@ def _decision(did: str, reason: str, start: float) -> EditDecision:
 @pytest.fixture
 def sounds_project(minimal_project):
     project = load_project(minimal_project)
+    audio = room(seconds=10)
+    voice(audio, 0, 0.8)
+    voice(audio, 9.2, 9.8)
+    audio[16000:144000] = 0
+    write_wav(project.workspace_path() / "raw/host.wav", audio)
     project.tracks = [
         Track(
             id="host",

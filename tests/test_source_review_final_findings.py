@@ -5,10 +5,9 @@ import wave
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.cut_safety import CutScopeHold
-from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, UnconfirmedCutSpeech
+from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.ripple import EditMode
-from podcast_mcp.edits.source_removals import inspect_source_remove
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.models import (
@@ -144,36 +143,21 @@ def _speech_review_workspace(tmp_path):
 
 
 @pytest.mark.parametrize("delivery", ["service", "document"])
-def test_restored_speech_review_batch_returns_truthful_confirmation(tmp_path, delivery):
+def test_restored_speech_review_batch_returns_fresh_peer_hold(tmp_path, delivery):
     ws = _speech_review_workspace(tmp_path)
     before = ws.project.model_dump(mode="json")
     saved_before = ws.path.read_bytes()
     ids = ["mute-first", "speech-review"]
 
-    if delivery == "service":
-        outcome = EditService(ws).approve(ids)
-        assert isinstance(outcome, CutSpeechConfirmation)
-        confirmation = outcome.model_dump(mode="json")
-    else:
-        outcome = approve_command(ws, {"ids": ids})
-        assert outcome["operation"] == "approve_edits"
-        assert outcome["unchanged"] is True
-        confirmation = outcome["needs_confirmation"]
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        if delivery == "service":
+            EditService(ws).approve(ids)
+        else:
+            approve_command(ws, {"ids": ids})
 
-    assert (confirmation["status"], confirmation["reason"]) == (
-        "needs_confirmation",
-        "cuts_other_speech",
-    )
-    assert confirmation["speech"]["spans"] == [{"start": 1, "end": 2}]
-    assert [
-        (track["track_id"], track["speaker"], track["words"])
-        for track in confirmation["speech"]["tracks"]
-    ] == [
-        (
-            "guest",
-            "Guest",
-            [{"text": "hello", "timeline_start": 1.1, "timeline_end": 1.8}],
-        )
+    assert held.value.ids == ("speech-review",)
+    assert [(row.edit_id, row.reason, row.peers) for row in held.value.held] == [
+        ("speech-review", "peer_speech", ("guest",))
     ]
     assert ws.project.model_dump(mode="json") == before
     assert ws.path.read_bytes() == saved_before
@@ -204,11 +188,9 @@ def test_unknown_speech_review_recovery_preserves_primary_error(
     def capture_error(project, ids, **kwargs):
         try:
             return actual_approve(project, ids, **kwargs)
-        except UnconfirmedCutSpeech as error:
+        except ScopeChangedAtApproval as error:
             original_errors.append(error)
-            assert [r.decision_ids for r in project.editorial.edit_log] == [["mute-first"]]
-            assert project.editorial.edit_log[0].params["mute"] is True
-            assert len(project.clips[0].mute_regions) == 1
+            assert project.model_dump(mode="json") == before
             raise
 
     def fail_restore(_project, _snapshot):
@@ -217,7 +199,7 @@ def test_unknown_speech_review_recovery_preserves_primary_error(
     monkeypatch.setattr(edit_mod, "approve_edits", capture_error)
     monkeypatch.setattr(session_mod, "apply_snapshot_to_project", fail_restore)
 
-    with pytest.raises(UnconfirmedCutSpeech) as primary:
+    with pytest.raises(ScopeChangedAtApproval) as primary:
         if delivery == "service":
             EditService(ws).approve(["mute-first", "speech-review"])
         else:
@@ -225,16 +207,16 @@ def test_unknown_speech_review_recovery_preserves_primary_error(
 
     assert len(original_errors) == 1
     assert primary.value is original_errors[0]
-    assert primary.value.confirmation.status == "needs_confirmation"
-    assert primary.value.confirmation.reason == "cuts_other_speech"
+    assert primary.value.ids == ("speech-review",)
+    assert [(row.edit_id, row.reason, row.peers) for row in primary.value.held] == [
+        ("speech-review", "peer_speech", ("guest",))
+    ]
     assert ws.path.read_bytes() == saved_before
     assert index.read_bytes() == index_before
     assert history_snapshot_ids(index) == snapshots_before
     assert ws.loaded_file_revision is None
     assert ws.project.render.model_dump(mode="json") == before["render"]
-    assert [r.decision_ids for r in ws.project.editorial.edit_log] == [["mute-first"]]
-    assert ws.project.editorial.edit_log[0].params["mute"] is True
-    assert len(ws.project.clips[0].mute_regions) == 1
+    assert ws.project.model_dump(mode="json") == before
     assert [
         (c.track_id, c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips
     ] == [

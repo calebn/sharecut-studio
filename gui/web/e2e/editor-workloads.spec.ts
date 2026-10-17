@@ -242,7 +242,6 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
     start,
     end,
     mode: "ripple",
-    confirm_cut_speech: true,
   });
   const before = await fullProject(page);
   const boundary =
@@ -526,7 +525,7 @@ async function trim(page: Page, recorder: Recorder) {
     {
       id: "trim-save",
       phase: "warm",
-      input: `trusted pointer on the selected clip's in handle; 4 moves over ${TRIM_DRAG_PX}px; release; durable TrimClipEdge (confirming Cut anyway when the host asks); exact Undo restore outside the window`,
+      input: `trusted pointer on the selected clip's in handle; 4 moves over ${TRIM_DRAG_PX}px; release; durable TrimClipEdge; exact Undo restore outside the window`,
     },
     async () => {
       await begin(page, handle, TRIM_DRAG_PX);
@@ -539,17 +538,7 @@ async function trim(page: Page, recorder: Recorder) {
       const first = trimResponse();
       await page.mouse.up();
       expect((await first).ok()).toBe(true);
-      const cutAnyway = page.getByRole("button", { name: "Cut anyway" });
-      const askedToCutSpeech = await cutAnyway.waitFor({ timeout: 2000 }).then(
-        () => true,
-        () => false,
-      );
-      if (askedToCutSpeech) {
-        const second = trimResponse();
-        await cutAnyway.click();
-        expect((await second).ok()).toBe(true);
-      }
-      expect(commands).toHaveLength(askedToCutSpeech ? 2 : 1);
+      expect(commands).toHaveLength(1);
       const sourceSec = (
         commands.at(-1)!.payload as unknown as { source_sec: number }
       ).source_sec;
@@ -567,7 +556,6 @@ async function trim(page: Page, recorder: Recorder) {
         target: "trim-edge",
         commandType: "TrimClipEdge",
         commandCount: commands.length,
-        confirmedCutSpeech: askedToCutSpeech,
         before: [clipBefore!],
         after: [clipAfter!],
         restoration: "pending",

@@ -4,12 +4,10 @@ from unittest.mock import patch
 
 import pytest
 
+from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
-from podcast_mcp.edits.cut_speech import SpeechClearance
+from podcast_mcp.edits.cut_application import apply_auto_edits, apply_prefix_edits, approve_edits
 from podcast_mcp.edits.decisions import (
-    apply_auto_edits,
-    apply_prefix_edits,
-    approve_edits,
     edit_impact_report,
     format_edit_impact_markdown,
     reject_edits,
@@ -21,10 +19,10 @@ from podcast_mcp.edits.edit_log import revert_applied_edit
 from podcast_mcp.edits.range_edits import build_range_target, edit_selected_range
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import (
+    _write_punch_delete,
+    _write_punch_delete_clips,
+    _write_ripple_delete_clips,
     plan_delete_clips,
-    punch_delete,
-    punch_delete_clips,
-    ripple_delete_clips,
     split_clips_at,
 )
 from podcast_mcp.history.manager import snapshot_from_project
@@ -32,6 +30,7 @@ from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
     ClipJoinMode,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -49,8 +48,19 @@ from podcast_mcp.util.coded_error import CodedValueError
 from ripple_helpers import ripple_cut, trim
 
 
-def _project_with_clip() -> EpisodeProject:
-    p = EpisodeProject.create("t", "/tmp/ws")
+def _write_quiet_media(project):
+    for track in project.tracks:
+        if track.media is None:
+            continue
+        samples = room(seconds=track.media.duration_sec)
+        voice(samples, 0, 0.8)
+        voice(samples, 9.2, 9.8)
+        samples[16000:144000] = 0
+        write_wav(project.workspace_path() / track.media.path, samples)
+
+
+def _project_with_clip(tmp_path) -> EpisodeProject:
+    p = EpisodeProject.create("t", str(tmp_path))
     p.timeline.tracks = [
         Track(
             id="host",
@@ -68,11 +78,12 @@ def _project_with_clip() -> EpisodeProject:
             timeline_start=0.0,
         )
     ]
+    _write_quiet_media(p)
     return p
 
 
-def test_approve_applies_ripple_and_removes_decision():
-    proj = _project_with_clip()
+def test_approve_applies_ripple_and_removes_decision(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="a",
@@ -103,8 +114,8 @@ def test_approve_applies_ripple_and_removes_decision():
     assert n == 1
 
 
-def test_approve_refuses_a_batch_naming_a_stale_mute_and_applies_nothing():
-    proj = _project_with_clip()
+def test_approve_refuses_a_batch_naming_a_stale_mute_and_applies_nothing(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="stale",
@@ -132,8 +143,8 @@ def test_approve_refuses_a_batch_naming_a_stale_mute_and_applies_nothing():
     assert proj.editorial.edit_log == []
 
 
-def test_approve_refuses_unmapped_remove_without_archiving_it():
-    proj = _project_with_clip()
+def test_approve_refuses_unmapped_remove_without_archiving_it(tmp_path):
+    proj = _project_with_clip(tmp_path)
     original_clips = [clip.model_dump() for clip in proj.clips]
     proj.edit_decisions = [
         EditDecision(
@@ -154,8 +165,8 @@ def test_approve_refuses_unmapped_remove_without_archiving_it():
     assert proj.editorial.edit_log == []
 
 
-def test_approve_remove_is_held_when_guard_cannot_resolve():
-    proj = _project_with_clip()
+def test_approve_remove_is_held_when_guard_cannot_resolve(tmp_path):
+    proj = _project_with_clip(tmp_path)
     decision = EditDecision(
         id="fallback",
         track_id="host",
@@ -165,24 +176,36 @@ def test_approve_remove_is_held_when_guard_cannot_resolve():
         scope="session",
         applied=False,
     )
-    proj.edit_decisions = [decision]
+    mute = EditDecision(
+        id="accepted-mute",
+        track_id="host",
+        type=EditDecisionType.MUTE,
+        start=3.0,
+        end=3.2,
+        boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        applied=False,
+    )
+    proj.edit_decisions = [mute, decision]
+    before = proj.model_dump(mode="json")
 
     with (
         patch(
-            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.assess_cross_track_speech",
             side_effect=ValueError("guard unavailable"),
         ),
-        pytest.raises(ScopeChangedAtApproval, match="could not be checked"),
+        pytest.raises(ScopeChangedAtApproval, match="could not be checked") as held,
     ):
-        approve_edits(proj, ["fallback"])
+        approve_edits(proj, ["accepted-mute", "fallback"])
 
+    assert held.value.ids == ("fallback",)
     assert decision.scope == "session"
-    assert proj.edit_decisions == [decision]
+    assert proj.model_dump(mode="json") == before
+    assert proj.edit_decisions == [mute, decision]
     assert proj.editorial.edit_log == []
 
 
-def test_update_pending_edit_without_snap():
-    proj = _project_with_clip()
+def test_update_pending_edit_without_snap(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="p1",
@@ -199,8 +222,8 @@ def test_update_pending_edit_without_snap():
     assert updated.end == 2.5
 
 
-def test_manual_pending_edit_range_clears_optimizer_assessment():
-    proj = _project_with_clip()
+def test_manual_pending_edit_range_clears_optimizer_assessment(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="p1",
@@ -220,8 +243,8 @@ def test_manual_pending_edit_range_clears_optimizer_assessment():
     assert updated.cut_confidence is None
 
 
-def test_update_pending_edit_with_snap_passthrough(monkeypatch):
-    proj = _project_with_clip()
+def test_update_pending_edit_with_snap_passthrough(tmp_path, monkeypatch):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="p1",
@@ -251,14 +274,15 @@ def test_update_pending_edit_with_snap_passthrough(monkeypatch):
     assert updated.cut_confidence == 0.8
 
 
-def test_update_pending_edit_missing_id():
-    proj = _project_with_clip()
+def test_update_pending_edit_missing_id(tmp_path):
+    proj = _project_with_clip(tmp_path)
     with pytest.raises(KeyError):
         update_pending_edit(proj, "missing", start=0.0, end=1.0, snap=False)
 
 
 def _saved_restore_workspace(project, tmp_path):
     project.meta.workspace_dir = str(tmp_path)
+    _write_quiet_media(project)
     update_timeline_duration(project)
     return ProjectWorkspace.open(save_project(project))
 
@@ -296,7 +320,7 @@ def _refuse_restore_then_undo(ws, original):
 
 
 def test_remove_restore_refuses_and_history_undo_restores_clip(tmp_path):
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="a",
@@ -318,8 +342,8 @@ def test_remove_restore_refuses_and_history_undo_restores_clip(tmp_path):
     ]
 
 
-def test_remove_restore_requires_history_without_source_clocks():
-    proj = _project_with_clip()
+def test_remove_restore_requires_history_without_source_clocks(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.editorial.edit_log = [
         AppliedEditRecord(
             id="alog_x",
@@ -334,7 +358,7 @@ def test_remove_restore_requires_history_without_source_clocks():
 
 
 def test_remove_restore_refuses_and_history_undo_keeps_multitrack_aligned(tmp_path):
-    proj = _two_track_project()
+    proj = _two_track_project(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="cut1",
@@ -358,8 +382,8 @@ def test_remove_restore_refuses_and_history_undo_keeps_multitrack_aligned(tmp_pa
     ] == [("host", 0, 10, 0), ("guest", 0, 10, 0)]
 
 
-def test_single_track_archive_cannot_authorize_peer_clip_restore():
-    proj = _two_track_project()
+def test_single_track_archive_cannot_authorize_peer_clip_restore(tmp_path):
+    proj = _two_track_project(tmp_path)
     ripple_cut(proj, 2.0, 2.6, record_log=False)
     proj.editorial.edit_log = [
         AppliedEditRecord(
@@ -376,8 +400,8 @@ def test_single_track_archive_cannot_authorize_peer_clip_restore():
     _assert_remove_restore_refused(proj, "alog_single")
 
 
-def _two_track_project() -> EpisodeProject:
-    p = EpisodeProject.create("t", "/tmp/ws")
+def _two_track_project(tmp_path) -> EpisodeProject:
+    p = EpisodeProject.create("t", str(tmp_path))
     p.timeline.tracks = [
         Track(
             id="host",
@@ -402,11 +426,12 @@ def _two_track_project() -> EpisodeProject:
                 timeline_start=0.0,
             )
         )
+    _write_quiet_media(p)
     return p
 
 
-def test_approve_split_records_split_source_by_track():
-    proj = _two_track_project()
+def test_approve_split_records_split_source_by_track(tmp_path):
+    proj = _two_track_project(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="s1",
@@ -429,8 +454,8 @@ def test_approve_split_records_split_source_by_track():
     }
 
 
-def test_apply_auto_edits_ripple_aligns_two_tracks():
-    proj = _two_track_project()
+def test_apply_auto_edits_ripple_aligns_two_tracks(tmp_path):
+    proj = _two_track_project(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="f1",
@@ -466,8 +491,8 @@ def test_reject_edits():
     assert proj.edit_decisions == []
 
 
-def _approve_two_track_project() -> EpisodeProject:
-    p = EpisodeProject.create("approve", "/tmp/ws")
+def _approve_two_track_project(tmp_path) -> EpisodeProject:
+    p = EpisodeProject.create("approve", str(tmp_path))
     p.timeline.tracks = [
         Track(
             id="host",
@@ -509,6 +534,7 @@ def _approve_two_track_project() -> EpisodeProject:
             ],
         ),
     ]
+    _write_quiet_media(p)
     return p
 
 
@@ -522,14 +548,14 @@ def _word_snapshot(project: EpisodeProject) -> dict[str, list[tuple[float, float
     return {tr.track_id: [(w.start, w.end, w.text) for w in tr.words] for tr in project.transcripts}
 
 
-def test_approve_edits_matches_sequential_ripple():
+def test_approve_edits_matches_sequential_ripple(tmp_path):
     timeline_ranges = [(2.0, 2.2), (8.0, 9.0)]
 
-    sequential = _approve_two_track_project()
+    sequential = _approve_two_track_project(tmp_path)
     for start, end in reversed(sorted(timeline_ranges)):
         ripple_cut(sequential, start, end, use_inaudible_opt=False)
 
-    approved = _approve_two_track_project()
+    approved = _approve_two_track_project(tmp_path)
     approved.edit_decisions = [
         EditDecision(
             id="a",
@@ -559,9 +585,11 @@ def test_approve_edits_matches_sequential_ripple():
     assert approved.edit_decisions == []
 
 
-def test_apply_prefix_edits_filler_with_crossfade():
+def test_apply_prefix_edits_filler_with_crossfade(tmp_path):
 
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
+    proj.tracks[0].media.duration_sec = 20
+    _write_quiet_media(proj)
     proj.timeline.clips.append(
         Clip(
             id="c2",
@@ -579,17 +607,22 @@ def test_apply_prefix_edits_filler_with_crossfade():
             start=2.0,
             end=2.5,
             reason="filler:long",
-            crossfade_ms=15,
+            crossfade_ms=30,
             review_required=False,
             applied=False,
         ),
     ]
-    with patch("podcast_mcp.edits.decisions.load_defaults") as defaults:
-        defaults.return_value = {"tighten": {"inaudible_opt": False, "crossfade_ms": 15}}
+    with patch("podcast_mcp.edits.cut_application.load_defaults") as defaults:
+        defaults.return_value = {"tighten": {"inaudible_opt": False, "crossfade_ms": 30}}
         removed = apply_prefix_edits(proj, "filler:", config_key="tighten")
     assert removed == 1
     assert proj.edit_decisions == []
-    assert proj.editorial.edit_log[-1].params["crossfade_ms"] == 15
+    assert proj.editorial.edit_log[-1].params["crossfade_ms"] == 30
+
+    clips = sorted(proj.clips, key=lambda clip: clip.timeline_start)
+    assert clips[0].fade_out_ms >= 15
+    assert clips[1].fade_in_ms >= 15
+    assert clips[1].join_in_mode is ClipJoinMode.FADE
 
 
 @pytest.mark.parametrize("boundary_mode", [None, "vocal_transcript_guided"])
@@ -597,7 +630,7 @@ def test_apply_prefix_edits_filler_with_crossfade():
 def test_apply_prefix_edits_archives_the_settled_cut_range(
     tmp_path, boundary_mode, config_key, prefix
 ):
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="p1",
@@ -633,19 +666,19 @@ def test_apply_prefix_edits_archives_the_settled_cut_range(
             )
             == 1
         )
-    assert optimize.call_args.kwargs["force_enabled"] is (boundary_mode is None)
+    optimize.assert_not_called()
     record = proj.editorial.edit_log[-1]
     assert record.timeline_start == pytest.approx(2.0)
-    assert record.timeline_end == pytest.approx(2.56 if boundary_mode is None else 2.5)
+    assert record.timeline_end == pytest.approx(2.5)
     pre, post = record.params["per_track_source"]["host"]
     assert post - pre == pytest.approx(record.timeline_end - record.timeline_start)
     _refuse_restore_then_undo(ws, original)
     assert proj.timeline.duration_sec == pytest.approx(10.0)
 
 
-def test_apply_prefix_edits_pads_at_the_optimized_join():
-    """replace_gap_sec pads the real butt-join even when optimization moved the start > 0.1 s."""
-    proj = _project_with_clip()
+def test_apply_prefix_edits_pads_at_the_held_join(tmp_path):
+    """Application pads the finalized join even when an optimizer would suggest another."""
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="p1",
@@ -662,8 +695,8 @@ def test_apply_prefix_edits_pads_at_the_optimized_join():
     optimized = type("R", (), {"start": 1.7, "end": 2.5, "mode": "vocal_transcript_guided"})()
     with (
         patch("podcast_mcp.edits.decisions.load_defaults") as defaults,
-        patch("podcast_mcp.edits.source_removals.filler_pad_mode", return_value="silence"),
-        patch("podcast_mcp.edits.source_removals.recommend_post_pad_fade_in_ms", return_value=0),
+        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="silence"),
+        patch("podcast_mcp.edits.cut_application.recommend_post_pad_fade_in_ms", return_value=0),
         patch(
             "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
             return_value=optimized,
@@ -672,16 +705,16 @@ def test_apply_prefix_edits_pads_at_the_optimized_join():
         defaults.return_value = {"tighten": {"inaudible_opt": True}}
         assert apply_prefix_edits(proj, "filler:", config_key="tighten") == 1
     host = clips_for_track(proj, "host")
-    # The pad opens at the optimized join (1.7), so the clip is not split at the requested 2.0.
+    # The held join stays at 2.0; application never adopts the optimizer suggestion.
     assert len(host) == 2
-    assert host[0].timeline_end == pytest.approx(1.7)
-    assert host[1].timeline_start == pytest.approx(1.7 + 0.3)
+    assert host[0].timeline_end == pytest.approx(2.0)
+    assert host[1].timeline_start == pytest.approx(2.0 + 0.3)
     assert host[1].source_start == pytest.approx(2.5)
-    assert proj.editorial.edit_log[-1].timeline_start == pytest.approx(1.7)
+    assert proj.editorial.edit_log[-1].timeline_start == pytest.approx(2.0)
 
 
-def test_apply_prefix_edits_skips_review_required_and_invalid_range():
-    proj = _project_with_clip()
+def test_apply_prefix_edits_skips_review_required_and_invalid_range(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="skip-review",
@@ -708,8 +741,8 @@ def test_apply_prefix_edits_skips_review_required_and_invalid_range():
     assert len(proj.edit_decisions) == 2
 
 
-def test_edit_impact_report_tracks_gaps_and_pending():
-    proj = _two_track_project()
+def test_edit_impact_report_tracks_gaps_and_pending(tmp_path):
+    proj = _two_track_project(tmp_path)
     proj.timeline.clips = [
         Clip(
             id="c1",
@@ -757,8 +790,8 @@ def test_edit_impact_report_tracks_gaps_and_pending():
     assert "[pending]" in md
 
 
-def test_apply_prefix_edits_ignores_non_matching_reason():
-    proj = _project_with_clip()
+def test_apply_prefix_edits_ignores_non_matching_reason(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="other",
@@ -774,10 +807,10 @@ def test_apply_prefix_edits_ignores_non_matching_reason():
     assert apply_prefix_edits(proj, "filler:", config_key="tighten") == 0
 
 
-def test_apply_join_fades_skips_timeline_gaps():
-    from podcast_mcp.edits.decisions import apply_join_fades_from_decisions
+def test_apply_join_fades_skips_timeline_gaps(tmp_path):
+    from podcast_mcp.edits.cut_application import _write_join_fades
 
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
     proj.timeline.clips = [
         Clip(
             id="c1",
@@ -807,56 +840,15 @@ def test_apply_join_fades_skips_timeline_gaps():
         review_required=False,
         applied=False,
     )
-    apply_join_fades_from_decisions(proj, [decision])
+    _write_join_fades(proj, [decision])
     clips = sorted((c for c in proj.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
     assert clips[0].fade_out_ms == 0
     assert clips[1].fade_in_ms == 0
 
 
-def test_apply_join_fades_from_decisions():
-    from podcast_mcp.edits.decisions import apply_join_fades_from_decisions
+def test_apply_prefix_edits_without_crossfade(tmp_path):
 
-    proj = _project_with_clip()
-    proj.timeline.clips = [
-        Clip(
-            id="c1",
-            track_id="host",
-            source_start=0.0,
-            source_end=5.0,
-            timeline_start=0.0,
-        ),
-        Clip(
-            id="c2",
-            track_id="host",
-            source_start=10.0,
-            source_end=15.0,
-            timeline_start=5.0,
-            fade_in_ms=0,
-        ),
-    ]
-    decision = EditDecision(
-        id="f1",
-        track_id="host",
-        type=EditDecisionType.REMOVE,
-        start=4.5,
-        end=5.0,
-        reason="filler:um",
-        crossfade_ms=30,
-        review_required=False,
-        applied=False,
-    )
-    summary = apply_join_fades_from_decisions(proj, [decision])
-    assert summary["operation"] == "apply_join_fades"
-    clips = [c for c in proj.clips if c.track_id == "host"]
-    clips.sort(key=lambda c: c.timeline_start)
-    assert clips[0].fade_out_ms >= 15
-    assert clips[1].fade_in_ms >= 15
-    assert clips[1].join_in_mode == ClipJoinMode.FADE
-
-
-def test_apply_prefix_edits_without_crossfade():
-
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="f1",
@@ -875,8 +867,8 @@ def test_apply_prefix_edits_without_crossfade():
     assert removed == 1
 
 
-def test_edit_impact_report_ignores_non_remove_and_formats_without_segments():
-    proj = _project_with_clip()
+def test_edit_impact_report_ignores_non_remove_and_formats_without_segments(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="split",
@@ -916,12 +908,12 @@ def test_format_edit_impact_markdown_lists_applied_segments():
     assert "filler:um" in md
 
 
-def test_join_rules_follow_shared_gap_tolerance(monkeypatch):
+def test_join_rules_follow_shared_gap_tolerance(tmp_path, monkeypatch):
     """Edit-time join fades and the gap summary read JOIN_GAP_TOLERANCE_SEC, not a literal."""
     import podcast_mcp.edits.clips_ops as clips_ops
-    from podcast_mcp.edits.decisions import apply_join_fades_from_decisions
+    from podcast_mcp.edits.cut_application import _write_join_fades
 
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
     proj.timeline.clips = [
         Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
         Clip(id="c2", track_id="host", source_start=10.0, source_end=15.0, timeline_start=6.0),
@@ -942,7 +934,7 @@ def test_join_rules_follow_shared_gap_tolerance(monkeypatch):
         review_required=False,
         applied=False,
     )
-    apply_join_fades_from_decisions(proj, [decision])
+    _write_join_fades(proj, [decision])
     right = next(c for c in proj.clips if c.id == "c2")
     assert right.fade_in_ms == 30
 
@@ -970,8 +962,8 @@ def _impact(project: EpisodeProject) -> dict:
     }
 
 
-def test_impact_counts_approved_session_cut_once_and_per_track():
-    proj = _approve_two_track_project()
+def test_impact_counts_approved_session_cut_once_and_per_track(tmp_path):
+    proj = _approve_two_track_project(tmp_path)
     proj.edit_decisions = [_pending("a", EditDecisionType.REMOVE, 2.0, 4.0)]
     assert _impact(proj) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 1}
     approve_edits(proj, ["a"])
@@ -988,8 +980,8 @@ def test_impact_counts_approved_session_cut_once_and_per_track():
     assert segment["applied"] is True
 
 
-def test_impact_counts_approved_mute_as_applied_but_removes_no_time():
-    proj = _project_with_clip()
+def test_impact_counts_approved_mute_as_applied_but_removes_no_time(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         _pending("m", EditDecisionType.MUTE, 2.0, 3.0),
         _pending("r", EditDecisionType.REMOVE, 6.0, 7.5),
@@ -1003,8 +995,8 @@ def test_impact_counts_approved_mute_as_applied_but_removes_no_time():
     }
 
 
-def test_impact_keeps_counting_applied_decisions_left_in_edit_decisions():
-    proj = _project_with_clip()
+def test_impact_keeps_counting_applied_decisions_left_in_edit_decisions(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
             id="kept_cut",
@@ -1036,16 +1028,16 @@ def test_impact_keeps_counting_applied_decisions_left_in_edit_decisions():
     [("cut", 3.0, {"host": 3.0, "guest": 3.0}), ("mute", 0.0, {})],
 )
 def test_impact_uses_exact_range_intervals_once_across_tracks(
-    action, expected_total, expected_by_track
+    tmp_path, action, expected_total, expected_by_track
 ):
-    proj = _approve_two_track_project()
+    proj = _approve_two_track_project(tmp_path)
     intervals = [RangeInterval(start=1.0, end=2.0), RangeInterval(start=10.0, end=12.0)]
     selection = build_range_target(proj, intervals, ["host", "guest"])
     edit_selected_range(
         proj, selection, action, propose=True, reason="host:range", action_id="range_action"
     )
     assert _impact(proj)["pending"] == 1
-    approve_edits(proj, ["range_action"])
+    approve_edits(proj, ["range_action"], application_intent=CutIntent.HUMAN_BOUNDARIES)
     assert _impact(proj) == {
         "total": expected_total,
         "by_track": expected_by_track,
@@ -1054,8 +1046,8 @@ def test_impact_uses_exact_range_intervals_once_across_tracks(
     }
 
 
-def test_impact_counts_timeline_ripple_once_and_punch_on_its_track_only():
-    proj = _approve_two_track_project()
+def test_impact_counts_timeline_ripple_once_and_punch_on_its_track_only(tmp_path):
+    proj = _approve_two_track_project(tmp_path)
     ripple_cut(proj, 2.0, 5.0, use_inaudible_opt=False)
     assert _impact(proj) == {
         "total": 3.0,
@@ -1063,7 +1055,12 @@ def test_impact_counts_timeline_ripple_once_and_punch_on_its_track_only():
         "applied": 1,
         "pending": 0,
     }
-    punch_delete(proj, "guest", 10.0, 11.0, use_inaudible_opt=False)
+    _write_punch_delete(
+        proj,
+        "guest",
+        10.0,
+        11.0,
+    )
     assert _impact(proj) == {
         "total": 4.0,
         "by_track": {"host": 3.0, "guest": 4.0},
@@ -1076,17 +1073,15 @@ def test_impact_counts_timeline_ripple_once_and_punch_on_its_track_only():
     ("ripple", "expected_by_track"),
     [(True, {"host": 10.0, "guest": 10.0}), (False, {"host": 10.0})],
 )
-def test_impact_counts_deleted_clips(ripple, expected_by_track):
-    proj = _approve_two_track_project()
+def test_impact_counts_deleted_clips(tmp_path, ripple, expected_by_track):
+    proj = _approve_two_track_project(tmp_path)
     split_clips_at(proj, 10.0, ["host"])
     split_clips_at(proj, 20.0, ["host"])
     middle = next(c for c in clips_for_track(proj, "host") if c.source_start == 10.0)
     if ripple:
-        ripple_delete_clips(
-            proj, [middle.id], SpeechClearance(plan_delete_clips(proj, [middle.id]))
-        )
+        _write_ripple_delete_clips(proj, [middle.id], plan_delete_clips(proj, [middle.id]))
     else:
-        punch_delete_clips(proj, [middle.id])
+        _write_punch_delete_clips(proj, [middle.id])
     assert _impact(proj) == {
         "total": 10.0,
         "by_track": expected_by_track,
@@ -1095,8 +1090,8 @@ def test_impact_counts_deleted_clips(ripple, expected_by_track):
     }
 
 
-def test_impact_ignores_structural_edits():
-    proj = _approve_two_track_project()
+def test_impact_ignores_structural_edits(tmp_path):
+    proj = _approve_two_track_project(tmp_path)
     split_clips_at(proj, 10.0, ["host", "guest"])
     clip = clips_for_track(proj, "host")[0]
     trim(proj, clip.id, "out", clip.source_end - 1.0)
@@ -1105,7 +1100,7 @@ def test_impact_ignores_structural_edits():
 
 
 def test_impact_drops_a_cut_after_guarded_history_undo(tmp_path):
-    proj = _approve_two_track_project()
+    proj = _approve_two_track_project(tmp_path)
     proj.edit_decisions = [_pending("a", EditDecisionType.REMOVE, 2.0, 4.0)]
     ws = _saved_restore_workspace(proj, tmp_path)
     original = snapshot_from_project(ws.project).model_dump(mode="json")
@@ -1114,8 +1109,8 @@ def test_impact_drops_a_cut_after_guarded_history_undo(tmp_path):
     assert _impact(ws.project) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 1}
 
 
-def test_unplayed_pending_ids_flags_only_spans_no_clip_plays():
-    proj = _project_with_clip()
+def test_unplayed_pending_ids_flags_only_spans_no_clip_plays(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.timeline.clips[0].source_end = 6.0
     proj.edit_decisions = [
         _pending("played", EditDecisionType.REMOVE, 1.0, 2.0),
@@ -1131,7 +1126,7 @@ def test_unplayed_pending_ids_flags_only_spans_no_clip_plays():
 
 
 def test_audio_mutation_retires_proposals_in_the_cut_range(tmp_path):
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         _pending("kept", EditDecisionType.REMOVE, 1.0, 2.0),
         _pending("gone", EditDecisionType.REMOVE, 7.0, 8.0),
@@ -1148,7 +1143,7 @@ def test_audio_mutation_retires_proposals_in_the_cut_range(tmp_path):
 
 
 def test_a_mutation_that_leaves_audio_alone_keeps_every_proposal(tmp_path):
-    proj = _project_with_clip()
+    proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [_pending("kept", EditDecisionType.REMOVE, 7.0, 8.0)]
     ws = _saved_restore_workspace(proj, tmp_path)
 
@@ -1159,8 +1154,8 @@ def test_a_mutation_that_leaves_audio_alone_keeps_every_proposal(tmp_path):
     assert [e.id for e in ws.project.edit_decisions] == ["kept"]
 
 
-def test_apply_prefix_edits_leaves_an_unplayed_proposal_alone():
-    proj = _project_with_clip()
+def test_apply_prefix_edits_leaves_an_unplayed_proposal_alone(tmp_path):
+    proj = _project_with_clip(tmp_path)
     proj.timeline.clips[0].source_end = 6.0
     proj.edit_decisions = [
         EditDecision(

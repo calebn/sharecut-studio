@@ -49,10 +49,9 @@ from podcast_mcp.edits.chapters import (
     update_chapter,
 )
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline, require_clip_fade_baseline
-from podcast_mcp.edits.cut_safety import clear_ripple
+from podcast_mcp.edits.cut_application import apply_suggested_to_project
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
-    SpeechClearance,
     UnconfirmedCutSpeech,
     assess_cut_speech,
 )
@@ -101,7 +100,6 @@ from podcast_mcp.edits.retained_bleed_alignment import (
     set_retained_bleed_alignment_mode,
 )
 from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim
-from podcast_mcp.edits.room_tone import ensure_room_tone_pools
 from podcast_mcp.edits.share_registry import get_share_registry
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
@@ -127,14 +125,9 @@ from podcast_mcp.edits.timeline_ops import (
     plan_ripple_delete,
     plan_ripple_delete_text,
     plan_shorten_word_gaps,
-    punch_delete_clips,
-    punch_delete_range,
-    ripple_delete,
-    ripple_delete_clips,
     roll_clip_join,
     set_clip_fade,
     split_clips_at,
-    trim_clip_edge,
 )
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
 from podcast_mcp.edits.transcript_correct import (
@@ -197,7 +190,7 @@ from podcast_mcp.history.manager import (
     snapshot_from_project,
 )
 from podcast_mcp.history.rollback import RollbackOutcome
-from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject, TrackRole
+from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
@@ -246,31 +239,57 @@ class EditService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
 
-    def _cleared_ripple(
+    def _apply_cut(
         self,
         label: str,
-        removal: RippleRemoval | None,
-        apply: Callable[[EpisodeProject, SpeechClearance], dict],
+        removal: RippleRemoval,
         *,
         operation: str,
-        confirm_cut_speech: bool,
+        application_intent: CutIntent = CutIntent.PROGRAMMATIC,
         params: dict[str, Any] | None = None,
+        ripple: bool = True,
+        clip_ids: tuple[str, ...] = (),
     ) -> dict:
-        """Run the speech guard on ``removal``, then ``apply`` as one undoable mutation.
+        from podcast_mcp.edits.cut_application import TimelineCut, apply_timeline_cut
 
-        Call inside ``self.ws.transaction()`` with ``removal`` planned on that project.
-        Unconfirmed speech returns the confirmation result and changes nothing.
-        """
-        clearance = clear_ripple(self.ws.project, removal, confirm_cut_speech=confirm_cut_speech)
-        if isinstance(clearance, CutSpeechConfirmation):
-            return clearance.result(operation)
-        return self.ws.mutate(
-            f"before {label}",
-            f"after {label}",
-            lambda p: apply(p, clearance),
-            operation=operation,
-            params={**(params or {}), "confirm_cut_speech": confirm_cut_speech},
-        )
+        def mutate(project: EpisodeProject) -> dict:
+            report = apply_timeline_cut(
+                project,
+                TimelineCut(removal, EditMode.RIPPLE if ripple else EditMode.GAP, clip_ids),
+                application_intent=application_intent,
+                params=params or {},
+            )
+            report["operation"] = operation
+            return report
+
+        return self._mutate_timeline_cut(label, operation, mutate, params or {})
+
+    def _mutate_timeline_cut(
+        self,
+        label: str,
+        operation: str,
+        mutate: Callable[[EpisodeProject], dict],
+        params: dict[str, Any],
+    ) -> dict:
+        restored = False
+
+        def on_failure(outcome: RollbackOutcome) -> None:
+            nonlocal restored
+            restored = outcome is RollbackOutcome.RESTORED
+
+        try:
+            return self.ws.mutate(
+                f"before {label}",
+                f"after {label}",
+                mutate,
+                operation=operation,
+                params=params or {},
+                on_failure=on_failure,
+            )
+        except UnconfirmedCutSpeech as asked:
+            if restored:
+                return asked.confirmation.result(operation)
+            raise
 
     def _resolve(self, track_id: str | None, speaker: str | None) -> str:
         return resolve_track(self.ws.project, track_id=track_id, speaker=speaker)
@@ -470,22 +489,17 @@ class EditService:
         ids: list[str],
         *,
         allow_exact: bool = False,
-        confirm_cut_speech: bool = False,
-        allow_review: bool = True,
+        application_intent: CutIntent = CutIntent.PROGRAMMATIC,
         held_out: list[HeldEdit] | None = None,
         asked_out: list[AskedEdits] | None = None,
         override_peer_holds: set[str] | None = None,
         continues_head_id: str | None = None,
     ) -> int | CutSpeechConfirmation:
-        """Apply pending edits; a suggested ripple over other speech asks to confirm first.
+        """Apply pending edits with fresh complete-effect assessment.
 
-        ``continues_head_id`` marks the entry as the second part of an Approve all pass
-        whose first part left that entry; Undo then takes back both (#1677).
-
-        With ``held_out`` (Approve all), a cut that cannot apply safely stays pending and is
-        reported there while every other selected edit applies. With ``asked_out`` too, a cut
-        that would cut other speech also stays pending, with its ask, so confirming re-runs
-        only those cuts.
+        Trusted interactive intent overrides acoustic holds only. With ``held_out``,
+        independent accepted edits may apply while held edits stay pending. ``asked_out``
+        additionally carries removed-speech evidence for later interactive review.
         """
 
         def mutate(p) -> int:
@@ -502,8 +516,7 @@ class EditService:
             return approve_edits(
                 p,
                 ids,
-                confirm_cut_speech=confirm_cut_speech,
-                allow_review=allow_review,
+                application_intent=application_intent,
                 held_out=held_out,
                 asked_out=asked_out,
                 override_peer_holds=override_peer_holds,
@@ -515,9 +528,6 @@ class EditService:
             nonlocal restored
             restored = outcome is RollbackOutcome.RESTORED
 
-        # The recording's room tone is picked once and stored with the project; the first
-        # approve on it pays that here, outside the transaction, and later ones read it.
-        self._ensure_room_tone_pools(lambda e: e.id in ids)
         try:
             with batch_scope():
                 return self.ws.mutate(
@@ -527,8 +537,11 @@ class EditService:
                     operation="approve_edits",
                     params={
                         "ids": ids,
-                        "confirm_cut_speech": confirm_cut_speech,
-                        **({PASS_CONTINUES_KEY: continues_head_id} if continues_head_id else {}),
+                        **(
+                            {PASS_CONTINUES_KEY: continues_head_id}
+                            if continues_head_id
+                            else {}
+                        ),
                     },
                     on_failure=on_failure,
                 )
@@ -541,21 +554,13 @@ class EditService:
                 raise held.for_delivery("saved") from held
             raise
 
-    def _ensure_room_tone_pools(self, wanted: Callable[[EditDecision], bool]) -> None:
-        """Record the pool of each dialogue track a wanted edit sits on, if it has none."""
-        project = self.ws.project
-        dialogue = {t.id for t in project.tracks if t.role == TrackRole.DIALOGUE}
-        ensure_room_tone_pools(
-            project,
-            [e.track_id for e in project.edit_decisions if wanted(e) and e.track_id in dialogue],
-        )
-
     def apply_suggested_actions(
         self,
         ids: list[str] | None = None,
         *,
         overrides: dict[str, str] | None = None,
         revise: bool = False,
+        application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     ) -> dict[str, Any]:
         """Apply every pending sound's own suggested action in one undoable step.
 
@@ -570,12 +575,10 @@ class EditService:
         is again one undo step. A sound the new action cannot apply (a held cut) comes back
         pending and is named in ``held``; when none can apply the call refuses and keeps the batch.
         """
-        from podcast_mcp.edits.sound_actions import SUGGESTED_ACTIONS
+        from podcast_mcp.edits.cut_safety import SUGGESTED_ACTIONS, decision_policy
         from podcast_mcp.edits.suggested_actions import (
             SuggestedActionsResult,
-            apply_suggested_to_project,
             describe_sounds,
-            suggested_action_for,
         )
 
         wanted = None if ids is None else set(ids)
@@ -592,21 +595,22 @@ class EditService:
                     "revise re-applies the whole latest batch; give overrides, not ids",
                     code="revise_takes_no_ids",
                 )
-            return self._revise_suggested_actions(overrides)
+            return self._revise_suggested_actions(overrides, application_intent)
 
         def pending(e: EditDecision) -> bool:
             return (
                 (wanted is None or e.id in wanted)
                 and not e.applied
-                and (suggested_action_for(e) is not None)
+                and (decision_policy(e) is not None)
             )
 
-        self._ensure_room_tone_pools(pending)
         result = SuggestedActionsResult()
         with self.ws.transaction() as project:
             listed = [e for e in project.edit_decisions if pending(e)]
             actions: dict[str, str] = {
-                e.id: overrides.get(e.id) or str(suggested_action_for(e)) for e in listed
+                e.id: overrides.get(e.id) or policy.action
+                for e in listed
+                if (policy := decision_policy(e)) is not None
             }
             cut_ids = [e.id for e in listed if actions[e.id] in ("cut", "shorten")]
             if cut_ids:
@@ -615,7 +619,9 @@ class EditService:
                 self.ws.mutate(
                     "before apply suggested actions",
                     "after apply suggested actions",
-                    lambda p: apply_suggested_to_project(p, actions, result),
+                    lambda p: apply_suggested_to_project(
+                        p, actions, result, application_intent=application_intent
+                    ),
                     operation="apply_suggested_actions",
                     params={
                         "ids": sorted(actions),
@@ -625,7 +631,9 @@ class EditService:
                 )
         return {"operation": "apply_suggested_actions", **result.to_payload()}
 
-    def _revise_suggested_actions(self, overrides: dict[str, str]) -> dict[str, Any]:
+    def _revise_suggested_actions(
+        self, overrides: dict[str, str], application_intent: CutIntent
+    ) -> dict[str, Any]:
         """Re-apply the latest Apply suggested actions batch with ``overrides`` on top."""
         from podcast_mcp.history.manager import HistoryManager
         from podcast_mcp.services.document.history import HistoryService
@@ -657,7 +665,9 @@ class EditService:
             history.goto(index - 1)
             try:
                 result = self.apply_suggested_actions(
-                    sorted(requested), overrides={**requested, **overrides}
+                    sorted(requested),
+                    overrides={**requested, **overrides},
+                    application_intent=application_intent,
                 )
             except BaseException:
                 history.goto(tip)
@@ -822,7 +832,7 @@ class EditService:
         mode: EditMode,
         track_ids: list[str] | None = None,
         use_inaudible_opt: bool | None = None,
-        confirm_cut_speech: bool = False,
+        application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     ) -> dict:
         """Cut a timeline range: ripple closes it on every track; gap leaves silence.
 
@@ -834,13 +844,18 @@ class EditService:
         self._require_refine_clear()
         tids = list(track_ids or [])
         if mode is EditMode.GAP:
-            return self.ws.mutate(
-                "before cut range",
-                "after cut range",
-                lambda p: punch_delete_range(p, start, end, tids or dialogue_track_ids(p)),
-                operation="punch_delete",
-                params={"timeline_start": start, "timeline_end": end, "track_ids": tids},
-            )
+            with self.ws.transaction() as project:
+                selected = tids or dialogue_track_ids(project)
+                return self._apply_cut(
+                    "cut range",
+                    plan_ripple_delete(
+                        project, start, end, edited_track_ids=selected, use_inaudible_opt=False
+                    ),
+                    operation="punch_delete",
+                    application_intent=application_intent,
+                    ripple=False,
+                    params={"timeline_start": start, "timeline_end": end, "track_ids": selected},
+                )
         with self.ws.transaction() as project:
             removal = plan_ripple_delete(
                 project,
@@ -849,14 +864,11 @@ class EditService:
                 edited_track_ids=tids,
                 use_inaudible_opt=use_inaudible_opt,
             )
-            out = self._cleared_ripple(
+            out = self._apply_cut(
                 "ripple delete",
                 removal,
-                lambda p, clearance: ripple_delete(
-                    p, clearance, params={"use_inaudible_opt": use_inaudible_opt}
-                ),
                 operation="ripple_delete",
-                confirm_cut_speech=confirm_cut_speech,
+                application_intent=application_intent,
                 params={
                     "timeline_start": start,
                     "timeline_end": end,
@@ -1103,19 +1115,14 @@ class EditService:
         query: str,
         *,
         use_inaudible_opt: bool | None = None,
-        confirm_cut_speech: bool = False,
     ) -> dict:
         self._require_refine_clear()
         with self.ws.transaction() as project:
             removal = plan_ripple_delete_text(project, query, use_inaudible_opt=use_inaudible_opt)
-            out = self._cleared_ripple(
+            out = self._apply_cut(
                 "ripple delete text",
                 removal,
-                lambda p, clearance: ripple_delete(
-                    p, clearance, params={"use_inaudible_opt": use_inaudible_opt}
-                ),
                 operation="ripple_delete_text",
-                confirm_cut_speech=confirm_cut_speech,
                 params={"query": query, "use_inaudible_opt": use_inaudible_opt},
             )
         return {**out, "query": query}
@@ -1273,7 +1280,7 @@ class EditService:
         *,
         mode: EditMode,
         expected_token: str,
-        confirm_cut_speech: bool = False,
+        application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     ) -> dict:
         """Move one clip edge; a ripple keeps every track in sync and guards their speech."""
         if not math.isfinite(source_sec):
@@ -1284,18 +1291,13 @@ class EditService:
             plan = plan_trim(project, clip_id, edge, source_sec, mode)
             if plan.unchanged:
                 return {"operation": "trim_clip_edge", "unchanged": True}
-            return self._cleared_ripple(
+            from podcast_mcp.edits.cut_application import apply_trim
+
+            return self._mutate_timeline_cut(
                 "trim clip edge",
-                plan.removal,
-                lambda p, clearance: trim_clip_edge(p, plan, clearance),
-                operation="trim_clip_edge",
-                confirm_cut_speech=confirm_cut_speech,
-                params={
-                    "clip_id": clip_id,
-                    "edge": edge,
-                    "source_sec": source_sec,
-                    "mode": mode.value,
-                },
+                "trim_clip_edge",
+                lambda p: apply_trim(p, plan, application_intent=application_intent),
+                {"clip_id": clip_id, "edge": edge, "source_sec": source_sec, "mode": mode.value},
             )
 
     def roll_clip_join(
@@ -1366,7 +1368,6 @@ class EditService:
         max_gap_sec: float = 0.35,
         *,
         use_inaudible_opt: bool | None = None,
-        confirm_cut_speech: bool = False,
     ) -> dict:
         """Ripple out long pauses; another speaker talking in a pause asks to confirm first."""
         with self.ws.transaction() as project:
@@ -1378,18 +1379,10 @@ class EditService:
                     project, operation="shorten_word_gaps", affected_tracks=[], unchanged=True
                 )
 
-            def apply(p: EpisodeProject, clearance: SpeechClearance) -> dict:
-                report = ripple_delete(
-                    p, clearance, params={"use_inaudible_opt": use_inaudible_opt}
-                )
-                return {**report, "operation": "shorten_word_gaps"}
-
-            return self._cleared_ripple(
+            return self._apply_cut(
                 "shorten gaps",
                 removal,
-                apply,
                 operation="shorten_word_gaps",
-                confirm_cut_speech=confirm_cut_speech,
                 params={"max_gap_sec": max_gap_sec, "use_inaudible_opt": use_inaudible_opt},
             )
 
@@ -1454,7 +1447,7 @@ class EditService:
         propose: bool = False,
         reason: str | None = None,
         author: str | None = None,
-        confirm_cut_speech: bool = False,
+        application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     ) -> dict:
         """Delete clips: ripple closes their spans on every track; gap leaves silence.
 
@@ -1482,7 +1475,6 @@ class EditService:
                             else GUEST_SUGGEST_DELETE_REASON
                         ),
                         review_required=True,
-                        applied=False,
                         scope="session" if ripple else "track",
                         author=author,
                     )
@@ -1494,20 +1486,23 @@ class EditService:
             label = "ripple delete clips" if ripple else "delete clips"
             return self.ws.mutate(f"before {label}", f"after {label}", suggest)
         if not ripple:
-            return self.ws.mutate(
-                "before delete clips",
-                "after delete clips",
-                lambda p: punch_delete_clips(p, list(clip_ids)),
-                operation="delete_clips",
-                params={"clip_ids": list(clip_ids), "mode": mode.value},
-            )
+            with self.ws.transaction() as project:
+                return self._apply_cut(
+                    "delete clips",
+                    plan_delete_clips(project, clip_ids),
+                    clip_ids=tuple(clip_ids),
+                    operation="delete_clips",
+                    application_intent=application_intent,
+                    ripple=False,
+                    params={"clip_ids": list(clip_ids), "mode": mode.value},
+                )
         with self.ws.transaction() as project:
-            return self._cleared_ripple(
+            return self._apply_cut(
                 "ripple delete clips",
                 plan_delete_clips(project, clip_ids),
-                lambda p, clearance: ripple_delete_clips(p, list(clip_ids), clearance),
+                clip_ids=tuple(clip_ids),
                 operation="ripple_delete_clips",
-                confirm_cut_speech=confirm_cut_speech,
+                application_intent=application_intent,
                 params={"clip_ids": list(clip_ids), "mode": mode.value},
             )
 
@@ -1877,7 +1872,6 @@ class EditService:
                 float(end),
                 reason=reason or GUEST_SUGGEST_REASON,
                 review_required=True,
-                applied=False,
                 decision_type=decision_type,
                 author=author,
             )

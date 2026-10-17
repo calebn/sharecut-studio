@@ -15,8 +15,8 @@ from pause_policy_public_helpers import (
     write_wav,
 )
 from podcast_mcp.edits.breath_detect import PauseAir, pause_air_span
+from podcast_mcp.edits.cut_application import _apply_replace_gap_pad
 from podcast_mcp.edits.gate_fill import fill_gate_holes
-from podcast_mcp.edits.source_removals import _apply_replace_gap_pad
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.models import Clip, GateFillSource, Transcript, TranscriptWord
 
@@ -114,7 +114,9 @@ def test_planned_pause_pad_stays_at_consumed_seam_despite_nearby_peer_join(tmp_p
     ]
     edit = pause()
 
-    _apply_replace_gap_pad(result, edit, 0.2)
+    effects = []
+    _apply_replace_gap_pad(result, edit, 0.2, exact_seam=True, effects=effects)
+    assert len(effects) == 1
 
     for tid in ("host", "guest"):
         pads = [c for c in result.clips if c.source_id == f"room-tone-{tid}"]

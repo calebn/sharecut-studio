@@ -402,6 +402,12 @@ When writing new code that deals with time:
 4. **Search results** carry both clocks via `TranscriptMatch.timeline_start/end` — never re-derive them in a caller.
 5. **Reading a media window with ffmpeg?** Build its arguments with `MediaSeek` in [`engines/media_seek.py`](../src/podcast_mcp/engines/media_seek.py): `input_args()` before `-i`, then `output_args()` after it or `offset()` in an `atrim`. A bare input `-ss` starts an AAC (`.m4a`) read up to about one 1024-sample frame late (a whole frame for `-ss 0`), because ffmpeg's decoder trims the file's encoder priming from the first packet it decodes, which after a seek is real audio. `tests/test_timebase_guards.py` fails CI on `-ss` anywhere else.
 
+Cut writers belong to `edits/cut_application.py` and its private mechanical helpers.
+Finish a candidate there and assess its complete effects before one adoption; do
+not add a service-side admission guard or write another edge after publication.
+The existing `ProjectWorkspace.mutate()` remains responsible for persistence and
+history. Proposal measurements and saved review labels cannot authorize later cuts.
+
 ## History (non-destructive, undoable state)
 
 Podcast MCP treats **all editable project state** as undoable unless explicitly documented otherwise (e.g. pipeline run logs).
@@ -423,12 +429,12 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    removing redo entries.
 5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist. Individual Restore only supports ordinary source MUTE archives. Clip removals and exact ranges use the coded `local_restore_requires_history` refusal before history starts. Whole-action History Undo also undoes other edits in the action and may require undoing later actions first. The domain parser validates the complete MUTE Restore plan, including unused per-track entries, before history or subtraction. Malformed data uses the same coded refusal. Do not recreate recordings from archive clocks or perform a hidden Undo.
 
-Applying a pending decision with `boundary_mode` already set must consume its
-stored optimized bounds. A second snap can reopen a protected breath edge.
-Unsnapped decisions retain configured apply-time optimization. Both paths use
+Applying a pending decision consumes its stored bounds, whether or not
+`boundary_mode` is set. Prepare and assess the interval before offering it.
+Application reassesses its completed effects without snapping again, then uses
 the existing applied-edit archive and workspace history mutation.
 Coalescing only merges decisions with the same `boundary_mode`, so combining
-rows cannot replace a settled edge's optimization policy with another row's.
+rows preserves their preparation metadata.
 
 ### Transcript sync after audio changes
 

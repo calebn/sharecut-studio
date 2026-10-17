@@ -8,6 +8,7 @@ from pause_policy_public_helpers import (
     configure,
     defaults,
     pause,
+    prepare_pause,
     project,
     room,
     voice,
@@ -181,7 +182,9 @@ def test_saved_splice_archive_binds_finite_source_effects_before_consumption(tmp
     cfg = defaults(acoustic=True)
     configure(monkeypatch, cfg)
     result = _recording(tmp_path)
-    result.edit_decisions = [pause(start=0.3, end=4.45, gap=None)]
+    held = pause(start=0.3, end=4.45, gap=None)
+    held.crossfade_ms = 150
+    result.edit_decisions = [held]
     ws = workspace(result)
 
     assert EditService(ws).approve(["pause"]) == 1
@@ -217,7 +220,7 @@ def test_saved_whole_sound_splice_preserves_kept_samples_with_local_effects(tmp_
     for lo, hi in ((0, 0.2), (2.9, 3.15), (3.85, 4.1), (5, 5.2), (5.4, 5.8)):
         voice(audio, lo, hi)
     write_wav(tmp_path / "raw" / "host.wav", audio)
-    result.edit_decisions = [pause(start=3, end=4, gap=None)]
+    result.edit_decisions = [prepare_pause(result, pause(start=3, end=4, gap=None), cfg)]
     ws = workspace(result)
 
     assert EditService(ws).approve(["pause"]) == 1

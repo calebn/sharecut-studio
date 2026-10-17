@@ -29,14 +29,12 @@ test.describe("Applied-edit seam ticks", () => {
         start: 40,
         end: 50,
         mode: "ripple",
-        confirm_cut_speech: true,
       });
       await waive();
       await command("CutRange", {
         start: 5,
         end: 15,
         mode: "ripple",
-        confirm_cut_speech: true,
       });
 
       await expect(lanes.first().locator(".clip-block")).toHaveCount(3);

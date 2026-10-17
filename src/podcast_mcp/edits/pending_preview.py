@@ -117,13 +117,13 @@ def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -
     paced pad and fades that approving ships. The window's post-roll moves with the
     timeline after the edit.
     """
-    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
     logged = len(project.editorial.edit_log)
-    # A snapshot saves nothing: Suggested plays the edit as a confirmed approval ships it.
+    # Preview uses programmatic application policy on the caller's snapshot.
     try:
-        approve_edits(project, [window.edit_id], confirm_cut_speech=True)
+        approve_edits(project, [window.edit_id])
     except ScopeChangedAtApproval as held:
         raise held.for_delivery("suggested") from held
     applied = project.editorial.edit_log[logged:]

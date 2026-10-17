@@ -51,10 +51,7 @@ export function pendingTightenHit(
   return edit;
 }
 
-async function runApprove(
-  ids: string[],
-  allowReview = true,
-): Promise<ExecuteResult> {
+async function runApprove(ids: string[]): Promise<ExecuteResult> {
   const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
     const s = useDawStore.getState();
     if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
@@ -65,13 +62,7 @@ async function runApprove(
     }
     try {
       const projectPath = useDawStore.getState().projectPath;
-      const { queued, asked, historyHead } = await approveEdits(
-        projectPath,
-        ids,
-        false,
-        allowReview,
-      );
-      if (asked) return { status: "ok" };
+      const { queued, historyHead } = await approveEdits(projectPath, ids);
       const next = useDawStore.getState();
       if (queued) {
         // Saved but not sent yet: keep the selection and say so.

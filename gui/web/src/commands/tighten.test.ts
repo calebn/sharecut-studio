@@ -28,12 +28,10 @@ vi.mock("../api", async (importOriginal) => {
     })),
     approveEdits: vi.fn(async () => ({
       queued: false,
-      asked: false,
       count: 1,
       historyHead: null,
     })),
     rejectEdits: vi.fn(async () => ({
-      asked: false,
       queued: false,
       count: 1,
       historyHead: null,
@@ -116,12 +114,7 @@ describe("tighten commands", () => {
     expect(await execute("tighten.applyHit", { id: "e1" })).toEqual({
       status: "ok",
     });
-    expect(approveEdits).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      ["e1"],
-      false,
-      true,
-    );
+    expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);
     expect(await execute("tighten.skipHit", { id: "e2" })).toEqual({
       status: "ok",
     });
@@ -144,14 +137,13 @@ describe("tighten commands", () => {
       status: "disabled",
       reason: "Tighten action in progress",
     });
-    release({ queued: false, asked: false, count: 1, historyHead: null });
+    release({ queued: false, count: 1, historyHead: null });
     expect(await first).toEqual({ status: "ok" });
   });
 
   it("applyHit keeps the selection and says Still sending when the approval is queued", async () => {
     vi.mocked(approveEdits).mockResolvedValueOnce({
       queued: true,
-      asked: false,
       count: null,
       historyHead: null,
     });
@@ -172,7 +164,6 @@ describe("tighten commands", () => {
 
   it("skipHit keeps the selection and says Still sending when the rejection is queued", async () => {
     vi.mocked(rejectEdits).mockResolvedValueOnce({
-      asked: false,
       queued: true,
       count: null,
       historyHead: null,
@@ -214,12 +205,7 @@ describe("tighten commands", () => {
     expect(await execute("tighten.applyHit", { id: "repeat" })).toEqual({
       status: "ok",
     });
-    expect(approveEdits).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      ["repeat"],
-      false,
-      true,
-    );
+    expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["repeat"]);
     expect(await execute("tighten.skipHit", { id: "restart" })).toEqual({
       status: "ok",
     });

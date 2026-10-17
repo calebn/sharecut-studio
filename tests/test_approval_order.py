@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits
+from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import (
     Clip,
@@ -59,8 +59,9 @@ def _project(tmp_path: Path, *, burst: tuple[float, float] = _PEER_BURST) -> Epi
     both tracks have a rendered stem from before any edit."""
     project = EpisodeProject.create("order", str(tmp_path))
     host, guest = _room(1), _room(2)
-    _loud(host, 0.0, 5.0)
-    _loud(host, 6.0, 25.0)
+    _loud(host, 0.0, 4.95)
+    _loud(host, 6.05, 19.95)
+    _loud(host, 24.55, 24.95)
     _loud(guest, *burst)
     for track_id, signal in (("host", host), ("guest", guest)):
         _write_wav(tmp_path / "raw" / f"{track_id}.wav", signal)

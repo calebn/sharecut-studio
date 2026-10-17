@@ -52,7 +52,6 @@ def ripple_delete_tool(
     end: float,
     use_inaudible_opt: bool | None = None,
     track_ids: list[str] | None = None,
-    confirm_cut_speech: bool = False,
 ) -> str:
     """Ripple-delete a timeline range across every dialogue track.
 
@@ -63,9 +62,8 @@ def ripple_delete_tool(
     names the tracks whose speech you mean to cut; speech on any
     other track in the range needs confirmation. Omitted, the cut names no track,
     so speech on every track needs confirmation (a whole-session time cut).
-    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
-    nothing and returns ``needs_confirmation`` (which tracks, words and times);
-    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
+    A ripple that cuts another track's speech stays unchanged for review.
+    Only a trusted human action in Sharecut Studio can override acoustic holds.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
@@ -75,7 +73,6 @@ def ripple_delete_tool(
             mode=EditMode.RIPPLE,
             track_ids=track_ids or [],
             use_inaudible_opt=use_inaudible_opt,
-            confirm_cut_speech=confirm_cut_speech,
         )
     )
 
@@ -84,22 +81,19 @@ def ripple_delete_text_tool(
     project_path: str,
     query: str,
     use_inaudible_opt: bool | None = None,
-    confirm_cut_speech: bool = False,
 ) -> str:
     """Ripple-delete the first timeline span matching a transcript text query.
 
     The matched speaker's words are the cut; other tracks' speech in the span needs
     confirmation.
-    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
-    nothing and returns ``needs_confirmation`` (which tracks, words and times);
-    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
+    A ripple that cuts another track's speech stays unchanged for review.
+    Only a trusted human action in Sharecut Studio can override acoustic holds.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).ripple_delete_text(
             query,
             use_inaudible_opt=use_inaudible_opt,
-            confirm_cut_speech=confirm_cut_speech,
         )
     )
 
@@ -244,7 +238,6 @@ def trim_clip_edge_tool(
     edge: Literal["in", "out"],
     source_sec: float,
     mode: Literal["ripple", "gap"] = "ripple",
-    confirm_cut_speech: bool = False,
 ) -> str:
     """Move one clip's ``in`` or ``out`` edge to ``source_sec`` (source-media seconds).
 
@@ -257,9 +250,8 @@ def trim_clip_edge_tool(
     from ``audition_context_tool`` is its ``evidence.fix`` (clip, edge, source_sec,
     mode). Same operation as the DAW trim handle (``TrimClipEdge``); undoable. Follow
     with ``render_preview``.
-    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
-    nothing and returns ``needs_confirmation`` (which tracks, words and times);
-    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
+    A ripple that cuts another track's speech stays unchanged for review.
+    Only a trusted human action in Sharecut Studio can override acoustic holds.
     """
     edit_mode = EditMode(mode)
     ws = ProjectWorkspace.open(project_path)
@@ -275,7 +267,6 @@ def trim_clip_edge_tool(
                 source_sec,
                 mode=edit_mode,
                 expected_token=revision,
-                confirm_cut_speech=confirm_cut_speech,
             )
         )
 
@@ -320,22 +311,19 @@ def shorten_gaps_tool(
     project_path: str,
     max_gap_sec: float = 0.35,
     use_inaudible_opt: bool | None = None,
-    confirm_cut_speech: bool = False,
 ) -> str:
     """Shorten word gaps longer than max_gap_sec across the timeline.
 
     Each shortened pause ripples every dialogue track; another speaker talking in a
     pause needs confirmation.
-    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
-    nothing and returns ``needs_confirmation`` (which tracks, words and times);
-    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
+    A ripple that cuts another track's speech stays unchanged for review.
+    Only a trusted human action in Sharecut Studio can override acoustic holds.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).shorten_word_gaps(
             max_gap_sec,
             use_inaudible_opt=use_inaudible_opt,
-            confirm_cut_speech=confirm_cut_speech,
         )
     )
 
@@ -374,7 +362,6 @@ def delete_clips_tool(
     project_path: str,
     clip_ids: list[str],
     mode: Literal["ripple", "gap"] = "gap",
-    confirm_cut_speech: bool = False,
 ) -> str:
     """Delete whole clips by id, as the Studio clip Delete and Ripple delete do.
 
@@ -383,13 +370,11 @@ def delete_clips_tool(
     ``mode="ripple"`` closes the clips' spans on every dialogue track, so speakers stay
     in sync. A ripple that would cut speech outside the deleted clips (another track's,
     or an unselected clip's on the same track) changes nothing and returns
-    ``needs_confirmation``; ask the person, then call again with
-    ``confirm_cut_speech=true``. Submits ``DeleteClip`` on the document plane; undoable.
+    ``needs_confirmation`` for review in Sharecut Studio. MCP cannot override
+    acoustic holds. Submits ``DeleteClip`` on the document plane; undoable.
     For a time range across tracks use ``ripple_delete_tool``.
     """
     payload: dict = {"clip_ids": clip_ids, "mode": EditMode(mode).value}
-    if confirm_cut_speech:
-        payload["confirm_cut_speech"] = True
     return to_json(
         host_command_result(submit_host_document_command(project_path, "DeleteClip", payload))
     )

@@ -236,7 +236,9 @@ def test_saved_pause_uses_private_identity_and_archives_only_finite_effect_geome
     configure(monkeypatch, defaults())
     _deny_registry(monkeypatch)
     result = project(tmp_path)
-    result.edit_decisions = [pause("saved", start=0.3, end=4.7, gap=None)]
+    from test_pause_current_operation_contract import _prepared_remove
+
+    result.edit_decisions = [_prepared_remove(result, "saved", 0.3, 4.7, 5.0)]
     ws = workspace(result)
     assert EditService(ws).approve(["saved"]) == 1
     saved = load_project(ws.path)

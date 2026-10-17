@@ -292,6 +292,6 @@ def propose_focus_cuts(
 
 
 def apply_focus_decisions(project: EpisodeProject) -> int:
-    from podcast_mcp.edits.decisions import apply_prefix_edits
+    from podcast_mcp.edits.cut_application import apply_prefix_edits
 
     return apply_prefix_edits(project, "focus:", config_key="focus")

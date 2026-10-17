@@ -43,8 +43,8 @@ def test_saved_clean_first_held_later_reports_actual_restoration(
             return approve(p, ids, **kwargs)
         except ScopeChangedAtApproval as error:
             original_errors.append(error)
-            assert p.timeline.duration_sec == pytest.approx(4.98)
-            assert [r.decision_ids for r in p.editorial.edit_log] == [["valid"]]
+            assert p.model_dump(mode="json") == before
+            assert p.editorial.edit_log == []
             raise
 
     monkeypatch.setattr(edit_mod, "approve_edits", capture_error)
@@ -74,14 +74,8 @@ def test_saved_clean_first_held_later_reports_actual_restoration(
     else:
         assert held.value is original_errors[0]
         assert "None of the selected edits were applied" not in str(held.value)
-        assert ws.project.timeline.duration_sec == pytest.approx(4.98)
-        assert [r.decision_ids for r in ws.project.editorial.edit_log] == [["valid"]]
-        assert [(c.source_start, c.source_end) for c in ws.project.clips] == [
-            (0, 1.4),
-            (1.42, 3),
-            (4, 6),
-        ]
-        assert [c.timeline_start for c in ws.project.clips] == pytest.approx([0, 1.4, 2.98])
+        assert ws.project.model_dump(mode="json") == before
+        assert ws.project.editorial.edit_log == []
     assert ws.reload().model_dump(mode="json") == before
 
 
@@ -89,7 +83,7 @@ def test_saved_clean_first_held_later_reports_actual_restoration(
 def test_auto_cascading_holds_discard_trial_effects_and_keep_mute_baseline(
     tmp_path, monkeypatch, zero_survivors
 ):
-    from podcast_mcp.edits import decisions as decisions_mod
+    from podcast_mcp.edits import cut_application as decisions_mod
 
     project = _project(tmp_path)
     mute = _cut("mute", 0.1, 0.3, reason="filler:um")
@@ -101,7 +95,7 @@ def test_auto_cascading_holds_discard_trial_effects_and_keep_mute_baseline(
         _cut("first-held", 4, 5, reason="filler:um"),
     ]
     ws = ProjectWorkspace.open(save_project(project))
-    actual_consume = decisions_mod.consume_source_remove
+    actual_consume = decisions_mod._apply_source_remove
     batches = []
 
     def consume(p, edit, **kwargs):
@@ -117,7 +111,7 @@ def test_auto_cascading_holds_discard_trial_effects_and_keep_mute_baseline(
             return CutScopeHold(edit.id, (), "peer_speech")
         return actual_consume(p, edit, **kwargs)
 
-    monkeypatch.setattr(decisions_mod, "consume_source_remove", consume)
+    monkeypatch.setattr(decisions_mod, "_apply_source_remove", consume)
     assert EditService(ws).apply_auto() == (1 if zero_survivors else 2)
     saved = load_project(ws.path)
     assert [e.id for e in saved.edit_decisions] == (

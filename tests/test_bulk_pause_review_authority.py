@@ -6,10 +6,9 @@ import pytest
 
 from pause_policy_public_helpers import primary_spans, workspace
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-from podcast_mcp.models import EditDecisionType, load_project
+from podcast_mcp.models import CutIntent, EditDecisionType, load_project
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync import (
-    host_command_result,
     submit_host_document_command,
 )
 from test_pause_current_operation_contract import (
@@ -56,13 +55,14 @@ def test_safe_bulk_approves_a_pause_that_passes_the_current_join_check(tmp_path,
     _assert_original_splice(load_project(ws.path), operation="approve_edits")
 
 
-@pytest.mark.parametrize("allow_review", [None, True])
-def test_selected_approval_keeps_fresh_review_authority(tmp_path, monkeypatch, allow_review):
+def test_selected_interactive_approval_owns_fresh_review_authority(tmp_path, monkeypatch):
     observed = _fresh_join_review(monkeypatch)
     ws = workspace(_stored_remove(tmp_path, seed=1512))
-    kwargs = {} if allow_review is None else {"allow_review": allow_review}
-    assert EditService(ws).approve(["stored-remove"], **kwargs) == 1
-    assert ("host", pytest.approx(0.3), pytest.approx(4.45), "source") in observed
+    assert (
+        EditService(ws).approve(["stored-remove"], application_intent=CutIntent.HUMAN_BOUNDARIES)
+        == 1
+    )
+    assert observed == []
     _assert_original_splice(load_project(ws.path), operation="approve_edits")
 
 
@@ -146,21 +146,14 @@ def test_normal_document_command_preserves_bulk_review_refusal(
     assert [(e.id, e.review_required) for e in saved.edit_decisions] == [("stored-remove", False)]
 
 
-@pytest.mark.parametrize("allow_review", [None, True])
-def test_normal_selected_document_command_retains_review_authority(
-    tmp_path, monkeypatch, allow_review
-):
+def test_programmatic_selected_command_has_no_review_authority(tmp_path, monkeypatch):
     observed = _fresh_join_review(monkeypatch)
     ws = workspace(_stored_remove(tmp_path, seed=1512))
-    payload = {"ids": ["stored-remove"]}
-    if allow_review is not None:
-        payload["allow_review"] = allow_review
-
-    reply = submit_host_document_command(ws.path, "ApproveEdits", payload)
-
-    assert host_command_result(reply) == {"count": 1}
+    before = ws.path.read_bytes()
+    with pytest.raises(ScopeChangedAtApproval):
+        submit_host_document_command(ws.path, "ApproveEdits", {"ids": ["stored-remove"]})
     assert ("host", pytest.approx(0.3), pytest.approx(4.45), "source") in observed
-    _assert_original_splice(load_project(ws.path), operation="approve_edits")
+    assert ws.path.read_bytes() == before
 
 
 def test_bulk_applies_a_filler_cut_right_beside_a_pause_it_holds(tmp_path, monkeypatch):

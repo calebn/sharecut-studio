@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
+import { saveClipEdge } from "../edit/clipEdgeSave";
 import { submitLiveHistoryCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
@@ -21,13 +21,7 @@ vi.mock("../services/commandQueue", () => ({
       sent.push(
         type === "TrimClipEdge" ? `trim ${String(payload.mode)}` : type,
       );
-      return type === "TrimClipEdge" && payload.mode === "ripple"
-        ? {
-            needs_confirmation: {
-              speech: { spans: [{ start: 0, end: 1 }], tracks: [{}] },
-            },
-          }
-        : { history_head_id: "h-after" };
+      return { history_head_id: "h-after" };
     },
   ),
   submitLiveHistoryCommand: vi.fn(async (_path: string, type: string) => {
@@ -45,7 +39,7 @@ vi.mock("../api/boundary", () => ({
 }));
 vi.mock("./trackMix", () => ({ flushPendingMix: vi.fn(async () => {}) }));
 
-it("holds an Undo pressed while a Leave a gap trim loads its boundary token until the trim is sent", async () => {
+it("holds Undo while a manual gap trim loads its boundary token until the trim is sent", async () => {
   clearRegisteredCommands();
   registerHistoryCommands();
   _resetHistoryMovesForTests();
@@ -68,20 +62,21 @@ it("holds an Undo pressed while a Leave a gap trim loads its boundary token unti
     },
   });
 
-  const asked = await trimClipEdge("/tmp/ep", "c1", "out", 1.5, "ripple", "t");
-  expect(asked.asked).toBe(true);
-  const leaveGap = useDawStore.getState().cutSpeechPrompt?.leaveGap;
-  if (!leaveGap) throw new Error("the prompt offers no Leave a gap");
-  const gap = leaveGap();
+  const gap = saveClipEdge("/tmp/ep", project.clips.tracks.host[0], {
+    kind: "trim",
+    edge: "out",
+    sourceSec: 1.5,
+    mode: "gap",
+  });
   runHistoryAction("undo");
   await vi.waitFor(() => expect(loadBoundaryContext).toHaveBeenCalled());
   await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(sent).toEqual(["trim ripple"]);
+  expect(sent).toEqual([]);
 
   releaseBoundary();
   await gap;
   await vi.waitFor(() =>
     expect(submitLiveHistoryCommand).toHaveBeenCalledTimes(1),
   );
-  expect(sent).toEqual(["trim ripple", "trim gap", "UndoHistory"]);
+  expect(sent).toEqual(["trim gap", "UndoHistory"]);
 });

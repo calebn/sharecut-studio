@@ -374,7 +374,7 @@ the timeline action card, answer with "Approved 1 pending edit" or
 "Rejected 1 pending edit" and the command's guarded toast **Undo** when an edit
 changed. A zero-effect reply says "No pending edits were approved" or
 "No pending edits were rejected" without Undo. A queued send keeps "Still
-sending." without Undo. A request to confirm **Cut anyway** does not announce
+sending." without Undo. A refused structural edit does not announce
 approval before the decision completes; confirmed approval then uses the same
 result feedback and guarded Undo.
 

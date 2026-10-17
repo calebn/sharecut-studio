@@ -66,7 +66,7 @@ Sharecut Studio shows the same optimizer on the wave: quiet wash from visible ti
 
 Tighten preserves confirmed complete breaths at both final edges of a cut without a paced pad by shrinking the cut, including quiet onset and tail. Relevant connected uncertainty or missing evidence suppresses the proposal. A filler cut with a pad is two edges faded against silence, not a splice: it skips breath protection, the join gate and the risk level-jump terms, and instead ends before the next word's acoustic onset and never covers a whole kept word (#978). See [filler cut quality](../../../docs/filler-cut-quality.md#policy) for protections and limits.
 
-Pause trims use current complete word images and original placements to try bounded left, right, or bilateral contraction. Each attempt reruns all operation and safety gates. A pause holds when required original quiet or evidence is insufficient. Pause trims never add room-tone or silence padding, regardless of configured modes or stale saved pad values. A trim qualifies only when its final actual net loss is positive and meets the timing JND. Saved REMOVE pauses always replan as session ripples, regardless of the current proposal mode. Fresh join review holds automatic application. An explicit selected approval remains separately owner-authorized. Keep manual and nonpause room-tone workflows separate; unresolved or suspect pad sources remain on hold pending owner listening.
+Pause proposal preparation uses current complete word images and original placements to try bounded left, right, or bilateral contraction. Each preparation attempt reruns the operation and safety gates. Application measures the fixed proposed operation and current retained air; it never repeats preparation or resnaps the stored edges. A pause holds when required original quiet or evidence is insufficient. Pause trims never add room-tone or silence padding, regardless of configured modes or stale saved pad values. A trim qualifies only when its final actual net loss is positive and meets the timing JND. Saved REMOVE pauses remain session ripples, regardless of the current proposal mode. Fresh join review holds automatic application. Trusted human GUI approval supplies a transient acoustic override, preserving programmatic proposal origin. Agent approval and a GUI-started pipeline do not establish manual intent; structural/source/pad integrity still applies to both. Keep manual and nonpause room-tone workflows separate; unresolved or suspect pad sources remain on hold pending owner listening.
 
 ## Narrative handoffs
 
@@ -88,3 +88,15 @@ Checklist:
 5. Prefer keeping **existing room tone**; do not “fix” with `insert_gap` of pure silence unless the user asks. With the default `filler_pad_mode: room_tone`, pads prefer a recorded `track.room_tone` bed from the lobby capture, then a steady stretch of the track's own audio at its noise floor (chosen from the audio, not word times), then skip.
 
 See [docs/inaudible-cuts.md](../../docs/inaudible-cuts.md).
+
+Application consumes held bounds without resnapping. The cut-domain owner finishes
+actual source, mute, pad and fade effects on a private project copy, assesses them,
+and publishes once through the existing workspace mutation. Programmatic calls
+cannot grant acoustic override with flags, text consent or saved labels. Trusted
+manual gestures and explicit interactive approval override acoustics only; source
+placement, pad hulls and archive integrity still hold. A refusal publishes no
+provisional archives, history or render artifacts.
+
+Accepted mute evidence belongs to the same physical BEFORE source occurrence.
+Post-ripple timeline positions cannot locate that evidence. Ambiguous repeated
+plays hold for review; a mute on another occurrence does not qualify a cut.

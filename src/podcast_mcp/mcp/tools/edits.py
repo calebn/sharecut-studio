@@ -188,7 +188,7 @@ def apply_edit_plan_tool(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
-    """Stage a batch of pending cuts from an edit-plan list (one object per cut)."""
+    """Stage cuts from an edit-plan list; applied entries undergo fresh cut assessment."""
     ws = ProjectWorkspace.open(project_path)
     n = EditService(ws).apply_plan(
         edits,
@@ -344,22 +344,17 @@ def list_edit_decisions_tool(
 def approve_edits_tool(
     project_path: str,
     ids: list[str],
-    confirm_cut_speech: bool = False,
 ) -> str:
     """Approve pending edits by id, applying them to the timeline.
 
     To give every pending sound its own suggested action at once, use
     ``apply_suggested_actions_tool``.
 
-    A ripple that cuts another speaker's speech returns ``needs_confirmation`` and
-    applies nothing; ask the person, then call again with ``confirm_cut_speech=true``.
-    A suggestion a peer speaks over (``:other_speaking:<peers>``) is the same question:
-    approve it, then confirm to ripple every dialogue track. A session cut that a peer is
-    now speaking over with no such review is not applied (``cut_scope_changed``): it would
-    silence one track and shorten nothing, so it stays pending.
+    Acoustic or peer-speech hazards stay pending for review. Only a trusted human
+    Approve in Sharecut Studio can override acoustic holds; MCP calls cannot.
     """
     ws = ProjectWorkspace.open(project_path)
-    outcome = EditService(ws).approve(ids, confirm_cut_speech=confirm_cut_speech)
+    outcome = EditService(ws).approve(ids)
     if isinstance(outcome, CutSpeechConfirmation):
         return to_json(outcome.result("approve_edits"))
     agent_mutated(ws)
@@ -441,7 +436,7 @@ def propose_edits(
     bare array — breaking vs older list-of-decisions clients). ``operation`` is
     ``propose_edits``. Each edit also carries ``label`` (plain words, e.g. "Laugh")
     and ``suggested_action`` (``cut`` / ``shorten`` / ``lower`` / ``leave``) from
-    one table (``edits/sound_actions.py``). ``skip_counts`` maps ``discourse:{token}`` to kept uses
+    one table (``edits/cut_safety.py``). ``skip_counts`` maps ``discourse:{token}`` to kept uses
     and ``backchannel:{phrase}`` to kept acknowledgments (``uh huh``).
     ``word_probe:unavailable`` is a missing Whisper model; ``word_probe:failed``
     is a span whose decode raised. The ``summary`` names both.

@@ -997,3 +997,12 @@ Reviewed exact MUTE proposals require interactive host approval. Rendered pendin
 ### Applied edit recovery
 
 The Applied edit inspector offers **Restore** only for ordinary source MUTE archives with valid source clocks and edit access. Cuts and exact ranges show the whole-action History Undo guidance, including other edits in the action and the need to undo later actions first. **Open History** opens the current History tab without running Undo. Numeric source and timeline seam displays remain unchanged. The backend validates the top-level source bounds and every supplied per-track span before history starts. Malformed mappings or nonfinite, negative, equal, or reversed bounds return `local_restore_requires_history` without changing the saved project, history entries, transcript caches, or render artifacts. Normal document-session setup can initialize journal and lock files before Restore runs. See [History](history.md#individual-restore-and-whole-action-undo).
+
+### Completed cut publication
+
+Studio's trusted interactive adapter supplies manual intent for cut gestures and
+explicit approval. This bypasses acoustic vetoes, including peer speech, while
+current placement, source identity, pad hulls, bounds and receipts remain mandatory.
+There is no confirmation-flag retry. Programmatic document commands, CLI and MCP
+retain fresh acoustic assessment. The domain completes cuts privately; the existing
+workspace mutation owns their single publication and History entry.

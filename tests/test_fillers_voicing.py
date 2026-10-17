@@ -15,9 +15,9 @@ import numpy as np
 import pytest
 
 from pause_policy_public_helpers import room
+from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.fillers import (
-    _check_voiced_speech,
     _CutCandidate,
     analyze_fillers_and_pauses,
 )
@@ -263,7 +263,7 @@ def test_clean_dead_air_is_proposed_to_apply_and_applies_with_the_fillers(tmp_pa
     assert decision.review_required is False
     assert 0.58 <= decision.start <= 0.62
     assert decision.end == pytest.approx(2.45)
-    assert apply_tighten_decisions(project) == 1
+    assert apply_tighten_decisions(project, DEFAULTS) == 1
     assert project.edit_decisions == []
     assert project.editorial.edit_log[0].params["replace_gap_sec"] is None
     assert project.editorial.edit_log[0].params["pad_samples"] == []
@@ -626,7 +626,7 @@ def test_voice_before_a_filler_word_start_moves_the_cut_to_its_onset(tmp_path: P
     assert uh.reason == "filler:uh"
     assert uh.review_required is False
     assert uh.start == pytest.approx(0.740, abs=0.011)
-    assert apply_tighten_decisions(project) == 2
+    assert apply_tighten_decisions(project, defaults=defaults) == 2
 
 
 def test_voice_after_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Path) -> None:
@@ -642,13 +642,14 @@ def test_voice_after_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Pat
         cut_kind="filler",
     )
 
-    result = _check_voiced_speech(
-        candidate,
+    result = cut_safety.assess_voiced_edges(
         0.50,
         0.80,
         audio_cache=_cache(host),
         word_index=CutWordIndex.build(project, "host"),
-        defaults={},
+        selected_start=candidate.start,
+        selected_end=candidate.end,
+        pause=False,
     )
 
     assert result.start == pytest.approx(0.50)

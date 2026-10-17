@@ -24,6 +24,7 @@ import pytest
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EditMode,
     EpisodeProject,
     MediaAsset,
@@ -205,7 +206,11 @@ class _Op:
         service = EditService(ProjectWorkspace.open(self.path))
         if self.kind == "delete":
             out = service.delete_clips(
-                [c.id for c in self.clips], mode=EditMode.RIPPLE, confirm_cut_speech=confirm
+                [c.id for c in self.clips],
+                mode=EditMode.RIPPLE,
+                application_intent=CutIntent.HUMAN_BOUNDARIES
+                if confirm
+                else CutIntent.PROGRAMMATIC,
             )
         elif self.kind == "cut":
             if self.end <= self.start:
@@ -216,7 +221,9 @@ class _Op:
                 mode=EditMode.RIPPLE,
                 track_ids=self.track_ids,
                 use_inaudible_opt=False,
-                confirm_cut_speech=confirm,
+                application_intent=CutIntent.HUMAN_BOUNDARIES
+                if confirm
+                else CutIntent.PROGRAMMATIC,
             )
         elif self.kind == "trim":
             token = boundary_context(
@@ -229,10 +236,17 @@ class _Op:
                 self.source_sec,
                 mode=EditMode.RIPPLE,
                 expected_token=token,
-                confirm_cut_speech=confirm,
+                application_intent=CutIntent.HUMAN_BOUNDARIES
+                if confirm
+                else CutIntent.PROGRAMMATIC,
             )
         else:
-            approved = service.approve([self.edit_id], confirm_cut_speech=confirm)
+            approved = service.approve(
+                [self.edit_id],
+                application_intent=CutIntent.HUMAN_BOUNDARIES
+                if confirm
+                else CutIntent.PROGRAMMATIC,
+            )
             return not isinstance(approved, int)
         return out.get("needs_confirmation") is not None
 

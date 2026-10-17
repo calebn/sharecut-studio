@@ -8,7 +8,7 @@ import pytest
 
 from podcast_mcp.edits.clips_ops import set_track_clips
 from podcast_mcp.edits.ripple import ripple_remove_clips
-from podcast_mcp.edits.timeline_ops import punch_delete
+from podcast_mcp.edits.timeline_ops import _write_punch_delete
 from podcast_mcp.engines.audio_audit import _played_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
@@ -237,7 +237,12 @@ def test_partial_suffix_and_unaffected_lanes_keep_audio_then_readding_restores(
     project.clips.append(
         Clip(id="peer", track_id="peer", source_start=0, source_end=3, timeline_start=5)
     )
-    punch_delete(project, "guest", 1, 2, use_inaudible_opt=False)
+    _write_punch_delete(
+        project,
+        "guest",
+        1,
+        2,
+    )
     assert _counts(project) == (16000, 16000)
     assert project.tracks[0].timeline_empty is False
     ripple_remove_clips(project, [(2, 3)], ["guest", "peer"])

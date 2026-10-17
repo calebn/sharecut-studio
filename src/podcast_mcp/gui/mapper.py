@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.cut_safety import decision_policy
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
-from podcast_mcp.edits.sound_actions import sound_label_and_action
 from podcast_mcp.edits.tighten_hits import (
     is_harsh_tighten_hit,
     is_listen_one_by_one_hit,
@@ -107,7 +107,7 @@ def map_pending_edits_to_timeline(
                 source_start_timeline = float(start_point) if start_point is not None else None
                 source_end_timeline = float(end_point) if end_point is not None else None
         preview = preview_window_for_edit(project, decision)
-        sound_info = sound_label_and_action(decision.reason)
+        sound_info = decision_policy(decision)
         rows.append(
             {
                 "exact_range": decision.exact_range.model_dump(mode="json")
@@ -138,8 +138,8 @@ def map_pending_edits_to_timeline(
                 "join_risk": join_risk_from_decision(decision),
                 "harsh": is_harsh_tighten_hit(decision),
                 "listen_one_by_one": is_listen_one_by_one_hit(decision),
-                "label": sound_info[0] if sound_info else None,
-                "suggested_action": sound_info[1] if sound_info else None,
+                "label": sound_info.label if sound_info else None,
+                "suggested_action": sound_info.action if sound_info else None,
             }
         )
     return rows

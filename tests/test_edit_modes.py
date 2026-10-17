@@ -14,13 +14,14 @@ from typer.testing import CliRunner
 
 from history_helpers import history_move
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits.cut_safety import clear_ripple
-from podcast_mcp.edits.cut_speech import CutSpeechConfirmation, LaneSourceExtent, SpeechClearance
-from podcast_mcp.edits.decisions import apply_auto_edits
+from podcast_mcp.edits.cut_application import apply_auto_edits
+from podcast_mcp.edits.cut_speech import LaneSourceExtent, assess_cut_speech
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import plan_ripple_delete
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     EditMode,
@@ -35,13 +36,17 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
-from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
+from podcast_mcp.services.document_sync import (
+    INTERACTIVE_COMMAND,
+    DocumentCommand,
+    DocumentSyncService,
+)
 from podcast_mcp.util.timebase import SourceSec
 
 SR = 16_000
 DUR = 30.0
 GUEST_WORDS = 'This also cuts Guest\'s speech at 0:10.1 ("so the plan"). '
-CUT_ANYWAY = "Cut anyway, or leave a gap to keep it."
+CUT_REVIEW = "Review this cut in Studio, or leave a gap to keep it."
 
 
 def _write_wav(path: Path, signal: np.ndarray) -> None:
@@ -166,7 +171,12 @@ def _trim(
         ws.project, TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=mode)
     ).token
     return EditService(ws).trim_clip_edge(
-        clip_id, edge, source_sec, mode=mode, expected_token=token, confirm_cut_speech=confirm
+        clip_id,
+        edge,
+        source_sec,
+        mode=mode,
+        expected_token=token,
+        application_intent=CutIntent.HUMAN_BOUNDARIES if confirm else CutIntent.PROGRAMMATIC,
     )
 
 
@@ -243,9 +253,9 @@ def test_ripple_trim_over_another_speakers_words_asks_first_and_changes_nothing(
     confirmation = out["needs_confirmation"]
     assert out["unchanged"] is True
     assert confirmation["reason"] == "cuts_other_speech"
-    assert confirmation["message"] == GUEST_WORDS + CUT_ANYWAY
-    assert confirmation["confirm_label"] == "Cut anyway"
-    assert confirmation["confirm_field"] == "confirm_cut_speech"
+    assert confirmation["message"] == GUEST_WORDS + CUT_REVIEW
+    assert "confirm_label" not in confirmation
+    assert "confirm_field" not in confirmation
     (track,) = confirmation["speech"]["tracks"]
     assert track["track_id"] == "guest"
     assert [(w["text"], w["timeline_start"]) for w in track["words"]] == [
@@ -290,7 +300,7 @@ def test_own_sound_without_words_needs_confirmation(episode):
     out = _trim(episode, "h2", "out", 12.5, EditMode.RIPPLE)
 
     confirmation = out["needs_confirmation"]
-    assert confirmation["message"] == "This also cuts Guest's speech at 0:13.0. " + CUT_ANYWAY
+    assert confirmation["message"] == "This also cuts Guest's speech at 0:13.0. " + CUT_REVIEW
     (track,) = confirmation["speech"]["tracks"]
     assert track["words"] == []
     assert track["sound_spans"] == [{"start": 13.0, "end": 13.5}]
@@ -351,13 +361,13 @@ def test_approving_a_suggested_remove_asks_for_words_the_transcript_has_now(epis
     direct = service.cut_range(
         10.0, 11.0, mode=EditMode.RIPPLE, track_ids=["host"], use_inaudible_opt=False
     )
-    assert direct["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    assert direct["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
     asked = service.approve([edit["id"]])
 
     assert not isinstance(asked, int)
-    assert asked.message == GUEST_WORDS + CUT_ANYWAY
+    assert asked.message == GUEST_WORDS + CUT_REVIEW
     assert _geometry(episode) == before
-    assert service.approve([edit["id"]], confirm_cut_speech=True) == 1
+    assert service.approve([edit["id"]], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
     _assert_in_sync(episode, (12.0, 19.0), -1.0)
 
 
@@ -372,17 +382,16 @@ def test_speech_another_edit_in_the_same_approval_cuts_does_not_ask(episode, cut
     project = load_project(episode)
     removal = plan_ripple_delete(project, *cut, edited_track_ids=["host"])
 
-    alone = clear_ripple(project, removal, confirm_cut_speech=False)
-    batched = clear_ripple(
+    alone = assess_cut_speech(project, removal)
+    batched = assess_cut_speech(
         project,
         removal,
-        confirm_cut_speech=False,
         also_chosen=[LaneSourceExtent("guest", *chosen)],
     )
 
-    assert isinstance(alone, CutSpeechConfirmation)
-    assert [t.track_id for t in alone.speech.tracks] == ["guest"]
-    assert batched == SpeechClearance(removal)
+    assert alone is not None
+    assert [t.track_id for t in alone.tracks] == ["guest"]
+    assert batched is None
 
 
 def test_auto_apply_leaves_a_remove_over_other_words_pending(episode):
@@ -489,14 +498,14 @@ def test_a_word_counts_only_where_its_own_track_sounds_inside_the_cut(
         project, 11.0, 11.7, edited_track_ids=["host"], use_inaudible_opt=False
     )
 
-    cleared = clear_ripple(project, removal, confirm_cut_speech=False)
+    cleared = assess_cut_speech(project, removal)
 
     if asks:
-        assert isinstance(cleared, CutSpeechConfirmation)
-        (track,) = cleared.speech.tracks
+        assert cleared is not None
+        (track,) = cleared.tracks
         assert [(w.text, w.timeline_start) for w in track.words] == [("yes", 11.2)]
     else:
-        assert cleared == SpeechClearance(removal)
+        assert cleared is None
 
 
 def _word_with_a_soft_edge(path: Path, edge: str, below_peak_db: float) -> None:
@@ -543,10 +552,10 @@ def test_a_soft_word_edge_in_the_cut_asks_while_the_cutting_speaker_talks(
         project, 11.0, 11.7, edited_track_ids=["host"], use_inaudible_opt=False
     )
 
-    cleared = clear_ripple(project, removal, confirm_cut_speech=False)
+    cleared = assess_cut_speech(project, removal)
 
-    assert isinstance(cleared, CutSpeechConfirmation)
-    (track,) = cleared.speech.tracks
+    assert cleared is not None
+    (track,) = cleared.tracks
     assert [w.text for w in track.words] == ["okay"]
 
 
@@ -555,10 +564,12 @@ def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):
     before = _geometry(episode)
 
     out = service.delete_clips(["h2"], mode=EditMode.RIPPLE)
-    assert out["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    assert out["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
     assert _geometry(episode) == before
 
-    service.delete_clips(["h2"], mode=EditMode.RIPPLE, confirm_cut_speech=True)
+    service.delete_clips(
+        ["h2"], mode=EditMode.RIPPLE, application_intent=CutIntent.HUMAN_BOUNDARIES
+    )
     assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
 
 
@@ -567,19 +578,35 @@ def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):
     [(["host"], True), (["host", "guest"], False)],
     ids=["host-only", "both-speakers"],
 )
-def test_ripple_cut_range_protects_only_the_tracks_it_does_not_name(episode, track_ids, asks):
-    out = EditService(ProjectWorkspace.open(episode)).cut_range(
-        10.0, 11.0, mode=EditMode.RIPPLE, track_ids=track_ids, use_inaudible_opt=False
+def test_programmatic_range_observes_peers_and_own_edges(episode, track_ids, asks):
+    service = EditService(ProjectWorkspace.open(episode))
+    before = _geometry(episode)
+    if asks:
+        out = service.cut_range(
+            10.0, 11.0, mode=EditMode.RIPPLE, track_ids=track_ids, use_inaudible_opt=False
+        )
+        assert "needs_confirmation" in out
+    else:
+        with pytest.raises(ScopeChangedAtApproval) as held:
+            service.cut_range(
+                10.0, 11.0, mode=EditMode.RIPPLE, track_ids=track_ids, use_inaudible_opt=False
+            )
+        assert held.value.held[0].reason == "acoustic_edge"
+    assert _geometry(episode) == before
+    service.cut_range(
+        10.0,
+        11.0,
+        mode=EditMode.RIPPLE,
+        track_ids=track_ids,
+        use_inaudible_opt=False,
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
-
-    assert ("needs_confirmation" in out) is asks
-    if not asks:
-        _assert_in_sync(episode, (12.0, 19.0), -1.0)
+    _assert_in_sync(episode, (12.0, 19.0), -1.0)
 
 
 ALL_SPEECH = (
     "This cuts Host's speech at 0:10.0 and Guest's speech at 0:10.1 "
-    '("so the plan"). Cut anyway, or choose which tracks to cut.'
+    '("so the plan"). Review this cut in Studio, or choose which tracks to cut.'
 )
 
 
@@ -592,7 +619,11 @@ def test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech(
     assert _geometry(episode) == before
 
     service.cut_range(
-        10.0, 11.0, mode=EditMode.RIPPLE, use_inaudible_opt=False, confirm_cut_speech=True
+        10.0,
+        11.0,
+        mode=EditMode.RIPPLE,
+        use_inaudible_opt=False,
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
     _assert_in_sync(episode, (12.0, 19.0), -1.0)
 
@@ -609,7 +640,12 @@ def test_ripple_delete_clip_closes_the_span_on_every_track(episode):
 
 def test_ripple_cut_range_closes_the_span_on_every_track(episode):
     EditService(ProjectWorkspace.open(episode)).cut_range(
-        2.0, 4.0, mode=EditMode.RIPPLE, track_ids=["host"], use_inaudible_opt=False
+        2.0,
+        4.0,
+        mode=EditMode.RIPPLE,
+        track_ids=["host"],
+        use_inaudible_opt=False,
+        application_intent=CutIntent.HUMAN_BOUNDARIES,
     )
 
     _assert_in_sync(episode, (4.5, 10.2, 19.0), -2.0)
@@ -719,13 +755,14 @@ def test_document_command_returns_the_confirmation_then_applies_and_undoes(episo
 
     asked = _submit(episode, "TrimClipEdge", _trim_payload(episode, EditMode.RIPPLE))
     assert asked["ok"] is True
-    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
     assert _geometry(episode) == before
 
     applied = _submit(
         episode,
         "TrimClipEdge",
-        _trim_payload(episode, EditMode.RIPPLE, confirm_cut_speech=True),
+        _trim_payload(episode, EditMode.RIPPLE),
+        trusted_context=INTERACTIVE_COMMAND,
     )
     assert "needs_confirmation" not in applied
     assert _geometry(episode) != before
@@ -765,7 +802,7 @@ def test_document_command_returns_the_confirmation_then_applies_and_undoes(episo
 def test_each_mode_of_each_command_undoes_in_one_step(episode, command_type, payload):
     before = _geometry(episode)
 
-    _submit(episode, command_type, payload)
+    _submit(episode, command_type, payload, trusted_context=INTERACTIVE_COMMAND)
     assert _geometry(episode) != before
 
     _undo(episode)
@@ -788,15 +825,16 @@ def test_a_commenters_ripple_suggestion_records_that_approval_must_confirm(episo
     assert [w["text"] for w in edit["cut_speech"]["tracks"][0]["words"]] == ["so", "the", "plan"]
     before = _geometry(episode)
 
-    asked = service.approve([edit["id"]])
-    assert asked.message == GUEST_WORDS + CUT_ANYWAY
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        service.approve([edit["id"]])
+    assert held.value.held[0].reason == "peer_speech"
     assert _geometry(episode) == before
 
-    assert service.approve([edit["id"]], confirm_cut_speech=True) == 1
+    assert service.approve([edit["id"]], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
     assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
 
 
-def test_cli_trim_asks_for_yes_before_cutting_speech(episode):
+def test_cli_trim_holds_without_a_confirmation_flag(episode):
     runner = CliRunner()
     args = ["edit", "trim-clip", "--project", str(episode), "--clip", "h2"]
     args += ["--edge", "out", "--source-sec", "10", "--mode", "ripple"]
@@ -804,16 +842,16 @@ def test_cli_trim_asks_for_yes_before_cutting_speech(episode):
 
     refused = runner.invoke(app, args)
     assert refused.exit_code == 1
-    assert GUEST_WORDS + CUT_ANYWAY in refused.stderr
-    assert "Run again with --yes to cut anyway." in refused.stderr
+    assert GUEST_WORDS + CUT_REVIEW in refused.stderr
+    assert "Review and approve this cut in Sharecut Studio." in refused.stderr
     assert _geometry(episode) == before
 
-    applied = runner.invoke(app, [*args, "--yes"])
-    assert applied.exit_code == 0, applied.output
-    assert json.loads(applied.stdout)["cut_speech"]["tracks"][0]["track_id"] == "guest"
+    obsolete = runner.invoke(app, [*args, "--yes"])
+    assert obsolete.exit_code == 2
+    assert _geometry(episode) == before
 
 
-def test_guest_mcp_returns_the_confirmation_and_accepts_the_flag(episode, sample_wav, monkeypatch):
+def test_guest_mcp_cannot_authorize_a_cut_with_payload_flags(episode, sample_wav, monkeypatch):
     from podcast_mcp.edits.share_capabilities import capabilities_for_role
     from test_guest_document_gate import _mcp_call, _mcp_share
 
@@ -828,38 +866,22 @@ def test_guest_mcp_returns_the_confirmation_and_accepts_the_flag(episode, sample
         return json.loads(reply["result"]["content"][0]["text"])
 
     asked = delete()
-    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
     assert _geometry(episode) == before
 
-    applied = delete(confirm_cut_speech=True)
-    assert "needs_confirmation" not in applied
-    assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
+    spoofed = delete(application_intent=CutIntent.HUMAN_BOUNDARIES, confirm_cut_speech=True)
+    assert spoofed["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
+    assert _geometry(episode) == before
 
 
-@pytest.mark.parametrize(("answer", "cuts"), [("n\n", False), ("y\n", True)], ids=["no", "yes"])
-def test_cli_asks_at_a_terminal_before_a_range_cut_naming_no_tracks(
-    episode, monkeypatch, answer, cuts
-):
-    from types import SimpleNamespace
-
-    import podcast_mcp.cli.cut_speech as cli_cut_speech
-
-    monkeypatch.setattr(
-        cli_cut_speech, "sys", SimpleNamespace(stdin=SimpleNamespace(isatty=lambda: True))
-    )
+def test_cli_text_consent_cannot_authorize_a_cut(episode):
     args = ["edit", "ripple-delete", "--project", str(episode), "--start", "10", "--end", "11"]
     before = _geometry(episode)
-
-    result = CliRunner().invoke(app, [*args, "--no-inaudible-opt"], input=answer)
-
-    assert f"{ALL_SPEECH}\nCut anyway? [y/N]: " in result.stdout
-    if cuts:
-        assert result.exit_code == 0, result.output
-        _assert_in_sync(episode, (12.0, 19.0), -1.0)
-    else:
-        assert result.exit_code == 1
-        assert "Nothing changed. Run again with --yes to cut anyway." in result.stderr
-        assert _geometry(episode) == before
+    result = CliRunner().invoke(app, [*args, "--no-inaudible-opt"], input="y\n")
+    assert result.exit_code == 1
+    assert "Review and approve this cut in Sharecut Studio." in result.stderr
+    assert "Cut anyway? [y/N]: " not in result.stdout
+    assert _geometry(episode) == before
 
 
 def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
@@ -885,38 +907,46 @@ def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
     assert suggestion.cut_speech is not None
     assert _geometry(episode) == before
 
-    asked = submit(editor, "ApproveEdits", {"ids": [suggestion.id]})
-    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
-    assert _geometry(episode) == before
+    for extra in ({}, {"confirm_cut_speech": True}):
+        reply = _mcp_call(
+            editor,
+            "guest_submit_document_command",
+            {"type": "ApproveEdits", "payload": {"ids": [suggestion.id], **extra}},
+        )
+        assert reply["result"]["isError"] is True
+        assert "Guest is speaking" in reply["result"]["content"][0]["text"]
+        assert _geometry(episode) == before
 
-    applied = submit(editor, "ApproveEdits", {"ids": [suggestion.id], "confirm_cut_speech": True})
-    assert "needs_confirmation" not in applied
+    _submit(episode, "ApproveEdits", {"ids": [suggestion.id]}, trusted_context=INTERACTIVE_COMMAND)
     assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
 
 
-def test_host_mcp_delete_clips_ripple_asks_then_cuts_when_confirmed(episode):
+def test_host_mcp_delete_clips_cannot_supply_trusted_intent(episode):
     from podcast_mcp.mcp.tools import timeline as mcp_timeline
 
     before = _geometry(episode)
 
     asked = json.loads(mcp_timeline.delete_clips_tool(str(episode), ["h2"], mode="ripple"))
-    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
     assert _geometry(episode) == before
 
-    mcp_timeline.delete_clips_tool(str(episode), ["h2"], mode="ripple", confirm_cut_speech=True)
-    assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
+    with pytest.raises(TypeError, match="application_intent"):
+        mcp_timeline.delete_clips_tool(
+            str(episode), ["h2"], mode="ripple", application_intent=CutIntent.HUMAN_BOUNDARIES
+        )
+    assert _geometry(episode) == before
 
 
-def test_cli_delete_clips_ripple_asks_for_yes_before_cutting_speech(episode):
+def test_cli_delete_clips_holds_without_a_confirmation_flag(episode):
     runner = CliRunner()
     args = ["edit", "delete-clips", "--project", str(episode), "--ids", "h2", "--mode", "ripple"]
     before = _geometry(episode)
 
     refused = runner.invoke(app, args)
     assert refused.exit_code == 1
-    assert GUEST_WORDS + CUT_ANYWAY in refused.stderr
+    assert GUEST_WORDS + CUT_REVIEW in refused.stderr
     assert _geometry(episode) == before
 
-    applied = runner.invoke(app, [*args, "--yes"])
-    assert applied.exit_code == 0, applied.output
-    assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
+    obsolete = runner.invoke(app, [*args, "--yes"])
+    assert obsolete.exit_code == 2
+    assert _geometry(episode) == before

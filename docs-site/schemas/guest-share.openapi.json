@@ -1102,18 +1102,6 @@
       },
       "ApproveEditsPayload": {
         "properties": {
-          "allow_review": {
-            "default": true,
-            "description": "Authorize a pause join that currently requires review. Selected approval defaults to true. Speech confirmation does not change this authority.",
-            "title": "Allow Review",
-            "type": "boolean"
-          },
-          "confirm_cut_speech": {
-            "default": false,
-            "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
-            "title": "Confirm Cut Speech",
-            "type": "boolean"
-          },
           "continues_head_id": {
             "anyOf": [
               {
@@ -1125,12 +1113,12 @@
                 "type": "null"
               }
             ],
-            "description": "Cut anyway after an Approve all that applied the rest: the history entry that Approve all left (`history_head_id` of its reply). The entry this command records names it, so one Undo takes back both parts.",
+            "description": "The prior history head when one logical approval is recorded across two commands. The new entry names that head so one Undo and Redo move the complete approval together. This marker does not grant acoustic authority.",
             "title": "Continues Head Id"
           },
           "hold_blocked": {
             "default": false,
-            "description": "Approve all: a cut that cannot apply safely (another speaker is talking there, say) stays pending and is reported in `held`; every other edit applies. A cut that would cut other speech also stays pending: the reply carries the ask and `confirm_ids`, and confirming sends only those ids. Without it one such cut refuses the whole batch.",
+            "description": "Approve all: a cut that cannot apply safely (another speaker is talking there, say) stays pending and is reported in `held`; every other edit applies. A cut that would cut other speech also stays pending: the reply is reported with its speech evidence. Only trusted interactive intent can override that acoustic hold. Without `hold_blocked`, one held cut refuses the whole batch.",
             "title": "Hold Blocked",
             "type": "boolean"
           },
@@ -1769,12 +1757,6 @@
       },
       "CutRangePayload": {
         "properties": {
-          "confirm_cut_speech": {
-            "default": false,
-            "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
-            "title": "Confirm Cut Speech",
-            "type": "boolean"
-          },
           "end": {
             "title": "End",
             "type": "number"
@@ -2029,12 +2011,6 @@
               }
             ],
             "title": "Clip Ids"
-          },
-          "confirm_cut_speech": {
-            "default": false,
-            "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
-            "title": "Confirm Cut Speech",
-            "type": "boolean"
           },
           "mode": {
             "$ref": "#/components/schemas/EditMode",
@@ -6260,12 +6236,6 @@
           "clip_id": {
             "title": "Clip Id",
             "type": "string"
-          },
-          "confirm_cut_speech": {
-            "default": false,
-            "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
-            "title": "Confirm Cut Speech",
-            "type": "boolean"
           },
           "edge": {
             "enum": [

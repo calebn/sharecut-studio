@@ -12,6 +12,8 @@ Pytest is configured in `pyproject.toml` to **fail if line+branch coverage drops
 
 Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
 
+The accepted-mute regression in `tests/test_source_remove_geometry.py` covers track and session removals at nonzero placement with unrelated speech. It checks exact archives, survivor placement, cache rates and recording profiles, temporary-render cleanup, and sample-for-sample equality between a source query and its BEFORE timeline window. Repeated plays and hard-linked recording aliases must not share mute evidence or hide removed source multiplicity.
+
 Vitest uses four worker threads and two inline projects in
 `gui/web/vitest.config.ts`. The `node` project runs an explicit list of 19 pure
 edit, timeline, time and audio test files without DOM setup, including
@@ -2758,3 +2760,16 @@ with native Tab at 16px and 32px root sizes, one theme per size. It runs
 in Chromium and WebKit and saves geometry receipts and screenshots for each
 focused button. The phone shell clips content at its viewport edge, so every
 navigation focus indicator must fit inside its button.
+
+## Complete cut effects
+
+`tests/test_source_remove_geometry.py` exercises the four cut-domain authorities
+through actual application. It changes real PCM or current placement after an
+offer, checks atomic refusal, then disables only the owning predicate and requires
+the bad effect to publish. Cases include late batch fades, GAP extension without
+a removal, live MCP plan application, moved pad tiles, and duplicate source
+consumption. The AST boundary test rejects direct, aliased, module-qualified, and
+private writer imports outside the operation owner. Renderer tests prove pending
+or applied decision labels cannot bypass publication by removing audio at render
+time. These checks supplement the public pause and original mixed-mode PCM
+contracts; they do not replace Lab parity or listening acceptance.

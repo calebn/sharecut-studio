@@ -29,7 +29,7 @@ from podcast_mcp.services.document import EditService
 from podcast_mcp.util.coded_error import CodedError
 
 
-def _pause(edit_id: str = "pause", start: float = 1.0, end: float = 1.3) -> EditDecision:
+def _pause(edit_id: str = "pause", start: float = 1.0, end: float = 1.19) -> EditDecision:
     return EditDecision(
         id=edit_id,
         track_id="host",
@@ -101,7 +101,6 @@ def _replay_source(project: EpisodeProject, *, at: float = 9.0) -> None:
         )
     )
     if at == 9.0:
-        project.clips[1].source_end = 9.3
         project.timeline.duration_sec = 9.3
 
 

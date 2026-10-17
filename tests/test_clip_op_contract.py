@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits import clips_ops, timeline_ops
-from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
 from podcast_mcp.models import Clip, EditMode, MediaAsset, Track, TrackRole, load_project
 
@@ -30,7 +29,7 @@ def test_timeline_wrapper_preserves_domain_geometry_and_archives(minimal_project
     if operation == "trim_clip_edge":
         apply_trim_geometry(domain, plan_trim(domain, "c1", "out", 7.0, EditMode.RIPPLE))
         plan = plan_trim(archived, "c1", "out", 7.0, EditMode.RIPPLE)
-        summary = timeline_ops.trim_clip_edge(archived, plan, SpeechClearance(plan.removal))
+        summary = timeline_ops._write_trim_clip_edge(archived, plan)
     else:
         args = (
             ("c1", "c2", 1.0)

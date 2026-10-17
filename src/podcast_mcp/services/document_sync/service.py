@@ -796,7 +796,14 @@ class DocumentSyncService:
             payload["_range_reason"] = range_reason(capabilities, range_policy, mode)
             payload["_action_id"] = command.command_id
             payload["_boundary_intent"] = trusted_context.boundary_intent
-        if command.type == "UpdatePendingEdit":
+        if command.type in {
+            "UpdatePendingEdit",
+            "ApproveEdits",
+            "CutRange",
+            "DeleteClip",
+            "TrimClipEdge",
+            "ApplySuggestedActions",
+        }:
             payload["_boundary_intent"] = trusted_context.boundary_intent
         if command.type in STRUCTURAL_COMMANDS:
             mode = resolve_structural_mode(capabilities, structural_mode)

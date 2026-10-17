@@ -45,7 +45,7 @@ def test_parked_music_cannot_report_success_without_consuming_selected_audio(tmp
     else:
         with pytest.raises(ScopeChangedAtApproval) as held:
             if delivery == "saved":
-                EditService(ws).approve(["parked-cut"], confirm_cut_speech=True)
+                EditService(ws).approve(["parked-cut"])
             elif delivery == "suggested":
                 snapshot = ws.project.model_copy(deep=True)
                 apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "parked-cut"))
@@ -102,7 +102,7 @@ def test_voiced_parked_dialogue_stays_pending_under_current_scope_policy(tmp_pat
     before = ws.project.model_dump(mode="json")
     saved_before = ws.path.read_bytes()
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["parked-cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["parked-cut"])
     assert held.value.held[0].reason in ("peer_speech", "scope_unavailable")
     assert ws.path.read_bytes() == saved_before
     assert ws.project.model_dump(mode="json") == before

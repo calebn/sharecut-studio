@@ -115,10 +115,15 @@ def test_punch_delete_archives_per_track_source() -> None:
     import pytest
 
     from podcast_mcp.edits.edit_log import list_applied_edits
-    from podcast_mcp.edits.timeline_ops import punch_delete
+    from podcast_mcp.edits.timeline_ops import _write_punch_delete
 
     p = _project_with_two_clips()
-    punch_delete(p, "host", 2.5, 3.0, use_inaudible_opt=False)
+    _write_punch_delete(
+        p,
+        "host",
+        2.5,
+        3.0,
+    )
     records = list_applied_edits(p, track_id="host")
     assert len(records) == 1
     assert records[0].params["per_track_source"]["host"] == [
@@ -229,11 +234,16 @@ def test_punch_across_a_moved_clip_records_the_seam() -> None:
     import pytest
 
     from podcast_mcp.edits.edit_log import list_applied_edits
-    from podcast_mcp.edits.timeline_ops import move_clips, punch_delete
+    from podcast_mcp.edits.timeline_ops import _write_punch_delete, move_clips
 
     p = _project_with_moved_clip()
     move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
-    punch_delete(p, "host", 10.0, 21.0, use_inaudible_opt=False)
+    _write_punch_delete(
+        p,
+        "host",
+        10.0,
+        21.0,
+    )
     record = list_applied_edits(p, track_id="host")[-1]
     assert record.params["per_track_source"] == {"host": [pytest.approx(15.0), pytest.approx(33.0)]}
 
@@ -279,11 +289,16 @@ def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
 def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
     from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.edit_log import list_applied_edits
-    from podcast_mcp.edits.timeline_ops import move_clips, punch_delete
+    from podcast_mcp.edits.timeline_ops import _write_punch_delete, move_clips
 
     p = _project_with_moved_clip()
     move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
-    punch_delete(p, "host", 10.0, 21.0, use_inaudible_opt=False)
+    _write_punch_delete(
+        p,
+        "host",
+        10.0,
+        21.0,
+    )
     record = list_applied_edits(p, track_id="host")[-1]
     assert record.params["scope"] == "track"
     record.source_start = 10.0

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
+from pause_policy_public_helpers import RATE, write_wav
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
@@ -26,16 +28,21 @@ from podcast_mcp.services.document_sync.policy import (
 )
 
 
-def _seed_dialogue_clips(project_path, sample_wav) -> ProjectWorkspace:
+@pytest.fixture(scope="session")
+def dialogue_wav(tmp_path_factory):
+    path = tmp_path_factory.mktemp("structural-audio") / "dialogue.wav"
+    write_wav(path, np.zeros(10 * RATE))
+    return path
+
+
+def _seed_dialogue_clips(project_path, dialogue_wav) -> ProjectWorkspace:
     ws = ProjectWorkspace.open(project_path)
     p = ws.project
     dest = p.raw_dir() / "host.wav"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if not dest.is_file():
-        dest.write_bytes(sample_wav.read_bytes())
+    dest.write_bytes(dialogue_wav.read_bytes())
     guest = p.raw_dir() / "guest.wav"
-    if not guest.is_file():
-        guest.write_bytes(sample_wav.read_bytes())
+    guest.write_bytes(dialogue_wav.read_bytes())
     p.timeline.tracks = [
         Track(
             id="host",
@@ -99,8 +106,8 @@ def test_authorize_structural_commands():
         authorize_document_command(["view"], "SplitAtTime")
 
 
-def test_split_clips_at_multi_track(minimal_project, sample_wav):
-    ws = _seed_dialogue_clips(minimal_project, sample_wav)
+def test_split_clips_at_multi_track(minimal_project, dialogue_wav):
+    ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     report = split_clips_at(ws.project, 5.0, ["host", "guest"])
     assert report["operation"] == "split_clips_at"
     assert set(report["affected_tracks"]) == {"host", "guest"}
@@ -108,8 +115,8 @@ def test_split_clips_at_multi_track(minimal_project, sample_wav):
     assert len([c for c in ws.project.clips if c.track_id == "host"]) == 2
 
 
-def test_split_at_time_apply_via_document(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_split_at_time_apply_via_document(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     before = len(svc.ws.project.clips)
     cmd = DocumentCommand(
@@ -125,8 +132,8 @@ def test_split_at_time_apply_via_document(minimal_project, sample_wav):
     assert not any(e.type == EditDecisionType.SPLIT for e in svc.ws.project.edit_decisions)
 
 
-def test_split_at_time_suggest_proposes(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_split_at_time_suggest_proposes(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     before_clips = len(svc.ws.project.clips)
     cmd = DocumentCommand(
@@ -150,8 +157,8 @@ def test_split_at_time_suggest_proposes(minimal_project, sample_wav):
     assert not any(e.type == EditDecisionType.SPLIT for e in svc.ws.project.edit_decisions)
 
 
-def test_delete_clip_apply_and_suggest(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_delete_clip_apply_and_suggest(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     EditService(svc.ws).split_at_time(4.0, ["host"])
     EditService(svc.ws).split_at_time(6.0, ["host"])
@@ -185,8 +192,8 @@ def test_delete_clip_apply_and_suggest(minimal_project, sample_wav):
     assert other.id not in {c.id for c in svc.ws.project.clips}
 
 
-def test_ripple_delete_clip_apply(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_ripple_delete_clip_apply(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     EditService(svc.ws).split_at_time(3.0, ["host"])
     EditService(svc.ws).split_at_time(5.0, ["host"])
@@ -214,14 +221,14 @@ def test_structural_mode_from_payload_invalid():
         structural_mode_from_payload({"_structural_mode": "nope"})
 
 
-def test_split_at_time_no_tracks_raises(minimal_project, sample_wav):
+def test_split_at_time_no_tracks_raises(minimal_project, dialogue_wav):
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError, match="no tracks"):
         EditService(ws).split_at_time(1.0, [])
 
 
-def test_delete_clips_empty_raises(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_delete_clips_empty_raises(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError, match="clip_ids required"):
         EditService(ws).delete_clips([], mode=EditMode.GAP)
@@ -229,18 +236,18 @@ def test_delete_clips_empty_raises(minimal_project, sample_wav):
         EditService(ws).delete_clips(["missing_clip"], mode=EditMode.RIPPLE)
 
 
-def test_delete_clip_handler_requires_ids(minimal_project, sample_wav):
+def test_delete_clip_handler_requires_ids(minimal_project, dialogue_wav):
     from podcast_mcp.services.document_sync.handlers import apply_command
 
-    ws = _seed_dialogue_clips(minimal_project, sample_wav)
+    ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     with pytest.raises(ValueError, match="clip_id"):
         apply_command(ws, "DeleteClip", {"_structural_mode": "apply", "mode": "gap"})
     with pytest.raises(ValueError, match="clip_id"):
         apply_command(ws, "DeleteClip", {"_structural_mode": "propose", "mode": "ripple"})
 
 
-def test_ripple_delete_clip_suggest(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_ripple_delete_clip_suggest(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     clip_id = next(c.id for c in svc.ws.project.clips if c.track_id == "host")
     before = len(svc.ws.project.clips)
@@ -257,15 +264,15 @@ def test_ripple_delete_clip_suggest(minimal_project, sample_wav):
     assert any(not e.applied for e in svc.ws.project.edit_decisions)
 
 
-def test_split_clip_all_dialogue_tracks(minimal_project, sample_wav):
-    ws = _seed_dialogue_clips(minimal_project, sample_wav)
+def test_split_clip_all_dialogue_tracks(minimal_project, dialogue_wav):
+    ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     out = EditService(ws).split_clip(5.0)
     assert out["operation"] == "split_clips_at"
     assert set(out["affected_tracks"]) == {"host", "guest"}
 
 
-def test_update_pending_split_and_skipped_track(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_update_pending_split_and_skipped_track(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     cmd = DocumentCommand(
         type="SplitAtTime",
@@ -287,8 +294,8 @@ def test_update_pending_split_and_skipped_track(minimal_project, sample_wav):
     assert "host" in report["affected_tracks"]
 
 
-def test_delete_clips_propose_ripple(minimal_project, sample_wav):
-    ws = _seed_dialogue_clips(minimal_project, sample_wav)
+def test_delete_clips_propose_ripple(minimal_project, dialogue_wav):
+    ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     clip_id = next(c.id for c in ws.project.clips if c.track_id == "host")
     out = EditService(ws).delete_clips(
         [clip_id], mode=EditMode.RIPPLE, propose=True, reason="guest:ripple"
@@ -298,16 +305,16 @@ def test_delete_clips_propose_ripple(minimal_project, sample_wav):
     assert any(e.reason == "guest:ripple" for e in ws.project.edit_decisions)
 
 
-def test_append_split_requires_tracks(minimal_project, sample_wav):
+def test_append_split_requires_tracks(minimal_project, dialogue_wav):
     from podcast_mcp.edits.transcript_cuts import append_split_decision
 
-    ws = _seed_dialogue_clips(minimal_project, sample_wav)
+    ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     with pytest.raises(ValueError, match="track_ids required"):
         append_split_decision(ws.project, 1.0, [])
 
 
-def test_delete_clip_via_clip_ids_payload(minimal_project, sample_wav):
-    _seed_dialogue_clips(minimal_project, sample_wav)
+def test_delete_clip_via_clip_ids_payload(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     EditService(svc.ws).split_at_time(5.0, ["host"])
     left = next(

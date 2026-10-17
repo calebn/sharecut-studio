@@ -62,14 +62,6 @@ def source_remove_timeline_spans(
         spans = timeline.map_source_span(edit.track_id, SourceSec(edit.start), SourceSec(edit.end))
     else:
         spans = []
-    witness = edit.source_timeline_span
-    if witness is not None and (
-        len(spans) != 1
-        or abs(float(spans[0][1] - spans[0][0]) - (edit.end - edit.start)) > 1e-6
-        or abs(float(spans[0][0]) - witness.start) > 1e-6
-        or abs(float(spans[0][1]) - witness.end) > 1e-6
-    ):
-        return None
     if not spans:
         return None
     return timeline_span_dicts(spans)

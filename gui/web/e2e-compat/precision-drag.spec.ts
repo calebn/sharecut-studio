@@ -105,15 +105,6 @@ async function oneStepLeft(
   return { at, seen };
 }
 
-async function cutAnywayIfAsked(page: Page) {
-  const cut = page.getByRole("button", { name: "Cut anyway" });
-  if (await cut.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await cut.click();
-    return true;
-  }
-  return false;
-}
-
 async function savedEnd(page: Page, id: string) {
   const rows = (await projectJson(page, projectPath)).clips.tracks[
     TRACK
@@ -167,7 +158,6 @@ test("jog: moves a trim end exactly one 10 ms step and saves it", async ({
   await finger.up();
   await page.getByRole("button", { name: "Done" }).click();
   const from = fine;
-  const asked = await cutAnywayIfAsked(page);
   await expect(page.locator(".precision-layer")).toHaveCount(0);
   await expect
     .poll(async () => savedEnd(page, clip.id), { timeout: 60_000 })
@@ -180,7 +170,6 @@ test("jog: moves a trim end exactly one 10 ms step and saves it", async ({
     after,
     readouts: step.seen,
     fingerPx: from.x - step.at.x,
-    askedCutSpeech: asked,
     commands: commands.map((c) => c.type),
   });
   expect(step.seen.at(-1)).toBe("−10 ms");
@@ -359,7 +348,6 @@ test("Auto drags directly when a step is 4 px wide at a deep zoom", async ({
   await expect(page.locator(".trim-readout")).toContainText("Ripple");
   await frame(page, info, `precision-auto-direct-${browserName}`);
   await finger.up();
-  await cutAnywayIfAsked(page);
   await expect
     .poll(() => commands.filter((c) => c.type === "TrimClipEdge").length, {
       timeout: 60_000,

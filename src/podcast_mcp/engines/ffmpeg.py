@@ -25,6 +25,7 @@ from podcast_mcp.engines.audio import (
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
+    fade_duration,
     postorder,
     sources,
 )
@@ -45,8 +46,6 @@ from podcast_mcp.engines.mix_spans import quiet_spans
 from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.models import (
     AutomationEnvelope,
-    EditDecision,
-    EditDecisionType,
     EpisodeProject,
     ProcessingChain,
     ProcessingEffect,
@@ -230,12 +229,6 @@ def _annotate_vf(
             "fontsize=12:fontcolor=white:box=1:boxcolor=black@0.55"
         )
     return ",".join(filters)
-
-
-@dataclass
-class RenderSegment:
-    start: float
-    end: float
 
 
 @dataclass
@@ -632,32 +625,6 @@ class FFmpegEngine:
                     proc.kill()
                 proc.wait()
 
-    def segments_after_edits(
-        self,
-        duration: float,
-        edits: list[EditDecision],
-        track_id: str,
-    ) -> list[RenderSegment]:
-        removes = sorted(
-            [
-                e
-                for e in edits
-                if e.track_id == track_id and e.applied and e.type == EditDecisionType.REMOVE
-            ],
-            key=lambda e: e.start,
-        )
-        segments: list[RenderSegment] = []
-        cursor = 0.0
-        for edit in removes:
-            if edit.start > cursor:
-                segments.append(RenderSegment(cursor, edit.start))
-            cursor = max(cursor, edit.end)
-        if cursor < duration:
-            segments.append(RenderSegment(cursor, duration))
-        if not segments and duration > 0:
-            segments.append(RenderSegment(0.0, duration))
-        return segments
-
     def build_track_filter(
         self,
         chain: ProcessingChain | None,
@@ -707,10 +674,10 @@ class FFmpegEngine:
     ) -> list[str]:
         parts: list[str] = []
         if fade_in_sec > 0:
-            d = min(fade_in_sec, max(seg_duration * 0.5, 0.001))
+            d = fade_duration(seg_duration, fade_in_sec)
             parts.append(f"afade=t=in:st=0:d={d}")
         if fade_out_sec > 0:
-            d = min(fade_out_sec, max(seg_duration * 0.5, 0.001))
+            d = fade_duration(seg_duration, fade_out_sec)
             st = max(0.0, seg_duration - d)
             parts.append(f"afade=t=out:st={st}:d={d}")
         return parts
