@@ -30,7 +30,10 @@ for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PATH TAURI_SIGNI
   unset "$name"
 done
 sign_updater=0
-if [[ "${SHARECUT_SKIP_UPDATER_ARTIFACTS:-}" != "1" ]] && grep -q '"updater"' "$DIST_OVERLAY"; then
+profile_has_updater() {
+  python3 -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1])).get("updater_public_key") else 1)' "$DIST_PROFILE"
+}
+if [[ "${SHARECUT_SKIP_UPDATER_ARTIFACTS:-}" != "1" ]] && profile_has_updater; then
   sign_updater=1
   if [[ ${#signing_env[@]} -eq 0 ]]; then
     echo "error: this profile has an updater; the signing step needs TAURI_SIGNING_PRIVATE_KEY" >&2

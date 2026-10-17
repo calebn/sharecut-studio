@@ -22,7 +22,7 @@ Must land before non-beta packaged customers. The beta can ship without these.
 |------|--------|
 | **Packaged GUI client auth** | Cookie or header on mutating host APIs + `Sec-Fetch-Site` checks. Boot token stays **health-only** (do not require on `/mcp` or all POSTs). Pin sidecar CSP `connect-src` to discovered engine port. |
 | **WebView permission deny-by-default** | Camera, microphone, geolocation, notifications, etc. deny unless explicitly granted. |
-| **Tauri updater** | Signed `latest.json` for auto-update. Keep provider-specific defaults outside the FOSS share-mint path ([docs/extension-seams.md](docs/extension-seams.md)). |
+| **Tauri updater** | Client, updater signing (`scripts/sign_updater_artifacts.sh`) and the `latest.json` builder (`scripts/build_update_feed.py`) are done ([docs/desktop-packaging.md § In-app updates](docs/desktop-packaging.md#in-app-updates)). Feed hosting and updater-key rotation operations stay private. Keep provider-specific defaults outside the FOSS share-mint path ([docs/extension-seams.md](docs/extension-seams.md)). |
 
 Later (not blocking v1): loopback TLS, custom `asset:` protocol rewrite, parent listen-fd instead of listen file.
 

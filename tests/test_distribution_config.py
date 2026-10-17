@@ -434,7 +434,7 @@ def test_updater_fields_are_required_and_both_or_neither() -> None:
         distribution_profile_from_mapping(raw)
 
 
-def test_updater_profile_emits_plugin_config_only() -> None:
+def test_updater_profile_adds_nothing_to_the_overlay() -> None:
     raw = _valid_profile()
     raw["updater_endpoint"] = "HTTPS://CDN.Example.Test/desktop/latest.json"
     raw["updater_public_key"] = PUBLIC_KEY
@@ -442,14 +442,14 @@ def test_updater_profile_emits_plugin_config_only() -> None:
 
     overlay = tauri_distribution_overlay(profile)
     assert profile.updater_endpoint == "https://cdn.example.test/desktop/latest.json"
-    assert overlay["plugins"]["updater"] == {
-        "endpoints": ["https://cdn.example.test/desktop/latest.json"],
-        "pubkey": PUBLIC_KEY,
-    }
+    assert overlay == tauri_distribution_overlay(
+        distribution_profile_from_mapping(_valid_profile())
+    )
+    assert "updater" not in overlay["plugins"]
     assert "bundle" not in overlay
 
 
-def test_profile_without_updater_emits_no_updater_plugin() -> None:
+def test_profile_without_updater_overlay_has_no_updater_plugin() -> None:
     overlay = tauri_distribution_overlay(distribution_profile_from_mapping(_valid_profile()))
     assert "updater" not in overlay["plugins"]
     assert "bundle" not in overlay
@@ -504,7 +504,7 @@ def test_updater_public_key_field_is_not_mistaken_for_a_secret_name() -> None:
         distribution_profile_from_mapping(raw)
 
 
-def test_generator_overlay_never_requests_tauri_updater_artifacts(tmp_path: Path) -> None:
+def test_generator_overlay_carries_no_updater_data(tmp_path: Path) -> None:
     raw = _valid_profile()
     raw["updater_endpoint"] = "https://cdn.example.test/latest.json"
     raw["updater_public_key"] = PUBLIC_KEY
@@ -520,7 +520,8 @@ def test_generator_overlay_never_requests_tauri_updater_artifacts(tmp_path: Path
     )
     assert done.returncode == 0, done.stderr
     overlay = json.loads(out.read_text(encoding="utf-8"))
-    assert overlay["plugins"]["updater"]["pubkey"] == PUBLIC_KEY
+    assert "updater" not in overlay["plugins"]
+    assert PUBLIC_KEY not in out.read_text(encoding="utf-8")
     assert "bundle" not in overlay
 
 

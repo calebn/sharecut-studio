@@ -326,7 +326,7 @@ when Environment `desktop-signing` is populated.
 | Input | Type | Role |
 |-------|------|------|
 | `version` | string | Informational run label. Bundle version stays `tauri.conf.json`. |
-| `sign` | boolean | When true, macOS/Windows legs **fail** unless the source SHA is reachable from protected `main` and that platform's secrets are complete. `sign=false` permits unsigned dogfood builds from a feature branch. Linux never signs. |
+| `sign` | boolean | When true, macOS/Windows legs **fail** unless the source SHA is reachable from protected `main` and that platform's secrets are complete. `sign=false` permits unsigned dogfood builds from a feature branch. Linux has no OS code signing. With an updater profile, the Linux leg also needs the `TAURI_SIGNING_PRIVATE_KEY` secret (updater signing, separate from OS code signing), joins `desktop-signing`, and fails closed without it. |
 | `source_repository` / `source_ref` | string | Optional checkout of another `owner/name` + ref so a private funnel can build this tree. When `source_repository` is set, `source_ref` is required (prefer a full commit SHA). |
 | `distribution_profile_json` | string | Public, validated distribution profile supplied by a private release caller. Empty uses the checked-in development profile. Secret-shaped fields are rejected. |
 | `extension_artifact_name` / `extension_wheel_sha256` | string | Optional private extension wheel artifact and its exact SHA-256. A nonempty artifact name requires the SHA. The wheel is installed and frozen only in an unsigned, no-permissions Linux/Windows/macOS preparation matrix; signing jobs download its prepared runtime and do not install or import the wheel. |
@@ -445,10 +445,11 @@ required keys in the profile, and both are `null` or both are set. The loader
 checks that the key decodes to a minisign **public** key file and refuses
 anything that decodes to a private or secret key, without echoing the value. The
 checked-in development profile has both `null`, so contributor builds never
-check for updates. `tauri_distribution_overlay` writes
-`plugins.updater = {endpoints, pubkey}` when they are set, and nothing when they
-are not. It never sets `bundle.createUpdaterArtifacts`: Tauri would then need the
-private key during the build. `podcast config check --mode
+check for updates. `build.rs` bakes the two fields into the host as Rust
+constants, and the host injects the updater plugin config from them at startup;
+the Tauri overlay carries no updater data and `tauri.conf.json` has no
+`plugins.updater` or `bundle.createUpdaterArtifacts` (Tauri would then need the
+private key during the build). `podcast config check --mode
 distributor` reports the state (a warning when updates are disabled).
 
 **Guard rule.** A build only takes an update whose signature verifies against
@@ -532,6 +533,12 @@ reachable from `main`. The workflow fails closed before the build when the
 `TAURI_SIGNING_PRIVATE_KEY` secret is empty. Each leg uploads its bundle and
 `.sig` under a separate artifact name. The installer artifact names do not
 change.
+
+The Linux leg joins `desktop-signing` based on the caller's
+`distribution_profile_json` input (read by `jq` before any checked-out code
+runs), while the build reads the profile file. With an empty input the build uses
+the checked-in development profile, which has no updater, so no updater
+artifacts are produced and no key is needed.
 
 | Leg | Updater artifact | Contents |
 |-----|------------------|----------|
