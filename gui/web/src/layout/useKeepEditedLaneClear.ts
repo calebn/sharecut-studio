@@ -6,7 +6,7 @@
  * ruler and the whole lane stay visible; the sheet's body scrolls inside the
  * cap. With the software keyboard up the sheet takes the visible area instead.
  */
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { remToPx } from "../hooks/useTabsHeight";
 import {
   capInspectorSheetForLane,
@@ -59,8 +59,11 @@ function revealOpenForm(): void {
 export function useKeepEditedLaneClear(trackId: string | null): void {
   const short = useShortScreen();
   const active = short && trackId !== null;
+  const frame = useRef(0);
   // A rotation remounts the shell: the scroller and slot settle to their size
-  // after the effect below, and the lane is brought back into view then.
+  // after the effect below, and the lane is brought back into view then. The
+  // refit moves layout, so it runs a frame later: inside the observer's
+  // callback it would raise "ResizeObserver loop completed" (WebKit).
   useResizeObserver(
     [
       () => (trackId ? document.querySelector(laneSelector(trackId)) : null),
@@ -68,22 +71,25 @@ export function useKeepEditedLaneClear(trackId: string | null): void {
       () => document.querySelector(".bottom-sheet-root"),
     ],
     () => {
-      if (trackId !== null) fit(trackId);
+      if (trackId === null || frame.current) return;
+      frame.current = requestAnimationFrame(() => {
+        frame.current = 0;
+        fit(trackId);
+      });
     },
     active,
   );
   useLayoutEffect(() => {
     if (!short || trackId === null) return;
     fit(trackId);
-    const onResize = () => fit(trackId);
-    window.addEventListener("resize", onResize);
-    const keyboard = new MutationObserver(onResize);
+    const keyboard = new MutationObserver(() => fit(trackId));
     keyboard.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["data-keyboard"],
     });
     return () => {
-      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(frame.current);
+      frame.current = 0;
       keyboard.disconnect();
       capInspectorSheetForLane(null);
       for (const scroller of document.querySelectorAll<HTMLElement>(
