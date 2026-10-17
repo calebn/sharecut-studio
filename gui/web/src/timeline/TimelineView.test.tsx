@@ -357,6 +357,20 @@ describe("TimelineView fixed playhead (#385)", () => {
     expect(useDawStore.getState().scrollLeft).toBe(50);
   });
 
+  it("does not snap a scrub to center when the playhead sits right of it (#1707)", () => {
+    // A session that fits (5 px/s, 300 px) with the playhead 240 px in, right
+    // of the 200 px center; a command zoom keeps it there.
+    useDawStore.setState({ zoomPxPerSec: 5, playheadSec: 48, scrollLeft: 0 });
+    const { userScrollTo, settle } = mountFixed();
+    settle();
+    act(() => useDawStore.getState().applyAnchoredZoom(10));
+    expect(useDawStore.getState().scrollLeft).toBe(240);
+    settle();
+    userScrollTo(450); // logical 250, 10 px on
+    expect(useDawStore.getState().scrollLeft).toBe(250);
+    expect(useDawStore.getState().playheadSec).toBeCloseTo(49, 9);
+  });
+
   it("follows a playhead that moved while the timeline was away", () => {
     useDawStore.setState({ playheadSec: 30, scrollLeft: 0 });
     mountFixed();

@@ -48,6 +48,8 @@ type ScrollBinding = Readonly<{
   writeScroll: WriteScroll;
   /** The seek revision a person's own scroll made; it must not recenter. */
   scrubRevisionRef: RefObject<number>;
+  /** The playhead time a person's own scroll set; the follow leaves it be. */
+  scrubSecRef: RefObject<number | null>;
 }>;
 
 type ScrollResult = Readonly<{
@@ -75,6 +77,7 @@ export function useFixedPlayheadScroll({
   // A scrub seeks the audio like any seek, but the view is already where the
   // person put it, so the recenter skips this revision.
   const scrubRevisionRef = useRef(-1);
+  const scrubSecRef = useRef<number | null>(null);
   // Set while a pinch or wheel zoom applies its anchored scroll, so the
   // scroll events it causes neither seek nor unfollow.
   const anchoringZoom = useRef(false);
@@ -173,6 +176,7 @@ export function useFixedPlayheadScroll({
           setPlayheadSec(sec);
           scrubRevisionRef.current =
             useDawStore.getState().playheadSeekRevision;
+          scrubSecRef.current = sec;
         }
       }
     }
@@ -195,6 +199,7 @@ export function useFixedPlayheadScroll({
       leadPx,
       writeScroll,
       scrubRevisionRef,
+      scrubSecRef,
     }),
     [scrollRef, fixedPlayhead, timeViewportPx, leadPx, writeScroll],
   );
@@ -245,6 +250,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     fixedPlayhead,
     timeViewportPx,
     scrubRevisionRef,
+    scrubSecRef,
   } = binding;
   const playheadSec = useDawStore((s) => s.playheadSec);
   const playheadSeekRevision = useDawStore((s) => s.playheadSeekRevision);
@@ -313,11 +319,19 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       ) {
         setPlayheadSec(lineSec);
         scrubRevisionRef.current = useDawStore.getState().playheadSeekRevision;
+        scrubSecRef.current = lineSec;
       }
       return;
     }
 
     if (!seekRevisionChanged && !playheadChanged && !firstLook) return;
+    // A scrub put the playhead here with the view where the person left it.
+    if (
+      !seekRevisionChanged &&
+      !firstLook &&
+      playheadSec === scrubSecRef.current
+    )
+      return;
     // A session that fits the view has nothing to scroll to but its start.
     if (sessionSec * zoomPxPerSec <= timeViewportPx) {
       if (seekRevisionChanged && scrollLeft !== 0) {
@@ -354,6 +368,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     writeScroll,
     scrollRef,
     scrubRevisionRef,
+    scrubSecRef,
   ]);
   return null;
 }
