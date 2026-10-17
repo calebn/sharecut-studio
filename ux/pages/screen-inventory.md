@@ -316,7 +316,7 @@ Long-lived panels; do not stack sheets to reach these — navigate More.
 |--|--|
 | **Purpose** | Timeline-first with peek inspector; side inspector when wide enough |
 | **Layout** | Transport (often collapsed) · headers + timeline · tabs band (~40–45%, capped to viewport). Ordinary modifier sheets dock above the tabs when the tabs are visible and scroll their heading, actions, fields, errors, related commands, and audition footer together. Maximize timeline hides the tabs and docks the sheet above the status row. The compact inspector docks above the status row with a pinned header and one bounded body scroller for feedback and fields. |
-| **Playhead** | Moving (desktop-like), not phone fixed-center |
+| **Playhead** | Moving (desktop-like), not the phone playhead that holds the center once passed |
 | **Out of scope** | Phone bottom mode nav as primary IA |
 
 ```

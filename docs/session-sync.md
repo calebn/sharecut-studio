@@ -292,7 +292,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 
 **Break follow** (Live Share style): only strong navigation — seek/play/stop, zoom/scroll, tab or phone-mode switch, manual transcript scroll. Mute/solo/audition/selection do not unfollow.
 
-**Limits:** phone skips viewport follow (Ferrite center needle) but still maps the leader tab onto Listen/Text/More. A leader's phone `mobile_mode` takes precedence over its tab, so Listen and Timeline follow faithfully; desktop/tablet coarse-pointer hints derived from the tab provide the fallback. Timeline lanes stay time-based because zoom differs per client; other surfaces use `anchor` + fractional `x`/`y`. Raw `clientX`/`clientY` is never sent.
+**Limits:** phone skips viewport follow (the phone needle) but still maps the leader tab onto Listen/Text/More. A leader's phone `mobile_mode` takes precedence over its tab, so Listen and Timeline follow faithfully; desktop/tablet coarse-pointer hints derived from the tab provide the fallback. Timeline lanes stay time-based because zoom differs per client; other surfaces use `anchor` + fractional `x`/`y`. Raw `clientX`/`clientY` is never sent.
 
 **Anchor ids** (via `presenceAnchor(...)`): `track:<id>`, `track:<id>:mute|solo`, `transport:play|stop`, `audition:mix|fx|raw`, `tab:<id>`, `mobile-nav:<mode>`, `transcript:turn:<i>`, `transcript:word:<track>:<i>`, `inspector`, `ruler`, `markers:chapters|social|comments` (one per marker row, since rows collapse with each viewer's layer toggles; `markers` alone is the quiet empty lane), `comment:<id>`.
 
