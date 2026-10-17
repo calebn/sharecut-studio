@@ -484,3 +484,150 @@ test("932x430 phone landscape shows the dense one-row envelope form without the 
   expect(layout.oneRow).toBe(true);
   expect(layout.helpHeight).toBeLessThanOrEqual(1);
 });
+
+test("914x331 idle: a touch tap on the guest track header opens its details and reaches Add volume envelope", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 914, height: 331 });
+  await withDemoProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await page
+      .getByRole("button", {
+        name: `Open track details, ${DEMO_TRACK}`,
+        exact: true,
+      })
+      .tap();
+    await expect(
+      page.getByRole("button", { name: "Add volume envelope", exact: true }),
+    ).toBeVisible();
+  });
+});
+
+async function expectIdleMarkerPosition(
+  page: Page,
+  vp: { width: number; height: number },
+  expected: "sticky" | "relative",
+) {
+  await page.setViewportSize(vp);
+  await withDemoProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    const position = await page
+      .locator(".marker-lane")
+      .evaluate((el) => getComputedStyle(el).position);
+    expect(position).toBe(expected);
+  });
+}
+
+test("914x331 idle: the marker rows scroll with the lanes", async ({
+  page,
+}) => {
+  await expectIdleMarkerPosition(page, { width: 914, height: 331 }, "relative");
+});
+
+test("932x430 idle: the marker rows stay pinned under the ruler", async ({
+  page,
+}) => {
+  await expectIdleMarkerPosition(page, { width: 932, height: 430 }, "sticky");
+});
+
+test("1194x834 idle: the marker rows stay pinned under the ruler", async ({
+  page,
+}) => {
+  await expectIdleMarkerPosition(page, { width: 1194, height: 834 }, "sticky");
+});
+
+test("1024x768 idle: the marker rows stay pinned under the ruler", async ({
+  page,
+}) => {
+  await expectIdleMarkerPosition(page, { width: 1024, height: 768 }, "sticky");
+});
+
+/** The status line is on screen and exposed, with the open sheet resting on it. */
+async function expectStatusLineKept(page: Page, label: string) {
+  const bar = page.locator(".daw-shell > .status-bar");
+  await expect(bar, `${label}: status line visible`).toBeVisible();
+  await expect(
+    bar.getByRole("status"),
+    `${label}: polite live region in the accessibility tree`,
+  ).toHaveCount(1);
+  await expect(
+    bar.locator("[data-save-state]"),
+    `${label}: save state shown`,
+  ).toBeVisible();
+  const { barTop, sheetBottom, barHeight } = await page.evaluate(() => {
+    const bar = document
+      .querySelector(".daw-shell > .status-bar")!
+      .getBoundingClientRect();
+    const sheet = document
+      .querySelector(".bottom-sheet")!
+      .getBoundingClientRect();
+    return {
+      barTop: bar.top,
+      barHeight: bar.height,
+      sheetBottom: sheet.bottom,
+    };
+  });
+  expect(barHeight, `${label}: status line has height`).toBeGreaterThan(0);
+  expect(
+    Math.abs(sheetBottom - barTop),
+    `${label}: the sheet rests on the status line`,
+  ).toBeLessThanOrEqual(1);
+}
+
+test("914x331 with the envelope sheet open: the status line, its live region and the save state stay", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 914, height: 331 });
+  await withDemoProject(async (projectPath) => {
+    await openDemoEnvelope(page, projectPath);
+    await expectStatusLineKept(page, "saved");
+  });
+});
+
+test("914x331 with a failed save and the envelope sheet open: the status line keeps the save state and the sheet rests on it", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    indexedDB.open = () => {
+      throw new Error("queue unreadable");
+    };
+  });
+  await page.setViewportSize({ width: 914, height: 331 });
+  await withDemoProject(async (projectPath) => {
+    await openDemoEnvelope(page, projectPath);
+    await expect(page.locator(".status-bar [data-save-state]")).toHaveAttribute(
+      "data-save-state",
+      "failed",
+    );
+    await expectStatusLineKept(page, "failed save");
+  });
+});
+
+test("a soloed track keeps Clear solo tappable at 914x331 while the envelope sheet is open", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 914, height: 331 });
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await seed(page, projectPath);
+    await page
+      .getByRole("button", { name: `Solo ${TRACK}`, exact: true })
+      .tap();
+    await expect(page.locator(".solo-chip")).toBeVisible();
+    await openEnvelope(page);
+    const chip = page.locator(".solo-chip");
+    await expect(chip).toBeVisible();
+    const hit = await chip.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(
+        r.x + r.width / 2,
+        r.y + r.height / 2,
+      );
+      return !!top && (top === el || el.contains(top));
+    });
+    expect(hit, "Clear solo is not covered").toBe(true);
+  });
+});

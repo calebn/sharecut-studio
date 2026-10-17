@@ -116,9 +116,14 @@ held sideways) compact the editor:
   (chapters, comments, social clips) stop pinning under the ruler while it is
   open, so the lane sits right below the ruler and the rows are one scroll up
   (`.marker-lane` and the header column's chrome lose `position: sticky`; a pinned
-  `::before` keeps the ruler's corner above the track names). At most 24rem tall
-  (914×331) the status line steps aside too, and the sheet rests on the screen's
-  edge until it closes. The 9rem floor above belongs to the compact drawer; this
+  `::before` keeps the ruler's corner above the track names, under the Solo on
+  chip, and takes no taps). The status line always stays, the sheet rests on it,
+  and it keeps the shell's polite live region and the save state (#1448), also
+  when a save is failed or waiting and the row grows to a touch target. At most
+  24rem tall (914×331) the marker rows scroll with the lanes in the idle layout
+  too (`@media (max-height: 24rem)`), so the pinned rows never eat the lanes
+  and a touch-only user can tap a lane's header to open its details; 932×430,
+  1024×768 and 1194×834 keep them pinned. The 9rem floor above belongs to the compact drawer; this
   sheet has its own. `useKeepEditedLaneClear` measures the ruler's bottom
   (`pinnedChromeBottom`, which still reads the marker lane where it pins) plus one
   lane height, caps the sheet to what is left (`--sheet-lane-cap`, never under 9rem,
