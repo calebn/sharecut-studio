@@ -12,6 +12,8 @@ Pytest is configured in `pyproject.toml` to **fail if line+branch coverage drops
 
 Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
 
+The accepted-mute regression in `tests/test_source_remove_geometry.py` covers track and session removals at nonzero placement with unrelated speech. It checks exact archives, survivor placement, cache rates and recording profiles, temporary-render cleanup, and sample-for-sample equality between a source query and its BEFORE timeline window. Repeated plays and hard-linked recording aliases must not share mute evidence or hide removed source multiplicity.
+
 Vitest uses four worker threads and two inline projects in
 `gui/web/vitest.config.ts`. The `node` project runs an explicit list of 19 pure
 edit, timeline, time and audio test files without DOM setup, including
@@ -784,7 +786,7 @@ metadata from clean jobs.
 | Zoom-matched waveforms | `test_timeline_zoom.py`, `test_waveform_pyramid.py`, `test_waveform_service.py`, `test_waveform_routes.py`, `test_waveform_snap.py` (incl. guest snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`; `deep-zoom.spec.ts` geometry at the 15 M px ceiling on Chromium and WebKit) |
 | Brand / public CSS | `test_brand_color_roles.py`, `test_public_sites.py`, `test_css_policy.py`, `test_css_no_important.py` |
 | Body / host security hardening | `test_security_hardening.py` (pure ASGI `MaxBodySizeMiddleware`, authz, served_project) |
-| Tighten propose/apply benchmark | `benchmark_tighten.py` (`pytest -m slow tests/benchmark_tighten.py`; per-cut time budgets), `test_benchmark_tighten_smoke.py` (the same scenarios on a 40-word project in the normal suite) |
+| Tighten propose/apply benchmark | `benchmark_tighten.py` (`pytest -m slow tests/benchmark_tighten.py`; per-cut time budgets), `test_benchmark_tighten_smoke.py` (two separate 40-word speaker turns with real quiet media, reviewed pauses and default-programmatic fillers; actual apply/archive counts, at most three transcript rebuilds per apply, borrowed-pad identity after later ripples, and no per-window FFmpeg calls; no wall-clock assertion in the normal suite) |
 | Large-project benchmark fixture | `test_large_project_fixture.py` (`scripts/build_large_project_fixture.py`; two-hour shape under `e2e_real`), Playwright `e2e/large-project.spec.ts` (opt-in) |
 | Recording keeper landing | `test_record_landing.py` probes a real reader snapshot while each keeper hash is paused and checks that both project locks are free. |
 | PCM WAV header | `test_wav_util.py` (`util/wav.py`, shared by record landing and the benchmark fixture) |
@@ -1346,7 +1348,7 @@ a table later with `npm --prefix gui/web run profile:summary -- OUT`.
 | --- | --- | --- | --- |
 | Seek | `ruler-seek` | From 0 s, click the ruler at 25% of the session | slider and transport clock land within 1 px of the target (`targetSeconds`, `toleranceSeconds` in the report) |
 | Trim | `trim-cancel` | Drag the selected first clip's in handle 20 px, press Escape, release | no `TrimClipEdge` sent, saved clips and history head unchanged, no ghost left |
-| Trim | `trim-save` | Same drag, release, confirm "Cut anyway" when the host asks | saved `source_start` equals the sent `source_sec` and moved, `source_end` unchanged; then Undo (outside the window) restores the saved clips exactly and the original history head |
+| Trim | `trim-save` | Same drag and release; a person's ripple trim applies directly | saved `source_start` equals the sent `source_sec` and moved, `source_end` unchanged; then Undo (outside the window) restores the saved clips exactly and the original history head |
 
 A failed assertion records a `failed` sample, an `incomplete` report and a
 non-zero exit. The summary prints `INCOMPLETE` with the reason, and a failed
@@ -1401,8 +1403,7 @@ Limits. One fixture size on one desktop browser: no touch, no phones, no dark
 theme, no WebKit, no real audio, and nothing here says the 60 Hz floor holds on
 slower hardware (named-device runs stay in #960). The seek click is a ruler
 click, not held-pointer scrubbing. The first trim ripples later clips and the
-fixture has speech there, so the host asks and the sample includes the
-confirmation (`confirmedCutSpeech` in the report). Two `waveform-snap` reads
+fixture has speech there, and a person's trim applies without a prompt. Two `waveform-snap` reads
 finished around the seek window; the profile does not attribute them to the
 seek. Other tasks (range cut, fades, envelopes, track reorder, Mix, comments)
 and input-response budgets remain with #1035's deferred scope, #960 and #879.
@@ -1707,7 +1708,7 @@ test; other rows are whole tests.
 | a second finger cancels an armed drag and the create menu | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the crossfade grip drags only once a long press arms it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a long-press at a join offers the ripple trim, which shows where later clips go | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| #1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| #1154: a touch ripple trim over the guest's speech applies as one manual trim | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a plain mouse grab at a join rolls it, as on main | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -1762,7 +1763,7 @@ test; other rows are whole tests.
 | desktop: network boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | desktop: stale boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | Auto drags directly when a step is 4 px wide at a deep zoom | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
-| jog: a ripple over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
+| jog: a ripple over the guest's speech applies as one manual trim | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a second finger cancels the drag and saves nothing | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: moves a trim end exactly one 10 ms step and saves it | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a tap outside the pad finishes and saves | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -2758,3 +2759,16 @@ with native Tab at 16px and 32px root sizes, one theme per size. It runs
 in Chromium and WebKit and saves geometry receipts and screenshots for each
 focused button. The phone shell clips content at its viewport edge, so every
 navigation focus indicator must fit inside its button.
+
+## Complete cut effects
+
+`tests/test_source_remove_geometry.py` exercises the four cut-domain authorities
+through actual application. It changes real PCM or current placement after an
+offer, checks atomic refusal, then disables only the owning predicate and requires
+the bad effect to publish. Cases include late batch fades, GAP extension without
+a removal, live MCP plan application, moved pad tiles, and duplicate source
+consumption. The AST boundary test rejects direct, aliased, module-qualified, and
+private writer imports outside the operation owner. Renderer tests prove pending
+or applied decision labels cannot bypass publication by removing audio at render
+time. These checks supplement the public pause and original mixed-mode PCM
+contracts; they do not replace Lab parity or listening acceptance.

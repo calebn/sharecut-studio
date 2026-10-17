@@ -31,7 +31,7 @@ from podcast_mcp.edits.clips_ops import (
     roll_clip_join as roll_clip_join_bounds,
 )
 from podcast_mcp.edits.comment_remap import remap_review_anchors_for_cuts
-from podcast_mcp.edits.cut_speech import SpeechClearance
+from podcast_mcp.edits.cut_speech import cut_speech_params
 from podcast_mcp.edits.edit_log import archive_timeline_op, seam_source_by_track
 from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
@@ -70,6 +70,7 @@ from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
     ClipMuteRegion,
+    CutSpeech,
     EditMode,
     EpisodeProject,
     RoomToneFill,
@@ -118,7 +119,7 @@ def plan_ripple_delete(
     edited_track_ids: list[str] | tuple[str, ...] = (),
     use_inaudible_opt: bool | None = None,
 ) -> RippleRemoval:
-    """The span :func:`ripple_delete` removes after inaudible optimization.
+    """The span :func:`_write_ripple_delete` removes after inaudible optimization.
 
     ``edited_track_ids`` name whose speech the cut means to remove; the speech guard
     protects every other track's speech in the span.
@@ -132,14 +133,15 @@ def plan_ripple_delete(
     )
 
 
-def ripple_delete(
+def _write_ripple_delete(
     project: EpisodeProject,
-    clearance: SpeechClearance,
+    removal: RippleRemoval,
     *,
     record_log: bool = True,
     params: dict | None = None,
+    cut_speech: CutSpeech | None = None,
 ) -> dict:
-    """Ripple-remove ``clearance.removal`` on every :func:`ripple_track_ids` track.
+    """Ripple-remove ``removal`` on every :func:`ripple_track_ids` track.
 
     Spans apply latest first, each with its transcript archive, comment remap and
     (with ``record_log``) one applied-edit record. The returned change summary echoes
@@ -148,9 +150,6 @@ def ripple_delete(
     with ``record_log=False``: approve/prefix removals archive them from this report.
     Add the key to any schema or typed output built over it.
     """
-    removal = clearance.removal
-    if removal is None:
-        raise ValueError("ripple_delete needs a removal")
     tracks = ripple_track_ids(project, removal.edited_track_ids)
     seams: list[dict[str, list[float]]] = []
     for start, end in reversed(removal.spans):
@@ -170,7 +169,7 @@ def ripple_delete(
                 params={
                     **(params or {}),
                     "per_track_source": per_track_source,
-                    **clearance.log_params(),
+                    **cut_speech_params(cut_speech),
                 },
             )
     update_timeline_duration(project)
@@ -179,43 +178,31 @@ def ripple_delete(
         project,
         operation="ripple_delete",
         affected_tracks=tracks,
-        timeline_start=first_start,
-        timeline_end=first_end,
-        span_count=len(removal.spans),
-        per_track_source=seams[-1],
-        **(params or {}),
-        **clearance.log_params(),
+        **{
+            **(params or {}),
+            "timeline_start": first_start,
+            "timeline_end": first_end,
+            "span_count": len(removal.spans),
+            "per_track_source": seams[-1],
+            **cut_speech_params(cut_speech),
+        },
     )
 
 
-def punch_delete(
+def _write_punch_delete(
     project: EpisodeProject,
     track_id: str,
     timeline_start: float,
     timeline_end: float,
     *,
-    use_inaudible_opt: bool | None = None,
     record_log: bool = True,
 ) -> dict:
     """Remove audio on one track only; leave a silence hole (no peer ripple).
 
-    Like :func:`ripple_delete`, the returned summary echoes the optimized
+    Like :func:`_write_ripple_delete`, the returned summary echoes the held
     ``timeline_start``/``timeline_end`` and ``per_track_source`` (seam clocks)
     even with ``record_log=False``.
     """
-    if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
-    opt = optimize_timeline_cut_range(
-        project,
-        track_id,
-        timeline_start,
-        timeline_end,
-        force_enabled=use_inaudible_opt,
-    )
-    timeline_start, timeline_end = opt.start, opt.end
-    if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
-
     clips_before = clips_for_track(project, track_id)
     updated = punch_timeline_range_from_clips(clips_before, timeline_start, timeline_end)
     set_track_clips(project, track_id, updated)
@@ -238,7 +225,7 @@ def punch_delete(
             timeline_start=timeline_start,
             timeline_end=timeline_end,
             params={
-                "use_inaudible_opt": use_inaudible_opt,
+                "use_inaudible_opt": False,
                 "scope": "track",
                 "per_track_source": per_track_source,
             },
@@ -249,7 +236,7 @@ def punch_delete(
         affected_tracks=[track_id],
         timeline_start=timeline_start,
         timeline_end=timeline_end,
-        use_inaudible_opt=use_inaudible_opt,
+        use_inaudible_opt=False,
         per_track_source=per_track_source,
     )
 
@@ -538,18 +525,17 @@ def plan_delete_clips(project: EpisodeProject, clip_ids: list[str]) -> RippleRem
     )
 
 
-def ripple_delete_clips(
+def _write_ripple_delete_clips(
     project: EpisodeProject,
     clip_ids: list[str],
-    clearance: SpeechClearance,
+    removal: RippleRemoval,
     *,
     record_log: bool = True,
+    cut_speech: CutSpeech | None = None,
 ) -> dict:
     """Ripple-delete the selected clips' spans on every :func:`ripple_track_ids` track."""
     track_ids = sorted({c.track_id for c in _clips_by_id(project, clip_ids)})
-    removal = plan_delete_clips(project, clip_ids)
-    clearance.require(removal)
-    report = ripple_delete(project, clearance, record_log=False)
+    report = _write_ripple_delete(project, removal, record_log=False, cut_speech=cut_speech)
     if record_log:
         archive_timeline_op(
             project,
@@ -561,7 +547,7 @@ def ripple_delete_clips(
                 "cut_spans": {
                     tid: [list(r) for r in removal.spans] for tid in report["affected_tracks"]
                 },
-                **clearance.log_params(),
+                **cut_speech_params(cut_speech),
             },
         )
     return change_summary(
@@ -570,11 +556,11 @@ def ripple_delete_clips(
         affected_tracks=report["affected_tracks"],
         clip_ids=list(clip_ids),
         mode=EditMode.RIPPLE.value,
-        **clearance.log_params(),
+        **cut_speech_params(cut_speech),
     )
 
 
-def punch_delete_clips(
+def _write_punch_delete_clips(
     project: EpisodeProject,
     clip_ids: list[str],
     *,
@@ -587,12 +573,11 @@ def punch_delete_clips(
     jobs = [(c.track_id, c.timeline_start, c.timeline_end) for c in clips]
     punched: dict[str, list[list[float]]] = {}
     for track_id, start, end in sorted(jobs, key=lambda j: j[1], reverse=True):
-        punch_delete(
+        _write_punch_delete(
             project,
             track_id,
             start,
             end,
-            use_inaudible_opt=False,
             record_log=False,
         )
         punched.setdefault(track_id, []).append([start, end])
@@ -612,7 +597,7 @@ def punch_delete_clips(
     )
 
 
-def punch_delete_range(
+def _write_punch_delete_range(
     project: EpisodeProject,
     timeline_start: float,
     timeline_end: float,
@@ -624,7 +609,12 @@ def punch_delete_range(
     if not track_ids:
         raise ValueError("track_ids required")
     for tid in track_ids:
-        punch_delete(project, tid, timeline_start, timeline_end, use_inaudible_opt=False)
+        _write_punch_delete(
+            project,
+            tid,
+            timeline_start,
+            timeline_end,
+        )
     return change_summary(
         project,
         operation="punch_delete",
@@ -857,17 +847,17 @@ def set_clip_fade(
     return change_summary(project, operation="set_clip_fade", affected_tracks=[clip.track_id])
 
 
-def trim_clip_edge(
+def _write_trim_clip_edge(
     project: EpisodeProject,
     plan: TrimPlan,
-    clearance: SpeechClearance,
+    *,
+    cut_speech: CutSpeech | None = None,
 ) -> dict:
-    """Apply a :func:`~podcast_mcp.edits.ripple.plan_trim` plan the speech guard cleared.
+    """Apply a :func:`~podcast_mcp.edits.ripple.plan_trim` plan on an unpublished candidate.
 
     Rippling trims move every scope track by the same amount, so the episode stays in
     sync; a gap trim moves only the grabbed edge.
     """
-    clearance.require(plan.removal)
     clip = next(c for c in project.clips if c.id == plan.clip_id)
     previous = (clip.source_start, clip.source_end, clip.timeline_start, clip.timeline_end)
     clips_before = apply_trim_geometry(project, plan)
@@ -896,7 +886,7 @@ def trim_clip_edge(
             "previous_source_end": previous[1],
             "previous_timeline_start": previous[2],
             "previous_timeline_end": previous[3],
-            **clearance.log_params(),
+            **cut_speech_params(cut_speech),
         },
     )
     return change_summary(
@@ -908,7 +898,7 @@ def trim_clip_edge(
         source_sec=plan.moves[0].source_sec,
         mode=plan.mode.value,
         clip_ids=clip_ids,
-        **clearance.log_params(),
+        **cut_speech_params(cut_speech),
     )
 
 

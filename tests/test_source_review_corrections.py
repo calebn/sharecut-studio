@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.edits import approve_edits
 from podcast_mcp.edits.focus import propose_focus_cuts
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten import propose_tighten_edits
@@ -37,11 +38,18 @@ def test_original_manual_seed_cannot_contract_away_missing_source(tmp_path, monk
         return _exact_optimizer(args[0], args[1], 1.2, 1.4)
 
     monkeypatch.setattr("podcast_mcp.edits.transcript_cuts.optimize_source_cut_range", shrink)
+
+    def request(project, start, end):
+        row = add_remove_decision(project, "host", start, end)
+        if applied:
+            assert approve_edits(project, [row.id]) == 1
+        return row
+
     with pytest.raises(ScopeChangedAtApproval) as held:
         ws.mutate(
             "before source request",
             "after source request",
-            lambda p: add_remove_decision(p, "host", 1.2, 1.6, applied=applied),
+            lambda p: request(p, 1.2, 1.6),
         )
     assert held.value.held[0].reason == "source_geometry"
     assert reads == []
@@ -58,10 +66,17 @@ def test_original_manual_seed_cannot_contract_away_missing_source(tmp_path, monk
     row = ws.mutate(
         "before valid source request",
         "after valid source request",
-        lambda p: add_remove_decision(p, "host", 2, 3, applied=applied),
+        lambda p: request(p, 2, 3),
     )
-    assert (row.type, row.start, row.end, row.applied) == (EditDecisionType.REMOVE, 2, 3, applied)
-    assert [e.id for e in load_project(ws.path).edit_decisions] == [row.id]
+    assert (row.type, row.start, row.end, row.applied) == (EditDecisionType.REMOVE, 2, 3, False)
+    saved = load_project(ws.path)
+    assert [e.id for e in saved.edit_decisions] == ([] if applied else [row.id])
+    assert [record.decision_ids for record in saved.editorial.edit_log] == (
+        [[row.id]] if applied else []
+    )
+    assert sum(c.source_end - c.source_start for c in saved.clips) == pytest.approx(
+        4.98 if applied else 5.98
+    )
 
 
 @pytest.mark.parametrize("authors", [(None, None), ("share:a", "share:b")])

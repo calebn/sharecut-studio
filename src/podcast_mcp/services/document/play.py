@@ -23,7 +23,7 @@ from typing import Any
 from filelock import Timeout
 
 from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
-from podcast_mcp.edits.cut_speech import SpeechClearance
+from podcast_mcp.edits.cut_application import apply_trim
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
     PendingPreviewWindow,
@@ -32,7 +32,7 @@ from podcast_mcp.edits.pending_preview import (
 )
 from podcast_mcp.edits.ripple import plan_trim
 from podcast_mcp.edits.room_tone import record_room_tone_pool, room_tone_pool_digest
-from podcast_mcp.edits.timeline_ops import roll_clip_join, trim_clip_edge
+from podcast_mcp.edits.timeline_ops import roll_clip_join
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
@@ -58,7 +58,7 @@ from podcast_mcp.engines.transcript_gated_play import (
     transcript_gate_fingerprint,
     word_intervals,
 )
-from podcast_mcp.models import EpisodeProject, Track, TrackRole
+from podcast_mcp.models import CutIntent, EpisodeProject, Track, TrackRole
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
@@ -473,7 +473,7 @@ class PlayService:
         if isinstance(edit, TrimBoundaryEdit):
             plan = plan_trim(proposed, edit.clip_id, edit.edge, edit.source_sec, edit.mode)
             if not plan.unchanged:
-                trim_clip_edge(proposed, plan, SpeechClearance.for_preview(plan.removal))
+                apply_trim(proposed, plan, application_intent=CutIntent.HUMAN_BOUNDARIES)
             actual_sec = next(c for c in proposed.clips if c.id == edit.clip_id)
             actual_edit: TrimBoundaryEdit | RollBoundaryEdit = edit.model_copy(
                 update={

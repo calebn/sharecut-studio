@@ -78,14 +78,16 @@ class LevelBand:
     hi: float
 
 
-def breath_level_band(noise_floor_rms: float, speech_rms: float) -> LevelBand | None:
-    """Band between the room tone and the speech level, or ``None`` without contrast."""
-    quietest, loudest = BREATH_BELOW_SPEECH_DB
-    lo = max(
+def breath_level_floor(noise_floor_rms: float, speech_rms: float) -> float:
+    return max(
         noise_floor_rms * db_to_amplitude(_BREATH_ABOVE_FLOOR_DB),
-        speech_rms * db_to_amplitude(-loudest),
+        speech_rms * db_to_amplitude(-BREATH_BELOW_SPEECH_DB[1]),
     )
-    hi = speech_rms * db_to_amplitude(-quietest)
+
+
+def breath_level_band(noise_floor_rms: float, speech_rms: float) -> LevelBand | None:
+    lo = breath_level_floor(noise_floor_rms, speech_rms)
+    hi = speech_rms * db_to_amplitude(-BREATH_BELOW_SPEECH_DB[0])
     if not (0.0 < lo < hi):
         return None
     return LevelBand(lo=lo, hi=hi)
@@ -774,104 +776,6 @@ def _edge_evidence(
             return _UncertainEdge("protected_activity")
         return _CompleteEdgeBreath(hit)
     return _ClearEdge()
-
-
-def protect_cut_breaths(
-    project: EpisodeProject,
-    track_id: str,
-    start: float,
-    end: float,
-    *,
-    defaults: dict | None = None,
-    sample_rate: int = 16000,
-    audio_cache: TrackAudioCache | None = None,
-    word_index: CutWordIndex | None = None,
-    strict: bool = True,
-) -> tuple[float, float] | None:
-    """Shrink final edges around complete breaths, or suppress uncertain cuts.
-
-    ``strict`` (a splice): missing evidence and protected connected activity are
-    not clean boundaries, so either suppresses the cut. Otherwise (an edge that
-    fades against fill) only a breath matters: an edge inside a complete breath
-    moves out of it, keeping the breath whole, an edge with no breath found stays
-    put, and a cut that is mostly breath is suppressed. A cut that a breath fills
-    edge to edge is suppressed either way. A pause trim is not a cut through
-    sound at all; it takes :func:`pause_air_span` instead. Disabled handling
-    returns the input without reading audio. Source seconds.
-    """
-    if not (math.isfinite(start) and math.isfinite(end) and start < end):
-        return None
-    cfg = _breath_cfg(defaults)
-    if not cfg["enabled"]:
-        return start, end
-    no_evidence = None if strict else (start, end)
-    read = _audio_reader(project, track_id, sample_rate, audio_cache)
-    if read is None:
-        return no_evidence
-    context_start = max(
-        0.0, math.floor((start - _LEVEL_CONTEXT_SEC) / LEVEL_FRAME_SEC + 1e-9) * LEVEL_FRAME_SEC
-    )
-    before_end = math.floor(start / LEVEL_FRAME_SEC + 1e-9) * LEVEL_FRAME_SEC
-    after_start = math.ceil(end / LEVEL_FRAME_SEC - 1e-9) * LEVEL_FRAME_SEC
-    before = _read_evidence(read, context_start, before_end - context_start)
-    after = _read_evidence(read, after_start, _LEVEL_CONTEXT_SEC)
-    context = np.concatenate([before, after])
-    if not np.all(np.isfinite(context)):
-        return no_evidence
-    profile = level_profile(context, sample_rate)
-    if profile is None:
-        return no_evidence
-    words = word_index or CutWordIndex.build(project, track_id)
-    windows = []
-    for edge in (start, end):
-        origin = max(
-            0.0,
-            math.floor((edge - _LEVEL_CONTEXT_SEC) / LEVEL_FRAME_SEC + 1e-9) * LEVEL_FRAME_SEC,
-        )
-        samples = _read_evidence(read, origin, edge + _LEVEL_CONTEXT_SEC - origin)
-        windows.append((origin, samples))
-
-    def inspect(
-        edge: float, window: tuple[float, np.ndarray], bounds: tuple[float, float]
-    ) -> _ClearEdge | _CompleteEdgeBreath | _UncertainEdge:
-        origin, samples = window
-        keep_out = _kept_spans(words, origin, origin + samples.size / sample_rate, *bounds)
-        return _edge_evidence(
-            samples,
-            origin,
-            edge,
-            sample_rate=sample_rate,
-            profile=profile,
-            cfg=cfg,
-            keep_out=keep_out,
-        )
-
-    evidence = [
-        inspect(edge, window, (start, end))
-        for edge, window in zip((start, end), windows, strict=True)
-    ]
-    if strict and any(isinstance(item, _UncertainEdge) for item in evidence):
-        return None
-    new_start = evidence[0].span.end if isinstance(evidence[0], _CompleteEdgeBreath) else start
-    new_end = evidence[1].span.start if isinstance(evidence[1], _CompleteEdgeBreath) else end
-    if new_start >= new_end:
-        return None
-    if strict:
-        for edge, window in zip((start, end), windows, strict=True):
-            if isinstance(inspect(edge, window, (new_start, new_end)), _UncertainEdge):
-                return None
-    elif _mostly_breath(
-        new_start,
-        new_end,
-        read=read,
-        words=words,
-        profile=profile,
-        cfg=cfg,
-        sample_rate=sample_rate,
-    ):
-        # Keeping breaths whole also means not removing one that is most of the cut.
-        return None
-    return new_start, new_end
 
 
 @dataclass(frozen=True)

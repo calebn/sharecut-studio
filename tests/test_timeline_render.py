@@ -19,7 +19,7 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import (
-    edits_for_clip_source,
+    placed_track_audio,
     render_track_from_timeline,
     render_track_segment,
     resolve_clip_audio_path,
@@ -194,6 +194,12 @@ def test_render_applies_edit_in_clip(sample_wav: Path, tmp_path: Path) -> None:
             applied=True,
         )
     )
+    from podcast_mcp.edits.cut_application import approve_edits
+    from podcast_mcp.models import CutIntent
+
+    approve_edits(project, ["cut1"], application_intent=CutIntent.HUMAN_BOUNDARIES)
+    assert project.edit_decisions == []
+    assert len(project.editorial.edit_log) == 1
     out = ws / "artifacts" / "host_edited.wav"
     render_track_from_timeline(project, project.tracks[0], out, {})
     assert out.is_file()
@@ -290,7 +296,7 @@ def test_render_track_segment_range(sample_wav: Path, tmp_path: Path) -> None:
     render_track_segment(project, "host", 0.0, 1.5, out, {})
     assert out.is_file()
     dur = eng.probe(out).duration_sec
-    assert dur == pytest.approx(1.0, abs=1 / 48_000)
+    assert dur == pytest.approx(1.5, abs=1 / 48_000)
 
 
 def test_render_track_segment_preserves_timeline_gap(sample_wav: Path, tmp_path: Path) -> None:
@@ -557,38 +563,6 @@ def test_timeline_duration_from_track_media():
         )
     ]
     assert timeline_duration_sec(project) == 42.0
-
-
-def test_edits_for_clip_source_maps_local_time():
-    clip = Clip(
-        id="c1",
-        track_id="host",
-        source_start=10.0,
-        source_end=20.0,
-        timeline_start=0.0,
-    )
-    edits = [
-        EditDecision(
-            id="e1",
-            track_id="host",
-            type=EditDecisionType.REMOVE,
-            start=12.0,
-            end=14.0,
-            applied=True,
-        ),
-        EditDecision(
-            id="e2",
-            track_id="guest",
-            type=EditDecisionType.REMOVE,
-            start=12.0,
-            end=14.0,
-            applied=True,
-        ),
-    ]
-    mapped = edits_for_clip_source(edits, "host", clip)
-    assert len(mapped) == 1
-    assert mapped[0].start == 2.0
-    assert mapped[0].end == 4.0
 
 
 def test_render_track_segment_range_partial(sample_wav: Path, tmp_path: Path):
@@ -986,7 +960,20 @@ def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tm
             commands.append(" ".join(str(x) for x in cmd))
         return real_run(cmd, *args, **kwargs)
 
-    with patch.object(ff, "run", side_effect=capture_run):
+    expected_graph = placed_track_audio(project, project.tracks[0], project.clips)
+    assert [(leaf.fade_in_sec, leaf.fade_out_sec) for leaf in sources(expected_graph.audio)] == [
+        (0, 0.025),
+        (0.025, 0),
+    ]
+    rendered_graphs = []
+    render_timeline = eng.render_timeline
+
+    def capture_graph(output_path, audio, *args, **kwargs):
+        rendered_graphs.append(audio)
+        return render_timeline(output_path, audio, *args, **kwargs)
+
+    monkey = patch.object(eng, "render_timeline", side_effect=capture_graph)
+    with patch.object(ff, "run", side_effect=capture_run), monkey:
         render_track_from_timeline(
             project,
             project.tracks[0],
@@ -995,6 +982,7 @@ def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tm
             engine=eng,
         )
 
+    assert rendered_graphs == [expected_graph.audio]
     render_cmds = [c for c in commands if "filter_complex" in c]
     assert len(render_cmds) == 1
     assert "acrossfade" not in render_cmds[0]
@@ -1629,7 +1617,6 @@ def test_cut_join_drops_only_the_fades_at_that_join(tmp_path: Path) -> None:
         ),
     ]
     eng = MagicMock(spec=FFmpegEngine)
-    eng.segments_after_edits.side_effect = lambda dur, *_a: [MagicMock(start=0.0, end=dur)]
     render_track_from_timeline(project, project.tracks[0], tmp_path / "out.wav", {}, engine=eng)
     placed = sources(eng.render_timeline.call_args.args[1])
     fades = [(s.fade_in_sec, s.fade_out_sec) for s in placed]
@@ -1669,7 +1656,6 @@ def test_first_clip_cut_mode_keeps_its_fade_in(tmp_path: Path) -> None:
         ),
     ]
     eng = MagicMock(spec=FFmpegEngine)
-    eng.segments_after_edits.side_effect = lambda dur, *_a: [MagicMock(start=0.0, end=dur)]
     render_track_from_timeline(project, project.tracks[0], tmp_path / "out.wav", {}, engine=eng)
     placed = sources(eng.render_timeline.call_args.args[1])
     # The first clip has no join, so its leftover cut mode drops nothing.

@@ -10,6 +10,7 @@ from pause_policy_public_helpers import (
     defaults,
     files,
     pause,
+    prepare_pause,
     primary_spans,
     project,
     room,
@@ -18,9 +19,9 @@ from pause_policy_public_helpers import (
     write_wav,
 )
 from podcast_mcp.edits import room_tone
+from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.room_tone import room_tone_span
-from podcast_mcp.edits.source_removals import CutScopeHold, inspect_source_remove
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
@@ -87,13 +88,15 @@ def test_enabled_saved_and_suggested_keep_the_same_original_suffix_and_next_word
     cfg = defaults(acoustic=True)
     configure(monkeypatch, cfg)
     result = _acoustic_project(tmp_path, topology=topology)
-    result.edit_decisions = [pause(start=0.3, end=4.7)]
+    result.edit_decisions = [prepare_pause(result, pause(start=0.3, end=4.7), cfg)]
     ws = workspace(result)
     before_files = files(tmp_path)
     current = _render_audio(ws.project, tmp_path, "current")
     snapshot = ws.project.model_copy(deep=True)
 
-    suggested_end = apply_for_suggested(snapshot, resolve_pending_preview(snapshot, "pause"))
+    suggested_end = apply_for_suggested(
+        snapshot, resolve_pending_preview(snapshot, "pause", pad_sec=0.75)
+    )
 
     assert suggested_end == pytest.approx(1.05)
     assert files(tmp_path) == before_files
@@ -147,7 +150,8 @@ def test_enabled_saved_and_suggested_keep_the_same_original_suffix_and_next_word
 def test_enabled_original_pause_uses_consumed_seam_despite_a_nearer_peer_join(
     tmp_path, monkeypatch
 ):
-    configure(monkeypatch, defaults(acoustic=True))
+    cfg = defaults(acoustic=True)
+    configure(monkeypatch, cfg)
     result = _acoustic_project(tmp_path, topology="deleted", guest="quiet")
     result.clips = [c for c in result.clips if c.track_id == "host"] + [
         Clip(id="peer-left", track_id="guest", source_start=0, source_end=0.28, timeline_start=0),
@@ -156,7 +160,7 @@ def test_enabled_original_pause_uses_consumed_seam_despite_a_nearer_peer_join(
     add_bed(result, tmp_path)
     add_bed(result, tmp_path, "guest")
     write_wav(tmp_path / "raw/room-tone/guest.wav", room(0.25, seed=1249, db=-58))
-    edit = pause(start=0.3)
+    edit = prepare_pause(result, pause(start=0.3), cfg)
     edit.next_burst_sec = 5
     result.edit_decisions = [edit]
     ws = workspace(result)
@@ -548,7 +552,9 @@ def test_saved_pause_keeps_both_edge_sounds_whole_with_acoustic_checks_enabled(
             lo, hi = round(start * RATE), round(end * RATE)
             audio[lo:hi] += rng.normal(0, 10 ** (-50 / 20), hi - lo)
     write_wav(tmp_path / f"raw/{lane}.wav", audio)
-    result.edit_decisions = [pause(start=3, end=4, gap=None)]
+    result.edit_decisions = [
+        prepare_pause(result, pause(start=3, end=4, gap=None), defaults(acoustic=True))
+    ]
     ws = workspace(result)
     current = _render_audio(ws.project, tmp_path, "whole-current", lane)
 

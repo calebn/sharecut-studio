@@ -32,6 +32,8 @@ type Project = {
       end: number;
       applied: boolean;
       review_required: boolean;
+      proposal_origin?: string;
+      boundary_intent?: string;
     }[];
   };
   social: {
@@ -145,6 +147,8 @@ function factory(movable: boolean) {
             end: 24,
             applied: false,
             review_required: true,
+            proposal_origin: "programmatic",
+            boundary_intent: "programmatic",
           },
         ];
     project.social.clip_candidates = [

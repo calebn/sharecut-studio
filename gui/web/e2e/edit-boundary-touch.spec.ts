@@ -37,7 +37,6 @@ test.describe("Transcript edit-boundary touch drag", () => {
       await waiveRefineGate(page, "e2e edit boundary touch");
       await postDocumentCommand(page, CLIENT_ID, "CutRange", {
         mode: "ripple",
-        confirm_cut_speech: true,
         start: 5,
         end: 15,
       });
@@ -159,7 +158,6 @@ for (const { cell: width, theme } of withAppearance([1440, 360])) {
       await waiveRefineGate(page, "e2e boundary geometry");
       await postDocumentCommand(page, CLIENT_ID, "CutRange", {
         mode: "ripple",
-        confirm_cut_speech: true,
         start: 5,
         end: 15,
       });

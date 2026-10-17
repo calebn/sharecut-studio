@@ -5,9 +5,9 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import FillerPacingResult
-from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate, _CutRejected
-from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
+from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from test_breath_detect import (
     _EDGE_TOL,
@@ -79,7 +79,7 @@ def _proposal(
             return_value=FillerPacingResult(cut_start, cut_end),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
         patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
@@ -114,7 +114,7 @@ def _splice_proposal(cache: TrackAudioCache, cut_end: float, backend: str):
             return_value=FillerPacingResult(4.9, cut_end),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
         patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
@@ -141,7 +141,7 @@ def test_a_splice_cut_end_inside_a_quiet_breath_onset_retreats_to_the_onset(
         _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026)), cut_end, backend
     )
 
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.start, result.end) == pytest.approx((4.9, 5.0))
 
 
@@ -155,7 +155,7 @@ def test_a_splice_cut_through_a_quiet_voiced_onset_is_rejected_as_breath(backend
     samples = cache.waveform.samples
     samples[round(5.0 * 16000) : round(5.12 * 16000)] = _harmonic_tone(1920, 0.0008)
 
-    assert _splice_proposal(cache, 5.15, backend) == _CutRejected("breath")
+    assert _splice_proposal(cache, 5.15, backend) == CutRejected("breath")
 
 
 @pytest.mark.parametrize("peak", [0.55, 0.60])
@@ -171,7 +171,7 @@ def test_a_splice_cut_through_connected_protected_activity_is_rejected_as_breath
             max(1, (samples.size - min(samples.size, 640)) // 160 + 1), peak
         ),
     ):
-        assert _splice_proposal(cache, 5.15, "heuristic") == _CutRejected("breath")
+        assert _splice_proposal(cache, 5.15, "heuristic") == CutRejected("breath")
 
 
 @pytest.mark.parametrize("adjustment", ["max_end", "pacing"])
@@ -206,7 +206,7 @@ def test_final_cut_end_retreats_to_retained_breath_onset(
             return_value=FillerPacingResult(start, 5.5 if adjustment == "max_end" else 5.2),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
         patch("podcast_mcp.edits.fillers.assess_cut_risk", side_effect=assess),
@@ -215,9 +215,9 @@ def test_final_cut_end_retreats_to_retained_breath_onset(
         result = _analyze_candidate(project, candidate, {"tighten": _NO_FLOOR}, audio_cache=cache)
 
     if kind == "filler":
-        assert result == _CutRejected("reparandum")
+        assert result == CutRejected("reparandum")
         return
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     # The breath at 5.1 stays whole: the trim ends 30 ms before it.
     assert (result.start, result.end) == pytest.approx((4.3, 5.07), abs=_EDGE_TOL)
     assert measured == [pytest.approx((4.3, 5.07), abs=_EDGE_TOL)]
@@ -239,7 +239,7 @@ def test_retreat_that_removes_entire_cut_skips_proposal(tmp_path, start: float) 
             return_value=FillerPacingResult(start, 5.2),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
         patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
@@ -248,9 +248,9 @@ def test_retreat_that_removes_entire_cut_skips_proposal(tmp_path, start: float) 
         result = _analyze_candidate(project, candidate, {"tighten": _NO_FLOOR}, audio_cache=cache)
 
     if start > 5.1:
-        assert result == _CutRejected("no_air")
+        assert result == CutRejected("no_air")
     else:
-        assert not isinstance(result, _CutRejected)
+        assert not isinstance(result, CutRejected)
         assert (result.start, result.end) == pytest.approx((4.3, 5.07), abs=_EDGE_TOL)
 
 
@@ -266,7 +266,7 @@ def test_final_cut_end_inside_quiet_breath_onset_retreats_to_onset(
         backend,
     )
 
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.start, result.end) == pytest.approx((4.3, 4.97), abs=_EDGE_TOL)
 
 
@@ -282,7 +282,7 @@ def test_final_crossing_search_continues_after_earlier_non_crossing_run(
 
     result = _proposal(tmp_path, cache, 5.15, backend, cut_start=4.6)
 
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.start, result.end) == pytest.approx((4.63, 4.97), abs=_EDGE_TOL)
 
 
@@ -305,18 +305,18 @@ def test_a_pause_trim_ends_before_a_quiet_onset_that_cannot_be_refined(
 
     result = _proposal(tmp_path, cache, 5.15, backend)
 
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.start, result.end) == pytest.approx((4.3, 4.97), abs=_EDGE_TOL)
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
 @pytest.mark.parametrize("edge", [5.20, 5.30])
 def test_final_start_retains_complete_quiet_tail(backend: str, edge: float) -> None:
-    from podcast_mcp.edits import breath_detect
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
-        result = breath_detect.protect_cut_breaths(
+        result = protect_cut_breaths(
             _host_project(_fixture_words()),
             "host",
             edge,
@@ -340,7 +340,7 @@ def test_a_pause_trim_ends_before_connected_protected_activity(tmp_path, peak: f
     ):
         result = _proposal(tmp_path, cache, 5.15, "heuristic")
 
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.start, result.end) == pytest.approx((4.3, 4.97), abs=_EDGE_TOL)
 
 
@@ -376,7 +376,7 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_and_labels_it(tmp
             return_value=FillerPacingResult(4.9, 5.3),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
         patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
@@ -390,7 +390,7 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_and_labels_it(tmp
             audio_caches={"host": host, "guest": guest},
         )
 
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.start, result.end, result.reason, result.review_required) == (
         pytest.approx(4.9),
         pytest.approx(5.22),
@@ -406,7 +406,7 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
 ) -> None:
     from dataclasses import replace
 
-    from podcast_mcp.edits.fillers import _VoicedSpeechCheck
+    from podcast_mcp.edits.cut_safety import VoicedEdgeAssessment
 
     cache = _cache_with_breaths()
     project = _project_with_wav(tmp_path, cache)
@@ -416,8 +416,8 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
         def between(project, plan, candidate, **kw):
             return replace(plan, start=walk_start) if walk == "between_kept_voices" else plan
 
-        def voiced_check(candidate, start, end, **kw):
-            return _VoicedSpeechCheck(walk_start if walk == "voiced" else start, end, None)
+        def voiced_check(start, end, **kw):
+            return VoicedEdgeAssessment(walk_start if walk == "voiced" else start, end, None)
 
         with (
             patch("podcast_mcp.edits.fillers._between_kept_voices", side_effect=between),
@@ -429,9 +429,9 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
                 "podcast_mcp.edits.fillers.apply_filler_pacing",
                 return_value=FillerPacingResult(4.90, 5.40),
             ),
-            patch("podcast_mcp.edits.fillers._check_voiced_speech", side_effect=voiced_check),
+            patch("podcast_mcp.edits.cut_safety.assess_voiced_edges", side_effect=voiced_check),
             patch(
-                "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+                "podcast_mcp.edits.cut_safety.resolve_cut_scope",
                 return_value=ResolvedCutScope("session_clear", None),
             ),
             patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
@@ -447,16 +447,16 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
 
     unmoved, walked = propose(4.90), propose(5.00)
 
-    assert not isinstance(unmoved, _CutRejected)
+    assert not isinstance(unmoved, CutRejected)
     assert (unmoved.start, unmoved.end) == pytest.approx((4.90, 5.40))
     assert (unmoved.reason, unmoved.review_required) == ("pause:candidate", False)
     if walk == "voiced":
-        assert walked == _CutRejected("unsettled_edges")
+        assert walked == CutRejected("unsettled_edges")
         assert project.editorial.edit_log == []
         assert project.edit_decisions == []
         assert [(c.source_start, c.source_end) for c in project.clips] == [(0.0, 10.2)]
         return
-    assert not isinstance(walked, _CutRejected)
+    assert not isinstance(walked, CutRejected)
     assert (walked.start, walked.end) == pytest.approx((5.00, 5.40))
     assert (walked.reason, walked.review_required) == ("pause:candidate", False)
 
@@ -465,7 +465,7 @@ def test_pause_air_labels_its_own_move_and_holds_an_unsettled_voice_edge(
 def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
     adjustment: str,
 ) -> None:
-    from podcast_mcp.edits.fillers import _VoicedSpeechCheck
+    from podcast_mcp.edits.cut_safety import VoicedEdgeAssessment
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     candidate = _CutCandidate(
@@ -477,10 +477,10 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
         min_start=5.30 if adjustment == "min_start" else None,
     )
 
-    def voiced_check(candidate, start, end, **kw):
+    def voiced_check(start, end, **kw):
         if adjustment == "voiced" and start == 4.90:
             start = 5.30
-        return _VoicedSpeechCheck(start, end, None)
+        return VoicedEdgeAssessment(start, end, None)
 
     with (
         patch(
@@ -493,11 +493,11 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
             return_value=FillerPacingResult(5.30 if adjustment == "pacing" else 4.90, 5.40),
         ),
         patch(
-            "podcast_mcp.edits.fillers._check_voiced_speech",
+            "podcast_mcp.edits.cut_safety.assess_voiced_edges",
             side_effect=voiced_check,
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
         patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
@@ -508,7 +508,7 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
         )
     # The breath and its quiet tail stay whole, and the 10 ms of air left after them is
     # under the shortest cut: a pause trim is not made of what a splice would have kept.
-    assert result == _CutRejected("unsettled_edges" if adjustment == "voiced" else "too_short")
+    assert result == CutRejected("unsettled_edges" if adjustment == "voiced" else "too_short")
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -523,7 +523,7 @@ def test_a_pause_mover_into_a_quiet_tail_is_too_short_or_unsettled(
     ],
 )
 def test_complete_breath_geometry_and_idempotence(backend, bounds, expected) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.00, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     defaults = {"tighten": {"breath_handling": {"vad_backend": backend}}}
@@ -549,7 +549,7 @@ def test_complete_breath_geometry_and_idempotence(backend, bounds, expected) -> 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
 def test_distinct_breaths_shrink_both_original_edges(backend) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((4.90, 5.08, 0.026), (5.20, 5.38, 0.026))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
@@ -568,7 +568,7 @@ def test_distinct_breaths_shrink_both_original_edges(backend) -> None:
 def test_enabled_protection_suppresses_unavailable_or_incomplete_evidence(failure) -> None:
     import numpy as np
 
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.0, 5.60 if failure == "long" else 5.24, 0.026))
     bounds = (0.0, 0.10) if failure == "begin" else (5.12, 5.40)
@@ -591,7 +591,7 @@ def test_enabled_protection_suppresses_unavailable_or_incomplete_evidence(failur
 
 
 def test_floor_only_and_unrelated_protected_activity_are_clear() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from test_breath_detect import _harmonic_tone
 
     cache = _cache_with_breaths()
@@ -602,7 +602,7 @@ def test_floor_only_and_unrelated_protected_activity_are_clear() -> None:
 
 
 def test_shrink_recomputes_kept_word_eligibility() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from podcast_mcp.models import Transcript, TranscriptWord
 
     project = _host_project(_fixture_words())
@@ -616,7 +616,7 @@ def test_shrink_recomputes_kept_word_eligibility() -> None:
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
 @pytest.mark.parametrize("tail", ["voiced", "sibilant", "kept"])
 def test_completed_quiet_tail_cannot_hide_protected_activity(backend, tail) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from test_breath_detect import _harmonic_tone, _sibilant_noise
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
@@ -641,19 +641,19 @@ def test_completed_quiet_tail_cannot_hide_protected_activity(backend, tail) -> N
 
 
 def test_proposal_to_exact_approval_preserves_complete_breath_source(tmp_path) -> None:
-    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.fillers import _apply_analyzed_cut
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
     result = _proposal(tmp_path, cache, 5.15, "heuristic", cut_start=4.3)
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     project = _project_with_wav(tmp_path, cache)
     decision = _apply_analyzed_cut(project, result)
     with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
-        assert approve_edits(project, [decision.id]) == 1
+        assert approve_edits(project, [decision.id], defaults={"tighten": _NO_FLOOR}) == 1
     assert any(clip.source_start <= 5.0 and clip.source_end >= 5.26 for clip in project.clips)
     _assert_original_breath_pcm(project, tmp_path, (5.0, 5.26))
 
@@ -664,17 +664,17 @@ def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
     result = _proposal(tmp_path, cache, 5.05, "heuristic", cut_start=4.3)
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     # The trim shrank off the breath and needs no review: applying consumes the stored
     # bounds, breath whole.
     assert (result.reason, result.review_required) == ("pause:candidate:air_edges", False)
     project = _project_with_wav(tmp_path, cache)
     _apply_analyzed_cut(project, result)
     with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
-        assert apply_tighten_decisions(project) == 1
+        assert apply_tighten_decisions(project, {"tighten": _NO_FLOOR}) == 1
     assert any(clip.source_start <= 5.0 and clip.source_end >= 5.26 for clip in project.clips)
     _assert_original_breath_pcm(project, tmp_path, (5.0, 5.26))
 
@@ -702,17 +702,20 @@ def _assert_original_breath_pcm(project, tmp_path, breath):
 
 
 def _project_with_wav(tmp_path, cache):
-    import wave
+    from test_waveform_pyramid import _write_raw_wav
 
     project = _host_project(_fixture_words())
     project.meta.workspace_dir = str(tmp_path)
     tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "host.wav"
-    with wave.open(str(path), "wb") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(16000)
-        handle.writeframes((cache.waveform.samples * 32767).astype("<i2").tobytes())
+    _write_raw_wav(
+        path,
+        cache.waveform.samples.astype("<f4").tobytes(),
+        channels=1,
+        sr=16000,
+        bits=32,
+        fmt_tag=3,
+    )
     project.tracks[0].media.path = "host.wav"
     project.tracks[0].media.duration_sec = 10.2
     project.clips[0].source_end = 10.2
@@ -724,7 +727,7 @@ def _project_with_wav(tmp_path, cache):
 def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
     tmp_path, protected_edge, neighbor_mode
 ) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
     from podcast_mcp.edits.tighten import apply_tighten_decisions
     from podcast_mcp.edits.transcript_cuts import append_remove_decision, coalesce_edits
 
@@ -762,7 +765,7 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
     )
     assert coalesce_edits(project, track_id="host") == 0
     with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
         assert apply_tighten_decisions(project) == 2
@@ -778,7 +781,7 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
 
 
 def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -> None:
-    from podcast_mcp.edits.fillers import _VoicedSpeechCheck
+    from podcast_mcp.edits.cut_safety import VoicedEdgeAssessment
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     # Pacing leaves 5.30-5.38 of the gap; the breath's tail and the 50 ms average that
@@ -795,17 +798,17 @@ def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -
             return_value=FillerPacingResult(5.30, 5.38),
         ),
         patch(
-            "podcast_mcp.edits.fillers._check_voiced_speech",
-            return_value=_VoicedSpeechCheck(5.30, 5.38, None),
+            "podcast_mcp.edits.cut_safety.assess_voiced_edges",
+            return_value=VoicedEdgeAssessment(5.30, 5.38, None),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
     ):
         assert _analyze_candidate(
             _host_project(_fixture_words()), candidate, {"tighten": {}}, audio_cache=cache
-        ) == _CutRejected("no_air")
+        ) == CutRejected("no_air")
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -819,7 +822,7 @@ def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -
     ],
 )
 def test_a_faded_edge_keeps_breaths_whole_and_never_removes_one(backend, bounds, expected) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.00, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
@@ -835,7 +838,7 @@ def test_a_faded_edge_keeps_breaths_whole_and_never_removes_one(backend, bounds,
 
 
 def test_a_faded_edge_never_removes_a_breath_run_whose_onset_runs_on() -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     # A long quiet lead-in keeps the breath from being traced back to room tone; its
     # in-band run alone still fills most of the cut.
@@ -853,7 +856,7 @@ def test_a_faded_edge_never_removes_a_breath_run_whose_onset_runs_on() -> None:
 
 @pytest.mark.parametrize("evidence", ["missing", "silent", "longer_than_a_breath"])
 def test_a_faded_edge_may_sit_where_no_breath_is_found(evidence) -> None:
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     cache = _cache_with_breaths((5.0, 5.60, 0.026))
     if evidence == "silent":
@@ -900,7 +903,7 @@ def test_a_mute_edge_never_chops_a_breath() -> None:
 
     result = _mute(cache, _CutCandidate("host", 4.6, 4.8, "filler:uh", "filler"), (4.6, 5.15))
 
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.decision_type, result.start, result.end) == ("mute", 4.6, pytest.approx(5.0))
 
 
@@ -910,4 +913,4 @@ def test_a_mute_never_proposes_a_breath_as_an_acoustic_filler() -> None:
         "host", 5.0, 5.36, "filler:acoustic", "filler", min_start=5.0, max_end=5.36
     )
 
-    assert _mute(cache, candidate, (5.0, 5.36)) == _CutRejected("breath")
+    assert _mute(cache, candidate, (5.0, 5.36)) == CutRejected("breath")

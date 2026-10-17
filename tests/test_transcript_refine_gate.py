@@ -508,7 +508,9 @@ def test_ripple_delete_pending_refine_prints_clean_error_not_traceback(minimal_p
 
 @pytest.mark.refine_gate
 @pytest.mark.parametrize("clearance", ["done", "waived"])
-def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project, clearance):
+def test_no_word_ripples_preserve_refine_clearance_after_reopen(
+    minimal_project, ten_second_silence_wav, clearance
+):
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 
     proj = _with_words(minimal_project)
@@ -523,6 +525,7 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
     proj.timeline.clips = [
         Clip(id="c", track_id="host", source_start=0, source_end=10, timeline_start=0)
     ]
+    (proj.workspace_path() / "raw" / "host.wav").write_bytes(ten_second_silence_wav.read_bytes())
     if clearance == "done":
         mark_refine_done(proj, notes="reviewed")
     else:
@@ -556,7 +559,9 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
 
 @pytest.mark.refine_gate
 @pytest.mark.parametrize("clearance", ["done", "waived"])
-def test_word_removing_ripple_keeps_refine_clearance_after_reopen(minimal_project, clearance):
+def test_word_removing_ripple_keeps_refine_clearance_after_reopen(
+    minimal_project, ten_second_silence_wav, clearance
+):
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 
     proj = _with_words(minimal_project)
@@ -571,6 +576,7 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(minimal_projec
     proj.timeline.clips = [
         Clip(id="c", track_id="host", source_start=0, source_end=10, timeline_start=0)
     ]
+    (proj.workspace_path() / "raw" / "host.wav").write_bytes(ten_second_silence_wav.read_bytes())
     if clearance == "done":
         mark_refine_done(proj, notes="reviewed")
     else:

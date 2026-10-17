@@ -72,7 +72,6 @@ export type WorkloadObservation =
       target: "clip" | "boundary" | "trim-edge";
       commandType: string;
       commandCount: number;
-      confirmedCutSpeech?: boolean;
       before: ClipGeometry[];
       after: ClipGeometry[];
       restoration: "pending" | "verified";

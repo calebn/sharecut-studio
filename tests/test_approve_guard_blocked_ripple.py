@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from pause_policy_public_helpers import (
@@ -16,10 +14,10 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
-from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.mcp.tools.edits import approve_edits_tool
-from podcast_mcp.models import EditDecisionType, TranscriptWord, load_project
+from podcast_mcp.models import CutIntent, EditDecisionType, TranscriptWord, load_project
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync.handlers.edits import approve_edits
 
@@ -65,20 +63,15 @@ def test_a_filler_a_peer_speaks_over_waits_as_a_session_ripple_that_records_the_
     assert [t.track_id for t in decision.cut_speech.tracks] == ["guest"]
 
 
-def test_approving_without_confirmation_asks_and_changes_nothing(tmp_path, monkeypatch):
+def test_programmatic_approval_holds_and_changes_nothing(tmp_path, monkeypatch):
     result, decision = _blocked_filler(tmp_path, monkeypatch)
     ws = workspace(result)
     before = ws.project.model_dump(mode="json")
 
-    asked = EditService(ws).approve([decision.id])
-
-    assert isinstance(asked, CutSpeechConfirmation)
-    assert (asked.status, asked.reason, asked.confirm_label) == (
-        "needs_confirmation",
-        "cuts_other_speech",
-        "Cut anyway",
-    )
-    assert [t.track_id for t in asked.speech.tracks] == ["guest"]
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        EditService(ws).approve([decision.id])
+    assert held.value.held[0].reason == "peer_speech"
+    assert held.value.held[0].peers == ("guest",)
     assert ws.project.model_dump(mode="json") == before
     assert ws.project.editorial.edit_log == []
 
@@ -91,7 +84,7 @@ def test_confirmed_approval_ripples_every_dialogue_track_and_records_no_one_trac
     service = EditService(ws)
     before = _lengths(ws.project)
 
-    assert service.approve([decision.id], confirm_cut_speech=True) == 1
+    assert service.approve([decision.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
 
     saved = load_project(ws.path)
     after = _lengths(saved)
@@ -109,20 +102,21 @@ def test_confirmed_approval_ripples_every_dialogue_track_and_records_no_one_trac
     assert [t["track_id"] for t in record.params["cut_speech"]["tracks"]] == ["guest"]
 
 
-def test_the_document_command_and_mcp_approve_ask_the_same_question(tmp_path, monkeypatch):
+def test_programmatic_document_and_mcp_approval_cannot_override_peer_speech(tmp_path, monkeypatch):
     result, decision = _blocked_filler(tmp_path, monkeypatch)
     ws = workspace(result)
 
-    gui = approve_edits(ws, {"ids": [decision.id]})
-    agent = json.loads(approve_edits_tool(str(ws.path), [decision.id]))
-
-    for asked in (gui, agent):
-        assert asked["unchanged"] is True
-        assert asked["needs_confirmation"]["confirm_field"] == "confirm_cut_speech"
-        assert asked["needs_confirmation"]["confirm_label"] == "Cut anyway"
+    before = ws.project.model_dump(mode="json")
+    for payload in ({"ids": [decision.id]}, {"ids": [decision.id], "confirm_cut_speech": True}):
+        with pytest.raises(ScopeChangedAtApproval):
+            approve_edits(ws, payload)
+    with pytest.raises(ScopeChangedAtApproval, match="Guest is speaking"):
+        approve_edits_tool(str(ws.path), [decision.id])
+    assert ws.project.model_dump(mode="json") == before
     assert ws.project.editorial.edit_log == []
-
-    assert approve_edits(ws, {"ids": [decision.id], "confirm_cut_speech": True}) == {"count": 1}
+    assert (
+        EditService(ws).approve([decision.id], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
+    )
 
 
 def test_a_mute_a_peer_speaks_over_still_applies_in_place_without_asking(tmp_path, monkeypatch):

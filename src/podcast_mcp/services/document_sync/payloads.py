@@ -37,15 +37,6 @@ EditModeField = Annotated[
         )
     ),
 ]
-ConfirmCutSpeech = Annotated[
-    bool,
-    Field(
-        description=(
-            "Apply a ripple that cuts another track's speech. Without it such a ripple "
-            "changes nothing and returns needs_confirmation."
-        )
-    ),
-]
 
 
 class EnvelopePoint(BaseModel):
@@ -146,32 +137,15 @@ class RedoHistoryPayload(_HistoryMovePayload):
 
 class ApproveEditsPayload(BaseModel):
     ids: list[str]
-    allow_review: bool = Field(
-        default=True,
-        description=(
-            "Authorize a pause join that currently requires review. Selected approval "
-            "defaults to true. Speech confirmation does not change this authority."
-        ),
-    )
-    confirm_cut_speech: ConfirmCutSpeech = False
     hold_blocked: bool = Field(
         default=False,
         description=(
             "Approve all: a cut that cannot apply safely (another speaker is talking "
             "there, say) stays pending and is reported in `held`; every other edit "
             "applies. A cut that would cut other speech also stays pending: the reply "
-            "carries the ask and `confirm_ids`, and confirming sends only those ids. "
-            "Without it one such cut refuses the whole batch."
-        ),
-    )
-    continues_head_id: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=64,
-        description=(
-            "Cut anyway after an Approve all that applied the rest: the history entry "
-            "that Approve all left (`history_head_id` of its reply). The entry this "
-            "command records names it, so one Undo takes back both parts."
+            "is reported with its speech evidence. Only trusted interactive intent can "
+            "override that acoustic hold. Without `hold_blocked`, one held cut refuses "
+            "the whole batch."
         ),
     )
 
@@ -203,6 +177,8 @@ class ApplySuggestedActionsPayload(BaseModel):
 
 
 class UpdatePendingEditPayload(BaseModel):
+    model_config = {"extra": "forbid"}
+
     id: str
     start: float
     end: float
@@ -237,7 +213,6 @@ class TrimClipEdgePayload(BaseModel):
     source_sec: float = Field(allow_inf_nan=False)
     mode: EditModeField
     expected_token: str = Field(min_length=1)
-    confirm_cut_speech: ConfirmCutSpeech = False
 
 
 class RollClipJoinPayload(BaseModel):
@@ -475,7 +450,6 @@ class DeleteClipPayload(BaseModel):
     clip_ids: list[str] | None = None
     mode: EditModeField
     reason: str | None = None
-    confirm_cut_speech: ConfirmCutSpeech = False
 
 
 class DuplicateSegmentPayload(BaseModel):
@@ -520,7 +494,6 @@ class CutRangePayload(BaseModel):
             "none are named)."
         ),
     )
-    confirm_cut_speech: ConfirmCutSpeech = False
 
     @model_validator(mode="after")
     def _end_after_start(self) -> CutRangePayload:

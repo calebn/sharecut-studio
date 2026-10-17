@@ -33,12 +33,13 @@ does not arrive, Studio reports that the outcome may be unknown. Check History
 before trying again.
 Podcast MCP uses **non-destructive editing** at two levels:
 
-1. **Source media** — Files in `raw/` are never overwritten. Cuts and effects are applied only at render time via `edit_decisions` and FFmpeg.
+1. **Source media** — Files in `raw/` are never overwritten. Approved cuts change clip placement or mute envelopes; FFmpeg renders that saved structure. Pending decision labels never remove audio.
 2. **Editable state history** — Tracks, transcripts, edit decisions, envelopes, and processing chains are snapshotted so you can move backward and forward through changes.
 
-Automatic application of a stored optimized proposal keeps its settled range,
-so the applied-edit record and undo preserve the reviewed breath boundaries.
-Unsnapped pending edits still use configured apply-time optimization. See
+Cut application completes and assesses an unpublished project copy before adopting it
+once inside the existing workspace mutation. A refusal publishes no provisional
+archives, history snapshots, or render outputs. Stored proposal bounds are consumed
+exactly, including unsnapped bounds; preparation owns optimization. See
 [inaudible cuts](inaudible-cuts.md#behavior).
 
 Editor panel height is a browser preference, not an episode mutation. A canceled
@@ -112,9 +113,7 @@ alone does not create an undo action or invalidate an otherwise matching index.
 
 Pipeline run logs stay on the project file and are not reverted by undo.
 
-`--expected-head` (Undo toast, `undo --expected-head`) treats `render_preview` entries recorded after the named entry as render-only: a preview render that lands behind an edit does not make the toast stale. Any other entry after it still does (`history.manager._behind_render_only`). When the caller names the current head and it is a `render_preview` entry (toolbar Mod+Z after auto refresh-mix, at the tip or mid-history after an earlier Undo), undo rewinds over those previews first so one step reverts the edit that triggered them (`history.manager._rewind_over_render_previews`). Approve all that asks Cut anyway is two edits, each followed by its own preview, but one Undo and one Redo (see below); each Undo changes the timeline (#1675, #1677).
-
-**One Undo for an Approve all pass (`continues_head_id`).** An Approve all that asks Cut anyway records two `approve_edits` entries (the cuts that applied, then the speech cuts), each followed by its preview render. The Cut anyway `ApproveEdits` carries `continues_head_id`, the first part's `history_head_id`, and its entry stores it in `params`. `HistoryManager.undo` reads it (`_pass_start`): when the first entry is an earlier `approve_edits` entry and everything from it to the head is an `approve_edits` entry, a before-snapshot or a `render_preview`, the cursor goes back over both parts, so every Undo path (toast, Mod+Z, toolbar, MCP, CLI) takes the pass back in one step. The chain is checked by identity: the first entry must be an `approve_edits` entry that the marker names, and only its own `render_preview` entries (with their "before render preview" snapshots) and the Cut anyway's own "before approve edits" snapshot may sit between the two. Another approval, a manual snapshot or a merged save in between, or a stale or forged marker, means Undo takes back just that one entry. Redo mirrors it: stepping onto the first part of an intact pass (`_pass_end`) brings back both parts (#1677).
+`--expected-head` (Undo toast, `undo --expected-head`) treats `render_preview` entries recorded after the named entry as render-only: a preview render that lands behind an edit does not make the toast stale. Any other entry after it still does (`history.manager._behind_render_only`). When the caller names the current head and it is a `render_preview` entry (toolbar Mod+Z after auto refresh-mix, at the tip or mid-history after an earlier Undo), undo rewinds over those previews first so one step reverts the edit that triggered them (`history.manager._rewind_over_render_previews`).
 
 `edit apply-suggested --revise` (`HistoryManager.tip_entry_index`) finds the latest `apply_suggested_actions` entry while the cursor is at the tip and only `render_preview` entries follow it, goes back to just before it and re-applies the same batch with the overrides. The batch entry's `params.sounds` (each sound's id, label, track, timeline start and action) lets Studio's Tighten tab list the batch it can still revise. Nothing else is undone, and the cursor returns to the tip if the re-apply fails.
 A run records its starting editable state if it differs from the current snapshot,
@@ -303,8 +302,9 @@ when the saves settle with the expected head it would have had without the wait.
 keeps its entry, so if a later save moved the head first the server refuses it
 (`history_stale`), the move is `dropped`, and the status says "Can't undo: the project
 changed since. Nothing was undone." The server stays the one authority on staleness. A
-refusal does not replace a toast that still offers Undo for the newer step: an Approve all
-that asked Cut anyway keeps one Undo, on the pass toast. There is no per-command
+refusal does not replace a toast that still offers Undo for the newer step: a
+logical approval recorded across two commands keeps one Undo on the pass toast.
+There is no per-command
 "writes history" flag: every document command moves the head, so the client cannot tell
 which sends leave a toast's entry current. A refusal is announced once
 (the command returns `announced: true`, so the two-finger tap does not repeat it). Undo and Redo are refused offline and never replay. Ordinary refused edits

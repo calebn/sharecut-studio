@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from pause_policy_public_helpers import room, voice, write_wav
 from podcast_mcp.edits import suggested_actions
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
     Clip,
     ClipMuteRegion,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     MediaAsset,
@@ -39,7 +42,12 @@ def _decision(did: str, reason: str, start: float) -> EditDecision:
 def _project(tmp_path, sample_wav) -> str:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     media_path = Path(path).parent / "raw" / "host.wav"
-    media_path.write_bytes(sample_wav.read_bytes())
+    audio = room(seconds=10)
+    voice(audio, 0, 0.7)
+    voice(audio, 9.2, 9.8)
+    audio[14400:144000] = 0
+    voice(audio, 1.08, 1.22)
+    write_wav(media_path, audio)
     proj = load_project(Path(path))
     proj.tracks = [
         Track(
@@ -97,6 +105,37 @@ def test_a_laugh_nobody_talks_over_is_left(tmp_path, sample_wav, monkeypatch) ->
     assert out["lowered_to_leave"] == 1
     assert "lower" not in out["applied"]
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
+
+
+def test_lowering_a_pending_remove_uses_the_mute_policy_row(
+    tmp_path, sample_wav, monkeypatch
+) -> None:
+    from podcast_mcp.edits import cut_safety
+
+    path = _project(tmp_path, sample_wav)
+    service = EditService(ProjectWorkspace.open(path))
+    hold = cut_safety.CutScopeHold("laugh", (), "source_geometry")
+    monkeypatch.setattr(cut_safety, "complete_effect_placement", lambda *a, **k: hold)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_: True)
+    mute_key = ("source_geometry", "mute")
+    ripple_policy = cut_safety.CUT_ACTION_TABLE[("source_geometry", "ripple")]
+    mute_policy = cut_safety.CUT_ACTION_TABLE[mute_key]
+
+    held = service.apply_suggested_actions(["laugh"], overrides={"laugh": "lower"})
+    assert held["held"] == ["laugh"]
+    assert "laugh" in _pending(path)
+
+    with pytest.raises(KeyError, match="source_geometry"):
+        monkeypatch.delitem(cut_safety.CUT_ACTION_TABLE, mute_key)
+        service.apply_suggested_actions(["laugh"], overrides={"laugh": "lower"})
+    assert "laugh" in _pending(path)
+    monkeypatch.setitem(cut_safety.CUT_ACTION_TABLE, mute_key, mute_policy)
+    monkeypatch.setitem(cut_safety.CUT_ACTION_TABLE, mute_key, replace(mute_policy, action="cut"))
+    applied = service.apply_suggested_actions(["laugh"], overrides={"laugh": "lower"})
+    assert applied["applied"] == {"lower": 1}
+    assert applied["held"] == []
+    assert "laugh" not in _pending(path)
+    assert cut_safety.CUT_ACTION_TABLE[("source_geometry", "ripple")] == ripple_policy
 
 
 def test_the_whole_batch_is_one_undo_step(tmp_path, sample_wav, monkeypatch) -> None:
@@ -204,7 +243,9 @@ def test_revise_that_applies_nothing_keeps_the_batch(tmp_path, sample_wav, monke
     path = _project(tmp_path, sample_wav)
     EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["um"])
     applied_layout = _layout(path)
-    monkeypatch.setattr(suggested_actions, "apply_suggested_to_project", lambda *_: None)
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.edit.apply_suggested_to_project", lambda *_, **__: None
+    )
     with pytest.raises(Exception, match="Nothing changed"):
         EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
             overrides={"um": "cut"}, revise=True
@@ -287,7 +328,7 @@ def test_a_lowered_region_renders_at_its_gain_and_a_mute_still_renders_silent(tm
 def test_a_cut_the_guard_holds_for_another_speaker_applies_as_a_session_ripple_and_is_counted(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
-    from podcast_mcp.edits import speech_energy_guard as guard
+    from podcast_mcp.edits import cut_safety as guard
 
     path = _project(tmp_path, sample_wav)
     peer_speaking = guard.ResolvedCutScope(
@@ -298,7 +339,30 @@ def test_a_cut_the_guard_holds_for_another_speaker_applies_as_a_session_ripple_a
     service = EditService(ProjectWorkspace.open(path))
     service.approve(["um"], held_out=[])  # the ordinary Approve still holds it
     assert "um" in _pending(path)
-    out = service.apply_suggested_actions(["um"])
+    automatic = service.apply_suggested_actions(["um"])
+    assert automatic["applied"] == {}
+    assert automatic["held"] == ["um"]
+    assert "um" in _pending(path)
+
+    key = ("peer_speech", "ripple")
+    review = guard.CUT_ACTION_TABLE[key]
+    before_model = service.ws.project.model_dump(mode="json")
+    before_bytes = Path(path).read_bytes()
+    monkeypatch.delitem(guard.CUT_ACTION_TABLE, key)
+    with pytest.raises(KeyError, match="peer_speech"):
+        service.apply_suggested_actions(["um"])
+    assert service.ws.project.model_dump(mode="json") == before_model
+    assert Path(path).read_bytes() == before_bytes
+
+    monkeypatch.setitem(guard.CUT_ACTION_TABLE, key, review)
+    monkeypatch.setitem(guard.CUT_ACTION_TABLE, key, replace(review, action="cut"))
+    changed = service.apply_suggested_actions(["um"])
+    assert changed["applied"] == {"cut": 1}
+    assert "um" not in _pending(path)
+
+    HistoryService(service.ws).undo()
+    monkeypatch.setitem(guard.CUT_ACTION_TABLE, key, review)
+    out = service.apply_suggested_actions(["um"], application_intent=CutIntent.HUMAN_BOUNDARIES)
     assert out["applied"] == {"cut": 1}
     assert out["cut_over_speaker"] == 1
     assert out["held"] == held_ids
@@ -343,11 +407,15 @@ def test_a_lowered_region_takes_no_fill() -> None:
 def test_a_speaker_bleed_hold_also_applies_as_a_session_ripple(
     tmp_path, sample_wav, monkeypatch
 ) -> None:
-    from podcast_mcp.edits import speech_energy_guard as guard
+    from podcast_mcp.edits import cut_safety as guard
 
     path = _project(tmp_path, sample_wav)
     bleed = guard.ResolvedCutScope("speaker_bleed")
     monkeypatch.setattr(guard, "resolve_cut_scope", lambda *a, **k: bleed)
-    out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["um"])
+    service = EditService(ProjectWorkspace.open(path))
+    automatic = service.apply_suggested_actions(["um"])
+    assert automatic["applied"] == {}
+    assert automatic["held"] == ["um"]
+    out = service.apply_suggested_actions(["um"], application_intent=CutIntent.HUMAN_BOUNDARIES)
     assert out["applied"] == {"cut": 1}
     assert out["cut_over_speaker"] == 1

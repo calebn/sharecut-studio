@@ -13,6 +13,7 @@ from podcast_mcp.edits.acoustic_word import (
     whisper_span_transcriber,
 )
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
+from podcast_mcp.edits.cut_safety import decision_policy
 from podcast_mcp.edits.fillers import (
     _add_acoustic_candidates,
     _apply_analyzed_cut,
@@ -27,7 +28,6 @@ from podcast_mcp.edits.fillers import (
 )
 from podcast_mcp.edits.mute_regions import muted_source_spans
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
-from podcast_mcp.edits.sound_actions import sound_label_and_action
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
@@ -35,7 +35,6 @@ from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
     is_likely_laugh_reason,
     is_possible_word_reason,
-    is_review_only_reason,
 )
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
@@ -92,7 +91,8 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
     Everything else (manual / NL / focus edits) is kept.
     """
     reason = decision.reason or ""
-    if is_review_only_reason(reason):
+    policy = decision_policy(decision)
+    if policy is not None and policy.proposal_review:
         return decision.applied
     if reason.startswith(("filler:", "pause:")):
         return decision.applied and decision.review_required
@@ -102,8 +102,8 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
 def _edit_payload(decision: EditDecision) -> dict[str, Any]:
     """One proposal row: the decision plus its plain-words label and suggested action."""
     row = decision.model_dump()
-    info = sound_label_and_action(decision.reason)
-    row["label"], row["suggested_action"] = info if info else (None, None)
+    info = decision_policy(decision)
+    row["label"], row["suggested_action"] = (info.label, info.action) if info else (None, None)
     return row
 
 
@@ -272,7 +272,7 @@ def _flag_possible_words(
         skip_counts["word_probe:unavailable"] = acoustic
 
 
-def apply_tighten_decisions(project: EpisodeProject) -> int:
-    from podcast_mcp.edits.decisions import apply_auto_edits
+def apply_tighten_decisions(project: EpisodeProject, defaults: dict | None = None) -> int:
+    from podcast_mcp.edits.cut_application import apply_auto_edits
 
-    return apply_auto_edits(project)
+    return apply_auto_edits(project, defaults)

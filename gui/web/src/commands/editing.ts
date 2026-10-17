@@ -97,8 +97,7 @@ async function runDeleteClip(
   }
   try {
     if (ripple) {
-      if ((await rippleDeleteClips(s.projectPath, [clipId])).asked)
-        return { status: "ok" };
+      await rippleDeleteClips(s.projectPath, [clipId]);
     } else {
       await deleteClips(s.projectPath, [clipId]);
     }
@@ -283,8 +282,7 @@ export function registerClipboardCommands(): void {
       void navigator.clipboard?.writeText?.(payload.plainText).catch(() => {});
     }
     try {
-      if ((await rippleDeleteClips(s.projectPath, [s.selection.id])).asked)
-        return { status: "ok" };
+      await rippleDeleteClips(s.projectPath, [s.selection.id]);
       const store = useDawStore.getState();
       store.setSelection(null);
       store.announceStatus("Cut to clipboard");

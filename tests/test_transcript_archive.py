@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from podcast_mcp.edits.timeline_ops import (
-    punch_delete,
+    _write_punch_delete,
     roll_clip_join,
 )
 from podcast_mcp.edits.transcript_sync import (
@@ -195,7 +195,12 @@ def test_cut_maps_each_recording_separately(minimal_project, operation):
     elif operation == "batch":
         ripple_cut_spans(project, [(7, 13)], use_inaudible_opt=False)
     else:
-        punch_delete(project, "host", 7, 13, use_inaudible_opt=False)
+        _write_punch_delete(
+            project,
+            "host",
+            7,
+            13,
+        )
     assert [t.words for t in project.transcripts] == [[], []]
     assert [[entry.word.text for entry in t.archived_words] for t in project.transcripts] == [
         ["a"],
@@ -206,8 +211,13 @@ def test_cut_maps_each_recording_separately(minimal_project, operation):
         assert join["has_cutaway"] is False
 
 
-def test_history_undo_redo_restores_archive_and_active_words(minimal_project):
+def test_history_undo_redo_restores_archive_and_active_words(
+    minimal_project, sixty_second_silence_wav
+):
     project = _episode(minimal_project)
+    (project.workspace_path() / "raw" / "host.wav").write_bytes(
+        sixty_second_silence_wav.read_bytes()
+    )
     save_project(project, minimal_project)
     EditService(ProjectWorkspace.open(minimal_project)).cut_range(
         5, 15, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]

@@ -21,11 +21,13 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
-from podcast_mcp.edits.decisions import approve_edits, edit_timeline_range
+from podcast_mcp.edits.cut_application import approve_edits
+from podcast_mcp.edits.decisions import edit_timeline_range
 from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EditDecision,
     EpisodeProject,
     MediaAsset,
@@ -105,22 +107,27 @@ def _write_noise_wav(path: Path, duration_sec: float, *, seed: int) -> None:
 
 
 def _synthetic_filler_project(word_count: int, workspace: Path) -> EpisodeProject:
-    """Two dialogue tracks of ``word_count`` words with fillers and pauses, audio on disk.
+    """Two separate speaker turns, each with ``word_count`` words and real quiet media.
 
     The audio must exist: tighten decodes each track once into a ``TrackAudioCache`` and a
     track whose media cannot be decoded falls back to one ffmpeg subprocess per window
     read, which turned this benchmark into a multi-minute hang.
+
+    This is a structural application workload, not a speech-quality fixture. Separate
+    turns avoid competing session cuts over identical words on both lanes. Filler pads
+    borrow each lane's quiet source samples through the normal room-tone path.
     """
     p = EpisodeProject.create("bench", str(workspace))
+    turn_duration = sum(0.25 + (1.5 if i % 23 == 0 else 0.15) for i in range(word_count)) + 1.0
+    duration = 2 * turn_duration
     for seed, tid in enumerate(("host", "guest")):
         words: list[TranscriptWord] = []
-        t = 0.0
+        t = seed * turn_duration
         for i in range(word_count):
             token = "um" if i % 17 == 0 else "word"
             dur = 0.25
             words.append(TranscriptWord(text=token, start=t, end=t + dur))
             t += dur + (1.5 if i % 23 == 0 else 0.15)
-        duration = t + 1.0
         _write_noise_wav(workspace / "raw" / f"{tid}.wav", duration, seed=seed)
         p.timeline.tracks.append(
             Track(
@@ -140,6 +147,7 @@ def _synthetic_filler_project(word_count: int, workspace: Path) -> EpisodeProjec
             )
         )
         p.transcripts.append(Transcript(track_id=tid, words=words))
+    p.timeline.duration_sec = duration
     return p
 
 
@@ -205,11 +213,6 @@ def run_tighten_benchmark(
         # takes the fillers.
         _hold_back_fillers(project, fillers=fillers)
         approved = _pause_ids(project, pauses=pauses)
-        result.decisions_applied = len(approved) + sum(
-            1
-            for e in project.edit_decisions
-            if (e.reason or "").startswith("filler:") and not e.review_required
-        )
 
         ranges: list[tuple[float, float]] = []
         for e in project.edit_decisions:
@@ -219,8 +222,12 @@ def run_tighten_benchmark(
 
         t1 = time.perf_counter()
         if approved:
-            approve_edits(project, approved, confirm_cut_speech=True)
-        apply_tighten_decisions(project)
+            result.decisions_applied += approve_edits(
+                project,
+                approved,
+                application_intent=CutIntent.HUMAN_BOUNDARIES,
+            )
+        result.decisions_applied += apply_tighten_decisions(project)
         result.apply_sec = time.perf_counter() - t1
 
         for tid in {t.id for t in project.tracks if t.role == TrackRole.DIALOGUE}:

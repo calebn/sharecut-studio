@@ -6,6 +6,7 @@ from pause_policy_public_helpers import (
     configure,
     defaults,
     pause,
+    prepare_pause,
     project,
     room,
     voice,
@@ -88,7 +89,10 @@ def test_editorial_ignore_requires_solo_floor_and_mix_mute_keeps_turn_floor(
                 )
             )
             result.clips[-1].track_id = "parking"
-    result.edit_decisions = [pause("current-floor", start=0.35, end=0.9, gap=None)]
+    prepared = prepare_pause(
+        result, pause("current-floor", start=0.35, end=0.9, gap=None), cfg, next_word=1
+    )
+    result.edit_decisions = [prepared]
     ws = workspace(result)
     if delivery == "suggested":
         edited = ws.project.model_copy(deep=True)
@@ -108,5 +112,6 @@ def test_editorial_ignore_requires_solo_floor_and_mix_mute_keeps_turn_floor(
     else:
         assert 0.18 - 1e-6 <= kept_original_air < 0.55 - 1e-6
     record = edited.editorial.edit_log[0]
+    assert (record.source_start, record.source_end) == (prepared.start, prepared.end)
     assert record.params["replace_gap_sec"] is None
     assert record.params["pad_samples"] == []

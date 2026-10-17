@@ -7,7 +7,7 @@ from typing import Any
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaseline
-from podcast_mcp.models import EditMode
+from podcast_mcp.models import CutIntent, EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.util.coded_error import CodedValueError
@@ -18,13 +18,10 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     hold_blocked = p.get("hold_blocked") is True
     held: list[HeldEdit] = []
     asked: list[AskedEdits] = []
-    continues = p.get("continues_head_id")
     outcome = EditService(ws).approve(
         ids,
-        continues_head_id=str(continues) if continues is not None else None,
         allow_exact=p.get("_allow_exact") is True,
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
-        allow_review=p.get("allow_review", True) is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
         held_out=held if hold_blocked else None,
         asked_out=asked if hold_blocked else None,
     )
@@ -37,7 +34,6 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         "held": [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held],
     }
     if asked:
-        # Applied what it could; these cuts wait for "Cut anyway", which sends only them.
         result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
         result["confirm_ids"] = list(asked[0].edit_ids)
     return result
@@ -49,6 +45,7 @@ def apply_suggested_actions(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str
         list(ids) if ids is not None else None,
         overrides=dict(p.get("overrides") or {}),
         revise=p.get("revise") is True,
+        application_intent=p["_boundary_intent"],
     )
 
 
@@ -68,6 +65,7 @@ def update_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
         snap=bool(p.get("snap", True)),
         track_ids=[str(t) for t in track_ids] if track_ids is not None else None,
         expected=PendingEditBaseline(**expected) if expected is not None else None,
+        boundary_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
     return {"edit": edit.model_dump()}
 
@@ -92,7 +90,7 @@ def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         float(p["source_sec"]),
         mode=EditMode(p["mode"]),
         expected_token=str(p["expected_token"]),
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
 
 
@@ -172,7 +170,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         propose=structural is StructuralMutationMode.PROPOSE,
         reason=reason,
         author=p.get("_author"),
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
 
 
@@ -219,7 +217,7 @@ def cut_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         float(p["end"]),
         mode=EditMode(p["mode"]),
         track_ids=[str(t) for t in p.get("track_ids") or []],
-        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+        application_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
     )
 
 
@@ -234,5 +232,6 @@ def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
             reason=p.get("_range_reason", "agent:range"),
             action_id=p["_action_id"],
             author=p.get("_author"),
+            boundary_intent=CutIntent(p.get("_boundary_intent", CutIntent.PROGRAMMATIC)),
         )
     )

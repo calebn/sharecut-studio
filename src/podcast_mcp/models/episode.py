@@ -42,6 +42,16 @@ class EditDecisionType(StrEnum):
     SPLIT = "split"
 
 
+class CutIntent(StrEnum):
+    PROGRAMMATIC = "programmatic"
+    HUMAN_BOUNDARIES = "human_boundaries"
+
+
+class ProposalOrigin(StrEnum):
+    PROGRAMMATIC = "programmatic"
+    HUMAN = "human"
+
+
 class EditMode(StrEnum):
     """What a trim, delete, cut or paste does to the time after it.
 
@@ -558,7 +568,7 @@ class EditDecision(BaseModel):
     # track_id only when peers are speaking (speech_energy_guard).
     scope: str = "session"
     # A suggested session ripple that cuts other speakers' speech, recorded when it
-    # was suggested. Approval re-checks the speech either way; a confirmed approval of
+    # was suggested. Approval re-checks the speech either way; a trusted human approval of
     # a decision with this set ripples as suggested instead of a track-local punch.
     cut_speech: CutSpeech | None = None
     # Multi-track ops (split); when None, use [track_id].
@@ -568,6 +578,8 @@ class EditDecision(BaseModel):
     source_id: str | None = None
     source_timeline_span: RangeInterval | None = None
     exact_range: ExactRangeTarget | None = None
+    proposal_origin: ProposalOrigin = ProposalOrigin.PROGRAMMATIC
+    boundary_intent: CutIntent = CutIntent.PROGRAMMATIC
 
 
 class AppliedEditRecord(BaseModel):
@@ -938,6 +950,27 @@ class EpisodeProject(BaseModel):
     review: ReviewSection = Field(default_factory=ReviewSection)
     history: ProjectHistory = Field(default_factory=ProjectHistory)
     document_sync: DocumentSyncSection = Field(default_factory=DocumentSyncSection)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _serialized_cut_intent_is_explicit(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        editorial = value.get("editorial") or value.get("editorial_data") or {}
+        decisions = editorial.get("edit_decisions", []) if isinstance(editorial, dict) else []
+        for decision in decisions:
+            if (
+                isinstance(decision, dict)
+                and not {
+                    "proposal_origin",
+                    "boundary_intent",
+                }
+                <= decision.keys()
+            ):
+                raise ValueError(
+                    "serialized edit decisions require proposal_origin and boundary_intent"
+                )
+        return value
 
     @field_validator("history", mode="before")
     @classmethod

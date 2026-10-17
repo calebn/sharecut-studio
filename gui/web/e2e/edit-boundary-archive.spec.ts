@@ -23,7 +23,6 @@ test("rolling a cut boundary restores an archived transcript word through histor
     await waiveRefineGate(page, "e2e edit boundary archive");
     await postDocumentCommand(page, CLIENT_ID, "CutRange", {
       mode: "ripple",
-      confirm_cut_speech: true,
       start: 5,
       end: 15,
     });

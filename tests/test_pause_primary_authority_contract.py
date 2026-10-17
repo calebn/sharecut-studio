@@ -43,7 +43,7 @@ def test_saved_clean_primary_pause_uses_own_flanks(tmp_path, monkeypatch, explic
     cfg = defaults(acoustic=False)
     configure(monkeypatch, cfg)
     result = project(tmp_path)
-    result.edit_decisions = [pause("primary", start=0.3, end=4.7, gap=None)]
+    result.edit_decisions = [pause("primary", start=0.3, end=4.55, gap=None)]
     if explicit_first:
         _unrelated_transcript_first(result, tmp_path, has_after=False)
     ws = workspace(result)
@@ -68,7 +68,7 @@ def test_saved_primary_pause_retains_literal_air_between_its_real_words(
         TranscriptWord(text="real-after", start=1, end=1.2),
         TranscriptWord(text="later", start=5, end=5.2),
     ]
-    result.edit_decisions = [pause("primary", start=0.3, end=0.9, gap=None)]
+    result.edit_decisions = [pause("primary", start=0.3, end=0.55, gap=None)]
     if explicit_first:
         _unrelated_transcript_first(result, tmp_path, has_after=True)
     ws = workspace(result)
@@ -130,7 +130,7 @@ def test_saved_pause_shifts_actual_implicit_peer_playback_or_holds_atomically(
             ],
         )
     )
-    result.edit_decisions = [pause("primary", start=0.3, end=4.7, gap=None)]
+    result.edit_decisions = [pause("primary", start=0.3, end=4.55, gap=None)]
     ws = workspace(result)
 
     def render_samples(name):
@@ -262,7 +262,7 @@ def test_intentionally_empty_peer_with_parked_alias_still_approves_and_shifts_ac
         Transcript(track_id="peer", words=words),
         Transcript(track_id="parking", source_id="peer-alias", words=words),
     ]
-    result.edit_decisions = [pause("primary", start=0.3, end=4.7, gap=None)]
+    result.edit_decisions = [pause("primary", start=0.3, end=4.55, gap=None)]
     ws = workspace(result)
 
     def render_samples(name):

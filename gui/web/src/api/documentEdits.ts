@@ -7,11 +7,6 @@ import {
 } from "../document/authorityState";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import {
-  type CutSpeechChoices,
-  cutSpeechOf,
-  type RippleOutcome,
-} from "../edit/cutSpeech";
-import {
   type DocumentCommandOptions,
   type HistoryCommandType,
   submitLiveHistoryCommand,
@@ -23,7 +18,6 @@ import {
   shareTokenFromKey,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { trackEditSave } from "../state/documentSendOrder";
 import {
   type OfflineConflict,
   removeConflictsWhere,
@@ -37,16 +31,7 @@ import {
 } from "../types/project";
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
-import {
-  bulkReviewAppliedBeforeAskMessage,
-  capturePendingReview,
-  type HeldCut,
-  type PendingReviewCapture,
-  type ReviewOutcome,
-  type ReviewPassStart,
-  requireCurrentPendingReview,
-} from "../utils/pendingReviewPass";
-import { loadBoundaryContext } from "./boundary";
+import { type HeldCut, type ReviewOutcome } from "../utils/pendingReviewPass";
 import { loadDocumentState } from "./project";
 
 /** Wire shape for a guarded transcript command's optional stale-text guard. */
@@ -112,90 +97,6 @@ export function redoHistory(
 }
 
 /**
- * A rippling command's outcome. When the host refused it because it would cut
- * other speech, nothing changed: open the cut-speech prompt with `choices` and
- * report `asked`.
- */
-function rippleOutcome(
-  projectPath: string,
-  result: Record<string, unknown>,
-  choices: CutSpeechChoices,
-): RippleOutcome {
-  const speech = cutSpeechOf(result);
-  if (speech)
-    useDawStore
-      .getState()
-      .setCutSpeechPrompt({ projectPath, speech, ...choices });
-  return { queued: result.queued === true, asked: speech !== null };
-}
-
-/** Commands whose gap form is the same payload in `mode: gap` (a trim's needs a new token). */
-const GAP_BY_MODE = new Set(["DeleteClip", "CutRange"]);
-
-/** A queued ripple the host held back when the drain replayed it asks now, as a live send does. */
-export function askIfReplayHeldBack(
-  projectPath: string,
-  type: string,
-  payload: Record<string, unknown>,
-  result: Record<string, unknown>,
-): void {
-  if (type === "ApproveEdits") {
-    const review = capturePendingReview("approve", projectPath);
-    const command = result.command;
-    const sent = isSuggestionRecord(command) ? command.payload : null;
-    const done = isSuggestionRecord(sent) ? sent.result : null;
-    // A batch that applied the rest asks only about the cuts it left.
-    const only = confirmIdsOf(done);
-    const applied = isSuggestionRecord(done) ? done.count : null;
-    const firstHead = replyHistoryHead(result);
-    const first: ReviewPassStart | null =
-      firstHead && typeof applied === "number" && applied > 0
-        ? { head: firstHead, applied }
-        : null;
-    const choices: CutSpeechChoices = {
-      kind: "pending-review",
-      review,
-      cutAnyway: async () => {
-        requireCurrentPendingReview(review);
-        const reply = await submitDocumentCommand(projectPath, type, {
-          ...payload,
-          ...(only ? { ids: only } : {}),
-          ...(first ? { continues_head_id: first.head } : {}),
-          confirm_cut_speech: true,
-        });
-        return reviewOutcome(projectPath, reply, choices, undefined, first);
-      },
-      leaveGap: null,
-    };
-    const asked = rippleOutcome(projectPath, result, choices).asked;
-    if (asked && typeof applied === "number" && applied > 0)
-      useDawStore
-        .getState()
-        .announceStatus(
-          bulkReviewAppliedBeforeAskMessage(applied, heldOf(done)),
-          { undo: replyHistoryHead(result) },
-        );
-    return;
-  }
-  rippleOutcome(projectPath, result, {
-    kind: "ripple",
-    cutAnyway: () =>
-      submitDocumentCommand(projectPath, type, {
-        ...payload,
-        confirm_cut_speech: true,
-      }),
-    leaveGap: GAP_BY_MODE.has(type)
-      ? () =>
-          submitDocumentCommand(projectPath, type, { ...payload, mode: "gap" })
-      : null,
-  });
-}
-
-function confirmed(confirmCutSpeech: boolean): { confirm_cut_speech?: true } {
-  return confirmCutSpeech ? { confirm_cut_speech: true } : {};
-}
-
-/**
  * The history entry a command's own reply says it left at the head, read under
  * the server's lock with the change. Null when the command moved no history, or
  * was queued, so a toast never offers to undo someone else's change.
@@ -206,67 +107,21 @@ export function replyHistoryHead(
   return parseHistoryEntryId(result.history_head_id);
 }
 
-function reviewOutcome(
-  projectPath: string,
-  result: Record<string, unknown>,
-  choices?: CutSpeechChoices,
-  narrow?: (
-    confirmIds: string[],
-    first: ReviewPassStart | null,
-  ) => CutSpeechChoices,
-  earlier: ReviewPassStart | null = null,
-): ReviewOutcome {
+function reviewOutcome(result: Record<string, unknown>): ReviewOutcome {
   if (result.queued === true)
-    return {
-      queued: true,
-      asked: false,
-      count: null,
-      historyHead: null,
-      held: [],
-    };
+    return { queued: true, count: null, historyHead: null, held: [] };
   const command = result.command;
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const review = isSuggestionRecord(payload) ? payload.result : null;
-  const confirmIds = confirmIdsOf(review);
-  const applied = isSuggestionRecord(review) ? review.count : null;
-  const historyHead = replyHistoryHead(result);
-  // Cut anyway after a part that applied: one Undo takes back both.
-  const first: ReviewPassStart | null =
-    historyHead && typeof applied === "number" && applied > 0
-      ? { head: historyHead, applied }
-      : earlier;
-  const asking =
-    choices && confirmIds && narrow ? narrow(confirmIds, first) : choices;
-  if (asking && rippleOutcome(projectPath, result, asking).asked) {
-    // Approve all applied what it could and asked only about the rest.
-    return {
-      queued: false,
-      asked: true,
-      count: null,
-      historyHead: replyHistoryHead(result),
-      held: heldOf(review),
-      ...(typeof applied === "number" && applied > 0 ? { applied } : {}),
-    };
-  }
   const count = isSuggestionRecord(review) ? review.count : null;
   if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)
     throw new Error("The review reply is missing its affected edit count.");
   return {
     queued: false,
-    asked: false,
     count,
-    historyHead,
+    historyHead: replyHistoryHead(result),
     held: heldOf(review),
-    ...(earlier && historyHead ? { pass: earlier } : {}),
   };
-}
-
-/** The edits an Approve all left for "Cut anyway", when it applied the rest. */
-function confirmIdsOf(review: unknown): string[] | null {
-  const ids = isSuggestionRecord(review) ? review.confirm_ids : null;
-  return Array.isArray(ids) && ids.every((id) => typeof id === "string")
-    ? (ids as string[])
-    : null;
 }
 
 /** Cuts Approve all left pending, each with the reason the list can show. */
@@ -286,39 +141,13 @@ function heldOf(review: unknown): HeldCut[] {
 export async function approveEdits(
   projectPath: string,
   ids: string[],
-  confirmCutSpeech = false,
-  allowReview = true,
-  review: PendingReviewCapture = capturePendingReview("approve", projectPath),
   holdBlocked = false,
-  earlier: ReviewPassStart | null = null,
 ): Promise<ReviewOutcome> {
-  if (confirmCutSpeech) requireCurrentPendingReview(review);
   const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
     ids,
-    allow_review: allowReview,
     ...(holdBlocked ? { hold_blocked: true } : {}),
-    ...(earlier ? { continues_head_id: earlier.head } : {}),
-    ...confirmed(confirmCutSpeech),
   });
-  const choices = (
-    only: string[],
-    first: ReviewPassStart | null = null,
-  ): CutSpeechChoices => ({
-    kind: "pending-review",
-    review,
-    cutAnyway: () =>
-      approveEdits(
-        projectPath,
-        only,
-        true,
-        allowReview,
-        review,
-        holdBlocked,
-        first,
-      ),
-    leaveGap: null,
-  });
-  return reviewOutcome(projectPath, result, choices(ids), choices, earlier);
+  return reviewOutcome(result);
 }
 
 export async function waiveTranscriptRefine(
@@ -381,7 +210,7 @@ export async function rejectEdits(
   const result = await submitDocumentCommand(projectPath, "RejectEdits", {
     ids,
   });
-  return reviewOutcome(projectPath, result);
+  return reviewOutcome(result);
 }
 
 export type SourceRange = Readonly<{ start: number; end: number }>;
@@ -569,71 +398,15 @@ export async function trimClipEdge(
   sourceSec: number,
   mode: EditMode,
   expectedToken: string,
-  confirmCutSpeech = false,
-): Promise<RippleOutcome> {
+): Promise<{ queued: boolean }> {
   const result = await submitDocumentCommand(projectPath, "TrimClipEdge", {
     clip_id: clipId,
     edge,
     source_sec: sourceSec,
     mode,
     expected_token: expectedToken,
-    ...confirmed(confirmCutSpeech),
   });
-  return rippleOutcome(projectPath, result, {
-    kind: "ripple",
-    cutAnyway: () =>
-      trimClipEdge(
-        projectPath,
-        clipId,
-        edge,
-        sourceSec,
-        mode,
-        expectedToken,
-        true,
-      ),
-    leaveGap: () =>
-      trimClipEdgeLeavingGap(projectPath, clipId, edge, sourceSec),
-  });
-}
-
-/** A gap trim has its own limits, so it needs a token minted for gap mode. */
-function trimClipEdgeLeavingGap(
-  projectPath: string,
-  clipId: string,
-  edge: TrimEdge,
-  sourceSec: number,
-): Promise<RippleOutcome> {
-  return trackEditSave(
-    projectPath,
-    sendTrimClipEdgeLeavingGap(projectPath, clipId, edge, sourceSec),
-  );
-}
-
-async function sendTrimClipEdgeLeavingGap(
-  projectPath: string,
-  clipId: string,
-  edge: TrimEdge,
-  sourceSec: number,
-): Promise<RippleOutcome> {
-  const clips = useDawStore.getState().project?.clips.tracks ?? {};
-  const clip = Object.values(clips)
-    .flat()
-    .find((c) => c.id === clipId);
-  if (!clip) throw new Error("This clip changed. Trim it again.");
-  const { id, source_start, source_end, timeline_start, source_id } = clip;
-  const boundary = await loadBoundaryContext(
-    projectPath,
-    { kind: "trim", clip_id: clipId, edge, mode: "gap" },
-    [{ id, source_start, source_end, timeline_start, source_id }],
-  );
-  return trimClipEdge(
-    projectPath,
-    clipId,
-    edge,
-    sourceSec,
-    "gap",
-    boundary.token,
-  );
+  return { queued: result.queued === true };
 }
 
 export async function rollClipJoin(
@@ -1020,18 +793,12 @@ export async function deleteClips(
 export async function rippleDeleteClips(
   projectPath: string,
   clipIds: string[],
-  confirmCutSpeech = false,
-): Promise<RippleOutcome> {
+): Promise<{ queued: boolean }> {
   const result = await submitDocumentCommand(projectPath, "DeleteClip", {
     clip_ids: clipIds,
     mode: "ripple",
-    ...confirmed(confirmCutSpeech),
   });
-  return rippleOutcome(projectPath, result, {
-    kind: "ripple",
-    cutAnyway: () => rippleDeleteClips(projectPath, clipIds, true),
-    leaveGap: () => deleteClips(projectPath, clipIds),
-  });
+  return { queued: result.queued === true };
 }
 
 export async function duplicateSegment(

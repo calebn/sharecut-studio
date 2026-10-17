@@ -6,6 +6,7 @@ from pause_policy_public_helpers import (
     configure,
     defaults,
     pause,
+    prepare_pause,
     project,
     room,
     voice,
@@ -22,7 +23,8 @@ from podcast_mcp.services.document import EditService
 def test_later_pause_preserves_prior_authored_incoming_join(
     tmp_path, monkeypatch, acoustic, incoming
 ):
-    configure(monkeypatch, defaults(acoustic=acoustic))
+    cfg = defaults(acoustic=acoustic)
+    configure(monkeypatch, cfg)
     result = project(tmp_path, guest="quiet")
     host_audio = room()
     voice(host_audio, 0, 0.4)
@@ -52,7 +54,9 @@ def test_later_pause_preserves_prior_authored_incoming_join(
     assert uses_crossfade_join(result.clips[-2], result.clips[-1]) == (
         incoming == ClipJoinMode.CROSSFADE
     )
-    result.edit_decisions = [pause("later-pause", start=3, end=4, gap=None)]
+    result.edit_decisions = [
+        prepare_pause(result, pause("later-pause", start=3, end=4, gap=None), cfg)
+    ]
     ws = workspace(result)
     assert EditService(ws).approve(["later-pause"]) == 1
     guests = sorted(
@@ -107,7 +111,9 @@ def test_later_pause_preserves_rendered_audio_at_prior_crossfade(tmp_path, monke
             join_in_mode=ClipJoinMode.CROSSFADE,
         ),
     ]
-    result.edit_decisions = [pause("later-pause", start=3, end=4, gap=None)]
+    result.edit_decisions = [
+        prepare_pause(result, pause("later-pause", start=3, end=4, gap=None), cfg)
+    ]
     ws = workspace(result)
     before = render_track_from_timeline(
         ws.project, ws.project.track_by_id("guest"), tmp_path / "before.wav", cfg

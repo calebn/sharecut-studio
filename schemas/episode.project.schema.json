@@ -440,8 +440,10 @@
     },
     "EditDecision": {
       "type": "object",
-      "required": ["id", "track_id", "type", "start", "end"],
+      "required": ["id", "track_id", "type", "start", "end", "proposal_origin", "boundary_intent"],
       "properties": {
+        "proposal_origin": { "type": "string", "enum": ["programmatic", "human"], "default": "programmatic" },
+        "boundary_intent": { "type": "string", "enum": ["programmatic", "human_boundaries"], "default": "programmatic" },
         "exact_range": { "anyOf": [{ "$ref": "#/$defs/ExactRangeTarget" }, { "type": "null" }], "default": null },
         "source_id": { "type": ["string", "null"], "default": null },
         "source_timeline_span": { "anyOf": [{ "$ref": "#/$defs/RangeInterval" }, { "type": "null" }], "default": null, "description": "Timeline placement witness for a source-aware ordinary transcript cut; does not grant exact-range approval" },
@@ -463,7 +465,7 @@
         "cut_speech": {
           "anyOf": [{ "$ref": "#/$defs/CutSpeech" }, { "type": "null" }],
           "default": null,
-          "description": "Other speakers' speech a suggested session ripple cuts, recorded when it was suggested; approving it needs confirm_cut_speech"
+          "description": "Other speakers' speech a suggested session ripple cuts, recorded when it was suggested; a programmatic approval holds it for review, and a trusted human approval ripples as suggested"
         },
         "track_ids": {
           "type": ["array", "null"],

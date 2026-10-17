@@ -268,6 +268,22 @@ def sample_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="session")
+def ten_second_silence_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return _lavfi_wav(
+        tmp_path_factory.mktemp("audio") / "silence-10s.wav",
+        "anullsrc=channel_layout=mono:sample_rate=48000:duration=10",
+    )
+
+
+@pytest.fixture(scope="session")
+def sixty_second_silence_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return _lavfi_wav(
+        tmp_path_factory.mktemp("audio") / "silence-60s.wav",
+        "anullsrc=channel_layout=mono:sample_rate=48000:duration=60",
+    )
+
+
+@pytest.fixture(scope="session")
 def peaky_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """-22 LUFS with -0.5 dBTP clicks: +6 dB to -16 LUFS would put peaks at +5.5 dBTP."""
     return _lavfi_wav(

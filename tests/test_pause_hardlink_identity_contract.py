@@ -5,8 +5,8 @@ import os
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, files, project, workspace
+from podcast_mcp.edits.cut_safety import CutRejected
 from podcast_mcp.edits.edit_log import archive_timeline_op
-from podcast_mcp.edits.fillers import _CutRejected
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import SourceRecording, load_project
 from podcast_mcp.services.document import EditService
@@ -38,7 +38,7 @@ def test_hardlink_replay_holds_without_mutation(tmp_path, monkeypatch, via_sourc
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert held.value.ids == ("cut",)
     assert held.value.held[0].reason == "source_geometry"
     assert files(tmp_path) == before_files
@@ -62,7 +62,7 @@ def test_implicit_hardlink_replay_holds_without_mutation(tmp_path, monkeypatch, 
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert held.value.ids == ("cut",)
     assert held.value.held[0].reason == "source_geometry"
     assert files(tmp_path) == before_files
@@ -82,7 +82,7 @@ def test_own_implicit_playback_and_parked_alias_hold(tmp_path, monkeypatch):
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert held.value.held[0].reason == "source_geometry"
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
@@ -104,7 +104,7 @@ def test_unclipped_silent_alias_or_different_media_is_consumable(
     music.timeline_empty = silent_alias
     result.edit_decisions = [_cut()]
     ws = workspace(result)
-    assert EditService(ws).approve(["cut"], confirm_cut_speech=True) == 1
+    assert EditService(ws).approve(["cut"]) == 1
     assert load_project(ws.path).timeline.duration_sec == 5
 
 
@@ -115,7 +115,7 @@ def test_single_hardlink_placement_is_consumable(tmp_path, monkeypatch):
     result.clips[0].source_id = "alias"
     result.edit_decisions = [_cut()]
     ws = workspace(result)
-    assert EditService(ws).approve(["cut"], confirm_cut_speech=True) == 1
+    assert EditService(ws).approve(["cut"]) == 1
     saved = load_project(ws.path)
     assert saved.timeline.duration_sec == 5
     assert [(c.source_start, c.source_end, c.timeline_start, c.source_id) for c in saved.clips] == [
@@ -127,7 +127,7 @@ def test_single_hardlink_placement_is_consumable(tmp_path, monkeypatch):
 def test_hardlink_pad_receipt_excludes_the_actual_original_sample(tmp_path):
     result = _sampled_original_deleted(tmp_path)
     control = _support(result)
-    assert not isinstance(control, _CutRejected)
+    assert not isinstance(control, CutRejected)
     assert control.seconds == pytest.approx(0.65)
     result.sources.append(SourceRecording(id="alias", path=_hardlink(tmp_path), duration_sec=6))
     archive_timeline_op(
@@ -146,7 +146,7 @@ def test_hardlink_pad_receipt_excludes_the_actual_original_sample(tmp_path):
         },
     )
     support = _support(result)
-    assert not isinstance(support, _CutRejected)
+    assert not isinstance(support, CutRejected)
     assert support.seconds == pytest.approx(0.4)
     assert [(float(p.source_start), float(p.source_end)) for p in support.pieces] == [
         pytest.approx((0.2, 0.3)),

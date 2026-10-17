@@ -20,11 +20,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from history_helpers import history_move
+from pause_policy_public_helpers import room, write_wav
 from podcast_mcp.edits.share_capabilities import capabilities_for_role, share_author
 from podcast_mcp.edits.share_registry import SHARE_COOLDOWN_DAYS, get_share_registry
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import EditDecision, load_project, save_project
+from podcast_mcp.models import EditDecision, MediaAsset, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
@@ -442,6 +443,10 @@ def test_guest_mcp_offers_edit_tools_only_when_the_gate_allows_edit(
 def range_project(minimal_project) -> DocumentSyncService:
     ws = ProjectWorkspace.open(minimal_project)
     fixture(ws.project)
+    for index, track in enumerate(ws.project.tracks):
+        path = ws.project.raw_dir() / f"{track.id}.wav"
+        write_wav(path, room(seconds=35, seed=1700 + index))
+        track.media = MediaAsset(path=f"raw/{track.id}.wav", duration_sec=35)
     save_project(ws.project)
     return DocumentSyncService.open(minimal_project)
 
@@ -610,7 +615,9 @@ def test_guest_mcp_range_cut_follows_the_share(
         assert project.edit_decisions == []
         assert project.clips != before
     else:
-        assert [d.reason for d in project.edit_decisions] == ["guest:suggest"]
+        [proposal] = project.edit_decisions
+        assert proposal.reason == "guest:suggest"
+        assert proposal.boundary_intent == "programmatic"
         assert project.clips == before
 
 

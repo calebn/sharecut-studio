@@ -1,8 +1,5 @@
 import { submitDocumentCommand } from "../api";
-import {
-  askIfReplayHeldBack,
-  clearSupersededCorrectionConflicts,
-} from "../api/documentEdits";
+import { clearSupersededCorrectionConflicts } from "../api/documentEdits";
 import { reconcileCommandBeforeReplay } from "../services/commandQueue";
 import { shareProjectKey } from "../shareMode";
 import { isPermanentRejection } from "../utils/apiError";
@@ -69,7 +66,6 @@ export async function replayQueuedCommands(
       );
       if (result.queued === true) break;
       completed.push(cmd.command_id);
-      askIfReplayHeldBack(source.path, cmd.type, cmd.payload, result);
       // A landed correction supersedes earlier refusals of the same word (#746).
       await clearSupersededCorrectionConflicts(
         source.path,

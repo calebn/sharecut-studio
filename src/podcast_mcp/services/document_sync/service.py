@@ -24,7 +24,12 @@ from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
-from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
+from podcast_mcp.services.document_sync.commands import (
+    PROGRAMMATIC_COMMAND,
+    ClientRole,
+    DocumentCommand,
+    TrustedCommandContext,
+)
 from podcast_mcp.services.document_sync.errors import (
     DocumentSequenceConflictError,
     names_missing_target,
@@ -514,6 +519,7 @@ class DocumentSyncService:
         structural_mode: str | None = None,
         author: str | None = None,
         audience: str = "host",
+        trusted_context: TrustedCommandContext = PROGRAMMATIC_COMMAND,
     ) -> dict[str, Any]:
         if capabilities is not None:
             from podcast_mcp.services.document_sync.capabilities import (
@@ -589,6 +595,7 @@ class DocumentSyncService:
                 range_policy=range_policy,
                 structural_mode=structural_mode,
                 author=author,
+                trusted_context=trusted_context,
             )
             head_after = self.ws.project.history.head_id()
             row, _snap, claimed = store.append_and_apply(
@@ -748,6 +755,7 @@ class DocumentSyncService:
         range_policy: str = "propose",
         structural_mode: str | None = None,
         author: str | None = None,
+        trusted_context: TrustedCommandContext = PROGRAMMATIC_COMMAND,
     ) -> dict[str, Any]:
         from podcast_mcp.services.document_sync.capabilities import STRUCTURAL_COMMANDS
         from podcast_mcp.services.document_sync.policy import (
@@ -787,6 +795,16 @@ class DocumentSyncService:
             payload["_range_policy"] = mode.value
             payload["_range_reason"] = range_reason(capabilities, range_policy, mode)
             payload["_action_id"] = command.command_id
+            payload["_boundary_intent"] = trusted_context.boundary_intent
+        if command.type in {
+            "UpdatePendingEdit",
+            "ApproveEdits",
+            "CutRange",
+            "DeleteClip",
+            "TrimClipEdge",
+            "ApplySuggestedActions",
+        }:
+            payload["_boundary_intent"] = trusted_context.boundary_intent
         if command.type in STRUCTURAL_COMMANDS:
             mode = resolve_structural_mode(capabilities, structural_mode)
             payload["_structural_mode"] = mode.value
@@ -827,6 +845,7 @@ class DocumentSyncService:
         range_policy: str = "propose",
         structural_mode: str | None = None,
         author: str | None = None,
+        trusted_context: TrustedCommandContext = PROGRAMMATIC_COMMAND,
     ) -> dict[str, Any]:
         """Apply ``command``, saving it as ``document_sync.last_command`` on the same commit.
 
@@ -853,6 +872,7 @@ class DocumentSyncService:
                 range_policy=range_policy,
                 structural_mode=structural_mode,
                 author=author,
+                trusted_context=trusted_context,
             )
         except BaseException:
             # A failed history render calls discard_changes; re-read the (possibly

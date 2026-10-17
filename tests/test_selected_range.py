@@ -5,7 +5,8 @@ from copy import deepcopy
 import pytest
 from pydantic import ValidationError
 
-from podcast_mcp.edits.decisions import approve_edits, update_pending_edit
+from podcast_mcp.edits.cut_application import approve_edits
+from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.range_edits import (
     RangeChangedError,
     edit_selected_range,
@@ -13,11 +14,21 @@ from podcast_mcp.edits.range_edits import (
     range_media_seal,
 )
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
-from podcast_mcp.models import Clip, EpisodeProject, Track, load_project, save_project
+from podcast_mcp.models import (
+    Clip,
+    CutIntent,
+    EditDecision,
+    EpisodeProject,
+    ProposalOrigin,
+    Track,
+    load_project,
+    save_project,
+)
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import (
+    INTERACTIVE_COMMAND,
     DocumentCommand,
     DocumentSyncService,
     validate_payload,
@@ -56,7 +67,13 @@ def spans(project, tid):
 
 def apply(project, selection, action="cut", propose=False):
     return edit_selected_range(
-        project, selection, action, propose=propose, reason="host:range", action_id="range_action"
+        project,
+        selection,
+        action,
+        propose=propose,
+        reason="host:range",
+        action_id="range_action",
+        boundary_intent=CutIntent.HUMAN_BOUNDARIES,
     )
 
 
@@ -115,6 +132,7 @@ def test_bulk_exact_approval_composes_same_clip_baseline_and_one_undo(
             client_seq=None,
         ),
         range_policy="apply",
+        trusted_context=INTERACTIVE_COMMAND,
     )
     expected = [(0, 1, 10), (0, 5, 0), (2, 5, 12), (21, 23, 12)]
     if second_action == "cut":
@@ -276,7 +294,9 @@ def test_agents_suggest_guests_and_offline_edits_propose(
     assert result["ok"]
     assert svc.ws.project.clips == before
     [proposal] = svc.ws.project.edit_decisions
-    assert proposal.reason == ("agent:range" if caps is None else "guest:suggest")
+    assert proposal.reason == (
+        ("agent:range" if caps is None else "guest:suggest") + ":acoustic_review:audio_unavailable"
+    )
     if caps and "edit" not in caps:
         with pytest.raises(PermissionError):
             svc.submit(
@@ -296,12 +316,115 @@ def test_agents_suggest_guests_and_offline_edits_propose(
         client_seq=None,
         role="viewer",
     )
-    svc.submit(approve, range_policy="apply")
+    svc.submit(approve, range_policy="apply", trusted_context=INTERACTIVE_COMMAND)
     assert not svc.ws.project.edit_decisions
     assert spans(svc.ws.project, "b") == [(30, 31, 10), (32, 33, 12), (34, 35, 14)]
     HistoryService(svc.ws).undo()
     assert svc.ws.project.clips == before
     assert len(svc.ws.project.edit_decisions) == 1
+
+
+def test_only_trusted_context_marks_selected_boundaries_human(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    svc = DocumentSyncService.open(minimal_project)
+
+    interactive = command(target(svc.ws.project))
+    svc.submit(
+        interactive,
+        capabilities=capabilities_for_role("commenter"),
+        range_policy="apply",
+        trusted_context=INTERACTIVE_COMMAND,
+    )
+    automated = command(target(svc.ws.project))
+    svc.submit(
+        automated,
+        capabilities=capabilities_for_role("commenter", with_mcp=True),
+        range_policy="apply",
+    )
+
+    by_id = {edit.id: edit for edit in svc.ws.project.edit_decisions}
+    assert (
+        by_id[interactive.command_id].proposal_origin,
+        by_id[interactive.command_id].boundary_intent,
+    ) == (ProposalOrigin.HUMAN, CutIntent.HUMAN_BOUNDARIES)
+    assert (
+        by_id[automated.command_id].proposal_origin,
+        by_id[automated.command_id].boundary_intent,
+    ) == (ProposalOrigin.PROGRAMMATIC, CutIntent.PROGRAMMATIC)
+
+    svc.ws.project.edit_decisions.append(
+        EditDecision(
+            id="human-nudge",
+            track_id="a",
+            start=1.0,
+            end=2.0,
+            proposal_origin=ProposalOrigin.HUMAN,
+            boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        )
+    )
+    svc.ws.save()
+    svc.submit(
+        DocumentCommand(
+            type="UpdatePendingEdit",
+            payload={"id": "human-nudge", "start": 1.1, "end": 2.1},
+            client_id="host",
+            client_seq=None,
+            role="viewer",
+        )
+    )
+    updated = next(edit for edit in svc.ws.project.edit_decisions if edit.id == "human-nudge")
+    assert (updated.proposal_origin, updated.boundary_intent) == (
+        ProposalOrigin.HUMAN,
+        CutIntent.PROGRAMMATIC,
+    )
+
+    svc.ws.project.edit_decisions.append(
+        EditDecision(
+            id="witnessed-human-nudge",
+            track_id="b",
+            type="remove",
+            start=30.0,
+            end=31.0,
+            source_timeline_span=RangeInterval(start=10.0, end=11.0),
+            proposal_origin=ProposalOrigin.PROGRAMMATIC,
+            boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        )
+    )
+    svc.ws.save()
+    svc.submit(
+        DocumentCommand(
+            type="UpdatePendingEdit",
+            payload={"id": "witnessed-human-nudge", "start": 30.1, "end": 31.1, "snap": True},
+            client_id="host",
+            client_seq=None,
+            role="viewer",
+        )
+    )
+    saved = load_project(minimal_project)
+    witnessed = next(e for e in saved.edit_decisions if e.id == "witnessed-human-nudge")
+    assert (witnessed.start, witnessed.end) == (30.1, 31.1)
+    assert witnessed.source_timeline_span is not None
+    assert (
+        witnessed.source_timeline_span.start,
+        witnessed.source_timeline_span.end,
+    ) == pytest.approx((10.1, 11.1))
+    assert (witnessed.proposal_origin, witnessed.boundary_intent) == (
+        ProposalOrigin.PROGRAMMATIC,
+        CutIntent.PROGRAMMATIC,
+    )
+
+
+@pytest.mark.parametrize("command_type", ["EditSelectedRange", "UpdatePendingEdit"])
+def test_payload_cannot_forge_internal_boundary_intent(command_type):
+    payload = (
+        {"action": "cut", "target": {}}
+        if command_type == "EditSelectedRange"
+        else {"id": "pending", "start": 1.0, "end": 2.0, "snap": False}
+    )
+    with pytest.raises(ValidationError, match="_boundary_intent"):
+        validate_payload(command_type, payload | {"_boundary_intent": "human_boundaries"})
 
 
 @pytest.mark.parametrize("action", ["cut", "mute"])
@@ -314,7 +437,12 @@ def test_edit_guest_range_applies_with_one_undo(minimal_project, caps, action):
     save_project(ws.project)
     svc = DocumentSyncService.open(minimal_project)
     before = deepcopy(svc.ws.project.clips)
-    svc.submit(command(target(svc.ws.project), action), capabilities=caps, range_policy="apply")
+    svc.submit(
+        command(target(svc.ws.project), action),
+        capabilities=caps,
+        range_policy="apply",
+        trusted_context=INTERACTIVE_COMMAND,
+    )
     assert not svc.ws.project.edit_decisions
     assert svc.ws.project.editorial.edit_log[-1].params["action"] == action
     if action == "cut":
@@ -363,9 +491,12 @@ def test_host_atomic_undo_and_idempotent_replay(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     before = deepcopy(svc.ws.project.clips)
     cmd = command(target(svc.ws.project))
-    svc.submit(cmd, range_policy="apply")
+    svc.submit(cmd, range_policy="apply", trusted_context=INTERACTIVE_COMMAND)
     assert not svc.ws.project.edit_decisions
-    assert svc.submit(cmd, range_policy="apply")["idempotent"] is True
+    assert (
+        svc.submit(cmd, range_policy="apply", trusted_context=INTERACTIVE_COMMAND)["idempotent"]
+        is True
+    )
     HistoryService(svc.ws).undo()
     assert svc.ws.project.clips == before
 
@@ -410,7 +541,11 @@ def test_full_lane_cut_reload_render_and_undo(minimal_project):
     ws.project.timeline.duration_sec = 1
     save_project(ws.project)
     svc = DocumentSyncService.open(minimal_project)
-    svc.submit(command(target(svc.ws.project, ((0, 1),), ("a",))), range_policy="apply")
+    svc.submit(
+        command(target(svc.ws.project, ((0, 1),), ("a",))),
+        range_policy="apply",
+        trusted_context=INTERACTIVE_COMMAND,
+    )
     project = load_project(minimal_project)
     assert project.tracks[0].timeline_empty is True
     assert project.clips == []
@@ -468,7 +603,12 @@ def test_manual_range_and_exact_only_approval_work_with_pending_refinement(minim
     mark_refine_pending(ws.project)
     service = EditService(ws)
     service.edit_selected_range(
-        target(ws.project), "mute", propose=False, reason="host:range", action_id="manual"
+        target(ws.project),
+        "mute",
+        propose=False,
+        reason="host:range",
+        action_id="manual",
+        boundary_intent=CutIntent.HUMAN_BOUNDARIES,
     )
     service.edit_selected_range(
         target(ws.project), "cut", propose=True, reason="guest:range", action_id="exact"
@@ -483,7 +623,10 @@ def test_manual_range_and_exact_only_approval_work_with_pending_refinement(minim
         service.approve(["source"], allow_exact=True)
     with pytest.raises(TranscriptRefineRequiredError):
         service.cut_text_match("word", track_id="a")
-    assert service.approve(["exact"], allow_exact=True) == 1
+    assert (
+        service.approve(["exact"], allow_exact=True, application_intent=CutIntent.HUMAN_BOUNDARIES)
+        == 1
+    )
 
 
 def test_supported_agent_cannot_approve_exact_proposal(minimal_project):
@@ -521,9 +664,9 @@ def test_saved_receipt_replay_has_no_result_or_second_history(minimal_project):
         svc.store, "_conn", FailingConnection(svc.store._conn, "INSERT INTO commands")
     ):
         with pytest.raises(sqlite3.OperationalError):
-            svc.submit(cmd, range_policy="apply")
+            svc.submit(cmd, range_policy="apply", trusted_context=INTERACTIVE_COMMAND)
     retry = DocumentSyncService.open(minimal_project)
-    result = retry.submit(cmd, range_policy="apply")
+    result = retry.submit(cmd, range_policy="apply", trusted_context=INTERACTIVE_COMMAND)
     assert result["idempotent"] is True
     assert result["command"]["payload"]["result"] is None
     assert retry.ws.project.editorial.edit_log[-1].params["action_id"] == cmd.command_id
@@ -571,28 +714,71 @@ def test_decision_policy_validates_ids_before_membership(minimal_project, ids, a
     assert len(load_project(minimal_project).edit_decisions) == 1
 
 
-def test_propose_range_cut_tool_only_proposes(minimal_project):
+def test_propose_range_cut_tool_assesses_edges_and_human_approval_overrides(minimal_project):
     import json
+    import wave
 
+    import numpy as np
+
+    from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
     from podcast_mcp.mcp.tools.edits import propose_range_cut_tool
+    from podcast_mcp.models import MediaAsset, Transcript, TranscriptWord
 
     ws = ProjectWorkspace.open(minimal_project)
-    fixture(ws.project)
+    rate = 16000
+    samples = np.zeros(rate * 3)
+    samples[rate : rate * 2] = 0.2 * np.sin(2 * np.pi * 180 * np.arange(rate) / rate)
+    path = ws.project.workspace_path() / "raw" / "edge.wav"
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        output.writeframes((samples * 32767).astype("<i2").tobytes())
+    ws.project.tracks = [
+        Track(id="a", label="a", media=MediaAsset(path="raw/edge.wav", duration_sec=3))
+    ]
+    ws.project.clips = [Clip(id="a", track_id="a", source_start=0, source_end=3, timeline_start=0)]
+    ws.project.transcripts = [
+        Transcript(track_id="a", words=[TranscriptWord(text="word", start=1, end=2)])
+    ]
     save_project(ws.project)
     before = deepcopy(ws.project.clips)
-    out = json.loads(
-        propose_range_cut_tool(str(minimal_project), 11, 12, "agent-cut-1", ["a", "b"])
-    )
+    out = json.loads(propose_range_cut_tool(str(minimal_project), 1.2, 1.4, "agent-cut-1", ["a"]))
     assert (out["action_id"], out["proposed"]) == ("agent-cut-1", True)
     saved = load_project(minimal_project)
     assert saved.clips == before
     (proposal,) = saved.edit_decisions
     assert proposal.exact_range is not None
-    assert proposal.exact_range.track_ids == ["a", "b"]
-    assert proposal.reason == "agent:range"
+    assert proposal.exact_range.track_ids == ["a"]
+    assert proposal.review_required
+    assert "acoustic_review" in proposal.reason and "word_edge" in proposal.reason
+    assert (proposal.start, proposal.end) == (1.2, 1.4)
+    assert proposal.proposal_origin is ProposalOrigin.PROGRAMMATIC
+    sync = DocumentSyncService.open(minimal_project)
+
+    def approval():
+        return DocumentCommand(
+            type="ApproveEdits",
+            payload={"ids": [proposal.id], "confirm_cut_speech": True},
+            client_id="host",
+            role="viewer",
+            client_seq=None,
+        )
+
+    with pytest.raises(ScopeChangedAtApproval, match="held edges"):
+        sync.submit(approval(), range_policy="apply")
+    assert sync.ws.project.clips == before
+    assert not sync.ws.project.editorial.edit_log
+    assert sync.ws.project.edit_decisions[0].proposal_origin is ProposalOrigin.PROGRAMMATIC
+    sync.submit(approval(), range_policy="apply", trusted_context=INTERACTIVE_COMMAND)
+    assert spans(sync.ws.project, "a") == [(0, 1.2, 0), (1.4, 3, 1.4)]
+    assert len(sync.ws.project.editorial.edit_log) == 1
+    HistoryService(sync.ws).undo()
+    assert sync.ws.project.edit_decisions[0].proposal_origin is ProposalOrigin.PROGRAMMATIC
+    assert sync.ws.project.edit_decisions[0].boundary_intent is CutIntent.PROGRAMMATIC
 
 
-def test_cli_propose_range_cut_then_human_approve_cuts_a_hole(minimal_project):
+def test_cli_proposal_needs_trusted_human_approval_when_audio_is_unavailable(minimal_project):
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.main import app
@@ -610,7 +796,19 @@ def test_cli_propose_range_cut_then_human_approve_cuts_a_hole(minimal_project):
         ],
     )
     assert result.exit_code == 0, result.output
-    assert runner.invoke(app, ["edit", "approve", *args, "--ids", "cli-cut"]).exit_code == 0
+    assert runner.invoke(app, ["edit", "approve", *args, "--ids", "cli-cut"]).exit_code != 0
+    sync = DocumentSyncService.open(minimal_project)
+    sync.submit(
+        DocumentCommand(
+            type="ApproveEdits",
+            payload={"ids": ["cli-cut"]},
+            client_id="host",
+            role="viewer",
+            client_seq=None,
+        ),
+        range_policy="apply",
+        trusted_context=INTERACTIVE_COMMAND,
+    )
     cut = load_project(minimal_project)
     assert spans(cut, "b") == [(30, 31, 10), (32, 35, 12)]
     assert spans(cut, "c") == [(0, 20, 0)]

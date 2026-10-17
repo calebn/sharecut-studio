@@ -23,6 +23,7 @@ from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
     ClipMuteRegion,
+    CutIntent,
     EditMode,
     MediaAsset,
     SourceRecording,
@@ -45,7 +46,18 @@ from podcast_mcp.util.coded_error import CodedValueError
 from ripple_helpers import trim
 
 
+def _quiet_media(project, seconds):
+    path = project.raw_dir() / "host.wav"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16_000)
+        audio.writeframes(bytes(seconds * 16_000 * 2))
+
+
 def _two_clips_with_cutaway(ws: ProjectWorkspace) -> None:
+    _quiet_media(ws.project, 40)
     ws.project.timeline.tracks = [
         Track(
             id="host",
@@ -197,7 +209,7 @@ def test_document_trim_refuses_a_follower_before_zero(minimal_project, lane, edg
             12.0 if edge == "in" else 8.0,
             mode=EditMode.RIPPLE,
             expected_token=token,
-            confirm_cut_speech=True,
+            application_intent=CutIntent.HUMAN_BOUNDARIES,
         )
     assert caught.value.code == "ripple_before_zero"
     assert ws.project.model_dump() == before
@@ -295,6 +307,7 @@ runner = CliRunner()
 
 def _spliced_project(minimal_project: Path) -> Path:
     project = load_project(minimal_project)
+    _quiet_media(project, 60)
     project.tracks = [
         Track(
             id="host",
@@ -364,13 +377,13 @@ def test_cli_trim_clip(tmp_path: Path) -> None:
         1575.55,
         mode=EditMode.RIPPLE,
         expected_token="current-revision",
-        confirm_cut_speech=False,
     )
 
 
 def _session_ripple_project(minimal_project: Path) -> Path:
     """Three dialogue tracks that share one ripple join at timeline 10.0 s."""
     project = load_project(minimal_project)
+    _quiet_media(project, 60)
     project.tracks = [
         Track(
             id=tid,
@@ -479,7 +492,6 @@ def test_cli_trim_clip_gap_mode(tmp_path: Path) -> None:
         1575.55,
         mode=EditMode.GAP,
         expected_token="current-revision",
-        confirm_cut_speech=False,
     )
 
 

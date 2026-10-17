@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
 
+from podcast_mcp.models import CutIntent
 from podcast_mcp.services.session_sync import ClientRole
 
 DocumentCommandType = Literal[
@@ -85,3 +86,14 @@ class DocumentCommand:
             "payload": self.payload,
             "causation_id": self.causation_id,
         }
+
+
+@dataclass(frozen=True)
+class TrustedCommandContext:
+    """Origin facts that only a server-side command adapter may establish."""
+
+    boundary_intent: CutIntent = CutIntent.PROGRAMMATIC
+
+
+PROGRAMMATIC_COMMAND = TrustedCommandContext()
+INTERACTIVE_COMMAND = TrustedCommandContext(boundary_intent=CutIntent.HUMAN_BOUNDARIES)

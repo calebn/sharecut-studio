@@ -10,6 +10,7 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     MediaAsset,
@@ -125,6 +126,9 @@ def test_assemble_rerenders_after_edit(
             applied=True,
         )
     )
+    from podcast_mcp.edits.cut_application import approve_edits
+
+    approve_edits(proj, ["cut1"], application_intent=CutIntent.HUMAN_BOUNDARIES)
     assert not stem_is_fresh(proj, "host")
 
     render_calls = {"n": 0}

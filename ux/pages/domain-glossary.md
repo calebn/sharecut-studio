@@ -18,7 +18,6 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Pending cut** | A suggested remove not yet approved |
 | **Approve / Reject** | Commit or discard a pending cut |
 | **Ripple / Leave a gap** | The two edit modes for trim, delete, cut and paste. Ripple closes or opens the time on every speaker's track, so everyone stays in sync; Leave a gap leaves silence (or pastes over) and moves nothing else |
-| **Cut anyway** | The confirmation a ripple asks for when it would also cut another speaker's words or voice. A dialog names who, when and what; nothing changes until you choose Cut anyway or Leave a gap. Approving a pending filler that another speaker talks over asks the same question (Cancel replaces Leave a gap) and then cuts every track, so speakers stay in sync. When you approve several removes together, speech another remove in that batch already cuts does not ask again, including when the same recording plays from a clip parked on another lane |
 | **Comment** | A note at a time on the mix |
 | **Room tone** | A track's own quiet background sound, laid into the gap a cut leaves so the track does not drop to dead silence. A track with none to lay gets a silent pad, and the cut still applies |
 | **Review mix** | Frozen listen file for guests (link previews and agents) |
@@ -306,3 +305,5 @@ Audio tools are the bundled FFmpeg and FFprobe pair. Desktop setup checks their 
 The Applied edit inspector offers Restore for an ordinary source mute with valid source clocks and edit access. A cut cannot restore its removed recording from numeric seam clocks. The inspector explains whole-action History Undo and offers Open History. That control opens the History tab without changing the project.
 
 History Undo also undoes the other edits in the same action. You may need to undo later actions first. The existing History control checks that the selected history head is still current before restoring its editable snapshot.
+
+An explicit interactive approval or manual cut gesture can intentionally cut audible speech. Agent and pipeline application reassess acoustics and may hold; all paths validate current placement and source integrity.

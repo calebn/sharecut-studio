@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { pendingEditView } from "../test/fixtures";
-import type { HistoryEntryId } from "../types/project";
 import {
   bulkReviewDoneMessage,
   bulkReviewQuestion,
@@ -107,38 +106,18 @@ describe("bulkReviewQuestion", () => {
 });
 
 describe("pendingReviewFeedback", () => {
-  it("announces a partial approve before Cut anyway", () => {
+  it("announces completed approval with its exact history head", () => {
     const head = "abc" as import("../types/project").HistoryEntryId;
     expect(
       pendingReviewFeedback("approve", {
         queued: false,
-        asked: true,
-        count: null,
+        count: 2,
         historyHead: head,
-        applied: 2,
         held: [],
       }),
     ).toEqual({
       message: "Approved 2 pending edits",
       undo: head,
-    });
-  });
-});
-
-describe("a Cut anyway that finishes an Approve all pass", () => {
-  it("counts the whole pass", () => {
-    expect(
-      pendingReviewFeedback("approve", {
-        queued: false,
-        asked: false,
-        count: 4,
-        historyHead: "second" as HistoryEntryId,
-        held: [],
-        pass: { head: "first" as HistoryEntryId, applied: 6 },
-      }),
-    ).toEqual({
-      message: "Approved 10 pending edits",
-      undo: "second",
     });
   });
 });

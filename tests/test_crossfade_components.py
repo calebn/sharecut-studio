@@ -103,7 +103,7 @@ def _prepared(name: str, start: float, end: float, source: SourceAudio, *, join=
         fade_out_ms=100,
         join_in_mode=ClipJoinMode.CROSSFADE if join else ClipJoinMode.CUT,
     )
-    return _PreparedClip(clip, _ClipContent(start, end, source, ()))
+    return _PreparedClip(clip, _ClipContent(start, end, source))
 
 
 def test_plan_names_saved_partner_and_preserves_enclosing_actor(tmp_path: Path):
@@ -209,31 +209,6 @@ def _pair_clips() -> list[Clip]:
     ]
 
 
-def test_production_first_retained_piece_caps_crossfade(tmp_path: Path):
-    project = _project(tmp_path, _pair_clips())
-    project.edit_decisions = [
-        EditDecision(
-            id="cut",
-            track_id="host",
-            type=EditDecisionType.REMOVE,
-            start=6.04,
-            end=6.06,
-            applied=True,
-        )
-    ]
-    with wave.open(str(tmp_path / "host.wav"), "wb") as source:
-        source.setnchannels(1)
-        source.setsampwidth(2)
-        source.setframerate(48000)
-        source.writeframes(bytes(6 * 48000 * 2) + struct.pack("<h", 15000) * 96000)
-    project = load_project(save_project(project))
-    out = tmp_path / "cap.wav"
-    render_track_from_timeline(project, project.tracks[0], out, {})
-    pcm = _read(out)
-    assert len(pcm) == 622080
-    assert pcm[527520] == 7500
-
-
 @pytest.mark.parametrize(
     "kind, start, end, frames, first, middle",
     [
@@ -281,9 +256,9 @@ def test_authored_windows_keep_selected_piece_cap_and_local_fades(
 
 
 @pytest.mark.parametrize(
-    "start, end, frames", [(0, 1.5, 48000), (1.2, 1.8, 28800), (0.8, 1.5, 24000), (0.2, 1.5, 38400)]
+    "start, end, frames", [(0, 1.5, 72000), (1.2, 1.8, 28800), (0.8, 1.5, 33600), (0.2, 1.5, 62400)]
 )
-def test_authored_windows_contract_only_selected_source_removes(
+def test_authored_windows_do_not_execute_saved_decision_labels(
     tmp_path: Path,
     start: float,
     end: float,

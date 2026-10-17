@@ -5,6 +5,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.cut_safety import decision_policy
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_SPLIT_REASON,
     NL_MANUAL_REASON,
@@ -15,10 +17,10 @@ from podcast_mcp.edits.edit_reasons import (
 )
 from podcast_mcp.edits.filler_pacing import paced_pad_for_span
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex, optimize_source_cut_range
-from podcast_mcp.edits.tighten_reasons import is_review_only_reason
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.models import (
     CombinedTranscript,
+    CutIntent,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -203,7 +205,6 @@ def append_remove_decision(
     *,
     reason: str = NL_MANUAL_REASON,
     review_required: bool = True,
-    applied: bool = False,
     crossfade_ms: int = 10,
     cut_confidence: float | None = None,
     boundary_mode: str | None = None,
@@ -231,7 +232,7 @@ def append_remove_decision(
         crossfade_ms=crossfade_ms,
         reason=reason,
         review_required=review_required,
-        applied=applied,
+        applied=False,
         cut_confidence=cut_confidence,
         boundary_mode=boundary_mode,
         replace_gap_sec=replace_gap_sec,
@@ -242,6 +243,9 @@ def append_remove_decision(
     from podcast_mcp.edits.source_removals import require_source_remove
 
     require_source_remove(project, decision)
+    from podcast_mcp.edits.cut_safety import assess_source_offer
+
+    assess_source_offer(project, decision, defaults=load_defaults())
     project.edit_decisions.append(decision)
     return decision
 
@@ -285,25 +289,28 @@ def add_remove_decision(
     *,
     reason: str = NL_MANUAL_REASON,
     review_required: bool = True,
-    applied: bool = False,
     crossfade_ms: int = 10,
     use_inaudible_opt: bool | None = None,
     defaults: dict | None = None,
     source_id: str | None = None,
     source_aware: bool = False,
+    merge_ids: set[str] | None = None,
 ) -> EditDecision:
     if end <= start:
         raise ValueError("end must be greater than start")
     from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_safety import (
+        CutScopeHold,
+        CutScopeUnavailable,
+        inspect_source_remove_placement,
+        resolve_cut_scope,
+    )
     from podcast_mcp.edits.filler_pacing import apply_filler_pacing
     from podcast_mcp.edits.source_removals import (
-        CutScopeHold,
         ScopeChangedAtApproval,
-        inspect_source_remove_placement,
         record_suggested_cut_speech,
         require_source_remove,
     )
-    from podcast_mcp.edits.speech_energy_guard import CutScopeUnavailable, resolve_cut_scope
 
     transcript = _cut_transcript_for_source(project, track_id, source_id) if source_aware else None
     if source_aware and transcript is None and source_id is not None:
@@ -328,7 +335,8 @@ def add_remove_decision(
         len(initial_spans) != 1
         or abs(float(initial_spans[0][1] - initial_spans[0][0]) - (end - start)) > 1e-6
     ):
-        from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+        from podcast_mcp.edits.cut_safety import CutScopeHold
+        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
     placement_witness = (
@@ -402,7 +410,8 @@ def add_remove_decision(
         len(final_spans) != 1
         or abs(float(final_spans[0][1] - final_spans[0][0]) - (cut_end - cut_start)) > 1e-6
     ):
-        from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+        from podcast_mcp.edits.cut_safety import CutScopeHold
+        from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
         raise ScopeChangedAtApproval([CutScopeHold("source-request", (), "source_geometry")], {})
     if source_aware:
@@ -449,7 +458,7 @@ def add_remove_decision(
         crossfade_ms=crossfade_ms,
         reason=cut_reason,
         review_required=review,
-        applied=applied,
+        applied=False,
         cut_confidence=opt.confidence,
         boundary_mode=opt.mode,
         replace_gap_sec=replace_gap,
@@ -468,6 +477,8 @@ def add_remove_decision(
         merge_gap_sec=0.05,
         allow_primary_witness_completion=complete_primary_witness,
     )
+    if merge_ids is not None:
+        joining_ids &= merge_ids | {decision.id}
     coalesce_edits(
         staged,
         track_id=track_id,
@@ -486,6 +497,9 @@ def add_remove_decision(
     if len(candidates) != 1 or not _ordinary_remove_survivor(candidates[0], decision):
         raise RuntimeError("source remove has no unique ordinary survivor")
     survivor = candidates[0]
+    from podcast_mcp.edits.cut_safety import assess_source_offer
+
+    assess_source_offer(staged, survivor, defaults=cfg)
     project.edit_decisions = staged.edit_decisions
     return survivor
 
@@ -611,8 +625,8 @@ def coalesce_edits(
     owned_ids = {row.id for row in owned}
     result = [row for row in project.edit_decisions if row.id not in owned_ids]
     merged_count = 0
+    from podcast_mcp.edits.cut_safety import CutScopeHold
     from podcast_mcp.edits.source_removals import (
-        CutScopeHold,
         ScopeChangedAtApproval,
         inspect_source_remove,
         require_source_remove,
@@ -640,6 +654,7 @@ def coalesce_edits(
             survivor.review_required = survivor.review_required or row.review_required
         merged_count += len(group) - 1
         if len(group) > 1:
+            survivor.boundary_intent = CutIntent.PROGRAMMATIC
             survivor.replace_gap_sec = _merged_pad_sec(project, group, defaults)
             if any(row.source_timeline_span is not None for row in group):
                 timeline = SessionTimeline(project)
@@ -691,6 +706,10 @@ def coalesce_edits(
                 if isinstance(assessment, CutScopeHold):
                     skip_counts[assessment.reason] = skip_counts.get(assessment.reason, 0) + 1
                     continue
+        if len(group) > 1:
+            from podcast_mcp.edits.cut_safety import assess_source_offer
+
+            assess_source_offer(project, survivor, defaults=defaults or load_defaults())
         result.append(survivor)
     project.edit_decisions = result
     return merged_count
@@ -747,7 +766,12 @@ def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
     if left.applied != right.applied or left.author != right.author:
         return True
     return any(
-        _is_pause(decision) or (decision.review_required and is_review_only_reason(decision.reason))
+        _is_pause(decision)
+        or (
+            decision.review_required
+            and (policy := decision_policy(decision)) is not None
+            and policy.proposal_review
+        )
         for decision in (left, right)
     )
 
@@ -880,32 +904,6 @@ def _cut_transcript_source_range(
         source_id=source_id,
         source_aware=True,
     )
-
-
-def apply_edit_plan(
-    project: EpisodeProject,
-    edits: list[dict[str, Any]],
-    *,
-    crossfade_ms: int = 10,
-    review_required: bool = True,
-    use_inaudible_opt: bool | None = None,
-) -> list[EditDecision]:
-    created: list[EditDecision] = []
-    for raw in edits:
-        created.append(
-            add_remove_decision(
-                project,
-                str(raw["track_id"]),
-                float(raw["start"]),
-                float(raw["end"]),
-                reason=str(raw.get("reason", "agent:plan")),
-                review_required=bool(raw.get("review_required", review_required)),
-                applied=bool(raw.get("applied", False)),
-                crossfade_ms=int(raw.get("crossfade_ms", crossfade_ms)),
-                use_inaudible_opt=raw.get("use_inaudible_opt", use_inaudible_opt),
-            )
-        )
-    return created
 
 
 def format_transcript_timestamps(project: EpisodeProject) -> str:

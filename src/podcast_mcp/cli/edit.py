@@ -7,7 +7,7 @@ from typing import Literal, cast
 import typer
 
 from podcast_mcp.cli.context import get_progress
-from podcast_mcp.cli.cut_speech import YES_HELP, with_cut_speech_confirmation
+from podcast_mcp.cli.cut_speech import require_cut_applied
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.models import EditMode
@@ -127,18 +127,14 @@ def edit_cut_utterance_cmd(
 def edit_approve_cmd(
     project: Path = typer.Option(..., "--project"),
     ids: str | None = typer.Option(None, "--ids", help="Comma-separated edit ids"),
-    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
     if id_list is None:
         raise typer.BadParameter("pass --ids (or use apply-suggested for every pending sound)")
     edit_ids = id_list
-    n = with_cut_speech_confirmation(
-        lambda confirm: EditService(ws).approve(
-            edit_ids, allow_exact=True, confirm_cut_speech=confirm
-        ),
-        yes=yes,
+    n = require_cut_applied(
+        lambda: EditService(ws).approve(edit_ids, allow_exact=True),
     )
     typer.echo(f"Approved {n} edit(s).")
     if n == 0:
@@ -405,29 +401,23 @@ def edit_ripple_delete_cmd(
     track: list[str] = typer.Option(
         [], "--track", help="Track whose speech this cut removes (repeatable)"
     ),
-    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
     as_json: bool = typer.Option(False, "--json", help="Emit the full per-detector result as JSON"),
 ) -> None:
     """Ripple-delete a range on every dialogue track; asks before cutting other speech."""
     ws = ProjectWorkspace.open(project)
     if query:
-        result = with_cut_speech_confirmation(
-            lambda confirm: EditService(ws).ripple_delete_text(
-                query, use_inaudible_opt=inaudible_opt, confirm_cut_speech=confirm
-            ),
-            yes=yes,
+        result = require_cut_applied(
+            lambda: EditService(ws).ripple_delete_text(query, use_inaudible_opt=inaudible_opt),
         )
     elif start is not None and end is not None:
-        result = with_cut_speech_confirmation(
-            lambda confirm: EditService(ws).cut_range(
+        result = require_cut_applied(
+            lambda: EditService(ws).cut_range(
                 start,
                 end,
                 mode=EditMode.RIPPLE,
                 track_ids=list(track),
                 use_inaudible_opt=inaudible_opt,
-                confirm_cut_speech=confirm,
             ),
-            yes=yes,
         )
     else:
         raise typer.BadParameter("provide --start and --end, or --query")
@@ -481,7 +471,6 @@ def edit_delete_clips_cmd(
         "--mode",
         help="gap: each clip leaves silence; ripple: every dialogue track closes the span",
     ),
-    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
     """Delete whole clips; a ripple asks before it cuts speech outside them."""
     from podcast_mcp.services.document_sync import (
@@ -491,15 +480,13 @@ def edit_delete_clips_cmd(
 
     clip_ids = [x.strip() for x in ids.split(",") if x.strip()]
 
-    def delete(confirm: bool) -> dict:
+    def delete() -> dict:
         payload: dict = {"clip_ids": clip_ids, "mode": mode.value}
-        if confirm:
-            payload["confirm_cut_speech"] = True
         return host_command_result(
             submit_host_document_command(project, "DeleteClip", payload, client_id="cli")
         )
 
-    typer.echo(json.dumps(with_cut_speech_confirmation(delete, yes=yes), indent=2))
+    typer.echo(json.dumps(require_cut_applied(delete), indent=2))
 
 
 @edit_app.command("propose-range-cut")
@@ -659,7 +646,6 @@ def edit_trim_clip_cmd(
         "--mode",
         help="ripple: every dialogue track moves with the edge; gap: only this edge moves",
     ),
-    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
     """Move one clip edge; `play context` suggests the value."""
     if edge not in ("in", "out"):
@@ -667,7 +653,7 @@ def edit_trim_clip_cmd(
     trim_edge = cast(Literal["in", "out"], edge)
     ws = ProjectWorkspace.open(project)
 
-    def trim(confirm: bool) -> dict:
+    def trim() -> dict:
         with ws.transaction():
             service = EditService(ws)
             revision = service.boundary_context(
@@ -679,10 +665,9 @@ def edit_trim_clip_cmd(
                 source_sec,
                 mode=mode,
                 expected_token=revision,
-                confirm_cut_speech=confirm,
             )
 
-    typer.echo(json.dumps(with_cut_speech_confirmation(trim, yes=yes), indent=2))
+    typer.echo(json.dumps(require_cut_applied(trim), indent=2))
 
 
 @edit_app.command("roll-join")
@@ -789,14 +774,10 @@ def edit_shorten_gaps_cmd(
     project: Path = typer.Option(..., "--project"),
     max_gap: float = typer.Option(0.35, "--max-gap"),
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
-    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    result = with_cut_speech_confirmation(
-        lambda confirm: EditService(ws).shorten_word_gaps(
-            max_gap, use_inaudible_opt=inaudible_opt, confirm_cut_speech=confirm
-        ),
-        yes=yes,
+    result = require_cut_applied(
+        lambda: EditService(ws).shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt),
     )
     typer.echo(json.dumps(result, indent=2))
 

@@ -34,12 +34,10 @@ vi.mock("../document/applyDocumentUpdate", async (importOriginal) => ({
 vi.mock("../api", () => ({
   approveEdits: vi.fn(async () => ({
     queued: false,
-    asked: false,
     count: 1,
     historyHead: null,
   })),
   rejectEdits: vi.fn(async () => ({
-    asked: false,
     queued: false,
     count: 1,
     historyHead: null,
@@ -88,7 +86,6 @@ describe("ImpactPanel transcript refine recovery", () => {
     loadHostCommandCount.mockReset().mockResolvedValue(1);
     vi.mocked(approveEdits).mockReset().mockResolvedValue({
       queued: false,
-      asked: false,
       count: 1,
       historyHead: null,
     });
@@ -203,7 +200,6 @@ describe("ImpactPanel transcript refine recovery", () => {
     const user = userEvent.setup();
     vi.mocked(approveEdits).mockResolvedValue({
       queued: true,
-      asked: false,
       count: null,
       historyHead: null,
     });
@@ -222,7 +218,6 @@ describe("ImpactPanel transcript refine recovery", () => {
     const user = userEvent.setup();
     vi.mocked(approveEdits).mockResolvedValue({
       queued: true,
-      asked: false,
       count: null,
       historyHead: null,
     });
@@ -335,13 +330,11 @@ describe("ImpactPanel bulk review", () => {
     loadHostCommandCount.mockReset().mockResolvedValue(1);
     vi.mocked(approveEdits).mockReset().mockResolvedValue({
       queued: false,
-      asked: false,
       count: 3,
       historyHead: head,
       held: [],
     });
     vi.mocked(rejectEdits).mockReset().mockResolvedValue({
-      asked: false,
       queued: false,
       count: 3,
       historyHead: head,
@@ -362,17 +355,12 @@ describe("ImpactPanel bulk review", () => {
     expect(screen.getByText("3 pending edits need review.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
     await waitFor(() => expect(approveEdits).toHaveBeenCalled());
-    expect(vi.mocked(approveEdits).mock.calls[0]?.slice(0, 5)).toEqual([
+    expect(vi.mocked(approveEdits).mock.calls[0]).toEqual([
       "/tmp/p.json",
       ["e1", "e2", "e3"],
-      false,
       true,
-      expect.objectContaining({
-        action: "approve",
-        projectPath: "/tmp/p.json",
-      }),
     ]);
-    expect(vi.mocked(approveEdits).mock.calls[0]?.[5]).toBe(true);
+    expect(vi.mocked(approveEdits).mock.calls[0]?.[2]).toBe(true);
     expect(asked).toEqual([
       {
         kind: "confirm",
@@ -394,7 +382,6 @@ describe("ImpactPanel bulk review", () => {
     answerQuestions(true);
     vi.mocked(approveEdits).mockResolvedValue({
       queued: false,
-      asked: false,
       count: 2,
       historyHead: head,
       held: [
@@ -414,27 +401,6 @@ describe("ImpactPanel bulk review", () => {
     );
   });
 
-  it("announces what Approve all applied while it asks about the rest", async () => {
-    const user = userEvent.setup();
-    answerQuestions(true);
-    vi.mocked(approveEdits).mockResolvedValue({
-      queued: false,
-      asked: true,
-      count: null,
-      historyHead: head,
-      held: [],
-      applied: 2,
-    });
-    renderPanel();
-    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
-    await waitFor(() =>
-      expect(useDawStore.getState().feedbackToast?.message).toBe(
-        "Approved 2 pending edits",
-      ),
-    );
-    expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
-  });
-
   it("names only the first two held cuts when many are held", async () => {
     const user = userEvent.setup();
     answerQuestions(true);
@@ -445,7 +411,6 @@ describe("ImpactPanel bulk review", () => {
     });
     vi.mocked(approveEdits).mockResolvedValue({
       queued: false,
-      asked: false,
       count: 1,
       historyHead: head,
       held: [1, 2, 3, 4, 5].map(cut),
@@ -502,7 +467,6 @@ describe("ImpactPanel bulk review", () => {
   it("sends only the edits still waiting once the question is answered", async () => {
     vi.mocked(approveEdits).mockResolvedValueOnce({
       queued: false,
-      asked: false,
       count: 2,
       historyHead: head,
       held: [],
@@ -556,7 +520,6 @@ describe("ImpactPanel bulk review", () => {
           finish = () =>
             resolve({
               queued: false,
-              asked: false,
               count: 3,
               historyHead: null,
             });
@@ -578,7 +541,6 @@ describe("ImpactPanel bulk review", () => {
     answerQuestions(true);
     vi.mocked(approveEdits).mockResolvedValue({
       queued: true,
-      asked: false,
       count: null,
       historyHead: null,
     });
@@ -587,21 +549,6 @@ describe("ImpactPanel bulk review", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       /Still sending/,
     );
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-  });
-
-  it("leaves the toast to the cut-speech prompt when approval asks first", async () => {
-    const user = userEvent.setup();
-    answerQuestions(true);
-    vi.mocked(approveEdits).mockResolvedValue({
-      queued: false,
-      asked: true,
-      count: null,
-      historyHead: null,
-    });
-    renderPanel();
-    await user.click(screen.getByRole("button", { name: "Approve all (3)" }));
-    await waitFor(() => expect(approveEdits).toHaveBeenCalledTimes(1));
     expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 

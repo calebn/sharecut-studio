@@ -9,8 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
-import { registerCutSpeechCommands } from "../commands/cutSpeech";
-import { clearRegisteredCommands, execute } from "../commands/execute";
+import { clearRegisteredCommands } from "../commands/execute";
 import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
@@ -23,7 +22,6 @@ import {
 import { FeedbackToast } from "../feedback/FeedbackToast";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
 import { PendingEditInspector } from "../inspector/views/PendingEditInspector";
-import { CutSpeechDialog } from "../layout/CutSpeechDialog";
 import {
   submitLiveHistoryCommand,
   submitQueuedDocumentCommand,
@@ -1546,7 +1544,6 @@ describe("single pending review feedback", () => {
     );
     clearRegisteredCommands();
     registerHistoryCommands();
-    registerCutSpeechCommands();
     _resetHistoryMovesForTests();
     resetDocumentAuthority();
     useDawStore.getState().hydrate(path, pending());
@@ -1555,7 +1552,6 @@ describe("single pending review feedback", () => {
       selection: { kind: "pending", id: edit.id, trackId: "host" },
       feedbackToast: null,
       statusAnnouncement: "",
-      cutSpeechPrompt: null,
     });
     vi.mocked(submitQueuedDocumentCommand).mockReset();
     vi.mocked(submitLiveHistoryCommand)
@@ -1581,7 +1577,6 @@ describe("single pending review feedback", () => {
             onSelect={vi.fn()}
           />
         )}
-        <CutSpeechDialog />
         <FeedbackToast />
       </>,
     );
@@ -1597,183 +1592,6 @@ describe("single pending review feedback", () => {
       },
     };
   }
-
-  const confirmationReply = {
-    history_head_id: null,
-    needs_confirmation: {
-      speech: {
-        spans: [{ start: 0, end: 2 }],
-        tracks: [
-          {
-            track_id: "guest",
-            speaker: "Guest",
-            words: [],
-            sound_spans: [{ start: 0, end: 2 }],
-          },
-        ],
-      },
-    },
-  };
-
-  async function openConfirmation(entrypoint: "inspector" | "overlay") {
-    mountReview(entrypoint);
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Approve" }),
-    );
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Guest");
-  }
-
-  it("confirmed queued approval says Still sending and retains the pending row", async () => {
-    vi.mocked(submitQueuedDocumentCommand)
-      .mockResolvedValueOnce(confirmationReply)
-      .mockResolvedValueOnce({
-        queued: true,
-        history_head_id: head,
-        command: { payload: { result: { count: 1 } } },
-      });
-    await openConfirmation("inspector");
-    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    expect(
-      await screen.findByText(
-        "Still sending. It will retry automatically; if the host refuses it, it shows under Needs attention.",
-      ),
-    ).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-    expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
-    expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
-    expect(useDawStore.getState().selection).toEqual({
-      kind: "pending",
-      id: edit.id,
-      trackId: "host",
-    });
-  });
-
-  it("Cancel retains the pending edit without submitting the confirmation", async () => {
-    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce(
-      confirmationReply,
-    );
-    await openConfirmation("overlay");
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
-  });
-
-  it.each(["selection", "edit identity", "document scope", "project epoch"])(
-    "a changed %s refuses confirmation before another send",
-    async (changed) => {
-      vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce(
-        confirmationReply,
-      );
-      await openConfirmation("overlay");
-      act(() => {
-        const state = useDawStore.getState();
-        if (changed === "selection")
-          state.setSelection({ kind: "pending", id: "other", trackId: "host" });
-        else if (changed === "edit identity")
-          state.setProject(
-            minimalProject({ pending_edits: [{ ...edit, type: "split" }] }),
-          );
-        else if (changed === "document scope") resetDocumentAuthority(path);
-        else useDawStore.setState({ projectEpoch: state.projectEpoch + 1 });
-      });
-      await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        "This pending review changed. Select it again to review it.",
-      );
-      expect(useDawStore.getState().project?.pending_edits).toEqual(
-        changed === "edit identity" ? [{ ...edit, type: "split" }] : [edit],
-      );
-      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-      expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  it("a new document generation suppresses late confirmed completion", async () => {
-    const sending = deferred<Record<string, unknown>>();
-    vi.mocked(submitQueuedDocumentCommand)
-      .mockResolvedValueOnce(confirmationReply)
-      .mockReturnValueOnce(sending.promise);
-    await openConfirmation("inspector");
-    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    act(() => {
-      resetDocumentAuthority(path);
-    });
-    await act(async () => sending.resolve(reviewReply(1, head)));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
-    expect(useDawStore.getState().selection).toEqual({
-      kind: "pending",
-      id: edit.id,
-      trackId: "host",
-    });
-  });
-
-  it("confirmed approval failure keeps its prompt and pending edit", async () => {
-    vi.mocked(submitQueuedDocumentCommand)
-      .mockResolvedValueOnce(confirmationReply)
-      .mockRejectedValueOnce(new Error("Host refused the review"));
-    await openConfirmation("inspector");
-    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Host refused the review",
-    );
-    expect(screen.getByRole("dialog")).toHaveTextContent("Guest");
-    expect(
-      await screen.findByText("Cut failed: Host refused the review"),
-    ).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-    expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
-  });
-
-  it("a replacement speech prompt waits for its own confirmation", async () => {
-    vi.mocked(submitQueuedDocumentCommand)
-      .mockResolvedValueOnce(confirmationReply)
-      .mockResolvedValueOnce({
-        needs_confirmation: {
-          speech: {
-            ...confirmationReply.needs_confirmation.speech,
-            tracks: [
-              {
-                ...confirmationReply.needs_confirmation.speech.tracks[0],
-                speaker: "Sam",
-              },
-            ],
-          },
-        },
-      })
-      .mockImplementationOnce(async () => {
-        const reply = reviewReply(1, head);
-        applyDocumentResult(reply, activateDocumentScope(path));
-        return reply;
-      });
-    await openConfirmation("overlay");
-    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Sam");
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
-    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    expect(await screen.findByText("Approved 1 pending edit")).toBeVisible();
-    expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
-  });
-
-  it("cancelling an in-flight confirmation suppresses its late feedback", async () => {
-    const sending = deferred<Record<string, unknown>>();
-    vi.mocked(submitQueuedDocumentCommand)
-      .mockResolvedValueOnce(confirmationReply)
-      .mockReturnValueOnce(sending.promise);
-    await openConfirmation("overlay");
-    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-    await act(async () => {
-      await execute("edit.cutSpeech.cancel", {}, { skipWhen: true });
-    });
-    await act(async () => sending.resolve(reviewReply(1, head)));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
-  });
 
   describe.each(["inspector", "overlay"] as const)("%s", (entrypoint) => {
     it.each([
@@ -1798,9 +1616,7 @@ describe("single pending review feedback", () => {
         expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
           path,
           command,
-          command === "ApproveEdits"
-            ? { ids: [edit.id], allow_review: true }
-            : { ids: [edit.id] },
+          command === "ApproveEdits" ? { ids: [edit.id] } : { ids: [edit.id] },
           undefined,
         );
         expect(useDawStore.getState().project?.pending_edits).toEqual([]);
@@ -1841,43 +1657,6 @@ describe("single pending review feedback", () => {
       },
     );
 
-    it("confirmed approval reports its reply and Undo restores the pending edit", async () => {
-      vi.mocked(submitQueuedDocumentCommand)
-        .mockResolvedValueOnce(confirmationReply)
-        .mockImplementationOnce(async () => {
-          const reply = reviewReply(1, head);
-          applyDocumentResult(reply, activateDocumentScope(path));
-          return reply;
-        });
-      mountReview(entrypoint);
-      await userEvent.click(
-        await screen.findByRole("button", { name: "Approve" }),
-      );
-      expect(await screen.findByRole("dialog")).toHaveTextContent("Guest");
-      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-      await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
-      expect(await screen.findByText("Approved 1 pending edit")).toBeVisible();
-      expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
-      expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
-        path,
-        "ApproveEdits",
-        { ids: [edit.id], allow_review: true, confirm_cut_speech: true },
-        undefined,
-      );
-      expect(useDawStore.getState().project?.pending_edits).toEqual([]);
-      expect(useDawStore.getState().selection).toBeNull();
-      await userEvent.click(screen.getByRole("button", { name: "Undo" }));
-      await waitFor(() =>
-        expect(useDawStore.getState().project?.pending_edits).toEqual([edit]),
-      );
-      expect(submitLiveHistoryCommand).toHaveBeenCalledWith(
-        path,
-        "UndoHistory",
-        { rerender: false, expected_head_id: head },
-        activateDocumentScope(path),
-      );
-    });
-
     it.each(["Approve", "Reject"])(
       "%s stays queued without completion or Undo",
       async (label) => {
@@ -1901,41 +1680,5 @@ describe("single pending review feedback", () => {
         expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
       },
     );
-
-    it("keeps approval awaiting the Cut anyway decision without completion or Undo", async () => {
-      const user = userEvent.setup();
-      vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
-        history_head_id: head,
-        needs_confirmation: {
-          speech: {
-            spans: [{ start: 0, end: 2 }],
-            tracks: [
-              {
-                track_id: "guest",
-                speaker: "Guest",
-                words: [],
-                sound_spans: [{ start: 0, end: 2 }],
-              },
-            ],
-          },
-        },
-      });
-      mountReview(entrypoint);
-      await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
-      );
-      await user.click(screen.getByRole("button", { name: "Approve" }));
-      expect(
-        useDawStore.getState().cutSpeechPrompt?.speech.tracks[0]?.speaker,
-      ).toBe("Guest");
-      expect(useDawStore.getState().feedbackToast?.message ?? null).toBeNull();
-      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-      expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
-      expect(useDawStore.getState().selection).toEqual({
-        kind: "pending",
-        id: edit.id,
-        trackId: "host",
-      });
-    });
   });
 });

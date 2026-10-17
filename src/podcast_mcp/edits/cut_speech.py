@@ -1,20 +1,7 @@
-"""The speech guard: a ripple that cuts speech it did not select asks first.
+"""Measure speech an operation removes outside the selected source extents.
 
-Every rippling edit plans its :class:`RippleRemoval` and asks :func:`clear_ripple`
-before it changes anything, approvals included (at approval time, from the current
-transcript). What the edit selected is per track (``RippleRemoval.selected``): a
-deleted clip's own extent, a named track's range. Speech is any scope track's
-unsuppressed transcript words inside a removed span but outside that track's
-selected extents (a range cut that names no tracks selects nothing, so it counts
-every track's speech) whose own voice sounds there
-(``speech_energy_guard.speech_words_in``: ASR stretches word times over
-silence), or, where those parts have no such words, its own sound at speech level
-(``speech_energy_guard.measure_peer_speech``). With speech there and no
-``confirm_cut_speech``, the edit returns a :class:`CutSpeechConfirmation` and changes
-nothing; confirmed, it applies and the speech it cut is recorded with it. With no
-other speech in the span it applies at once. The apply functions take a
-:class:`SpeechClearance`, which only :func:`clear_ripple` and a preview make, so no
-ripple removes time without the guard.
+The cut application owner records these observations on its private candidate.
+The peer predicate alone decides whether they require interactive review.
 """
 
 from __future__ import annotations
@@ -23,7 +10,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import Any, Final, Literal, overload
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel
 
@@ -49,7 +36,6 @@ from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import SourceSec, clock_label
 
 CUT_SPEECH_REASON: Final = "cuts_other_speech"
-CUT_ANYWAY_LABEL: Final = "Cut anyway"
 _QUOTED_WORDS_MAX = 8
 # Own-sound evidence is read in windows this long, so a short remark is not averaged
 # away under a long span.
@@ -59,13 +45,11 @@ _WINDOW_READS_MAX = 8
 
 
 class CutSpeechConfirmation(BaseModel):
-    """A ripple that would cut other speech and was not confirmed; nothing changed."""
+    """A programmatic cut held for interactive review; nothing changed."""
 
     status: Literal["needs_confirmation"] = "needs_confirmation"
     reason: Literal["cuts_other_speech"] = CUT_SPEECH_REASON
     message: str
-    confirm_label: Literal["Cut anyway"] = CUT_ANYWAY_LABEL
-    confirm_field: Literal["confirm_cut_speech"] = "confirm_cut_speech"
     speech: CutSpeech
 
     def result(self, operation: str) -> dict[str, Any]:
@@ -95,31 +79,8 @@ class RecordingSourceExtent:
 SourceExtent = LaneSourceExtent | RecordingSourceExtent
 
 
-@dataclass(frozen=True)
-class SpeechClearance:
-    """Permission for a ripple to remove ``removal``.
-
-    ``cut_speech`` is the other tracks' speech the person confirmed cutting, or
-    ``None`` when the removal cuts none.
-    """
-
-    removal: RippleRemoval | None
-    cut_speech: CutSpeech | None = None
-
-    @classmethod
-    def for_preview(cls, removal: RippleRemoval | None) -> SpeechClearance:
-        """A preview renders a copy and saves nothing, so it needs no confirmation."""
-        return cls(removal)
-
-    def require(self, removal: RippleRemoval | None) -> None:
-        if removal != self.removal:
-            raise ValueError("speech clearance does not match this edit's removal")
-
-    def log_params(self) -> dict[str, Any]:
-        """Edit-log params naming the confirmed speech, empty when none was cut."""
-        if self.cut_speech is None:
-            return {}
-        return {"cut_speech": self.cut_speech.model_dump(mode="json")}
+def cut_speech_params(speech: CutSpeech | None) -> dict[str, Any]:
+    return {"cut_speech": speech.model_dump(mode="json")} if speech is not None else {}
 
 
 class UnconfirmedCutSpeech(Exception):
@@ -308,8 +269,8 @@ def cut_speech_message(speech: CutSpeech, *, owned: bool = True) -> str:
     """
     phrases = _join([_track_phrase(t) for t in sorted(speech.tracks, key=_first_time)])
     if owned:
-        return f"This also cuts {phrases}. Cut anyway, or leave a gap to keep it."
-    return f"This cuts {phrases}. Cut anyway, or choose which tracks to cut."
+        return f"This also cuts {phrases}. Review this cut in Studio, or leave a gap to keep it."
+    return f"This cuts {phrases}. Review this cut in Studio, or choose which tracks to cut."
 
 
 def merge_cut_speech(speeches: Sequence[CutSpeech]) -> CutSpeech:
@@ -336,58 +297,3 @@ def merge_cut_speech(speeches: Sequence[CutSpeech]) -> CutSpeech:
 
 def confirmation_for(speech: CutSpeech, *, owned: bool = True) -> CutSpeechConfirmation:
     return CutSpeechConfirmation(message=cut_speech_message(speech, owned=owned), speech=speech)
-
-
-@overload
-def clear_ripple(
-    project: EpisodeProject,
-    removal: RippleRemoval | None,
-    *,
-    confirm_cut_speech: Literal[True],
-    also_chosen: Sequence[SourceExtent] = (),
-    defaults: dict[str, Any] | None = None,
-    timeline_caches: TrackRmsCacheSet | None = None,
-) -> SpeechClearance: ...
-
-
-@overload
-def clear_ripple(
-    project: EpisodeProject,
-    removal: RippleRemoval | None,
-    *,
-    confirm_cut_speech: bool,
-    also_chosen: Sequence[SourceExtent] = (),
-    defaults: dict[str, Any] | None = None,
-    timeline_caches: TrackRmsCacheSet | None = None,
-) -> SpeechClearance | CutSpeechConfirmation: ...
-
-
-def clear_ripple(
-    project: EpisodeProject,
-    removal: RippleRemoval | None,
-    *,
-    confirm_cut_speech: bool,
-    also_chosen: Sequence[SourceExtent] = (),
-    defaults: dict[str, Any] | None = None,
-    timeline_caches: TrackRmsCacheSet | None = None,
-) -> SpeechClearance | CutSpeechConfirmation:
-    """The one guard every rippling path calls before it removes time.
-
-    Clears ``removal`` to apply, or asks to confirm the speech it would cut outside
-    what it selected (``removal.selected``, plus ``also_chosen`` for the rest of an
-    approval batch). Confirmed, the clearance carries that speech for the record.
-    """
-    if removal is None:
-        return SpeechClearance(None)
-    speech = assess_cut_speech(
-        project,
-        removal,
-        also_chosen=also_chosen,
-        defaults=defaults,
-        timeline_caches=timeline_caches,
-    )
-    if speech is None:
-        return SpeechClearance(removal)
-    if not confirm_cut_speech:
-        return confirmation_for(speech, owned=bool(removal.selected))
-    return SpeechClearance(removal, cut_speech=speech)

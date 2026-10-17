@@ -6,10 +6,9 @@ Envelope fields on every command: `client_id`, `client_seq` (optional, >= 1; omi
 
 Which product surfaces expose related workflows: [Capabilities](#/capabilities).
 
-`ApproveEdits.allow_review` is transient caller authority for a fresh pause join review.
-It defaults to `true` for selected approval. `ApplySuggestedActions` never holds that
-authority: a pause whose current join needs review stays pending and is named in `held`
-while the rest of the batch applies. `confirm_cut_speech` never widens this authority.
+Acoustic holds are checked again when an edit is approved. Only trusted interactive
+intent can override an acoustic hold. Command payloads, confirmation text, and caller
+roles do not grant that intent.
 
 <!-- document-commands:generated -->
 
@@ -38,12 +37,12 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
 | `ApplySuggestedActions` | — | `ids` (array \| null), `overrides` (object), `revise` (boolean) |
-| `ApproveEdits` | `ids` (array[string]) | `allow_review` (boolean), `confirm_cut_speech` (boolean), `continues_head_id` (string \| null), `hold_blocked` (boolean) |
+| `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
-| `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `confirm_cut_speech` (boolean), `track_ids` (array[string]) |
+| `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `track_ids` (array[string]) |
 | `DeleteChapter` | `time` (number), `title` (string) | — |
-| `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `confirm_cut_speech` (boolean), `reason` (string \| null) |
+| `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `reason` (string \| null) |
 | `DeleteComment` | `comment_id` (string) | — |
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
@@ -75,7 +74,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
-| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | `confirm_cut_speech` (boolean) |
+| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | — |
 | `UndoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
 | `UpdateChapter` | `old_time` (number), `old_title` (string), `time` (number), `title` (string) | — |
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |

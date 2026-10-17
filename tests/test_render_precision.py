@@ -8,8 +8,7 @@ from podcast_mcp.engines.timeline_render import render_track_from_timeline, rend
 from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
-    EditDecision,
-    EditDecisionType,
+    EditMode,
     EpisodeProject,
     MediaAsset,
     SourceRecording,
@@ -17,6 +16,8 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import EditService
 
 
 def saved_project(tmp_path: Path, samples: list[int], clips: list[Clip]) -> EpisodeProject:
@@ -147,17 +148,12 @@ def test_saved_source_cut_preserves_actual_gap(tmp_path: Path) -> None:
     project = saved_project(
         tmp_path, [3000] * 48000 + [9000] * 48000, [clip("a", 0, 1, 0), clip("b", 1, 2, 1.2)]
     )
-    project.edit_decisions = [
-        EditDecision(
-            id="remove",
-            track_id="host",
-            start=0.2,
-            end=0.4,
-            type=EditDecisionType.REMOVE,
-            applied=True,
-        )
-    ]
-    project = load_project(save_project(project))
+    project_path = save_project(project)
+    workspace = ProjectWorkspace.open(project_path)
+    EditService(workspace).cut_range(
+        0.2, 0.4, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
+    )
+    project = load_project(project_path)
     output = tmp_path / "gap.wav"
     render_track_from_timeline(project, project.tracks[0], output, {})
     with wave.open(str(output)) as rendered:

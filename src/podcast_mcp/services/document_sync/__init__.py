@@ -8,8 +8,11 @@ if TYPE_CHECKING:
         edit_commands_allowed,
     )
     from podcast_mcp.services.document_sync.commands import (
+        INTERACTIVE_COMMAND,
+        PROGRAMMATIC_COMMAND,
         DocumentCommand,
         DocumentCommandType,
+        TrustedCommandContext,
     )
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
     from podcast_mcp.services.document_sync.host_submit import (
@@ -50,6 +53,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "COMMENT_BODY_MAX",
+    "INTERACTIVE_COMMAND",
+    "PROGRAMMATIC_COMMAND",
     "VIEW_PROJECTION_QUERY_DESCRIPTION",
     "DocumentCommand",
     "DocumentCommandBody",
@@ -57,6 +62,7 @@ __all__ = [
     "DocumentConflictError",
     "DocumentSyncService",
     "TranscriptReplacementOptions",
+    "TrustedCommandContext",
     "ViewProjection",
     "WordTimingTargetPayload",
     "after_agent_mutation",
@@ -88,6 +94,9 @@ _MODULE_BY_NAME = {
     "DocumentCommand": "commands",
     "DocumentCommandBody": "payloads",
     "DocumentCommandType": "commands",
+    "INTERACTIVE_COMMAND": "commands",
+    "PROGRAMMATIC_COMMAND": "commands",
+    "TrustedCommandContext": "commands",
     "DocumentConflictError": "errors",
     "DocumentSyncService": "service",
     "TranscriptReplacementOptions": "payloads",

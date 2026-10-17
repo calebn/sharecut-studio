@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
-from podcast_mcp.edits.decisions import apply_auto_edits
+from podcast_mcp.edits.cut_application import apply_auto_edits
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.engines.session_timeline import SessionTimeline

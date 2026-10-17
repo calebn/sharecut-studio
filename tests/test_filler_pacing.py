@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.edits.decisions import approve_edits
+from podcast_mcp.edits.cut_application import approve_edits
+from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
 from podcast_mcp.edits.filler_pacing import (
     FillerPacingResult,
     PacedPad,
@@ -15,9 +16,8 @@ from podcast_mcp.edits.filler_pacing import (
     flanking_retained_words,
     shrink_cut_for_min_gap,
 )
-from podcast_mcp.edits.fillers import _CutRejected, analyze_fillers_and_pauses
+from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
-from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.edits.timeline_ops import insert_room_tone_pad
 from podcast_mcp.edits.transcript_cuts import cut_time_range
 from podcast_mcp.models import (
@@ -282,15 +282,28 @@ def test_room_tone_expand_falls_back_when_gap_huge():
     assert paced.pad.seconds(paced.start, paced.end) == pytest.approx(0.28)
 
 
-def test_apply_auto_edits_with_silence_pads():
-    from podcast_mcp.edits.decisions import apply_auto_edits
+@pytest.mark.parametrize("pad_mode", ["silence", "room_tone"])
+def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_mode):
+    from podcast_mcp.edits import cut_application, cut_safety
+    from podcast_mcp.edits.clips_ops import split_clip_at
+    from podcast_mcp.edits.cut_application import apply_auto_edits
+    from podcast_mcp.edits.timeline_ops import RoomTonePad
+    from podcast_mcp.util.batch_scope import batch_scope
 
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
         TranscriptWord(text="um", start=1.5, end=1.7),
         TranscriptWord(text="really", start=2.5, end=2.8),
     ]
+    from pause_policy_public_helpers import room, voice, write_wav
+
     project = _project(words, duration=10.0)
+    project.meta.workspace_dir = str(tmp_path)
+    project.tracks[0].media.path = "raw/host.wav"
+    audio = room(10)
+    for start, end in ((1.02, 1.17), (1.52, 1.68), (2.65, 2.78)):
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw" / "host.wav", audio)
     project.edit_decisions = [
         EditDecision(
             id="f1",
@@ -306,7 +319,7 @@ def test_apply_auto_edits_with_silence_pads():
     ]
     with (
         patch(
-            "podcast_mcp.edits.decisions.load_defaults",
+            "podcast_mcp.edits.cut_application.load_defaults",
             return_value={
                 "tighten": {
                     "inaudible_opt": False,
@@ -314,14 +327,18 @@ def test_apply_auto_edits_with_silence_pads():
                     "filler_post_pad_fade_in_min_ms": 15,
                     "filler_post_pad_fade_in_max_ms": 120,
                 },
-                "render": {"join_fade_max_ms": 15},
+                "render": {"join_fade_max_ms": 40},
             },
         ),
         patch(
-            "podcast_mcp.edits.source_removals.recommend_post_pad_fade_in_ms",
+            "podcast_mcp.edits.cut_application.recommend_post_pad_fade_in_ms",
             return_value=72,
         ),
-        patch("podcast_mcp.edits.source_removals.filler_pad_mode", return_value="silence"),
+        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value=pad_mode),
+        patch(
+            "podcast_mcp.edits.timeline_ops.room_tone_span",
+            return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
+        ),
     ):
         n = apply_auto_edits(project)
     assert n == 1
@@ -331,9 +348,83 @@ def test_apply_auto_edits_with_silence_pads():
         key=lambda c: c.timeline_start,
     )
     assert len(host) >= 2
-    # Pad opens a hole: left gets tiny declick, right gets adaptive resume fade.
     assert host[0].fade_out_ms == 5
-    assert host[1].fade_in_ms >= 72
+    if pad_mode == "silence":
+        assert len(host) == 2
+        assert host[1].fade_in_ms >= 72
+        return
+
+    assert len(host) >= 3
+    pad_tiles = [clip for clip in host if clip.source_start >= 6.0]
+    assert pad_tiles
+    assert host[0].source_end == pytest.approx(1.205)
+    assert host[0].fade_out_ms == 5
+    assert pad_tiles[0].source_start == pytest.approx(6.0)
+    assert pad_tiles[0].source_end == pytest.approx(6.28)
+    assert pad_tiles[0].fade_in_ms == 10
+    assert host[-1].source_start == pytest.approx(2.495)
+    assert host[-1].fade_in_ms >= 72
+    assert project.timeline.duration_sec == pytest.approx(8.99)
+
+    audio_span = audio[round(6.0 * 16000) : round(6.28 * 16000)]
+    assert audio_span.any()
+
+    tile = pad_tiles[0]
+    with batch_scope():
+        for clip in project.clips:
+            if clip.timeline_start >= tile.timeline_start:
+                clip.timeline_start += 0.1
+        effect = cut_safety.PadEffect(
+            "f1", RoomTonePad(tile.timeline_start, 0.28, ()), frozenset({tile.id})
+        )
+        cut_safety.native_pad_origins()[tile.id] = effect
+        first, second = split_clip_at(tile, tile.timeline_start + 0.14)
+        project.clips.remove(tile)
+        project.clips.extend((first, second))
+        result = cut_application._write_join_fades(
+            project,
+            [
+                EditDecision(
+                    id="f1",
+                    track_id="host",
+                    type=EditDecisionType.REMOVE,
+                    start=1.205,
+                    end=2.495,
+                    crossfade_ms=50,
+                )
+            ],
+            defaults={"render": {"join_fade_max_ms": 40}},
+        )
+        assert result["affected_tracks"] == []
+        assert host[0].fade_out_ms == 5
+        assert first.fade_in_ms == 10
+        assert second.fade_in_ms == 10
+
+    with batch_scope():
+        assert cut_safety.native_pad_origins() == {}
+        ordinary = _project([], duration=3.0)
+        ordinary.clips = [
+            Clip(id="left", track_id="host", source_start=0, source_end=1, timeline_start=0),
+            Clip(id="right", track_id="host", source_start=2, source_end=3, timeline_start=1),
+        ]
+        ordinary.edit_decisions = []
+        cut_safety.native_pad_origins()["discarded-pad"] = effect
+        result = cut_application._write_join_fades(
+            ordinary,
+            [
+                EditDecision(
+                    id="ordinary",
+                    track_id="host",
+                    type=EditDecisionType.REMOVE,
+                    start=1,
+                    end=2,
+                    crossfade_ms=40,
+                )
+            ],
+            defaults={"render": {"join_fade_max_ms": 40}},
+        )
+        assert result["affected_tracks"] == ["host"]
+        assert (ordinary.clips[0].fade_out_ms, ordinary.clips[1].fade_in_ms) == (40, 40)
 
 
 def test_insert_room_tone_pad_rejects_nonpositive():
@@ -676,13 +767,21 @@ def test_shipped_defaults_fill_pads_with_room_tone():
     assert filler_pad_mode() == "room_tone"
 
 
-def test_approve_edits_applies_silence_pad_when_configured():
+def test_approve_edits_applies_silence_pad_when_configured(tmp_path):
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
         TranscriptWord(text="um", start=1.5, end=1.7),
         TranscriptWord(text="really", start=2.5, end=2.8),
     ]
+    from pause_policy_public_helpers import room, voice, write_wav
+
     project = _project(words, duration=10.0)
+    project.meta.workspace_dir = str(tmp_path)
+    project.tracks[0].media.path = "raw/host.wav"
+    audio = room(10)
+    for start, end in ((1.02, 1.17), (1.52, 1.68), (2.65, 2.78)):
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw" / "host.wav", audio)
     project.edit_decisions = [
         EditDecision(
             id="cut_1",
@@ -698,7 +797,7 @@ def test_approve_edits_applies_silence_pad_when_configured():
     ]
     before_dur = project.clips[0].timeline_end
     with patch(
-        "podcast_mcp.edits.source_removals.filler_pad_mode",
+        "podcast_mcp.edits.cut_application.filler_pad_mode",
         return_value="silence",
     ):
         removed = approve_edits(project, ["cut_1"])
@@ -713,13 +812,21 @@ def test_approve_edits_applies_silence_pad_when_configured():
     assert host[1].timeline_start - host[0].timeline_end == pytest.approx(0.28)
 
 
-def test_approve_edits_applies_room_tone_pad_when_configured():
+def test_approve_edits_applies_room_tone_pad_when_configured(tmp_path):
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
         TranscriptWord(text="um", start=1.5, end=1.7),
         TranscriptWord(text="really", start=2.5, end=2.8),
     ]
+    from pause_policy_public_helpers import room, voice, write_wav
+
     project = _project(words, duration=10.0)
+    project.meta.workspace_dir = str(tmp_path)
+    project.tracks[0].media.path = "raw/host.wav"
+    audio = room(10)
+    for start, end in ((1.02, 1.17), (1.52, 1.68), (2.65, 2.78)):
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw" / "host.wav", audio)
     project.edit_decisions = [
         EditDecision(
             id="cut_1",
@@ -734,7 +841,7 @@ def test_approve_edits_applies_room_tone_pad_when_configured():
         )
     ]
     with (
-        patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="room_tone"),
+        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="room_tone"),
         patch(
             "podcast_mcp.edits.timeline_ops.room_tone_span",
             return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
@@ -1003,7 +1110,7 @@ def test_analyze_candidate_rejects_a_bleed_span_as_not_owner() -> None:
         patch("podcast_mcp.edits.fillers.optimize_and_assess", return_value=(opt, risk)),
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
     ):
-        assert _analyze_candidate(project, candidate, defaults) == _CutRejected("not_owner")
+        assert _analyze_candidate(project, candidate, defaults) == CutRejected("not_owner")
 
 
 def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
@@ -1035,11 +1142,11 @@ def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             side_effect=ValueError("blocked"),
         ),
     ):
-        assert _analyze_candidate(project, candidate, defaults) == _CutRejected("scope")
+        assert _analyze_candidate(project, candidate, defaults) == CutRejected("scope")
 
 
 def test_analyze_candidate_marks_review_when_guard_requests() -> None:
@@ -1077,7 +1184,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", guard),
         ),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),
@@ -1124,7 +1231,7 @@ def test_analyze_candidate_blocked_peer_waits_for_review_as_a_padded_session_rip
             return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("peer_speech", guard),
         ),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),

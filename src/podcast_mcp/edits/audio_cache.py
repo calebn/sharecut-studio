@@ -188,6 +188,18 @@ def _decode_track(path: Path) -> TrackAudioCache:
     )
 
 
+def source_audio_cache(
+    project: EpisodeProject, track_id: str, source_id: str | None
+) -> TrackAudioCache:
+    from podcast_mcp.util.tracks import recording_audio_path
+
+    return recording_audio_cache(recording_audio_path(project, track_id, source_id))
+
+
+def recording_audio_cache(path: Path) -> TrackAudioCache:
+    return scoped_by_file("track_audio_cache", path, None, partial(_decode_track, path))
+
+
 def build_track_audio_caches(
     project: EpisodeProject, track_ids: Iterable[str]
 ) -> dict[str, TrackAudioCache]:

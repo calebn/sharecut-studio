@@ -5,10 +5,12 @@ from typing import Any
 
 import pytest
 
-from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, update_pending_edit
+from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
+from podcast_mcp.edits.cut_safety import CutScopeHold
+from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.pending_preview import _timeline_span
-from podcast_mcp.edits.source_removals import CutScopeHold, ScopeChangedAtApproval
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_cuts import cut_text_match, cut_words, search_transcript
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.export.transcript import combined_transcript_markdown
@@ -31,8 +33,10 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 
 
-def _two_take_project() -> EpisodeProject:
-    project = EpisodeProject.create("two-takes", "/tmp/two-takes")
+def _two_take_project(tmp_path) -> EpisodeProject:
+    project = EpisodeProject.create("two-takes", str(tmp_path))
+    for name in ("a", "b"):
+        _write_quiet_recording(tmp_path / f"raw/{name}.wav", seconds=30)
     project.tracks = [
         Track(
             id="host",
@@ -77,15 +81,15 @@ def _two_take_project() -> EpisodeProject:
     return project
 
 
-def test_search_matches_keep_source_from_combined_and_transcript_branches() -> None:
-    matches = search_transcript(_two_take_project(), "beta", track_id="host")
+def test_search_matches_keep_source_from_combined_and_transcript_branches(tmp_path) -> None:
+    matches = search_transcript(_two_take_project(tmp_path), "beta", track_id="host")
 
     assert [match.source_id for match in matches if match.utterance_index is not None] == ["B"]
     assert [match.source_id for match in matches if match.word_start_index is not None] == ["B"]
 
 
-def test_text_match_cut_keeps_matched_source_through_ordinary_approval() -> None:
-    project = _two_take_project()
+def test_text_match_cut_keeps_matched_source_through_ordinary_approval(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     before_a = [
         (clip.source_start, clip.source_end, clip.timeline_start)
         for clip in project.clips
@@ -109,8 +113,8 @@ def test_text_match_cut_keeps_matched_source_through_ordinary_approval() -> None
     )
 
 
-def test_pending_cut_projection_uses_selected_placement_and_marks_stale() -> None:
-    project = _two_take_project()
+def test_pending_cut_projection_uses_selected_placement_and_marks_stale(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
 
     row = map_pending_edits_to_timeline(project, [decision])[0]
@@ -128,8 +132,8 @@ def test_pending_cut_projection_uses_selected_placement_and_marks_stale() -> Non
     assert _timeline_span(project, decision) == (0.0, 0.0, False)
 
 
-def test_pending_source_remove_resizes_on_the_same_unique_placement() -> None:
-    project = _two_take_project()
+def test_pending_source_remove_resizes_on_the_same_unique_placement(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
 
     updated = update_pending_edit(project, decision.id, start=0.05, end=0.45, snap=False)
@@ -144,7 +148,7 @@ def test_pending_source_remove_resizes_on_the_same_unique_placement() -> None:
 
 
 def test_edit_service_persists_resized_source_geometry(tmp_path: Path) -> None:
-    project = _two_take_project()
+    project = _two_take_project(tmp_path)
     project.meta.workspace_dir = str(tmp_path)
     decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
     path = save_project(project, tmp_path / "episode.project.json")
@@ -170,7 +174,7 @@ def test_edit_service_persists_resized_source_geometry(tmp_path: Path) -> None:
 def test_edit_service_resize_does_not_retarget_another_source_occurrence(
     tmp_path: Path, monkeypatch, snap: bool, requested_range: tuple[float, float]
 ) -> None:
-    project = _two_take_project()
+    project = _two_take_project(tmp_path)
     project.meta.workspace_dir = str(tmp_path)
     project.clips[1].source_end = 1.0
     project.clips[2].source_start = 2.0
@@ -204,8 +208,8 @@ def test_edit_service_resize_does_not_retarget_another_source_occurrence(
     assert load_project(path).edit_decisions[0] == decision
 
 
-def _source_overlap_project(*, scope: str = "track", overlap: bool = True):
-    project = _two_take_project()
+def _source_overlap_project(tmp_path, *, scope: str = "track", overlap: bool = True):
+    project = _two_take_project(tmp_path)
     project.clips[0].timeline_start = 10.0
     project.clips[1].timeline_start = 5.0
     decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
@@ -220,13 +224,13 @@ def _source_overlap_project(*, scope: str = "track", overlap: bool = True):
     return project, decision
 
 
-def _write_quiet_recording(path: Path) -> None:
+def _write_quiet_recording(path: Path, *, seconds: int = 6) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as audio:
         audio.setnchannels(1)
         audio.setsampwidth(2)
         audio.setframerate(16_000)
-        audio.writeframes(b"\0\0" * (16_000 * 6))
+        audio.writeframes(b"\0\0" * (16_000 * seconds))
 
 
 def test_source_witness_geometry_matches_with_and_without_proof_caches(
@@ -240,7 +244,7 @@ def test_source_witness_geometry_matches_with_and_without_proof_caches(
             case = tmp_path / f"overlap-{overlap}-cache-{caches_enabled}"
             _write_quiet_recording(case / "raw" / "a.wav")
             _write_quiet_recording(case / "raw" / "b.wav")
-            project, decision = _source_overlap_project(scope="session", overlap=overlap)
+            project, decision = _source_overlap_project(tmp_path, scope="session", overlap=overlap)
             project.meta.workspace_dir = str(case)
             before = _clip_geometry(project)
 
@@ -255,7 +259,7 @@ def test_source_witness_geometry_matches_with_and_without_proof_caches(
                         lambda _project: {},
                     )
                 try:
-                    applied = approve_edits(project, [decision.id], confirm_cut_speech=True)
+                    applied = approve_edits(project, [decision.id])
                 except ScopeChangedAtApproval as held:
                     result = (
                         "held",
@@ -322,14 +326,14 @@ def _clip_geometry(
 def test_source_witness_rejects_foreign_overlap_before_persisted_approval(
     tmp_path: Path, scope: str
 ) -> None:
-    project, decision = _source_overlap_project(scope=scope)
+    project, decision = _source_overlap_project(tmp_path, scope=scope)
     project.meta.workspace_dir = str(tmp_path)
     path = save_project(project, tmp_path / "episode.project.json")
     before_bytes = path.read_bytes()
     before_geometry = _clip_geometry(load_project(path))
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        EditService(ProjectWorkspace.open(path)).approve([decision.id], confirm_cut_speech=True)
+        EditService(ProjectWorkspace.open(path)).approve([decision.id])
 
     assert held.value.held[0].reason == "source_geometry"
     assert path.read_bytes() == before_bytes
@@ -339,7 +343,7 @@ def test_source_witness_rejects_foreign_overlap_before_persisted_approval(
 
 
 def test_source_witness_foreign_overlap_is_stale_in_preview_and_update(tmp_path: Path) -> None:
-    project, decision = _source_overlap_project()
+    project, decision = _source_overlap_project(tmp_path)
     project.meta.workspace_dir = str(tmp_path)
     path = save_project(project, tmp_path / "episode.project.json")
     before = path.read_bytes()
@@ -353,10 +357,10 @@ def test_source_witness_foreign_overlap_is_stale_in_preview_and_update(tmp_path:
     assert path.read_bytes() == before
 
 
-def test_source_witness_foreign_overlap_blocks_suggested_snapshot() -> None:
+def test_source_witness_foreign_overlap_blocks_suggested_snapshot(tmp_path) -> None:
     from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 
-    project, decision = _source_overlap_project(scope="session")
+    project, decision = _source_overlap_project(tmp_path, scope="session")
     window = resolve_pending_preview(project, decision.id)
     preview = project.model_copy(deep=True)
     before = _clip_geometry(preview)
@@ -368,8 +372,8 @@ def test_source_witness_foreign_overlap_blocks_suggested_snapshot() -> None:
     assert preview.edit_decisions[0].applied is False
 
 
-def test_source_witness_rejects_foreign_overlap_when_staging() -> None:
-    project = _two_take_project()
+def test_source_witness_rejects_foreign_overlap_when_staging(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     project.clips[0].timeline_start = 10.0
     project.clips[1].timeline_start = 10.3
 
@@ -380,11 +384,11 @@ def test_source_witness_rejects_foreign_overlap_when_staging() -> None:
     assert project.edit_decisions == []
 
 
-def test_source_witness_allows_nonoverlapping_foreign_clip() -> None:
-    project, decision = _source_overlap_project(overlap=False)
+def test_source_witness_allows_nonoverlapping_foreign_clip(tmp_path) -> None:
+    project, decision = _source_overlap_project(tmp_path, overlap=False)
     before_b = project.clips[1].model_copy(deep=True)
 
-    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+    assert approve_edits(project, [decision.id]) == 1
     after_b = next(clip for clip in project.clips if clip.id == before_b.id)
     assert (after_b.source_start, after_b.source_end, after_b.timeline_start) == (
         before_b.source_start,
@@ -393,8 +397,8 @@ def test_source_witness_allows_nonoverlapping_foreign_clip() -> None:
     )
 
 
-def test_partial_approval_drops_held_source_from_next_batch(monkeypatch) -> None:
-    project = _two_take_project()
+def test_partial_approval_drops_held_source_from_next_batch(tmp_path, monkeypatch) -> None:
+    project = _two_take_project(tmp_path)
     first = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
     later = cut_words(project, "host", 3, 3, source_id="B", use_inaudible_opt=False)
     seen: list[tuple[str, tuple[tuple[float, float], ...]]] = []
@@ -403,7 +407,7 @@ def test_partial_approval_drops_held_source_from_next_batch(monkeypatch) -> None
         seen.append((edit.id, tuple((item.start, item.end) for item in batch)))
         return CutScopeHold(edit.id, (), reason="source_geometry")
 
-    monkeypatch.setattr("podcast_mcp.edits.decisions.consume_source_remove", hold)
+    monkeypatch.setattr("podcast_mcp.edits.cut_application._apply_source_remove", hold)
     before = _clip_geometry(project)
     held: list = []
     asked: list = []
@@ -418,8 +422,8 @@ def test_partial_approval_drops_held_source_from_next_batch(monkeypatch) -> None
     assert _clip_geometry(project) == before
 
 
-def test_auto_apply_drops_held_source_from_next_batch(monkeypatch) -> None:
-    project = _two_take_project()
+def test_auto_apply_drops_held_source_from_next_batch(tmp_path, monkeypatch) -> None:
+    project = _two_take_project(tmp_path)
     first = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
     later = cut_words(project, "host", 3, 3, source_id="B", use_inaudible_opt=False)
     for decision in project.edit_decisions:
@@ -431,7 +435,7 @@ def test_auto_apply_drops_held_source_from_next_batch(monkeypatch) -> None:
         seen.append((edit.id, tuple((item.start, item.end) for item in batch)))
         return CutScopeHold(edit.id, (), reason="source_geometry")
 
-    monkeypatch.setattr("podcast_mcp.edits.decisions.consume_source_remove", hold)
+    monkeypatch.setattr("podcast_mcp.edits.cut_application._apply_source_remove", hold)
     before = _clip_geometry(project)
 
     assert apply_auto_edits(project) == 0
@@ -443,8 +447,8 @@ def test_auto_apply_drops_held_source_from_next_batch(monkeypatch) -> None:
     assert _clip_geometry(project) == before
 
 
-def test_source_witness_allows_one_equivalent_recording_alias_clip() -> None:
-    project = _two_take_project()
+def test_source_witness_allows_one_equivalent_recording_alias_clip(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     project.clips[1].timeline_start = 5.0
     project.sources.append(SourceRecording(id="A-alias", path="raw/a.wav"))
     project.tracks.append(
@@ -463,33 +467,33 @@ def test_source_witness_allows_one_equivalent_recording_alias_clip() -> None:
     decision.scope = "session"
 
     assert project.equivalent_source_ids("host", "A") >= {"A", "A-alias"}
-    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+    assert approve_edits(project, [decision.id]) == 1
 
 
-def test_source_witness_allows_primary_clip_with_explicit_take_selection() -> None:
-    project = _two_take_project()
+def test_source_witness_allows_primary_clip_with_explicit_take_selection(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     project.clips[1].timeline_start = 5.0
     project.clips[0].source_id = None
     project.clips[0].timeline_start = 10.0
     decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
 
     assert None in project.equivalent_source_ids("host", "A")
-    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+    assert approve_edits(project, [decision.id]) == 1
 
 
-def test_source_witness_rejects_identical_overlapping_selected_clip() -> None:
-    project, decision = _source_overlap_project(overlap=False)
+def test_source_witness_rejects_identical_overlapping_selected_clip(tmp_path) -> None:
+    project, decision = _source_overlap_project(tmp_path, overlap=False)
     project.clips.append(project.clips[0].model_copy(update={"id": "a-duplicate"}))
 
     assert _timeline_span(project, decision) == (0.0, 0.0, False)
     with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, [decision.id], confirm_cut_speech=True)
+        approve_edits(project, [decision.id])
 
     assert held.value.held[0].reason == "source_geometry"
 
 
-def test_source_witness_rejects_duplicate_during_staging() -> None:
-    project = _two_take_project()
+def test_source_witness_rejects_duplicate_during_staging(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     project.clips[0].timeline_start = 10.0
     project.clips.append(project.clips[0].model_copy(update={"id": "a-duplicate"}))
 
@@ -500,8 +504,8 @@ def test_source_witness_rejects_duplicate_during_staging() -> None:
     assert project.edit_decisions == []
 
 
-def test_source_witness_allows_adjacent_contiguous_selected_clips() -> None:
-    project = _two_take_project()
+def test_source_witness_allows_adjacent_contiguous_selected_clips(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     project.clips[1].timeline_start = 5.0
     project.clips[0] = project.clips[0].model_copy(
         update={"source_end": 0.25, "timeline_start": 10.0}
@@ -523,11 +527,11 @@ def test_source_witness_allows_adjacent_contiguous_selected_clips() -> None:
         decision.source_timeline_span.start,
         decision.source_timeline_span.end,
     ) == pytest.approx((10.1, 10.4))
-    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+    assert approve_edits(project, [decision.id]) == 1
 
 
-def test_source_witness_allows_moved_selected_clip_for_session_scope() -> None:
-    project = _two_take_project()
+def test_source_witness_allows_moved_selected_clip_for_session_scope(tmp_path) -> None:
+    project = _two_take_project(tmp_path)
     project.clips[0].timeline_start = 10.0
     project.clips[1].timeline_start = 5.0
     project.tracks.append(
@@ -544,14 +548,15 @@ def test_source_witness_allows_moved_selected_clip_for_session_scope() -> None:
     decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
     decision.scope = "session"
 
-    assert approve_edits(project, [decision.id], confirm_cut_speech=True) == 1
+    assert approve_edits(project, [decision.id]) == 1
 
 
 @pytest.mark.parametrize("foreign_lane", ["host", "take-lane"])
 def test_source_witness_rejects_foreign_overlap_on_origin_or_selected_lane(
+    tmp_path,
     foreign_lane: str,
 ) -> None:
-    project = _two_take_project()
+    project = _two_take_project(tmp_path)
     project.clips[0].timeline_start = 10.0
     project.clips[1].timeline_start = 5.0
     project.tracks.append(
@@ -572,13 +577,13 @@ def test_source_witness_rejects_foreign_overlap_on_origin_or_selected_lane(
     foreign.timeline_start = 10.3
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, [decision.id], confirm_cut_speech=True)
+        approve_edits(project, [decision.id])
 
     assert held.value.held[0].reason == "source_geometry"
 
 
-def test_source_witness_rejects_equivalent_clip_on_different_source_clock() -> None:
-    project, decision = _source_overlap_project(overlap=False)
+def test_source_witness_rejects_equivalent_clip_on_different_source_clock(tmp_path) -> None:
+    project, decision = _source_overlap_project(tmp_path, overlap=False)
     project.sources.append(SourceRecording(id="A-alias", path="raw/a.wav"))
     project.clips.append(
         Clip(
@@ -592,16 +597,16 @@ def test_source_witness_rejects_equivalent_clip_on_different_source_clock() -> N
     )
 
     with pytest.raises(ScopeChangedAtApproval) as held:
-        approve_edits(project, [decision.id], confirm_cut_speech=True)
+        approve_edits(project, [decision.id])
 
     assert held.value.held[0].reason == "source_geometry"
 
 
 @pytest.mark.parametrize("scope", ["track", "session"])
 def test_auto_filler_keeps_witnessed_window_when_optimizer_would_enter_next_take(
-    scope: str, monkeypatch
+    tmp_path, scope: str, monkeypatch
 ) -> None:
-    project = _two_take_project()
+    project = _two_take_project(tmp_path)
     selected = next(clip for clip in project.clips if clip.id == "a")
     next_take = next(clip for clip in project.clips if clip.id == "b1")
     selected.source_end = 0.42
@@ -638,7 +643,7 @@ def test_auto_filler_keeps_witnessed_window_when_optimizer_would_enter_next_take
         optimize_calls.append((start, _end))
         return start, start + 0.38
 
-    monkeypatch.setattr("podcast_mcp.edits.source_removals.optimize_timeline_cut_range", optimize)
+    monkeypatch.setattr("podcast_mcp.edits.inaudible_cuts.optimize_timeline_cut_range", optimize)
     monkeypatch.setattr("podcast_mcp.edits.timeline_ops._optimized_ripple_span", optimized_ripple)
     monkeypatch.setattr(
         "podcast_mcp.edits.decisions.load_defaults",
@@ -666,8 +671,8 @@ def test_auto_filler_keeps_witnessed_window_when_optimizer_would_enter_next_take
 
 
 @pytest.mark.parametrize("stale_geometry", ["moved", "duplicate", "uncovered"])
-def test_pending_source_remove_resize_keeps_geometry_holds(stale_geometry: str) -> None:
-    project = _two_take_project()
+def test_pending_source_remove_resize_keeps_geometry_holds(tmp_path, stale_geometry: str) -> None:
+    project = _two_take_project(tmp_path)
     decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
     if stale_geometry == "moved":
         project.clips[1].timeline_start += 1
@@ -702,9 +707,9 @@ def test_pending_source_remove_resize_keeps_geometry_holds(stale_geometry: str) 
 
 
 @pytest.mark.parametrize("source_id", [None, "B"])
-def test_pending_source_remove_snap_keeps_source_identity(source_id, monkeypatch) -> None:
+def test_pending_source_remove_snap_keeps_source_identity(tmp_path, source_id, monkeypatch) -> None:
     if source_id == "B":
-        project = _two_take_project()
+        project = _two_take_project(tmp_path)
         decision = cut_words(project, "host", 0, 0, source_id="B", use_inaudible_opt=False)
     else:
         project = EpisodeProject.create("primary", "/tmp/primary-source")
@@ -772,10 +777,10 @@ def test_pending_source_remove_snap_keeps_source_identity(source_id, monkeypatch
     )
 
 
-def test_combined_markdown_uses_each_take_placement_and_drops_unplaced_or_suppressed_words() -> (
-    None
-):
-    project = _two_take_project()
+def test_combined_markdown_uses_each_take_placement_and_drops_unplaced_or_suppressed_words(
+    tmp_path,
+) -> None:
+    project = _two_take_project(tmp_path)
 
     markdown = combined_transcript_markdown(project)
 
@@ -789,11 +794,13 @@ def test_combined_markdown_uses_each_take_placement_and_drops_unplaced_or_suppre
     assert "deleted" not in markdown
 
 
-def test_source_cut_absorbs_trailing_silence_using_selected_source_profile(monkeypatch) -> None:
+def test_source_cut_absorbs_trailing_silence_using_selected_source_profile(
+    tmp_path, monkeypatch
+) -> None:
     from podcast_mcp.edits import inaudible_cuts
     from podcast_mcp.edits.inaudible_cuts import CutWordIndex, InaudibleCutConfig
 
-    project = _two_take_project()
+    project = _two_take_project(tmp_path)
     selected = project.transcript_for_source("host", "B")
     assert selected is not None
     primary_profile = LevelProfile(room_db=-60.0, speech_db=-10.0, loud_db=-8.0)
@@ -841,9 +848,10 @@ def test_source_cut_absorbs_trailing_silence_using_selected_source_profile(monke
 
 
 def _primary_alias_project(
-    *, combined_only: bool, clip_source_id: str | None = "A"
+    tmp_path, *, combined_only: bool, clip_source_id: str | None = "A"
 ) -> EpisodeProject:
-    project = EpisodeProject.create("primary-alias", "/tmp/primary-alias")
+    project = EpisodeProject.create("primary-alias", str(tmp_path))
+    _write_quiet_recording(tmp_path / "raw/a.wav")
     project.tracks = [
         Track(
             id="host",
@@ -883,8 +891,10 @@ def _primary_alias_project(
     return project
 
 
-def test_primary_transcript_cut_resolves_explicit_same_recording_clip_for_approval() -> None:
-    project = _primary_alias_project(combined_only=False)
+def test_primary_transcript_cut_resolves_explicit_same_recording_clip_for_approval(
+    tmp_path,
+) -> None:
+    project = _primary_alias_project(tmp_path, combined_only=False)
 
     decision = cut_text_match(project, "hello", track_id="host", use_inaudible_opt=False)[0]
 
@@ -895,8 +905,8 @@ def test_primary_transcript_cut_resolves_explicit_same_recording_clip_for_approv
     assert all(not (clip.source_start < 1.4 and clip.source_end > 1.0) for clip in project.clips)
 
 
-def test_combined_only_primary_alias_maps_pending_preview_and_markdown() -> None:
-    project = _primary_alias_project(combined_only=True)
+def test_combined_only_primary_alias_maps_pending_preview_and_markdown(tmp_path) -> None:
+    project = _primary_alias_project(tmp_path, combined_only=True)
 
     decision = cut_text_match(project, "hello", track_id="host", use_inaudible_opt=False)[0]
     row = map_pending_edits_to_timeline(project, [decision])[0]
@@ -909,8 +919,8 @@ def test_combined_only_primary_alias_maps_pending_preview_and_markdown() -> None
     assert combined_transcript_markdown(project) == ("# primary-alias\n\n**Host** [6.0s]: hello\n")
 
 
-def test_combined_only_literal_primary_clip_maps_pending_preview_and_markdown() -> None:
-    project = _primary_alias_project(combined_only=True, clip_source_id=None)
+def test_combined_only_literal_primary_clip_maps_pending_preview_and_markdown(tmp_path) -> None:
+    project = _primary_alias_project(tmp_path, combined_only=True, clip_source_id=None)
 
     decision = cut_text_match(project, "hello", track_id="host", use_inaudible_opt=False)[0]
     row = map_pending_edits_to_timeline(project, [decision])[0]
@@ -921,16 +931,16 @@ def test_combined_only_literal_primary_clip_maps_pending_preview_and_markdown() 
     assert combined_transcript_markdown(project) == ("# primary-alias\n\n**Host** [6.0s]: hello\n")
 
 
-def test_primary_combined_text_does_not_fall_back_to_unrelated_explicit_source() -> None:
-    project = _primary_alias_project(combined_only=True, clip_source_id="B")
+def test_primary_combined_text_does_not_fall_back_to_unrelated_explicit_source(tmp_path) -> None:
+    project = _primary_alias_project(tmp_path, combined_only=True, clip_source_id="B")
     project.sources.append(SourceRecording(id="B", path="raw/b.wav"))
 
     with pytest.raises(ScopeChangedAtApproval, match="selected cut was not applied"):
         cut_text_match(project, "hello", track_id="host", use_inaudible_opt=False)
 
 
-def test_explicit_primary_alias_without_clips_uses_primary_media() -> None:
-    project = _primary_alias_project(combined_only=False)
+def test_explicit_primary_alias_without_clips_uses_primary_media(tmp_path) -> None:
+    project = _primary_alias_project(tmp_path, combined_only=False)
     project.clips = []
 
     decision = cut_words(project, "host", 0, 0, source_id="A", use_inaudible_opt=False)
@@ -942,7 +952,7 @@ def test_explicit_primary_alias_without_clips_uses_primary_media() -> None:
     assert _timeline_span(project, decision) == (1.0, 1.4, True)
     assert approve_edits(project.model_copy(deep=True), [decision.id]) == 1
 
-    markdown_project = _primary_alias_project(combined_only=True)
+    markdown_project = _primary_alias_project(tmp_path, combined_only=True)
     markdown_project.clips = []
     utterance = markdown_project.combined_transcript.utterances[0]
     markdown_project.combined_transcript.utterances[0] = utterance.model_copy(
@@ -954,8 +964,8 @@ def test_explicit_primary_alias_without_clips_uses_primary_media() -> None:
     )
 
 
-def test_primary_alias_cut_holds_after_geometry_changes_or_repeats() -> None:
-    moved_project = _primary_alias_project(combined_only=False)
+def test_primary_alias_cut_holds_after_geometry_changes_or_repeats(tmp_path) -> None:
+    moved_project = _primary_alias_project(tmp_path, combined_only=False)
     decision = cut_text_match(moved_project, "hello", track_id="host", use_inaudible_opt=False)[0]
     moved_project.clips[0].timeline_start += 1.0
 
@@ -964,7 +974,7 @@ def test_primary_alias_cut_holds_after_geometry_changes_or_repeats() -> None:
     ):
         approve_edits(moved_project, [decision.id])
 
-    repeated_project = _primary_alias_project(combined_only=False)
+    repeated_project = _primary_alias_project(tmp_path, combined_only=False)
     repeated_project.clips.append(
         repeated_project.clips[0].model_copy(update={"id": "a-repeat", "timeline_start": 15.0})
     )

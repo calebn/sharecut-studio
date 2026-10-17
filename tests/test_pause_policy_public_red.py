@@ -4,6 +4,7 @@ import pytest
 
 from pause_policy_public_helpers import (
     add_bed,
+    add_guest,
     configure,
     defaults,
     files,
@@ -15,14 +16,14 @@ from pause_policy_public_helpers import (
     workspace,
     write_wav,
 )
+from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.room_tone import RecordedBedSample, SampleAbsent
-from podcast_mcp.edits.source_removals import CutScopeHold, inspect_source_remove
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.timeline_ops import LaneSample, LaneUnavailable, room_tone_pad
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import Clip, EditDecisionType, Transcript, load_project
+from podcast_mcp.models import Clip, CutIntent, EditDecisionType, Transcript, load_project
 from podcast_mcp.services.document import EditService
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.timebase import SourceSec
@@ -33,7 +34,7 @@ def _measured_original_project(tmp_path, *, guest):
     result.transcripts[0].words[1].end = 5.4
     audio = room()
     voice(audio, 0, 0.2)
-    voice(audio, 5, 5.4)
+    voice(audio, 5, 5.35)
     write_wav(tmp_path / "raw/host.wav", audio)
     result.transcripts.append(
         Transcript(
@@ -41,6 +42,33 @@ def _measured_original_project(tmp_path, *, guest):
         )
     )
     return result
+
+
+def _prepared_pause(result, cfg):
+    from podcast_mcp.edits.cut_proof import shared_source_audio_caches
+    from podcast_mcp.edits.cut_safety import CutRejected
+    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate, _decision_for_analyzed
+
+    caches = shared_source_audio_caches(result)
+    analyzed = _analyze_candidate(
+        result,
+        _CutCandidate(
+            "host",
+            0.2,
+            2,
+            "pause:2.10s",
+            "pause",
+            max_end=2,
+            gap_end=5,
+            pause_sec=2.1,
+            decision_id="pause",
+        ),
+        cfg,
+        audio_cache=caches["host"],
+        audio_caches=caches,
+    )
+    assert not isinstance(analyzed, CutRejected), analyzed
+    return _decision_for_analyzed(analyzed)
 
 
 @pytest.mark.parametrize("topology", ["intact", "split"])
@@ -78,24 +106,28 @@ def test_real_deleted_source_is_not_restored_by_continuous_split_arithmetic(tmp_
 
 
 @pytest.mark.parametrize("topology", ["intact", "split"])
-def test_saved_oversized_pause_contracts_to_original_air_instead_of_replacement(
+def test_saved_oversized_pause_holds_without_changing_its_final_bounds(
     tmp_path, monkeypatch, topology
 ):
     configure(monkeypatch, defaults())
     result = project(tmp_path, topology=topology)
     result.edit_decisions = [pause(end=4.7)]
     ws = workspace(result)
+    before_model = ws.project.model_dump(mode="json")
+    before_files = files(tmp_path)
 
-    assert EditService(ws).approve(["pause"]) == 1
+    with pytest.raises(CodedError) as held:
+        EditService(ws).approve(["pause"])
 
+    assert held.value.code == "cut_scope_changed"
+    assert held.value.ids == ("pause",)
+    assert (held.value.held[0].reason, held.value.held[0].detail) == ("pause_air", "no_air")
+    assert ws.project.model_dump(mode="json") == before_model
+    assert files(tmp_path) == before_files
     saved = load_project(ws.path)
-    assert saved.timeline.duration_sec == pytest.approx(1.75)
-    assert sum(c.source_end - c.source_start for c in saved.clips) == pytest.approx(1.75)
-    assert all(c.source_id is None for c in saved.clips)
-    record = saved.editorial.edit_log[0]
-    assert record.decision_ids == ["pause"]
-    assert (record.source_start, record.source_end) == pytest.approx((0.2, 4.45))
-    assert record.params["replace_gap_sec"] is None
+    assert saved.timeline.duration_sec == 6
+    assert saved.editorial.edit_log == []
+    assert (saved.edit_decisions[0].start, saved.edit_decisions[0].end) == (0.2, 4.7)
     assert [w.text for w in saved.transcripts[0].words] == ["before", "after"]
 
 
@@ -113,7 +145,9 @@ def test_original_pause_does_not_consume_an_unavailable_manual_pad_lane(
     tmp_path, monkeypatch, kind, cause
 ):
     configure(monkeypatch, defaults())
-    result = project(tmp_path, topology="deleted", guest=kind)
+    result = project(tmp_path, topology="deleted")
+    prepared = _prepared_pause(result, defaults())
+    add_guest(result, tmp_path, kind)
     add_bed(result, tmp_path)
     planned = room_tone_pad(result, 0.2, 0.25)
     host, guest = planned.lanes
@@ -123,10 +157,10 @@ def test_original_pause_does_not_consume_an_unavailable_manual_pad_lane(
     assert isinstance(guest, LaneUnavailable)
     assert isinstance(guest.cause, SampleAbsent)
     assert (guest.track_id, guest.cause.cause) == ("guest", cause)
-    result.edit_decisions = [pause()]
+    result.edit_decisions = [prepared]
     ws = workspace(result)
     service = EditService(ws)
-    if kind == "missing":
+    if kind in {"missing", "corrupt"}:
         before_model = ws.project.model_dump(mode="json")
         before_files = files(tmp_path)
         with pytest.raises(CodedError) as held:
@@ -135,7 +169,9 @@ def test_original_pause_does_not_consume_an_unavailable_manual_pad_lane(
         assert ws.project.model_dump(mode="json") == before_model
         assert files(tmp_path) == before_files
         assert ws.project.editorial.edit_log == []
-        return
+        if kind == "missing":
+            return
+        write_wav(tmp_path / "raw/guest.wav", room(seed=1215))
     if kind == "rejected":
         before_model = ws.project.model_dump(mode="json")
         before_files = files(tmp_path)
@@ -148,7 +184,7 @@ def test_original_pause_does_not_consume_an_unavailable_manual_pad_lane(
         ]
         assert ws.project.model_dump(mode="json") == before_model
         assert files(tmp_path) == before_files
-        assert service.approve(["pause"], confirm_cut_speech=True) == 1
+        assert service.approve(["pause"], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
     else:
         assert service.approve(["pause"]) == 1
     saved = load_project(ws.path)
@@ -170,9 +206,19 @@ def test_enabled_guards_hold_unknown_peer_audio_and_accept_repaired_original_aud
     tmp_path, monkeypatch, kind
 ):
     configure(monkeypatch, defaults(acoustic=True))
-    result = _measured_original_project(tmp_path, guest=kind)
+    result = _measured_original_project(tmp_path, guest="quiet")
+    audio = room(seed=1215)
+    voice(audio, 0, 0.2)
+    voice(audio, 5, 5.35)
+    peer = tmp_path / "raw/guest.wav"
+    write_wav(peer, audio)
+    prepared = _prepared_pause(result, defaults(acoustic=True))
+    if kind == "missing":
+        peer.unlink()
+    else:
+        peer.write_bytes(b"this is not an audio container")
     add_bed(result, tmp_path)
-    result.edit_decisions = [pause()]
+    result.edit_decisions = [prepared]
     ws = workspace(result)
     before_model = ws.project.model_dump(mode="json")
     before_files = files(tmp_path)
@@ -185,7 +231,7 @@ def test_enabled_guards_hold_unknown_peer_audio_and_accept_repaired_original_aud
     assert files(tmp_path) == before_files
     audio = room(seed=1215)
     voice(audio, 0, 0.2)
-    voice(audio, 5, 5.4)
+    voice(audio, 5, 5.35)
     write_wav(tmp_path / "raw/guest.wav", audio)
     assert EditService(ws).approve(["pause"]) == 1
     record = load_project(ws.path).editorial.edit_log[0]
@@ -239,12 +285,12 @@ def test_selected_saved_batch_with_held_pause_restores_bytes_mirrors_and_history
     result = _measured_original_project(tmp_path, guest="quiet")
     peer_audio = room(seed=1215)
     voice(peer_audio, 0, 0.2)
-    voice(peer_audio, 5, 5.4)
+    voice(peer_audio, 5, 5.35)
     write_wav(tmp_path / "raw/guest.wav", peer_audio)
     add_bed(result, tmp_path)
     filler = pause("filler", start=5.4, end=5.6, gap=None)
     filler.reason = "filler:um"
-    result.edit_decisions = [filler, pause()]
+    result.edit_decisions = [filler, _prepared_pause(result, defaults(acoustic=True))]
     ws = workspace(result)
     before_model = ws.project.model_dump(mode="json")
     before_files = files(tmp_path)
@@ -276,7 +322,7 @@ def test_automatic_keeps_valid_filler_and_same_held_pause(tmp_path, monkeypatch)
     result = _measured_original_project(tmp_path, guest="quiet")
     peer_audio = room(seed=1215)
     voice(peer_audio, 0, 0.2)
-    voice(peer_audio, 5, 5.4)
+    voice(peer_audio, 5, 5.35)
     write_wav(tmp_path / "raw/guest.wav", peer_audio)
     add_bed(result, tmp_path)
     filler = pause("filler", start=5.4, end=5.6, gap=None)
@@ -303,10 +349,10 @@ def test_suggested_hold_changes_neither_snapshot_nor_canonical_saved_bytes(tmp_p
     result = _measured_original_project(tmp_path, guest="quiet")
     peer_audio = room(seed=1215)
     voice(peer_audio, 0, 0.2)
-    voice(peer_audio, 5, 5.4)
+    voice(peer_audio, 5, 5.35)
     write_wav(tmp_path / "raw/guest.wav", peer_audio)
     add_bed(result, tmp_path)
-    result.edit_decisions = [pause()]
+    result.edit_decisions = [_prepared_pause(result, defaults(acoustic=True))]
     ws = workspace(result)
     snapshot = ws.project.model_copy(deep=True)
     before_model = snapshot.model_dump(mode="json")
@@ -334,7 +380,11 @@ def test_suggested_hold_changes_neither_snapshot_nor_canonical_saved_bytes(tmp_p
 def test_explicit_configured_silence_remains_a_real_common_gap(tmp_path, monkeypatch, reason):
     configure(monkeypatch, defaults(mode="silence"))
     result = project(tmp_path, topology="deleted", guest="gated")
-    edit = pause()
+    edit = (
+        _prepared_pause(result, defaults(mode="silence"))
+        if reason.startswith("pause:")
+        else pause()
+    )
     edit.reason = reason
     result.edit_decisions = [edit]
     ws = workspace(result)

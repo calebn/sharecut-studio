@@ -16,6 +16,7 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_point_to_source,
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
+from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.tracks import recording_audio_path, unknown_track
@@ -27,6 +28,17 @@ JOIN_GAP_TOLERANCE_SEC = 0.05
 
 def new_clip_id() -> str:
     return f"clip_{uuid.uuid4().hex[:8]}"
+
+
+def _split_parents() -> dict[str, str]:
+    return scoped("clip_split_parents", dict)
+
+
+def clip_split_origin(clip_id: str | None, before_ids: set[str | None]) -> str | None:
+    parents = _split_parents()
+    while clip_id is not None and clip_id not in before_ids and clip_id in parents:
+        clip_id = parents[clip_id]
+    return clip_id
 
 
 def clips_for_track(project: EpisodeProject, track_id: str) -> list[Clip]:
@@ -167,6 +179,7 @@ def split_clip_at(clip: Clip, timeline_time: float) -> tuple[Clip, Clip]:
     after.mute_regions = mute_regions_overlapping(
         clip.mute_regions, after.source_start, after.source_end
     )
+    _split_parents().update({before.id: clip.id, after.id: clip.id})
     return before, after
 
 

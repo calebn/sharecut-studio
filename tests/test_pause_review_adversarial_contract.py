@@ -35,7 +35,7 @@ def test_auto_pause_cannot_treat_a_join_scorer_exception_as_pass(tmp_path, monke
         observed.append((track_id, cut_start, cut_end, kwargs["timebase"]))
         raise OSError("join scorer decode unavailable")
 
-    monkeypatch.setattr("podcast_mcp.edits.join_continuity.assess_proposed_cut", unavailable)
+    monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_proposed_cut", unavailable)
     ws = workspace(_stored_remove(tmp_path, seed=1512))
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
@@ -75,7 +75,7 @@ def test_source_remove_refuses_replay_under_equivalent_media_path(tmp_path, monk
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     with pytest.raises(ScopeChangedAtApproval):
-        EditService(ws).approve(["cut"], confirm_cut_speech=True)
+        EditService(ws).approve(["cut"])
     assert files(tmp_path) == before_files
     assert ws.project.model_dump(mode="json") == before_model
     assert load_project(ws.path).model_dump(mode="json") == before_model

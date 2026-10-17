@@ -656,22 +656,14 @@ describe("InspectorPeek nudges", () => {
     ).toEqual([{ id: "e1", time: 9.75, value: 1.059254 }]);
   });
 
-  it("leaves a trim nudge unsaved and restores it when the ripple would cut another speaker", async () => {
-    const speech = {
-      spans: [{ start: 39.9, end: 40 }],
-      tracks: [
-        {
-          track_id: "guest",
-          speaker: "Avery",
-          words: [{ text: "so", timeline_start: 39.92, timeline_end: 39.98 }],
-          sound_spans: [],
-        },
-      ],
-    };
+  it("saves a manual ripple trim directly with its current boundary token", async () => {
     host.loadBoundaryContext.mockResolvedValue({ token: "ripple-token" });
-    host.submit.mockResolvedValue({
-      ok: true,
-      needs_confirmation: { status: "needs_confirmation", speech },
+    host.submit.mockImplementation(async () => {
+      const saved = structuredClone(project);
+      saved.clips.tracks.host[1].source_end = 39.9;
+      saved.clips.tracks.host[1].timeline_end = 39.9;
+      applyDocumentSnapshot({ server_seq: 1, project: saved });
+      return { ok: true };
     });
     open(TRIM_END);
     const earlier = button("Trim end 0.1 s earlier");
@@ -699,10 +691,9 @@ describe("InspectorPeek nudges", () => {
       },
     ]);
     const state = useDawStore.getState();
-    expect(state.project?.clips.tracks.host[1].source_end).toBe(40);
-    expect(state.cutSpeechPrompt?.speech).toEqual(speech);
-    expect(announce).not.toHaveBeenCalledWith("Trim saved");
-    state.setCutSpeechPrompt(null);
+    expect(state.project?.clips.tracks.host[1].source_end).toBe(39.9);
+    expect(host.submit).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith("Trim saved");
   });
 
   it("offers envelope nudges to editors only (D-touch-input-grammar), and fade nudges from a guest without edit", () => {

@@ -15,7 +15,7 @@ def test_excluded_original_cannot_supply_the_pause_floor(tmp_path, monkeypatch, 
     cfg["tighten"].update(min_retained_solo_pause_sec=1.8, min_retained_pause_sec=1.8)
     configure(monkeypatch, cfg)
     control = project(tmp_path / "control", topology="deleted")
-    control.edit_decisions = [pause("original", start=0.3, end=2, gap=None)]
+    control.edit_decisions = [pause("original", start=0.3, end=0.6, gap=None)]
     control_ws = workspace(control)
     assert EditService(control_ws).approve(["original"]) == 1
     control_saved = load_project(control_ws.path)
@@ -32,7 +32,7 @@ def test_excluded_original_cannot_supply_the_pause_floor(tmp_path, monkeypatch, 
         result.transcripts[0].words.append(
             TranscriptWord(text="ignored", start=0.7, end=1.05, ignored=True)
         )
-    result.edit_decisions = [pause("excluded", start=0.3, end=2, gap=None)]
+    result.edit_decisions = [pause("excluded", start=0.3, end=0.6, gap=None)]
     ws = workspace(result)
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")

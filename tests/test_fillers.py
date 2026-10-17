@@ -19,9 +19,9 @@ from podcast_mcp.edits.cut_quality import (
     recommend_cut_fade_ms,
     word_margin_violation_sec,
 )
-from podcast_mcp.edits.fillers import _CutRejected, analyze_fillers_and_pauses
+from podcast_mcp.edits.cut_safety import CutRejected, ResolvedCutScope
+from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.room_tone import OwnQuietSample, Sample
-from podcast_mcp.edits.speech_energy_guard import ResolvedCutScope
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -302,7 +302,7 @@ def _mock_cut_pipeline(request):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.edits.fillers.protect_cut_breaths",
+            "podcast_mcp.edits.cut_safety.protect_cut_breaths",
             side_effect=lambda project, track_id, start, end, **kw: (start, end),
         ),
         patch(
@@ -490,7 +490,7 @@ def test_solo_pause_crossing_earlier_hole_does_not_propose_cut(tmp_path: Path):
         max_end=3.5,
     )
     assert _analyze_candidate(project, candidate, {"tighten": {}}) == (
-        _CutRejected("source_geometry")
+        CutRejected("source_geometry")
     )
 
 
@@ -786,7 +786,7 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
         patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
     ):
@@ -795,7 +795,7 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
             cand,
             {"tighten": {"filler_words": [], "leave_in_if_risky": True}},
         )
-    assert result == _CutRejected("reparandum")
+    assert result == CutRejected("reparandum")
 
 
 def test_repetition_candidates_are_bounded_and_review_required():
@@ -870,7 +870,7 @@ def test_repetition_cut_cannot_widen_past_the_duplicate_word():
         patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=ResolvedCutScope("session_clear", None),
         ),
     ):
@@ -1850,7 +1850,7 @@ def test_pause_analyze_retains_original_air_past_junk_words(tmp_path: Path):
             }
         },
     )
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert result.replace_gap_sec is None
     assert result.start == pytest.approx(0.4)
     assert result.end <= 2.30 + 1e-6
@@ -1887,7 +1887,7 @@ def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     _pause_audio(empty, tmp_path / "empty")
     with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(empty, _pause_candidate(), defaults)
-    assert result == _CutRejected("no_air")
+    assert result == CutRejected("no_air")
 
     junk_only = _project_with_transcript(
         [
@@ -1899,7 +1899,7 @@ def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     _pause_audio(junk_only, tmp_path / "junk")
     with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(junk_only, _pause_candidate(), defaults)
-    assert result == _CutRejected("no_air")
+    assert result == CutRejected("no_air")
 
     valid = _pause_audio(
         _project_with_transcript(
@@ -1912,7 +1912,7 @@ def test_pause_analyze_requires_complete_live_word_context(tmp_path: Path):
     )
     with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(valid, _pause_candidate(), defaults)
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert (result.start, result.end) == pytest.approx((0.4, 2))
     assert result.replace_gap_sec is None
 
@@ -1939,7 +1939,7 @@ def test_pause_analyze_contracts_before_a_flush_next_word(tmp_path: Path):
                 }
             },
         )
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert result.replace_gap_sec is None
     assert result.start == pytest.approx(0.4)
     assert result.end <= 1.45 + 1e-6
@@ -1961,7 +1961,7 @@ def test_analyze_rejects_when_max_end_collapses_span():
         ),
         {"tighten": {}},
     )
-    assert result == _CutRejected("bounds")
+    assert result == CutRejected("bounds")
 
 
 def test_analyze_rejects_when_cut_scope_is_skipped():
@@ -1974,7 +1974,7 @@ def test_analyze_rejects_when_cut_scope_is_skipped():
         ]
     )
     with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         side_effect=ValueError("cut blocked"),
     ):
         result = _analyze_candidate(
@@ -1988,7 +1988,7 @@ def test_analyze_rejects_when_cut_scope_is_skipped():
             ),
             {"tighten": {}},
         )
-    assert result == _CutRejected("scope")
+    assert result == CutRejected("scope")
 
 
 def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
@@ -2069,7 +2069,7 @@ def test_analyze_candidates_passes_timeline_rms_caches_to_cut_scope():
             return_value=timeline_caches,
         ) as shared_timeline,
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             side_effect=capture_resolve,
         ),
         patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
@@ -2104,7 +2104,7 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
     )
     guard = SimpleNamespace(blocked=True, action="review", blocking_track_ids=["guest"])
     with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("peer_speech", guard),
     ):
         result = _analyze_candidate(
@@ -2148,11 +2148,11 @@ def test_analyze_keeps_peer_conflicted_pause_for_session_review(action, tmp_path
     )
     guard = SimpleNamespace(blocked=True, action=action, blocking_track_ids=["guest"])
     with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("peer_speech", guard),
     ):
         result = _analyze_candidate(project, cand, {"tighten": {}})
-    assert not isinstance(result, _CutRejected)
+    assert not isinstance(result, CutRejected)
     assert result.replace_gap_sec is None
     assert result.scope == "session"
     assert result.review_required is True
@@ -2160,7 +2160,7 @@ def test_analyze_keeps_peer_conflicted_pause_for_session_review(action, tmp_path
     assert result.end == pytest.approx(4.40)
 
     with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        "podcast_mcp.edits.cut_safety.resolve_cut_scope",
         return_value=ResolvedCutScope("session_clear", None),
     ):
         open_result = _analyze_candidate(project, cand, {"tighten": {}})
@@ -2370,7 +2370,7 @@ _REJECTIONS = [
     ("_clamp_to_candidate", {"return_value": None}, "bounds"),
 ]
 _SCOPE_REJECTION = (
-    "speech_energy_guard.resolve_cut_scope",
+    "cut_safety.resolve_cut_scope",
     {"side_effect": ValueError("no clip")},
     "scope",
 )
@@ -2439,7 +2439,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
             return_value={"host": sentinel_cache},
         ),
         patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             return_value=SimpleNamespace(verdict="review"),
         ) as assess,
     ):
@@ -2449,7 +2449,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
 
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="fail"),
     ) as assess:
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2458,7 +2458,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
 
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="review"),
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2468,7 +2468,7 @@ def test_join_continuity_verdicts_and_scorer_errors():
 
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         side_effect=RuntimeError("scorer down"),
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2647,9 +2647,9 @@ def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
     ]
     padded = [TranscriptWord(text="so", start=0.0, end=0.1), *unpadded]
     rejecting = {
-        "breath": patch("podcast_mcp.edits.fillers.protect_cut_breaths", return_value=None),
+        "breath": patch("podcast_mcp.edits.cut_safety.protect_cut_breaths", return_value=None),
         "join": patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             return_value=SimpleNamespace(verdict="fail"),
         ),
     }[gate]
@@ -2701,7 +2701,7 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
 
     with (
         patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air),
-        patch("podcast_mcp.edits.fillers.protect_cut_breaths", side_effect=breaths),
+        patch("podcast_mcp.edits.cut_safety.protect_cut_breaths", side_effect=breaths),
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
 
@@ -2718,7 +2718,7 @@ def test_a_replacement_pad_counts_against_actual_played_loss(air_end, loss):
     from podcast_mcp.edits.fillers import _CutPlan
 
     pad = PacedPad(gap_sec=0.45, min_sec=0.45, retain=1, max_sec=0.45)
-    plan = _CutPlan.for_cut(1, air_end, mute=False, pad=pad)
+    plan = _CutPlan.for_cut(1, air_end, mute=False, pad=pad, reason="filler:fixture")
     assert plan.replace_gap_sec == pytest.approx(0.45)
     assert plan.end - plan.start - (plan.replace_gap_sec or 0) == pytest.approx(loss)
 
@@ -2771,7 +2771,7 @@ def test_a_pause_trim_that_fails_a_filler_check_stays_for_review(tmp_path: Path)
         "tighten": {**_PAUSE_DEFAULTS["tighten"], "join_continuity_gate": True},
     }
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="review"),
     ):
         decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2798,7 +2798,7 @@ def test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it():
     ]
     project = _project_with_transcript(words)
     with patch(
-        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        "podcast_mcp.edits.cut_safety.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="fail"),
     ):
         decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
@@ -2875,7 +2875,7 @@ def test_audio_padded_filler_with_edges_in_activity_is_proposed(tmp_path):
     import numpy as np
 
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.cut_safety import protect_cut_breaths
 
     # Room tone 35 dB over the floor joins the um's onset and tail into one run that
     # is too long to be a breath, as on the lab tape (#978).
@@ -3183,7 +3183,7 @@ def test_cut_starting_in_a_kept_words_tail_starts_after_its_voice(tmp_path, reas
         track_id="host", start=0.85, end=1.1, reason=reason, cut_kind="filler"
     )
     # Pacing or snapping left the start inside the tail of "So".
-    plan = _CutPlan.for_cut(0.62, 1.1, mute=True, pad=None)
+    plan = _CutPlan.for_cut(0.62, 1.1, mute=True, pad=None, reason="filler:fixture")
 
     moved = _between_kept_voices(
         project,
@@ -3283,7 +3283,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
         )
         so = _between_kept_voices(
             project,
-            _CutPlan.for_cut(0.52, 1.2, mute=True, pad=None),
+            _CutPlan.for_cut(0.52, 1.2, mute=True, pad=None, reason="filler:fixture"),
             run,
             audio_cache=cache,
             defaults=load_defaults(),
@@ -3293,7 +3293,7 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
         )
         started = _start_at_filler_onset(
             project,
-            _CutPlan.for_cut(2.25, 2.6, mute=True, pad=None),
+            _CutPlan.for_cut(2.25, 2.6, mute=True, pad=None, reason="filler:fixture"),
             uh,
             audio_cache=cache,
             defaults=load_defaults(),
@@ -3328,12 +3328,8 @@ def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db)
 def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.audio_cache import build_track_audio_caches
-    from podcast_mcp.edits.fillers import (
-        _between_kept_voices,
-        _CutCandidate,
-        _CutPlan,
-        _CutRejected,
-    )
+    from podcast_mcp.edits.cut_safety import CutRejected
+    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
 
     project = _audio_project(
         tmp_path,
@@ -3368,7 +3364,7 @@ def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
 
     gated = _between_kept_voices(
         project,
-        _CutPlan.for_cut(0.72, 0.9, mute=True, pad=None),
+        _CutPlan.for_cut(0.72, 0.9, mute=True, pad=None, reason="filler:fixture"),
         candidate,
         audio_cache=build_track_audio_caches(project, {"host"})["host"],
         defaults=load_defaults(),
@@ -3376,7 +3372,7 @@ def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
 
     assert isinstance(gated, _CutPlan) is kept
     if not kept:
-        assert gated == _CutRejected("kept_voice")
+        assert gated == CutRejected("kept_voice")
 
 
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
@@ -3469,7 +3465,7 @@ def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
     import numpy as np
 
     from podcast_mcp.config import load_defaults
-    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.engines.play_audit import premix_path
     from podcast_mcp.render import rerender_preview
 
@@ -3524,8 +3520,8 @@ def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_
     import numpy as np
 
     from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
-    from podcast_mcp.edits.decisions import approve_edits
 
     rate = 48_000
     noise = np.random.default_rng(3).standard_normal(round(0.05 * rate))
@@ -3568,8 +3564,8 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
     import numpy as np
 
     from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_application import approve_edits
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
-    from podcast_mcp.edits.decisions import approve_edits
 
     rate = 48_000
 
@@ -3671,7 +3667,9 @@ def test_like_before_edits_waits_for_previous_word_decay(tmp_path):
         track_id="host", start=1.15, end=1.25, reason="filler:like", cut_kind="filler"
     )
     ungated_start_inside_prev_word_decay = 1.10
-    plan = _CutPlan.for_cut(ungated_start_inside_prev_word_decay, 1.26, mute=False, pad=None)
+    plan = _CutPlan.for_cut(
+        ungated_start_inside_prev_word_decay, 1.26, mute=False, pad=None, reason="filler:fixture"
+    )
     started = _start_at_filler_onset(project, plan, like, audio_cache=cache, defaults=defaults)
     assert isinstance(started, _CutPlan)
     gated = _between_kept_voices(project, started, like, audio_cache=cache, defaults=defaults)
@@ -3776,21 +3774,24 @@ def test_filler_pad_is_paced_from_the_span_the_cut_removes(tmp_path, word_start,
 def test_cut_plan_paces_its_pad_from_its_own_span():
     from dataclasses import replace
 
+    from podcast_mcp.edits.cut_safety import CutJoin
     from podcast_mcp.edits.filler_pacing import PacedPad
-    from podcast_mcp.edits.fillers import _CutPlan, _Join
+    from podcast_mcp.edits.fillers import _CutPlan
 
     pad = PacedPad(gap_sec=0.0, min_sec=0.35, retain=0.85, max_sec=1.0)
-    plan = _CutPlan.for_cut(1.2, 1.3, mute=False, pad=pad)
+    plan = _CutPlan.for_cut(1.2, 1.3, mute=False, pad=pad, reason="filler:fixture")
 
-    assert (plan.join, plan.replace_gap_sec) == (_Join.PADDED, pytest.approx(0.35))
+    assert (plan.join, plan.replace_gap_sec) == (CutJoin.PADDED, pytest.approx(0.35))
     # An edge check that moves the left edge to the voice resizes the pad with it.
     assert replace(plan, start=0.5).replace_gap_sec == pytest.approx(0.68)
     # Air the cut took whole still sets the floor when the span shrinks inside it.
-    gap_plan = _CutPlan.for_cut(1.0, 2.0, mute=False, pad=replace(pad, gap_sec=1.1))
+    gap_plan = _CutPlan.for_cut(
+        1.0, 2.0, mute=False, pad=replace(pad, gap_sec=1.1), reason="filler:fixture"
+    )
     assert replace(gap_plan, end=1.5).replace_gap_sec == pytest.approx(0.935)
     # A mute keeps its time, so it inserts no pad.
-    mute = _CutPlan.for_cut(1.2, 1.3, mute=True, pad=pad)
-    assert (mute.join, mute.replace_gap_sec) == (_Join.MUTE, None)
+    mute = _CutPlan.for_cut(1.2, 1.3, mute=True, pad=pad, reason="filler:fixture")
+    assert (mute.join, mute.replace_gap_sec) == (CutJoin.MUTE, None)
 
 
 def _scope_result(peers_speaking: bool):
@@ -3820,11 +3821,11 @@ def _analyze_padded_uh(*, peers_speaking: bool, join_verdict: str):
     }
     with (
         patch(
-            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            "podcast_mcp.edits.cut_safety.resolve_cut_scope",
             return_value=_scope_result(peers_speaking),
         ),
         patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            "podcast_mcp.edits.cut_safety.assess_proposed_cut",
             return_value=SimpleNamespace(verdict=join_verdict),
         ),
     ):
@@ -3986,13 +3987,5 @@ def test_a_pause_with_a_source_hole_retains_original_air_or_holds(floor, propose
         assert (result.start, result.end) == pytest.approx((1, 1.9))
         assert result.replace_gap_sec is None
     else:
-        assert result == _CutRejected("no_air")
+        assert result == CutRejected("no_air")
     assert project.model_dump(mode="json") == before
-
-
-def test_spans_agree_within_float_error_of_a_round_trip():
-    from podcast_mcp.edits.fillers import _spans_agree
-
-    assert _spans_agree((1.2, 1.2 + 2.45), (1.2, 3.65))
-    assert not _spans_agree((1.2, 3.66), (1.2, 3.65))
-    assert not _spans_agree(None, (1.2, 3.65))

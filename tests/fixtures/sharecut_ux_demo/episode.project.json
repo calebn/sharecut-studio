@@ -132,7 +132,9 @@
         "review_required": true,
         "applied": false,
         "cut_confidence": 0.82,
-        "boundary_mode": "inaudible"
+        "boundary_mode": "inaudible",
+        "proposal_origin": "programmatic",
+        "boundary_intent": "programmatic"
       }
     ],
     "edit_log": [],

@@ -1,7 +1,6 @@
 /** Stable entry point for the DAW command registry. Keep registration order here. */
 import { registerChapterCommands } from "./chapters";
 import { registerCommentCommands } from "./comments";
-import { registerCutSpeechCommands } from "./cutSpeech";
 import {
   registerClipboardCommands,
   registerClipMoveCommands,
@@ -46,7 +45,6 @@ export function registerDawCommands(): void {
   registerSpeakerSplitCommands();
   registerTranscriptViewCommands();
   registerClipMoveCommands();
-  registerCutSpeechCommands();
   registerTightenCommands();
   registerTrackMixCommands();
   registerTranscriptIgnoreCommands();

@@ -18,10 +18,17 @@ can be nonzero even when the returned timeline geometry is exact.
 - **Short filler / NL cuts** (`duration ≤ short_cut_max_sec`) — if the cut end still sits in hot / non-quiet waveform energy (ASR often ends “um” early while the voiced blob continues), extend `end` to the **quietest** RMS hop between the naive end and the start of the next transcript word, capped by `trailing_energy_extend_ms`. This skips shallow local troughs inside a nasal coda. When that window is still hot (filler overlaps the next word’s onset), chew further within the extend budget to clear the blob. Room-tone pacing still inserts `replace_gap_sec`, but does **not** clamp away a trailing-energy extend past the next word’s ASR start.
 - **Trailing silence absorb** — after boundary snap, if the next transcript word is within `absorb_trailing_silence_max_sec` and the intervening audio is quiet, extend `end` to `next_word_start − absorb_trailing_silence_retain_sec` (default 0.4s breath). Prevents restart/ripple joins from leaving a double-breath of leftover dead air. Distant next words are skipped so multitrack ripple medians stay safe.
 - **Retained breaths in Tighten proposals** — after pacing, clamps and voiced nudges, `protect_cut_breaths` preserves confirmed complete breaths at both final edges of a cut without a paced pad by shrinking the cut (a padded filler cut fades each edge against silence and is checked for the next word's onset and whole kept words instead; [filler cut quality](filler-cut-quality.md#policy) § Padded cuts). Completion includes quiet onset and tail with measured floor separators and the unchanged speech/kept-word/sibilance gates. Relevant protected or incomplete connected activity, and unavailable acoustic evidence, suppress the proposal. A pause trim does not take this path. It shrinks to the longest stretch of air inside it, measured against each recording's room tone (read once, where nobody in the session is speaking, and how far it spreads), so no edge sits inside a sound that rises out of the room on any track the ripple cuts; a pause trim that passes the current filler checks can apply, and one that moved off the span pacing proposed says `:air_edges` ([filler cut quality](filler-cut-quality.md#decision-pause-trims-cut-only-air-and-apply-when-they-pass-the-filler-checks), #1055). Silence and unrelated rejected activity stay clear. Kept-word eligibility and final scope/voice checks are revalidated before risk, pad, join and fade; a padded filler cut paces its pad from the final span, so an edge that moves resizes it (#1074). Pause trims retain enough qualified original quiet and add no replacement pad. Exact breath endpoints stay unchanged. See [filler cut quality](filler-cut-quality.md#policy) for the bounded detection contract and listening limits.
-- **Applying optimized proposals** — automatic prefix application uses the stored range when `boundary_mode` records prior optimization. It does not snap those guarded edges again. A source-witnessed removal also consumes its current proved timeline window exactly, including after a manual nonsnap resize; the generic apply-time optimizer is skipped for that window. Pause trims run their own preparation and re-prove the resulting bounds. Unwitnessed pending edits still use the workflow's `inaudible_opt` setting. Coalescing keeps decisions with different boundary modes separate, preserving each row's optimization policy.
+- **Applying held proposals** — every application consumes the stored interval exactly. Optimization belongs to proposal preparation and interactive snapping; application never replays it. `edits/cut_application.py` completes source cuts, mutes, pads, and edge fades on a private project copy, then `cut_safety` assesses the actual render graph before adopting that exact candidate. Its four policies own breath/onset, both peer observations, source placement and pad hulls, and source-qualified consumption receipts. Late batch fades and GAP extensions with no removal still receive acoustic assessment. When an effect overlaps an accepted source mute on that same recording placement, acoustic checks read a private gate-off, unprocessed evidence render at the qualified BEFORE source occurrence, including its mute envelope and fill. Final post-ripple positions never index this evidence. Renderer leaves distinguish clip audio from fill tiles; source identity, physical clip occurrence and fill phase bind inherited evidence. Native splits carry child-to-parent clip facts within the edit batch, so both new-ID survivors bind to their actual BEFORE occurrence. Repeated occurrences remain separate, and an ambiguous untraced graph or duplicated binding is refused. Inherited mute recipes compare native source-sample bounds, fade lengths and gain, so re-localizing an unchanged mute after a cut does not make it a new effect. Newly inserted pads use their own recording evidence. They retain the source recording's profile and the established analysis sample rates. A failed batch copy is discarded; partial application rebuilds survivors from the accepted mute base, without held pads, fades, or archives. Trusted manual gestures and explicit interactive approval bypass acoustic vetoes only. All paths retain structural checks. Temporary audio measurements are cleaned up without publishing render artifacts.
 - **Cuts across recordings** — if timeline endpoints map to a missing or non-increasing source range, the optimizer preserves the requested timeline boundaries. It cannot optimize across different recording clocks as one source interval. Applied removals retain cut transcript words in their matching source archive for later boundary restoration (see [DAW editing](daw-editing.md)).
 - **Non-dialogue tracks** (music, sfx, intro, outro) — waveform-only snapping; no transcript dependency.
 - **Joins** — per-clip `join_in_mode` controls render behavior (see **Fade vs crossfade** below).
+
+Borrowed room-tone tiles keep their native insertion identity within the current
+edit batch. Later ripples may move those tiles away from their archive's original
+timeline position. Receipt checks follow native split descendants and still bind
+each surviving tile to its originating edit, original insertion window, and
+archived source samples. A separate copy of the same samples does not inherit
+that identity. The batch releases these facts when it ends.
 
 ## DAW snap overlay
 
@@ -74,7 +81,7 @@ placed overlapping actors stay outside the saved predecessor crossfade chain.
 ## Covered operations
 
 - Transcript cuts: `cut_time_range`, `cut_text_match`, `cut_utterance`, `cut_words`, `apply_edit_plan`.
-- **Filler/pause tighten** — proposals and apply both use waveform optimization when `tighten.inaudible_opt: true` (default). Lexicon membership is in [filler-cut-quality.md](filler-cut-quality.md); discourse markers (`like`, `you know`, …) are demoted there and are not cut from fluent speech.
+- **Filler/pause tighten** — proposals use waveform optimization when `tighten.inaudible_opt: true` (default). Lexicon membership is in [filler-cut-quality.md](filler-cut-quality.md); discourse markers (`like`, `you know`, …) are demoted there and are not cut from fluent speech.
 - Timeline cuts: `ripple_delete`, `ripple_delete_text`, `shorten_gaps`, clip split/rejoin. `shorten_gaps` maps word gaps in batches against one clip snapshot, then applies each merged removal right to left with `ripple_delete` so clip holes, fades, edit records, and regional render invalidations retain their usual behavior.
 - `strip_silence` rebuilds speech islands between silences (padding from silence interiors). Silence is a run of 10 ms frames, read at 16 kHz (`frame_levels_db`), under the track's own audibility floor (its voice floor) plus `over_voice_floor_db`, lasting at least `min_duration_sec` (`engines/silence.quiet_intervals`); a track with no live audio is silence end to end, and a track whose voice does not stand out of its room has no silence to strip. It does **not** run `optimize_source_cut_range`; `--inaudible-opt` / `use_inaudible_opt` on strip are accepted for API compatibility and ignored. Joins still get micro-fades via `recommend_micro_fades`.
 
@@ -105,6 +112,15 @@ Do **not** loosen global `absorb_trailing_silence_retain_sec` for this — hando
 Audition ~10–15s around the join before resolving review comments. Prefer existing room tone over `insert_gap` of pure silence unless the user asks.
 
 **Pad source order** with the default `filler_pad_mode: room_tone` (an approved mute's fill uses the same order): (1) recorded `track.room_tone` bed from the lobby capture (abutting tiles if the pad is longer than the bed: fade-in on the first tile, fade-out on the last); (2) a steady stretch of the track's own audio at its noise floor, at least 30 dB under its speech level and voice-free, nearest the cut, chosen from the audio and not from word times (#1054; rules in [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from); (3) skip the pad rather than tiling dialogue, bleed, or digital silence. Set `filler_pad_mode: silence` for a hard silent gap instead. A digitally silent recorded bed is treated as missing. The bed check reads the registered source path that clips render. Manual gap fill, MUTE, and nonpause filler/NL pads retain their existing sample and unfilled-gap behavior. A pause-floor shortfall never generates a pad, including when silence is configured. Missing media, decode failure, digital silence, gated live audio, absent/short/excluded runs, CHECKS failures, unreadable windows and the nearest-sixteen limit remain distinct measurement facts. Mixed failures retain actual rejection names and unreadable-window counts; absent VAD keeps the existing level checks.
+
+Native room-tone pad tiles own their insertion fade edges. The batch generic join writer
+leaves those boundaries alone for registered pad tiles and their current split
+descendants. Later completed-effect checks still validate the actual retained edges and
+hold unsafe writes atomically. Ordinary splice joins keep their configured generic
+fades. `tests/test_filler_pacing.py::test_apply_auto_edits_preserves_native_pad_edges` checks
+the real room-tone PCM path, split descendants, stale registry scope, and ordinary joins;
+`tests/test_source_remove_geometry.py::test_completed_effect_acoustics_is_the_only_veto`
+checks that a late unsafe fade remains a veto.
 
 Pause retention counts current once-only original quiet on both sides of the final
 removal. Complete placed flanking words and actual sound activity bound the query.
@@ -319,3 +335,16 @@ original transcript order when words are unsorted. Candidate-specific retained
 boundary exclusions use a nearest-valid lookup against that span. The pause
 floor reads a per-proposal peer-word overlap index; acoustic gap checks read the
 peer tracks' voiced runs from the shared audio caches instead.
+
+### Cut-policy ownership
+
+`edits/cut_safety.py` owns proposed-join assessment, breath protection, peer-speech
+disposition, current source-placement validation, and original-recording pad eligibility.
+The detector modules supply measurements. Held application measures fixed edges without
+another optimizer. The current checked-geometry implementation is transitional. It does
+not yet assess complete final effects across every cut path. Automatic join fades now run
+on the working copy before adoption. Approval reads existing room-tone pools or measures
+a live sample without recording a pool. The active-processing-chain evidence cache may use its existing scoped temporary
+measurement render. Such measurement must leave no durable files on rejection.
+The complete working-state owner and full two-stage proof remain pending
+in [Manual cut intent](filler-cut-quality.md#decision-manual-cut-intent-bypasses-acoustic-vetoes).

@@ -45,7 +45,6 @@ async function proveHungLoad(
     await waiveRefineGate(page, "e2e precision boundary timeout");
     await postDocumentCommand(page, CLIENT_ID, "CutRange", {
       mode: "ripple",
-      confirm_cut_speech: true,
       start: 5,
       end: 15,
     });

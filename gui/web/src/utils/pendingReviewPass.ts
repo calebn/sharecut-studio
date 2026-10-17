@@ -86,54 +86,15 @@ export function bulkReviewDoneMessage(
 /** A cut Approve all left pending, with the reason the list shows. */
 export type HeldCut = Readonly<{ id: string; label: string; reason: string }>;
 
-/**
- * The first part of an Approve all pass that asked "Cut anyway" about the rest: the
- * history entry it left and how many edits it applied. The Cut anyway step names the
- * entry (`continues_head_id`) so the server undoes both parts as one step, and counts
- * the applied edits into its toast.
- */
-export type ReviewPassStart = Readonly<{
-  head: HistoryEntryId;
-  applied: number;
-}>;
-
 export type ReviewOutcome = Readonly<
-  | {
-      queued: true;
-      asked: false;
-      count: null;
-      historyHead: null;
-      held?: readonly HeldCut[];
-    }
+  | { queued: true; count: null; historyHead: null; held?: readonly HeldCut[] }
   | {
       queued: false;
-      asked: true;
-      count: null;
-      historyHead: HistoryEntryId | null;
-      held?: readonly HeldCut[];
-      /** Edits Approve all already applied before asking about the rest. */
-      applied?: number;
-    }
-  | {
-      queued: false;
-      asked: false;
       count: number;
       historyHead: HistoryEntryId | null;
       held?: readonly HeldCut[];
-      /** Set on a Cut anyway that finished an Approve all pass. */
-      pass?: ReviewPassStart;
     }
 >;
-
-/** What Approve all says when it applied part of the batch and is asking about the rest. */
-export function bulkReviewAppliedBeforeAskMessage(
-  applied: number,
-  held: readonly HeldCut[],
-): string {
-  return held.length > 0
-    ? bulkReviewHeldMessage(applied, held)
-    : bulkReviewDoneMessage("approve", applied);
-}
 
 /** "Applied 80, held 6" with the first two held cuts named; the rest stay in the list. */
 export function bulkReviewHeldMessage(
@@ -215,32 +176,10 @@ function currentPendingReview(
     : !beforeSend;
 }
 
-export function requireCurrentPendingReview(
-  capture: PendingReviewCapture,
-): void {
-  if (!currentPendingReview(capture, true))
-    throw new Error(
-      "This pending review changed. Select it again to review it.",
-    );
-}
-
 export function pendingReviewFeedback(
   action: BulkReviewAction,
   outcome: ReviewOutcome,
 ): { message: string; undo: HistoryEntryId | null } | null {
-  if (outcome.asked) {
-    const applied =
-      "applied" in outcome && typeof outcome.applied === "number"
-        ? outcome.applied
-        : 0;
-    if (applied > 0) {
-      return {
-        message: bulkReviewAppliedBeforeAskMessage(applied, outcome.held ?? []),
-        undo: outcome.historyHead,
-      };
-    }
-    return null;
-  }
   if (outcome.queued)
     return { message: PENDING_REVIEW_QUEUED_MESSAGE, undo: null };
   return outcome.count === 0
@@ -252,11 +191,7 @@ export function pendingReviewFeedback(
         undo: null,
       }
     : {
-        message: bulkReviewDoneMessage(
-          action,
-          outcome.count + (outcome.pass?.applied ?? 0),
-          outcome,
-        ),
+        message: bulkReviewDoneMessage(action, outcome.count, outcome),
         undo: outcome.historyHead,
       };
 }
