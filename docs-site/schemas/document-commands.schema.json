@@ -1158,21 +1158,6 @@
     },
     "ApproveEditsPayload": {
       "properties": {
-        "continues_head_id": {
-          "anyOf": [
-            {
-              "maxLength": 64,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "The prior history head when one logical approval is recorded across two commands. The new entry names that head so one Undo and Redo move the complete approval together. This marker does not grant acoustic authority.",
-          "title": "Continues Head Id"
-        },
         "hold_blocked": {
           "default": false,
           "description": "Approve all: a cut that cannot apply safely (another speaker is talking there, say) stays pending and is reported in `held`; every other edit applies. A cut that would cut other speech also stays pending: the reply is reported with its speech evidence. Only trusted interactive intent can override that acoustic hold. Without `hold_blocked`, one held cut refuses the whole batch.",

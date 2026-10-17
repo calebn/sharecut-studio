@@ -148,16 +148,6 @@ class ApproveEditsPayload(BaseModel):
             "the whole batch."
         ),
     )
-    continues_head_id: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=64,
-        description=(
-            "The prior history head when one logical approval is recorded across two "
-            "commands. The new entry names that head so one Undo and Redo move the "
-            "complete approval together. This marker does not grant acoustic authority."
-        ),
-    )
 
 
 class RejectEditsPayload(BaseModel):
