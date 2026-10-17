@@ -1,7 +1,8 @@
 # Holdout evaluation: breath and onset rules (#1273)
 
 First evaluation slice of #1273: does the breath and word-onset behavior hold on
-recordings that did not guide it? Run 2026-10-13 to 2026-10-14 on `origin/main`
+recordings that did not guide it? A [second slice](#second-slice-two-more-sessions-from-different-conditions-1273)
+adds two more sessions from different conditions. Run 2026-10-13 to 2026-10-14 on `origin/main`
 at `fe8e143dc8f5f16eaf05d87b714b87ea437ef0b2` with the shipped defaults. Source
 sessions and their development/holdout status are in
 [fixture-catalog.md](fixture-catalog.md#source-sessions-provenance-and-developmentholdout-status).
@@ -75,6 +76,7 @@ copying. Speaker identity per file is inferred from file names. Conditions
 | `podcast_030` | 2020 | One 16-bit stereo room-recorder file, 4047.0 s, floor near -52 dBFS, channel correlation 0.86 | `991437ca3df1f0b1787f50507aef33cd332fa558e64ae5a05dc06048cd8add04` | Holdout |
 | `podcast_016` | 2019 | Two mono 24-bit raws, 3550.5 s, guest mic about 7 dB under the host | `4052b63da2feba029b40a9cfa94413286f1753d94a80a16fc97f98badc15d2e5`, `354d70e24782df87799048d07befa77733b209a9dbb1f23533a26292f42838b7` | Holdout |
 | `podcast_073` | 2021 | Three hot gated bounces, already edited | not run | Holdout, reserved |
+| `podcast_040`, `podcast_018` | 2020, 2019 | Second slice, see its [provenance](#provenance-of-the-second-slice-sessions) | see there | Holdout |
 
 The owner's `rough_cut.mp3` and `full_episode.mp3` bounces for each episode were
 copied but not used here: they are ground truth for content cuts and levels, not
@@ -355,6 +357,238 @@ new recurring check is part of this correction. Any recording later used to guid
 a fix must become development material in the fixture catalog. The existing
 coordinator ownership and listening hold remain unchanged.
 
+## Second slice: two more sessions from different conditions (#1273)
+
+The first slice rested on one remote Zoom session, one in-person room recording
+and one quiet-guest episode. This slice adds two owner-catalogue episodes that
+none of those three are: a 2020 remote call (`podcast_040`) and a 2019 two-mic
+recording from one recorder (`podcast_018`). Both are **holdout** and neither
+guided any change. Source status is in
+[fixture-catalog.md](fixture-catalog.md#source-sessions-provenance-and-developmentholdout-status).
+The audio is private and stays on the owner's machine; this section holds
+numbers, commands and hashes only.
+
+**Frozen before scoring.** Code is `origin/main` at
+`d5380ee7a12f09c85de878167bb703f5ceb34cb2`, the shipped defaults in
+[pipeline.yaml](../.agents/defaults/pipeline.yaml), medium intensity, ripple edit
+mode. No source file, threshold or test changed in the PR that holds this
+section, and no number below was fed back into a threshold. Ran 2026-10-16 to
+2026-10-17 on a shared machine (load average 5 to 27, every job at `nice -n 10`).
+No timing is reported except where a step did not finish.
+
+### Provenance of the second-slice sessions
+
+Copied read-only from the owner's catalogue; sha256 taken on the copies. Speaker
+identity is inferred from file names and conditions from the audio, not from
+session notes.
+
+| Episode | Year | Setup | Audio sha256 (the speech tracks) | Condition (inferred) | Status |
+| --- | --- | --- | --- | --- | --- |
+| `podcast_040` | 2020 | Two mono tracks, 3466.0 s and 3465.3 s: a 24-bit local recorder file (named Host) and a 16-bit Zoom `audio_only` export (named Guest). Host floor -85 dBFS, active in 23% of frames; guest floor -69 dBFS, active in 62%, 1% digital silence; 0.5 s envelope correlation -0.44 | `83e15755647313b179a6aae6a9ed2b7623315fbff3a736754cfd1fb6e76cdeb8`, `53ca4b622997f44c128b410df3ace74d0b9b79280da915d52325130a96f13f00` | Remote, separate sources, the Zoom lane gated | Holdout |
+| `podcast_018` | 2019 | Two mono 24-bit raws, equal length 2673.5 s, no digital silence. Floors -56 and -68 dBFS, both active in 55% to 56% of frames, both peak at 0 dBFS; envelope correlation 0.22 | `cb975eb6c371768d0b063a96e15ff165bb1dfa47416752d2bb8c6e1284c7ee18`, `fd5d68dd6559a845eca54e499ceb6f62d1a28eaf15d728adc99de2f3d1a414a7` | Two microphones in one room (inferred from equal length, moderate cross-correlation, no gating) | Holdout |
+
+How they differ from the first slice's three: 111 is a 2024 pair of two Zoom
+exports, while 040 (2020) pairs a local recorder file with one Zoom export. 030 is
+one room recorder file; 018 is two mics, so it has both bleed and per-lane
+reads. 016 shares the year and the two-raw layout with 018 but its tracks are
+7 dB apart with almost no bleed. 018 has no bounce in the catalogue and 040's
+bounces were not copied (they score content cuts, which this slice does not).
+
+### Shipped pipeline
+
+| Episode | Result | Notes |
+| --- | --- | --- |
+| 040 | Finished, export QC ok with 1 warning (1 zero-length ASR word), 1811 s | 8,888 words. `align_tracks` found both clips near identity and locked them. `fill_gate_holes` ran (guest: 151 holes, 39.4 s filled with comfort noise) and did not crash. |
+| 018 | `reconcile_transcript` did not finish. Stopped by hand after 105 minutes in the shipped run and after 70 minutes in a second project | [#1685](https://github.com/calebn/sharecut-studio/issues/1685) (new, `beta:blocker`, J1). ASR itself finished (12,424 words). The stack, after 150 s, is `compute_word_audibility_map` -> `copy_lag_at_timeline` -> `lag_steps_for_lane` -> `measure_lane_lag_steps`: a lane with no lag steps is stored as `None`, and `None` is read as "not measured", so the lane is measured again for every word. |
+
+To continue the 018 evaluation past that step, every 018 and 040 run after ASR
+used a wrapper that memoizes `lag_steps_for_lane` for the life of the process
+(`podcast_mcp.engines.bleed_audibility_lag`, keyed on the cache set and lane).
+The function only reads the caches, so the memo changes time and no value: the
+same step on the same 018 project finished in 16 s. This is an evaluation tool,
+not part of the repo and not a fix. The 040 shipped run above did not use it.
+
+### Tighten proposals, second slice
+
+Same definition as the first slice: `propose_tighten_edits` after merge, stems,
+reconcile and precorrect with the refine and align gates waived, from a seeded
+transcript (first ASR with the forced aligner saved once, seeded into every
+variant).
+
+| Episode | Proposals | Kinds | With `voiced_edge` | Review required | Skips worth noting |
+| --- | --- | --- | --- | --- | --- |
+| 040 | 163 | 138 filler, 23 pause, 2 repetition | 52 | 85 | `discourse:like` 518, `acoustic:peer_speaking` 511, `acoustic:breath` 244 |
+| 018 | 51 | 51 filler | 7 | 46 | `acoustic:peer_speaking` 326, `discourse:like` 303, `acoustic:kept_voice` 157 |
+
+### Transformed-input checks, second slice
+
+Expected equivalence and tolerance are the first slice's, fixed before the first
+run. "Identical" means the same kind on the same track with both edges within
+10 ms and the same applied/review state and reason shape. Gain scales the busy
+track (040 Guest, 018 Track11) in a 32-bit integer WAV so nothing clips or
+requantizes. Reorder swaps the manifest order and the reference speaker. Offset
+prepends sample-exact silence to every track and shifts the seeded transcript by
+the same amount.
+
+| Episode | Transform | Proposals before | after | identical (10 ms) | moved | moved >30 ms | disappeared | appeared |
+|---|---|---|---|---|---|---|---|---|
+| 040 | rerun of the same input | 163 | 163 | 162 | 1 | 0 | 0 | 0 |
+| 040 | track reorder | 163 | 163 | 161 | 2 | 0 | 0 | 0 |
+| 040 | gain 0 dB, 32-bit integer WAV | 163 | 163 | 161 | 2 | 0 | 0 | 0 |
+| 040 | gain -12 dB on Guest | 163 | 163 | 163 | 0 | 0 | 0 | 0 |
+| 040 | gain -24 dB on Guest | 163 | 163 | 160 | 3 | 0 | 0 | 0 |
+| 040 | offset 7.313 s, off the grid | 163 | 165 | 133 | 26 | 10 | 4 | 6 |
+| 040 | offset 7.310 s, on the grid | 163 | 163 | 158 | 3 | 1 | 2 | 2 |
+| 018 | rerun of the same input | 51 | 51 | 51 | 0 | 0 | 0 | 0 |
+| 018 | track reorder | 51 | 51 | 51 | 0 | 0 | 0 | 0 |
+| 018 | gain 0 dB, 32-bit integer WAV | 51 | 51 | 51 | 0 | 0 | 0 | 0 |
+| 018 | gain -12 dB on Track11 | 51 | 51 | 50 | 1 | 0 | 0 | 0 |
+| 018 | gain -24 dB on Track11 | 51 | 51 | 50 | 1 | 0 | 0 | 0 |
+| 018 | offset 7.313 s, off the grid | 51 | 50 | 33 | 14 | 6 | 4 | 3 |
+| 018 | offset 7.310 s, on the grid | 51 | 50 | 49 | 1 | 1 | 1 | 0 |
+
+What each result shows:
+
+- **Gain (positive on these two, unlike 111 and 016).** Turning the busy track down
+  12 or 24 dB removes no proposal on either recording and moves no edge. The
+  1 to 3 "moved" rows are borderline spans whose review flag label flips (next
+  bullet), not level effects. The `peer_speaking` skip counts are identical
+  across the gain variants. The first slice's loss of 61 and 87 proposals on 111,
+  and the quiet-guest inversion on 016, did not reproduce on either new session.
+  So the cross-track exposure in [#1443](https://github.com/calebn/sharecut-studio/issues/1443)
+  is recording-specific, and these two recordings are not a counterexample to it.
+- **Review-flag labels flip on identical or equivalent input.** Every "moved" row
+  in the gain, reorder and rerun checks (8 on 040, 1 each in the two 018 gain
+  rows) is a flag label on a span whose edges did not move (`acoustic` against
+  `acoustic:possible_word`; 4 distinct spans on 040). The set, the edges,
+  `applied` and the review state agree. Precision finding for the ledger,
+  [#1449](https://github.com/calebn/sharecut-studio/issues/1449).
+- **Track order and reruns.** Exact on 018. On 040 the only difference is the flag
+  label above.
+- **Offset (negative, effect on the ear unknown).** The first slice's grid
+  dependence reproduces on both new sessions: the same audio and words, 7.313 s
+  later, move 6 of 51 (018) and 10 of 163 (040) edges by more than 30 ms and
+  swap 7 and 10 proposals in or out. A whole number of 10 ms frames mostly removes
+  it (1 edge over 30 ms on each). Same ledger, #1449.
+
+### Sensitivity check, second slice
+
+The same bounded sweep as the first slice: each of 13 thresholds scaled by 0.8 and
+1.2 alone, 26 runs per episode, constants varied inside one process so the repo
+is untouched.
+
+**2020 Zoom episode (040), 163 proposals.** 67 of 163 disappeared or moved over
+30 ms in at least one of the 26 runs.
+
+| Threshold (shipped) | 0.8x: moved >30 ms / lost / new | 1.2x: moved >30 ms / lost / new |
+|---|---|---|
+| `burst_db` (12) | 7 / 4 / 1 | 9 / 0 / 4 |
+| `rise_db` (6) | 8 / 0 / 1 | 8 / 0 / 0 |
+| `burst_floor_under_voice_floor_db` (28) | 1 / 0 / 0 | 1 / 0 / 0 |
+| `burst_kind_db` (18) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `fall_db` (3) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `valley_depth_db` (15) | 1 / 0 / 1 | 0 / 2 / 0 |
+| `valley_slack_db` (3) | 0 / 1 / 0 | 0 / 0 / 0 |
+| `separation_depth_db` (10) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `breath_above_floor_db` (9.5) | 1 / 0 / 0 | 0 / 0 / 0 |
+| `clear_pitch_peak` (0.55) | 0 / 0 / 0 | 0 / 0 / 1 |
+| `sibilant_high_band_fraction` (0.5) | 1 / 0 / 0 | 0 / 0 / 0 |
+| `below_speech_quietest_db` (7) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `below_speech_loudest_db` (40) | 1 / 8 / 2 | 1 / 23 / 8 |
+
+**2019 two-mic recording (018), 51 proposals.** 11 of 51 disappeared or moved over
+30 ms in at least one of the 26 runs.
+
+| Threshold (shipped) | 0.8x: moved >30 ms / lost / new | 1.2x: moved >30 ms / lost / new |
+|---|---|---|
+| `burst_db` (12) | 4 / 1 / 0 | 2 / 0 / 0 |
+| `rise_db` (6) | 2 / 0 / 0 | 0 / 0 / 0 |
+| `burst_floor_under_voice_floor_db` (28) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `burst_kind_db` (18) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `fall_db` (3) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `valley_depth_db` (15) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `valley_slack_db` (3) | 0 / 1 / 0 | 0 / 0 / 0 |
+| `separation_depth_db` (10) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `breath_above_floor_db` (9.5) | 0 / 0 / 0 | 1 / 0 / 0 |
+| `clear_pitch_peak` (0.55) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `sibilant_high_band_fraction` (0.5) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `below_speech_quietest_db` (7) | 0 / 0 / 0 | 0 / 0 / 0 |
+| `below_speech_loudest_db` (40) | 0 / 1 / 46 | 0 / 0 / 0 |
+
+**Reading.** The contrast thresholds `burst_db` and `rise_db` again move the most
+edges, as in the first slice. The new result is `below_speech_loudest_db` (the
+upper end of the breath-below-speech range, 40 dB): lowering it 20% adds 46
+proposals to 018's 51, and raising it 20% drops 23 of 040's 163 and adds 8. The
+first slice saw at most 8 edges move on that constant. It is already relative to
+each recording's own speech level, so a per-recording estimate would not replace
+it; what the sweep shows is that the number of proposals depends on the 40 dB
+choice on these two recordings, and nothing says whether the extra or missing
+proposals are good edits. That is a listening question for the pack below, and
+**no threshold was tuned against this holdout.**
+
+### Listening pack 2
+
+The local pack has 12 items, comprising ten source/output pairs and two untouched
+controls. It was rendered with `podcast play pending-preview` at the frozen SHA
+from the 040 and 018 control projects, with the selection seeded by episode so it
+can be redrawn. Six items per episode: two risky edits (a plosive or voiced sound
+right after the cut, another voice talking in the cut, or a join review), three
+seeded-random plain edits and one random untouched stretch. No item is of the
+"vanishes at -12 dB" kind because no proposal vanished in the gain test.
+
+| Item | Episode | Kind | What the edit is | Risk to hear |
+| --- | --- | --- | --- | --- |
+| H01 | 018 | risky | filler `like` while the other mic talks (`other_speaking`) | other voice lost, clipped end of the word before |
+| H02 | 018 | risky | filler `like` at a sentence start, other mic talking | clipped onset of the next word (it starts at the cut end) |
+| H03 | 018 | random | filler `you know` plus 0.5 s of silence | clipped `b` of the next word (starts 5 ms after the cut) |
+| H04 | 018 | random | long `um` (0.86 s) | none expected; join and residue |
+| H05 | 018 | random | short `um` inside a 1.3 s trim | onset of the next word (0.1 s after) |
+| H06 | 018 | control | no edit, 8 s | a miss: um, pause or breath left in |
+| H07 | 040 | risky | filler `um` with `voiced_edge` | clipped `b` of the next word (starts 20 ms before the cut end) |
+| H08 | 040 | risky | 0.4 s out of a 13.9 s silence, `join_review` | click or room-tone jump at the join |
+| H09 | 040 | random | filler `like`, 70 ms and 120 ms from its neighbours | clipped ends of both neighbours |
+| H10 | 040 | random | 1.0 s out of an 8.6 s pause while the other speaker says `um` | the other speaker's `um` cut by 0.35 s |
+| H11 | 040 | random | 0.5 s out of a 14.9 s pause | click at the join |
+| H12 | 040 | control | no edit, 8 s | a miss |
+
+**Not yet heard.** No answers exist for this pack. Until the owner listens, no
+difference above is called a defect or a success on listening grounds. The
+questions the owner answers per item are the same as the first pack: clipped word
+or lost speech (separate from taste), and whether the edit was useful, so doing
+nothing cannot win by default. The pack, its README and an empty `answers.csv`
+are local: `holdout-1273b/work/listen/`.
+
+### Bounded verdict (before listening)
+
+Bounded to two more recordings, twelve listening items not yet heard, and the
+shipped Whisper plus forced-aligner words.
+
+1. **The rules run on one of the two new recordings.** The full shipped pipeline
+   finished on the 2020 remote call. On the 2019 two-mic recording it stopped at
+   `reconcile_transcript` ([#1685](https://github.com/calebn/sharecut-studio/issues/1685),
+   outside the breath and onset rules, in the J1 path).
+2. **Gain invariance held on both (positive; does not retire #1443).** No proposal
+   was lost and no edge moved when the busy track dropped 12 or 24 dB.
+   The failure on the first slice's 111 and 016 is therefore recording-specific.
+3. **Edge placement still depends on the 10 ms frame grid (negative, effect on the
+   ear unknown).** Reproduced on both: 6 of 51 and 10 of 163 edges move over 30 ms
+   for the same audio and words 7.313 s later.
+4. **Reruns and track order are stable in edges and set (positive); a review flag
+   label flips on a few borderline spans (040, precision).**
+5. **Threshold sensitivity is small except for one constant.** 11 of 51 and 67 of
+   163 proposals changed in at least one of 26 runs. `below_speech_loudest_db`
+   alone adds 46 (018, 0.8x) or drops 23 (040, 1.2x). This is not a defect call.
+6. **Whether any of this is audible is inconclusive** until the pack is heard.
+
+Not covered: native 48 kHz audio, three or more speakers, non-English speech, a
+run without the forced aligner, live ASR under the transformed inputs, a shipped
+pipeline run past `reconcile_transcript` on 018, and any claim of statistical
+assurance. Twelve examples are a practical budget.
+
+Together with the first slice this is five owner-catalogue recordings. Any
+recording later used to guide a fix becomes development material in the fixture
+catalog in the same PR.
+
 ## Defects and where they went
 
 | Finding | Reachable on a real recording | Where |
@@ -365,6 +599,8 @@ coordinator ownership and listening hold remain unchanged.
 | Tighten proposals not gain invariant on two tracks | yes, real recording | ledger of [#1443](https://github.com/calebn/sharecut-studio/issues/1443) |
 | Frame-grid phase and sample-format dependence of edges | effect on the ear unknown | ledger of [#1449](https://github.com/calebn/sharecut-studio/issues/1449) |
 | Residual filler in L01, L08 and L12; mid-breath gap entry in L09 | owner-reported concerns on real recordings; following-word clipping and speech loss are not established by these concerns | evidence and bounded diagnosis remain on [#1273](https://github.com/calebn/sharecut-studio/issues/1273) |
+| `reconcile_transcript` re-measures lane lag steps per word and does not finish on a two-mic recording (podcast_018, over 105 minutes) | yes, default pipeline stalls | [#1685](https://github.com/calebn/sharecut-studio/issues/1685) (new, `beta:blocker`, J1) |
+| Review-flag label flips (`acoustic` against `acoustic:possible_word`) on borderline spans of identical input, and the frame-grid offset effect reproduced on two more sessions | precision, effect on the ear unknown | ledger of [#1449](https://github.com/calebn/sharecut-studio/issues/1449) |
 
 ## Commands
 
@@ -430,3 +666,20 @@ No recurring check is added. This corpus work is on-demand and stays out of
 per-PR CI, per [contributing.md](contributing.md#choose-recurring-tests-deliberately);
 a cheap permanent case for the two-track gain failure is #1443's call, with a
 synthetic scene.
+
+### Second-slice commands
+
+The second slice reuses the commands and the driver above unchanged. The copy
+folder is `holdout-1273b/` (two episodes, sha256 in the provenance table). Each
+episode: `podcast pipeline run --unattended` once for ASR (the first ASR words are
+saved and seeded into every variant), then the seeded control, the variants
+(`ffmpeg -af volume=-12dB` and `-24dB` with `-c:a pcm_s32le`; `adelay=322503S:all=1`
+for 7.313 s and `adelay=322371S:all=1` for 7.310 s, both sample-exact; the manifest
+with the speakers in the other order) and the 26-run sweep with `holdout_eval.py
+propose --patch`. The pack uses the same builder as the first pack with a seeded
+draw per episode (`A=2,C=3,D=1`), rendering `podcast play pending-preview` for
+`--mode current` and `--mode suggested` and `podcast play compose` for the
+untouched stretch. The memo wrapper described under
+[Shipped pipeline](#shipped-pipeline) is the only difference from the CLI: it
+patches `podcast_mcp.engines.bleed_audibility_lag.lag_steps_for_lane` to cache its
+result per process and then calls the normal CLI entry point.
