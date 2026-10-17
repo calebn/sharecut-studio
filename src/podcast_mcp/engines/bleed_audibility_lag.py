@@ -113,9 +113,12 @@ def copy_lag_at_timeline(
     steady = path.lag_sec
     if not steady:
         return 0.0
-    steps = (lag_steps or {}).get(source_id)
-    if steps is None:
-        steps = lag_steps_for_lane(project, caches, source_id)
+    # ``None`` in ``lag_steps`` means "measured, the lane does not step"; only a missing key means
+    # "not measured". The cache memoizes either answer, so a lane is measured once per reconcile.
+    if lag_steps is not None and source_id in lag_steps:
+        steps = lag_steps[source_id]
+    else:
+        steps = caches.lane_lag_steps(project, source_id)
     st = SessionTimeline(project)
     clips = st.lane_clip_spans(source_id)
     if not clips:
