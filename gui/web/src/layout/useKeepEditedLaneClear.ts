@@ -13,6 +13,7 @@ import {
   inspectorSheetBottom,
   inspectorSheetPanel,
 } from "../ui/compactSheet";
+import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   KEEP_CLEAR_PX,
   keepTargetClear,
@@ -57,18 +58,25 @@ function revealOpenForm(): void {
 
 export function useKeepEditedLaneClear(trackId: string | null): void {
   const short = useShortScreen();
+  const active = short && trackId !== null;
+  // A rotation remounts the shell: the scroller and slot settle to their size
+  // after the effect below, and the lane is brought back into view then.
+  useResizeObserver(
+    [
+      () => (trackId ? document.querySelector(laneSelector(trackId)) : null),
+      () => document.querySelector(".timeline-scroll"),
+      () => document.querySelector(".bottom-sheet-root"),
+    ],
+    () => {
+      if (trackId !== null) fit(trackId);
+    },
+    active,
+  );
   useLayoutEffect(() => {
     if (!short || trackId === null) return;
     fit(trackId);
     const onResize = () => fit(trackId);
     window.addEventListener("resize", onResize);
-    // A rotation remounts the shell: the scroller and slot settle to their
-    // size after this effect, and the lane is brought back into view then.
-    const settle = new ResizeObserver(onResize);
-    for (const element of document.querySelectorAll(
-      `${laneSelector(trackId)}, .timeline-scroll, .bottom-sheet-root`,
-    ))
-      settle.observe(element);
     const keyboard = new MutationObserver(onResize);
     keyboard.observe(document.documentElement, {
       attributes: true,
@@ -76,7 +84,6 @@ export function useKeepEditedLaneClear(trackId: string | null): void {
     });
     return () => {
       window.removeEventListener("resize", onResize);
-      settle.disconnect();
       keyboard.disconnect();
       capInspectorSheetForLane(null);
       for (const scroller of document.querySelectorAll<HTMLElement>(
