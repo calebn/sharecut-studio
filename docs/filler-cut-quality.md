@@ -766,7 +766,9 @@ cuts, the trim's own and each peer's:
   net loss must be positive and meet the existing ten-percent timing JND. The calculation
   uses current original audio and operation geometry. A stored pad value does not record
   replacement intent and cannot authorize or veto a pause trim. Proposal, saved, automatic,
-  and Suggested paths apply the same final check.
+  and Suggested paths apply the same final check. A tile cut from a recorded pad's samples
+  is a copy, not original audio, and does not count as another play of the clip it was
+  copied from, so a pad that borrows a pause's quiet leaves that quiet original.
 
 What this means for listening:
 

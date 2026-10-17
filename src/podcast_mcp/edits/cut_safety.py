@@ -496,6 +496,19 @@ class OriginalQuietSupport:
         )
 
 
+def _inside_known_pad(clip: Clip, pads: Sequence[tuple[float, float]]) -> bool:
+    """Whether a clip is a tile cut from a recorded pad's samples, not original audio.
+
+    A copy of samples is not the audio it copies, so the original clip that those samples
+    came from stays original quiet.
+    """
+    return any(
+        lo - _SOURCE_GEOMETRY_TOLERANCE_SEC <= clip.source_start
+        and clip.source_end <= hi + _SOURCE_GEOMETRY_TOLERANCE_SEC
+        for lo, hi in pads
+    )
+
+
 def original_pause_support(
     project: EpisodeProject,
     track_id: str,
@@ -637,6 +650,8 @@ def original_pause_support(
         if len(matches) != 1 or matches[0].clip.track_id not in allowed:
             continue
         clip = matches[0].clip
+        if _inside_known_pad(clip, known_pads):
+            continue
         clip_track = project.track_by_id(clip.track_id)
         lane_clips = sorted(
             (image.clip for image in images if image.clip.track_id == clip.track_id),
@@ -656,16 +671,12 @@ def original_pause_support(
         duplicated = [
             (float(other.source_start), float(other.source_end))
             for other in same_media
-            if other.clip is not clip
+            if other.clip is not clip and not _inside_known_pad(other.clip, known_pads)
         ]
-        excluded = (
-            [
-                (region.start_s, region.end_s)
-                for region in [*clip.mute_regions, *ignored.for_clip(clip)]
-            ]
-            + known_pads
-            + duplicated
-        )
+        excluded = [
+            (region.start_s, region.end_s)
+            for region in [*clip.mute_regions, *ignored.for_clip(clip)]
+        ] + duplicated
         for lo, hi in subtract_intervals(
             [
                 (
@@ -675,22 +686,20 @@ def original_pause_support(
             ],
             excluded,
         ):
-            mapped = timeline.exact_source_span(track_id, SourceSec(lo), SourceSec(hi))
-            if mapped is None:
-                continue
+            shift = float(placement.timeline_start) - float(placement.source_start)
             for quiet_lo, quiet_hi in subtract_intervals(
-                [(float(mapped[0]), float(mapped[1]))],
+                [(lo + shift, hi + shift)],
                 [(sound.lo, sound.hi) for sound in observation.activity],
             ):
-                source = timeline.exact_timeline_source_span(
-                    track_id, TimelineSec(quiet_lo), TimelineSec(quiet_hi)
-                )
-                if source is not None:
-                    pieces.append(
-                        TimelineClipSpan(
-                            TimelineSec(quiet_lo), TimelineSec(quiet_hi), *source, clip
-                        )
+                pieces.append(
+                    TimelineClipSpan(
+                        TimelineSec(quiet_lo),
+                        TimelineSec(quiet_hi),
+                        SourceSec(quiet_lo - shift),
+                        SourceSec(quiet_hi - shift),
+                        clip,
                     )
+                )
     if abs(cursor - float(after_span[0])) > 1e-6:
         return CutRejected("source_geometry")
     return OriginalQuietSupport(tuple(pieces))

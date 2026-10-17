@@ -1,18 +1,21 @@
-"""Fillers on one track apply as a batch the way they apply one at a time (#1403).
+"""Edits on one track apply as a batch the way they apply one at a time (#1403).
 
-Each mute fill the batch lays is a new leaf of the host clip, placed at one fixed lead from
-its hole. A later batch edit sees the earlier fills in its BEFORE graph, and must bind its own
-new fill to the earlier fill that holds the same source, not to any fill at the same offset.
+A fill or pad the batch lays is a copy of source audio. A later batch edit sees that copy
+beside the original and must tell them apart: a mute fill binds to the earlier fill that
+holds its source, not to any fill at the same lead from its hole, and a pad tile borrowed
+from a pause's quiet does not make the pause's own quiet stop being original.
 """
 
 from __future__ import annotations
 
+import copy
 import itertools
 from pathlib import Path
 
 import pytest
 
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
+from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten import propose_tighten_edits
@@ -119,3 +122,49 @@ def test_a_source_the_timeline_plays_twice_is_still_refused(fillers, intent: Cut
     for selected in (ids[:1], ids):
         with pytest.raises(ScopeChangedAtApproval):
             approve_edits(replayed.model_copy(deep=True), selected, application_intent=intent)
+
+
+@pytest.fixture
+def pad_over_pause(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    cfg = copy.deepcopy(load_defaults())
+    cfg["tighten"].update(
+        edit_mode="ripple",
+        filler_words=["um", "uh"],
+        inaudible_opt=False,
+        join_continuity_gate=False,
+        leave_in_if_risky=False,
+        repetition_candidates=False,
+        acoustic_gap_filler={"enabled": False},
+    )
+    cfg["performance"]["max_workers"] = 1
+    configure(monkeypatch, cfg)
+    project = _project(tmp_path)
+    words = [
+        *HOST_WORDS[:7],
+        ("um", 7.0, 7.3),
+        *HOST_WORDS[7:],
+        ("um", 10.2, 10.5),
+        ("so", 10.9, 11.1),
+        ("uh", 11.4, 11.7),
+    ]
+    audio = room(DURATION, seed=11)
+    for _, start, end in words:
+        voice(audio, start, end)
+    write_wav(tmp_path / "raw/host.wav", audio)
+    project.transcripts[0].words = [TranscriptWord(text=w, start=s, end=e) for w, s, e in words]
+    propose_tighten_edits(project, cfg, edit_mode="ripple")
+    pause = next(e for e in project.edit_decisions if e.id.startswith("cut_pause_2200"))
+    filler = next(e for e in project.edit_decisions if e.id.startswith("cut_filler_10200"))
+    return project, filler.id, pause.id
+
+
+@pytest.mark.parametrize("intent", [CutIntent.PROGRAMMATIC, CutIntent.HUMAN_BOUNDARIES])
+def test_a_pad_borrowed_from_the_pause_quiet_does_not_veto_the_pause(
+    pad_over_pause, intent: CutIntent
+) -> None:
+    project, filler, pause = pad_over_pause
+    for selected in ([filler], [pause]):
+        assert (
+            approve_edits(project.model_copy(deep=True), selected, application_intent=intent) == 1
+        )
+    assert approve_edits(project, [filler, pause], application_intent=intent) == 2
