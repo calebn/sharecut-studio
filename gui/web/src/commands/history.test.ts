@@ -775,7 +775,9 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
           const press = execute(`history.${action}`);
           await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS * 4);
           expect(move).not.toHaveBeenCalled();
-          expect(useDawStore.getState().statusAnnouncement).toBe("");
+          expect(useDawStore.getState().statusAnnouncement).toBe(
+            `${action === "undo" ? "Undo" : "Redo"} runs after save`,
+          );
 
           noteSaveLanded("/tmp/ep", head("after-slow-send"), documentScope());
           slow.finish();
@@ -792,7 +794,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
               },
             ],
           ]);
-          expect(useDawStore.getState().statusAnnouncement).toBe("");
+          expect(useDawStore.getState().feedbackToast).toBeNull();
         } finally {
           vi.useRealTimers();
         }

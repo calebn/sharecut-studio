@@ -8,6 +8,7 @@ import {
 } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import {
+  documentActivityBusy,
   editSavesInFlight,
   headLandedSince,
   savesLandedMark,
@@ -17,10 +18,16 @@ import { ApiError, errorMessage } from "../utils/apiError";
 import { execute, registerCommand } from "./execute";
 import { flushPendingMix } from "./trackMix";
 import type { ExecuteResult } from "./types";
+import { queueMove, runsAfterSaveCopy } from "./undoWait";
 
 const STALE_COPY = {
   undo: "Can't undo: the project changed since. Nothing was undone.",
   redo: "Can't redo: the project changed since. Nothing was redone.",
+} as const;
+
+const FAILED_COPY = {
+  undo: "Undo did not run.",
+  redo: "Redo did not run.",
 } as const;
 
 const NO_HEAD = "Open a project first.";
@@ -77,6 +84,20 @@ function moveHistory(
   const knownAtPress = knownHead(projectPath);
   const landedAtPress = savesLandedMark(projectPath);
   const savesAhead = editSavesInFlight(projectPath);
+  const queued = documentActivityBusy(projectPath)
+    ? queueMove(projectPath, action, explicit)
+    : null;
+  let waitingToast: number | null = null;
+  if (queued) {
+    const daw = useDawStore.getState();
+    daw.announceStatus(
+      runsAfterSaveCopy(action),
+      explicit ? { toast: false } : undefined,
+    );
+    waitingToast = explicit
+      ? null
+      : (useDawStore.getState().feedbackToast?.id ?? null);
+  }
   let settle: (landed: HistoryEntryId | null) => void = () => {};
   const tail = {
     scope,
@@ -89,15 +110,23 @@ function moveHistory(
   const run = async (): Promise<ExecuteResult> => {
     let landed: HistoryEntryId | null = null;
     try {
-      const refuseObsolete = (): ExecuteResult | null => {
-        if (isCurrentDocumentScope(scope)) return null;
-        useDawStore.getState().announceStatus(STALE_COPY[action]);
+      const refuse = (): ExecuteResult => {
+        queued?.drop(STALE_COPY[action]);
+        const standing = useDawStore.getState().feedbackToast;
+        useDawStore
+          .getState()
+          .announceStatus(
+            STALE_COPY[action],
+            queued && standing?.undo ? { toast: false } : undefined,
+          );
         return {
           status: "disabled",
           reason: STALE_COPY[action],
           announced: true,
         };
       };
+      const refuseObsolete = (): ExecuteResult | null =>
+        isCurrentDocumentScope(scope) ? null : refuse();
       const aheadLanded = ahead ? await ahead : null;
       const afterMove = refuseObsolete();
       if (afterMove) return afterMove;
@@ -123,20 +152,19 @@ function moveHistory(
         );
       } catch (e) {
         if (e instanceof ApiError && e.code === HISTORY_STALE_CODE) {
-          useDawStore.getState().announceStatus(STALE_COPY[action]);
-          return {
-            status: "disabled",
-            reason: STALE_COPY[action],
-            announced: true,
-          };
+          return refuse();
         }
         throw e;
       }
+      queued?.fire();
+      if (waitingToast !== null)
+        useDawStore.getState().dismissFeedbackToast(waitingToast);
       if (landed !== null) {
         retireOwnCommandHead(observation);
       }
       return { status: "ok" };
     } finally {
+      queued?.drop(FAILED_COPY[action]);
       if (moves.tail === tail) moves.tail = null;
       settle(landed);
     }

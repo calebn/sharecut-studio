@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { readyAfterSaveCopy } from "../commands/undoWait";
 import { Button, Icon } from "../ui";
 import {
   type HistoryAvailability,
@@ -21,11 +22,14 @@ export function CompactHistoryControls() {
 
 export function HistoryControls({
   history,
+  saving = false,
   onUndo,
   onRedo,
   variant = "rail",
 }: {
   history: HistoryAvailability | null;
+  /** A save or drain is running: a press waits for it, and the buttons say so. */
+  saving?: boolean;
   onUndo: () => void;
   onRedo: () => void;
   variant?: HistoryVariant;
@@ -64,6 +68,7 @@ export function HistoryControls({
       <HistoryButton
         action="undo"
         available={history.canUndo}
+        saving={saving}
         showBlockedCaption={variant === "compact" && blockedAction === "undo"}
         onClick={onUndo}
         onBlocked={() => setBlocked({ action: "undo" })}
@@ -71,6 +76,7 @@ export function HistoryControls({
       <HistoryButton
         action="redo"
         available={history.canRedo}
+        saving={saving}
         showBlockedCaption={variant === "compact" && blockedAction === "redo"}
         onClick={onRedo}
         onBlocked={() => setBlocked({ action: "redo" })}
@@ -95,25 +101,28 @@ function enabled(
 function HistoryButton({
   action,
   available,
+  saving,
   showBlockedCaption,
   onClick,
   onBlocked,
 }: {
   action: HistoryAction;
   available: boolean;
+  saving: boolean;
   showBlockedCaption: boolean;
   onClick: () => void;
   onBlocked: () => void;
 }) {
   const reasonId = useId();
   const { label, reason } = HISTORY_COPY[action];
+  const waiting = available && saving ? readyAfterSaveCopy(action) : undefined;
   return (
     <Button
       className="editing-tool-rail-icon"
       aria-label={label}
-      title={available ? label : reason}
+      title={available ? (waiting ?? label) : reason}
       aria-disabled={available ? undefined : true}
-      aria-describedby={available ? undefined : reasonId}
+      aria-describedby={available ? (waiting ? reasonId : undefined) : reasonId}
       onClick={available ? onClick : onBlocked}
     >
       <Icon
@@ -129,9 +138,9 @@ function HistoryButton({
           <span>{HISTORY_COPY[action].caption}</span>
         </span>
       ) : null}
-      {available ? null : (
+      {available && !waiting ? null : (
         <span id={reasonId} className="sr-only">
-          {reason}
+          {waiting ?? reason}
         </span>
       )}
     </Button>

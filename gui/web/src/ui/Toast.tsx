@@ -38,6 +38,8 @@ type Props = {
   onUndo?: () => void;
   /** Why Undo is unavailable. Disables Undo and pauses auto-dismiss (Undo must never expire while it cannot be clicked). */
   undoDisabledReason?: string;
+  /** Says why a pressable Undo will not act at once ("Undo ready after save"). Shown under the message; pauses auto-dismiss like a disabled reason. */
+  undoNote?: string;
   timeoutMs?: number;
   visibility?: "visible" | "clipped";
   /** Receives focus when the toast closes while focus is inside it, or after focus fell from it to `<body>` (e.g. a focused Undo becoming disabled). */
@@ -98,11 +100,13 @@ function ToastCard({
   onUndo,
   onDismiss,
   undoDisabledReason,
+  undoNote,
   timeoutMs = TOAST_MS,
   visibility = "visible",
   returnFocusRef,
 }: CardProps) {
   const messageId = useId();
+  const noteId = useId();
   const cardRef = useRef<HTMLDivElement>(null);
   // True once focus enters the card; stays true if focus falls to <body>
   // (relatedTarget null), e.g. when the browser blurs the focused Undo button
@@ -119,7 +123,8 @@ function ToastCard({
   const paused =
     hovered ||
     focused ||
-    (onUndo != null && undoDisabledReason !== undefined) ||
+    (onUndo != null &&
+      (undoDisabledReason !== undefined || undoNote !== undefined)) ||
     visibility === "clipped";
   const toastId = toast.id;
   const dismiss = useEffectEvent(onDismiss);
@@ -186,7 +191,9 @@ function ToastCard({
       {onUndo ? (
         <Button
           disabledReason={undoDisabledReason}
-          aria-describedby={messageId}
+          aria-describedby={
+            undoNote === undefined ? messageId : `${messageId} ${noteId}`
+          }
           onClick={onUndo}
         >
           Undo
@@ -195,6 +202,11 @@ function ToastCard({
       <Button variant="link" onClick={onDismiss}>
         Dismiss
       </Button>
+      {onUndo && undoNote !== undefined ? (
+        <span id={noteId} className="ui-toast-note">
+          {undoNote}
+        </span>
+      ) : null}
     </div>
   );
 }

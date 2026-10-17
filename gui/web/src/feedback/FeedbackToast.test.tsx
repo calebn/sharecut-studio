@@ -480,8 +480,13 @@ describe("FeedbackToast", () => {
   });
 
   describe("while this tab's own edit is still saving", () => {
-    const STALE_BY_SAVE =
-      "Can't undo: another edit saved first. Nothing was undone.";
+    const STALE = "Can't undo: the project changed since. Nothing was undone.";
+    const refuseAsStale = () =>
+      vi
+        .mocked(undoHistory)
+        .mockRejectedValueOnce(
+          new ApiError("Did not undo", "history_stale", 409),
+        );
     let finish: () => void = () => {};
     let send: Promise<void> = Promise.resolve();
     let endDrain: () => void = () => {};
@@ -568,8 +573,9 @@ describe("FeedbackToast", () => {
       await vi.waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
     });
 
-    it("drops a queued press with the reason when a save lands after the toast's edit, and sends nothing", async () => {
+    it("drops a queued press with the reason when a save lands after the toast's edit", async () => {
       const user = userEvent.setup();
+      refuseAsStale();
       render(<FeedbackToast />);
       announce();
       startSave();
@@ -584,13 +590,15 @@ describe("FeedbackToast", () => {
       });
       await settleSave();
       await vi.waitFor(() =>
-        expect(useDawStore.getState().statusAnnouncement).toBe(STALE_BY_SAVE),
+        expect(useDawStore.getState().statusAnnouncement).toBe(STALE),
       );
-      expect(undoHistory).not.toHaveBeenCalled();
+      expect(undoHistory).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(STALE)).toBeVisible();
     });
 
     it("keeps one Undo for a whole Approve all: the first part's queued press is dropped, the pass toast's Undo takes both parts", async () => {
       const user = userEvent.setup();
+      refuseAsStale();
       render(<FeedbackToast />);
       announce();
       startSave();
@@ -608,13 +616,17 @@ describe("FeedbackToast", () => {
       });
       await settleSave();
       await vi.waitFor(() =>
-        expect(useDawStore.getState().statusAnnouncement).toBe(STALE_BY_SAVE),
+        expect(useDawStore.getState().statusAnnouncement).toBe(STALE),
       );
-      expect(undoHistory).not.toHaveBeenCalled();
+      expect(undoHistory).toHaveBeenCalledTimes(1);
+      expect(undoHistory).toHaveBeenLastCalledWith(
+        "/tmp/ep",
+        expect.objectContaining({ expectedHeadId: "host-reorder" }),
+      );
       expect(screen.getByText("Approved 10 pending edits")).toBeVisible();
       await user.click(screen.getByRole("button", { name: "Undo" }));
-      expect(undoHistory).toHaveBeenCalledTimes(1);
-      expect(undoHistory).toHaveBeenCalledWith(
+      expect(undoHistory).toHaveBeenCalledTimes(2);
+      expect(undoHistory).toHaveBeenLastCalledWith(
         "/tmp/ep",
         expect.objectContaining({ expectedHeadId: "cut-anyway" }),
       );

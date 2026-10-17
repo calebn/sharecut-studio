@@ -96,6 +96,15 @@ export const UndoUnavailable: Story = {
   },
 };
 
+export const UndoReadyAfterSave: Story = {
+  args: { undoNote: "Undo ready after save" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Undo" })).toBeEnabled();
+    await expect(canvas.getByText("Undo ready after save")).toBeVisible();
+  },
+};
+
 export const Phone: Story = {
   parameters: recordMobileViewport.parameters,
   globals: recordMobileViewport.globals,
