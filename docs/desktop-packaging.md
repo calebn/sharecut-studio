@@ -433,8 +433,9 @@ available.
 ## In-app updates
 
 The desktop app checks a static feed and installs a signed update through the
-Tauri 2 updater plugin. The native menu offers **Check for Updates…**, and shows
-an update label once the host finds a newer version.
+Tauri 2 updater plugin. The native menu offers **Check for Updates…**, and the item reads
+**Update to vX Available…** (with the real version for X) once the host finds a
+newer version.
 
 **Profile fields.** `updater_endpoint` (public HTTPS URL of the feed, for
 example `https://cdn.sharecut.studio/desktop/latest.json`) and

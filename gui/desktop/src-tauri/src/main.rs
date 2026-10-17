@@ -907,7 +907,10 @@ fn main() {
         .expect("error while building Sharecut Studio")
         .run(|app_handle, event| {
             match event {
-                RunEvent::ExitRequested { api, .. } => {
+                RunEvent::ExitRequested { api, .. } => match updater::gate_exit(app_handle) {
+                    sharecut::RestartGate::Proceed => {}
+                    sharecut::RestartGate::Refuse => api.prevent_exit(),
+                    sharecut::RestartGate::NotPending => {
                     if let Some(risk) = handle_exit_requested(app_handle) {
                         api.prevent_exit();
                         if let Some(webview) = app_handle.get_webview_window("main") {
@@ -916,8 +919,14 @@ fn main() {
                             eprintln!("Sharecut Studio: could not show close confirmation");
                         }
                     }
+                    }
+                },
+                RunEvent::Exit => {
+                    shutdown_sidecar(app_handle);
+                    if updater::take_restart_on_exit() {
+                        tauri::process::restart(&app_handle.env());
+                    }
                 }
-                RunEvent::Exit => shutdown_sidecar(app_handle),
                 _ => {}
             }
         });

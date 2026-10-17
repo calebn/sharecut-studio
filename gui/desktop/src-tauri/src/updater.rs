@@ -16,6 +16,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 pub const MENU_ID: &str = "sharecut-check-for-updates";
 const NETWORK_TIMEOUT: Duration = Duration::from_secs(30);
+static RESTART_PENDING: AtomicBool = AtomicBool::new(false);
 const DIALOG_TITLE: &str = "Software Update";
 
 struct UpdateController {
@@ -331,15 +332,45 @@ fn install(app: &AppHandle, win: &WebviewWindow) {
         notify(win, &format!("{detail}{restart_hint}"));
         return;
     }
-    if !guard_allows(win) {
-        ctl.transition(|_| Some(UpdateState::Idle));
-        notify(
-            win,
-            "The update is installed. Restart Sharecut Studio after you finish recording.",
-        );
-        return;
+    RESTART_PENDING.store(true, Ordering::Release);
+    app.exit(0);
+}
+
+/// Called from `ExitRequested`. Reads the recording guard at the moment of
+/// exit, so a pending update restart is either allowed or cleared right there.
+pub fn gate_exit(app: &AppHandle) -> sharecut::RestartGate {
+    let pending = RESTART_PENDING.load(Ordering::Acquire);
+    if !pending {
+        return sharecut::RestartGate::NotPending;
     }
-    app.restart();
+    let guard = match app.get_webview_window("main") {
+        Some(win) => crate::close_guard_decision(&win),
+        None => sharecut::close_decision_from_url(None),
+    };
+    let gate = sharecut::restart_gate(pending, guard);
+    if gate == sharecut::RestartGate::Refuse {
+        RESTART_PENDING.store(false, Ordering::Release);
+        if let Some(ctl) = app.try_state::<UpdateController>() {
+            ctl.transition(|_| Some(UpdateState::Idle));
+        }
+        if let Some(win) = app.get_webview_window("main") {
+            win.dialog()
+                .message(format!(
+                    "The update is installed. {}",
+                    sharecut::RECORDING_REFUSAL_MESSAGE
+                ))
+                .title(DIALOG_TITLE)
+                .buttons(MessageDialogButtons::Ok)
+                .parent(&win)
+                .show(|_| {});
+        }
+    }
+    gate
+}
+
+/// True once when the exit that just happened was an approved update restart.
+pub fn take_restart_on_exit() -> bool {
+    RESTART_PENDING.swap(false, Ordering::AcqRel)
 }
 
 #[cfg(test)]

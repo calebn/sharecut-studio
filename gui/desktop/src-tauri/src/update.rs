@@ -164,6 +164,27 @@ pub fn may_update(decision: CloseDecision) -> bool {
     decision == CloseDecision::Allow
 }
 
+/// What an exit request means while an update restart may be pending.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RestartGate {
+    /// No update restart is pending: the normal quit guard applies.
+    NotPending,
+    /// The guard is clear, so the exit may go ahead and the host relaunches.
+    Proceed,
+    /// The guard turned active: drop the pending restart and keep the app open.
+    Refuse,
+}
+
+/// The last guard read happens inside the exit request itself, so a refused
+/// restart is cleared by the host and never left armed for a later quit.
+pub fn restart_gate(pending: bool, guard: CloseDecision) -> RestartGate {
+    match (pending, may_update(guard)) {
+        (false, _) => RestartGate::NotPending,
+        (true, true) => RestartGate::Proceed,
+        (true, false) => RestartGate::Refuse,
+    }
+}
+
 /// What the launch-time check should do on each poll of the recording guard.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LaunchPrompt {
@@ -348,6 +369,23 @@ mod tests {
         assert!(!may_update(CloseDecision::Confirm(CloseRisk::Host)));
         assert!(!may_update(CloseDecision::Confirm(CloseRisk::Guest)));
         assert!(!may_update(CloseDecision::Confirm(CloseRisk::Unknown)));
+    }
+
+    #[test]
+    fn restart_gate_decides_from_pending_and_guard() {
+        let host = CloseDecision::Confirm(CloseRisk::Host);
+        let unknown = CloseDecision::Confirm(CloseRisk::Unknown);
+        assert_eq!(
+            restart_gate(false, CloseDecision::Allow),
+            RestartGate::NotPending
+        );
+        assert_eq!(restart_gate(false, host), RestartGate::NotPending);
+        assert_eq!(
+            restart_gate(true, CloseDecision::Allow),
+            RestartGate::Proceed
+        );
+        assert_eq!(restart_gate(true, host), RestartGate::Refuse);
+        assert_eq!(restart_gate(true, unknown), RestartGate::Refuse);
     }
 
     #[test]

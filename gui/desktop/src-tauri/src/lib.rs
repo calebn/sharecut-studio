@@ -86,9 +86,9 @@ pub use sidecar::{
 };
 pub use update::{
     check_failure_message, install_failure_message, install_mode, launch_prompt,
-    manual_download_message, may_update, offer_message, progress_percent, up_to_date_message,
-    FailureKind, InstallMode, LaunchPrompt, UpdateState, UpdaterConfig, GUARD_POLL_INTERVAL,
-    RECORDING_REFUSAL_MESSAGE,
+    manual_download_message, may_update, offer_message, progress_percent, restart_gate,
+    up_to_date_message, FailureKind, InstallMode, LaunchPrompt, RestartGate, UpdateState,
+    UpdaterConfig, GUARD_POLL_INTERVAL, RECORDING_REFUSAL_MESSAGE,
 };
 
 #[cfg(test)]
