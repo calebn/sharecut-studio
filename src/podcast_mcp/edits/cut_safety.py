@@ -154,7 +154,6 @@ def protect_cut_breaths(
     strict: bool = True,
     held: bool = False,
 ) -> tuple[float, float] | None:
-    """Shrink final edges around complete breaths, or suppress uncertain cuts."""
     if not (
         math.isfinite(start) and math.isfinite(end) and (start < end or (held and start == end))
     ):
@@ -792,7 +791,6 @@ def resolve_cut_scope(
     caches: TrackRmsCacheSet | None = None,
     _admissible_spans: Sequence[tuple[float, float]] | None = None,
 ) -> CutScopeResolution:
-    """Resolve current cut scope or report unavailable peer assessment."""
     if requested_scope == "track":
         return ResolvedCutScope("intentional_track")
 
@@ -1035,7 +1033,6 @@ def completed_audio_effects(
     contributors_by_clip: Mapping[str, frozenset[str]] | None = None,
     introduced_clips: frozenset[str] = frozenset(),
 ) -> tuple[CutAudioEffect, ...]:
-    """Read changed source support and envelopes from the actual render graph."""
     from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.track_media import full_span_clip
     from podcast_mcp.engines.audio import placed_sources
@@ -1280,7 +1277,6 @@ def complete_effect_acoustics(
     join: CutJoin | None = None,
     unavailable: frozenset[str] = frozenset(),
 ) -> list[CutScopeHold]:
-    """The acoustic veto over completed removals, retained edges and gain envelopes."""
     pause_holds = [
         CutScopeHold(
             edit_id,
@@ -1562,7 +1558,6 @@ def assess_held_source(
     audio_cache: TrackAudioCache | None = None,
     retained_envelope: bool = False,
 ) -> HeldAcoustics:
-    """Measure the selected recording's held removal and the gain-changing fade edges."""
     from podcast_mcp.edits.audio_cache import source_audio_cache
 
     flags: list[str] = []
@@ -2045,7 +2040,6 @@ def complete_effect_receipts(
     trim: TrimPlan | None = None,
     clip_ids: tuple[str, ...] = (),
 ) -> list[CutScopeHold]:
-    """Check provisional archives against the selected source-qualified decisions."""
     from podcast_mcp.edits.clips_ops import clip_split_origin
 
     pad_origins = native_pad_origins()
@@ -2282,7 +2276,6 @@ CUT_ACTION_TABLE.update(
 
 
 def safety_observation_label(hold: CutScopeHold) -> str:
-    """Return the stable policy label for a fresh native safety observation."""
     if hold.detail in {label for label, _ in _SAFETY_ACTIONS}:
         return hold.detail
     if hold.detail and hold.detail.startswith("breath"):
@@ -2293,12 +2286,10 @@ def safety_observation_label(hold: CutScopeHold) -> str:
 
 
 def action_for_safety_observation(label: str, mode: CutMode) -> CutActionPolicy:
-    """Resolve a fresh safety label through the canonical mode/action table."""
     return CUT_ACTION_TABLE[(label, mode)]
 
 
 def edit_time_behavior(edit: EditDecision) -> CutMode:
-    """Return the time behavior of the native operation represented by an edit."""
     if edit.type is EditDecisionType.MUTE or edit.scope == "track" or edit.exact_range is not None:
         return "mute"
     return "ripple"
@@ -2311,7 +2302,6 @@ def apply_safety_actions(
     manual_ids: frozenset[str] = frozenset(),
     mode: CutMode | None = None,
 ) -> list[CutScopeHold]:
-    """Resolve fresh holds through the table before a private candidate can publish."""
     decisions = {edit.id: edit for edit in project.edit_decisions}
     retained: list[CutScopeHold] = []
     for hold in holds:
@@ -2327,7 +2317,6 @@ def apply_safety_actions(
 
 
 def sound_kind(reason: str | None) -> str | None:
-    """The observed sound kind for a tighten ``reason``, or None for other edits."""
     text = reason or ""
     if text.startswith(ACOUSTIC_FILLER_REASON):
         # A heard word outranks a laugh: "leave" is the safe default when both flags are set.
@@ -2364,7 +2353,6 @@ def is_non_speech_sound(reason: str | None) -> bool:
 
 
 def assess_source_offer(project: EpisodeProject, edit: EditDecision, *, defaults: dict) -> None:
-    """Annotate measured risk before publishing held programmatic source bounds."""
     from podcast_mcp.edits.cut_application import assess_offer
 
     if edit.boundary_intent is CutIntent.HUMAN_BOUNDARIES or edit.type == EditDecisionType.SPLIT:

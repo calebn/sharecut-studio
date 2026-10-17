@@ -36,7 +36,6 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         "held": [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held],
     }
     if asked:
-        # Report the remaining speech for interactive review.
         result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")
         result["confirm_ids"] = list(asked[0].edit_ids)
     return result
