@@ -70,7 +70,7 @@ a facade export inside a handler, patch that export on the facade.
 
 ## Beta interfaces
 
-Sharecut Studio is in beta and has no users. Breaking changes are allowed. Prefer one clear contract over backward compatibility: update every current caller, test, and affected document, then delete the obsolete API or implementation. Do not add compatibility-only overloads, aliases, fallbacks, or migrations for old clients or project formats. Keep separate paths when they serve distinct current workflows, such as immediate editing and draft audition.
+Sharecut Studio is in beta and has no users. Breaking changes are allowed. Prefer one clear contract over backward compatibility: update every current caller, test, and affected document, then delete the obsolete API or implementation. Do not add compatibility-only overloads, aliases, or runtime fallbacks for old clients or project formats. A change to the project file shape, or any other break of data a user already has, ships with a one-shot upgrade command and tests over a fixture of the old shape ([beta-plan § Compatibility](beta-plan.md#compatibility)). Keep separate paths when they serve distinct current workflows, such as immediate editing and draft audition.
 
 
 ## Adding a feature

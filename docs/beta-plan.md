@@ -180,6 +180,11 @@ If a journey cannot reach its bar in time, cut the journey or one of its shells.
 Tablet editing is the likeliest cut. Do not lower the bar quietly. A smaller
 beta that works earns more trust than a broad one that half works.
 
+## Compatibility
+
+Breaking changes are allowed in the beta, and the runtime keeps no compatibility
+code. The owner added one rule on 2026-10-17. A change to the project file's shape, or anything else that breaks backward compatibility of data a user already has, ships in the same change with tooling that upgrades older project files: a one-shot `podcast` CLI command the user runs, with tests that upgrade a fixture of the old shape. The old shape is then unsupported at runtime. Enforced by #1702.
+
 ## Filing rules
 
 ### Decision: Agents file only reachable harm
