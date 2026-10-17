@@ -26,18 +26,25 @@ describe("clampTabsHeightRem", () => {
     );
   });
 
-  it("lets a short viewport go below the usual floor, down to its own default", () => {
+  it("lets a short viewport shrink its panel below the default, to 4.5rem", () => {
     // A 331px-tall window leaves 259px under the transport and status rows;
     // the CSS default there is 38% of it (6.15rem), under the 8rem floor.
     const avail = 259;
     const shortDefaultRem = (avail * 0.38) / 16;
-    expect(minTabsHeightRem(avail)).toBeCloseTo(shortDefaultRem, 5);
-    expect(clampTabsHeightRem(0, avail)).toBeCloseTo(shortDefaultRem, 5);
+    expect(shortDefaultRem).toBeLessThan(MIN_TABS_HEIGHT_REM);
+    expect(minTabsHeightRem(avail)).toBe(4.5);
+    expect(clampTabsHeightRem(0, avail)).toBe(4.5);
     expect(clampTabsHeightRem(shortDefaultRem, avail)).toBeCloseTo(
       shortDefaultRem,
       5,
     );
     expect(clampTabsHeightRem(99, avail)).toBeCloseTo((avail * 0.6) / 16, 5);
+  });
+
+  it("never puts the floor above a very short window's own default", () => {
+    const avail = 100;
+    const shortDefaultRem = (avail * 0.38) / 16;
+    expect(minTabsHeightRem(avail)).toBeCloseTo(shortDefaultRem, 5);
   });
 
   it("keeps the 8rem floor where the viewport is tall", () => {

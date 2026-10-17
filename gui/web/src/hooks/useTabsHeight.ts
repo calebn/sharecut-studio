@@ -12,6 +12,9 @@ export const DEFAULT_TABS_HEIGHT_REM = 12.5;
 export const MIN_TABS_HEIGHT_REM = 8;
 /** Max fraction of shell space below transport+status. */
 export const MAX_TABS_FRACTION = 0.6;
+/** The fraction of that space a short window's CSS default takes (`responsive.css`). */
+export const SHORT_DEFAULT_TABS_FRACTION = 0.38;
+export const SHORT_MIN_TABS_HEIGHT_REM = 4.5;
 
 export function remToPx(rem: number): number {
   if (typeof document === "undefined") {
@@ -27,6 +30,20 @@ export function pxToRem(px: number): number {
   return px / (remToPx(1) || 16);
 }
 
+/**
+ * The smallest panel the splitter reaches: 8rem, or in a short window (whose
+ * CSS default is already under 8rem) 4.5rem, the tab bar and a peek of its
+ * panel. Never above that window's own default, so a drag can shrink it.
+ */
+export function minTabsHeightRem(availableBelowChromePx: number): number {
+  const shortDefault = pxToRem(
+    availableBelowChromePx * SHORT_DEFAULT_TABS_FRACTION,
+  );
+  return shortDefault >= MIN_TABS_HEIGHT_REM
+    ? MIN_TABS_HEIGHT_REM
+    : Math.min(shortDefault, SHORT_MIN_TABS_HEIGHT_REM);
+}
+
 export function clampTabsHeightRem(
   rem: number,
   availableBelowChromePx: number,
@@ -34,11 +51,12 @@ export function clampTabsHeightRem(
   if (!Number.isFinite(rem)) {
     return DEFAULT_TABS_HEIGHT_REM;
   }
+  const minRem = minTabsHeightRem(availableBelowChromePx);
   const maxRem = Math.max(
-    MIN_TABS_HEIGHT_REM,
+    minRem,
     pxToRem(availableBelowChromePx * MAX_TABS_FRACTION),
   );
-  return Math.min(maxRem, Math.max(MIN_TABS_HEIGHT_REM, rem));
+  return Math.min(maxRem, Math.max(minRem, rem));
 }
 
 function readStoredRem(): number | null {
@@ -66,6 +84,7 @@ function availableBelowChromePx(): number {
   if (typeof window === "undefined") {
     return 800;
   }
+  // The short-window CSS default reads these two off the root as well.
   const root = document.documentElement;
   const transport =
     Number.parseFloat(
@@ -117,12 +136,16 @@ export function useTabsHeight(): {
   const [maxRem, setMaxRem] = useState(() =>
     clampTabsHeightRem(999, availableBelowChromePx()),
   );
+  const [minRem, setMinRem] = useState(() =>
+    minTabsHeightRem(availableBelowChromePx()),
+  );
 
   useEffect(() => {
     const syncMax = () => {
       const avail = availableBelowChromePx();
       const nextMax = clampTabsHeightRem(999, avail);
       setMaxRem(nextMax);
+      setMinRem(minTabsHeightRem(avail));
       setHeightState((prev) => {
         if (!userSet) {
           return prev;
@@ -159,7 +182,7 @@ export function useTabsHeight(): {
     heightRem,
     setHeightRem,
     resetHeight,
-    minRem: MIN_TABS_HEIGHT_REM,
+    minRem,
     maxRem,
     userSet,
   };
