@@ -200,19 +200,26 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   }
 }
 
-/* A short, wide slot (a phone held sideways, or a tall one the keyboard
-   shortened): a lane-editing sheet pins its header and trims it, so the body
-   keeps its rows for the form (#1694). */
-@container sheet-slot (min-width: 36rem) and (max-height: 30rem) {
-  .bottom-sheet--lane-band .bottom-sheet-chrome {
-    position: sticky;
-    top: 0;
-    z-index: var(--z-local-chrome);
-    background: var(--color-bg-overlay);
-  }
+/* A phone held sideways editing a lane: the sheet keeps its header (title,
+   Done, Close) pinned and scrolls only the form beneath it, so Done and the
+   form are on screen together (#1694). A tall iPad slot is not short. */
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (max-height: 40rem) {
+  @container sheet-slot (min-width: 36rem) {
+    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector) {
+      overflow: hidden;
+    }
 
-  .bottom-sheet--lane-band .bottom-sheet-header {
-    padding-block: var(--space-1);
+    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector)
+      .bottom-sheet-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .bottom-sheet--lane-band .bottom-sheet-header {
+      padding-block: var(--space-0);
+    }
   }
 }
 
