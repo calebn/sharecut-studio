@@ -305,9 +305,9 @@ the empty state, not a separate discovery task.
   while an edit is saving: the press waits for the save and runs only if the
   toast's change is still the newest step. If a later edit landed first, the
   server refuses and the status says "Can't undo: the project changed since.
-  Nothing was undone." (an Approve all that asked Cut anyway is the case: the
-  first toast's press is refused and the pass toast's one Undo takes both
-  parts, #1677). Tighten apply, skip and Apply
+  Nothing was undone." For a logical approval recorded across two commands,
+  the first toast's Undo is refused and the pass toast's Undo takes back both
+  edits (#1677). Tighten apply, skip and Apply
   eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
   Mute, single pending-edit Approve and Reject, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
