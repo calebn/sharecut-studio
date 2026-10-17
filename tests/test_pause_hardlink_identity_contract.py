@@ -142,11 +142,7 @@ def test_hardlink_pad_receipt_excludes_the_actual_original_sample(tmp_path):
                     "source_start": 2,
                     "source_end": 2.25,
                 }
-            ],
-            "clips": [
-                {"clip_id": "sample-a", "track_id": "host"},
-                {"clip_id": "sample-b", "track_id": "host"},
-            ],
+            ]
         },
     )
     support = _support(result)

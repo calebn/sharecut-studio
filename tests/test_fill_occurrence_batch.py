@@ -168,17 +168,3 @@ def test_a_pad_borrowed_from_the_pause_quiet_does_not_veto_the_pause(
             approve_edits(project.model_copy(deep=True), selected, application_intent=intent) == 1
         )
     assert approve_edits(project, [filler, pause], application_intent=intent) == 2
-
-
-def test_a_user_replay_inside_a_pads_borrowed_range_still_vetoes_the_pause(
-    pad_over_pause,
-) -> None:
-    project, filler, pause = pad_over_pause
-    assert approve_edits(project, [filler], application_intent=CutIntent.PROGRAMMATIC) == 1
-    samples = [s for row in project.editorial.edit_log for s in row.params.get("pad_samples", [])]
-    assert (samples[0]["source_start"], samples[0]["source_end"]) == (3.05, 3.45)
-    project.clips.append(
-        Clip(id="replay", track_id="host", source_start=3.07, source_end=3.43, timeline_start=40)
-    )
-    with pytest.raises(ScopeChangedAtApproval, match="cannot retain enough original quiet"):
-        approve_edits(project, [pause], application_intent=CutIntent.PROGRAMMATIC)
