@@ -1,5 +1,5 @@
 # Reusable Sharecut Studio installer build (Linux AppImage, Windows NSIS,
-# macOS Intel DMG). Secret-guarded signing: Apple Developer ID + notarization
+# macOS Intel and Apple Silicon DMGs). Secret-guarded signing: Apple Developer ID + notarization
 # and Windows Authenticode run only when `inputs.sign` is true *and* the
 # matching secrets are non-empty. Forks and unsigned dogfood dispatches skip
 # those steps. Artifact names are identical signed or not.
@@ -9,6 +9,12 @@
 #
 # Never store cert/key material in this FOSS tree. Declare secret *names* only.
 #
+# In-app updates: when the distribution profile carries an updater public key
+# and `sign` is true on a trusted source, the Tauri updater signing key
+# (TAURI_SIGNING_PRIVATE_KEY) makes each leg also emit signed updater artifacts,
+# uploaded under separate `*-updater` artifact names. Unsigned builds skip them.
+#
+# Runner labels: `macos-15` is arm64 (native Apple Silicon build).
 # Intel runner label: https://docs.github.com/en/actions/reference/runners/github-hosted-runners
 # (`macos-15-intel` is x86_64; last Intel image through Aug 2027). Do not
 # freeze under Rosetta on an arm64 runner and call it x64.
@@ -84,6 +90,12 @@ on:
       WINDOWS_SIGN_CERT_PASSWORD:
         description: Password for WINDOWS_SIGN_CERT_PFX_B64
         required: false
+      TAURI_SIGNING_PRIVATE_KEY:
+        description: Tauri updater minisign private key (content or path); only with an updater profile
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        description: Password for TAURI_SIGNING_PRIVATE_KEY (empty when the key has none)
+        required: false
 # Default read-only. Bundle jobs never push. Secret *values* are never echoed
 # (set +x on those steps).
 permissions:
@@ -100,6 +112,7 @@ jobs:
       source_repository: ${{ steps.source.outputs.repository }}
       source_sha: ${{ steps.verify.outputs.source_sha }}
       trusted: ${{ steps.verify.outputs.trusted }}
+      updater: ${{ steps.updater.outputs.updater }}
     steps:
       - name: Validate source coordinates
         id: source
@@ -122,6 +135,22 @@ jobs:
             printf 'repository=%s\n' "$repository"
             printf 'ref=%s\n' "$ref"
           } >> "$GITHUB_OUTPUT"
+
+      # Reads only the caller-supplied profile text (no checked-out code), so the
+      # result can pick the signing Environment before any candidate code runs.
+      - name: Detect updater profile
+        id: updater
+        env:
+          DISTRIBUTION_PROFILE_JSON: ${{ inputs.distribution_profile_json }}
+        run: |
+          set +x
+          set -euo pipefail
+          updater=false
+          if [[ -n "$DISTRIBUTION_PROFILE_JSON" ]] \
+            && [[ "$(jq -r '(.updater_public_key | type) == "string"' <<< "$DISTRIBUTION_PROFILE_JSON")" == "true" ]]; then
+            updater=true
+          fi
+          printf 'updater=%s\n' "$updater" >> "$GITHUB_OUTPUT"
 
       # Checkout itself does not execute repository files. The following inline step
       # verifies the checked-out SHA before any script, package manager, or secret use.
@@ -178,6 +207,10 @@ jobs:
             name: macos-intel
             bundle: app
             triple: x86_64-apple-darwin
+          - os: macos-15
+            name: macos-arm64
+            bundle: app
+            triple: aarch64-apple-darwin
     defaults:
       run:
         shell: bash
@@ -310,7 +343,7 @@ jobs:
       - name: Upload prepared extension sidecar
         uses: actions/upload-artifact@v7
         with:
-          name: prepared-extension-sidecar-${{ matrix.bundle }}
+          name: prepared-extension-sidecar-${{ matrix.triple }}
           # GitHub artifact ZIPs do not preserve executable modes, symlinks, or
           # dotfiles. The platform-local tar does, including .freeze-complete.
           path: ${{ runner.temp }}/prepared-extension-sidecar.tar
@@ -326,7 +359,7 @@ jobs:
     permissions:
       contents: read
       actions: write
-    environment: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle != 'appimage' && 'desktop-signing' || '' }}
+    environment: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && (matrix.bundle != 'appimage' || needs.verify-source.outputs.updater == 'true') && 'desktop-signing' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -337,18 +370,38 @@ jobs:
             triple: x86_64-unknown-linux-gnu
             artifact: sharecut-linux-appimage
             artifact_path: gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            updater_artifact: sharecut-linux-appimage-updater
+            updater_path: |
+              gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+              gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
           - os: windows-latest
             name: windows-nsis
             bundle: nsis
             triple: x86_64-pc-windows-msvc
             artifact: sharecut-windows-nsis
             artifact_path: gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+            updater_artifact: sharecut-windows-nsis-updater
+            updater_path: |
+              gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+              gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe.sig
           - os: macos-15-intel
             name: macos-intel-dmg
             bundle: app
             triple: x86_64-apple-darwin
+            expected_arch: x86_64
             artifact: sharecut-macos-x64-dmg
             artifact_path: gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            updater_artifact: sharecut-macos-x64-updater
+            updater_path: gui/desktop/src-tauri/target/release/bundle/updater/*
+          - os: macos-15
+            name: macos-arm64-dmg
+            bundle: app
+            triple: aarch64-apple-darwin
+            expected_arch: arm64
+            artifact: sharecut-macos-arm64-dmg
+            artifact_path: gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            updater_artifact: sharecut-macos-arm64-updater
+            updater_path: gui/desktop/src-tauri/target/release/bundle/updater/*
     defaults:
       run:
         shell: bash
@@ -395,6 +448,7 @@ jobs:
       - name: Configure distribution profile
         env:
           DISTRIBUTION_PROFILE_JSON: ${{ inputs.distribution_profile_json }}
+          SIGNED_RELEASE: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}
         run: |
           set +x
           set -euo pipefail
@@ -406,13 +460,26 @@ jobs:
           overlay="${RUNNER_TEMP}/tauri-distribution.json"
           compact_overlay="${RUNNER_TEMP}/tauri-distribution-compact.json"
           unsigned_overlay="${RUNNER_TEMP}/tauri-distribution-unsigned.json"
+          updater_profile=no
+          if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("updater_public_key") else 1)' "$profile_path"; then
+            updater_profile=yes
+          fi
+          # Updater artifacts need the signing key, which only the trusted
+          # sign=true path holds. Any other build keeps the updater plugin
+          # config but produces no updater artifacts.
+          updater_artifacts=no
+          overlay_flags=(--no-updater-artifacts)
+          if [[ "$updater_profile" == "yes" && "$SIGNED_RELEASE" == "true" ]]; then
+            updater_artifacts=yes
+            overlay_flags=()
+          fi
           python3 scripts/generate_distribution_config.py \
             --profile "$profile_path" \
-            --output "$overlay"
+            --output "$overlay" "${overlay_flags[@]}"
           python3 scripts/generate_distribution_config.py \
             --profile "$profile_path" \
             --output "$compact_overlay" \
-            --compact-product-name
+            --compact-product-name "${overlay_flags[@]}"
           python3 - "$overlay" "$unsigned_overlay" <<'PY'
           import json
           import sys
@@ -429,6 +496,9 @@ jobs:
             printf 'PODCAST_DISTRIBUTION_TAURI_CONFIG=%s\n' "$overlay"
             printf 'PODCAST_DISTRIBUTION_TAURI_COMPACT_CONFIG=%s\n' "$compact_overlay"
             printf 'PODCAST_DISTRIBUTION_TAURI_UNSIGNED_CONFIG=%s\n' "$unsigned_overlay"
+            printf 'PODCAST_UPDATER_PROFILE=%s\n' "$updater_profile"
+            printf 'PODCAST_UPDATER_ARTIFACTS=%s\n' "$updater_artifacts"
+            printf 'SHARECUT_SKIP_UPDATER_ARTIFACTS=%s\n' "$([[ "$updater_artifacts" == "yes" ]] && echo 0 || echo 1)"
           } >> "$GITHUB_ENV"
 
       - name: Resolve signing flags
@@ -444,11 +514,13 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           WINDOWS_SIGN_CERT_PFX_B64: ${{ secrets.WINDOWS_SIGN_CERT_PFX_B64 }}
           WINDOWS_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           set +x
           set -euo pipefail
           apple=no
           windows=no
+          updater=no
           if [[ "${{ inputs.sign }}" == "true" ]]; then
             if [[ -n "${APPLE_SIGNING_IDENTITY}" && -n "${APPLE_CERTIFICATE}" && -n "${APPLE_CERTIFICATE_PASSWORD}" && -n "${APPLE_TEAM_ID}" && -n "${APPLE_API_KEY}" && -n "${APPLE_API_ISSUER}" && -n "${APPLE_API_KEY_P8}" ]]; then
               apple=yes
@@ -457,8 +529,18 @@ jobs:
               windows=yes
             fi
           fi
-          printf 'apple=%s\n' "$apple" >> "$GITHUB_OUTPUT"
-          printf 'windows=%s\n' "$windows" >> "$GITHUB_OUTPUT"
+          if [[ "${PODCAST_UPDATER_PROFILE}" == "yes" ]]; then
+            if [[ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]]; then
+              echo "::error::sign=true with an updater profile requires the TAURI_SIGNING_PRIVATE_KEY secret" >&2
+              exit 1
+            fi
+            updater=yes
+          fi
+          {
+            printf 'apple=%s\n' "$apple"
+            printf 'windows=%s\n' "$windows"
+            printf 'updater=%s\n' "$updater"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Require signing when requested
         run: |
@@ -481,12 +563,14 @@ jobs:
               ;;
           esac
 
-      - name: Require native Intel Mac
+      - name: Require native macOS architecture
         if: matrix.bundle == 'app'
+        env:
+          EXPECTED_ARCH: ${{ matrix.expected_arch }}
         run: |
           arch="$(uname -m)"
-          if [[ "$arch" != "x86_64" ]]; then
-            echo "error: native Intel job got ${arch} — do not Rosetta-cross from arm64" >&2
+          if [[ "$arch" != "$EXPECTED_ARCH" ]]; then
+            echo "error: ${EXPECTED_ARCH} job got ${arch} — do not Rosetta-cross between architectures" >&2
             exit 1
           fi
 
@@ -523,7 +607,7 @@ jobs:
         if: inputs.extension_artifact_name != ''
         uses: actions/download-artifact@v8
         with:
-          name: prepared-extension-sidecar-${{ matrix.bundle }}
+          name: prepared-extension-sidecar-${{ matrix.triple }}
           path: ${{ runner.temp }}/prepared-extension-sidecar
 
       - name: Restore prepared extension sidecar
@@ -686,7 +770,12 @@ jobs:
       - name: Tauri bundle (Windows NSIS)
         if: matrix.bundle == 'nsis'
         working-directory: gui/desktop
-        run: npm run tauri -- build --bundles nsis --config "$PODCAST_DISTRIBUTION_TAURI_COMPACT_CONFIG"
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: |
+          set +x
+          npm run tauri -- build --bundles nsis --config "$PODCAST_DISTRIBUTION_TAURI_COMPACT_CONFIG"
 
       - name: Sign Windows NSIS installer
         if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle == 'nsis' && steps.signing.outputs.windows == 'yes' }}
@@ -704,11 +793,31 @@ jobs:
           fi
           ./scripts/sign_windows_authenticode.sh "${files[@]}"
 
-      - name: Tauri bundle (macOS Intel app)
+      # Authenticode rewrites the installer, which invalidates the minisign
+      # signature Tauri made over the unsigned bytes. Sign the final file again.
+      - name: Re-sign Windows updater signature
+        if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle == 'nsis' && steps.signing.outputs.windows == 'yes' && steps.signing.outputs.updater == 'yes' }}
+        working-directory: gui/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        run: |
+          set +x
+          set -euo pipefail
+          shopt -s nullglob
+          files=(src-tauri/target/release/bundle/nsis/*-setup.exe)
+          [[ ${#files[@]} -eq 1 ]] || { echo "::error::expected one NSIS installer to re-sign" >&2; exit 1; }
+          rm -f "${files[0]}.sig"
+          npm run tauri -- signer sign "${files[0]}" > /dev/null
+          test -s "${files[0]}.sig"
+
+      - name: Tauri bundle (macOS app)
         if: matrix.bundle == 'app'
         working-directory: gui/desktop
         env:
           APPLE_SIGN_ENABLED: ${{ steps.signing.outputs.apple }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           set +x
           if [[ "${APPLE_SIGN_ENABLED}" == "yes" ]]; then
@@ -717,7 +826,7 @@ jobs:
             npm run tauri -- build --bundles app --config "$PODCAST_DISTRIBUTION_TAURI_UNSIGNED_CONFIG"
           fi
 
-      - name: Pack Intel DMG
+      - name: Pack DMG
         if: matrix.bundle == 'app'
         run: |
           set +x
@@ -743,13 +852,27 @@ jobs:
           fi
           codesign --verify --deep --strict "${apps[0]}"
 
+      # Tauri builds the updater tarball from the app it just signed and
+      # notarized; the DMG step above only copies that app. The stage script
+      # renames the tarball with its architecture and, for a signed build,
+      # proves the tarball holds a valid, stapled app.
+      - name: Stage macOS updater bundle
+        if: ${{ matrix.bundle == 'app' && env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}
+        run: ./scripts/stage_updater_bundle.sh gui/desktop/src-tauri/target/release/bundle/updater
+
       - name: Linux AppImage
         if: matrix.bundle == 'appimage'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: ./scripts/build_linux_appimage.sh
 
       - name: Linux Debian package
         if: matrix.bundle == 'appimage'
         working-directory: gui/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.updater == 'yes' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: npm run tauri -- build --bundles deb --config "$PODCAST_DISTRIBUTION_TAURI_CONFIG"
 
       - name: Verify Debian CLI paths
@@ -802,6 +925,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload updater artifacts
+        if: ${{ env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.updater_artifact }}
+          path: ${{ matrix.updater_path }}
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Signing summary
         if: always()
         env:
@@ -825,6 +957,13 @@ jobs:
           echo "$line" >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ matrix.bundle }}" == "nsis" && "$intended" == "yes" ]]; then
             echo "windows payload exe: unsigned (NSIS + sidecar only)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ "${PODCAST_UPDATER_PROFILE:-no}" == "yes" ]]; then
+            if [[ "${PODCAST_UPDATER_ARTIFACTS:-no}" == "yes" ]]; then
+              echo "updater artifacts: ${{ matrix.updater_artifact }}" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "updater artifacts: skipped (needs sign=true on trusted main); this build is not updatable from the feed" >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
           if [[ -n "$VERSION" ]]; then
             printf 'version: %s\n' "$VERSION" >> "$GITHUB_STEP_SUMMARY"

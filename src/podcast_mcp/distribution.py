@@ -6,6 +6,8 @@ credentials belong in environment variables or ``relay.yaml``.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import ipaddress
 import json
 import os
@@ -21,6 +23,9 @@ _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*$")
 _FORBIDDEN_SCHEMES = {"http", "https", "file", "javascript", "data", "tauri", "asset"}
 _SECRET_KEY = re.compile(r"(?:secret|password|token|private.?key|access.?key|signing)", re.I)
 _CONTROL_CHARACTER = re.compile(r"[\x00-\x1f\x7f]")
+_UPDATER_KEY_CHARACTERS = re.compile(r"^[A-Za-z0-9+/=_-]+$")
+_UPDATER_KEY_MAX_LENGTH = 2048
+_MINISIGN_PUBLIC_KEY_BYTES = 42
 
 
 class DistributionProfileError(ValueError):
@@ -63,6 +68,8 @@ class DistributionProfile:
     repository_url: str
     release_manifest_url: str | None
     bootstrap_cdn_base: str | None
+    updater_endpoint: str | None
+    updater_public_key: str | None
 
 
 def compact_product_name(profile: DistributionProfile) -> str:
@@ -110,6 +117,49 @@ def _validate_public_https_url(name: str, raw: Any, *, origin: bool = False) -> 
             parsed.fragment,
         )
     )
+
+
+def _validate_updater_public_key(raw: Any) -> str:
+    """Accept only a Tauri updater public key: base64 of a minisign public key file.
+
+    Messages never echo the value, so a mistakenly pasted private key is not
+    repeated in logs.
+    """
+    if not isinstance(raw, str) or not raw:
+        raise DistributionProfileError("updater_public_key must be a non-empty string or null")
+    if len(raw) > _UPDATER_KEY_MAX_LENGTH:
+        raise DistributionProfileError(
+            f"updater_public_key must be at most {_UPDATER_KEY_MAX_LENGTH} characters"
+        )
+    if not _UPDATER_KEY_CHARACTERS.fullmatch(raw):
+        raise DistributionProfileError(
+            "updater_public_key must be one line of base64 without whitespace"
+        )
+    try:
+        decoded = base64.b64decode(raw, validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError) as exc:
+        raise DistributionProfileError(
+            "updater_public_key must be the base64 of a minisign public key file"
+        ) from exc
+    lines = decoded.splitlines()
+    comment = lines[0].lower() if lines else ""
+    if "secret key" in decoded.lower() or "private key" in decoded.lower():
+        raise DistributionProfileError(
+            "updater_public_key holds a private key; distribution profiles are public"
+        )
+    if not comment.startswith("untrusted comment:") or "public key" not in comment:
+        raise DistributionProfileError(
+            "updater_public_key must be the base64 of a minisign public key file"
+        )
+    try:
+        key_bytes = base64.b64decode(lines[1], validate=True) if len(lines) > 1 else b""
+    except binascii.Error:
+        key_bytes = b""
+    if len(key_bytes) != _MINISIGN_PUBLIC_KEY_BYTES or not key_bytes.startswith(b"Ed"):
+        raise DistributionProfileError(
+            "updater_public_key must be the base64 of a minisign public key file"
+        )
+    return raw
 
 
 def _safe_runtime_url(raw: str | None, fallback: str | None) -> str | None:
@@ -182,6 +232,8 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
         "repository_url",
         "release_manifest_url",
         "bootstrap_cdn_base",
+        "updater_endpoint",
+        "updater_public_key",
     }
     unknown = sorted(set(raw) - allowed_keys)
     if unknown:
@@ -223,6 +275,16 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
             "deep_link_schemes require at least one allowed_https_share_origin"
         )
 
+    for name in ("updater_endpoint", "updater_public_key"):
+        if name not in raw:
+            raise DistributionProfileError(f"{name} is required (use null to disable updates)")
+    endpoint_raw = raw["updater_endpoint"]
+    key_raw = raw["updater_public_key"]
+    if (endpoint_raw is None) != (key_raw is None):
+        raise DistributionProfileError(
+            "updater_endpoint and updater_public_key must both be set or both be null"
+        )
+
     release_raw = raw.get("release_manifest_url")
     cdn_raw = raw.get("bootstrap_cdn_base")
     return DistributionProfile(
@@ -244,6 +306,12 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
             if cdn_raw is not None
             else None
         ),
+        updater_endpoint=(
+            _validate_public_https_url("updater_endpoint", endpoint_raw)
+            if endpoint_raw is not None
+            else None
+        ),
+        updater_public_key=(_validate_updater_public_key(key_raw) if key_raw is not None else None),
     )
 
 
@@ -260,8 +328,14 @@ def load_distribution_profile(path: Path | None = None) -> DistributionProfile:
     return distribution_profile_from_mapping(raw)
 
 
-def tauri_distribution_overlay(profile: DistributionProfile) -> dict[str, Any]:
-    """Return the Tauri config fragment generated from one validated profile."""
+def tauri_distribution_overlay(
+    profile: DistributionProfile, *, updater_artifacts: bool = True
+) -> dict[str, Any]:
+    """Return the Tauri config fragment generated from one validated profile.
+
+    ``updater_artifacts=False`` keeps the updater plugin config but omits
+    ``bundle.createUpdaterArtifacts``, for builds that have no signing key.
+    """
     mobile: list[dict[str, Any]] = []
     for origin in profile.allowed_https_share_origins:
         mobile.append(
@@ -273,7 +347,13 @@ def tauri_distribution_overlay(profile: DistributionProfile) -> dict[str, Any]:
             }
         )
     mobile.extend({"scheme": [scheme], "appLink": False} for scheme in profile.deep_link_schemes)
-    return {
+    plugins: dict[str, Any] = {
+        "deep-link": {
+            "desktop": {"schemes": list(profile.deep_link_schemes)},
+            "mobile": mobile,
+        }
+    }
+    overlay: dict[str, Any] = {
         "productName": profile.product_name,
         "identifier": profile.bundle_identifier,
         "app": {
@@ -288,10 +368,13 @@ def tauri_distribution_overlay(profile: DistributionProfile) -> dict[str, Any]:
                 }
             ]
         },
-        "plugins": {
-            "deep-link": {
-                "desktop": {"schemes": list(profile.deep_link_schemes)},
-                "mobile": mobile,
-            }
-        },
+        "plugins": plugins,
     }
+    if profile.updater_endpoint is not None and profile.updater_public_key is not None:
+        plugins["updater"] = {
+            "endpoints": [profile.updater_endpoint],
+            "pubkey": profile.updater_public_key,
+        }
+        if updater_artifacts:
+            overlay["bundle"] = {"createUpdaterArtifacts": True}
+    return overlay

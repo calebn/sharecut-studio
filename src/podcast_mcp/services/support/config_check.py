@@ -111,6 +111,12 @@ def run_config_checks(
             )
         else:
             report.checks.append(DoctorCheck("ok", "bootstrap CDN configured"))
+        if profile.updater_endpoint is None:
+            report.checks.append(
+                DoctorCheck("warn", "in-app updates disabled; no updater endpoint or public key")
+            )
+        else:
+            report.checks.append(DoctorCheck("ok", "in-app updater endpoint and public key set"))
         return report
 
     raise CodedValueError(f"unsupported config mode: {mode}", code="config_mode_unsupported")

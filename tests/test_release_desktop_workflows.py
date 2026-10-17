@@ -57,15 +57,31 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
     assert not any(name.startswith("PODCAST_OBJECT_STORE_") for name in secrets)
     job = data["jobs"]["bundle"]
     oses = {row["os"] for row in job["strategy"]["matrix"]["include"]}
-    assert oses == {"ubuntu-22.04", "windows-latest", "macos-15-intel"}
+    assert oses == {"ubuntu-22.04", "windows-latest", "macos-15-intel", "macos-15"}
     assert {row["triple"] for row in job["strategy"]["matrix"]["include"]} == {
         "x86_64-unknown-linux-gnu",
         "x86_64-pc-windows-msvc",
         "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
     }
+    assert {row["artifact"] for row in job["strategy"]["matrix"]["include"]} == {
+        "sharecut-linux-appimage",
+        "sharecut-windows-nsis",
+        "sharecut-macos-x64-dmg",
+        "sharecut-macos-arm64-dmg",
+    }
+    assert {row["updater_artifact"] for row in job["strategy"]["matrix"]["include"]} == {
+        "sharecut-linux-appimage-updater",
+        "sharecut-windows-nsis-updater",
+        "sharecut-macos-x64-updater",
+        "sharecut-macos-arm64-updater",
+    }
+    assert "TAURI_SIGNING_PRIVATE_KEY" in secrets
+    assert "TAURI_SIGNING_PRIVATE_KEY_PASSWORD" in secrets
     assert job["environment"] == (
         "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && "
-        "matrix.bundle != 'appimage' && 'desktop-signing' || '' }}"
+        "(matrix.bundle != 'appimage' || needs.verify-source.outputs.updater == 'true') && "
+        "'desktop-signing' || '' }}"
     )
     assert job["needs"] == ["verify-source", "prepare-extension-runtime"]
     assert "inputs.extension_artifact_name == ''" in job["if"]
@@ -180,6 +196,7 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
         "ubuntu-22.04",
         "windows-latest",
         "macos-15-intel",
+        "macos-15",
     }
 
     prepare_steps = prepare["steps"]
@@ -240,7 +257,7 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
         for step in bundle["steps"]
         if step.get("name") == "Download prepared extension sidecar"
     )
-    assert restored["with"]["name"] == "prepared-extension-sidecar-${{ matrix.bundle }}"
+    assert restored["with"]["name"] == "prepared-extension-sidecar-${{ matrix.triple }}"
     assert restored["if"] == "inputs.extension_artifact_name != ''"
     assert restored["with"]["path"] == "${{ runner.temp }}/prepared-extension-sidecar"
     extract = next(
@@ -281,7 +298,7 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     assert (
         bundle_names.index("Import Apple signing material")
         < bundle_names.index("Sign prepared macOS runtime")
-        < bundle_names.index("Tauri bundle (macOS Intel app)")
+        < bundle_names.index("Tauri bundle (macOS app)")
     )
 
 
@@ -308,8 +325,8 @@ def test_signing_hooks_fail_closed_and_keep_artifact_names() -> None:
     assert job["steps"][checkout_at].get("with", {}).get("persist-credentials") is False
     assert names.index("Install desktop CLI") < names.index("Import Apple signing material")
     assert names.index("Import Apple signing material") < names.index("Freeze sidecar")
-    assert names.index("Freeze sidecar") < names.index("Tauri bundle (macOS Intel app)")
-    assert names.index("Pack Intel DMG") < names.index("Verify Apple signature")
+    assert names.index("Freeze sidecar") < names.index("Tauri bundle (macOS app)")
+    assert names.index("Pack DMG") < names.index("Verify Apple signature")
     assert "find-identity" not in text
     assert '/p "$WINDOWS_SIGN_CERT_PASSWORD"' not in text
     assert "steps.signing.outputs.apple == 'yes'" in text
@@ -340,7 +357,7 @@ def test_signing_hooks_fail_closed_and_keep_artifact_names() -> None:
     assert "matrix.bundle != 'appimage'" in text
     assert "VERSION: ${{ inputs.version }}" in text
     assert "windows payload exe: unsigned" in text
-    intel_step = next(s for s in job["steps"] if s.get("name") == "Tauri bundle (macOS Intel app)")
+    intel_step = next(s for s in job["steps"] if s.get("name") == "Tauri bundle (macOS app)")
     intel_run = intel_step["run"]
     assert "APPLE_SIGN_ENABLED" in intel_run
     assert 'if [[ "${APPLE_SIGN_ENABLED}" == "yes" ]]; then' in intel_run
@@ -348,7 +365,7 @@ def test_signing_hooks_fail_closed_and_keep_artifact_names() -> None:
     assert '"$PODCAST_DISTRIBUTION_TAURI_UNSIGNED_CONFIG"' in intel_run
     windows_step = next(s for s in job["steps"] if s.get("name") == "Tauri bundle (Windows NSIS)")
     assert '"$PODCAST_DISTRIBUTION_TAURI_COMPACT_CONFIG"' in windows_step["run"]
-    pack_step = next(s for s in job["steps"] if s.get("name") == "Pack Intel DMG")
+    pack_step = next(s for s in job["steps"] if s.get("name") == "Pack DMG")
     assert "bundle/macos/*.app" in pack_step["run"]
     assert "expected exactly one macOS app bundle" in pack_step["run"]
     for step in job["steps"]:
@@ -426,6 +443,7 @@ def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
         "source_repository": "${{ steps.source.outputs.repository }}",
         "source_sha": "${{ steps.verify.outputs.source_sha }}",
         "trusted": "${{ steps.verify.outputs.trusted }}",
+        "updater": "${{ steps.updater.outputs.updater }}",
     }
 
     steps = verify["steps"]
@@ -563,3 +581,55 @@ def test_release_bundle_predicate_rejects_untrusted_checkout_and_failed_extensio
             ["node", "-e", f"console.log({concrete})"], capture_output=True, text=True, check=True
         )
         assert result.stdout.strip() == str(expected).lower()
+
+
+def test_updater_signing_key_only_reaches_trusted_signed_steps() -> None:
+    data = load_github_yaml(BUILD)
+    text = BUILD.read_text(encoding="utf-8")
+    job = data["jobs"]["bundle"]
+    gate = "steps.signing.outputs.updater == 'yes' && secrets."
+    assert text.count(gate + "TAURI_SIGNING_PRIVATE_KEY ||") == text.count(
+        gate + "TAURI_SIGNING_PRIVATE_KEY_PASSWORD ||"
+    )
+    # Every other reference to the secret is the fail-closed check in "Resolve signing flags".
+    resolve = next(s for s in job["steps"] if s.get("name") == "Resolve signing flags")
+    assert resolve["if"] == "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
+    assert "TAURI_SIGNING_PRIVATE_KEY secret" in resolve["run"]
+    assert "set +x" in resolve["run"]
+    for other in data["jobs"]["prepare-extension-runtime"]["steps"]:
+        assert "TAURI_SIGNING" not in str(other)
+    for step in job["steps"]:
+        if step is not resolve:
+            assert "TAURI_SIGNING" not in (step.get("run") or ""), step.get("name")
+
+
+def test_unsigned_builds_skip_updater_artifacts_and_say_so() -> None:
+    text = BUILD.read_text(encoding="utf-8")
+    assert (
+        "SIGNED_RELEASE: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
+        in text
+    )
+    assert "overlay_flags=(--no-updater-artifacts)" in text
+    assert "SHARECUT_SKIP_UPDATER_ARTIFACTS" in text
+    assert "this build is not updatable from the feed" in text
+    job = load_github_yaml(BUILD)["jobs"]["bundle"]
+    upload = next(s for s in job["steps"] if s.get("name") == "Upload updater artifacts")
+    assert upload["if"] == "${{ env.PODCAST_UPDATER_ARTIFACTS == 'yes' }}"
+    assert upload["with"]["name"] == "${{ matrix.updater_artifact }}"
+    installer = next(s for s in job["steps"] if s.get("name") == "Upload installer")
+    assert installer["with"]["name"] == "${{ matrix.artifact }}"
+
+
+def test_updater_tarball_is_staged_after_the_notarized_app_and_windows_is_resigned() -> None:
+    job = load_github_yaml(BUILD)["jobs"]["bundle"]
+    names = [step.get("name") for step in job["steps"]]
+    assert names.index("Tauri bundle (macOS app)") < names.index("Stage macOS updater bundle")
+    assert names.index("Stage macOS updater bundle") < names.index("Upload updater artifacts")
+    assert names.index("Sign Windows NSIS installer") < names.index(
+        "Re-sign Windows updater signature"
+    )
+    resign = next(s for s in job["steps"] if s.get("name") == "Re-sign Windows updater signature")
+    assert "signer sign" in resign["run"]
+    stage = (ROOT / "scripts" / "stage_updater_bundle.sh").read_text(encoding="utf-8")
+    assert "stapler validate" in stage
+    assert "codesign --verify --deep --strict" in stage

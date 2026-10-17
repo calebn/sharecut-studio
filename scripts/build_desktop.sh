@@ -16,8 +16,19 @@ fi
 cd "$ROOT"
 
 DIST_OVERLAY="$ROOT/gui/desktop/src-tauri/target/distribution/tauri.conf.json"
+overlay_flags=()
+if [[ "${SHARECUT_SKIP_UPDATER_ARTIFACTS:-}" == "1" ]]; then
+  overlay_flags+=(--no-updater-artifacts)
+fi
 python3 "$ROOT/scripts/generate_distribution_config.py" \
-  --profile "$DIST_PROFILE" --output "$DIST_OVERLAY"
+  --profile "$DIST_PROFILE" --output "$DIST_OVERLAY" \
+  ${overlay_flags[@]+"${overlay_flags[@]}"}
+if grep -q '"createUpdaterArtifacts"' "$DIST_OVERLAY" && [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+  echo "error: this profile has an updater, so the build needs TAURI_SIGNING_PRIVATE_KEY" >&2
+  echo "       (path to or content of the updater private key). For a build that" >&2
+  echo "       cannot update, set SHARECUT_SKIP_UPDATER_ARTIFACTS=1." >&2
+  exit 1
+fi
 export PODCAST_DISTRIBUTION_PROFILE="$DIST_PROFILE"
 export PODCAST_DISTRIBUTION_TAURI_CONFIG="$DIST_OVERLAY"
 
