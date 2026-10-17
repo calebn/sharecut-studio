@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import load_project
 
 
-def _project(path: Path) -> None:
+def _project(path: Path, audio: Path) -> None:
     from podcast_mcp.models import (
         Clip,
         MediaAsset,
@@ -16,6 +17,9 @@ def _project(path: Path) -> None:
     )
 
     p = load_project(path)
+    media_path = p.workspace_path() / "raw" / "host.wav"
+    media_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(audio, media_path)
     p.timeline.tracks = [
         Track(
             id="host",
@@ -39,9 +43,9 @@ def _project(path: Path) -> None:
     save_project(p, path)
 
 
-def test_timeline_mcp_tools(tmp_path) -> None:
+def test_timeline_mcp_tools(tmp_path, ten_second_silence_wav) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
-    _project(Path(path))
+    _project(Path(path), ten_second_silence_wav)
     out = mcp_server.ripple_delete_tool(path, 1.0, 2.0)
     assert "ripple_delete" in out
     out = mcp_server.list_clips_tool(path)

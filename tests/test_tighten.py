@@ -47,8 +47,12 @@ def _two_track_project() -> EpisodeProject:
     return p
 
 
-def test_apply_tighten_decisions_counts_applied():
+def test_apply_tighten_decisions_counts_applied(tmp_path):
     proj = _two_track_project()
+    proj.meta.workspace_dir = str(tmp_path)
+    (tmp_path / "raw").mkdir()
+    for index, track in enumerate(proj.tracks):
+        write_wav(tmp_path / track.media.path, room(10, seed=510 + index))
     proj.edit_decisions = [
         EditDecision(
             id="1",

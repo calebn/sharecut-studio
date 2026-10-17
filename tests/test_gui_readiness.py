@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from podcast_mcp.edits.edit_log import archive_decision
@@ -310,7 +311,9 @@ def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
     assert record in p.editorial.edit_log
 
 
-def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(tmp_path) -> None:
+def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(
+    tmp_path, sixty_second_silence_wav
+) -> None:
     import pytest
 
     from podcast_mcp.edits.clips_ops import clips_for_track, update_timeline_duration
@@ -346,6 +349,10 @@ def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(tmp_pa
         )
     ]
     p.meta.workspace_dir = str(tmp_path)
+    raw = tmp_path / "raw"
+    raw.mkdir(exist_ok=True)
+    for tid in ("host", "guest"):
+        shutil.copyfile(sixty_second_silence_wav, raw / f"{tid}.wav")
     update_timeline_duration(p)
     ws = ProjectWorkspace.open(save_project(p))
     p = ws.project

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.edits.transcript_refine_status import (
     TranscriptRefineRequiredError,
@@ -23,6 +24,7 @@ from podcast_mcp.edits.transcript_refine_status import (
 )
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
+    CutIntent,
     EditMode,
     Transcript,
     TranscriptWord,
@@ -113,7 +115,18 @@ def test_waiver_survives_approving_a_tighten_cut(tmp_path):
         if clip.fade_in_ms > 0
     ]
     assert len(authored_fades) == 3
-    assert edits.approve([pending["pause"]]) == 1
+    before_pause = ws.project.model_dump(mode="json")
+    before_pause_bytes = ws.path.read_bytes()
+    with pytest.raises(ScopeChangedAtApproval) as held:
+        edits.approve([pending["pause"]])
+    assert [(item.reason, item.detail) for item in held.value.held] == [
+        ("pause_join", "review_required")
+    ]
+    assert ws.project.model_dump(mode="json") == before_pause
+    assert ws.path.read_bytes() == before_pause_bytes
+    assert ws.project.editorial.edit_log[-1].decision_ids == [pending["filler"]]
+    assert refine.status()["clear"] is True
+    assert edits.approve([pending["pause"]], application_intent=CutIntent.HUMAN_BOUNDARIES) == 1
     assert refine.status()["clear"] is True
     assert all(
         fade in [(clip.track_id, clip.source_start, clip.fade_in_ms) for clip in ws.project.clips]
@@ -508,7 +521,9 @@ def test_ripple_delete_pending_refine_prints_clean_error_not_traceback(minimal_p
 
 @pytest.mark.refine_gate
 @pytest.mark.parametrize("clearance", ["done", "waived"])
-def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project, clearance):
+def test_no_word_ripples_preserve_refine_clearance_after_reopen(
+    minimal_project, ten_second_silence_wav, clearance
+):
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 
     proj = _with_words(minimal_project)
@@ -523,6 +538,7 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
     proj.timeline.clips = [
         Clip(id="c", track_id="host", source_start=0, source_end=10, timeline_start=0)
     ]
+    (proj.workspace_path() / "raw" / "host.wav").write_bytes(ten_second_silence_wav.read_bytes())
     if clearance == "done":
         mark_refine_done(proj, notes="reviewed")
     else:
@@ -556,7 +572,9 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
 
 @pytest.mark.refine_gate
 @pytest.mark.parametrize("clearance", ["done", "waived"])
-def test_word_removing_ripple_keeps_refine_clearance_after_reopen(minimal_project, clearance):
+def test_word_removing_ripple_keeps_refine_clearance_after_reopen(
+    minimal_project, ten_second_silence_wav, clearance
+):
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 
     proj = _with_words(minimal_project)
@@ -571,6 +589,7 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(minimal_projec
     proj.timeline.clips = [
         Clip(id="c", track_id="host", source_start=0, source_end=10, timeline_start=0)
     ]
+    (proj.workspace_path() / "raw" / "host.wav").write_bytes(ten_second_silence_wav.read_bytes())
     if clearance == "done":
         mark_refine_done(proj, notes="reviewed")
     else:

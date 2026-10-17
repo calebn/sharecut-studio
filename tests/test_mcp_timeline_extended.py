@@ -167,7 +167,7 @@ def test_mcp_timeline_text_and_gap_tools(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
     out = json.loads(mcp_timeline.ripple_delete_text_tool(path, "hello"))
-    assert out["operation"] == "ripple_delete"
+    assert out["operation"] == "ripple_delete_text"
     out = json.loads(mcp_timeline.insert_gap_tool(path, 3.0, 0.5))
     assert out["operation"] == "insert_gap"
     out = json.loads(mcp_timeline.shorten_gaps_tool(path, 0.2))

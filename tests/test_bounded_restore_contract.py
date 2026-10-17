@@ -600,7 +600,12 @@ def test_restore_removes_only_bounded_intersection(tmp_path, params):
 
 def test_persisted_invalid_later_track_refuses_before_history(tmp_path, monkeypatch):
     project = _project(tmp_path)
-    project.tracks.append(project.tracks[0].model_copy(update={"id": "guest", "label": "Guest"}))
+    guest = project.tracks[0].model_copy(update={"id": "guest", "label": "Guest"})
+    guest.media = guest.media.model_copy(update={"path": "raw/guest.wav"})
+    project.tracks.append(guest)
+    (project.workspace_path() / "raw" / "guest.wav").write_bytes(
+        (project.workspace_path() / "raw" / "host.wav").read_bytes()
+    )
     project.clips.append(project.clips[0].model_copy(update={"id": "guest", "track_id": "guest"}))
     mute = _cut("mute", 1, 2, reason="filler:um")
     mute.type = EditDecisionType.MUTE

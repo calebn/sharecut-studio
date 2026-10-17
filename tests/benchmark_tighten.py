@@ -27,6 +27,7 @@ from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
     Clip,
+    CutIntent,
     EditDecision,
     EpisodeProject,
     MediaAsset,
@@ -206,11 +207,6 @@ def run_tighten_benchmark(
         # takes the fillers.
         _hold_back_fillers(project, fillers=fillers)
         approved = _pause_ids(project, pauses=pauses)
-        result.decisions_applied = len(approved) + sum(
-            1
-            for e in project.edit_decisions
-            if (e.reason or "").startswith("filler:") and not e.review_required
-        )
 
         ranges: list[tuple[float, float]] = []
         for e in project.edit_decisions:
@@ -220,8 +216,12 @@ def run_tighten_benchmark(
 
         t1 = time.perf_counter()
         if approved:
-            approve_edits(project, approved)
-        apply_tighten_decisions(project)
+            result.decisions_applied += approve_edits(
+                project,
+                approved,
+                application_intent=CutIntent.HUMAN_BOUNDARIES,
+            )
+        result.decisions_applied += apply_tighten_decisions(project)
         result.apply_sec = time.perf_counter() - t1
 
         for tid in {t.id for t in project.tracks if t.role == TrackRole.DIALOGUE}:

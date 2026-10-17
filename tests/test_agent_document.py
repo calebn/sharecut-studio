@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -76,13 +77,15 @@ def test_host_document_commands_use_server_assigned_sequences(tmp_path):
 
 def _seed_two_clips(path: str, sample_wav) -> None:
     proj = load_project(Path(path))
+    media_path = Path(path).parent / "raw" / "host.wav"
+    shutil.copyfile(sample_wav, media_path)
     proj.tracks = [
         Track(
             id="host",
             label="Host",
             role=TrackRole.DIALOGUE,
             speaker="Host",
-            media=MediaAsset(path=str(sample_wav), duration_sec=10.0),
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
         )
     ]
     proj.clips = [
@@ -100,17 +103,19 @@ def _journal_types(path: str) -> list[str]:
     return [r["type"] for r in DocumentSyncService.open(path).store.commands_after(0)]
 
 
-def test_delete_clips_tool_leaves_a_gap_through_the_document_plane(tmp_path, sample_wav):
+def test_delete_clips_tool_leaves_a_gap_through_the_document_plane(
+    tmp_path, ten_second_silence_wav
+):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
-    _seed_two_clips(path, sample_wav)
+    _seed_two_clips(path, ten_second_silence_wav)
     mcp_timeline.delete_clips_tool(path, ["c1"])
     assert _clip_starts(path) == {"c2": 4.0}
     assert _journal_types(path) == ["DeleteClip"]
 
 
-def test_delete_clips_tool_ripple_closes_the_gap(tmp_path, sample_wav):
+def test_delete_clips_tool_ripple_closes_the_gap(tmp_path, ten_second_silence_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
-    _seed_two_clips(path, sample_wav)
+    _seed_two_clips(path, ten_second_silence_wav)
     mcp_timeline.delete_clips_tool(path, ["c1"], mode="ripple")
     assert _clip_starts(path) == {"c2": 0.0}
     assert _journal_types(path) == ["DeleteClip"]
@@ -125,9 +130,10 @@ def _seed_two_lanes(path: str, sample_wav) -> None:
             label="Guest",
             role=TrackRole.DIALOGUE,
             speaker="Guest",
-            media=MediaAsset(path=str(sample_wav), duration_sec=10.0),
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
         )
     )
+    shutil.copyfile(sample_wav, Path(path).parent / "raw" / "guest.wav")
     proj.clips.append(
         Clip(id="g1", track_id="guest", source_start=0.0, source_end=8.0, timeline_start=0.0)
     )
@@ -259,9 +265,9 @@ def test_cli_copy_then_paste_segment_is_undoable(tmp_path, sample_wav):
     assert _layout(path) == before
 
 
-def test_cli_delete_clips_is_undoable(tmp_path, sample_wav):
+def test_cli_delete_clips_is_undoable(tmp_path, ten_second_silence_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
-    _seed_two_clips(path, sample_wav)
+    _seed_two_clips(path, ten_second_silence_wav)
     runner = CliRunner()
     result = runner.invoke(
         app, ["edit", "delete-clips", "--project", path, "--ids", "c1", "--mode", "ripple"]
