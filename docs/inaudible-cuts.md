@@ -113,6 +113,15 @@ Audition ~10–15s around the join before resolving review comments. Prefer exis
 
 **Pad source order** with the default `filler_pad_mode: room_tone` (an approved mute's fill uses the same order): (1) recorded `track.room_tone` bed from the lobby capture (abutting tiles if the pad is longer than the bed: fade-in on the first tile, fade-out on the last); (2) a steady stretch of the track's own audio at its noise floor, at least 30 dB under its speech level and voice-free, nearest the cut, chosen from the audio and not from word times (#1054; rules in [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from); (3) skip the pad rather than tiling dialogue, bleed, or digital silence. Set `filler_pad_mode: silence` for a hard silent gap instead. A digitally silent recorded bed is treated as missing. The bed check reads the registered source path that clips render. Manual gap fill, MUTE, and nonpause filler/NL pads retain their existing sample and unfilled-gap behavior. A pause-floor shortfall never generates a pad, including when silence is configured. Missing media, decode failure, digital silence, gated live audio, absent/short/excluded runs, CHECKS failures, unreadable windows and the nearest-sixteen limit remain distinct measurement facts. Mixed failures retain actual rejection names and unreadable-window counts; absent VAD keeps the existing level checks.
 
+Native room-tone pad tiles own their insertion fade edges. The batch generic join writer
+leaves those boundaries alone for registered pad tiles and their current split
+descendants. Later completed-effect checks still validate the actual retained edges and
+hold unsafe writes atomically. Ordinary splice joins keep their configured generic
+fades. `tests/test_filler_pacing.py::test_apply_auto_edits_preserves_native_pad_edges` checks
+the real room-tone PCM path, split descendants, stale registry scope, and ordinary joins;
+`tests/test_source_remove_geometry.py::test_completed_effect_acoustics_is_the_only_veto`
+checks that a late unsafe fade remains a veto.
+
 Pause retention counts current once-only original quiet on both sides of the final
 removal. Complete placed flanking words and actual sound activity bound the query.
 Exact paired mappings qualify source pieces across abutting clips, including retained

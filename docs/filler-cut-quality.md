@@ -47,6 +47,12 @@ checks direct, aliased, module-qualified, and private access to the removed APIs
 same decoded PCM, word index, voiced-frame thresholds and breath evidence used by
 preparation. Application never calls the optimizer to compare or replace stored bounds.
 `assess_held_pause` checks the current retained original air and binds current effects.
+For a pause cut's perceptual join score, the selected edit's current track and physical
+recording define the subject. Every completed effect still receives physical held-edge,
+peer-voice, breath, placement, and gain checks. A peer effect's join score cannot veto a
+different recording's selected join, while missing or ambiguous selected-recording
+identity keeps the operation on review. This boundary is enforced by
+`tests/test_source_remove_geometry.py::test_pause_join_quality_uses_selected_physical_recording`.
 The pipeline carries its configured breath handling into application. Disabling
 breath handling selects geometric pause observations, which do not require a
 measurable room level. Original quiet support, the retained pause floor, native

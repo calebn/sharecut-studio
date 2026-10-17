@@ -282,8 +282,13 @@ def test_room_tone_expand_falls_back_when_gap_huge():
     assert paced.pad.seconds(paced.start, paced.end) == pytest.approx(0.28)
 
 
-def test_apply_auto_edits_with_silence_pads(tmp_path):
+@pytest.mark.parametrize("pad_mode", ["silence", "room_tone"])
+def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_mode):
+    from podcast_mcp.edits import cut_application, cut_safety
+    from podcast_mcp.edits.clips_ops import split_clip_at
     from podcast_mcp.edits.cut_application import apply_auto_edits
+    from podcast_mcp.edits.timeline_ops import RoomTonePad
+    from podcast_mcp.util.batch_scope import batch_scope
 
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
@@ -322,14 +327,18 @@ def test_apply_auto_edits_with_silence_pads(tmp_path):
                     "filler_post_pad_fade_in_min_ms": 15,
                     "filler_post_pad_fade_in_max_ms": 120,
                 },
-                "render": {"join_fade_max_ms": 15},
+                "render": {"join_fade_max_ms": 40},
             },
         ),
         patch(
             "podcast_mcp.edits.cut_application.recommend_post_pad_fade_in_ms",
             return_value=72,
         ),
-        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="silence"),
+        patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value=pad_mode),
+        patch(
+            "podcast_mcp.edits.timeline_ops.room_tone_span",
+            return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
+        ),
     ):
         n = apply_auto_edits(project)
     assert n == 1
@@ -339,9 +348,83 @@ def test_apply_auto_edits_with_silence_pads(tmp_path):
         key=lambda c: c.timeline_start,
     )
     assert len(host) >= 2
-    # Pad opens a hole: left gets tiny declick, right gets adaptive resume fade.
     assert host[0].fade_out_ms == 5
-    assert host[1].fade_in_ms >= 72
+    if pad_mode == "silence":
+        assert len(host) == 2
+        assert host[1].fade_in_ms >= 72
+        return
+
+    assert len(host) >= 3
+    pad_tiles = [clip for clip in host if clip.source_start >= 6.0]
+    assert pad_tiles
+    assert host[0].source_end == pytest.approx(1.205)
+    assert host[0].fade_out_ms == 5
+    assert pad_tiles[0].source_start == pytest.approx(6.0)
+    assert pad_tiles[0].source_end == pytest.approx(6.28)
+    assert pad_tiles[0].fade_in_ms == 10
+    assert host[-1].source_start == pytest.approx(2.495)
+    assert host[-1].fade_in_ms >= 72
+    assert project.timeline.duration_sec == pytest.approx(8.99)
+
+    audio_span = audio[round(6.0 * 16000) : round(6.28 * 16000)]
+    assert audio_span.any()
+
+    tile = pad_tiles[0]
+    with batch_scope():
+        for clip in project.clips:
+            if clip.timeline_start >= tile.timeline_start:
+                clip.timeline_start += 0.1
+        effect = cut_safety.PadEffect(
+            "f1", RoomTonePad(tile.timeline_start, 0.28, ()), frozenset({tile.id})
+        )
+        cut_safety.native_pad_origins()[tile.id] = effect
+        first, second = split_clip_at(tile, tile.timeline_start + 0.14)
+        project.clips.remove(tile)
+        project.clips.extend((first, second))
+        result = cut_application._write_join_fades(
+            project,
+            [
+                EditDecision(
+                    id="f1",
+                    track_id="host",
+                    type=EditDecisionType.REMOVE,
+                    start=1.205,
+                    end=2.495,
+                    crossfade_ms=50,
+                )
+            ],
+            defaults={"render": {"join_fade_max_ms": 40}},
+        )
+        assert result["affected_tracks"] == []
+        assert host[0].fade_out_ms == 5
+        assert first.fade_in_ms == 10
+        assert second.fade_in_ms == 10
+
+    with batch_scope():
+        assert cut_safety.native_pad_origins() == {}
+        ordinary = _project([], duration=3.0)
+        ordinary.clips = [
+            Clip(id="left", track_id="host", source_start=0, source_end=1, timeline_start=0),
+            Clip(id="right", track_id="host", source_start=2, source_end=3, timeline_start=1),
+        ]
+        ordinary.edit_decisions = []
+        cut_safety.native_pad_origins()["discarded-pad"] = effect
+        result = cut_application._write_join_fades(
+            ordinary,
+            [
+                EditDecision(
+                    id="ordinary",
+                    track_id="host",
+                    type=EditDecisionType.REMOVE,
+                    start=1,
+                    end=2,
+                    crossfade_ms=40,
+                )
+            ],
+            defaults={"render": {"join_fade_max_ms": 40}},
+        )
+        assert result["affected_tracks"] == ["host"]
+        assert (ordinary.clips[0].fade_out_ms, ordinary.clips[1].fade_in_ms) == (40, 40)
 
 
 def test_insert_room_tone_pad_rejects_nonpositive():
