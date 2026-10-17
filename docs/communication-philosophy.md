@@ -305,7 +305,10 @@ the empty state, not a separate discovery task.
   while an edit is saving: the press waits for the save and runs only if the
   toast's change is still the newest step. If a later edit landed first, the
   server refuses and the status says "Can't undo: the project changed since.
-  Nothing was undone." For a logical approval recorded across two commands,
+  Nothing was undone." The refusal always shows as a toast in place of the
+  toast whose Undo was refused, so the Undo button never disappears without a
+  reason; only a toast that still offers Undo for a different, newer step keeps
+  its place (#1690). For a logical approval recorded across two commands,
   the first toast's Undo is refused and the pass toast's Undo takes back both
   edits (#1677). Tighten apply, skip and Apply
   eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
