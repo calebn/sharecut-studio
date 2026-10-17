@@ -146,12 +146,6 @@ held sideways) compact the editor:
   its sides with `env(safe-area-inset-left/right)` so nothing sits under the
   notch or Dynamic Island held sideways; Playwright cannot emulate those insets, so only
   a real iPhone proves them.
-  draft is store state (`envelopeDraft`), keyed to its project, track and
-  point and dropped when the selection leaves that target, so the phone and tablet
-  shells swapping on rotation do not lose what was typed. The sheet root pads
-  its sides with `env(safe-area-inset-left/right)` so nothing sits under the
-  notch or Dynamic Island held sideways; Playwright cannot emulate those insets, so only
-  a real iPhone proves them.
 
 Measured in Playwright WebKit with the iPhone 17 Pro Max descriptor, the touch
 grammar on and the timeline maximized (px of lanes above the rail or the strip;
