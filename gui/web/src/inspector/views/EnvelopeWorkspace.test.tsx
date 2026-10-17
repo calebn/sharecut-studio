@@ -242,6 +242,58 @@ describe("EnvelopeWorkspace", () => {
     await save();
     expect(setEnvelope).not.toHaveBeenCalled();
   });
+  it("keeps the typed draft when the workspace remounts, as the phone and tablet shells swap on rotation", async () => {
+    const first = mount();
+    await edit();
+    await time("7");
+    await level("0.25");
+    first.unmount();
+    mount();
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveValue(
+      "7",
+    );
+    expect(screen.getByLabelText("Level (×)")).toHaveValue("0.25");
+    await save();
+    expect(setEnvelope.mock.calls[0]![2]).toEqual([
+      { id: "early", time: 0, value: 1 },
+      { id: "late", time: 7, value: 0.25 },
+    ]);
+  });
+  it("drops the draft on Cancel, so a remount opens no form", async () => {
+    const first = mount();
+    await edit();
+    await level("0.25");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    first.unmount();
+    mount();
+    expect(screen.queryByLabelText("Level (×)")).toBeNull();
+  });
+  it("drops the draft once the selection leaves its point", async () => {
+    const first = mount();
+    await edit();
+    await level("0.25");
+    first.unmount();
+    act(() => {
+      useDawStore
+        .getState()
+        .setSelection({
+          kind: "envelopePoint",
+          trackId: "host",
+          pointId: "early",
+        });
+    });
+    act(() => {
+      useDawStore
+        .getState()
+        .setSelection({
+          kind: "envelopePoint",
+          trackId: "host",
+          pointId: "late",
+        });
+    });
+    mount();
+    expect(screen.queryByLabelText("Level (×)")).toBeNull();
+  });
   it("rejects an invalid level rather than clamping it", async () => {
     mount();
     await edit();
