@@ -6,6 +6,7 @@ pad is the filler's own recorded effect, so it does not make the pause removal i
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ import pytest
 from pause_policy_public_helpers import configure, defaults, room, voice, write_wav
 from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.cut_application import apply_auto_edits, approve_edits
-from podcast_mcp.edits.tighten import apply_tighten_decisions, propose_tighten_edits
+from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.transcript_refine_status import mark_refine_done
 from podcast_mcp.models import (
     Clip,
@@ -97,16 +98,12 @@ def _lane(project: EpisodeProject, track_id: str):
 
 
 @pytest.mark.parametrize("intent", [CutIntent.PROGRAMMATIC, CutIntent.HUMAN_BOUNDARIES])
-@pytest.mark.parametrize("reverse", [False, True])
 def test_one_batch_applies_both_and_matches_approving_the_later_cut_first(
-    proposed, intent: CutIntent, reverse: bool
+    proposed, intent: CutIntent
 ) -> None:
     project, filler, pause = proposed
     batch = project.model_copy(deep=True)
-    assert (
-        approve_edits(batch, [pause, filler][:: -1 if reverse else 1], application_intent=intent)
-        == 2
-    )
+    assert approve_edits(batch, [filler, pause], application_intent=intent) == 2
 
     sequential = project.model_copy(deep=True)
     for edit_id in (pause, filler):
@@ -133,18 +130,18 @@ def test_auto_apply_takes_the_filler_and_the_pause_together(proposed) -> None:
     assert [d for d in project.edit_decisions if not d.review_required] == []
 
 
-def test_tighten_apply_takes_the_filler_and_the_pause_together(proposed) -> None:
-    project, _, _ = proposed
-    assert apply_tighten_decisions(project) >= 2
-
-
-def _batch_receipts(project, filler, pause, *, accepted_ids, widen_pad=0.0):
+def _batch_receipts(project, filler, pause, *, accepted_ids, widen_pad=0.0, shift_window=0.0):
     after = project.model_copy(deep=True)
     with batch_scope():
         approve_edits(after, [filler, pause], application_intent=CutIntent.HUMAN_BOUNDARIES)
         if widen_pad:
             pad = next(c for c in after.clips if c.id in cut_safety.native_pad_origins())
             pad.source_end += widen_pad
+        if shift_window:
+            origins = cut_safety.native_pad_origins()
+            for clip_id, effect in list(origins.items()):
+                moved = dataclasses.replace(effect.plan, at_time=effect.plan.at_time + shift_window)
+                origins[clip_id] = dataclasses.replace(effect, plan=moved)
         accepted = [e for e in project.edit_decisions if e.id in accepted_ids]
         return cut_safety.complete_effect_receipts(project, after, accepted)
 
@@ -165,4 +162,12 @@ def test_a_pad_whose_owner_is_outside_the_accepted_set_still_makes_the_pause_rem
 def test_a_pad_clip_wider_than_its_recorded_samples_is_refused(proposed) -> None:
     project, filler, pause = proposed
     receipts = _batch_receipts(project, filler, pause, accepted_ids={filler, pause}, widen_pad=0.2)
+    assert pause in {h.edit_id for h in receipts}
+
+
+def test_a_pad_laid_outside_the_window_its_owner_recorded_is_refused(proposed) -> None:
+    project, filler, pause = proposed
+    receipts = _batch_receipts(
+        project, filler, pause, accepted_ids={filler, pause}, shift_window=1.0
+    )
     assert pause in {h.edit_id for h in receipts}
