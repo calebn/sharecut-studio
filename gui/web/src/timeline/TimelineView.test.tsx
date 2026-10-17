@@ -345,6 +345,18 @@ describe("TimelineView fixed playhead (#385)", () => {
     expect(scroller.scrollLeft).toBe(300);
   });
 
+  it("does not pull a scrub back when the playhead sits on the left edge up to float noise (#1707)", () => {
+    const { userScrollTo, settle } = mountFixed();
+    settle();
+    userScrollTo(250); // logical 50
+    expect(useDawStore.getState().scrollLeft).toBe(50);
+    // 1e-9 px left of the edge: noise, not a playhead that left the view.
+    act(() =>
+      useDawStore.getState().setPlayheadSec((50 - 1e-9) / 10, "playback"),
+    );
+    expect(useDawStore.getState().scrollLeft).toBe(50);
+  });
+
   it("follows a playhead that moved while the timeline was away", () => {
     useDawStore.setState({ playheadSec: 30, scrollLeft: 0 });
     mountFixed();

@@ -327,8 +327,10 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       return;
     }
     const rawLineX = playheadSec * zoomPxPerSec - scrollLeft;
-    const pastCenter = rawLineX > timeViewportPx / 2;
-    const offView = rawLineX < 0 || rawLineX > timeViewportPx;
+    // A scrub keeps the playhead at an edge exactly, up to float noise.
+    const edge = PLAYHEAD_MOVE_MIN_PX;
+    const pastCenter = rawLineX > timeViewportPx / 2 + edge;
+    const offView = rawLineX < -edge || rawLineX > timeViewportPx + edge;
     if (!seekRevisionChanged && !pastCenter && !offView) return;
     const target = followScrollLeft(playheadSec, zoomPxPerSec, timeViewportPx);
     const current = domToLogicalScrollLeft(el.scrollLeft, leadPx);
