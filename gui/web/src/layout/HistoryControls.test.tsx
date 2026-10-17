@@ -337,6 +337,35 @@ describe("CompactHistoryControls", () => {
       );
     });
 
+    it(`says header ${label} is ready after the save while one runs, and that it runs after the save once pressed`, async () => {
+      const save = beginDocumentSend("/tmp/history-controls", `hint-${action}`);
+      try {
+        render(<CompactHistoryControls />);
+        const button = screen.getByRole("button", { name: label });
+        expect(button).toHaveAccessibleDescription(`${label} ready after save`);
+        expect(button).toHaveAttribute("title", `${label} ready after save`);
+        fireEvent.click(button);
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          `${label} runs after save`,
+        );
+        noteSaveLanded(
+          "/tmp/history-controls",
+          HISTORY_ROOT_ID,
+          documentScope(),
+        );
+        save.finish();
+        await waitFor(() => expect(move).toHaveBeenCalledTimes(1));
+        expect(
+          screen.getByRole("button", { name: label }),
+        ).not.toHaveAccessibleDescription(`${label} ready after save`);
+      } finally {
+        save.finish();
+      }
+    });
+
     it(`keeps header ${label} waiting while a save stays pending, with no refusal`, async () => {
       vi.useFakeTimers();
       const scopeAtPress = documentScope();
@@ -351,7 +380,9 @@ describe("CompactHistoryControls", () => {
           await vi.advanceTimersByTimeAsync(DOCUMENT_SEND_WAIT_MS * 4);
         });
         expect(move).not.toHaveBeenCalled();
-        expect(useDawStore.getState().statusAnnouncement).toBe("");
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          `${label} runs after save`,
+        );
         noteSaveLanded(
           "/tmp/history-controls",
           HISTORY_ROOT_ID,

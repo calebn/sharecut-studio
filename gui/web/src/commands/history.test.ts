@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { redoHistory, undoHistory } from "../api";
 import {
   documentAuthority,
@@ -11,6 +11,7 @@ import {
   beginDocumentSend,
   DOCUMENT_SEND_WAIT_MS,
   noteSaveLanded,
+  trackDocumentDrain,
   trackEditSave,
 } from "../state/documentSendOrder";
 import { minimalProject } from "../test/fixtures";
@@ -396,6 +397,81 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     const flushTurns = async () => {
       for (let i = 0; i < 5; i += 1) await Promise.resolve();
     };
+
+    describe("says that the press is waiting", () => {
+      const open: Array<() => Promise<void>> = [];
+      afterEach(async () => {
+        await Promise.all(open.splice(0).map((settle) => settle()));
+      });
+      const holdSave = () => {
+        let finish: () => void = () => {};
+        const save = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        void trackEditSave("/tmp/ep", save);
+        const settle = async () => {
+          finish();
+          await save;
+        };
+        open.push(settle);
+        return settle;
+      };
+
+      it("says Undo runs after the save, once, and runs it when the save ends", async () => {
+        const settle = holdSave();
+        const pending = execute("history.undo");
+        await flushTurns();
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Undo runs after save",
+        );
+        expect(useDawStore.getState().feedbackToast?.message).toBe(
+          "Undo runs after save",
+        );
+        expect(undoHistory).not.toHaveBeenCalled();
+        await settle();
+        expect(await pending).toEqual({ status: "ok" });
+        expect(undoHistory).toHaveBeenCalledTimes(1);
+      });
+
+      it("says Redo runs after the save", async () => {
+        const settle = holdSave();
+        const pending = execute("history.redo");
+        await flushTurns();
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Redo runs after save",
+        );
+        await settle();
+        await pending;
+        expect(redoHistory).toHaveBeenCalledTimes(1);
+      });
+
+      it("waits for an offline drain that is running and says so", async () => {
+        let endDrain: () => void = () => {};
+        const drain = new Promise<void>((resolve) => {
+          endDrain = resolve;
+        });
+        trackDocumentDrain("/tmp/ep", drain);
+        open.push(async () => {
+          endDrain();
+          await drain;
+        });
+        const pending = execute("history.undo");
+        await flushTurns();
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Undo runs after save",
+        );
+        expect(undoHistory).not.toHaveBeenCalled();
+        endDrain();
+        await drain;
+        expect(await pending).toEqual({ status: "ok" });
+        expect(undoHistory).toHaveBeenCalledTimes(1);
+      });
+
+      it("stays quiet when nothing is saving", async () => {
+        expect(await execute("history.undo")).toEqual({ status: "ok" });
+        expect(useDawStore.getState().statusAnnouncement).toBe("");
+      });
+    });
 
     it("undoes from a same-tab save that landed before the press", async () => {
       const projectPath = "/tmp/ep-history-save-landed-before-undo-press";

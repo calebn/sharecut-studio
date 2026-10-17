@@ -62,12 +62,17 @@ test.describe("pending save", () => {
       await expect
         .poll(() => commands.map((command) => command.type))
         .toEqual(["SetEnvelope"]);
-      await tap(
-        compactHistory(page).getByRole("button", {
-          name: "Undo",
-          exact: true,
-        }),
+      const headerUndo = compactHistory(page).getByRole("button", {
+        name: "Undo",
+        exact: true,
+      });
+      await expect(headerUndo).toHaveAccessibleDescription(
+        "Undo ready after save",
       );
+      await tap(headerUndo);
+      await expect(
+        page.getByText("Undo runs after save").first(),
+      ).toBeVisible();
       await page.waitForTimeout(200);
       expect(commands.map((command) => command.type)).toEqual(["SetEnvelope"]);
       await expect.poll(() => savedEnvelope(page)).toEqual(original);
