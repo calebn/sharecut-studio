@@ -288,6 +288,31 @@ describe("Toast", () => {
     expect(undo).toHaveAttribute("title", BUSY_REASON);
   });
 
+  it("keeps Undo pressable and describes why it will not act at once with undoNote, paused while shown", async () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <Toast
+        toast={{ id: 1, message: "Resolved comment at 00:12" }}
+        onUndo={vi.fn()}
+        onDismiss={onDismiss}
+        undoNote="Undo ready after save"
+      />,
+    );
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toBeEnabled();
+    expect(undo).toHaveAccessibleDescription(
+      "Resolved comment at 00:12 Undo ready after save",
+    );
+    expect(screen.getByText("Undo ready after save")).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(TOAST_MS + 1000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    vi.useRealTimers();
+    await expectNoA11yViolations(document.body);
+  });
+
   it("pauses the timer while Undo is disabled and restarts it after", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();

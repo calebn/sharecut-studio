@@ -175,13 +175,16 @@ export function trackEditSave<T>(
 
 /**
  * Settles once every edit save this tab has in flight for the project, as of
- * now, has finished: the ones preparing their send (`trackEditSave`) and the
- * live sends begun. Saves that begin later are not waited for.
+ * now, has finished: the ones preparing their send (`trackEditSave`), the
+ * live sends begun and the drain run in progress. Saves that begin later are
+ * not waited for. This is the set `documentActivityBusy` reports.
  */
 export function editSavesInFlight(projectPath: string): Promise<void> {
+  const drain = drains.get(projectPath);
   const open = [
     ...(preparing.get(projectPath) ?? []),
     ...(sends.get(projectPath) ?? []).map((s) => s.done),
+    ...(drain ? [drain] : []),
   ];
   return Promise.all(open).then(() => undefined);
 }

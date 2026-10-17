@@ -80,6 +80,7 @@ to UX partners; for UI copy, this table wins.
 | Start blocker | One reason Start is disabled, listed under Start with its fix when the host has one: "No guest has joined yet." [Copy guest link], "Waiting for Ava to accept recording." | a comma-joined list of bare names |
 | Full-quality recording | Each participant's lossless recording, captured on their own device and saved to the project during the session. Its status reads "Saving to project…", then "Saved to project", shown per participant and per segment wherever the host or a guest can see it. A segment is saved once the host holds the verified file; landing it on the timeline is the separate Land step. The copy kept on the person's device is "this device's copy". "Keeper" stays in code and schema only | "keeper", "local keeper", "local recording", "local backup", "uploading" |
 | Save state | The host's project save light, a small dot with no visible text. Its name and tooltip read "Saving to project…", "Saved to project", "Not saved yet · 3 waiting to send", a refusal with "Edit and submit again", an unknown outcome with its recovery, or an unreadable saved queue with "Retry to read them". Shape carries the state with the colour: solid circle saved, ring saving, hollow circle waiting, square failed, dashed diamond unknown. The Needs attention banner is the text beside it and holds Send now, Retry, and Inspect History for hosts when needed. A guest with uncertain Undo or Redo asks the project owner to inspect History. It uses the record room's saving and saved words. Edits waiting to send are kept on this device. Desktop and tablet status bar, phone status row in every mode | "Synced", "Offline mode", "Autosave", "Error" |
+| Undo waits for the save | An Undo or Redo pressed while an edit is still saving. A control that would wait says "Undo ready after save" (Redo likewise); a press says "Undo runs after save", then runs on the edit the person just made. A toast's Undo runs only if its change is still the newest step, and otherwise says "Can't undo: the project changed since. Nothing was undone." Never a dead control that only says to wait | "queued", "pending undo", "Wait for the current action to finish." on an Undo |
 | Room tone | The track's own quiet ambient sound, laid into the gap a cut leaves. A track with none to lay gets a silent pad, and the cut still applies | "beat", "pad", a raw cause code such as `missing_seam` |
 | Tighten hit | One candidate tightening decision | — |
 | Likely laugh | The label on a Tighten hit whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
@@ -298,8 +299,16 @@ the empty state, not a separate discovery task.
   it never reverses someone else's edit. An Undo or Redo pressed while this
   tab's own edit is still saving waits for that edit and then runs on it, so
   it never reverses the edit before the slow one and the tap is never lost.
-  A toast's Undo is disabled with the busy reason while an edit is saving,
-  because the edit makes its entry stale. Tighten apply, skip and Apply
+  A control whose Undo or Redo would wait says so in place, "Undo ready after
+  save" (the toast's note, the header button's description), and a press says
+  "Undo runs after save" on every surface (toast note, status line for Mod+Z,
+  header and gesture) instead of looking dead. A toast's Undo stays pressable
+  while an edit is saving: the press waits for the save and runs only if the
+  toast's change is still the newest step. If a later edit landed first, the
+  server refuses and the status says "Can't undo: the project changed since.
+  Nothing was undone." (an Approve all that asked Cut anyway is the case: the
+  first toast's press is refused and the pass toast's one Undo takes both
+  parts, #1677). Tighten apply, skip and Apply
   eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
   Mute, single pending-edit Approve and Reject, Impact's Approve all and Reject all (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
@@ -605,7 +614,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   description, and returns focus to the control that opened it in
   Safari too; the toast steps off the control just pressed.
 
-- 2026-10-16 Undo and Redo pressed while this tab's own edit is still saving wait for it and then run (#1675); the five-second "Your last edit is still saving" refusal is gone. A toast's Undo is disabled with the busy reason while an edit is saving, since the edit makes its entry stale.
+- 2026-10-16 Undo and Redo pressed while this tab's own edit is still saving wait for it and then run (#1675); the five-second "Your last edit is still saving" refusal is gone. (Superseded for the toast's Undo on 2026-10-17.)
+- 2026-10-17 Undo says when it waits for a save (#1680, #1679, #1681): the toast, Mod+Z and the header Undo show "Undo ready after save" while a save, send or offline drain runs and "Undo runs after save" once pressed. A toast's Undo is no longer disabled while saving; the press waits and runs only if its change is still the newest step, otherwise "Can't undo: the project changed since. Nothing was undone." Added "Undo waits for the save".
 - 2026-10-16 An Approve all that asks Cut anyway is one Undo (#1677): the Cut anyway toast counts the whole pass ("Approved 10 pending edits") and any Undo takes back both parts, so the dialog's "One Undo takes them back" is true.
 - 2026-10-16 The envelope-point select, the effect Bypass toggles and the comment composer's fields and track picks hold the 44 px floor on touch (#1445); the reachability sweep also covers the clip sheet, the Comments panel and a track with an envelope and an effect chain.
 - 2026-10-16 The phone Mix sheet shows **Plays at {dB}** over a fader whose track has a volume envelope (#1645), so a phone host can read the level at the playhead without opening the inspector. It stays plain text.

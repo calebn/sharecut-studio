@@ -68,7 +68,9 @@ it("a trim whose boundary token never loads drops its save, and an Undo pressed 
 
   const queued = execute("history.undo");
   await vi.advanceTimersByTimeAsync(5_000);
-  expect(useDawStore.getState().statusAnnouncement).toBe("");
+  expect(useDawStore.getState().statusAnnouncement).toBe(
+    "Undo runs after save",
+  );
   expect(undoHistory).not.toHaveBeenCalled();
 
   await vi.advanceTimersByTimeAsync(DOCUMENT_COMMAND_TIMEOUT_MS);

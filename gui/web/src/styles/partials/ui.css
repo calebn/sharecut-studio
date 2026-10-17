@@ -818,6 +818,13 @@ html[data-shell="phone"] .modifier-footer-actions .ui-menu-root {
   flex: 1 1 auto;
 }
 
+.ui-toast-note {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
 /* The app-wide toast (feedback/FeedbackToast): one at a time, centred at the
    bottom where Undo is in reach, above the status bar or the phone mode nav.
    The region lets clicks through; only the card takes them. */

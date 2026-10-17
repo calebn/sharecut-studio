@@ -8,6 +8,11 @@ import {
 import { createPortal } from "react-dom";
 import { shallow } from "zustand/shallow";
 import { executePointerCommand } from "../commands/pointer";
+import {
+  readyAfterSaveCopy,
+  runsAfterSaveCopy,
+  useWaitingMove,
+} from "../commands/undoWait";
 import { useDawStore } from "../state/dawStore";
 import {
   documentActivityBusy,
@@ -47,10 +52,12 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     headId: s.project?.history?.head_id ?? null,
     projectPath: s.projectPath,
   }));
-  // An edit still on its way makes this toast's entry stale once it lands, so its Undo waits.
+  // An edit still on its way may make this toast's entry stale once it lands.
+  // A press waits for it and runs only if the entry is still the newest step.
   const saving = useSyncExternalStore(subscribeDocumentActivity, () =>
     documentActivityBusy(projectPath),
   );
+  const waiting = useWaitingMove(projectPath);
   const [undoing, setUndoing] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
   const [portal] = useState(() => {
@@ -219,7 +226,16 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
           ? () => void undo(toast.message, undoEntry)
           : undefined
       }
-      undoDisabledReason={undoing || saving ? BUSY_REASON : undefined}
+      undoDisabledReason={undoing ? BUSY_REASON : undefined}
+      undoNote={
+        waiting?.action === "undo" &&
+        waiting.target !== null &&
+        waiting.target === toast?.undo
+          ? runsAfterSaveCopy("undo")
+          : saving
+            ? readyAfterSaveCopy("undo")
+            : undefined
+      }
       timeoutMs={undoEntry ? TOAST_UNDO_MS : TOAST_MS}
       visibility={visibility}
     />,

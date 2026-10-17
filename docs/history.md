@@ -267,8 +267,9 @@ press made while an earlier history move is in flight waits for that reply and
 expects the head the reply returned (`history_head_id`), so pressing Mod+Z twice
 quickly undoes two changes: the tab's own undo moved the head, and that is not
 someone else's change. A press also waits, before calling the history API, for
-edit saves that were in flight when the press was made. This wait lasts up to
-`DOCUMENT_SEND_WAIT_MS` (5 s) and covers this tab's live sends, host and share guest alike, and saves still preparing their
+edit saves that were in flight when the press was made. The wait has no cutoff of
+its own (every save ends by its own transport timeout) and covers this tab's live sends,
+host and share guest alike, the offline drain run in progress, and saves still preparing their
 send, such as a trim or roll loading its boundary token (`trackEditSave` in
 `state/documentSendOrder.ts`). It then expects the head left by the latest of this
 tab's own commands in that document generation (`noteSaveLanded`), so Undo
@@ -290,7 +291,22 @@ that begin after the press are not waited for. A
 peer edit that arrives while a press waits its turn is never adopted; the server
 refuses that press instead. If the move ahead was refused or failed, the waiting press keeps the head the
 tab knew when it was pressed, so it is refused too rather than guessing. The toast's
-Undo keeps its own entry even when it waits behind a Mod+Z. A refusal is announced once
+Undo keeps its own entry even when it waits behind a Mod+Z.
+
+**Undo says when it waits (#1680).** A press that has to wait for saves is recorded
+as a queued move (`commands/undoWait.ts`: the action, the step it meant, and its state
+`waiting`, `fired` or `dropped` with the reason). Every surface reads that record and
+`documentActivityBusy`, so none keeps its own flag. While a save, send or drain runs, the toast shows
+"Undo ready after save" and the header Undo is described by it. A press says "Undo runs
+after save" (the toast's note, or the status line for Mod+Z, header and gesture), then runs
+when the saves settle with the expected head it would have had without the wait. A toast press
+keeps its entry, so if a later save moved the head first the server refuses it
+(`history_stale`), the move is `dropped`, and the status says "Can't undo: the project
+changed since. Nothing was undone." The server stays the one authority on staleness. A
+refusal does not replace a toast that still offers Undo for the newer step: an Approve all
+that asked Cut anyway keeps one Undo, on the pass toast. There is no per-command
+"writes history" flag: every document command moves the head, so the client cannot tell
+which sends leave a toast's entry current. A refusal is announced once
 (the command returns `announced: true`, so the two-finger tap does not repeat it). Undo and Redo are refused offline and never replay. Ordinary refused edits
 remain listed in **Needs attention** under their existing recovery policy.
 An unconfirmed history response reports an unknown outcome. Check History before
