@@ -125,3 +125,23 @@ def test_copy_lag_outside_the_source_lane_keeps_the_steady_lag(
         project, caches, "guest", "host", timeline_sec, lag_steps={"guest": steps}
     )
     assert adjusted == pytest.approx(steady)
+
+
+@pytest.mark.usefixtures("one_phrase_copy_evidence")
+def test_a_lane_with_no_lag_steps_is_measured_once_per_reconcile(tmp_path: Path) -> None:
+    """Steady copy lag, no steps: ``None`` means measured, so no word re-measures the lane (#1685)."""
+    project = _episode(tmp_path, direct_lag_sec=0.14)
+    caches = build_track_rms_caches(project)
+    guest_path = CopyPath(lag_sec=caches.copy_path("guest", "host").lag_sec, likeness=0.4)
+    caches.leak_paths = lambda track_id: {"guest": guest_path} if track_id == "host" else {}
+    caches.copy_match = lambda *args, **kwargs: 1.0
+
+    with patch(
+        "podcast_mcp.engines.bleed_audibility_lag.measure_lane_lag_steps", return_value=None
+    ) as measure:
+        rows = compute_word_audibility_map(
+            project, track_id="host", policy=AnalysisPolicy(), caches=caches
+        )
+        copy_lag_at_timeline(project, caches, "guest", "host", 1.0)
+    assert len(rows) > 1
+    assert measure.call_count == 1
