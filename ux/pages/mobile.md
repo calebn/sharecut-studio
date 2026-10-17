@@ -175,6 +175,8 @@ Safari's address bar and toolbar take a lot of room, especially with the phone h
 
 Held sideways, tracks get shorter so at least three fit on screen, and the controls keep their full-size touch targets. The empty marker band under the ruler steps aside until there are markers to show. The layout also stays clear of the camera cutout and the home indicator.
 
+Editing a volume envelope with the phone held sideways keeps the track you are editing on screen above the editor, along with the ruler. The tabs under the timeline step aside until you are done, the point form is one row (**Time**, **Level**, **Save point**, **Cancel**), and **Done** is at the top of the editor, a scroll away from the form. If you turn the phone while you are typing a point, what you typed is still there. On a short window, dragging the divider above the tabs can make the tabs smaller as well as larger.
+
 ### Mix tracks from More
 
 More → Mix shows all tracks without opening each inspector. M and Volume save
