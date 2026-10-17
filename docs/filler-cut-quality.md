@@ -56,8 +56,16 @@ their existing mutation. Exact-range and ordinary source proposals are measured 
 publication; uncertain edges retain their selected bounds and an `acoustic_review`
 reason. These annotations are observations, never application clearance.
 
-The observation-by-edit-mode table in `cut_safety` supplies labels, actions, review
-requirements and join policy to preparation and suggested-action consumers. The finite cut owner applies the same completed-effect policy to source and direct cuts.
+`cut_safety.CUT_ACTION_TABLE` maps each sound or safety-observation label and the
+time-behavior mode to an action. Ripple maps to `ripple`; time-preserving `GAP` trims
+and `MUTE` edits map to `mute`. Sound rows keep the current default actions and their
+proposal review metadata. Fresh breath, peer, join and source-placement observations
+resolve to `review` in both modes. The private cut candidate checks these rows before
+publication. A missing row refuses the operation. Trusted human intent can override
+acoustic review rows, while source placement and pad observations remain mandatory.
+The mode comes from the operation being written. Lowering a pending `REMOVE`, an exact
+range `REMOVE`, and a track-local punch use `mute`; a session `REMOVE` uses `ripple`.
+An explicit trim or timeline operation mode takes precedence over the pending edit type.
 
 ### Decision: Manual cut intent bypasses acoustic vetoes
 

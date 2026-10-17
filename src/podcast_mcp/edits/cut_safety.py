@@ -83,6 +83,10 @@ log = logging.getLogger(__name__)
 _SOURCE_GEOMETRY_TOLERANCE_SEC = 1e-6
 
 
+class DuplicateSourceOccurrence(ValueError):
+    """A completed edit reused or replayed one source occurrence."""
+
+
 class CutJoin(Enum):
     SPLICE = "splice"
     PADDED = "padded"
@@ -1250,7 +1254,7 @@ def _before_occurrences(
                 )
             ]
         if len(matches) > 1:
-            raise ValueError("ambiguous BEFORE source occurrence")
+            raise DuplicateSourceOccurrence("ambiguous BEFORE source occurrence")
         if matches:
             bindings[position] = matches[0]
     for i, binding in enumerate(bindings):
@@ -1262,7 +1266,7 @@ def _before_occurrences(
             > max(new[i].source.src_start, other.source.src_start) + _SOURCE_GEOMETRY_TOLERANCE_SEC
             for other, other_binding in zip(new[:i], bindings[:i], strict=True)
         ):
-            raise ValueError("duplicated BEFORE source occurrence")
+            raise DuplicateSourceOccurrence("duplicated BEFORE source occurrence")
     return bindings
 
 
@@ -2115,35 +2119,135 @@ def complete_effect_receipts(
 
 
 SuggestedAction = Literal["cut", "shorten", "lower", "leave"]
+CutAction = Literal["cut", "shorten", "lower", "leave", "review"]
+CutMode = Literal["ripple", "mute"]
 SUGGESTED_ACTIONS: tuple[SuggestedAction, ...] = ("cut", "shorten", "lower", "leave")
 
 
 @dataclass(frozen=True)
-class SoundPolicy:
+class CutActionPolicy:
     label: str
-    action: str
-    join: CutJoin
+    action: CutAction
+    join: CutJoin | None
     editorial: bool
-    review: bool
+    proposal_review: bool
+    acoustic_override: bool = False
 
 
-SOUND_POLICY: dict[tuple[str, str], SoundPolicy] = {
-    (kind, mode): SoundPolicy(label, action, join, editorial, review)
-    for kind, label, action, editorial, review in (
-        ("filler", "Filler word", "cut", True, False),
-        ("pause", "Long pause", "shorten", True, False),
-        ("repetition", "Repeated words", "cut", True, True),
-        ("restart", "False start", "cut", True, True),
-        ("acoustic", "Unclear sound", "leave", False, True),
-        ("laugh", "Laugh", "lower", False, True),
-        ("possible_word", "Possible missed word", "leave", False, True),
-        ("backchannel", "Backchannel", "lower", False, False),
-        ("breath", "Breath", "leave", False, False),
-        ("mouth_click", "Mouth click", "cut", False, False),
-        ("playful_phrase", "Playful phrase", "leave", False, False),
+_SOUND_ACTIONS: tuple[tuple[str, str, SuggestedAction, bool, bool], ...] = (
+    ("filler", "Filler word", "cut", True, False),
+    ("pause", "Long pause", "shorten", True, False),
+    ("repetition", "Repeated words", "cut", True, True),
+    ("restart", "False start", "cut", True, True),
+    ("acoustic", "Unclear sound", "leave", False, True),
+    ("laugh", "Laugh", "lower", False, True),
+    ("possible_word", "Possible missed word", "leave", False, True),
+    ("backchannel", "Backchannel", "lower", False, False),
+    ("breath", "Breath", "leave", False, False),
+    ("mouth_click", "Mouth click", "cut", False, False),
+    ("playful_phrase", "Playful phrase", "leave", False, False),
+)
+_SAFETY_ACTIONS = (
+    ("breath_edge", True),
+    ("peer_speech", True),
+    ("speaker_bleed", True),
+    ("join_continuity", True),
+    ("source_geometry", False),
+    ("pause_effect_geometry", False),
+    ("pad_hull", False),
+    ("pad_placement", False),
+    ("pad_source_binding", False),
+    ("pad_coverage", False),
+    ("source_receipt", False),
+    ("recording_identity", False),
+    ("clip_identity", False),
+    ("clip_recording_identity", False),
+    ("recording_extent", False),
+    ("fill_binding", False),
+    ("operation_scope", False),
+    ("scope_unavailable", True),
+    ("media_extent_unavailable", False),
+    ("stored_track_pause", False),
+    ("pause_not_shorter", False),
+    ("pause_imperceptible", True),
+    ("pause_air", True),
+    ("pause_join", True),
+    ("acoustic_edge", True),
+)
+
+# Sound labels and fresh safety observations share this one mode/action table. Safety
+# observation rows all retain the operation for review unless trusted intent overrides
+# an acoustic row at the private-candidate boundary.
+CUT_ACTION_TABLE: dict[tuple[str, CutMode], CutActionPolicy] = {
+    (kind, mode): CutActionPolicy(
+        label,
+        action,
+        CutJoin.SPLICE if mode == "ripple" else CutJoin.MUTE,
+        editorial,
+        proposal_review=review,
     )
-    for mode, join in (("ripple", CutJoin.SPLICE), ("mute", CutJoin.MUTE))
+    for kind, label, action, editorial, review in _SOUND_ACTIONS
+    for mode in ("ripple", "mute")
 }
+CUT_ACTION_TABLE.update(
+    {
+        (label, mode): CutActionPolicy(
+            label=label,
+            action="review",
+            join=None,
+            editorial=False,
+            proposal_review=False,
+            acoustic_override=acoustic,
+        )
+        for label, acoustic in _SAFETY_ACTIONS
+        for mode in ("ripple", "mute")
+    }
+)
+
+
+def safety_observation_label(hold: CutScopeHold) -> str:
+    """Return the stable policy label for a fresh native safety observation."""
+    if hold.detail in {label for label, _ in _SAFETY_ACTIONS}:
+        return hold.detail
+    if hold.detail and hold.detail.startswith("breath"):
+        return "breath_edge"
+    if hold.reason == "acoustic_edge" and hold.detail and "breath" in hold.detail:
+        return "breath_edge"
+    return hold.reason
+
+
+def action_for_safety_observation(label: str, mode: CutMode) -> CutActionPolicy:
+    """Resolve a fresh safety label through the canonical mode/action table."""
+    return CUT_ACTION_TABLE[(label, mode)]
+
+
+def edit_time_behavior(edit: EditDecision) -> CutMode:
+    """Return the time behavior of the native operation represented by an edit."""
+    if edit.type is EditDecisionType.MUTE or edit.scope == "track" or edit.exact_range is not None:
+        return "mute"
+    return "ripple"
+
+
+def apply_safety_actions(
+    project: EpisodeProject,
+    holds: Sequence[CutScopeHold],
+    *,
+    manual_ids: frozenset[str] = frozenset(),
+    mode: CutMode | None = None,
+) -> list[CutScopeHold]:
+    """Resolve fresh holds through the table before a private candidate can publish."""
+    decisions = {edit.id: edit for edit in project.edit_decisions}
+    retained: list[CutScopeHold] = []
+    for hold in holds:
+        edit = decisions.get(hold.edit_id)
+        actual_mode = mode or (edit_time_behavior(edit) if edit is not None else "ripple")
+        policy = action_for_safety_observation(safety_observation_label(hold), actual_mode)
+        if policy.action != "review":
+            continue
+        if hold.edit_id in manual_ids and policy.acoustic_override:
+            continue
+        retained.append(hold)
+    return retained
 
 
 def sound_kind(reason: str | None) -> str | None:
@@ -2167,12 +2271,12 @@ def sound_kind(reason: str | None) -> str | None:
     return None
 
 
-def sound_policy(reason: str | None, mode: str = "ripple") -> SoundPolicy | None:
+def sound_policy(reason: str | None, mode: CutMode = "ripple") -> CutActionPolicy | None:
     kind = sound_kind(reason)
-    return SOUND_POLICY[(kind, mode)] if kind is not None else None
+    return CUT_ACTION_TABLE[(kind, mode)] if kind is not None else None
 
 
-def decision_policy(decision: EditDecision) -> SoundPolicy | None:
+def decision_policy(decision: EditDecision) -> CutActionPolicy | None:
     return sound_policy(
         decision.reason, "mute" if decision.type == EditDecisionType.MUTE else "ripple"
     )
@@ -2192,9 +2296,15 @@ def assess_source_offer(project: EpisodeProject, edit: EditDecision, *, defaults
     holds = assess_offer(project, edit, defaults=defaults)
     reason = (edit.reason or "").partition(":acoustic_review:")[0]
     edit.reason = reason
-    if holds:
+    mode: CutMode = "mute" if edit.type is EditDecisionType.MUTE else "ripple"
+    labels = [
+        safety_observation_label(hold)
+        for hold in holds
+        if action_for_safety_observation(safety_observation_label(hold), mode).action == "review"
+    ]
+    if labels:
         edit.review_required = True
-        edit.reason = f"{reason}:acoustic_review:{','.join(h.detail or h.reason for h in holds)}"
+        edit.reason = f"{reason}:acoustic_review:{','.join(dict.fromkeys(labels))}"
 
 
 def inspect_source_remove(

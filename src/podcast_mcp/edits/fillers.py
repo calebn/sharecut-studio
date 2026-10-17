@@ -2435,7 +2435,7 @@ def _prepare_candidate(
     # breath, laugh, or missed word rather than a filler.
     policy = cut_safety.sound_policy(candidate.reason, "mute" if mute_mode else "ripple")
     assert policy is not None
-    review_required = candidate.review_only or policy.review
+    review_required = candidate.review_only or policy.proposal_review
     if (gated.guard and gated.guard.blocked) or (not mute_mode and resolved.scope == "track"):
         review_required = True
     for flag in flags:

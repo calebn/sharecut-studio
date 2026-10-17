@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits.cut_safety import (
-    SOUND_POLICY,
+    CUT_ACTION_TABLE,
     SUGGESTED_ACTIONS,
     sound_kind,
     sound_policy,
@@ -13,7 +13,7 @@ from podcast_mcp.edits.cut_safety import (
 from podcast_mcp.edits.tighten import TightenProposal
 from podcast_mcp.models.episode import EditDecision
 
-# reason -> (kind, label, default action).  A new row in SOUND_POLICY needs a line here
+# reason -> (kind, label, default action).  A new sound label needs a line here
 # only when a detector emits its kind.
 CASES = [
     ("filler:um", "filler", "Filler word", "cut"),
@@ -66,9 +66,14 @@ def test_non_tighten_reason_has_no_suggestion() -> None:
 
 
 def test_every_row_uses_a_known_action_and_every_case_kind_has_a_row() -> None:
-    assert all(row.action in SUGGESTED_ACTIONS for row in SOUND_POLICY.values())
+    sound_kinds = {kind for _, kind, _, _ in CASES}
     assert all(
-        (kind, mode) in SOUND_POLICY for _, kind, _, _ in CASES for mode in ("ripple", "mute")
+        CUT_ACTION_TABLE[(kind, mode)].action in SUGGESTED_ACTIONS
+        for kind in sound_kinds
+        for mode in ("ripple", "mute")
+    )
+    assert all(
+        (kind, mode) in CUT_ACTION_TABLE for _, kind, _, _ in CASES for mode in ("ripple", "mute")
     )
 
 

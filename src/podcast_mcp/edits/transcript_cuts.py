@@ -770,7 +770,7 @@ def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
         or (
             decision.review_required
             and (policy := decision_policy(decision)) is not None
-            and policy.review
+            and policy.proposal_review
         )
         for decision in (left, right)
     )
