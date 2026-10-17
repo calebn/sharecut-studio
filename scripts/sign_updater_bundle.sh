@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sign one shipped bundle with the Tauri updater key, writing <file>.sig.
 # The key lives only in this process's environment: builds run without it.
-# Usage: TAURI_SIGNING_PRIVATE_KEY=<content|path> [TAURI_SIGNING_PRIVATE_KEY_PASSWORD=…] \
+# Usage: TAURI_SIGNING_PRIVATE_KEY=<content|existing file path> [TAURI_SIGNING_PRIVATE_KEY_PASSWORD=…] \
 #        scripts/sign_updater_bundle.sh <file>
 set -euo pipefail
 set +x
@@ -15,6 +15,12 @@ fi
 if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" && -z "${TAURI_SIGNING_PRIVATE_KEY_PATH:-}" ]]; then
   echo "error: signing an updater bundle needs TAURI_SIGNING_PRIVATE_KEY (key content or path)" >&2
   exit 1
+fi
+# The CLI reads a key file only from ..._PATH, so a path given as the key itself
+# is passed that way. Key content is passed through untouched; nothing is printed.
+if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" && -f "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+  export TAURI_SIGNING_PRIVATE_KEY_PATH="$TAURI_SIGNING_PRIVATE_KEY"
+  unset TAURI_SIGNING_PRIVATE_KEY
 fi
 # Empty password for a passwordless key; never prompt.
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD-}"

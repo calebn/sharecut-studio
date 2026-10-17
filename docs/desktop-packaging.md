@@ -601,7 +601,7 @@ belong to the private operations repository.
 key out of the build and hands it to `sign_updater_artifacts.sh` at the end, so
 it needs `TAURI_SIGNING_PRIVATE_KEY` (content or path) when the profile has an
 updater, and stops before building when it is missing.
-`SHARECUT_SKIP_UPDATER_ARTIFACTS=1` builds without an update bundle. CI builds
+`SHARECUT_SKIP_UPDATER_ARTIFACTS=1` builds without an update bundle. The signing script passes a key file path to the CLI as `TAURI_SIGNING_PRIVATE_KEY_PATH`, because the CLI only reads a file from that variable. CI builds
 Apple Silicon natively, so the arm64 bundle is a first-class feed entry. To build
 it on an arm64 Mac instead (for example to notarize on the operator's own
 account), set the Apple variables from

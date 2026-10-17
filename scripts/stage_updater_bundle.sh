@@ -9,6 +9,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:?usage: stage_updater_bundle.sh <output-dir>}"
+# A reused checkout must not publish an older tarball next to the new one.
+if [[ -d "$OUT" ]]; then
+  rm -f "$OUT"/*.app.tar.gz "$OUT"/*.app.tar.gz.sig
+fi
 macos_dir="$ROOT/gui/desktop/src-tauri/target/release/bundle/macos"
 shopt -s nullglob
 apps=("$macos_dir"/*.app)
