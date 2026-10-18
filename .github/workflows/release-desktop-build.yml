@@ -853,8 +853,8 @@ jobs:
           [[ ${#packages[@]} -eq 1 ]]
           contents="$(dpkg-deb --contents "${packages[0]}")"
           for stem in podcast podcast-mcp; do
-            if ! grep -Eq "\./usr/bin/${stem}$" <<< "$contents"; then
-              echo "::error::Debian package has no ./usr/bin/${stem}; its usr/bin entries are:" >&2
+            if ! grep -Eq "(^|[[:space:]])(\./)?usr/bin/${stem}$" <<< "$contents"; then
+              echo "::error::Debian package has no usr/bin/${stem}; its usr/bin entries are:" >&2
               grep -E "usr/bin" <<< "$contents" >&2 || echo "(none)" >&2
               exit 1
             fi
