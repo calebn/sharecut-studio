@@ -246,3 +246,15 @@ def test_a_conflict_wrapping_a_refusal_keeps_the_refusals_guest_message() -> Non
     assert str(conflict) == str(cause)
     assert conflict.guest_message() == GENERIC_GUEST_MESSAGE
     assert conflict.code == "clip_not_found"
+
+
+@pytest.mark.parametrize(
+    "host_message",
+    ["Private customer notes", "Different private details", "/Users/private/episode.wav"],
+)
+def test_guest_unknown_code_never_projects_host_text(host_message: str) -> None:
+    exc = CodedValueError(host_message, code="unregistered_guest_failure")
+    assert tool_refusal(exc, for_guest=True) == ToolRefusal(
+        "That didn't work; ask the host to check this episode.", "unregistered_guest_failure"
+    )
+    assert tool_refusal(exc) == ToolRefusal(host_message, "unregistered_guest_failure")
