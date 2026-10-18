@@ -87,7 +87,7 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
   }
 
   html[data-shell="phone"]:has(.bottom-sheet--lane-band) {
-    --mobile-nav-height: 0;
+    --mobile-nav-height: 0rem;
   }
 
   html:is([data-shell="tablet"], [data-shell="phone"]):has(

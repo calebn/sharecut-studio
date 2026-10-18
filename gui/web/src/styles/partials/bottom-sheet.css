@@ -205,7 +205,7 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
    form are on screen together (#1694). A tall iPad slot is not short. */
 /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
 @media (max-height: 40rem) {
-  @container sheet-slot (min-width: 36rem) {
+  @container sheet-slot (min-width: 30rem) {
     .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector) {
       overflow: hidden;
     }
@@ -229,7 +229,7 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
    screen reader only (#1694). */
 /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
 @media (max-height: 24rem) {
-  @container sheet-slot (min-width: 36rem) {
+  @container sheet-slot (min-width: 30rem) {
     .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector)
       .bottom-sheet-chrome {
       block-size: 0;

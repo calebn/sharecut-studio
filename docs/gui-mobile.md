@@ -144,7 +144,7 @@ held sideways) compact the editor:
   project's three marker rows the whole 72px lane shows at 914×331, 932×430 and
   844×390, over a sheet of 174px, 245px and 205px. A software keyboard lifts the
   cap (the sheet takes the visible slot) because the form outranks the lane then.
-  On a window at most 40rem tall, in a slot at least 36rem wide
+  On a window at most 40rem tall, in a slot at least 30rem wide
   (`@media (max-height: 40rem)` around `@container sheet-slot`), the sheet is a
   fixed header with a scrolling body: the sheet's own title row, then **Done**
   beside the title on a row of its own that never scrolls, then the body. The long

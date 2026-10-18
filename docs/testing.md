@@ -1705,6 +1705,7 @@ test; other rows are whole tests.
 | 667x375 phone shell (iPhone SE): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 740x360 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 767x375 phone shell (widest phone width): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 568x320 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 914x331 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 844x390 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
