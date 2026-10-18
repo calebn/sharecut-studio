@@ -27,7 +27,6 @@ from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.remote_mcp.protocol import _tool_failure, handle_mcp_jsonrpc
 from podcast_mcp.util.registry_privacy_error import (
-    GUEST_MESSAGE,
     REGISTRY_NOT_PRIVATE_CODE,
     RegistryPrivacyError,
     RegistryPrivacyReason,
@@ -78,9 +77,12 @@ def test_error_holds_a_host_message_and_a_fixed_guest_message(tmp_path: Path) ->
     error = _error(tmp_path / HOME_NAME / "r.sqlite")
 
     assert "Mike" in str(error)
-    assert error.guest_message() == GUEST_MESSAGE
-    assert "chmod" not in GUEST_MESSAGE
-    assert "/" not in GUEST_MESSAGE
+    assert (
+        error.guest_message()
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
+    assert "chmod" not in "The host's sharing setup needs attention; ask the host to check it."
+    assert "/" not in "The host's sharing setup needs attention; ask the host to check it."
 
 
 def test_tool_refusal_gives_a_guest_the_fixed_message(tmp_path: Path) -> None:
@@ -90,10 +92,13 @@ def test_tool_refusal_gives_a_guest_the_fixed_message(tmp_path: Path) -> None:
     host = tool_refusal(error)
 
     assert guest is not None and host is not None
-    assert guest.message == GUEST_MESSAGE
+    assert guest.message == "The host's sharing setup needs attention; ask the host to check it."
     assert guest.code == host.code == REGISTRY_NOT_PRIVATE_CODE
     assert host.message == str(error)
-    assert guest_failure_detail(error) == GUEST_MESSAGE
+    assert (
+        guest_failure_detail(error)
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
 
 
 def test_remote_mcp_resolve_gives_the_guest_the_fixed_message(
@@ -105,7 +110,10 @@ def test_remote_mcp_resolve_gives_the_guest_the_fixed_message(
 
     assert response is not None
     assert response["error"]["code"] == -32603
-    assert response["error"]["message"] == GUEST_MESSAGE
+    assert (
+        response["error"]["message"]
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
     assert response["error"]["data"] == {"error_code": REGISTRY_NOT_PRIVATE_CODE}
     assert _leaks(json.dumps(response), registry) == []
 
@@ -117,7 +125,10 @@ def test_remote_mcp_tool_failure_gives_the_guest_the_fixed_message(tmp_path: Pat
 
     assert response["result"]["isError"] is True
     assert response["result"]["structuredContent"]["error_code"] == REGISTRY_NOT_PRIVATE_CODE
-    assert response["result"]["content"][0]["text"] == GUEST_MESSAGE
+    assert (
+        response["result"]["content"][0]["text"]
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
     assert _leaks(json.dumps(response), registry) == []
 
 
@@ -143,7 +154,10 @@ def test_guest_routes_return_the_coded_guest_message(
 
     assert response.status_code == 500
     assert response.headers["X-Sharecut-Error-Code"] == REGISTRY_NOT_PRIVATE_CODE
-    assert response.json()["detail"] == GUEST_MESSAGE
+    assert (
+        response.json()["detail"]
+        == "The host's sharing setup needs attention; ask the host to check it."
+    )
     assert _leaks(response.text, registry) == []
 
 

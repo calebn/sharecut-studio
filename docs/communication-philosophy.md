@@ -152,8 +152,13 @@ is the fix, enforced in copy review.
   next to it. `Button`, `ToggleButton` and `CommandButton` omit the
   native `disabled` prop: pass `disabledReason="..."` (what is missing
   and what to do), and the control is disabled, titled and described
-  with it; a dead control without a reason does not type-check. Applies to Land mid-take, Start with blockers, and
-  Leave while uploads pend. (Surface 1.)
+  with it. Only `undefined` means enabled; an empty or whitespace-only
+  reason uses "This action is unavailable right now." `CommandButton`
+  preserves an explicit blank reason and guards pointer activation. A
+  focusable control such as transport Play or Stop uses `aria-disabled`,
+  keeps the same node, guards activation, and points to a visible reason
+  beside the controls. Remove the reason to restore activation. Applies to
+  Land mid-take, Start with blockers, and Leave while uploads pend. (Surface 1.)
 - **Mutually exclusive states get one contextual control.** Pause and
   Resume are one button that flips; never two buttons with one
   permanently disabled. (Surface 1.)

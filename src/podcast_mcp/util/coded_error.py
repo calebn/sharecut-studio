@@ -29,28 +29,42 @@ from typing import Any
 from podcast_mcp.util.redact import mentions_host_path
 
 GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
-"""What a share guest reads from a refusal whose host message names a host path."""
+"""Fallback for a code without approved guest-facing copy."""
+
+_GUEST_MESSAGES = {
+    "clip_not_found": "That clip is unavailable. Ask the host to refresh the project.",
+    "no_mix": "No mix is available yet. Ask the host to refresh it.",
+    "project_busy": "This project is busy; try again.",
+    "project_not_found": "This link isn't available right now; ask the host to check it.",
+    "registry_not_private": "The host's sharing setup needs attention; ask the host to check it.",
+    "registry_backup_invalid_path": "The host's sharing setup needs attention; ask the host to check it.",
+    "registry_backup_integrity_changed": "The host's sharing setup needs attention; ask the host to check it.",
+    "review_artifacts_not_private": "The host's review files need attention; ask the host to check them.",
+    "review_media_not_found": "This review's audio isn't available right now; ask the host to republish.",
+    "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",
+    "track_not_found": "That track is unavailable. Ask the host to refresh the project.",
+}
+
+
+def guest_message_for_code(code: str) -> str:
+    """Return approved guest copy for ``code``, or the fixed generic fallback."""
+    message = _GUEST_MESSAGES.get(code, GENERIC_GUEST_MESSAGE)
+    return GENERIC_GUEST_MESSAGE if mentions_host_path(message) else message
 
 
 class CodedError(Exception):
     """A refusal whose message reaches the caller; ``code`` names it (for example ``no_mix``).
 
-    Pass ``code`` per raise, or set it once as a class attribute on a named subclass. A
-    refusal whose host message names a path passes ``guest_message``, the fixed, path-free
-    text a share guest reads instead.
+    Pass ``code`` per raise, or set it once as a class attribute on a named subclass. Guest
+    copy comes from the fixed policy for that code, never from the host diagnostic.
     """
 
     code: str
-    _guest_message: str | None = None
 
-    def __init__(
-        self, message: str, *, code: str | None = None, guest_message: str | None = None
-    ) -> None:
+    def __init__(self, message: str, *, code: str | None = None) -> None:
         super().__init__(message)
         if code is not None:
             self.code = code
-        if guest_message is not None:
-            self._guest_message = guest_message
         if not getattr(self, "code", ""):
             raise TypeError(f"{type(self).__name__} needs a code")
 
@@ -59,16 +73,8 @@ class CodedError(Exception):
         return str(self.args[0]) if self.args else ""
 
     def guest_message(self) -> str:
-        """The message for a share guest; never a host path or a piece of one.
-
-        The fixed text the raise site gave, else the host message when it names no path,
-        else ``GENERIC_GUEST_MESSAGE``. A path in prose is never partly redacted: where it
-        ends is ambiguous, and what is left over spells part of a folder name.
-        """
-        if self._guest_message is not None:
-            return self._guest_message
-        text = str(self)
-        return GENERIC_GUEST_MESSAGE if mentions_host_path(text) else text
+        """The approved guest-facing message for this code."""
+        return guest_message_for_code(self.code)
 
     def __reduce__(self) -> tuple[Any, ...]:
         # Exception pickling re-calls ``cls(*args)``, which loses a per-raise ``code`` (it is
@@ -106,8 +112,8 @@ class HostSetupError(CodedPermissionError):
     """The host's own setup refuses to run: a private file or folder is not private.
 
     Not a caller's missing capability: adapters answer it as a server-side failure (HTTP 500,
-    JSON-RPC ``-32603``). The host's message names the path and the fix; subclasses pass a
-    fixed, path-free ``guest_message`` for a share guest.
+    JSON-RPC ``-32603``). The host's message names the path and the fix; guest copy is
+    selected by code.
     """
 
 

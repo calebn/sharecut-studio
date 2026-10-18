@@ -660,14 +660,17 @@ export function TransportBar({
         <h1>{project?.meta.name ?? "Loading episode…"}</h1>
       </TransportZone>
       <TransportZone position="center">
-        <div className="transport-play">
-          <TransportPlayControls
-            playing={isPlaying}
-            disabled={!project || emptyProject}
-            disabledTitle={emptyProject ? "Import audio to play" : undefined}
-            {...transportPlayHandlers}
-          />
-        </div>
+        <TransportPlayControls
+          playing={isPlaying}
+          disabledReason={
+            !project
+              ? "Loading the project. Playback will be available when loading finishes."
+              : emptyProject
+                ? "Import audio to play."
+                : undefined
+          }
+          {...transportPlayHandlers}
+        />
         {showRecordingChip ? <RecordTransportChip /> : null}
         <TransportTimecode durationSec={duration} showTotal={!collapsed} />
         {!collapsed ? auditionGroup() : null}

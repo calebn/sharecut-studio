@@ -1,14 +1,13 @@
+import { useId } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { titleWithShortcut } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { Icon } from "../ui";
+import { unavailableReason } from "../ui/disabledReason";
 
 type Props = {
   playing: boolean;
-  /** Nothing to play yet: no project loaded, or a project with no tracks. */
-  disabled?: boolean;
-  /** Play's tooltip while disabled (e.g. "Import audio to play"). */
-  disabledTitle?: string;
+  disabledReason?: string;
   onTogglePlay: () => void;
   onStop: () => void;
 };
@@ -20,28 +19,33 @@ type Props = {
  */
 export function TransportPlayControls({
   playing,
-  disabled = false,
-  disabledTitle,
+  disabledReason: rawDisabledReason,
   onTogglePlay,
   onStop,
 }: Props) {
+  const reasonId = useId();
+  const disabledReason = unavailableReason(rawDisabledReason);
+  const disabled = disabledReason !== undefined;
+  const activatePlay = () => {
+    if (!disabled) onTogglePlay();
+  };
+  const activateStop = () => {
+    if (!disabled) onStop();
+  };
   return (
-    <>
+    <div className="transport-play">
       <button
         type="button"
         className="ui-control play-btn"
         data-playing={playing}
         title={
-          disabled
-            ? disabledTitle
-            : titleWithShortcut(
-                playing ? "Pause" : "Play",
-                "transport.togglePlay",
-              )
+          disabledReason ??
+          titleWithShortcut(playing ? "Pause" : "Play", "transport.togglePlay")
         }
         aria-label={playing ? "Pause" : "Play"}
-        disabled={disabled}
-        onClick={onTogglePlay}
+        aria-disabled={disabled || undefined}
+        aria-describedby={disabled ? reasonId : undefined}
+        onClick={activatePlay}
         {...presenceAnchorProps(presenceAnchor("transport", "play"))}
       >
         <Icon name={playing ? "pause" : "play"} />
@@ -56,12 +60,18 @@ export function TransportPlayControls({
           "transport.stop",
         )}
         aria-label="Stop"
-        disabled={disabled}
-        onClick={onStop}
+        aria-disabled={disabled || undefined}
+        aria-describedby={disabled ? reasonId : undefined}
+        onClick={activateStop}
         {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
       >
         <Icon name="stop" />
       </button>
-    </>
+      {disabledReason !== undefined ? (
+        <p id={reasonId} className="transport-play-reason" role="status">
+          {disabledReason}
+        </p>
+      ) : null}
+    </div>
   );
 }

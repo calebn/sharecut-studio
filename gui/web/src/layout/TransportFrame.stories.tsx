@@ -61,13 +61,11 @@ function TransportTemplate({
             <h1>Episode 12: Field notes</h1>
           </TransportZone>
           <TransportZone position="center">
-            <div className="transport-play">
-              <TransportPlayControls
-                playing={playing}
-                onTogglePlay={() => setPlaying((value) => !value)}
-                onStop={() => setPlaying(false)}
-              />
-            </div>
+            <TransportPlayControls
+              playing={playing}
+              onTogglePlay={() => setPlaying((value) => !value)}
+              onStop={() => setPlaying(false)}
+            />
             <Timecode
               current={TIMECODE.current}
               total={collapsed ? undefined : TIMECODE.total}
