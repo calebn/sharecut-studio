@@ -89,3 +89,27 @@ for (const { name, width, height } of VIEWPORTS) {
     await expect.poll(() => drawerHeight(page)).toBeCloseTo(before, 0);
   });
 }
+
+test("the reopen handle never covers the tool rail's Undo and Redo on a phone held sideways", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await openHostProject(page);
+  await page.getByRole("button", { name: "Maximize timeline" }).click();
+  await expect(
+    page.getByRole("button", { name: "Show editor panels" }),
+  ).toBeVisible();
+  const rail = page.getByRole("group", { name: "Undo and redo" });
+  for (const name of ["Undo", "Redo"]) {
+    const button = rail.getByRole("button", { name });
+    const covered = await button.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      return top !== el && !el.contains(top);
+    });
+    expect(covered, name).toBe(false);
+  }
+});
