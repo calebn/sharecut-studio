@@ -544,7 +544,9 @@ def test_edit_approve_warns_for_stale_edit(minimal_project, edit_type):
     )
 
     assert result.exit_code == 1
-    assert "edit_span_not_played" in result.stderr
+    assert "Held stale-edit" in result.stderr
+    assert "already cut away" in result.stderr
+    assert "override" not in result.stderr
     assert project.read_bytes() == before
     assert [decision.id for decision in load_project(project).edit_decisions] == ["stale-edit"]
 
