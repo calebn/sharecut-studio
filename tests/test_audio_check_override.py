@@ -100,3 +100,50 @@ def test_suggested_preview_plays_a_held_cut_as_approving_it_anyway_would(tmp_pat
     assert end > 0
     assert len(snapshot.editorial.edit_log) == 1
     assert ws.path.read_bytes() == saved
+
+
+def test_share_override_needs_the_editor_capability(tmp_path, monkeypatch):
+    from podcast_mcp.edits.share_capabilities import REVIEW_ROLE_CAPABILITIES, ReviewRole
+    from podcast_mcp.util.coded_error import CodedPermissionError
+
+    result, _decision = _blocked_filler(tmp_path, monkeypatch)
+    ws = workspace(result)
+    svc = DocumentSyncService.open(ws.path)
+
+    def submit(caps, seq):
+        return svc.submit(
+            DocumentCommand(
+                type="DeleteClip",
+                payload={
+                    "clip_ids": [ws.project.clips[0].id],
+                    "mode": "gap",
+                    "override_audio_checks": True,
+                },
+                client_id="guest-1",
+                role="guest",
+                client_seq=seq,
+            ),
+            capabilities=list(caps),
+            author="share:abc",
+        )
+
+    with pytest.raises(CodedPermissionError, match="Editor capability"):
+        submit(REVIEW_ROLE_CAPABILITIES[ReviewRole.COMMENTER], 1)
+    assert load_project(ws.path).editorial.edit_log == []
+    assert submit(REVIEW_ROLE_CAPABILITIES[ReviewRole.EDITOR], 2)["ok"]
+    (record,) = load_project(ws.path).editorial.edit_log
+    assert record.params["audio_check_override"]["actor"] == "share:abc"
+
+
+def test_override_keeps_pending_update_bounds_exactly_as_given(tmp_path, monkeypatch):
+    from podcast_mcp.edits.audio_check_override import audio_check_override
+    from podcast_mcp.services.document import EditService
+
+    result, decision = _blocked_filler(tmp_path, monkeypatch)
+    ws = workspace(result)
+    start, end = decision.start + 0.013, decision.end - 0.017
+
+    with audio_check_override("mcp:host", "host_mcp"):
+        edit = EditService(ws).update_pending(decision.id, start=start, end=end, snap=True)
+
+    assert (edit.start, edit.end) == (start, end)

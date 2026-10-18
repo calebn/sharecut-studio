@@ -58,7 +58,7 @@ from podcast_mcp.services.session_sync import (
     resolve_meta_path,
     session_dir_for_workspace,
 )
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedPermissionError
 from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
 
 log = logging.getLogger(__name__)
@@ -811,6 +811,14 @@ class DocumentSyncService:
             payload["_structural_mode"] = mode.value
         if command.type in AUTHORED_COMMANDS:
             payload["_author"] = author
+        if payload.get(OVERRIDE_FLAG) is True and capabilities is not None:
+            from podcast_mcp.services.document_sync.capabilities import edit_commands_allowed
+
+            if not edit_commands_allowed(capabilities):
+                raise CodedPermissionError(
+                    "overriding the audio checks needs the Editor capability on this share",
+                    code="share_capability_required",
+                )
         try:
             with audio_check_override(
                 author or command.client_id,
