@@ -340,7 +340,9 @@ or named test owns that behavior; it does not certify unrun combinations.
 The inventory does not claim keyboard operation alone meets WCAG 2.5.7. Existing
 visible actions are credited only where the same operation has a single-pointer
 non-drag path. Clip movement and desktop/tablet splitter resizing now have native non-drag
-controls described in #1033 above. Their new browser matrix still needs execution. Track order already has Move up/down buttons; how well those buttons and
+controls described in #1033 above. Automated Chrome and WebKit cases cover their
+preview, commit, cancellation, recovery and local-preference contract. Physical
+acceptance stays separate. Track order already has Move up/down buttons; how well those buttons and
 drag support the task is an open comparison. Ruler tap supports navigation, but
 arbitrary exact timestamp entry remains a separate precision gap. See the
 [W3C dragging movements criterion](https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements).
