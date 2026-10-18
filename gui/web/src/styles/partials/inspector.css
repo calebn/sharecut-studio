@@ -729,3 +729,45 @@ html[data-shell="phone"]
     translate: -0.125rem 0;
   }
 }
+
+.envelope-workspace-context {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.envelope-workspace-context[hidden] {
+  display: none;
+}
+
+.envelope-workspace--short,
+.envelope-workspace--short label {
+  gap: 0;
+}
+
+.envelope-workspace--short form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-1) var(--space-3);
+  order: -1;
+}
+
+.envelope-workspace--short form h3 {
+  display: none;
+}
+
+.envelope-workspace--short form > label {
+  flex: 2 1 11rem;
+}
+
+.envelope-workspace--short form > label:last-of-type {
+  flex: 1 1 5rem;
+}
+
+.envelope-workspace--short .envelope-workspace-actions {
+  gap: var(--space-3);
+}
+
+.envelope-workspace--short form > p {
+  flex-basis: 100%;
+}

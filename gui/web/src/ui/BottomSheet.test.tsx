@@ -13,10 +13,58 @@ import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { stubRaf } from "../test/raf";
-import { BottomSheet } from "./BottomSheet";
+import { BottomSheet, SheetHeaderContent } from "./BottomSheet";
 import { Dialog } from "./Dialog";
 
 describe("BottomSheet", () => {
+  it("replaces the sheet title and actions without remounting its form", async () => {
+    const resize = vi.fn();
+    const close = vi.fn();
+    function Workspace() {
+      const [editing, setEditing] = useState(true);
+      return (
+        <BottomSheet
+          open
+          title="Inspector"
+          backgroundPolicy="interactive"
+          onClose={close}
+          onExpandedChange={resize}
+        >
+          {editing && (
+            <SheetHeaderContent title={<h2>Add point · Avery</h2>}>
+              <button type="button" onClick={() => setEditing(false)}>
+                Done
+              </button>
+            </SheetHeaderContent>
+          )}
+          <label>
+            Time
+            <input defaultValue="1" />
+          </label>
+        </BottomSheet>
+      );
+    }
+    const user = userEvent.setup();
+    render(<Workspace />);
+    const dialog = screen.getByRole("dialog", { name: "Add point · Avery" });
+    expect(within(dialog).getAllByRole("heading")).toHaveLength(1);
+    expect(
+      within(dialog).getAllByRole("button", { name: "Close" }),
+    ).toHaveLength(1);
+    const input = screen.getByLabelText("Time");
+    await user.clear(input);
+    await user.type(input, "12.5");
+    await user.click(screen.getByRole("button", { name: "Expand" }));
+    expect(resize).toHaveBeenCalledWith(true);
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    expect(screen.getByLabelText("Time")).toBe(input);
+    expect(input).toHaveValue("12.5");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(close).toHaveBeenCalledTimes(1);
+    await expectNoA11yViolations(document.body);
+  });
+
   it("makes stowed controls inert and restores them when the sheet returns", () => {
     const props = {
       open: true,

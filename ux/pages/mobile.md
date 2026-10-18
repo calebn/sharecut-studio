@@ -107,6 +107,12 @@ and choose **Edit point**, enter Time and Level, then choose **Save point**.
 **Cancel** keeps the saved points. After Save or Cancel, the selected point is
 visible again; **Done** returns to the track's envelope action. Scrolling and
 changing sheet size keep the current draft.
+On a short, wide phone, the form shares a row below Help, Done, Expand, and
+Close, leaving the edited lane visible above it. Help shows the explanation
+inside the sheet. In portrait, scroll the sheet to reach its controls. While
+the keyboard is open, the form takes priority if the lane and controls cannot
+fit together; closing the keyboard restores the lane.
+
 
 Desktop and tablet editor panels use a resize separator. Escape cancels its
 current preview and restores the previous panel preference, including the

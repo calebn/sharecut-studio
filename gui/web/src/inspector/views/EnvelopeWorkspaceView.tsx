@@ -4,12 +4,15 @@ import {
   useId,
   useLayoutEffect,
   useRef,
+  useState,
 } from "react";
 import type { NudgeField } from "../../edit/nudge";
 import { NUDGE_KINDS } from "../../edit/nudge";
 import type { EnvelopeForm } from "../../state/types";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
+import { SheetHeaderContent } from "../../ui/BottomSheet";
+import { useSheetHeader } from "../../ui/BottomSheetHeader";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { focusAndReveal } from "../../ui/focusAndReveal";
 import { focusHeld } from "../../ui/focusHold";
@@ -17,6 +20,7 @@ import { isValidFocusTarget } from "../../ui/focusTarget";
 import { modalShortcuts } from "../../ui/modalGate";
 import { ModifierInspector } from "../ModifierInspector";
 import type { useNudgeRun } from "../useNudgeRun";
+import { usePhoneEnvelopeSheet } from "../usePhoneEnvelopeSheet";
 
 export type EnvelopeError = {
   target: "time" | "level" | "form";
@@ -129,8 +133,14 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const id = useId();
   const workspace = useRef<HTMLDivElement>(null);
   const timeInput = useRef<HTMLInputElement>(null);
+  const sheet = useSheetHeader();
+  const compact = sheet?.shortPhone === true;
+  const [helpOpen, setHelpOpen] = useState(false);
+  usePhoneEnvelopeSheet(workspace, trackId, sheet?.root ?? null);
   const touchRef = useRef(props.touch);
-  touchRef.current = props.touch;
+  useLayoutEffect(() => {
+    touchRef.current = props.touch;
+  }, [props.touch]);
   const formHeading = useRef<HTMLHeadingElement>(null);
   const select = useRef<HTMLSelectElement>(null);
   const add = useRef<HTMLButtonElement>(null);
@@ -211,68 +221,105 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       title={trackName}
       subtitle={editable ? "Editing volume envelope" : "Volume envelope"}
       error={error?.target === "form" ? error.message : null}
-      primaryActions={[
-        {
-          label: "Done",
-          disabledReason: controlsBusy ? BUSY_REASON : undefined,
-          onClick: props.onDone,
-        },
-      ]}
+      primaryActions={
+        compact
+          ? []
+          : [
+              {
+                label: "Done",
+                disabledReason: controlsBusy ? BUSY_REASON : undefined,
+                onClick: props.onDone,
+              },
+            ]
+      }
     >
+      {compact && (
+        <SheetHeaderContent
+          title={
+            <h2 ref={form ? formHeading : undefined} tabIndex={-1}>
+              {form
+                ? `${form.kind === "add" ? "Add" : "Edit"} point · ${trackName}`
+                : `Volume envelope · ${trackName}`}
+            </h2>
+          }
+        >
+          {form && (
+            <Button
+              aria-label="Volume envelope help"
+              aria-expanded={helpOpen}
+              aria-controls={`${id}-context`}
+              onClick={() => setHelpOpen(!helpOpen)}
+            >
+              Help
+            </Button>
+          )}
+          <Button
+            disabledReason={controlsBusy ? BUSY_REASON : undefined}
+            onClick={props.onDone}
+          >
+            Done
+          </Button>
+        </SheetHeaderContent>
+      )}
       <div
         ref={workspace}
-        className="envelope-workspace"
+        className={`envelope-workspace${compact ? " envelope-workspace--short" : ""}`}
         role="group"
         aria-label="Volume envelope controls"
       >
-        <Button
-          aria-pressed={levelsVisible}
-          disabledReason={controlsBusy ? BUSY_REASON : undefined}
-          onClick={props.onToggleLevels}
+        <div
+          id={`${id}-context`}
+          className="envelope-workspace-context"
+          hidden={compact && form !== null && !helpOpen}
         >
-          {levelsVisible ? "Hide volume envelope" : "Show volume envelope"}
-        </Button>
-        {!levelsVisible && (
-          <p role="status">
-            The volume envelope is hidden. Show it before adding, editing, or
-            deleting points.
-          </p>
-        )}
-        {!editable && (
-          <p>This link can view, but not edit, the volume envelope.</p>
-        )}
-        <p className="envelope-workspace-help">
-          Time is measured on the timeline. Level multiplies this track’s
-          volume: 1.00× is unchanged, 0 is silent, and 1.50× is the maximum.
-        </p>
-        {points.length === 0 ? (
+          <Button
+            aria-pressed={levelsVisible}
+            disabledReason={controlsBusy ? BUSY_REASON : undefined}
+            onClick={props.onToggleLevels}
+          >
+            {levelsVisible ? "Hide volume envelope" : "Show volume envelope"}
+          </Button>
+          {!levelsVisible && (
+            <p role="status">
+              The volume envelope is hidden. Show it before adding, editing, or
+              deleting points.
+            </p>
+          )}
+          {!editable && (
+            <p>This link can view, but not edit, the volume envelope.</p>
+          )}
           <p className="envelope-workspace-help">
-            No volume points. Add points to control this track’s volume over
-            time. The first point preserves the prior level at the timeline
-            ends.
-          </p>
-        ) : (
-          <label htmlFor={`${id}-point`}>
-            Envelope point
-            <select
-              id={`${id}-point`}
-              ref={select}
-              onFocus={(event) => focusAndReveal(event.currentTarget)}
-              value={selected?.id ?? ""}
-              disabled={controlsBusy || form != null}
-              onChange={(event) => props.onSelect(event.target.value)}
-            >
-              <option value="" disabled>
-                Select a point
-              </option>
-              {points.map((point, index) => (
-                <option key={point.id} value={point.id}>
-                  Point {index + 1} · {point.time} seconds · {point.value}×
+            Time is measured on the timeline. Level multiplies this track’s
+            volume: 1.00× is unchanged, 0 is silent, and 1.50× is the maximum.          </p>
+          {points.length === 0 ? (
+            <p className="envelope-workspace-help">
+              No volume points. Add points to control this track’s volume over
+              time. The first point preserves the prior level at the timeline
+              ends.
+            </p>
+          ) : (
+            <label htmlFor={`${id}-point`}>
+              Envelope point
+              <select
+                id={`${id}-point`}
+                ref={select}
+                onFocus={(event) => focusAndReveal(event.currentTarget)}
+                value={selected?.id ?? ""}
+                disabled={controlsBusy || form != null}
+                onChange={(event) => props.onSelect(event.target.value)}
+              >
+                <option value="" disabled>
+                  Select a point
                 </option>
-              ))}
-            </select>
-          </label>
-        )}
+                {points.map((point, index) => (
+                  <option key={point.id} value={point.id}>
+                    Point {index + 1} · {point.time} seconds · {point.value}×
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
         {pointId && !selected && (
           <p role="status">
             This point is no longer available. Select another point or add one.
@@ -327,7 +374,11 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               disabled={nudgeDisabled}
             />
             <NudgeRow
-              field={{ kind: "envelope-level", trackId, pointId: selected.id }}
+              field={{
+                kind: "envelope-level",
+                trackId,
+                pointId: selected.id,
+              }}
               value={selected.value}
               label="Level"
               run={nudgeRun}
@@ -343,7 +394,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               props.onSave();
             }}
           >
-            <h3 ref={formHeading} tabIndex={-1}>
+            <h3 ref={compact ? undefined : formHeading} tabIndex={-1}>
               {form.kind === "add" ? "Add point" : "Edit point"}
             </h3>
             {form.notice && <p>{form.notice}</p>}

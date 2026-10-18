@@ -446,7 +446,17 @@ Meter sampling stops with playback. Reduced motion freezes the moving bars and
 peak markers while clip detection remains active. The **Volume envelope** layer
 still controls automation curves independently of playback meters.
 
-Inspector sheets scroll as one region, including their header, actions, fields,
+On a short, wide phone envelope sheet, the workspace places its title, Help,
+and Done in the sheet's existing header beside Expand and Close. The body is
+one scroll region. Time, Level, Save point, and Cancel share a row at normal
+touch sizes. Help reveals context in that body; errors and notices stay visible
+outside Help. A phone-only measured cap reserves the edited lane above the
+half sheet without sharing the transcript cap. Keyboard-reduced slots prioritize
+the form when the lane and form cannot fit together. Ordinary portrait keeps
+deliberate inspector scrolling, and Expand opens the full slot. See
+[phone volume envelope sheet](gui-mobile.md#phone-volume-envelope-sheet).
+
+Other inspector sheets scroll as one region, including their header, actions, fields,
 errors, related commands, and footer. The envelope workspace retains its draft
 through view sizing and scrolling. On short phone screens, use ordinary scrolling
 and the visible **Expand** action to reach complete controls. Opening the workspace

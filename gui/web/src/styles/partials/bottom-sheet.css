@@ -472,3 +472,67 @@ html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
   height: 100%;
   max-block-size: 100%;
 }
+
+.bottom-sheet-title-fallback,
+.bottom-sheet-title-content h2 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.bottom-sheet-title:has(.bottom-sheet-title-content)
+  .bottom-sheet-title-fallback {
+  display: none;
+}
+
+.bottom-sheet-descendant-actions {
+  display: contents;
+}
+
+html[data-shell="phone"] .bottom-sheet--half[data-phone-envelope] {
+  max-block-size: var(--phone-envelope-cap, 100%);
+}
+
+.bottom-sheet:has(.envelope-workspace--short) {
+  height: auto;
+  overflow: hidden;
+}
+
+.bottom-sheet:has(.envelope-workspace--short) .bottom-sheet-header {
+  flex-wrap: nowrap;
+  padding: 0 var(--space-3);
+  gap: var(--space-3);
+}
+
+.bottom-sheet:has(.envelope-workspace--short) .bottom-sheet-header-actions {
+  gap: var(--space-1);
+}
+
+.bottom-sheet:has(.envelope-workspace--short) .bottom-sheet-title {
+  flex-basis: 0;
+  overflow: hidden;
+}
+
+.bottom-sheet:has(.envelope-workspace--short) .bottom-sheet-title-content h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bottom-sheet:has(.envelope-workspace--short) .bottom-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.bottom-sheet:has(.envelope-workspace--short) .modifier-inspector {
+  padding: var(--space-1) var(--space-3);
+  gap: 0;
+}
+
+.bottom-sheet:has(.envelope-workspace--short) .modifier-header {
+  display: none;
+}
+
+.bottom-sheet--full:has(.envelope-workspace--short) {
+  height: 100%;}

@@ -1,12 +1,52 @@
-import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
+import { SheetHeaderContext, useSheetHeader } from "./BottomSheetHeader";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
 import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
 import { Icon } from "./Icon";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
+import { useResizeObserver } from "./useResizeObserver";
+
+export function SheetHeaderContent({
+  title,
+  children,
+}: {
+  title: ReactNode;
+  children: ReactNode;
+}) {
+  const hosts = useSheetHeader();
+  useLayoutEffect(() => {
+    const fallback = hosts?.title?.querySelector<HTMLElement>(
+      ".bottom-sheet-title-fallback",
+    );
+    if (!fallback) return;
+    fallback.hidden = true;
+    return () => {
+      fallback.hidden = false;
+    };
+  }, [hosts?.title]);
+  if (!hosts?.title || !hosts.actions) return null;
+  return (
+    <>
+      {createPortal(
+        <div className="bottom-sheet-title-content">{title}</div>,
+        hosts.title,
+      )}
+      {createPortal(children, hosts.actions)}
+    </>
+  );
+}
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
 export type DrawerDetent = "peek" | "half" | "full";
@@ -40,6 +80,7 @@ export interface SheetDrawer {
 }
 
 type Props = {
+  phone?: boolean;
   open: boolean;
   onClose: () => void;
   backgroundPolicy: BottomSheetBackgroundPolicy;
@@ -77,6 +118,7 @@ type Props = {
  * change with visible Expand and Collapse buttons; a `drawer` also swipes.
  */
 export function BottomSheet({
+  phone = false,
   open,
   onClose,
   backgroundPolicy,
@@ -95,6 +137,19 @@ export function BottomSheet({
   className,
 }: Props) {
   const titleId = useId();
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const [titleHost, setTitleHost] = useState<HTMLDivElement | null>(null);
+  const [actionHost, setActionHost] = useState<HTMLDivElement | null>(null);
+  const [shortPhone, setShortPhone] = useState(false);
+  useResizeObserver(root, () => {
+    if (!root) return;
+    const rem = Number.parseFloat(getComputedStyle(root).fontSize);
+    setShortPhone(
+      phone &&
+        root.clientHeight <= 40 * rem &&
+        root.clientWidth > root.clientHeight,
+    );
+  });
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const swipe = useDrawerSwipe(panelRef, open ? drawer : undefined);
@@ -182,6 +237,7 @@ export function BottomSheet({
 
   return createPortal(
     <div
+      ref={setRoot}
       className={`bottom-sheet-root${stowed ? " is-stowed" : ""}`}
       inert={stowed}
       role="presentation"
@@ -199,56 +255,73 @@ export function BottomSheet({
           onClick={dismiss}
         />
       )}
-      <div
-        ref={panelRef}
-        className={`bottom-sheet bottom-sheet--${current}${className ? ` ${className}` : ""}`}
-        role="dialog"
-        aria-modal="false"
-        aria-labelledby={title ? titleId : undefined}
+      <SheetHeaderContext
+        value={{
+          title: titleHost,
+          actions: actionHost,
+          root: phone ? root : null,
+          shortPhone,
+        }}
       >
         <div
-          ref={chromeRef}
-          className={`bottom-sheet-chrome${drawer ? " bottom-sheet-chrome--drawer" : ""}`}
-          {...(drawer ? swipe : {})}
+          ref={panelRef}
+          className={`bottom-sheet bottom-sheet--${current}${className ? ` ${className}` : ""}`}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby={title ? titleId : undefined}
         >
-          {drawer ? (
-            <label className="bottom-sheet-grabber">
-              <span className="sr-only">{drawer.label}</span>
-              <input
-                className="bottom-sheet-detent sr-only"
-                type="range"
-                min={0}
-                max={drawer.detents.length - 1}
-                step={1}
-                value={at}
-                aria-valuetext={DETENT_TEXT[drawer.detent]}
-                onChange={(event) => {
-                  const next = drawer.detents[Number(event.target.value)];
-                  if (next) drawer.onDetentChange(next);
-                }}
-              />
-            </label>
-          ) : null}
-          <div className="bottom-sheet-header">
-            {title ? (
-              <h2 id={titleId} className="bottom-sheet-title">
-                {title}
-              </h2>
-            ) : (
-              <span className="bottom-sheet-title-spacer" />
-            )}
-            <div className="bottom-sheet-header-actions">
-              {compactHeaderActions}
-              {resizeButtons}
-              <CloseButton ref={closeRef} onClick={dismiss} />
+          <div
+            ref={chromeRef}
+            className={`bottom-sheet-chrome${drawer ? " bottom-sheet-chrome--drawer" : ""}`}
+            {...(drawer ? swipe : {})}
+          >
+            {drawer ? (
+              <label className="bottom-sheet-grabber">
+                <span className="sr-only">{drawer.label}</span>
+                <input
+                  className="bottom-sheet-detent sr-only"
+                  type="range"
+                  min={0}
+                  max={drawer.detents.length - 1}
+                  step={1}
+                  value={at}
+                  aria-valuetext={DETENT_TEXT[drawer.detent]}
+                  onChange={(event) => {
+                    const next = drawer.detents[Number(event.target.value)];
+                    if (next) drawer.onDetentChange(next);
+                  }}
+                />
+              </label>
+            ) : null}
+            <div className="bottom-sheet-header">
+              {title ? (
+                <div
+                  id={titleId}
+                  ref={setTitleHost}
+                  className="bottom-sheet-title"
+                >
+                  <h2 className="bottom-sheet-title-fallback">{title}</h2>
+                </div>
+              ) : (
+                <span className="bottom-sheet-title-spacer" />
+              )}
+              <div className="bottom-sheet-header-actions">
+                <div
+                  ref={setActionHost}
+                  className="bottom-sheet-descendant-actions"
+                />
+                {compactHeaderActions}
+                {resizeButtons}
+                <CloseButton ref={closeRef} onClick={dismiss} />
+              </div>
             </div>
           </div>
+          <div className="bottom-sheet-body">
+            {bodyHeader}
+            {children}
+          </div>
         </div>
-        <div className="bottom-sheet-body">
-          {bodyHeader}
-          {children}
-        </div>
-      </div>
+      </SheetHeaderContext>
     </div>,
     document.body,
   );

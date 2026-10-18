@@ -152,6 +152,7 @@ export function MobileShellView({
         ))}
       </nav>
       <BottomSheet
+        phone
         key={sheet.kind}
         backgroundPolicy={sheet.kind === "mix" ? "dismiss" : "interactive"}
         open={sheet.kind !== "closed"}

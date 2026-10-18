@@ -43,6 +43,21 @@ Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewport
 
 Chrome type/space is rem via theme tokens, and Studio color consumers use semantic `--color-*` roles. Pane density (status chips, pipeline, header rail) follows named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`), not viewport-width `@media`. Short-viewport `@media (max-height: 40rem)` for portaled sheets is a documented exception (`-- user-approved:`). Policy: [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md).
 
+## Phone volume envelope sheet
+
+The phone envelope sheet reserves the edited lane above its half-height view.
+In a short, wide sheet slot, Add point and Edit point share the sheet header
+with Help, Done, Expand, and Close. Time, Level, Save point, and Cancel use one
+row at their normal touch sizes. Help reveals the explanation and point context
+inside the scrolling body; notices and errors remain outside Help.
+
+Narrow portrait keeps the ordinary inspector and deliberate scrolling. Expanding
+the sheet gives its body the full slot. When a software keyboard leaves too
+little height for both the lane and the form, the form takes priority and its
+body scrolls above the keyboard. Dismissing the keyboard restores lane clearance.
+This phone layout does not change phone/tablet classification or provide draft
+persistence across a shell change.
+
 ## Browser chrome, safe areas and Home Screen (#1077)
 
 On iPhone the owner found landscape close to unusable: Safari's bars and the
