@@ -541,3 +541,10 @@ exit 1
         ]
     else:
         assert all(command[0] not in {"build", "import"} for command in commands)
+
+
+def test_linux_smoke_names_its_failing_command_and_never_pipes_into_grep_q() -> None:
+    text = (ROOT / "scripts/smoke_linux_appimage.sh").read_text(encoding="utf-8")
+    assert "trap 'echo \"error: smoke failed at line $LINENO: $BASH_COMMAND\" >&2' ERR" in text
+    assert '| grep -q "Usage"' not in text
+    assert text.count("prints_usage ") >= 3
