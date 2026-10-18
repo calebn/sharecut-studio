@@ -137,9 +137,9 @@ export function registerTranscriptViewCommands(): void {
     const state = useDawStore.getState();
     if (!state.project || isShareProjectKey(state.projectPath))
       return { status: "disabled", reason: "Host project required" };
+    state.setActiveTab("transcript");
     useDawStore.setState({
       transcriptFindReplaceOpen: !state.transcriptFindReplaceOpen,
-      activeTab: "transcript",
     });
     return { status: "ok" };
   });

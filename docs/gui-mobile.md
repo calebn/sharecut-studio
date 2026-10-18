@@ -753,7 +753,9 @@ Tap a speaker label to rename or reassign every turn on that track. The editor w
 
 ### Transcript find and replace
 
-The host Text/Transcript toolbar exposes **Find and replace** on every shell. The native labeled inputs and preview list wrap within the panel and scroll without replacing the transcript list. Hosts review source-keyed changes and apply the complete set as one Undo action. Different word counts show the source-span timing warning before apply. Shared guests retain the existing text-correction restrictions. See [daw-editing.md](daw-editing.md#transcript-find-and-replace).
+The host Text/Transcript toolbar exposes **Find and replace** on every shell. On desktop and tablet, the command palette action reveals Transcript through the same tab-jump policy. It restores the default layout from timeline or review, retains the transcript layout, and clears timeline key focus when leaving timeline. Revealing a collapsed drawer clears its saved collapsed preference, keeps its previous height, and leaves the panels visible after reload.
+
+The native labeled inputs and preview list wrap within the panel and scroll without replacing the transcript list. Hosts review source-keyed changes and apply the complete set as one Undo action. Different word counts show the source-span timing warning before apply. Shared guests retain the existing text-correction restrictions. See [daw-editing.md](daw-editing.md#transcript-find-and-replace).
 
 ### Crossfade length on Timeline
 
