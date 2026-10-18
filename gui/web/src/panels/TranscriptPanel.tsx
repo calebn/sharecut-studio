@@ -806,20 +806,21 @@ export function TranscriptPanel() {
       candidates.push({ utteranceIndex: ui, trackId, wordKey });
     }
     const sec = useDawStore.getState().playheadSec;
-    const pick = pickFollowCandidate(candidates, followLeadRef.current, sec);
-    if (pick) {
-      followLeadRef.current = { trackId: pick.trackId, sec };
-    } else if (
-      followLeadRef.current &&
-      candidates.some((c) => c.trackId === followLeadRef.current?.trackId)
-    ) {
-      followLeadRef.current = { ...followLeadRef.current, sec };
-    }
-    if (!pick || pick.wordKey == null) {
-      // Between words of a line already followed: stay put.
+    const prevLead = followLeadRef.current;
+    const pick = pickFollowCandidate(candidates, prevLead, sec);
+    if (!pick) {
       return;
     }
-    const el = activeElsRef.current.get(pick.wordKey);
+    followLeadRef.current = { trackId: pick.trackId, sec };
+    // Between words of a line already followed: stay put. A new lane or a
+    // seek into a gap (nothing audible mounted) goes to the utterance's
+    // first line instead.
+    const moved =
+      !prevLead ||
+      prevLead.trackId !== pick.trackId ||
+      Math.abs(sec - prevLead.sec) > 1;
+    const key = pick.wordKey ?? (moved ? `u${pick.utteranceIndex}` : null);
+    const el = key ? activeElsRef.current.get(key) : undefined;
     if (!el || !root.contains(el)) {
       return;
     }
@@ -830,7 +831,7 @@ export function TranscriptPanel() {
       clientHeight: root.clientHeight,
       scrollHeight: root.scrollHeight,
       itemTop: elRect.top - rootRect.top,
-      itemHeight: elRect.height,
+      itemHeight: pick.wordKey ? elRect.height : Math.min(elRect.height, 28),
     });
     if (next == null) {
       return;
@@ -1194,6 +1195,14 @@ export function TranscriptPanel() {
             }
           : {})}
         {...scrollIntentHandlers}
+        onWheel={() => {
+          followCancelRef.current?.();
+          scrollIntentHandlers.onWheel();
+        }}
+        onTouchStart={() => {
+          followCancelRef.current?.();
+          scrollIntentHandlers.onTouchStart();
+        }}
         onFocus={(e) => {
           const turnEl = (e.target as Element).closest("[data-turn-index]");
           const idx = Number(turnEl?.getAttribute("data-turn-index") ?? -1);
