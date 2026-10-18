@@ -44,6 +44,22 @@ direct clip payloads omit empty automatic fields and always exclude Restore.
 Nonempty automatic state participates in detector and render dependencies.
 Changed recording bytes deactivate bypass while retaining authored automatic mutes.
 
+`inspect_clip_bleed` reports the late plan, artifact freshness, and
+saved choice separately. It maps actual automatic regions into the selected
+occurrence and partitions saved coverage from remaining actionable SOURCE
+intervals. Unity late plans expose no late-gate target. Authored speaker mutes
+remain eligible independently. Ordinary project projections do not perform this
+explicit inspection or hash recording bytes.
+
+`services/document/bleed_inspection.py` owns the guarded mutation. Its transaction
+adopts external changes, checks the opening history, occurrence, selected recording
+bytes, file revisions, relevant track state, and current candidate, then saves one
+Undoable choice. The helper does not render audio or reconcile transcripts.
+
+`BleedAttenuationInspector` and `BleedAttenuationOverlay` are controlled React
+leaves. They consume supplied targets, eligibility, receipts, and geometry. Their
+timeline and inspector host integration remains pending shared-file allocation.
+
 Whole-lane recorder latency is the last stage of pipeline `align_tracks`.
 `engines/envelope_lag.py` finds the lag between a voice's direct track and its copy
 on another mic from level envelopes, tested against shifted nulls. It abstains
