@@ -1,5 +1,3 @@
-"""Persisted-format protection, with synthetic Git inputs for release-policy tests."""
-
 from __future__ import annotations
 
 import copy
