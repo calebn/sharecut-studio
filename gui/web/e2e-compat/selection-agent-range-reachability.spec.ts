@@ -130,12 +130,9 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   await expect(adoptedRange).toHaveText("4.00–9.00 s · reference");
 });
 
-test("a zero-start agent range arriving at short-tablet peek stays reachable", async ({
+test("a zero-start agent range arriving at the short-tablet column stays reachable", async ({
   page,
 }) => {
-  await page.addInitScript(() =>
-    localStorage.setItem("sharecut.compactInspector", "peek"),
-  );
   await page.setViewportSize({ width: 820, height: 620 });
   await openHostProject(page);
 
@@ -150,9 +147,9 @@ test("a zero-start agent range arriving at short-tablet peek stays reachable", a
   });
   await page.touchscreen.tap(point.x, point.y);
 
-  const sheet = page.locator(".bottom-sheet--inspector");
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
-  await expect(sheet.locator(".inspector-peek")).toBeVisible();
+  const sheet = page.locator(".bottom-sheet--column");
+  await expect(sheet).toBeVisible();
+  await expect(page.locator(".bottom-sheet--inspector")).toHaveCount(0);
   const title = await sheet.locator(".bottom-sheet-title").innerText();
   const clientId = fixtureClientId(page, "peek-arrival");
   await clearAgentRange(page, clientId, 1);
@@ -166,7 +163,6 @@ test("a zero-start agent range arriving at short-tablet peek stays reachable", a
   await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
     1,
   );
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
   await expect(actions.getByLabel("In")).toHaveValue("0");
   await expect(actions.getByLabel("Out")).toHaveValue("1");
@@ -222,12 +218,9 @@ test("a tablet track sheet owns the agent range controls", async ({ page }) => {
   ).toHaveCount(0);
 });
 
-test("agent range arrival and removal keep short-tablet peek state reachable", async ({
+test("agent range arrival and removal keep the short-tablet column reachable", async ({
   page,
 }) => {
-  await page.addInitScript(() =>
-    localStorage.setItem("sharecut.compactInspector", "peek"),
-  );
   await page.setViewportSize({ width: 820, height: 620 });
   await openHostProject(page);
 
@@ -242,8 +235,9 @@ test("agent range arrival and removal keep short-tablet peek state reachable", a
   });
   await page.touchscreen.tap(point.x, point.y);
 
-  const sheet = page.locator(".bottom-sheet--inspector");
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
+  const sheet = page.locator(".bottom-sheet--column");
+  await expect(sheet).toBeVisible();
+  await expect(page.locator(".bottom-sheet--inspector")).toHaveCount(0);
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
   const title = await sheet.locator(".bottom-sheet-title").innerText();
   const clientId = fixtureClientId(page, "peek-toggle");
@@ -263,7 +257,6 @@ test("agent range arrival and removal keep short-tablet peek state reachable", a
     1,
   );
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
 
   const reference = actions.getByRole("checkbox", { name: "reference" });
@@ -279,7 +272,6 @@ test("agent range arrival and removal keep short-tablet peek state reachable", a
     0,
   );
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
 
   await publishZeroStartAgentRange(page, clientId, 4);

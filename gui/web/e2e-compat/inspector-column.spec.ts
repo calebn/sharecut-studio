@@ -67,6 +67,7 @@ async function open(page: Page, view: Layout, envelope: boolean) {
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(`.daw-shell--${view.shell}`)).toBeVisible();
   if (view.shell === "phone") await openPhoneTimeline(page);
+  await expect(page.locator(".lane-row").first()).toBeVisible();
   if (envelope) {
     await layer(page, "Volume envelope", true);
     await expect(
@@ -151,7 +152,12 @@ function geometry(page: Page) {
   });
 }
 
-async function expectColumn(page: Page, view: Layout, label: string) {
+async function expectColumn(
+  page: Page,
+  view: Layout,
+  label: string,
+  insets = { right: 0, bottom: 0 },
+) {
   await expect(page.locator(".bottom-sheet--column"), label).toBeVisible();
   const g = await geometry(page);
   const column = g.column!;
@@ -162,7 +168,7 @@ async function expectColumn(page: Page, view: Layout, label: string) {
   expect(g.scrim, `${label}: no scrim`).toBe(false);
   expect(g.resize, `${label}: no drawer or resize controls`).toBe(false);
   expect(column.right, `${label}: on the inline end`).toBeCloseTo(
-    view.width,
+    view.width - insets.right,
     0,
   );
   expect(
@@ -184,7 +190,7 @@ async function expectColumn(page: Page, view: Layout, label: string) {
   expect(column.top, `${label}: under the transport`).toBeGreaterThanOrEqual(
     g.transport!.bottom - 1,
   );
-  const floor = g.status ? g.status.top : view.height;
+  const floor = g.status ? g.status.top : view.height - insets.bottom;
   expect(
     column.bottom,
     `${label}: down to the status row`,
@@ -273,6 +279,33 @@ for (const [name, view] of Object.entries(COLUMN)) {
       await expectCloseWorks(page, name);
     });
 
+    test("a pending edit's Approve and Reject float beside the column, not under it", async ({
+      page,
+      context,
+      browserName,
+    }) => {
+      await open(page, view, false);
+      const finger = await newFinger(context, page, browserName);
+      await finger.down(
+        await centerOf(page, `${lane} [data-pending-id] >> nth=0`),
+      );
+      await page.waitForTimeout(60);
+      await finger.up();
+      await expectColumn(page, view, name);
+      const bar = page.locator(".pending-actionbar");
+      await expect(bar).toBeVisible();
+      await expect(page.locator(".pending-actionbar--docked")).toHaveCount(0);
+      const g = await geometry(page);
+      const box = await bar.boundingBox();
+      expect(
+        box!.x + box!.width,
+        `${name}: the card stops at the column`,
+      ).toBeLessThanOrEqual(g.column!.left + 1);
+      await expect(
+        bar.getByRole("button", { name: "Approve", exact: true }),
+      ).toBeInViewport({ ratio: 1 });
+    });
+
     test("with the keyboard up the column shortens to the visible viewport and keeps its header", async ({
       page,
       context,
@@ -294,7 +327,12 @@ for (const [name, view] of Object.entries(COLUMN)) {
       }
       await open(page, view, false);
       await page.locator(".clip-hit").first().tap();
-      await expectColumn(page, view, name);
+      await expectColumn(
+        page,
+        view,
+        name,
+        browserName === "chromium" ? insets : undefined,
+      );
       const resting = await geometry(page);
       const keyboard = Math.round(view.height * 0.4);
       await setKeyboard(page, keyboard);

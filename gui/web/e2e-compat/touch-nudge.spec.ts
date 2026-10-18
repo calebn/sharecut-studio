@@ -42,7 +42,7 @@ import {
 const CLIENT_ID = "e2e-touch-nudge";
 const SIZES = {
   "portrait-360": { width: 360, height: 800 },
-  "landscape-844": { width: 844, height: 390 },
+  "landscape-600": { width: 600, height: 360 },
 } as const;
 type SizeName = keyof typeof SIZES;
 
@@ -360,13 +360,13 @@ test("pending and envelope strips: nudge rows, targets and axe (portrait-360)", 
     info,
   ));
 
-test("pending and envelope strips: nudge rows, targets and axe (landscape-844)", ({
+test("pending and envelope strips: nudge rows, targets and axe (landscape-600)", ({
   page,
   context,
   browserName,
 }, info) =>
   pendingAndEnvelopeStrips(
-    "landscape-844",
+    "landscape-600",
     { page, context, browserName },
     info,
   ));

@@ -1129,6 +1129,35 @@ button.save-dot {
   }
 }
 
+/* The Inspector column (#1696) leaves the rail a pane as wide as a phone in
+   portrait, which `@container app` cannot see, so the rail makes the same
+   trade as above: the ingest buttons go to Menu and More, Select range shows
+   its icon, and padding and gaps shrink, keeping one row and every lane. */
+.daw-shell--inspector-column .editing-tool-rail .editing-tool-rail-ingest {
+  display: none;
+}
+
+.daw-shell--inspector-column .editing-tool-rail {
+  padding-inline: var(--space-3);
+}
+
+.daw-shell--inspector-column .editing-tool-rail-tools {
+  gap: var(--space-1);
+}
+
+.daw-shell--inspector-column .editing-tool-rail-range {
+  justify-content: center;
+  min-inline-size: var(--touch-min);
+}
+
+.daw-shell--inspector-column .editing-tool-rail-range-icon {
+  display: inline-block;
+}
+
+.daw-shell--inspector-column .editing-tool-rail-range-label {
+  display: none;
+}
+
 /* Seven touch squares need about 21.5rem. A rail narrower than that, which is
    every phone at large text, stays one row and scrolls sideways instead of
    wrapping into rows that eat the lanes (#1347). */
