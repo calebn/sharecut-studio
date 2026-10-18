@@ -219,6 +219,7 @@ def test_rows_match_every_compat_check() -> None:
     ]
 
     assert len(documented) == len(set(documented)), f"duplicate rows: {documented}"
+    assert len(expected) == len(set(expected)), f"duplicate spec/check owners: {expected}"
 
     missing = sorted(set(expected) - set(documented))
     stale = sorted(set(documented) - set(expected))

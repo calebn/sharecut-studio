@@ -1763,11 +1763,10 @@ test; other rows are whole tests.
 | #1135: a long-press at a join offers the ripple trim, which shows where later clips go | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1154: a touch ripple trim over the guest's speech applies as one manual trim | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a plain mouse grab at a join rolls it, as on main | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Compact history stays reachable through unavailable Redo and saved Undo and Redo | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | guarded feedback actions retain their saved edit and touch targets | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped saved feedback pauses its remaining visible lifetime | `gui/web/e2e-compat/compact-feedback-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | compact header queues Undo behind a pending save | `gui/web/e2e-compat/compact-save-refusal.spec.ts` | Core flow | Pass | Pass | Not run |
-| unavailable compact history keeps geometry | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 32px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Cut button of the blade confirmation can be tapped at 16px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -2762,6 +2761,11 @@ These signals prove rendered behavior, not owner listening acceptance.
 
 The compact history reach check asserts Undo, Redo, resize and Close before
 any scripted recovery, then repeats those assertions after body scrolling.
+Its pre-edit peek, half, and full traversal also taps unavailable Redo and checks
+its reason, accessible description, caption visibility, exact panel, header, body,
+and button rectangles, and absence of document commands. The blocked caption
+must disappear before the first saved edit. All four orientation and root-size
+cells retain the saved-history journey in both engines.
 Saved Time and Level edits compare literal whole arrays through exact
 `UndoHistory` and `RedoHistory` commands. Clipping receipts include every
 ancestor while the card is active. Ordinary wheel discovery exposes the whole

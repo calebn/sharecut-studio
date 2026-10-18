@@ -6,7 +6,7 @@
     "gui/web/e2e-compat/compact-feedback-focus.spec.ts": 1,
     "gui/web/e2e-compat/compact-feedback-host-lifetime.spec.ts": 1,
     "gui/web/e2e-compat/compact-feedback-lifetime.spec.ts": 6,
-    "gui/web/e2e-compat/compact-history-persistence.spec.ts": 13,
+    "gui/web/e2e-compat/compact-history-persistence.spec.ts": 11,
     "gui/web/e2e-compat/compact-painted-focus.spec.ts": 1,
     "gui/web/e2e-compat/compact-save-refusal.spec.ts": 4,
     "gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts": 3,

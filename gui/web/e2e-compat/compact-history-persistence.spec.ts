@@ -284,17 +284,69 @@ async function undoStaysReachable(
   const image = await page.screenshot({ path: screenshot });
   await info.attach("peek", { body: image, contentType: "image/png" });
 
-  for (const detent of ["half", "full", "peek"] as const) {
-    if (detent === "half") {
-      await page.getByRole("button", { name: "Expand to half height" }).click();
-    } else if (detent === "full") {
-      await page.getByRole("button", { name: "Expand to full height" }).click();
-    } else {
-      await page.getByRole("button", { name: "Collapse to strip" }).click();
+  const geometry = () =>
+    page.locator(".bottom-sheet--compact").evaluate((panel) => ({
+      panel: panel.getBoundingClientRect().toJSON(),
+      header: panel
+        .querySelector(".bottom-sheet-header")
+        ?.getBoundingClientRect()
+        .toJSON(),
+      body: panel
+        .querySelector(".bottom-sheet-body")
+        ?.getBoundingClientRect()
+        .toJSON(),
+      controls: [...panel.querySelectorAll(".bottom-sheet-header button")].map(
+        (button) => button.getBoundingClientRect().toJSON(),
+      ),
+    }));
+  for (const detent of ["peek", "half", "full"] as const) {
+    if (detent !== "peek") {
+      await page
+        .getByRole("button", {
+          name:
+            detent === "half"
+              ? "Expand to half height"
+              : "Expand to full height",
+        })
+        .click();
+      await page.waitForTimeout(350);
+      await check(detent, headerHistory);
     }
-    await page.waitForTimeout(350);
-    await check(detent, headerHistory);
+    const before = await geometry();
+    const redo = headerHistory.getByRole("button", {
+      name: "Redo",
+      exact: true,
+    });
+    await expect(redo).toHaveAttribute("aria-disabled", "true");
+    const box = await redo.boundingBox();
+    if (!box) throw new Error("Redo has no box");
+    await finger.down({
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    });
+    await page.waitForTimeout(60);
+    await finger.up();
+    const hint = headerHistory.getByRole("status");
+    await expect(hint).toHaveText("Nothing to redo");
+    await expect(redo).toHaveAccessibleDescription("Nothing to redo");
+    const caption = redo.locator(".compact-history-caption");
+    await expect(caption).toHaveText("Noredo");
+    await expect(caption).toBeInViewport({ ratio: 1 });
+    const after = await geometry();
+    expect(after).toEqual(before);
+    expect(commands).toEqual([]);
+    await receipt(
+      info,
+      `unavailable-${name}-${rootPx}-${detent}-${browserName}`,
+      { before, after },
+    );
   }
+  await page.getByRole("button", { name: "Collapse to strip" }).click();
+  await page.waitForTimeout(350);
+  await check("peek", headerHistory);
+  await expect(headerHistory.locator(".compact-history-caption")).toHaveCount(
+    0,
+  );
 
   await expect.poll(() => savedEnvelope(page)).toEqual(original);
   const nudge = page.getByRole("button", {
@@ -522,7 +574,7 @@ for (const {
   ),
 )) {
   test.describe(`compact history ${name} root${rootPx} ${theme}`, () => {
-    test("Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open", ({
+    test("Compact history stays reachable through unavailable Redo and saved Undo and Redo", ({
       page,
       context,
       browserName,
@@ -535,86 +587,4 @@ for (const {
         info,
       ));
   });
-}
-
-for (const name of ["portrait", "landscape"] as const) {
-  for (const rootPx of [16, 32]) {
-    test.describe(`unavailable compact history ${name} root${rootPx}`, () => {
-      test("unavailable compact history keeps geometry", async ({
-        page,
-        context,
-        browserName,
-      }, info) => {
-        await openAt(page, SIZES[name]);
-        const finger = await newFinger(context, page, browserName);
-        const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
-        await finger.down(at);
-        await page.waitForTimeout(60);
-        await finger.up();
-        await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
-        await page.evaluate((px) => {
-          document.documentElement.style.fontSize = `${px}px`;
-        }, rootPx);
-        await page.waitForTimeout(600);
-        const history = compactHistory(page);
-        const commands = watchCommands(page);
-        const geometry = () =>
-          page.locator(".bottom-sheet--compact").evaluate((panel) => ({
-            panel: panel.getBoundingClientRect().toJSON(),
-            header: panel
-              .querySelector(".bottom-sheet-header")
-              ?.getBoundingClientRect()
-              .toJSON(),
-            body: panel
-              .querySelector(".bottom-sheet-body")
-              ?.getBoundingClientRect()
-              .toJSON(),
-            controls: [
-              ...panel.querySelectorAll(".bottom-sheet-header button"),
-            ].map((button) => button.getBoundingClientRect().toJSON()),
-          }));
-        for (const detent of ["peek", "half", "full"] as const) {
-          if (detent !== "peek") {
-            await page
-              .getByRole("button", {
-                name:
-                  detent === "half"
-                    ? "Expand to half height"
-                    : "Expand to full height",
-              })
-              .click();
-            await page.waitForTimeout(350);
-          }
-          const before = await geometry();
-          const redo = history.getByRole("button", {
-            name: "Redo",
-            exact: true,
-          });
-          await expect(redo).toHaveAttribute("aria-disabled", "true");
-          const box = await redo.boundingBox();
-          if (!box) throw new Error("Redo has no box");
-          await finger.down({
-            x: box.x + box.width / 2,
-            y: box.y + box.height / 2,
-          });
-          await page.waitForTimeout(60);
-          await finger.up();
-          const hint = history.getByRole("status");
-          await expect(hint).toHaveText("Nothing to redo");
-          await expect(redo).toHaveAccessibleDescription("Nothing to redo");
-          const caption = redo.locator(".compact-history-caption");
-          await expect(caption).toHaveText("Noredo");
-          await expect(caption).toBeInViewport({ ratio: 1 });
-          const after = await geometry();
-          expect(after).toEqual(before);
-          expect(commands).toEqual([]);
-          await receipt(
-            info,
-            `unavailable-${name}-${rootPx}-${detent}-${browserName}`,
-            { before, after },
-          );
-        }
-      });
-    });
-  }
 }
