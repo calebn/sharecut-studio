@@ -269,7 +269,7 @@ describe("MobileShellView", () => {
       "daw-shell--inspector-column",
     );
     const dialog = screen.getByRole("dialog", { name: "Inspector" });
-    expect(dialog.parentElement).toBe(shell);
+    expect(dialog.parentElement?.parentElement).toBe(shell);
     expect(document.querySelector(".bottom-sheet-root")).toBeNull();
     rerender(
       <MobileShellView {...props} sheet={{ ...sheet, placement: "sheet" }} />,

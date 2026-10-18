@@ -15,6 +15,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { stubRaf } from "../test/raf";
 import { BottomSheet } from "./BottomSheet";
 import { Dialog } from "./Dialog";
+import { focusInnermostOverlay } from "./modalGate";
 
 describe("BottomSheet", () => {
   it("makes stowed controls inert and restores them when the sheet returns", () => {
@@ -690,26 +691,33 @@ describe("BottomSheet", () => {
       label: "Inspector height",
     };
 
-    it("renders in place with no scrim, drawer or resize buttons", () => {
+    it("renders in the shell's grid with no scrim, drawer or resize buttons", () => {
       const onExpandedChange = vi.fn();
-      const { container } = render(
-        <main>
-          <BottomSheet
-            open
-            placement="column"
-            onClose={vi.fn()}
-            backgroundPolicy="interactive"
-            title="Inspector"
-            drawer={drawer}
-            onExpandedChange={onExpandedChange}
-            compactResizeIcons
-          >
-            <p>Fields</p>
-          </BottomSheet>
-        </main>,
+      const shell = document.body.appendChild(
+        Object.assign(document.createElement("div"), {
+          className: "daw-shell",
+          innerHTML: "<main></main>",
+        }),
+      );
+      render(
+        <BottomSheet
+          open
+          placement="column"
+          onClose={vi.fn()}
+          backgroundPolicy="interactive"
+          title="Inspector"
+          drawer={drawer}
+          onExpandedChange={onExpandedChange}
+          compactResizeIcons
+        >
+          <p>Fields</p>
+        </BottomSheet>,
       );
       const dialog = screen.getByRole("dialog", { name: "Inspector" });
-      expect(container.contains(dialog)).toBe(true);
+      expect(dialog.parentElement?.parentElement).toBe(shell);
+      expect(dialog.parentElement?.previousElementSibling?.tagName).toBe(
+        "MAIN",
+      );
       expect(dialog).toHaveAttribute("aria-modal", "false");
       expect(dialog).toHaveClass("bottom-sheet", "bottom-sheet--column");
       expect(dialog.className).not.toMatch(/bottom-sheet--(half|full|peek)/);
@@ -720,6 +728,7 @@ describe("BottomSheet", () => {
         screen.queryByRole("button", { name: /expand|collapse/i }),
       ).toBeNull();
       expect(within(dialog).getByText("Fields")).toBeVisible();
+      shell.remove();
     });
 
     it("keeps the header, Close and Escape", async () => {
@@ -742,6 +751,110 @@ describe("BottomSheet", () => {
       expect(onClose).toHaveBeenCalledTimes(1);
       fireEvent.keyDown(window, { key: "Escape" });
       expect(onClose).toHaveBeenCalledTimes(2);
+    });
+
+    describe("across a placement flip", () => {
+      function Draft() {
+        const [value, setValue] = useState("");
+        return (
+          <label>
+            Gain
+            <input value={value} onChange={(e) => setValue(e.target.value)} />
+          </label>
+        );
+      }
+      const sheet = (
+        placement: "sheet" | "column",
+        onClose: () => void = vi.fn(),
+      ) => (
+        <BottomSheet
+          open
+          placement={placement}
+          onClose={onClose}
+          backgroundPolicy="interactive"
+          title="Inspector"
+          bodyHeader={<p>Header</p>}
+        >
+          <Draft />
+        </BottomSheet>
+      );
+      const shell = () =>
+        document.body.appendChild(
+          Object.assign(document.createElement("div"), {
+            className: "daw-shell",
+            innerHTML: "<main></main>",
+          }),
+        );
+
+      it("keeps the draft, the elements and the focus when the phone rotates and back", async () => {
+        const grid = shell();
+        const { rerender } = render(sheet("sheet"));
+        const input = screen.getByLabelText("Gain");
+        const header = screen.getByText("Header");
+        const dialog = screen.getByRole("dialog");
+        await userEvent.type(input, "-6");
+        expect(input).toHaveFocus();
+
+        rerender(sheet("column"));
+        expect(screen.getByLabelText("Gain")).toBe(input);
+        expect(screen.getByText("Header")).toBe(header);
+        expect(screen.getByRole("dialog")).toBe(dialog);
+        expect(input).toHaveValue("-6");
+        expect(input).toHaveFocus();
+        expect(dialog.parentElement?.parentElement).toBe(grid);
+        expect(document.querySelector(".bottom-sheet-root")).toBeNull();
+        expect(document.querySelector(".bottom-sheet-scrim")).toBeNull();
+
+        rerender(sheet("sheet"));
+        expect(screen.getByLabelText("Gain")).toBe(input);
+        expect(input).toHaveValue("-6");
+        expect(input).toHaveFocus();
+        expect(dialog.parentElement).toBe(
+          document.querySelector(".bottom-sheet-root"),
+        );
+        expect(
+          document.querySelector(".bottom-sheet-root")?.parentElement,
+        ).toBe(document.body);
+        expect(document.querySelector(".bottom-sheet-scrim")).not.toBeNull();
+        grid.remove();
+      });
+
+      it("returns focus to the opener on Close after a flip", async () => {
+        const grid = shell();
+        function Host({ placement }: { placement: "sheet" | "column" }) {
+          const [open, setOpen] = useState(false);
+          return (
+            <>
+              <button type="button" onClick={() => setOpen(true)}>
+                Open
+              </button>
+              <BottomSheet
+                open={open}
+                placement={placement}
+                onClose={() => setOpen(false)}
+                backgroundPolicy="interactive"
+                title="Inspector"
+              >
+                <Draft />
+              </BottomSheet>
+            </>
+          );
+        }
+        const { rerender } = render(<Host placement="sheet" />);
+        const opener = screen.getByRole("button", { name: "Open" });
+        await userEvent.click(opener);
+        await screen.findByRole("dialog");
+        rerender(<Host placement="column" />);
+        act(() => {
+          (document.activeElement as HTMLElement | null)?.blur();
+          focusInnermostOverlay();
+        });
+        expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+        await userEvent.click(screen.getByRole("button", { name: "Close" }));
+        await waitFor(() => expect(opener).toHaveFocus());
+        expect(screen.queryByRole("dialog")).toBeNull();
+        grid.remove();
+      });
     });
 
     it("has no accessibility violations", async () => {
