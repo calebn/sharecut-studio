@@ -601,3 +601,18 @@ snapshot and composes effects per clip. Any stale target rejects the batch.
 Fully removed lanes retain their timeline extent as silence.
 
 Reviewed bleed targets reuse the exact occurrence-local MUTE workflow; they preserve gaps and do not affect another placement of the same recording. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
+
+## Move clips without dragging
+
+Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
+**Target track** and use **Earlier 10 ms**, **Later 10 ms**, or **Use playhead**.
+For an exact destination, enter **Timeline start (seconds)**. Review the timeline
+preview, then choose **Apply move** or **Cancel**. A selected group moves together,
+with each clip clamped at zero and the outer tracks. Exact input does not snap.
+Apply uses one existing move History action. Cancel and unchanged Apply save
+nothing. A refused save keeps a current draft and an error so you can retry.
+
+On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
+by 1 rem. **Reset panel size** clears the browser preference. These controls do
+not change the episode or History. Phone uses the sheet's **Expand** and
+**Collapse** controls and has no desktop splitter.

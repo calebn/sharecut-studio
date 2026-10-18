@@ -168,6 +168,41 @@ describe("BottomTabsSplitterView", () => {
     expect(props.onResize).toHaveBeenLastCalledWith(20.25);
   });
 
+  it("clamps visible steps before no-op and never nests controls in the separator", () => {
+    const { props } = renderSplitter({ userSet: false, minRem: 8, maxRem: 24 });
+    const sep = screen.getByRole("separator");
+    const rect = vi
+      .spyOn(sep.parentElement!, "getBoundingClientRect")
+      .mockReturnValue({ height: 128 } as DOMRect);
+    fireEvent.click(screen.getByRole("button", { name: "Shorter" }));
+    expect(props.onResize).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Taller" }));
+    expect(props.onResize).toHaveBeenLastCalledWith(9);
+    rect.mockReturnValue({ height: 384 } as DOMRect);
+    fireEvent.click(screen.getByRole("button", { name: "Taller" }));
+    expect(props.onResize).toHaveBeenCalledTimes(1);
+    expect(sep.querySelector("button")).toBeNull();
+    rect.mockRestore();
+  });
+
+  it.each([
+    { heightRem: 8, name: "Shorter", other: "Taller", next: 9 },
+    { heightRem: 24, name: "Taller", other: "Shorter", next: 23 },
+  ])(
+    "explains a panel size limit at $heightRem rem",
+    ({ heightRem, name, other, next }) => {
+      const { props } = renderSplitter({
+        userSet: true,
+        heightRem,
+        minRem: 8,
+        maxRem: 24,
+      });
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: other }));
+      expect(props.onResize).toHaveBeenCalledExactlyOnceWith(next);
+    },
+  );
+
   it("drags by pointer delta and stops after pointer up", () => {
     const { props } = renderSplitter({ heightRem: 12.5 });
     const sep = screen.getByRole("separator", {
