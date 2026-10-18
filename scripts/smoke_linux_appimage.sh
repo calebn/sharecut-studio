@@ -69,10 +69,8 @@ if ! prints_usage "$IMG" --cli --help; then
 fi
 "$IMG" --mcp --help >/dev/null
 "$IMG" --cli info --project "$ROOT/tests/fixtures/aligned_dialogue/episode.project.json" >/dev/null
-set +e
-timeout 60 "$IMG" --cli --no-progress gui --no-open >/dev/null 2>&1
-outer_gui_status=$?
-set -e
+outer_gui_status=0
+timeout 60 "$IMG" --cli --no-progress gui --no-open >/dev/null 2>&1 || outer_gui_status=$?
 if [[ "$outer_gui_status" -ne 2 ]]; then
   echo "error: AppImage --cli gui exited $outer_gui_status (want 2 refusal)" >&2
   exit 1
@@ -84,10 +82,8 @@ if ! prints_usage "$SIDECAR" --cli --help; then
   exit 1
 fi
 # Root options before `gui` must not slip past the packaged-CLI refusal.
-set +e
-timeout 60 "$SIDECAR" --cli --no-progress gui --no-open >/dev/null 2>&1
-cli_gui_status=$?
-set -e
+cli_gui_status=0
+timeout 60 "$SIDECAR" --cli --no-progress gui --no-open >/dev/null 2>&1 || cli_gui_status=$?
 if [[ "$cli_gui_status" -ne 2 ]]; then
   echo "error: sharecut-sidecar --cli --no-progress gui exited $cli_gui_status (want 2 refusal)" >&2
   exit 1
