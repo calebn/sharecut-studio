@@ -101,7 +101,9 @@ describe("useFixedPlayheadScroll", () => {
       const view = render(<MountedTimeline />);
       act(() => raf.fire(0));
       el.scrollLeft = 750;
-      act(() => el.dispatchEvent(new Event("scroll")));
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
       expect(useDawStore.getState().scrollLeft).toBe(550);
 
       view.rerender(<MountedTimeline timeViewportPx={420} />);

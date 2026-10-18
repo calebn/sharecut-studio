@@ -9,7 +9,6 @@ export type VisualPan = Readonly<{
   playheadSec: number;
   seekRevision: number;
   projectPath: string;
-  timeViewportPx: number;
 }>;
 
 /** Mounted timeline elements are ephemeral and never part of reactive DAW state. */
