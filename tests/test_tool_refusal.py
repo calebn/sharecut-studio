@@ -221,7 +221,7 @@ def test_guest_message_withholds_all_audited_path_forms(message: str) -> None:
     assert exc.guest_message() == GENERIC_GUEST_MESSAGE
 
 
-def test_guest_message_allows_a_bare_filename() -> None:
+def test_guest_message_does_not_forward_a_bare_filename() -> None:
     exc = CodedError("A wav not found: A.wav", code="file_not_found")
 
     assert exc.guest_message() == GENERIC_GUEST_MESSAGE

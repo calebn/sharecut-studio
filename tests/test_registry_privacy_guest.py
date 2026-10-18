@@ -81,8 +81,8 @@ def test_error_holds_a_host_message_and_a_fixed_guest_message(tmp_path: Path) ->
         error.guest_message()
         == "The host's sharing setup needs attention; ask the host to check it."
     )
-    assert "chmod" not in "The host's sharing setup needs attention; ask the host to check it."
-    assert "/" not in "The host's sharing setup needs attention; ask the host to check it."
+    assert "chmod" not in error.guest_message()
+    assert "/" not in error.guest_message()
 
 
 def test_tool_refusal_gives_a_guest_the_fixed_message(tmp_path: Path) -> None:

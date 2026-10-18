@@ -757,7 +757,7 @@ def test_guest_tool_refusal_withholds_a_message_that_names_a_host_path(
     assert "/Users/host" not in json.dumps(out)
 
 
-def test_guest_ab_preview_refusal_names_the_wav_not_the_host_path(
+def test_guest_ab_preview_refusal_uses_safe_copy_without_the_host_path(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     from podcast_mcp.services.document import PlayService
