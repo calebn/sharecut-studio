@@ -48,9 +48,19 @@ describe("useFixedPlayheadScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  function MountedTimeline({ children }: { children?: ReactNode }) {
+  function MountedTimeline({
+    children,
+    timeViewportPx = 400,
+  }: {
+    children?: ReactNode;
+    timeViewportPx?: number;
+  }) {
     const zoomPxPerSec = useDawStore((s) => s.zoomPxPerSec);
-    const scroll = useFixedPlayheadScroll({ ...input, zoomPxPerSec });
+    const scroll = useFixedPlayheadScroll({
+      ...input,
+      zoomPxPerSec,
+      timeViewportPx,
+    });
     useLayoutEffect(() => {
       el.addEventListener("scroll", scroll.onScroll);
       return () => el.removeEventListener("scroll", scroll.onScroll);
@@ -59,7 +69,10 @@ describe("useFixedPlayheadScroll", () => {
       <>
         <TimelineScrollSync binding={scroll.binding} />
         <FixedPlayheadRecenter binding={scroll.binding} />
-        <FixedPlayheadNeedle headerOffsetPx={0} timeViewportPx={400} />
+        <FixedPlayheadNeedle
+          headerOffsetPx={0}
+          timeViewportPx={timeViewportPx}
+        />
         {children}
       </>
     );
@@ -76,6 +89,94 @@ describe("useFixedPlayheadScroll", () => {
       expect(el.scrollLeft).toBe(200);
       expect(useDawStore.getState().playheadSec).toBe(20);
       expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+    },
+  );
+
+  it.each(["recording", "paused"] as const)(
+    "restores a %s visual pan after tab unmount and same-project refresh",
+    (state) => {
+      useRecordHostStore.getState().setSnapshot(recordSnapshot({ state }));
+      useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+      const revision = useDawStore.getState().playheadSeekRevision;
+      const view = render(<MountedTimeline />);
+      act(() => raf.fire(0));
+      el.scrollLeft = 750;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(useDawStore.getState().scrollLeft).toBe(550);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+
+      view.unmount();
+      act(() => {
+        useDawStore
+          .getState()
+          .hydrate("/tmp/scroll-hook.json", minimalProject());
+      });
+      expect(useDawStore.getState().scrollLeft).toBe(550);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+      el.scrollLeft = 0;
+      const returned = render(<MountedTimeline timeViewportPx={0} />);
+      returned.rerender(<MountedTimeline timeViewportPx={400} />);
+      expect.soft(useDawStore.getState().scrollLeft).toBe(550);
+      expect.soft(el.scrollLeft).toBe(750);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+
+      act(() => useDawStore.getState().setPlayheadSec(20));
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(el.scrollLeft).toBe(200);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision + 1);
+    },
+  );
+
+  it.each(["project round trip", "Fit"] as const)(
+    "recovers from a visual pan after %s while the timeline is unmounted",
+    (action) => {
+      useRecordHostStore
+        .getState()
+        .setSnapshot(recordSnapshot({ state: "paused" }));
+      useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+      const view = render(<MountedTimeline />);
+      act(() => raf.fire(0));
+      el.scrollLeft = 750;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(useDawStore.getState().scrollLeft).toBe(550);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      view.unmount();
+      act(() => {
+        if (action === "project round trip") {
+          useDawStore
+            .getState()
+            .hydrate("/tmp/another-scroll-hook.json", minimalProject());
+          expect(useDawStore.getState().playheadSec).toBe(0);
+          useDawStore
+            .getState()
+            .hydrate("/tmp/scroll-hook.json", minimalProject());
+          useDawStore.getState().setPlayheadSec(20, "playback");
+        } else {
+          useDawStore.getState().fitToWindow(400);
+        }
+      });
+      el.scrollLeft = 0;
+      const returned = render(<MountedTimeline timeViewportPx={0} />);
+      returned.rerender(<MountedTimeline timeViewportPx={400} />);
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(el.scrollLeft).toBe(200);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+
+      const revision = useDawStore.getState().playheadSeekRevision;
+      act(() => useDawStore.getState().setPlayheadSec(40));
+      const recoveredScroll = action === "project round trip" ? 200 : 0;
+      expect(useDawStore.getState().scrollLeft).toBe(recoveredScroll);
+      expect(el.scrollLeft).toBe(recoveredScroll + 200);
+      expect(useDawStore.getState().playheadSec).toBe(40);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision + 1);
     },
   );
 
