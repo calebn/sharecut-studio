@@ -331,7 +331,11 @@ export const createProjectSlice: StateCreator<
             // guest opens on the Comments tab and its comment field.
             ...(isShareProjectKey(projectPath) &&
             hasShareCapability(shareCapabilities, "comment")
-              ? { activeTab: "comments" as const }
+              ? {
+                  activeTab: "comments" as const,
+                  // The drawer may have been left collapsed in this browser.
+                  layoutMode: "default" as const,
+                }
               : {}),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),

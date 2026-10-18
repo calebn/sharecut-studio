@@ -29,7 +29,7 @@ describe("CollapsedDrawerHandleView", () => {
     screen.getByRole("button", NAME).focus();
     await userEvent.keyboard("{Enter}");
     await userEvent.keyboard(" ");
-    expect(onReopen).toHaveBeenCalledTimes(3);
+    expect(onReopen.mock.calls).toEqual([[false], [true], [true]]);
   });
 
   it("reopens once on an upward swipe and ignores a short one or another finger", () => {
@@ -66,6 +66,22 @@ describe("CollapsedDrawerHandleView", () => {
   });
 });
 
+describe("focus", () => {
+  it("takes focus on mount when the collapsed splitter's focus was lost", () => {
+    render(<CollapsedDrawerHandleView onReopen={vi.fn()} />);
+    expect(screen.getByRole("button", NAME)).toHaveFocus();
+  });
+
+  it("leaves focus where it is when something else holds it", () => {
+    const other = document.createElement("input");
+    document.body.append(other);
+    other.focus();
+    render(<CollapsedDrawerHandleView onReopen={vi.fn()} />);
+    expect(other).toHaveFocus();
+    other.remove();
+  });
+});
+
 describe("CollapsedDrawerHandle", () => {
   it("runs Restore layout", async () => {
     clearRegisteredCommands();
@@ -76,5 +92,20 @@ describe("CollapsedDrawerHandle", () => {
     await vi.waitFor(() =>
       expect(useDawStore.getState().layoutMode).toBe("default"),
     );
+  });
+
+  it("returns keyboard focus to the splitter, and leaves a tap alone", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    useDawStore.setState({ layoutMode: "timeline" });
+    const splitter = document.createElement("div");
+    splitter.className = "bottom-tabs-splitter";
+    splitter.tabIndex = 0;
+    document.body.append(splitter);
+    render(<CollapsedDrawerHandle />);
+    screen.getByRole("button", NAME).focus();
+    await userEvent.keyboard("{Enter}");
+    await vi.waitFor(() => expect(splitter).toHaveFocus());
+    splitter.remove();
   });
 });

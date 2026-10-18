@@ -126,10 +126,16 @@ function StudioShellAdapter({
     }
   }, [shell, layoutMode, setShellBreakpoint]);
 
+  const lastShell = useRef(shell);
   useEffect(() => {
-    // The phone has no layouts and resets to the default one, which must not
-    // forget what a tablet or desktop left collapsed.
-    if (shell !== "phone") writeDrawerCollapsed(layoutMode === "timeline");
+    // The phone has no layouts and resets to the default one, and so does a
+    // return from it. Neither is a choice, so neither may forget what a
+    // tablet or desktop left collapsed.
+    const switched = lastShell.current !== shell;
+    lastShell.current = shell;
+    if (shell !== "phone" && !switched) {
+      writeDrawerCollapsed(layoutMode === "timeline");
+    }
   }, [shell, layoutMode]);
 
   useEffect(() => {

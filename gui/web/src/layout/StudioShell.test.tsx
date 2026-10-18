@@ -260,6 +260,38 @@ describe("StudioShell tablet peek", () => {
     expect(localStorage.getItem("sharecut.tabsCollapsed")).toBeNull();
   });
 
+  it("keeps a collapse through a trip to phone width and back", () => {
+    localStorage.setItem("sharecut.tabsCollapsed", "1");
+    useDawStore.setState({ layoutMode: "timeline" });
+    const { rerender } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    const tree = () => (
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>
+    );
+    try {
+      viewport.shell = "phone";
+      act(() => {
+        useDawStore.getState().setShellBreakpoint("phone");
+      });
+      rerender(tree());
+      viewport.shell = "tablet";
+      act(() => {
+        useDawStore.getState().setShellBreakpoint("tablet");
+      });
+      rerender(tree());
+      expect(useDawStore.getState().layoutMode).toBe("default");
+      expect(localStorage.getItem("sharecut.tabsCollapsed")).toBe("1");
+    } finally {
+      viewport.shell = "tablet";
+      localStorage.removeItem("sharecut.tabsCollapsed");
+    }
+  });
+
   it("leaves the stored choice alone while the phone shell is up", () => {
     localStorage.setItem("sharecut.tabsCollapsed", "1");
     viewport.shell = "phone";
