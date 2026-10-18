@@ -3,6 +3,15 @@
 # Does not drive WebKit (no display). Catches "runtime missing / Python crash"
 # which is the same failure as WebView ERR_CONNECTION_REFUSED.
 set -euo pipefail
+trap 'echo "error: smoke failed at line $LINENO: $BASH_COMMAND" >&2' ERR
+
+# Run a command to completion before matching its output: `cmd | grep -q` under
+# pipefail fails when grep exits first and the writer gets SIGPIPE.
+prints_usage() {
+  local out
+  out="$("$@" 2>&1)" || return 1
+  grep -q "Usage" <<<"$out"
+}
 
 if [[ $# -lt 1 ]]; then
   echo "usage: $0 /path/to/SharecutStudio_*.AppImage" >&2
@@ -49,12 +58,12 @@ for stem in podcast podcast-mcp; do
     exit 1
   fi
 done
-"squashfs-root/usr/bin/podcast" --help | grep -q "Usage"
+prints_usage "squashfs-root/usr/bin/podcast" --help
 "squashfs-root/usr/bin/podcast-mcp" --help >/dev/null
 
 # Exercise the public AppImage entry point, before Tauri/WebKit starts.
 echo "==> AppImage --cli/--mcp"
-if ! "$IMG" --cli --help | grep -q "Usage"; then
+if ! prints_usage "$IMG" --cli --help; then
   echo "error: AppImage --cli --help did not print CLI usage" >&2
   exit 1
 fi
@@ -70,7 +79,7 @@ if [[ "$outer_gui_status" -ne 2 ]]; then
 fi
 
 echo "==> sharecut-sidecar --cli --help"
-if ! "$SIDECAR" --cli --help | grep -q "Usage"; then
+if ! prints_usage "$SIDECAR" --cli --help; then
   echo "error: sharecut-sidecar --cli --help did not print CLI usage" >&2
   exit 1
 fi
