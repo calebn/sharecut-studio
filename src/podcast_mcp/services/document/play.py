@@ -597,7 +597,6 @@ class PlayService:
                     raise CodedFileNotFoundError(
                         "premix.wav not found; run render-preview or pipeline first",
                         code="no_mix",
-                        guest_message="No mix is available yet. Ask the host to refresh it.",
                     )
             return TransportPath(
                 path=path.resolve(),
@@ -655,9 +654,6 @@ class PlayService:
                         f"processed stem missing for {track_id!r}; "
                         "run assemble_timeline or pass build_stem=True",
                         code="file_not_found",
-                        guest_message=(
-                            "Processed audio is unavailable yet. Ask the host to refresh the mix."
-                        ),
                     )
             return TransportPath(
                 path=path.resolve(),

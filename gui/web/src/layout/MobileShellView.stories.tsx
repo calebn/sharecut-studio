@@ -65,7 +65,11 @@ function PhonePreview(args: PreviewProps) {
                 controls={
                   <TransportPlayControls
                     playing={playing}
-                    disabled={args.loading}
+                    disabledReason={
+                      args.loading
+                        ? "Loading the project. Playback will be available when loading finishes."
+                        : undefined
+                    }
                     onTogglePlay={() => onPlayingChange(!playing)}
                     onStop={() => onPlayingChange(false)}
                   />

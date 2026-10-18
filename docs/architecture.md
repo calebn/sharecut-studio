@@ -356,14 +356,22 @@ script generates Rust constants from that same public profile.
 ### Guest failure presentation
 
 `util/tool_refusal.py` owns refusal recognition along the explicit exception
-cause chain and the guest message (a refusal that names a host path gives a guest a fixed, path-free text). File-lock timeouts take precedence over
-SQLite busy or locked errors, which take precedence over coded refusals.
+cause chain. `util/coded_error.py` owns the sparse code-to-copy table used for
+guest messages; host diagnostics never select guest copy. Unknown codes use
+`GENERIC_GUEST_MESSAGE`, and the path detector checks approved messages as a
+defense in depth. Coded errors keep their host message and code, including
+through document conflict wrapping and pickling. File-lock timeouts take
+precedence over SQLite busy or locked errors, which take precedence over coded
+refusals. Guest lock and SQLite busy failures use the same `project_busy` copy;
+owner messages retain their existing lock or SQLite wording.
 `gui/routes/guest_errors.py` projects that shared policy into HTTP errors and
 safe WebSocket values. Unmarked failures produce fixed `internal error` and a
 host traceback. Busy WebSocket admission and setup close with transient `1013`;
 recording command contention sends `invalid_state` with `error_code=project_busy`
 and leaves the socket usable. Services mark deliberate permission, input, missing-resource,
 and state guards with coded error types. They do not import GUI error handlers.
+Raise sites provide only host diagnostics and a code. Guest HTTP, WebSocket,
+progress, and remote MCP projections all read the same code policy.
 Guest waveform routes call the media facade directly, then project failures;
 owner waveform routes retain their owner adapter. Record upload shells convert
 pre-acknowledgment refusals for their own caller. The shared ingest helper retains

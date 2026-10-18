@@ -229,7 +229,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           controls={
             <TransportPlayControls
               playing={false}
-              disabled
+              disabledReason="Loading the project. Playback will be available when loading finishes."
               {...transportPlayHandlers}
             />
           }
@@ -257,8 +257,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
         controls={
           <TransportPlayControls
             playing={isPlaying}
-            disabled={emptyProject}
-            disabledTitle="Import audio to play"
+            disabledReason={emptyProject ? "Import audio to play." : undefined}
             {...transportPlayHandlers}
           />
         }

@@ -1244,15 +1244,11 @@ def workspace_artifacts_dir(workspace: Path | str) -> Path:
     return Path(workspace) / "artifacts"
 
 
-PROJECT_UNAVAILABLE_GUEST_MESSAGE = "This link isn't available right now; ask the host to check it."
-
-
 def project_not_found(path: Path | str) -> CodedFileNotFoundError:
     """The refusal for a project file that does not exist (raise it)."""
     return CodedFileNotFoundError(
         f"Project not found: {path}",
         code="project_not_found",
-        guest_message=PROJECT_UNAVAILABLE_GUEST_MESSAGE,
     )
 
 

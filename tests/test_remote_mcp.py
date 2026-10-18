@@ -158,11 +158,15 @@ def test_handle_mcp_jsonrpc_filters_tools(minimal_project, sample_wav, tmp_works
         req_id=4,
     )
     assert "error" in denied
-    assert "share capabilities do not allow tool" in denied["error"]["message"]
+    assert denied["error"]["message"] == (
+        "This action isn't available on this link. Ask the host to update its access."
+    )
 
     denied_empty = _call(token, "guest_add_comment", {}, req_id=5)
     assert "error" in denied_empty
-    assert "share capabilities do not allow tool" in denied_empty["error"]["message"]
+    assert denied_empty["error"]["message"] == (
+        "This action isn't available on this link. Ask the host to update its access."
+    )
     assert "missing" not in denied_empty["error"]["message"].lower()
 
 
@@ -355,7 +359,9 @@ def test_suggest_only_denies_approve(minimal_project, sample_wav, tmp_workspace,
         {"type": "ApproveEdits", "payload": {"ids": []}},
     )
     assert "error" in denied
-    assert "do not allow document command" in denied["error"]["message"].lower()
+    assert denied["error"]["message"] == (
+        "This action isn't available on this link. Ask the host to update its access."
+    )
 
 
 def test_remote_mcp_http_bridge(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -700,12 +706,35 @@ def test_guest_tool_refusal_returns_message_and_code(
     _raising_tool(monkeypatch, CodedKeyError("comment not found: c9", code="comment_not_found"))
 
     text, structured = _tool_error(_call(share["token"], "guest_get_project", {}))
-    assert text == "comment not found: c9"
+    assert text == GENERIC_GUEST_MESSAGE
     assert structured == {
         "ok": False,
-        "error": "comment not found: c9",
+        "error": GENERIC_GUEST_MESSAGE,
         "error_code": "comment_not_found",
     }
+
+
+@pytest.mark.parametrize(
+    "diagnostic",
+    ["private customer notes", f"denied {_HOST_SECRET}"],
+)
+def test_guest_tool_copy_for_known_code_ignores_host_diagnostic(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, diagnostic
+):
+    from podcast_mcp.util.coded_error import CodedPermissionError
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="code-copy")
+    refusal = CodedPermissionError(diagnostic, code="share_capability_required")
+    _raising_tool(monkeypatch, refusal)
+
+    out = _call(share["token"], "guest_get_project", {})
+    assert out["error"]["code"] == -32003
+    assert out["error"]["message"] == (
+        "This action isn't available on this link. Ask the host to update its access."
+    )
+    assert diagnostic not in json.dumps(out)
+    assert str(refusal) == diagnostic
 
 
 def test_guest_tool_refusal_withholds_a_message_that_names_a_host_path(
@@ -748,7 +777,7 @@ def test_guest_ab_preview_refusal_names_the_wav_not_the_host_path(
     out = _call(share["token"], "guest_get_project", {})
 
     text, structured = _tool_error(out)
-    assert text == "A wav not found: A.wav"
+    assert text == GENERIC_GUEST_MESSAGE
     assert structured is not None
     assert structured["error_code"] == "file_not_found"
     assert "Secret" not in json.dumps(out)
@@ -784,7 +813,7 @@ def test_guest_unknown_comment_is_a_refusal_not_method_not_found(
         {"comment_id": "no-such-comment", "body": "hi", "author": "guest"},
     )
     text, structured = _tool_error(out)
-    assert text == "comment not found: no-such-comment"
+    assert text == GENERIC_GUEST_MESSAGE
     assert structured is not None
     assert structured["error_code"] == "comment_not_found"
 
@@ -890,7 +919,7 @@ def test_guest_render_job_lookups_and_upload_arguments_are_refusals(
     token = share["token"]
 
     text, structured = _tool_error(_call(token, "guest_render_preview_job", {"job_id": "nope"}))
-    assert text == "Render preview job not found"
+    assert text == GENERIC_GUEST_MESSAGE
     assert structured is not None
     assert structured["error_code"] == "job_not_found"
 
@@ -908,7 +937,7 @@ def test_guest_pending_preview_unknown_edit_is_a_refusal(
     text, structured = _tool_error(
         _call(share["token"], "guest_pending_preview", {"edit_id": "missing"})
     )
-    assert text == "pending edit not found: missing"
+    assert text == GENERIC_GUEST_MESSAGE
     assert structured is not None
     assert structured["error_code"] == "edit_not_found"
 

@@ -240,8 +240,19 @@
 
 .transport-play {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+  max-inline-size: 100%;
+}
+
+.transport-play-reason {
+  flex: 1 0 100%;
+  max-inline-size: 34rem;
+  margin: 0;
+  color: var(--color-transport-text);
+  font-size: var(--font-size-caption);
+  line-height: 1.35;
 }
 
 .transport .play-btn {
@@ -420,8 +431,8 @@
   outline-color: var(--color-transport-warning);
 }
 
-.transport .play-btn:disabled,
-.transport .stop-btn:disabled {
+:is(.transport, .listen-hero) .play-btn:is(:disabled, [aria-disabled="true"]),
+:is(.transport, .listen-hero) .stop-btn:is(:disabled, [aria-disabled="true"]) {
   opacity: 0.55;
 }
 
@@ -494,6 +505,13 @@
   flex: none;
   align-items: center;
   gap: var(--space-3);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.listen-hero-transport:has(.transport-play-reason) {
+  flex: 1 1 100%;
+  justify-content: center;
 }
 
 .listen-hero-skip {
@@ -638,13 +656,13 @@
     background: var(--color-transport-control);
   }
 
-  .listen-hero .play-btn:hover:not(:disabled) {
+  .listen-hero .play-btn:hover:not(:disabled, [aria-disabled="true"]) {
     color: var(--color-transport-play-fg);
     border-color: var(--color-transport-play);
     background: var(--color-transport-play);
   }
 
-  .listen-hero .stop-btn:hover:not(:disabled),
+  .listen-hero .stop-btn:hover:not(:disabled, [aria-disabled="true"]),
   .listen-hero-skip button:hover:not(:disabled) {
     color: var(--color-transport-text);
     border-color: var(--color-transport-muted);
@@ -658,13 +676,13 @@
     background: var(--color-transport-control);
   }
 
-  .transport .play-btn:hover:not(:disabled) {
+  .transport .play-btn:hover:not(:disabled, [aria-disabled="true"]) {
     color: var(--color-transport-play-fg);
     border-color: var(--color-transport-play);
     background: var(--color-transport-play);
   }
 
-  .transport .stop-btn:hover:not(:disabled) {
+  .transport .stop-btn:hover:not(:disabled, [aria-disabled="true"]) {
     color: var(--color-transport-text);
     border-color: var(--color-transport-muted);
     background: var(--color-transport-control);
@@ -710,7 +728,7 @@
 /* Touch keeps a sticky :hover after a tap, so the lift is for fine pointers. */
 @media (hover: hover) and (pointer: fine) {
   @media (prefers-reduced-motion: no-preference) {
-    .transport .play-btn:hover:not(:disabled) {
+    .transport .play-btn:hover:not(:disabled, [aria-disabled="true"]) {
       transform: scale(1.04);
     }
   }
@@ -719,7 +737,8 @@
 /* Play (transport and Listen) presses in deeper than other controls; after
    the transport hover lift, so it wins. */
 @media (prefers-reduced-motion: no-preference) {
-  :is(.transport, .listen-hero) .play-btn:active:not(:disabled) {
+  :is(.transport, .listen-hero)
+    .play-btn:active:not(:disabled, [aria-disabled="true"]) {
     transform: scale(0.96);
     transition-duration: var(--motion-press);
   }

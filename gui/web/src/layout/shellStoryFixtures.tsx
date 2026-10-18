@@ -78,14 +78,16 @@ export function ShellStoryTransport({
         <h1>{loading ? "Loading episode…" : shellProject.meta.name}</h1>
       </TransportZone>
       <TransportZone position="center">
-        <div className="transport-play">
-          <TransportPlayControls
-            playing={playing}
-            disabled={loading}
-            onTogglePlay={() => onPlayingChange(!playing)}
-            onStop={() => onPlayingChange(false)}
-          />
-        </div>
+        <TransportPlayControls
+          playing={playing}
+          disabledReason={
+            loading
+              ? "Loading the project. Playback will be available when loading finishes."
+              : undefined
+          }
+          onTogglePlay={() => onPlayingChange(!playing)}
+          onStop={() => onPlayingChange(false)}
+        />
         <Timecode
           current={shellTime.current}
           total={compact ? undefined : shellTime.total}
