@@ -37,6 +37,7 @@ from podcast_mcp import __version__
 from podcast_mcp.cli.handoff import execute_command, plan_handoff
 from podcast_mcp.gui.job_events import LIVE_JOB_STATUSES
 from podcast_mcp.gui.routes.deps import peer_host
+from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.services.app import (
     HANDOFF_PROTOCOL,
     HANDOFF_TOKEN_HEADER,
@@ -196,7 +197,7 @@ def _serves(request: Request, project: str) -> bool:
     if served is None:
         return False
     try:
-        return Path(project).expanduser().resolve() == Path(served).resolve()
+        return resolve_project_path(project) == resolve_project_path(served)
     except (OSError, ValueError):
         return False
 

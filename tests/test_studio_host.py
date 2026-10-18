@@ -170,3 +170,9 @@ def test_quit_signal_cancels_handed_off_commands_before_uvicorn_drains() -> None
 
     assert run.cancel.is_set()
     assert seen == [2]
+
+
+def test_workspace_folder_finds_the_same_announcement_as_the_project_file(project: Path) -> None:
+    announce_studio_host(project, _host())
+    assert studio_host_path(project.parent) == studio_host_path(project)
+    assert read_studio_host(project.parent) is not None

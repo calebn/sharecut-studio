@@ -28,6 +28,7 @@ from typing import Any, TextIO
 from urllib.parse import quote
 
 from podcast_mcp.models import workspace_artifacts_dir
+from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.util.atomic_json import write_json_atomic
 
 log = logging.getLogger(__name__)
@@ -94,7 +95,8 @@ def new_token() -> str:
 
 def studio_host_path(project_path: Path | str) -> Path:
     """Where the Studio serving ``project_path`` announces itself."""
-    workspace = Path(project_path).expanduser().resolve().parent
+    # ``--project`` may name the workspace folder as well as its project file.
+    workspace = resolve_project_path(project_path).parent
     return workspace_artifacts_dir(workspace) / STUDIO_HOST_FILENAME
 
 
@@ -173,7 +175,7 @@ def locate_studio(project_path: Path | str) -> StudioHost | None:
     host = read_studio_host(project_path)
     if host is None:
         return None
-    resolved = str(Path(project_path).expanduser().resolve())
+    resolved = str(resolve_project_path(project_path))
     try:
         conn = _connection(host, PING_TIMEOUT_SEC)
         try:
