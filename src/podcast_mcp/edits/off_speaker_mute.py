@@ -387,7 +387,7 @@ def plan_from_evidence(
             mute[prev_hi:next_lo] = True
     runs = _runs(mute)
     plan.still_audible_sec = float((candidate & heard_now & ~mute).sum()) * LEVEL_FRAME_SEC
-    plan.still_audible_copy_sec = float((confirmed & heard_now & ~mute).sum()) * LEVEL_FRAME_SEC
+    plan.still_audible_copy_sec = float((confirmed & heard_now & ~mute & ~keep).sum()) * LEVEL_FRAME_SEC
     plan.kept_gaps = _kept_gaps(
         runs, candidate, confirmed, keep, own_word_mask, peer_mask, heard_now, n
     )
