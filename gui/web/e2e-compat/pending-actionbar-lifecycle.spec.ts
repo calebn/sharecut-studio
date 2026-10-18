@@ -8,7 +8,9 @@ import {
 import { switchE2eProject } from "../e2e/shareableProject";
 import { buildFixture, centerOf, lane, setZoom } from "../e2e/touchTimeline";
 
-test.use({ hasTouch: true });
+// A mouse window: a coarse pointer at this size gets the Inspector column
+// (#1696), and the compact strip is what hands its card to the regular sheet.
+test.use({ hasTouch: false });
 let projectPath: string;
 let workspaceDir: string;
 test.beforeEach(async () => {
@@ -22,7 +24,7 @@ test.afterEach(async () => {
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
 async function open(page: Page) {
-  await page.setViewportSize({ width: 600, height: 360 });
+  await page.setViewportSize({ width: 844, height: 390 });
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await page.evaluate(() =>
     localStorage.setItem("sharecut.compactInspector", "peek"),

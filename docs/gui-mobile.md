@@ -133,7 +133,11 @@ held sideways) compact the editor:
   The form is the regular one (stacked fields, help copy visible), in a header
   that stays pinned over a body that scrolls inside the column. For an
   envelope selection `useRevealEditedLane` only scrolls the edited lane whole
-  into its scroller, again after a rotation. The shell pads for the notch,
+  into its scroller, again after a rotation. The tool rail makes the narrow
+  rail's trade (ingest buttons to Menu and More, Select range as an icon) so
+  it keeps one row beside the column, a toast centres over the timeline beside
+  it, and a pending edit's Approve and Reject card, which has no sheet to dock
+  in, floats within the timeline beside the column. The shell pads for the notch,
   Dynamic Island and home indicator, so the column inherits them. With the
   software keyboard up (`html[data-keyboard="open"]`) the column leaves the
   grid flow (its cell stays, so the timeline does not move) and takes the

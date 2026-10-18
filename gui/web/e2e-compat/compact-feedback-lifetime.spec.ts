@@ -110,7 +110,7 @@ test("clipped saved feedback pauses its remaining visible lifetime", async ({
   await expect.poll(() => savedEnvelope(page)).toEqual(edited);
 });
 
-for (const width of [667, 844]) {
+for (const width of [600, 636]) {
   test.describe(`guarded feedback short width${width}`, () => {
     test("guarded feedback actions retain their saved edit and touch targets", async ({
       page,

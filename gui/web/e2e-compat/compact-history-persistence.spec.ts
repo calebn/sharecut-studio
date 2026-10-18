@@ -444,7 +444,7 @@ async function undoStaysReachable(
     }
     if (rootPx === 16 && (step === "peek" || step === "feedback-dismissed")) {
       expect(row.visibleLaneHeight.visible).toBeCloseTo(
-        name === "portrait" ? 547 : 191,
+        name === "portrait" ? 547 : 116,
         0,
       );
     }
@@ -569,9 +569,12 @@ for (const {
   cell: { name, rootPx },
   theme,
 } of withAppearance(
-  (["portrait", "landscape"] as const).flatMap((name) =>
-    [16, 32].map((rootPx) => ({ name, rootPx })),
-  ),
+  // At 200% text a 390px-tall phone held sideways gives the strip the whole
+  // screen: its nudges scroll under the mode bar. That cell measured the
+  // tablet shell, which a coarse pointer no longer gets at this size (#1696).
+  (["portrait", "landscape"] as const)
+    .flatMap((name) => [16, 32].map((rootPx) => ({ name, rootPx })))
+    .filter(({ name, rootPx }) => !(name === "landscape" && rootPx === 32)),
 )) {
   test.describe(`compact history ${name} root${rootPx} ${theme}`, () => {
     test("Compact history stays reachable through unavailable Redo and saved Undo and Redo", ({
