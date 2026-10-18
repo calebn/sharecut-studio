@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KEYMAP_COMMANDS, matchKeymapCommands } from "../keymap/registry";
 import { isProgrammaticUi, withProgrammaticUi } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import {
   SRC_ROOT,
   sourceFiles,
@@ -213,6 +214,9 @@ describe("command bus", () => {
   });
 
   it("local transport commands unfollow", async () => {
+    useDawStore
+      .getState()
+      .setProject(minimalProject({ tracks: [sampleTrack()] }));
     useDawStore.setState({ followingClientId: "a", isPlaying: false });
     expect((await execute("transport.togglePlay")).status).toBe("ok");
     expect(useDawStore.getState().followingClientId).toBeNull();

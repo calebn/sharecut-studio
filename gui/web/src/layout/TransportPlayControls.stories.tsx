@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
+import type { TransportAvailability } from "../state/transportAvailability";
 import { Pill, Timecode } from "../ui";
 import { transportTimecode } from "../utils/time";
 import { ListenHero } from "./ListenHero";
@@ -14,6 +15,7 @@ const meta: Meta<typeof TransportPlayControls> = {
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
   args: {
+    availability: { togglePlay: undefined, stop: undefined },
     onTogglePlay: fn(),
     onStop: fn(),
   },
@@ -24,13 +26,13 @@ type Story = StoryObj<typeof TransportPlayControls>;
 
 function TransportPreview({
   initiallyPlaying = false,
-  disabledReason,
+  availability,
   phone = false,
   onTogglePlay,
   onStop,
 }: {
   initiallyPlaying?: boolean;
-  disabledReason?: string;
+  availability: TransportAvailability;
   phone?: boolean;
   onTogglePlay: () => void;
   onStop: () => void;
@@ -40,7 +42,7 @@ function TransportPreview({
   const controls = (
     <TransportPlayControls
       playing={playing}
-      disabledReason={disabledReason}
+      availability={availability}
       onTogglePlay={() => {
         onTogglePlay();
         setPlaying((value) => !value);
@@ -111,7 +113,12 @@ export const Playing: Story = {
 };
 
 export const EmptyProject: Story = {
-  args: { disabledReason: "Import audio to play." },
+  args: {
+    availability: {
+      togglePlay: "Import audio to play.",
+      stop: "Import audio to play.",
+    },
+  },
   render: (args) => <TransportPreview {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -136,5 +143,24 @@ export const CompactPhone: Story = {
     await expect(canvas.getByRole("heading", { level: 1 })).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Play" }));
     await expect(canvas.getByRole("button", { name: "Pause" })).toBeVisible();
+  },
+};
+
+export const PausedEmptyProject: Story = {
+  args: {
+    playing: false,
+    availability: { togglePlay: "Import audio to play.", stop: undefined },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Play" }),
+    ).toHaveAccessibleDescription("Import audio to play.");
+    await expect(
+      canvas.getByRole("button", { name: "Stop" }),
+    ).not.toHaveAttribute("aria-disabled");
+    await expect(
+      canvas.getByRole("button", { name: "Stop" }),
+    ).not.toHaveAttribute("aria-describedby");
   },
 };

@@ -39,6 +39,42 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     ).toBeVisible();
     await expect(page.locator(".pill.audio-error")).toHaveCount(0);
 
+    const play = page.getByRole("button", { name: "Play", exact: true });
+    await expect(play).toHaveAccessibleDescription("Import audio to play.");
+    await page.getByRole("button", { name: "Transcript", exact: true }).click();
+    await page.getByRole("heading", { name: "Fresh QA" }).click();
+    const playbackProbe = await page.evaluateHandle(() => {
+      const button = document.querySelector(".play-btn");
+      if (!button) throw new Error("Transport Play is missing");
+      const labels: (string | null)[] = [];
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          labels.push(record.oldValue, button.getAttribute("aria-label"));
+        }
+      });
+      observer.observe(button, {
+        attributes: true,
+        attributeOldValue: true,
+        attributeFilter: ["aria-label"],
+      });
+      return { observer, labels };
+    });
+    try {
+      await page.keyboard.press("Space");
+      await expect(play).toHaveAttribute("data-playing", "false");
+      await expect(play).toHaveAccessibleDescription("Import audio to play.");
+      const labels = await playbackProbe.evaluate((probe) => {
+        for (const record of probe.observer.takeRecords()) {
+          probe.labels.push(record.oldValue);
+        }
+        return probe.labels;
+      });
+      expect(labels).not.toContain("Pause");
+    } finally {
+      await playbackProbe.evaluate((probe) => probe.observer.disconnect());
+      await playbackProbe.dispose();
+    }
+
     await page.getByRole("button", { name: "+ Track" }).click();
     await expect(
       transportEnd.getByText("Mix up to date", { exact: true }),

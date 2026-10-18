@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { transportAvailability } from "../state/transportAvailability";
 import type { LayoutMode, ShellBreakpoint, ToolMode } from "../state/types";
 import { TrackHeaderView } from "../tracks/TrackHeaderView";
 import { TranscriptTurnView } from "../transcript/TranscriptTurnView";
@@ -80,7 +81,11 @@ export function ShellStoryTransport({
       <TransportZone position="center">
         <TransportPlayControls
           playing={playing}
-          disabledReason={loading ? "Loading project…" : undefined}
+          availability={transportAvailability({
+            project: loading ? null : shellProject,
+            isPlaying: playing,
+            playStartSec: null,
+          })}
           onTogglePlay={() => onPlayingChange(!playing)}
           onStop={() => onPlayingChange(false)}
         />
