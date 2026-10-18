@@ -151,12 +151,16 @@ export function useCompactInspector(
     plain: boolean;
     held: boolean;
   }>({ selection: null, plain: false, held: false });
+  // The column already shows the full Inspector, so turning upright keeps it
+  // for that selection instead of folding it into the strip.
+  const inColumn = column && selection != null;
   let held = seen.held;
-  if (seen.selection !== selection) {
+  if (seen.selection !== selection || (inColumn && !seen.held)) {
     held =
-      selection != null &&
-      selection === inspectorSelection &&
-      (seen.held || (candidate != null && seen.plain));
+      inColumn ||
+      (selection != null &&
+        selection === inspectorSelection &&
+        (seen.held || (candidate != null && seen.plain)));
     setSeen({
       selection,
       held,

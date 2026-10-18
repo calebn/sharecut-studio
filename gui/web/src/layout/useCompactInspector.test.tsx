@@ -84,6 +84,16 @@ describe("useCompactInspector", () => {
     sheet.unmount();
   });
 
+  it("has no strip where the Inspector is a side column", () => {
+    expect(
+      renderHook(() => useCompactInspector("phone", true)).result.current,
+    ).toBeNull();
+    stubMatchMedia(true);
+    expect(
+      renderHook(() => useCompactInspector("tablet", true)).result.current,
+    ).toBeNull();
+  });
+
   it("is off in other phone modes and on tablets unless the screen is short", () => {
     act(() => useDawStore.setState({ mobileMode: "text" }));
     expect(
