@@ -89,3 +89,51 @@ def test_a_cut_beside_a_held_one_waits_with_it(tmp_path):
     assert count == 1
     assert {h.edit_id for h in held} == {"ok-near", "held"}
     assert {e.id for e in load_project(ws.path).edit_decisions} == {"ok-near", "held"}
+
+
+def test_explicit_ids_apply_the_clean_cuts_and_keep_the_held_one_pending(tmp_path):
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    ws = _open_with_one_held_cut(tmp_path)
+
+    done = CliRunner().invoke(
+        app, ["edit", "approve", "--project", str(ws.path), "--ids", "ok-a,held,ok-b"]
+    )
+
+    assert done.exit_code == 0, done.output
+    assert "Approved 2 edit(s)." in done.output
+    assert "Held held:" in done.output
+    assert [e.id for e in load_project(ws.path).edit_decisions] == ["held"]
+
+
+def test_a_proposal_whose_audio_was_cut_away_is_held_not_a_failure(tmp_path, monkeypatch):
+    from podcast_mcp.edits import cut_application
+
+    ws = _open_with_one_held_cut(tmp_path)
+    monkeypatch.setattr(cut_application, "unplayed_pending_ids", lambda *_a, **_k: ["ok-a"])
+    held: list = []
+
+    assert EditService(ws).approve(["ok-a", "ok-b"], held_out=held) == 1
+
+    assert [(h.edit_id, "cut away" in h.reason) for h in held] == [("ok-a", True)]
+    assert "ok-a" in {e.id for e in load_project(ws.path).edit_decisions}
+
+
+def test_many_held_edits_are_summed_up_by_reason(tmp_path, capsys):
+    from podcast_mcp.cli.edit import _echo_held
+    from podcast_mcp.edits.decisions import HeldEdit
+
+    held = [
+        HeldEdit(f"e{i}", f"cut {i}", "voiced edge" if i % 3 else "word edge") for i in range(20)
+    ]
+
+    _echo_held(held, [])
+
+    err = capsys.readouterr().err
+    assert "Held 20 edit(s):" in err
+    assert "13 x voiced edge" in err
+    assert "7 x word edge" in err
+    assert "podcast edit held" in err
+    assert "e5" not in err

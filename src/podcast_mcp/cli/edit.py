@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Literal, cast
 
@@ -158,16 +159,13 @@ def edit_approve_cmd(
             return EditService(ws).approve(
                 edit_ids,
                 allow_exact=True,
-                held_out=held if all_pending else None,
-                asked_out=asked if all_pending else None,
+                held_out=held,
+                asked_out=asked,
             )
 
     n = require_cut_applied(approve)
     typer.echo(f"Approved {n} edit(s).")
-    for item in held:
-        typer.echo(f"Held {item.edit_id}: {item.label} ({item.reason}).", err=True)
-    for group in asked:
-        typer.echo(f"Held {', '.join(group.edit_ids)}: {group.confirmation.message}", err=True)
+    _echo_held(held, asked)
     if held or asked:
         typer.echo(
             "Held edits stay pending. Repeat with --ids <id,...> --override-audio-checks "
@@ -176,6 +174,28 @@ def edit_approve_cmd(
         )
     if n == 0 and not (held or asked):
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
+    if n == 0 and (held or asked) and not all_pending:
+        raise typer.Exit(1)
+
+
+_HELD_LINES_SHOWN = 8
+
+
+def _echo_held(held: list[HeldEdit], asked: list[AskedEdits]) -> None:
+    """A few held edits are listed one by one; many are summed up by reason."""
+    total = len(held) + sum(len(group.edit_ids) for group in asked)
+    if total <= _HELD_LINES_SHOWN:
+        for item in held:
+            typer.echo(f"Held {item.edit_id}: {item.label} ({item.reason}).", err=True)
+        for group in asked:
+            typer.echo(f"Held {', '.join(group.edit_ids)}: {group.confirmation.message}", err=True)
+        return
+    reasons = Counter(item.reason for item in held)
+    reasons.update({group.confirmation.message: len(group.edit_ids) for group in asked})
+    typer.echo(f"Held {total} edit(s):", err=True)
+    for reason, count in reasons.most_common():
+        typer.echo(f"  {count} x {reason}", err=True)
+    typer.echo("Run `podcast edit held` to list each one.", err=True)
 
 
 @edit_app.command("held")

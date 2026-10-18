@@ -734,6 +734,20 @@ def approve_edits(
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]
     unplayed = sorted(unplayed_pending_ids(project, id_set))
+    if unplayed and held_out is not None:
+        # A partial batch leaves a proposal whose audio was already cut away pending and
+        # says so; the rest still apply.
+        held_out.extend(
+            HeldEdit(
+                edit_id,
+                cut_label(project, next(e for e in project.edit_decisions if e.id == edit_id)),
+                "its audio was already cut away, so it no longer plays",
+            )
+            for edit_id in unplayed
+        )
+        id_set -= set(unplayed)
+        to_apply = [e for e in to_apply if e.id in id_set]
+        unplayed = []
     if unplayed:
         raise CodedValueError(
             f"{len(unplayed)} proposal(s) point at audio that was cut away and no longer plays "
@@ -751,6 +765,8 @@ def approve_edits(
     removes = [e for e in to_apply if e.type == EditDecisionType.REMOVE]
     splits = [e for e in to_apply if e.type == EditDecisionType.SPLIT]
     held: list[CutScopeHold] = []
+    # Named before any ripple moves anything, so a held cut reads as the list shows it.
+    labels = {e.id: cut_label(project, e) for e in (*mutes, *removes)}
     for edit in sorted(mutes, key=lambda e: e.start, reverse=True):
         previous = project
         muted = _apply_mute_edit(
@@ -782,8 +798,6 @@ def approve_edits(
     extents = batch.copy()
     applied_removes: list[str] = []
     partial = held_out is not None
-    # Named before any ripple moves anything, so a held cut reads as the list shows it.
-    labels = {e.id: cut_label(project, e) for e in removes}
     # Where each cut sits on the timeline before anything ripples: another track's clip can
     # shift its source time, so two cuts that overlap there need not be near in source time.
     on_timeline = {e.id: edit_timeline_range(project, e) for e in removes}
