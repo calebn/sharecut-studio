@@ -27,6 +27,7 @@ const meta: Meta<typeof BottomTabsSplitterView> = {
     <SplitterPreview
       {...args}
       phone={context.parameters.splitterPhone === true}
+      capacityRem={context.parameters.splitterCapacityRem}
     />
   ),
   args: {
@@ -44,8 +45,9 @@ type Story = StoryObj<typeof BottomTabsSplitterView>;
 
 function SplitterPreview({
   phone = false,
+  capacityRem = Number.POSITIVE_INFINITY,
   ...args
-}: BottomTabsSplitterViewProps & { phone?: boolean }) {
+}: BottomTabsSplitterViewProps & { phone?: boolean; capacityRem?: number }) {
   const [heightRem, setHeightRem] = useState(args.heightRem);
   const [userSet, setUserSet] = useState(args.userSet);
   return (
@@ -55,7 +57,7 @@ function SplitterPreview({
       style={{
         width: phone ? "360px" : "48rem",
         maxWidth: "100%",
-        height: `${heightRem}rem`,
+        height: `${Math.min(heightRem, capacityRem)}rem`,
       }}
     >
       <BottomTabsSplitterView
@@ -135,7 +137,7 @@ export const KeyboardResizeCustomMax: Story = {
     });
     sep.focus();
     await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
-    await expect(args.onResize).toHaveBeenCalledWith(20.5);
+    await expect(args.onResize).toHaveBeenCalledWith(20);
     await expect(sep).toHaveAttribute("aria-valuemax", "20");
     await expect(sep).toHaveAttribute("aria-valuenow", "20");
     await expect(sep.parentElement?.style.height).toBe("20rem");
@@ -180,5 +182,26 @@ export const PointerButtons: Story = {
       "aria-valuenow",
       "12.5",
     );
+  },
+};
+
+export const OversizedPreference: Story = {
+  args: { heightRem: 20, minRem: 8, maxRem: 12, userSet: true },
+  parameters: { splitterCapacityRem: 12 },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("separator")).toHaveAttribute(
+      "aria-valuenow",
+      "12",
+    );
+    await expect(canvas.getByRole("button", { name: "Taller" })).toBeDisabled();
+    await userEvent.click(canvas.getByRole("button", { name: "Shorter" }));
+    await expect(args.onResize).toHaveBeenLastCalledWith(11);
+    await expect(canvas.getByRole("separator")).toHaveAttribute(
+      "aria-valuenow",
+      "11",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Taller" }));
+    await expect(args.onResize).toHaveBeenLastCalledWith(12);
   },
 };

@@ -36,9 +36,15 @@ armed ranges, track Move up/down, Mix, and the fixed phone playhead keep their
 existing owners.
 
 Desktop and tablet have native **Shorter**, **Taller**, and **Reset panel size**
-buttons outside the separator. Each step requests 1 rem through the existing
-clamp and preference callbacks. The first step without a preference measures the
-bottom-tabs panel itself. A clamped no-op creates no preference; Reset clears it.
+buttons outside the separator. Each step starts at the rendered panel height,
+including when a saved preference exceeds the available space. Steps move 1 rem
+or the remaining distance to a bound. Buttons, keyboard, drag clamps, and separator
+values share measured panel geometry and fresh viewport policy. The desktop grid
+floor comes from `--shell-main-min-height`, used by CSS and read by the view.
+Banner and root-font changes refresh bounds through `useResizeObserver` without
+rewriting the saved preference. Props-only stories use explicit policy bounds
+and their rendered panel height, or the prop height when layout is unavailable.
+A clamped no-op creates no preference; Reset clears it.
 A button press during a drag cancels that drag without also stepping. Sizing
 creates no project write or document History. Phone retains Expand and Collapse
 and has no desktop splitter. Coarse-pointer controls have a 2.75rem target floor.
@@ -367,7 +373,7 @@ inventory or named source/tests; it does not imply every profile was run here.
 | Reconcile each surface with owner, input, visible equivalent, threshold, preview, commit, cancel, failure, History, permission and responsive behavior | **Documented here** from source and test references. Residual controller/profile combinations remain open. |
 | Correct the false iOS Undo attribution and keep the shortcut optional | **Implemented; focused Vitest passed** for rendered catalog wording. Recognizer tests remain unchanged. |
 | Resolve sheet grip mismatch with a bounded decision | **Implemented and verified.** Controlled unit/axe coverage and 17 Chromium browser cases plus 2 Chromium/WebKit compatibility cases passed. |
-| Every drag has a single-pointer non-drag equivalent; keyboard alone does not count | **Partly existing, partly open.** Visible sheet buttons, numeric/step controls, and track Move up/down remain. Clip move and desktop/tablet splitter resizing have native non-drag controls in #1033; their browser matrix is pending execution. Exact seek remains an input precision gap. Track task comparison is open. |
+| Every drag has a single-pointer non-drag equivalent; keyboard alone does not count | **Partly existing, partly open.** Visible sheet buttons, numeric/step controls, and track Move up/down remain. Clip move and desktop/tablet splitter resizing have native non-drag controls in #1033; their executable browser matrix and input provenance are in `non-drag-placement.spec.ts`. Exact seek remains an input precision gap. Track task comparison is open. |
 | Keyboard operation, visible focus, labels, values, errors and roles | **Scoped checks passed.** Component/recognizer/mobile-shell tests cover keyboard and focus; browser sheet cases restore focus after Close and Escape. Mix browser cases cover host/viewer/edit-guest restrictions. VoiceOver/TalkBack and global profile coverage remain pending. |
 | Scroll, seek, selection and editing do not collide; pointer transitions are safe | **Existing limited evidence** in source and #878. Uncovered intersections remain open; this patch adds no recognizer. |
 | Cancel/unmount/background/rotation/failure leave no stuck gesture; history cardinality is correct | **Scoped browser recovery passed** for native fade cancel, 403/422/409 rejection, abort/replay and Undo. Sheet actions send no document commands and leave project bytes and preferences unchanged. Mix-specific cancel/failure-thumb behavior, rotation, backgrounding and other interruption combinations remain open. |

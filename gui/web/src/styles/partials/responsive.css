@@ -158,12 +158,12 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
 }
 
 .daw-shell--layout-text {
-  --shell-main-row: minmax(7.5rem, 28vh);
+  --shell-main-row: minmax(var(--editor-main-min-height), 28vh);
   --shell-tabs-row: minmax(0, 1fr);
 }
 
 .daw-shell--layout-review {
-  --shell-main-row: minmax(7.5rem, 32vh);
+  --shell-main-row: minmax(var(--editor-main-min-height), 32vh);
   --shell-tabs-row: minmax(0, 1fr);
 }
 

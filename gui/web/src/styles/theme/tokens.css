@@ -150,6 +150,7 @@
   --mute-waveform-opacity: 0.5;
   --status-height: 1.75rem;
   --tabs-height: 12.5rem;
+  --editor-main-min-height: 7.5rem;
   --mobile-nav-height: 3.25rem;
   --menu-available-height: 90dvh;
   --menu-available-width: calc(100dvw - 2 * var(--menu-edge-margin));

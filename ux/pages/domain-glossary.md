@@ -315,3 +315,5 @@ anchor's destination lane. **Timeline start (seconds)** is its destination on th
 episode clock, distinct from source trim bounds. **Apply move** saves the time
 and lane changes together. **Cancel** discards them. **Shorter**, **Taller**, and
 **Reset panel size** change only this browser's editor-panel preference.
+Size steps start at the visible panel height and stop at the available bounds.
+A temporary banner or root-text change preserves the saved preference.
