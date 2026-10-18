@@ -32,7 +32,7 @@ const CLIENT_ID = "e2e-strip-stacking";
 const RUN = process.env.STACKING_RUN ?? "after";
 const SIZES = {
   "portrait-360": { width: 360, height: 800 },
-  "landscape-844": { width: 844, height: 390 },
+  "landscape-600": { width: 600, height: 360 },
 } as const;
 /** How far the page moves in a rubber-band bounce here (px). */
 const BOUNCE_PX = 24;
@@ -181,9 +181,9 @@ test("no shell row draws over the strip, nor the strip over it: portrait-360", (
 }, info) =>
   noRowOverStrip("portrait-360", { page, context, browserName }, info));
 
-test("no shell row draws over the strip, nor the strip over it: landscape-844", ({
+test("no shell row draws over the strip, nor the strip over it: landscape-600", ({
   page,
   context,
   browserName,
 }, info) =>
-  noRowOverStrip("landscape-844", { page, context, browserName }, info));
+  noRowOverStrip("landscape-600", { page, context, browserName }, info));

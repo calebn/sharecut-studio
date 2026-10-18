@@ -14,8 +14,8 @@ import { openHostShare } from "../e2e/shareNavigation";
 import { setTheme, withAppearance } from "../e2e/theme";
 
 for (const { cell: viewport, theme } of withAppearance([
-  { width: 667, height: 360 },
-  { width: 844, height: 390 },
+  { width: 568, height: 320 },
+  { width: 600, height: 360 },
 ])) {
   test.describe(`compact form ${viewport.width}x${viewport.height} root32 ${theme}`, () => {
     test.use({ viewport, reducedMotion: "reduce" });
@@ -186,7 +186,7 @@ for (const { cell: viewport, theme } of withAppearance([
 
 for (const viewport of [
   { width: 390, height: 844 },
-  { width: 844, height: 390 },
+  { width: 600, height: 360 },
 ]) {
   for (const detent of ["peek", "half", "full"] as const) {
     test.describe(`covered rail ${viewport.width}x${viewport.height} ${detent}`, () => {

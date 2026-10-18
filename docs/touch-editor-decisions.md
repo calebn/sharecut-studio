@@ -663,7 +663,10 @@ A timeline selection on a phone-sized screen opens a peek
 strip instead of the half sheet. Phone-sized means the phone shell in
 Timeline mode, or the tablet shell on a screen at most 40rem tall (a phone
 held sideways). Taller tablets and desktop keep their inspector.
-`layout/useCompactInspector.ts` decides this for both shells.
+`layout/useCompactInspector.ts` decides this for both shells. Where the
+Inspector is a [column](#decision-the-inspector-is-a-column-on-a-short-wide-touch-screen),
+at least 40rem wide on a coarse pointer, there is no strip: the measurements
+below for 800×360 and 844×390 sideways are the strip's, before the column.
 
 - **The strip.** `BottomSheet` gains a `peek` size: a content-height strip
   with the target's name in the header, then its key value
@@ -719,6 +722,38 @@ visible above the inspector:
 | 390×844 portrait | 180 (second lane covered) | 586 | 296 |
 | 800×360 sideways | none (timeline covered) | 125 | 107 |
 | 844×390 sideways | none (timeline covered) | 155 | 107 |
+
+### Decision: The Inspector is a column on a short wide touch screen
+
+<!-- decision
+id: D-inspector-column
+status: accepted
+date: 2026-10-18
+decided-by: calebn
+evidence:
+- #1696: owner request (calebn, 2026-10-17, project chat) to present the selection Inspector as a side column on a phone held sideways
+- #1694 and #1714: the lane band kept the lane and the form on screen, but they shared a short vertical space and the keypad squeezed both
+enforced-by:
+- gui/web/src/layout/useInspectorColumn.test.ts::asks for a short, wide screen whose primary pointer is coarse
+- gui/web/src/layout/useSelectionSheet.test.tsx::puts the %s shell's inspector in a column on a short wide touch screen
+- gui/web/src/ui/compactSheet.test.ts::is invisible to every keep-clear helper, which look for the sheet class
+- gui/web/e2e-compat/inspector-column.spec.ts::a clip's Inspector is a column beside a whole timeline, and Close returns the shell
+- gui/web/e2e-compat/inspector-column.spec.ts::with the keyboard up the column shortens to the visible viewport and keeps its header
+-->
+
+On a coarse primary pointer at most 40rem tall and at least 40rem wide, the
+selection Inspector is a column on the inline end of the shell, not a bottom
+sheet. One hook, `useInspectorColumn`, owns the three conditions; below 40rem
+wide, in portrait, and with a fine pointer the sheet or compact strip stays.
+The column is `clamp(16rem, 32vw, 22rem)` wide, in place as a grid child of
+`.daw-shell` and never portaled. The timeline keeps the whole main row, and the
+tablet's tabs row and the phone's mode nav give way while it is open. It keeps
+the title, **Close**, Escape and focus restore, and drops the scrim, drawer,
+Expand and Collapse, and the slide-up. It carries none of the sheet classes, so
+the keep-clear helpers do nothing for it, and the keyboard only shortens it.
+This replaces the lane band and the compact strip on those screens, and no
+other. A gesture that needs the compact strip's Undo header does not exist
+there: Undo and Redo stay on the tool rail, which the column leaves usable.
 
 ### Pinch never edits (#1051 round 4)
 
