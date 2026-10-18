@@ -2315,6 +2315,7 @@ class EditService:
         track_id: str | None = None,
         speaker: str | None = None,
         apply: bool = True,
+        progress: ProgressReporter | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
     ) -> dict:
         """Mute a track wherever another speaker talks and its own speaker does not (#1740).
@@ -2328,7 +2329,7 @@ class EditService:
         )
 
         tid = self._resolve(track_id, speaker)
-        plan = plan_off_speaker_mutes(self.ws.project, tid)
+        plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
         result = {"dry_run": not apply, **plan.summary()}
         if not apply or not plan.regions:
             return result

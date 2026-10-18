@@ -1080,7 +1080,9 @@ def edit_mute_off_speaker_cmd(
     ws = ProjectWorkspace.open(project)
     typer.echo(
         json.dumps(
-            EditService(ws).mute_off_speaker(track_id=track, speaker=speaker, apply=not dry_run),
+            EditService(ws).mute_off_speaker(
+                track_id=track, speaker=speaker, apply=not dry_run, progress=get_progress()
+            ),
             indent=2,
         )
     )
