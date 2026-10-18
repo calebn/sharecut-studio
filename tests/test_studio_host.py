@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 
@@ -135,3 +136,17 @@ def test_each_thread_configures_its_own_progress_reporter() -> None:
     first.join(10)
     second.join(10)
     assert seen["a"] is not seen["b"]
+
+
+@pytest.mark.skipif(not hasattr(os, "getuid"), reason="POSIX file modes")
+def test_announcement_readable_by_others_is_not_trusted(project: Path) -> None:
+    announce_studio_host(project, _host())
+    assert read_studio_host(project) is not None
+    studio_host_path(project).chmod(0o644)
+    assert read_studio_host(project) is None
+
+
+def test_relayed_output_loses_terminal_control_characters() -> None:
+    from podcast_mcp.services.app.studio_host import _plain
+
+    assert _plain("ok\x1b]0;pwned\x07 line\n\ttab\r") == "ok]0;pwned line\n\ttab\r"
