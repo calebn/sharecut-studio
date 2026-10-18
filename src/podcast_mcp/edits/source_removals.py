@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from podcast_mcp.edits.cut_safety import CutScopeHold, inspect_source_remove
+from podcast_mcp.edits.cut_safety import CutScopeHold, hold_is_overridable, inspect_source_remove
 from podcast_mcp.edits.cut_speech import assess_cut_speech
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,
@@ -76,7 +76,8 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         for hold in held:
             label = self.cuts.get(hold.edit_id, "A selected cut")
             details.append(f"{label} was not applied because {self.reason_for(hold)}.")
-        super().__init__(" ".join([*details, _SELECT_OR_REJECT, _APPLY_ANYWAY]))
+        hint = [_APPLY_ANYWAY] if any(hold_is_overridable(h) for h in held) else []
+        super().__init__(" ".join([*details, _SELECT_OR_REJECT, *hint]))
 
     def reason_for(self, hold: CutScopeHold) -> str:
         """Why this one cut was held, in words the list can show beside it."""

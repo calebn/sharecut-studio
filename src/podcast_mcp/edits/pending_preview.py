@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.timeline_span import map_source_span_fields, source_remove_timeline_spans
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EditDecisionType, EpisodeProject
@@ -11,6 +12,10 @@ from podcast_mcp.util.coded_error import CodedKeyError
 
 DEFAULT_PAD_SEC = 0.5
 DEFAULT_AB_GAP_SEC = 0.4
+
+# Holds from the cut-position and join checks: approving anyway is a person's call, so the
+# preview plays what it would give. Pause-policy and project-integrity holds stay unavailable.
+_PREVIEWABLE_HOLDS = frozenset({"acoustic_edge", "peer_speech", "speaker_bleed"})
 
 SUGGEST_REASON_SPLIT = "A split does not change the mix until you delete a side."
 SUGGEST_REASON_UNMAPPED = "This cut is not on the current timeline."
@@ -121,9 +126,16 @@ def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -
     from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 
     logged = len(project.editorial.edit_log)
-    # Preview uses programmatic application policy on the caller's snapshot.
+    # Suggested plays what Approve gives. A cut the audio checks hold plays as it would
+    # if approved anyway (the snapshot is discarded), so the person can hear it first.
     try:
-        approve_edits(project, [window.edit_id])
+        try:
+            approve_edits(project, [window.edit_id])
+        except ScopeChangedAtApproval as held:
+            if not all(h.reason in _PREVIEWABLE_HOLDS for h in held.held):
+                raise
+            with audio_check_override("preview", "preview"):
+                approve_edits(project, [window.edit_id])
     except ScopeChangedAtApproval as held:
         raise held.for_delivery("suggested") from held
     applied = project.editorial.edit_log[logged:]

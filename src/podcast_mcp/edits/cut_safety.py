@@ -2314,6 +2314,12 @@ def action_for_safety_observation(label: str, mode: CutMode) -> CutActionPolicy:
     return CUT_ACTION_TABLE[(label, mode)]
 
 
+def hold_is_overridable(hold: CutScopeHold) -> bool:
+    """Whether the owner's audio-check override can clear this hold (an audio-quality or
+    cut-position check, not a project-integrity one)."""
+    return action_for_safety_observation(safety_observation_label(hold), "ripple").acoustic_override
+
+
 def edit_time_behavior(edit: EditDecision) -> CutMode:
     if edit.type is EditDecisionType.MUTE or edit.scope == "track" or edit.exact_range is not None:
         return "mute"

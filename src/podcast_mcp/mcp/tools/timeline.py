@@ -4,6 +4,7 @@ from typing import Literal
 
 from mcp.server import MCPServer
 
+from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
@@ -52,6 +53,7 @@ def ripple_delete_tool(
     end: float,
     use_inaudible_opt: bool | None = None,
     track_ids: list[str] | None = None,
+    override_audio_checks: bool = False,
 ) -> str:
     """Ripple-delete a timeline range across every dialogue track.
 
@@ -62,40 +64,46 @@ def ripple_delete_tool(
     names the tracks whose speech you mean to cut; speech on any
     other track in the range needs confirmation. Omitted, the cut names no track,
     so speech on every track needs confirmation (a whole-session time cut).
-    A ripple that cuts another track's speech stays unchanged for review.
-    Only a trusted human action in Sharecut Studio can override acoustic holds.
+    The automatic audio-quality and cut-position checks run first: a cut that lands
+    mid-word, makes an audible join or cuts another track's speech stays unchanged and
+    comes back with the finding. When the user wants that exact cut anyway (or names the
+    position themselves), repeat with ``override_audio_checks=true``; it keeps the bounds as
+    given and records who overrode in History and the edit log.
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(
-        EditService(ws).cut_range(
-            start,
-            end,
-            mode=EditMode.RIPPLE,
-            track_ids=track_ids or [],
-            use_inaudible_opt=use_inaudible_opt,
+    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        return to_json(
+            EditService(ws).cut_range(
+                start,
+                end,
+                mode=EditMode.RIPPLE,
+                track_ids=track_ids or [],
+                use_inaudible_opt=False if override_audio_checks else use_inaudible_opt,
+            )
         )
-    )
 
 
 def ripple_delete_text_tool(
     project_path: str,
     query: str,
     use_inaudible_opt: bool | None = None,
+    override_audio_checks: bool = False,
 ) -> str:
     """Ripple-delete the first timeline span matching a transcript text query.
 
     The matched speaker's words are the cut; other tracks' speech in the span needs
     confirmation.
-    A ripple that cuts another track's speech stays unchanged for review.
-    Only a trusted human action in Sharecut Studio can override acoustic holds.
+    The automatic audio checks hold a harsh or other-speaker cut and name the finding;
+    ``override_audio_checks=true`` applies it anyway and records the override.
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(
-        EditService(ws).ripple_delete_text(
-            query,
-            use_inaudible_opt=use_inaudible_opt,
+    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        return to_json(
+            EditService(ws).ripple_delete_text(
+                query,
+                use_inaudible_opt=use_inaudible_opt,
+            )
         )
-    )
 
 
 def move_segment_tool(
@@ -238,6 +246,7 @@ def trim_clip_edge_tool(
     edge: Literal["in", "out"],
     source_sec: float,
     mode: Literal["ripple", "gap"] = "ripple",
+    override_audio_checks: bool = False,
 ) -> str:
     """Move one clip's ``in`` or ``out`` edge to ``source_sec`` (source-media seconds).
 
@@ -250,12 +259,16 @@ def trim_clip_edge_tool(
     from ``audition_context_tool`` is its ``evidence.fix`` (clip, edge, source_sec,
     mode). Same operation as the DAW trim handle (``TrimClipEdge``); undoable. Follow
     with ``render_preview``.
-    A ripple that cuts another track's speech stays unchanged for review.
-    Only a trusted human action in Sharecut Studio can override acoustic holds.
+    The automatic audio checks hold a harsh edge or another speaker's speech and name the
+    finding; ``override_audio_checks=true`` moves the edge to exactly ``source_sec`` anyway
+    and records the override.
     """
     edit_mode = EditMode(mode)
     ws = ProjectWorkspace.open(project_path)
-    with ws.transaction():
+    with (
+        audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks),
+        ws.transaction(),
+    ):
         service = EditService(ws)
         revision = service.boundary_context(
             TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=edit_mode)
@@ -317,7 +330,6 @@ def shorten_gaps_tool(
     Each shortened pause ripples every dialogue track; another speaker talking in a
     pause needs confirmation.
     A ripple that cuts another track's speech stays unchanged for review.
-    Only a trusted human action in Sharecut Studio can override acoustic holds.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
@@ -362,6 +374,7 @@ def delete_clips_tool(
     project_path: str,
     clip_ids: list[str],
     mode: Literal["ripple", "gap"] = "gap",
+    override_audio_checks: bool = False,
 ) -> str:
     """Delete whole clips by id, as the Studio clip Delete and Ripple delete do.
 
@@ -370,11 +383,15 @@ def delete_clips_tool(
     ``mode="ripple"`` closes the clips' spans on every dialogue track, so speakers stay
     in sync. A ripple that would cut speech outside the deleted clips (another track's,
     or an unselected clip's on the same track) changes nothing and returns
-    ``needs_confirmation`` for review in Sharecut Studio. MCP cannot override
-    acoustic holds. Submits ``DeleteClip`` on the document plane; undoable.
+    ``needs_confirmation``; repeat with ``override_audio_checks=true`` to apply it
+    anyway (recorded). Submits ``DeleteClip`` on the document plane; undoable.
     For a time range across tracks use ``ripple_delete_tool``.
     """
-    payload: dict = {"clip_ids": clip_ids, "mode": EditMode(mode).value}
+    payload: dict = {
+        "clip_ids": clip_ids,
+        "mode": EditMode(mode).value,
+        "override_audio_checks": override_audio_checks,
+    }
     return to_json(
         host_command_result(submit_host_document_command(project_path, "DeleteClip", payload))
     )

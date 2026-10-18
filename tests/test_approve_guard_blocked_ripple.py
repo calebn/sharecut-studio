@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from pause_policy_public_helpers import (
@@ -161,14 +163,17 @@ def test_cli_approve_names_the_override_and_all_applies_it(tmp_path, monkeypatch
 
     from podcast_mcp.cli.main import app
 
-    result, _decision = _blocked_filler(tmp_path, monkeypatch)
+    result, decision = _blocked_filler(tmp_path, monkeypatch)
     ws = workspace(result)
     base = ["edit", "approve", "--project", str(ws.path)]
     runner = CliRunner()
 
     held = runner.invoke(app, [*base, "--all"])
-    assert held.exit_code != 0
-    assert "--override-audio-checks" in str(held.exception) + held.output
+    assert held.exit_code == 0, held.output
+    assert "Approved 0 edit(s)." in held.output
+    assert f"Held {decision.id}" in held.output
+    assert "--override-audio-checks" in held.output
+    assert load_project(ws.path).editorial.edit_log == []
 
     done = runner.invoke(app, [*base, "--all", "--override-audio-checks"])
     assert done.exit_code == 0, done.output
@@ -176,3 +181,19 @@ def test_cli_approve_names_the_override_and_all_applies_it(tmp_path, monkeypatch
     (record,) = load_project(ws.path).editorial.edit_log
     assert record.params["audio_check_override"]["surface"] == "cli"
     assert record.params["audio_check_override"]["actor"].startswith("cli:")
+
+
+def test_cli_held_lists_what_the_checks_hold_and_changes_nothing(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    result, decision = _blocked_filler(tmp_path, monkeypatch)
+    ws = workspace(result)
+    before = ws.path.read_bytes()
+
+    out = CliRunner().invoke(app, ["edit", "held", "--project", str(ws.path), "--json"])
+
+    assert out.exit_code == 0, out.output
+    assert [row["id"] for row in json.loads(out.output)] == [decision.id]
+    assert ws.path.read_bytes() == before

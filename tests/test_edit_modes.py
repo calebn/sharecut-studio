@@ -604,6 +604,25 @@ def test_programmatic_range_observes_peers_and_own_edges(episode, track_ids, ask
     _assert_in_sync(episode, (12.0, 19.0), -1.0)
 
 
+def test_cli_named_cut_is_held_with_the_finding_then_applies_with_the_override(episode):
+    runner = CliRunner()
+    args = ["edit", "ripple-delete", "--project", str(episode), "--start", "10", "--end", "11"]
+    args += ["--track", "host", "--track", "guest", "--no-inaudible-opt"]
+    before = _geometry(episode)
+
+    held = runner.invoke(app, args)
+    assert held.exit_code != 0
+    assert "need audio review" in held.stderr
+    assert "--override-audio-checks" in held.stderr
+    assert _geometry(episode) == before
+
+    applied = runner.invoke(app, [*args, "--override-audio-checks"])
+    assert applied.exit_code == 0, applied.output
+    _assert_in_sync(episode, (12.0, 19.0), -1.0)
+    record = load_project(episode).editorial.edit_log[-1]
+    assert record.params["audio_check_override"]["surface"] == "cli"
+
+
 ALL_SPEECH = (
     "This cuts Host's speech at 0:10.0 and Guest's speech at 0:10.1 "
     '("so the plan"). Review this cut in Studio, or choose which tracks to cut.'

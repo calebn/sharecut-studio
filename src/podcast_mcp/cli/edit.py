@@ -13,6 +13,8 @@ from podcast_mcp.cli.cut_speech import (
     override_audio_checks_option,
     require_cut_applied,
 )
+from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
+from podcast_mcp.edits.decisions import AskedEdits, HeldEdit
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.models import EditMode
@@ -148,14 +150,62 @@ def edit_approve_cmd(
     else:
         edit_ids = [x.strip() for x in (ids or "").split(",") if x.strip()]
 
-    def approve() -> int:
+    held: list[HeldEdit] = []
+    asked: list[AskedEdits] = []
+
+    def approve() -> int | CutSpeechConfirmation:
         with cli_override(override):
-            return EditService(ws).approve(edit_ids, allow_exact=True)
+            return EditService(ws).approve(
+                edit_ids,
+                allow_exact=True,
+                held_out=held if all_pending else None,
+                asked_out=asked if all_pending else None,
+            )
 
     n = require_cut_applied(approve)
     typer.echo(f"Approved {n} edit(s).")
-    if n == 0:
+    for item in held:
+        typer.echo(f"Held {item.edit_id}: {item.label} ({item.reason}).", err=True)
+    for group in asked:
+        typer.echo(f"Held {', '.join(group.edit_ids)}: {group.confirmation.message}", err=True)
+    if held or asked:
+        typer.echo(
+            "Held edits stay pending. Repeat with --ids <id,...> --override-audio-checks "
+            "to apply them as they are.",
+            err=True,
+        )
+    if n == 0 and not (held or asked):
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
+
+
+@edit_app.command("held")
+def edit_held_cmd(
+    project: Path = typer.Option(..., "--project"),
+    ids: str | None = typer.Option(None, "--ids", help="Comma-separated edit ids (default: all)"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """List the pending proposals the audio checks would hold, and why. Changes nothing."""
+    ws = ProjectWorkspace.open(project)
+    id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
+    held, asked = EditService(ws).held_by_checks(id_list)
+    rows = [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held]
+    rows += [
+        {"id": i, "label": "cuts other speech", "reason": group.confirmation.message}
+        for group in asked
+        for i in group.edit_ids
+    ]
+    if as_json:
+        typer.echo(json.dumps(rows, indent=2))
+        return
+    if not rows:
+        typer.echo("Nothing is held: approve --all would apply every pending proposal.")
+        return
+    for row in rows:
+        typer.echo(f"{row['id']}: {row['label']} ({row['reason']})")
+    typer.echo(
+        f"{len(rows)} held. Apply them as they are with: "
+        "edit approve --ids <id,...> --override-audio-checks"
+    )
 
 
 @edit_app.command("apply-suggested")

@@ -28,11 +28,6 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.util.coded_error import CodedError
 
-APPLY_ANYWAY = (
-    "To apply it as is, repeat the call with the audio-check override "
-    "(CLI --override-audio-checks, MCP override_audio_checks=true)."
-)
-
 
 def _pause(edit_id: str = "pause", start: float = 1.0, end: float = 1.19) -> EditDecision:
     return EditDecision(
@@ -354,6 +349,6 @@ def test_http_geometry_hold_retains_code_and_saved_project(tmp_path: Path, sugge
     assert response.json()["detail"] == (
         "Host's pause trim at 0:01.0 was not applied because the selected audio no longer "
         "has one complete, continuous placement. Select the part to cut on the timeline, "
-        f"or reject the held cuts. {APPLY_ANYWAY} {guarantee}"
+        f"or reject the held cuts. {guarantee}"
     )
     assert ws.path.read_bytes() == before

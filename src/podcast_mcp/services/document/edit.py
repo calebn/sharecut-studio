@@ -483,6 +483,27 @@ class EditService:
 
         return build_range_target(self.ws.project, [RangeInterval(start=start, end=end)], track_ids)
 
+    def held_by_checks(
+        self, ids: list[str] | None = None
+    ) -> tuple[list[HeldEdit], list[AskedEdits]]:
+        """Which pending proposals the audio checks would hold, found on a private copy.
+
+        Nothing is saved: this is Approve all run on a scratch copy, so each held edit comes
+        with the reason the real approval would give.
+        """
+        from podcast_mcp.edits.cut_application import approve_edits as apply_on_copy
+
+        scratch = self.ws.project.model_copy(deep=True)
+        wanted = (
+            ids
+            if ids is not None
+            else [e.id for e in list_edit_decisions(scratch, applied=False, review_required=True)]
+        )
+        held: list[HeldEdit] = []
+        asked: list[AskedEdits] = []
+        apply_on_copy(scratch, wanted, held_out=held, asked_out=asked)
+        return held, asked
+
     def approve(
         self,
         ids: list[str],
