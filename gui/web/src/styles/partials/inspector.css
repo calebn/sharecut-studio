@@ -520,7 +520,7 @@ html[data-shell="phone"]
    regular form and its visible help. */
 /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
 @media (max-height: 40rem) {
-  @container sheet-slot (min-width: 36rem) {
+  @container sheet-slot (min-width: 30rem) {
     .bottom-sheet--lane-band .bottom-sheet-body .modifier-inspector {
       display: grid;
       flex: 1 1 auto;

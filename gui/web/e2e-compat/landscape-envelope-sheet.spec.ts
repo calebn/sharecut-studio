@@ -421,6 +421,7 @@ const PHONE_VIEWPORTS: Viewport[] = [
   { width: 667, height: 375, keyboard: 150 },
   { width: 740, height: 360, keyboard: 150 },
   { width: 767, height: 375, keyboard: 150 },
+  { width: 568, height: 320, keyboard: 130 },
 ];
 
 /** The phone shell (under 768 px wide) held sideways, on the demo project. */
@@ -468,6 +469,12 @@ test("767x375 phone shell (widest phone width): the edited lane, the form and Do
   page,
 }) => {
   await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[2]!);
+});
+
+test("568x320 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
+  page,
+}) => {
+  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[3]!);
 });
 
 test("914x331 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
