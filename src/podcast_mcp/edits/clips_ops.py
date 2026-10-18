@@ -297,6 +297,9 @@ def extract_clips_in_timeline_range(
                 fade_out_ms=clip.fade_out_ms,
                 join_in_mode=clip.join_in_mode,
                 mute_regions=mute_regions_overlapping(clip.mute_regions, src_start, src_end),
+                off_speaker_mute_regions=[
+                    r.model_copy(deep=True) for r in clip.off_speaker_mute_regions
+                ],
                 bleed_restore=clip.bleed_restore.model_copy(deep=True)
                 if clip.bleed_restore
                 else None,

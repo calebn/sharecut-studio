@@ -43,6 +43,15 @@ history snapshots. Each selection names `start_s`, `end_s`, and optional
 applies union their source selections so repeats converge to the same state.
 Derived acoustic plans use raw selected sources and are not a new durable store.
 
+`timeline.clips[].off_speaker_mute_regions` stores automatic SOURCE envelopes
+separately from ordinary mute, Lower, and room-tone state. Each element retains
+its full original bounds and fade lengths. History snapshots carry this array
+with each occurrence. Reapply keeps saved Restore choices and skips equivalent
+writes without adding history. Empty arrays stay outside acoustic plan cache
+serialization and direct clip dependency payloads, preserving existing keys.
+Nonempty automatic state participates in those dependencies. Historical archive
+geometry and reason strings never classify existing ordinary masks.
+
 `timeline.clips[].bleed_restore` stores a nullable content-bound object with a
 `source_sha256` and canonical source `regions`. Editable history snapshots retain
 it with clip geometry. It introduces no sidecar. Recording SHA-256 validation uses

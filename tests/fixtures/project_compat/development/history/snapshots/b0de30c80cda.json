@@ -59,7 +59,15 @@
               "end_s": 0.008
             }
           ]
-        }
+        },
+        "off_speaker_mute_regions": [
+          {
+            "start_s": 0.001,
+            "end_s": 0.009,
+            "fade_out_ms": 1,
+            "fade_in_ms": 1
+          }
+        ]
       }
     ]
   },

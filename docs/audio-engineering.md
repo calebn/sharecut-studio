@@ -1150,32 +1150,38 @@ now mute.
 ### Occurrence Restore rendering
 
 The core timeline renderer honors content-bound `Clip.bleed_restore` choices.
-It preserves the complete legacy ungated PCM16 bus and renders the same request
-with selected binary source windows removed from prepared occurrence bodies.
-The latter includes each body's manual edits, room tone, and clip fades.
-The joint difference supplies the correction to the legacy gated bus inside
-saved Restore support. The output ramp uses the current plan's fade duration.
-Its edges stay at the original source bounds across splits and audition windows.
-Support follows observed prepared sample counts, including rounded placement
-delays, negotiated trim origins and both sides of resampling. Ordered placement
-and rescaling keep the saved bounds on the compiled clock. A graph-header query
-and source-only descriptor read add no track FX evaluation. Passive observers
-in the two audio passes measure actual emitted counts. The counterfactual's
-binary mask preserves the body's observed producer rate, format and channel
-layout around removal, then restores the body's observed consumer context.
-Unusable observations refuse publication and clean private render files.
-Several choices use one combined counterfactual. Arithmetic widens before
-subtraction and saturates to PCM16. Zero corrections preserve baseline bytes.
+Automatic off-speaker envelopes remain in `Clip.off_speaker_mute_regions` with
+their original SOURCE bounds and fades. They apply around the complete prepared
+clip body, including ordinary Lower, manual mute, ignored words, room tone, and
+gate fill. Restore bypasses the automatic factor only inside active saved source
+windows. Ordinary masks and ignored words still apply there. A Lower under an
+automatic mute stays silent outside explicit Restore support.
 
-Shared nonlinear FX can assign interactions to this joint marginal. The result
-does not represent separately processed wet clips. Full stems and segments retain
-their existing request contexts and staging gain rules. They do not gain a new
-arbitrary-window PCM parity guarantee. Empty, inactive, disabled, and disjoint
-choices use the legacy path. Changed recording bytes deactivate saved choices.
-Automatic detection, protection, abstention, and source scope remain authoritative.
-Media or render-dependency changes during the two passes refuse publication and
-preserve the previous completed artifact. Its hash uses the validated inputs.
-Host Restore commands and source-context proxy variants are separate integration.
+The renderer keeps three bus definitions. `U` retains automatic envelopes. `W`
+bypasses them inside selected windows. `V` removes those selected prepared bodies
+from `W`. The output is `saturate16(B + h*((L-B) + (1-g)*(W-V)))`, where `B` and
+`L` are the existing PCM16 gate of `U` and `W`. Gate truncation precedes widened
+subtraction. The final ramp `h` applies once. Zero corrections preserve exact
+baseline bytes. Several choices use one joint union.
+
+Late-gate-only recovery still uses two FX evaluations. Combined recovery uses
+three. Automatic-only recovery with an empty or disabled late gate uses two.
+The ramp uses the plan's fade duration at the full saved source bounds, capped
+to half the interval. Splits and audition windows do not restart original fades.
+Configuration-only graph queries bind the automatic wrapper's primary trim,
+leaf, prepared body, and evaluator clocks before its numeric gain is lowered.
+Passive observations in the actual passes validate rates, formats, layouts,
+counts, and ordered source-coordinate mappings. Both sides of the binary mask
+retain the observed producer format and the observed consumer context.
+
+Shared nonlinear FX interactions belong to this joint marginal. Full stems and
+segments retain their existing request contexts and staging gain rules. No
+arbitrary-window PCM parity is promised. Changed recording bytes deactivate
+saved choices and retain the full authored automatic baseline. Reapply preserves
+ordinary ownership and saved choices. Equivalent application adds no history.
+Media or render-dependency changes refuse publication and preserve the previous
+completed artifact. Host Restore commands and source-context proxy variants
+remain separate integration work.
 
 ### Known limitations of the bleed gate
 
@@ -1270,4 +1276,4 @@ A short (0.6 s or less), isolated (0.6 s from any other own word) unsuppressed w
 
 Levels are measured against each recording's own room and speech levels, not a dBFS value (#1443). Only the parts where the lane sounds (6 dB over its room, 100 ms either side) become regions; regions under 150 ms and already-quiet stretches are not written. `audible_muted_sec` and `quiet_muted_sec` split the total, and `own_word_overlap_sec` re-checks, on the same timeline clock, that no region covers an unsuppressed word of the lane (always 0). `still_audible_sec` is the post-check on what plays now: seconds where another speaker talks, the lane has no word and still sounds after the regions (it includes turns left open for want of copy evidence); `still_audible_copy_sec` counts confirmed copies left unmuted that no rule explains (own-energy frames, already in `kept_own_energy_sec`, are not counted) and should be near 0. Copy evidence is read from the track with its earlier mutes removed, so re-running after an apply only closes what still sounds; `kept_gaps` names the rule that left each audible gap under a second open. A gap under 0.5 s inside a turn is held closed unless it holds an own word or own-voice energy, and a loud non-word sound on the other speaker's track (a clap) joins the turn it sits beside.
 
-Each region is an exact-range MUTE edit (silence; room tone fill is #1734), so Studio shows it as a muted region, Restore brings one back, and History undoes the command whole. The plan's audio evidence is the audio check, so it applies with trusted boundary intent: the cut-edge audition that guards a ripple cut would hold every edge here, because the lane has no clean edge under a voice that is not its own. Scope and geometry holds still hold a region; they are listed under `held`.
+Each confirmed region is a trusted exact-range MUTE application stored in `Clip.off_speaker_mute_regions`. Ordinary mute and fill ownership remains separate. One History Undo reverses the command. Individual reopening requires a guarded occurrence Restore choice; an archive record alone cannot choose a clip copy. The plan's audio evidence is the audio check, so it applies with trusted boundary intent: the cut-edge audition that guards a ripple cut would hold every edge here, because the lane has no clean edge under a voice that is not its own. Scope and geometry holds still hold a region; they are listed under `held`.

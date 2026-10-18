@@ -125,6 +125,15 @@ class ClipMuteRegion(SourceSpan):
         return self
 
 
+class ClipOffSpeakerMuteRegion(SourceSpan):
+    """An automatic SOURCE envelope, independent of ordinary mute and fill ownership."""
+
+    model_config = {"extra": "forbid"}
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    fade_out_ms: int = Field(default=MUTE_FADE_MS, ge=0)
+    fade_in_ms: int = Field(default=MUTE_FADE_MS, ge=0)
+
+
 class MediaAsset(BaseModel):
     path: str
     duration_sec: float | None = None
@@ -252,7 +261,16 @@ class Clip(BaseModel):
     join_in_mode: ClipJoinMode = ClipJoinMode.FADE
     # Source-media mute holes honoured at render (tighten.edit_mode=mute).
     mute_regions: list[ClipMuteRegion] = Field(default_factory=list)
+    off_speaker_mute_regions: list[ClipOffSpeakerMuteRegion] = Field(default_factory=list)
     bleed_restore: ClipBleedRestore | None = None
+
+    @field_validator("off_speaker_mute_regions")
+    @classmethod
+    def _canonical_automatic_masks(
+        cls, regions: list[ClipOffSpeakerMuteRegion]
+    ) -> list[ClipOffSpeakerMuteRegion]:
+        keyed = {(r.start_s, r.end_s, r.fade_out_ms, r.fade_in_ms): r for r in regions}
+        return [keyed[key] for key in sorted(keyed)]
 
     @property
     def timeline_end(self) -> float:

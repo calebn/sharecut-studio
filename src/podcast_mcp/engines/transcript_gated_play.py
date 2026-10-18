@@ -337,27 +337,41 @@ def apply_bleed_gate_plan(
 
 def apply_restored_bleed_gate_plan(
     wav_path: Path,
-    without_path: Path,
+    without_path: Path | None,
     plan: BleedGatePlan,
     supports: tuple[RestoreSupport, ...],
     *,
     timeline_start: float,
     timeline_end: float,
+    authored_path: Path | None = None,
 ) -> Path:
+    from contextlib import ExitStack
+
     from podcast_mcp.edits.bleed_restore import restore_gains_for_frames, restored_pcm
 
     with tempfile.NamedTemporaryFile(suffix=".wav", dir=wav_path.parent, delete=False) as temporary:
         target_path = Path(temporary.name)
     try:
-        with wav_path.open("rb") as whole, without_path.open("rb") as without:
+        with ExitStack() as stack:
+            whole = stack.enter_context(wav_path.open("rb"))
             channels, rate, offset, size = _pcm16_wave_info(whole)
-            other_channels, other_rate, other_offset, other_size = _pcm16_wave_info(without)
-            if (channels, rate, size) != (other_channels, other_rate, other_size):
-                raise ValueError("bleed Restore counterfactual PCM extent or format differs")
-            if whole.seek(0, 2) < offset + size or without.seek(0, 2) < other_offset + other_size:
+            streams = []
+            for path in (authored_path, without_path):
+                stream = stack.enter_context(path.open("rb")) if path is not None else None
+                if stream is not None:
+                    other_channels, other_rate, other_offset, other_size = _pcm16_wave_info(stream)
+                    if (channels, rate, size) != (other_channels, other_rate, other_size):
+                        raise ValueError(
+                            "bleed Restore counterfactual PCM extent or format differs"
+                        )
+                    if stream.seek(0, 2) < other_offset + other_size:
+                        raise ValueError("bleed Restore requires complete PCM16 WAV data")
+                    stream.seek(other_offset)
+                streams.append(stream)
+            authored, without = streams
+            if whole.seek(0, 2) < offset + size:
                 raise ValueError("bleed Restore requires complete PCM16 WAV data")
             whole.seek(0)
-            without.seek(other_offset)
             with target_path.open("wb") as target:
                 shutil.copyfileobj(whole, target, length=64 * 1024)
                 whole.seek(offset)
@@ -365,29 +379,59 @@ def apply_restored_bleed_gate_plan(
                 frames = size // (channels * 2)
                 origin = round(timeline_start * rate)
                 last = min(frames, round((timeline_end - timeline_start) * rate))
-                for first in range(0, last, rate):
-                    count = min(rate, last - first)
+                for first in range(0, frames, rate):
+                    count = min(rate, frames - first)
+                    gated_count = max(0, min(count, last - first))
+                    gated_bytes = gated_count * channels * 2
                     raw = whole.read(count * channels * 2)
-                    counterfactual = without.read(count * channels * 2)
-                    absolute_first = origin + first
-                    baseline = _gate_pcm_chunk(
-                        raw,
-                        [],
-                        first_frame=absolute_first,
-                        sample_rate=rate,
-                        channels=channels,
-                        plan=plan,
+                    authored_raw = (
+                        authored.read(count * channels * 2) if authored is not None else raw
                     )
+                    counterfactual = (
+                        without.read(count * channels * 2) if without is not None else None
+                    )
+                    absolute_first = origin + first
+                    baseline = (
+                        _gate_pcm_chunk(
+                            authored_raw[:gated_bytes],
+                            [],
+                            first_frame=absolute_first,
+                            sample_rate=rate,
+                            channels=channels,
+                            plan=plan,
+                        )
+                        + authored_raw[gated_bytes:]
+                    )
+                    lifted = (
+                        _gate_pcm_chunk(
+                            raw[:gated_bytes],
+                            [],
+                            first_frame=absolute_first,
+                            sample_rate=rate,
+                            channels=channels,
+                            plan=plan,
+                        )
+                        + raw[gated_bytes:]
+                        if authored is not None
+                        else None
+                    )
+                    gate_gains = plan.gains_for_frames(absolute_first, count, rate)
+                    gate_gains[gated_count:] = 1
                     target.write(
                         restored_pcm(
                             baseline,
                             raw,
                             counterfactual,
                             channels=channels,
-                            gate_gains=plan.gains_for_frames(absolute_first, count, rate),
+                            gate_gains=gate_gains,
                             restore_gains=restore_gains_for_frames(
-                                supports, absolute_first, count, rate, fade_sec=plan.fade_sec
+                                supports,
+                                absolute_first,
+                                count,
+                                rate,
+                                fade_sec=plan.fade_sec,
                             ),
+                            lifted_baseline=lifted,
                         )
                     )
         publish_completed_file(target_path, wav_path)

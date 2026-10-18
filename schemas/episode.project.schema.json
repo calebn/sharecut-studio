@@ -199,6 +199,18 @@
         "fade_in_ms": { "type": "integer", "minimum": 0, "default": 5 }
       }
     },
+    "ClipOffSpeakerMuteRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_s", "end_s"],
+      "description": "Occurrence-owned automatic SOURCE envelope. Original bounds and fades survive crops and splits. Ordinary mute, Lower, and fill ownership remain separate.",
+      "properties": {
+        "start_s": { "type": "number", "minimum": 0 },
+        "end_s": { "type": "number" },
+        "fade_out_ms": { "type": "integer", "minimum": 0, "default": 5 },
+        "fade_in_ms": { "type": "integer", "minimum": 0, "default": 5 }
+      }
+    },
     "ClipBleedRestore": {
       "type": "object",
       "required": ["source_sha256", "regions"],
@@ -234,6 +246,11 @@
           "type": "string",
           "enum": ["fade", "crossfade", "cut"],
           "default": "fade"
+        },
+        "off_speaker_mute_regions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ClipOffSpeakerMuteRegion" },
+          "default": []
         },
         "bleed_restore": {
           "oneOf": [{ "$ref": "#/$defs/ClipBleedRestore" }, { "type": "null" }],

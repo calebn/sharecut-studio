@@ -2378,8 +2378,9 @@ class EditService:
     ) -> dict:
         """Mute a track wherever another speaker talks and its own speaker does not (#1740).
 
-        Preview with ``apply=False``. Applied stretches are exact-range mute edits, one
-        undo step in History and one Restore each; stretches the cut safety checks hold stay open.
+        Preview with ``apply=False``. Applied stretches retain separate automatic ownership.
+        One History Undo reverses the command. Equivalent reapply adds no history.
+        Stretches held by cut safety checks stay open.
         """
         from podcast_mcp.edits.off_speaker_mute import (
             apply_off_speaker_mutes,
@@ -2387,17 +2388,26 @@ class EditService:
         )
 
         tid = self._resolve(track_id, speaker)
-        plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
-        result = {"dry_run": not apply, **plan.summary()}
-        if not apply or not plan.regions:
-            return result
+        if not apply:
+            plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
+            return {"dry_run": True, **plan.summary()}
 
-        def mutate(p: EpisodeProject) -> dict:
-            return apply_off_speaker_mutes(p, plan)
+        from podcast_mcp.project_merge import adopt_project_state
 
-        with render_lock(self.ws.project, timeout=lock_timeout):
-            applied = self.ws.mutate("before mute off speaker", "after mute off speaker", mutate)
-        return {**result, **applied}
+        with render_lock(self.ws.project, timeout=lock_timeout), self.ws.transaction():
+            plan = plan_off_speaker_mutes(self.ws.project, tid, progress=progress)
+            result = {"dry_run": False, **plan.summary()}
+            if not plan.regions:
+                return result
+            candidate = self.ws.project.model_copy(deep=True)
+            applied = apply_off_speaker_mutes(candidate, plan)
+            if applied["applied_count"]:
+                self.ws.mutate(
+                    "before mute off speaker",
+                    "after mute off speaker",
+                    lambda p: adopt_project_state(p, candidate),
+                )
+            return {**result, **applied}
 
     def gate_overreach(
         self,

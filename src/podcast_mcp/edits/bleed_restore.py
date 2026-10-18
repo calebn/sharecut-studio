@@ -93,18 +93,24 @@ def restore_gains_for_frames(
 def restored_pcm(
     baseline: bytes,
     whole: bytes,
-    without: bytes,
+    without: bytes | None,
     *,
     channels: int,
     gate_gains: np.ndarray,
     restore_gains: np.ndarray,
+    lifted_baseline: bytes | None = None,
 ) -> bytes:
     """Joint marginal of quantized bus renders, preserving exact zero-correction bytes."""
     base = np.frombuffer(baseline, dtype="<i2").reshape(-1, channels)
     w = np.frombuffer(whole, dtype="<i2").reshape(-1, channels)
-    v = np.frombuffer(without, dtype="<i2").reshape(-1, channels)
-    factor = (1 - gate_gains) * restore_gains
-    correction = factor[:, None] * (w.astype(np.float64) - v.astype(np.float64))
+    correction = np.zeros_like(w, dtype=np.float64)
+    if lifted_baseline is not None:
+        lifted = np.frombuffer(lifted_baseline, dtype="<i2").reshape(-1, channels)
+        correction += lifted.astype(np.float64) - base.astype(np.float64)
+    if without is not None:
+        v = np.frombuffer(without, dtype="<i2").reshape(-1, channels)
+        correction += (1 - gate_gains)[:, None] * (w.astype(np.float64) - v.astype(np.float64))
+    correction *= restore_gains[:, None]
     result = base.copy()
     active = correction != 0
     result[active] = np.clip(

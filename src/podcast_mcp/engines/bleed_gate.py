@@ -727,10 +727,15 @@ def build_bleed_gate_plan(
     ignore_scope: bool = False,
 ) -> BleedGatePlan:
     """Reuse immutable acoustic evidence until selected media, metadata, or policy changes."""
+    excluded_clips = {
+        i: {"bleed_restore"}
+        | ({"off_speaker_mute_regions"} if not clip.off_speaker_mute_regions else set())
+        for i, clip in enumerate(project.clips)
+    }
     serialized = project.model_dump_json(
         by_alias=True,
         include={"version", "meta", "sources", "timeline", "transcript_data"},
-        exclude={"timeline": {"clips": {"__all__": {"bleed_restore"}}}},
+        exclude={"timeline": {"clips": excluded_clips}},
     )
     revision = json.dumps(
         bleed_gate_payload(project, track_id), sort_keys=True, separators=(",", ":")
@@ -904,7 +909,16 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
                 "track_id": tid,
                 "media": media,
                 "clips": [
-                    span.clip.model_dump(mode="json", exclude={"bleed_restore"}) for span in clips
+                    span.clip.model_dump(
+                        mode="json",
+                        exclude={"bleed_restore"}
+                        | (
+                            {"off_speaker_mute_regions"}
+                            if not span.clip.off_speaker_mute_regions
+                            else set()
+                        ),
+                    )
+                    for span in clips
                 ],
                 "transcribed_source_ids": [source_id for source_id, _ in words],
                 "words": [

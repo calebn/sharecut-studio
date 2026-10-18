@@ -2,34 +2,47 @@
 
 ## Layers
 
-Occurrence attenuation choices live in `Clip.bleed_restore` and pure support and
-PCM arithmetic in `edits/bleed_restore.py`. Timeline rendering keeps the legacy
-ungated PCM16 bus `W = F(X)` and evaluates one joint counterfactual `V = F(X-R)`.
-`MaskAudio` removes binary source windows around complete prepared clip bodies,
-including manual edits and fill, while preserving graph duration and topology.
-Both branches keep the request's continuous FX and staging conversion.
-The output is `saturate16(B + (1-g)*h*(W-V))`, where `B` is the legacy gate of `W`.
-The output ramp `h` uses the active plan's fade duration at saved source bounds,
-capped to half the saved interval. Split and window edges do not restart it.
-`engines/render_clock.py` observes actual trim, body, composition and delay
-counts during each branch, retaining both sides of conversions. A source-only
-descriptor read and FFprobe graph-header query configure those passive observers
-without another audio FX evaluation. Compiler bindings preserve filter creation
-order and conversion formats. `rendered_sources` carries the observed trim
-origins through ordered integer placements and rescaling. The counterfactual's
-mask preserves the complete body's observed producer format before and after
-removal, then restores its observed consumer format at that body's output edge.
-Malformed or inconsistent observations refuse publication. Clock files stay
-inside the private render directory. The authored `placed_sources` traversal
-stays unchanged.
-This is a joint marginal of quantized shared bus renders. Nonlinear FX interactions
-belong to that marginal. No arbitrary full versus segment PCM parity is promised.
-Inactive choices use legacy rendering. Detector payloads and the detector cache
-exclude Restore state. Affected timeline render identities include it explicitly.
-`RenderDependencies` validates prepared media, fill, gate evidence, and render
-metadata around both passes and publication. The stem publisher writes the
-validated fingerprint. A replacement after publication therefore makes the stem
-stale. Restore has its own render-policy revision, leaving ordinary stem keys intact.
+Occurrence attenuation choices live in `Clip.bleed_restore`. Automatic SOURCE
+mutes live separately in `Clip.off_speaker_mute_regions`. Ordinary mute, Lower,
+ignored-word, and fill state remains independently authored. `OffSpeakerAudio`
+applies automatic gain around the complete prepared body. Its primary
+`SourceAudio` is clock metadata, not a second child. A content-valid Restore
+bypasses only that automatic factor inside its saved source windows.
+
+For automatic recovery, the renderer evaluates authored input `U` and bypassed
+input `W` through the same continuous track FX. Late-gate recovery also evaluates
+`V`, which removes the joint selected windows from complete bypassed bodies.
+With `B = legacyGate(U)` and `L = legacyGate(W)`, the PCM16 result is
+`saturate16(B + h*((L-B) + (1-g)*(W-V)))`. Legacy gate truncation stays separate
+from widened residual arithmetic. Zero corrections copy `B` exactly. Late-only
+Restore retains two FX evaluations. Combined recovery uses three, and automatic
+recovery with a unity or disabled late gate uses two.
+
+The output ramp `h` uses the plan's fade duration at complete saved source bounds,
+capped to half the interval. Splits and crops retain the original automatic fade
+anchors. `engines/render_clock.py` observes actual trim, prepared body,
+composition, and delay counts, including both sides of conversions. The compiler
+first configures the same automatic `aeval` topology with a placeholder gain.
+It then maps absolute SOURCE endpoints through the configured primary trim,
+leaf, prepared body, and evaluator clocks with the shared `MediaSeek` origin.
+Only numeric expressions change before the actual authored pass validates those
+associations. Configuration adds no complete FX evaluation.
+
+`MaskAudio` preserves the full observed producer format before and after binary
+removal, then restores the observed consumer format. Every rendered branch must
+have matching clocks, formats, and extents. Malformed observations or changed
+media refuse publication and retain the previous artifact. Private clock files
+stay inside the render directory. `RenderDependencies` captures primary media,
+room tone, gate fill, peer evidence, and render metadata around every pass.
+Automatic-only recovery also captures dependencies when the late gate is disabled.
+
+This is a joint marginal of quantized shared bus renders. Shared nonlinear FX
+interactions belong to that marginal. Full renders and segments retain their
+existing contexts and staging rules. Empty automatic state leaves the legacy
+commands, PCM, and render identities unchanged. Detector cache serialization and
+direct clip payloads omit empty automatic fields and always exclude Restore.
+Nonempty automatic state participates in detector and render dependencies.
+Changed recording bytes deactivate bypass while retaining authored automatic mutes.
 
 Whole-lane recorder latency is the last stage of pipeline `align_tracks`.
 `engines/envelope_lag.py` finds the lag between a voice's direct track and its copy

@@ -19,13 +19,16 @@ import numpy as np
 from podcast_mcp.engines.audio import (
     Audio,
     CrossfadeAudio,
+    FrameTransform,
     MaskAudio,
     MixAudio,
     MuteEnvelope,
+    OffSpeakerAudio,
     RequestedExtent,
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
+    SourceFrameMapping,
     delay_milliseconds,
     fade_duration,
     postorder,
@@ -309,6 +312,14 @@ def _pcm_decode_error(code: int, timed_out: bool, timeout_sec: float, err: IO[by
     err.seek(max(0, err.tell() - PCM_STDERR_TAIL_BYTES))
     tail = err.read().decode("utf-8", "replace").strip()
     return f"{msg}: {tail}" if tail else msg
+
+
+def _mask_endpoint(
+    seconds: float, rate: int, origin: int, transforms: tuple[FrameTransform, ...]
+) -> str:
+    if transforms:
+        return str(SourceFrameMapping(rate, 0, transforms).endpoint(seconds, ceil=True))
+    return _sample_frame_expression(math.ceil(seconds * rate) - origin, rate)
 
 
 class FFmpegEngine:
@@ -764,6 +775,21 @@ class FFmpegEngine:
         clock_path: Path | None = None,
     ) -> Path:
         """Compile prepared audio with grouped bounded inputs and continuous track FX."""
+        if clock_path is None and any(
+            isinstance(node, OffSpeakerAudio) for node in postorder(audio)
+        ):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=".off-speaker-clock-", dir=output_path.parent
+            ) as directory:
+                return self.render_timeline(
+                    output_path,
+                    audio,
+                    af_chain,
+                    crossfade_curve=crossfade_curve,
+                    requested_extent=requested_extent,
+                    clock_path=Path(directory) / "clock.json",
+                )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         leaves = sources(audio)
         n = len(leaves)
@@ -776,6 +802,7 @@ class FFmpegEngine:
         filters: list[str] = []
         clock_names: list[str] = []
         bindings: dict[str, ClockBinding] = {}
+        automatic_filters: list[tuple[int, OffSpeakerAudio, int]] = []
         root_indices: dict[str, int] = {}
         node_order = [node for node in postorder(audio) if not isinstance(node, MaskAudio)]
         source_node_indices = [
@@ -869,6 +896,11 @@ class FFmpegEngine:
                 match node:
                     case SourceAudio():
                         node_labels.append(next(leaf_labels))
+                    case OffSpeakerAudio():
+                        automatic_filters.append((len(filters), node, node_index))
+                        node_labels.append(
+                            emit(node_labels.pop(), "aeval=exprs='val(ch)*(1)':c=same")
+                        )
                     case MaskAudio():
                         if (
                             node.clock is None
@@ -876,11 +908,9 @@ class FFmpegEngine:
                             or node.source_rate is None
                         ):
                             raise clock_error()
-                        origin = node.first_source_frame
-                        source_rate = node.source_rate
+
                         selected = "+".join(
-                            f"gte(n,{_sample_frame_expression(math.ceil(start * source_rate) - origin, source_rate)})"
-                            f"*lt(n,{_sample_frame_expression(math.ceil(end * source_rate) - origin, source_rate)})"
+                            f"gte(n,{_mask_endpoint(start, node.source_rate, node.first_source_frame, node.source_transforms)})*lt(n,{_mask_endpoint(end, node.source_rate, node.first_source_frame, node.source_transforms)})"
                             for start, end in node.windows
                         )
                         context = format_filter(node.clock.producer)
@@ -1010,6 +1040,72 @@ class FFmpegEngine:
                     bindings,
                     clock_names,
                 )
+                for filter_index, node, node_index in automatic_filters:
+                    body_nodes = [
+                        child for child in postorder(node.body) if not isinstance(child, MaskAudio)
+                    ]
+                    body_first = node_index - len(body_nodes)
+                    primary_index = next(
+                        body_first + i
+                        for i, child in enumerate(body_nodes)
+                        if child is node.primary
+                    )
+                    leaf_index = source_node_indices.index(primary_index)
+                    if not (
+                        node.body is node.primary
+                        or (
+                            isinstance(node.body, MixAudio)
+                            and node.body.head.audio is node.primary
+                            and node.body.head.start_sec == 0
+                        )
+                    ):
+                        raise clock_error()
+                    trim_rate = formats[f"trim_{leaf_index}"].sample_rate
+                    origin = seeks[source_paths[leaf_index]].first_sample(
+                        node.primary.src_start, trim_rate
+                    )
+                    path_names = [f"trim_{leaf_index}", f"node_{primary_index}"]
+                    if node.body is not node.primary:
+                        path_names.append(f"node_{node_index - 1}")
+                    rates = [trim_rate]
+                    for name in path_names:
+                        rates.extend(
+                            (formats[name].sample_rate, formats[consumers[name]].sample_rate)
+                        )
+
+                    mapping = SourceFrameMapping(
+                        trim_rate,
+                        origin,
+                        tuple(FrameTransform(before, after) for before, after in pairwise(rates)),
+                    )
+                    gains = []
+                    for envelope in node.envelopes:
+                        first, fall, rise, last = (
+                            mapping.endpoint(envelope.start),
+                            mapping.endpoint(envelope.start + envelope.fade_out_sec),
+                            mapping.endpoint(envelope.end - envelope.fade_in_sec),
+                            mapping.endpoint(envelope.end),
+                        )
+                        if fall > rise:
+                            fall = first
+                            rise = last
+                        falling = f"({fall}-n)/{fall - first}" if fall > first else "0"
+                        rising = f"(n-{rise})/{last - rise}" if last > rise else "1"
+                        gains.append(
+                            f"if(lt(n,{first}),1,if(lt(n,{fall}),{falling},if(lt(n,{rise}),0,if(lt(n,{last}),{rising},1))))"
+                        )
+                    gain = gains[0]
+                    for other in gains[1:]:
+                        gain = f"min({gain},{other})"
+                    if node.bypass_windows:
+                        selected = "+".join(
+                            f"gte(n,{mapping.endpoint(start, ceil=True)})*lt(n,{mapping.endpoint(end, ceil=True)})"
+                            for start, end in node.bypass_windows
+                        )
+                        gain = f"if({selected},1,{gain})"
+                    filters[filter_index] = filters[filter_index].replace(
+                        "val(ch)*(1)", f"val(ch)*({gain})"
+                    )
                 cmd[cmd.index("-filter_complex") + 1] = ";".join(filters)
                 observed_cmd = [
                     cmd[0],

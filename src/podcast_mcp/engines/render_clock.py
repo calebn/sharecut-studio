@@ -14,6 +14,7 @@ from podcast_mcp.engines.audio import (
     MaskAudio,
     MixAudio,
     ObservedAudio,
+    OffSpeakerAudio,
     RenderClock,
     SequenceAudio,
     SourceAudio,
@@ -331,6 +332,10 @@ def _validate_flow(audio: Audio, clock: RenderClock, *, partial: bool) -> None:
         match node:
             case SourceAudio():
                 pass
+            case OffSpeakerAudio():
+                children = [stack.pop()]
+                if producer.frames != children[0].consumer.frames:
+                    raise clock_error()
             case SequenceAudio():
                 count = len(node.tail) + 1
                 children = stack[-count:]

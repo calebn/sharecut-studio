@@ -119,9 +119,34 @@ class MaskAudio:
     clock: BoundaryClock | None = None
     first_source_frame: int | None = None
     source_rate: int | None = None
+    source_transforms: tuple[FrameTransform, ...] = ()
 
 
-Audio = SourceAudio | SequenceAudio | CrossfadeAudio | MixAudio | SilenceAudio | MaskAudio
+@dataclass(frozen=True)
+class SourceMuteEnvelope:
+    start: float
+    end: float
+    fade_out_sec: float
+    fade_in_sec: float
+
+
+@dataclass(frozen=True)
+class OffSpeakerAudio:
+    body: Audio
+    primary: SourceAudio
+    envelopes: tuple[SourceMuteEnvelope, ...]
+    bypass_windows: tuple[tuple[float, float], ...] = ()
+
+
+Audio = (
+    SourceAudio
+    | SequenceAudio
+    | CrossfadeAudio
+    | MixAudio
+    | SilenceAudio
+    | MaskAudio
+    | OffSpeakerAudio
+)
 
 
 @dataclass(frozen=True)
@@ -188,7 +213,7 @@ def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
                     visit(placed.audio, at + placed.start_sec, ramps)
             case SilenceAudio():
                 pass
-            case MaskAudio():
+            case MaskAudio() | OffSpeakerAudio():
                 visit(node.body, at, ramps)
 
     visit(audio, 0.0, ())
@@ -205,7 +230,7 @@ def _audio_children(audio: Audio) -> tuple[Audio, ...]:
             return audio.left, audio.right
         case MixAudio():
             return (audio.head.audio, *(at.audio for at in audio.tail))
-        case MaskAudio():
+        case MaskAudio() | OffSpeakerAudio():
             return (audio.body,)
 
 
@@ -247,7 +272,7 @@ def duration(audio: Audio) -> float:
                 )
             case SilenceAudio():
                 durations.append(node.duration_sec)
-            case MaskAudio():
+            case MaskAudio() | OffSpeakerAudio():
                 pass
     return durations[0]
 
@@ -300,6 +325,23 @@ class FrameTransform:
 
     def apply(self, frame: int) -> int:
         return rescale_frames(frame, self.source_rate, self.target_rate) + self.offset
+
+
+@dataclass(frozen=True)
+class SourceFrameMapping:
+    sample_rate: int
+    origin: int
+    transforms: tuple[FrameTransform, ...]
+
+    def endpoint(self, seconds: float, *, ceil: bool = False) -> int:
+        frame = (
+            math.ceil(seconds * self.sample_rate)
+            if ceil
+            else math.floor(seconds * self.sample_rate + 0.5)
+        ) - self.origin
+        for transform in self.transforms:
+            frame = transform.apply(frame)
+        return frame
 
 
 @dataclass(frozen=True)
@@ -392,6 +434,10 @@ def rendered_sources(audio: Audio, clock: RenderClock) -> tuple[RenderedSource, 
                 )
             case SilenceAudio():
                 placed = ()
+            case OffSpeakerAudio():
+                child = layouts.pop()
+                require_rate(child.clock.sample_rate, rate)
+                placed = translated(child.sources, child.clock.sample_rate, rate)
             case SequenceAudio():
                 count = len(node.tail) + 1
                 children = layouts[-count:]

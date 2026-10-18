@@ -263,6 +263,12 @@
               },
               "type": "array"
             },
+            "off_speaker_mute_regions": {
+              "items": {
+                "$ref": "#/$defs/ClipOffSpeakerMuteRegion"
+              },
+              "type": "array"
+            },
             "source_end": {
               "type": "number"
             },
@@ -362,6 +368,33 @@
               "default": null
             },
             "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "ClipOffSpeakerMuteRegion": {
+          "additionalProperties": false,
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "fade_in_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_s": {
+              "minimum": 0,
               "type": "number"
             }
           },
@@ -3028,6 +3061,12 @@
               },
               "type": "array"
             },
+            "off_speaker_mute_regions": {
+              "items": {
+                "$ref": "#/$defs/ClipOffSpeakerMuteRegion"
+              },
+              "type": "array"
+            },
             "source_end": {
               "type": "number"
             },
@@ -3127,6 +3166,33 @@
               "default": null
             },
             "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "ClipOffSpeakerMuteRegion": {
+          "additionalProperties": false,
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "fade_in_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_s": {
+              "minimum": 0,
               "type": "number"
             }
           },
@@ -5542,6 +5608,7 @@
     "Clip": "ignore",
     "ClipBleedRestore": "ignore",
     "ClipMuteRegion": "ignore",
+    "ClipOffSpeakerMuteRegion": "forbid",
     "CombinedTranscript": "ignore",
     "CombinedUtterance": "ignore",
     "CommentActionItem": "ignore",

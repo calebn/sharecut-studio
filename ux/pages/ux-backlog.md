@@ -15,7 +15,10 @@ The approved outcome is labeled, selectable automatic reduction regions with
 reapply, preserve overlaps and other copies, support processed proxies, and Undo
 in one step. The core [project state](../../docs/episode-format-v2.md) and
 [timeline render contract](../../docs/architecture.md#layers) now support durable
-content-bound choices and a joint shared-bus correction. Host commands, region UI,
+content-bound choices and a joint shared-bus correction. Dedicated automatic
+off-speaker envelopes preserve ordinary Lower, mute, ignored-word, and fill state.
+Explicit Restore bypasses only the automatic factor inside its saved window.
+Equivalent reapply keeps that choice without an extra Undo entry. Host commands, region UI,
 occurrence proxy variants, native interaction, and listening acceptance remain
 pending. This entry records an approved direction, not shipped UI or a completed
 issue.

@@ -675,7 +675,11 @@ def original_pause_support(
         ]
         excluded = [
             (region.start_s, region.end_s)
-            for region in [*clip.mute_regions, *ignored.for_clip(clip)]
+            for region in [
+                *clip.mute_regions,
+                *clip.off_speaker_mute_regions,
+                *ignored.for_clip(clip),
+            ]
         ] + duplicated
         for lo, hi in subtract_intervals(
             [

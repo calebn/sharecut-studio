@@ -10,6 +10,7 @@ from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits.bleed_restore import RESTORE_RENDER_REV
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
+from podcast_mcp.edits.off_speaker_regions import nonempty_off_speaker_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
@@ -85,6 +86,7 @@ def _track_render_hash(project: EpisodeProject, track_id: str) -> str:
             "fade_out_ms": c.fade_out_ms,
             "join_in_mode": c.join_in_mode.value,
             "mute_regions": mute_regions_payload(c.mute_regions),
+            **nonempty_off_speaker_regions_payload(c),
         }
         if c.bleed_restore is not None:
             clip_payload["bleed_restore"] = c.bleed_restore.model_dump(mode="json")
@@ -340,8 +342,10 @@ def publish_stem(
     dependencies = (
         RenderDependencies.capture(project, track_id)
         if track is not None
-        and track.transcript_gate
-        and any(c.bleed_restore for c in clips_for_track(project, track_id))
+        and any(
+            c.bleed_restore and (track.transcript_gate or c.off_speaker_mute_regions)
+            for c in clips_for_track(project, track_id)
+        )
         else None
     )
 

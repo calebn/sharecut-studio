@@ -24,11 +24,15 @@ from podcast_mcp.engines.audio import (
     Audio,
     BoundaryClock,
     CrossfadeAudio,
+    FrameTransform,
     MaskAudio,
     MixAudio,
+    OffSpeakerAudio,
+    RenderClock,
     RequestedExtent,
     SequenceAudio,
     SourceAudio,
+    SourceMuteEnvelope,
     duration,
     postorder,
     rendered_sources,
@@ -146,8 +150,11 @@ def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool) -> float:
 
 
 def _restore_dependencies(project: EpisodeProject, track: Track):
-    if track.transcript_gate and any(
-        clip.track_id == track.id and clip.bleed_restore and clip.bleed_restore.regions
+    if any(
+        clip.track_id == track.id
+        and (track.transcript_gate or clip.off_speaker_mute_regions)
+        and clip.bleed_restore
+        and clip.bleed_restore.regions
         for clip in project.clips
     ):
         from podcast_mcp.engines.play_audit import RenderDependencies
@@ -293,7 +300,9 @@ def placed_track_audio(
     *,
     window: tuple[float, float] | None = None,
     removed_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
-    mask_clocks: dict[str, tuple[BoundaryClock, int, int]] | None = None,
+    mask_clocks: dict[str, tuple[BoundaryClock, int, int, tuple[FrameTransform, ...]]]
+    | None = None,
+    bypass_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
 ) -> _PlacedTrack:
     """Build the exact source, envelope and placement graph without rendering or saving."""
     prepared: list[_PreparedClip] = []
@@ -337,6 +346,18 @@ def placed_track_audio(
         )
         tiles = _room_tone_under_mutes(project, track, clip, source_start, source_end)
         body: Audio = MixAudio(At(0.0, leaf), tuple(tiles)) if tiles else leaf
+        if clip.off_speaker_mute_regions:
+            body = OffSpeakerAudio(
+                body,
+                leaf,
+                tuple(
+                    SourceMuteEnvelope(
+                        r.start_s, r.end_s, r.fade_out_ms / 1000, r.fade_in_ms / 1000
+                    )
+                    for r in clip.off_speaker_mute_regions
+                ),
+                (bypass_regions or {}).get(clip.id, ()),
+            )
         if removed_regions and clip.id in removed_regions:
             windows = tuple(
                 (start, end)
@@ -344,8 +365,10 @@ def placed_track_audio(
                 if start < source_end and end > source_start
             )
             if windows:
-                clock, first_frame, source_rate = (mask_clocks or {})[clip.id]
-                body = MaskAudio(body, source_start, windows, clock, first_frame, source_rate)
+                clock, first_frame, source_rate, transforms = (mask_clocks or {})[clip.id]
+                body = MaskAudio(
+                    body, source_start, windows, clock, first_frame, source_rate, transforms
+                )
         prepared.append(
             _PreparedClip(
                 clip,
@@ -398,7 +421,17 @@ def _render_placed_track(
         build_bleed_gate_plan,
     )
 
-    plan = build_bleed_gate_plan(project, track.id) if removed else None
+    automatic = bool(removed) and any(
+        clips[clip_id].off_speaker_mute_regions for clip_id in removed
+    )
+    if removed and track.transcript_gate:
+        plan = build_bleed_gate_plan(project, track.id)
+    elif automatic:
+        from podcast_mcp.engines.bleed_gate import BleedGatePlan
+
+        plan = BleedGatePlan()
+    else:
+        plan = None
 
     def render(audio: Audio, target: Path, clock_path: Path | None = None) -> None:
         temporary = target.with_suffix(".render_tmp.wav") if staging_gain_db else target
@@ -418,15 +451,27 @@ def _render_placed_track(
             if temporary != target:
                 temporary.unlink(missing_ok=True)
 
-    if plan is not None and plan.attenuation_spans:
+    if plan is not None and (plan.attenuation_spans or automatic):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix=".bleed-restore-", dir=output_path.parent) as directory:
+            authored = Path(directory) / "authored.wav"
             whole = Path(directory) / "whole.wav"
             without = Path(directory) / "without.wav"
             whole_clock_path = Path(directory) / "whole-clock.json"
             without_clock_path = Path(directory) / "without-clock.json"
             dependencies.validate(project, track.id)
-            render(placed.audio, whole, whole_clock_path)
+            render(placed.audio, authored if automatic else whole, whole_clock_path)
+            if automatic:
+                dependencies.validate(project, track.id)
+                bypassed = placed_track_audio(
+                    project, track, sorted_clips, window=window, bypass_regions=removed
+                )
+                bypass_clock_path = Path(directory) / "bypass-clock.json"
+                render(bypassed.audio, whole, bypass_clock_path)
+                if read_render_clock(bypass_clock_path) != read_render_clock(whole_clock_path):
+                    raise CodedValueError(
+                        "Bleed Restore automatic clocks differ", code="bleed_restore_clock_invalid"
+                    )
             dependencies.validate(project, track.id)
             clock = read_render_clock(whole_clock_path)
             rendered = rendered_sources(placed.audio, clock)
@@ -464,7 +509,7 @@ def _render_placed_track(
                         )
                     )
             output_rate = clock.output.sample_rate
-            affected = any(
+            late_affected = any(
                 max(
                     s.output_frame(s.active_first_frame, output_rate),
                     math.ceil(lo * output_rate),
@@ -478,17 +523,44 @@ def _render_placed_track(
                 for s in supports
                 for lo, hi in plan.attenuation_spans
             )
-            if affected:
+            if late_affected:
                 node_indices = {id(node): i for i, node in enumerate(postorder(placed.audio))}
-                mask_clocks = {
-                    clip_id: (
-                        clock.nodes[node_indices[id(body)]],
+                mask_clocks = {}
+                for clip_id, body in placed.bodies:
+                    if clip_id not in primary:
+                        continue
+                    body_index = node_indices[id(body)]
+                    body_nodes = [
+                        node for node in postorder(body) if not isinstance(node, MaskAudio)
+                    ]
+                    first_node = body_index + 1 - len(body_nodes)
+                    first_leaf = sum(
+                        isinstance(node, SourceAudio)
+                        for node in list(postorder(placed.audio))[:first_node]
+                    )
+                    count = len(sources(body))
+                    local_clock = RenderClock(
+                        clock.trims[first_leaf : first_leaf + count],
+                        clock.nodes[first_node : body_index + 1],
+                        clock.seek_us[first_leaf : first_leaf + count],
+                        clock.nodes[body_index].producer,
+                        tuple(
+                            (i - first_node, child, boundary)
+                            for i, child, boundary in clock.delays
+                            if first_node <= i <= body_index
+                        ),
+                    )
+                    local_primary = next(
+                        source
+                        for source in rendered_sources(body, local_clock)
+                        if not source.source.is_fill
+                    )
+                    mask_clocks[clip_id] = (
+                        clock.nodes[body_index],
                         primary[clip_id].source_first_frame,
                         primary[clip_id].source_sample_rate,
+                        local_primary.transforms[:-1] if automatic else (),
                     )
-                    for clip_id, body in placed.bodies
-                    if clip_id in primary
-                }
                 counterfactual = placed_track_audio(
                     project,
                     track,
@@ -496,6 +568,7 @@ def _render_placed_track(
                     window=window,
                     removed_regions=removed,
                     mask_clocks=mask_clocks,
+                    bypass_regions=removed if automatic else None,
                 )
                 render(counterfactual.audio, without, without_clock_path)
                 dependencies.validate(project, track.id)
@@ -503,13 +576,15 @@ def _render_placed_track(
                     raise CodedValueError(
                         "Bleed Restore render clocks differ", code="bleed_restore_clock_invalid"
                     )
+            if late_affected or automatic:
                 apply_restored_bleed_gate_plan(
                     whole,
-                    without,
+                    without if late_affected else None,
                     plan,
                     tuple(supports),
                     timeline_start=start,
                     timeline_end=end,
+                    authored_path=authored if automatic else None,
                 )
             else:
                 apply_bleed_gate_plan(whole, plan, timeline_start=start, timeline_end=end)
@@ -518,11 +593,26 @@ def _render_placed_track(
             dependencies.validate(project, track.id)
             publish_completed_file(whole, output_path)
     else:
-        render(placed.audio, output_path)
-        if track.transcript_gate:
-            apply_track_transcript_gate(
-                project, track.id, output_path, timeline_start=start, timeline_end=end
-            )
+        if dependencies is None:
+            render(placed.audio, output_path)
+            if track.transcript_gate:
+                apply_track_transcript_gate(
+                    project, track.id, output_path, timeline_start=start, timeline_end=end
+                )
+        else:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with TemporaryDirectory(prefix=".bleed-restore-", dir=output_path.parent) as directory:
+                baseline = Path(directory) / "baseline.wav"
+                dependencies.validate(project, track.id)
+                render(placed.audio, baseline)
+                if track.transcript_gate:
+                    apply_track_transcript_gate(
+                        project, track.id, baseline, timeline_start=start, timeline_end=end
+                    )
+                from podcast_mcp.util.atomic_file import publish_completed_file
+
+                dependencies.validate(project, track.id)
+                publish_completed_file(baseline, output_path)
     return output_path
 
 
