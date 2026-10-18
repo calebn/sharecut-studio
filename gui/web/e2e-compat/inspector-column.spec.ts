@@ -117,6 +117,20 @@ async function setKeyboard(
   }, band);
 }
 
+/**
+ * Let the viewport's own resize event pass before a keyboard is faked: the
+ * keyboard hook clears a keyboard that is not covering anything, and on a slow
+ * runner that event can land after the fake is set.
+ */
+function settleViewport(page: Page) {
+  return page.evaluate(
+    () =>
+      new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done)),
+      ),
+  );
+}
+
 /** The column's place, the timeline's, and what the shell hid for it. */
 function geometry(page: Page) {
   return page.evaluate(() => {
@@ -441,17 +455,10 @@ test("with iOS's shrunk layout height the column is exactly the visible band, no
   await expectColumn(page, view, "932x430");
   await page.setViewportSize({ width: view.width, height: 249 });
   await page.waitForFunction(() => innerHeight === 249);
-  // Let the viewport's own resize event pass: the hook clears a keyboard that
-  // is not covering anything.
-  await page.evaluate(
-    () =>
-      new Promise((done) =>
-        requestAnimationFrame(() => requestAnimationFrame(done)),
-      ),
-  );
+  await settleViewport(page);
   await setKeyboard(page, { top: 98, height: 122, inset: 127 });
+  await expect.poll(async () => (await geometry(page)).position).toBe("fixed");
   const g = await geometry(page);
-  expect(g.position).toBe("fixed");
   // A grid-area would make Safari resolve the offsets against the grid cell,
   // which put the column at the left edge and 52px low on an iPhone.
   expect(
@@ -503,13 +510,22 @@ test("with Safari's chrome collapsed the column stops above the status strip, no
   );
   await page.setViewportSize({ width: view.width, height: 347 });
   await page.waitForFunction(() => innerHeight === 347);
-  await setKeyboard(page, { top: 142, height: 205, inset: 0 });
+  await settleViewport(page);
+  const band = { top: 142, height: 205, inset: 0 };
+  await setKeyboard(page, band);
   const field = page
     .locator(".bottom-sheet--column")
     .getByRole("spinbutton")
     .first();
   await field.focus();
   await field.scrollIntoViewIfNeeded();
+  // Focusing and scrolling can fire the visual viewport's own scroll event,
+  // and the keyboard hook clears a keyboard the device does not report. Put
+  // the fake band back once those events have passed, so the geometry below
+  // is read with the keyboard open on every engine and runner speed.
+  await settleViewport(page);
+  await setKeyboard(page, band);
+  await expect.poll(async () => (await geometry(page)).position).toBe("fixed");
   const g = await geometry(page);
   const strip = g.status!;
   const box = (await field.boundingBox())!;
