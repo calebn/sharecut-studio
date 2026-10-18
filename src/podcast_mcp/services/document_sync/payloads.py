@@ -151,8 +151,8 @@ class ApproveEditsPayload(BaseModel):
             "Approve all: a cut that cannot apply safely (another speaker is talking "
             "there, say) stays pending and is reported in `held`; every other edit "
             "applies. A cut that would cut other speech also stays pending: the reply "
-            "is reported with its speech evidence. Only trusted interactive intent can "
-            "override that acoustic hold. Without `hold_blocked`, one held cut refuses "
+            "is reported with its speech evidence. Trusted interactive intent or "
+            "`override_audio_checks` overrides that acoustic hold. Without `hold_blocked`, one held cut refuses "
             "the whole batch."
         ),
     )

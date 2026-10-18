@@ -5,7 +5,6 @@ import json
 from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
-from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.models import (
     Clip,
     CutIntent,
@@ -169,7 +168,7 @@ def edit_selected_range(
         exact_range=target,
         proposal_origin=(
             ProposalOrigin.HUMAN
-            if is_human_intent(boundary_intent)
+            if boundary_intent is CutIntent.HUMAN_BOUNDARIES
             else ProposalOrigin.PROGRAMMATIC
         ),
         boundary_intent=boundary_intent,

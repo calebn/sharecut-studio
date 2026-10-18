@@ -6,9 +6,11 @@ Envelope fields on every command: `client_id`, `client_seq` (optional, >= 1; omi
 
 Which product surfaces expose related workflows: [Capabilities](#/capabilities).
 
-Acoustic holds are checked again when an edit is approved. Only trusted interactive
-intent can override an acoustic hold. Command payloads, confirmation text, and caller
-roles do not grant that intent.
+Acoustic holds are checked again when an edit is approved. A caller that may run the
+command can override the audio-quality and cut-position checks for one call with
+`override_audio_checks: true` (a share needs the Editor capability). Confirmation text
+and caller roles alone do not override anything; each override is recorded with its
+actor and surface.
 
 <!-- document-commands:generated -->
 

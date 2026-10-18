@@ -752,8 +752,8 @@ an unchanged inherited mute, or a surviving portion of its native recipe, to the
 cut; genuinely changed envelopes still receive
 assessment on that physical occurrence.
 
-Placement and archive integrity always apply. Only trusted interactive intent bypasses
-acoustic edges and peers. Partial batches discard failed copies, exclude held IDs from
+Placement and archive integrity always apply. Only trusted interactive intent or the
+logged `override_audio_checks` override bypasses acoustic edges and peers. Partial batches discard failed copies, exclude held IDs from
 chosen speech, and rebuild survivors from the accepted mute base. Shared join fades
 carry every contributing accepted ID. Temporary measurement audio may be rendered in
 `TemporaryDirectory`; rejection publishes no render, export, source pool or history.
