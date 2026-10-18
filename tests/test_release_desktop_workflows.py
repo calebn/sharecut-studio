@@ -36,6 +36,8 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
     assert inputs["sign"]["default"] is False
     assert inputs["sign_updater"]["type"] == "boolean"
     assert inputs["sign_updater"]["default"] is False
+    assert inputs["require_windows_signing"]["type"] == "boolean"
+    assert inputs["require_windows_signing"]["default"] is True
     assert inputs["distribution_profile_json"]["type"] == "string"
     assert inputs["distribution_profile_json"]["default"] == ""
     assert inputs["extension_artifact_name"] == {

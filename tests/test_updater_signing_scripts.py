@@ -140,3 +140,28 @@ def test_stage_removes_stale_updater_bundles(sandbox: Path) -> None:
     assert done.returncode == 0, done.stderr
     names = sorted(p.name for p in updater.iterdir())
     assert len(names) == 2 and all(n.startswith("Studio_1.2.3_") for n in names)
+
+
+def test_stage_prints_only_the_tarball_path_when_stapler_is_chatty(sandbox: Path) -> None:
+    macos = sandbox / "gui/desktop/src-tauri/target/release/bundle/macos"
+    contents = macos / "Sharecut Studio.app" / "Contents" / "MacOS"
+    contents.mkdir(parents=True)
+    (contents / "sharecut").write_text("bin")
+    for name, body in (
+        ("codesign", "exit 0\n"),
+        ("xcrun", 'echo "Processing: $3"; echo "The validate action worked!"\n'),
+    ):
+        stub = sandbox / "bin" / name
+        stub.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
+        stub.chmod(0o755)
+
+    done = _run(
+        sandbox,
+        "stage_updater_bundle.sh",
+        str(sandbox / "out"),
+        env={"APPLE_SIGNING_IDENTITY": "Developer ID Application: Test (TEAM)"},
+    )
+    assert done.returncode == 0, done.stderr
+    lines = done.stdout.strip().splitlines()
+    assert len(lines) == 1 and lines[0].endswith(".app.tar.gz")
+    assert "validate action worked" in done.stderr
