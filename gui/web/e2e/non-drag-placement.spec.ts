@@ -756,8 +756,9 @@ test("group pointer steps save exact 7/27 placements, refusal recovers and one U
           .length ?? 0) + 1,
       );
       await page
+        .getByRole("region", { name: "Status messages" })
+        .filter({ hasText: "Moved clips" })
         .getByRole("button", { name: "Undo", exact: true })
-        .first()
         .click();
       await expect
         .poll(() => snapshot(projectPath).clips)
