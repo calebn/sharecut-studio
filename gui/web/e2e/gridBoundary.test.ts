@@ -31,10 +31,6 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 2,
     reason: "axe contrast on the chooser, reduced motion on its own cell",
   },
-  "compact-history-persistence.spec.ts": {
-    loops: 1,
-    reason: "16 and 32 px root text are the two boundary sizes",
-  },
   "touch-grammar.spec.ts": {
     loops: 2,
     reason: "the create-menu sweep over text sizes is the subject",
