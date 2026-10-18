@@ -489,7 +489,8 @@ html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
   display: contents;
 }
 
-html[data-shell="phone"] .bottom-sheet--half[data-phone-envelope] {
+html[data-shell="phone"]
+  .bottom-sheet--half[data-phone-envelope]:not([data-drawer-motion]) {
   max-block-size: var(--phone-envelope-cap, 100%);
 }
 
