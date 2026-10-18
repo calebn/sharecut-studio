@@ -1044,7 +1044,8 @@ For an exact destination, enter **Timeline start (seconds)**. Review the timelin
 preview, then choose **Apply move** or **Cancel**. A selected group moves together,
 with each clip clamped at zero and the outer tracks. Exact input does not snap.
 Apply uses one existing move History action. Cancel and unchanged Apply save
-nothing. A refused save keeps a current draft and an error so you can retry.
+nothing. The preview stays visible while Apply waits for an earlier edit to finish.
+A refused save keeps a current draft and an error so you can retry.
 
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
 by a 1 rem request, subject to the current available bounds. Steps start at the

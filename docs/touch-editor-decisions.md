@@ -25,7 +25,8 @@ zero-time and outer-lane clamps. Exact input bypasses drag magnets.
 The local owner has idle, preview, and committing phases. Its token captures the
 project path, epoch, edit basis, selection, anchor, and track order. The timeline
 reads its placements through a local subscription and `laneMovePreview`; preview
-never patches the project or creates a document delivery draft. Invalidation,
+never patches the project or creates a document delivery draft. The preview stays
+visible while Apply waits for an earlier track save to finish. Invalidation,
 unmount, backgrounding, permission loss, or a competing edit cancels only the
 owned session. Apply rechecks the capture inside the track mutation queue before
 patching or delivery. Settlement cannot clear a replacement session. A refused
