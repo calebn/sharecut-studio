@@ -417,6 +417,59 @@ async function demoRotationKeepsLane(page: Page, vp: Viewport) {
   });
 }
 
+const PHONE_VIEWPORTS: Viewport[] = [
+  { width: 667, height: 375, keyboard: 150 },
+  { width: 740, height: 360, keyboard: 150 },
+  { width: 767, height: 375, keyboard: 150 },
+];
+
+/** The phone shell (under 768 px wide) held sideways, on the demo project. */
+async function openPhoneDemoEnvelope(page: Page, projectPath: string) {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await expect(page.locator(".daw-shell--phone")).toBeVisible();
+  await openPhoneTimeline(page);
+  await openGuestDetails(page);
+  await page
+    .getByRole("button", { name: "Add volume envelope", exact: true })
+    .tap();
+  await page
+    .getByRole("button", { name: "Show volume envelope", exact: true })
+    .tap();
+  await page.getByRole("button", { name: "Add point", exact: true }).tap();
+  await expect(page.getByLabel("Level (×)")).toBeVisible();
+}
+
+async function phoneLaneAndFormWithKeyboard(page: Page, vp: Viewport) {
+  await page.setViewportSize(vp);
+  await withDemoProject(async (projectPath) => {
+    await openPhoneDemoEnvelope(page, projectPath);
+    const label = `${vp.width}x${vp.height} phone`;
+    await expectLaneFullyVisible(page, label);
+    await expectFormAndDoneReachable(page, label);
+    await setKeyboard(page, vp.keyboard);
+    await page.getByLabel("Level (×)").focus();
+    await expectFormAndDoneReachable(page, `${label} with keyboard`);
+  });
+}
+
+test("667x375 phone shell (iPhone SE): the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
+  page,
+}) => {
+  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[0]!);
+});
+
+test("740x360 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
+  page,
+}) => {
+  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[1]!);
+});
+
+test("767x375 phone shell (widest phone width): the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
+  page,
+}) => {
+  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[2]!);
+});
+
 test("914x331 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
   page,
 }) => {

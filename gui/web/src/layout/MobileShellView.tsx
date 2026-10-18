@@ -38,6 +38,8 @@ export type MobileSheet =
       expanded: boolean;
       onExpandedChange: (expanded: boolean) => void;
       onClose: () => void;
+      /** The panel's class when it is not the compact inspector. */
+      className?: string;
       /** The compact inspector (peek strip) in place of the half sheet. */
       compact?: CompactSheetProps;
     };
@@ -159,7 +161,9 @@ export function MobileShellView({
         title={sheet.kind === "mix" ? "Mix" : "Inspector"}
         size={sheet.kind === "mix" ? "full" : "half"}
         className={
-          sheet.kind === "inspector" ? INSPECTOR_SHEET_CLASS : undefined
+          sheet.kind === "inspector"
+            ? (sheet.className ?? INSPECTOR_SHEET_CLASS)
+            : undefined
         }
         expanded={sheet.kind === "inspector" ? sheet.expanded : undefined}
         onExpandedChange={

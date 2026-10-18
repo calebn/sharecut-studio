@@ -548,6 +548,7 @@ function MobileShellAdapter({
         expanded: selectionSheet.expanded,
         onExpandedChange: selectionSheet.onExpandedChange,
         onClose: selectionSheet.onClose,
+        className: selectionSheet.className,
         compact: selectionSheet.compact,
         content: selectionSheet.content,
       }
