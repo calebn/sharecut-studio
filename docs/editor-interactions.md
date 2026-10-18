@@ -7,11 +7,14 @@ leave History unchanged. A stale queued apply is refused before patch or deliver
 The server concurrency policy is unchanged.
 
 `non-drag-placement.spec.ts` is the focused browser proof command target for the
-new controls. It has not run in this implementation pass. Its receipts distinguish
-native mouse or browser touch initiation from synthetic selectOption assistance.
+new controls. Its receipts distinguish native mouse or browser touch initiation
+from synthetic selectOption assistance.
 It covers exact saved 7/27 placements, lanes, refusal/recovery and Undo, plus local
-panel preference steps/reset/reload. The paired shell, role, theme, motion, short
-height and large-text cells are specified tests, not claimed acceptance results.
+panel preference steps/reset/reload. Panel tests cover the measured ceiling,
+oversized preferences, and passive banner and root-font changes without a window
+resize. The banner-row and root-font stimuli are synthetic layout fixtures.
+The paired shell, role, theme, motion, short height and large-text cells are
+specified tests, not claimed acceptance results.
 Arbitrary exact timestamp seek remains a separate precision gap.
 
 This inventory separates navigation, local drafts and browser preferences from
@@ -44,7 +47,7 @@ by a test are synthetic, even when the browser viewport resembles a phone.
 | Existing volume envelope | Drag an existing point. Enter/Space selects an idle point; Time/Value Apply is the exact alternative. Arrow keys do not provide point editing and may retain global playhead navigation. | Owned preview, for the host and Editor links (other links view envelopes only); Escape, blur and owner interruption cancel, foreign pointer events are ignored. `envelope-recovery.spec.ts` uses native mouse owners and explicitly synthetic foreign events. Points are created from the track inspector's **Add volume envelope** and **Add point**, or the touch create menu's **Add envelope point**. |
 | Pending region and chapter/social marker | Pending bodies select; only eligible outer start/end handles drag. There is no whole pending-span drag transaction. Drag chapter position or social body/edge. Existing inspector numeric bounds supply exact edits; dense touch pending regions use Edit timing. | Pending drafts save through `UpdatePendingEdit`; review/apply remains separate. Chapter/social changes use their existing commands. Their owning marker restores its preview on Escape, cancellation/capture loss, blur or unmount; project switches end the old marker lifetime even when values match. Other pointer events are ignored. `transitions-acceptance.spec.ts`, `pending-edge-controls.spec.ts` and `MarkerLane.test.tsx` cover distinct paths; `inventory-audit.spec.ts` checks native chapter/social body preview, Escape, release, exact saved values and Undo in the representative fixture. |
 | Transcript edit boundary | Drag the boundary grab; Precision boundary supplies exact offsets, Apply/Cancel and Listen current/proposed. | Existing owned preview and roll lock. `edit-boundary-touch.spec.ts` checks owner isolation, grab geometry and one saved roll; `edit-boundary-precision.spec.ts` checks exact edits, stale recovery and current/proposed routes. The landed boundary engine remains unchanged. |
-| Editor panel space | Desktop/tablet Shorter/Taller buttons step 1 rem and Reset panel size clears the preference; separator drag; arrows, Shift arrows, Home/End, Enter and double-click reset. Phone inspectors use Expand/Collapse. | Browser preference only. Accessible values report the measured panel height, including an unset responsive default. Owner interruption or Escape restores the prior explicit value or absence while still owned. `splitter-recovery.spec.ts` checks intermediate/reversed geometry, cancellation, capture loss, clamp/no-op and phone alternatives in both themes. |
+| Editor panel space | Desktop/tablet Shorter/Taller buttons step 1 rem and Reset panel size clears the preference; separator drag; arrows, Shift arrows, Home/End, Enter and double-click reset. Phone inspectors use Expand/Collapse. | Browser preference only. Buttons, keyboard, drag clamps and accessible values use the rendered panel and available bounds, including the desktop main-row floor. Steps start at the live height even with an oversized saved preference. Passive banner or root-font changes do not rewrite that preference. Owner interruption or Escape restores the prior explicit value or absence while still owned. `splitter-recovery.spec.ts` checks intermediate/reversed geometry, cancellation, capture loss, clamp/no-op and phone alternatives in both themes. |
 | Zoom, pinch and scroll | Persistent zoom controls and Fit; Ctrl/Meta wheel and two-touch pinch at their anchor. Ordinary wheel scrolls. Safari gesture routing is a separate path. | Navigation only. `waveform.spec.ts`, `timelineZoomGestures.test.ts` and `applyAnchoredZoom.test.ts` check deep geometry and anchoring. Synthetic contact tests do not establish physical trackpad or touch delivery. |
 | Word timing resize | Wordbar source-local start/end handles, native range/number fields, explicit Apply timing/Cancel draft and optional edge listening. | Owned local draft before `SetTranscriptWordTiming`. `transcript-wordbar.spec.ts` checks real source timing, reload and Undo. Existing transcript boundary wrapping/grab checks live in `edit-boundary-touch.spec.ts`; they are retained rather than reimplemented. |
 

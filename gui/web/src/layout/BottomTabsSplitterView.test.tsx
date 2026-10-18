@@ -75,7 +75,10 @@ describe("BottomTabsSplitterView", () => {
       expect(panel).not.toBeNull();
       if (!panel) throw new Error("separator has no panel parent");
       const observer = FakeResizeObserver.of(panel);
-      expect(observer.targets).toEqual([panel]);
+      expect(observer.targets).toEqual([
+        panel,
+        separator.querySelector(".splitter-rem-signal"),
+      ]);
       rect.mockReturnValue({ height: 384 } as DOMRect);
       act(() => observer.fire());
       expect(separator).toHaveAttribute("aria-valuenow", "24");

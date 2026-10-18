@@ -289,10 +289,90 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
                 getComputedStyle(document.documentElement).fontSize,
               ),
             );
+            await info.attach("panel-geometry.json", {
+              body: JSON.stringify(
+                await panel.evaluate((element) => {
+                  const shell = element.parentElement!;
+                  const main =
+                    shell.querySelector<HTMLElement>(":scope > .daw-main")!;
+                  return {
+                    panelHeight: element.getBoundingClientRect().height,
+                    mainHeight: main.getBoundingClientRect().height,
+                    mainMinHeight: getComputedStyle(main).minHeight,
+                    mainFloor: getComputedStyle(shell).getPropertyValue(
+                      "--shell-main-min-height",
+                    ),
+                    shellHeight: shell.getBoundingClientRect().height,
+                    gridRows: getComputedStyle(shell).gridTemplateRows,
+                    mainRow:
+                      getComputedStyle(shell).getPropertyValue(
+                        "--shell-main-row",
+                      ),
+                    requestedHeight:
+                      getComputedStyle(element).getPropertyValue(
+                        "--tabs-height",
+                      ),
+                    preference: localStorage.getItem("sharecut.tabsHeight"),
+                  };
+                }),
+              ),
+              contentType: "application/json",
+            });
             const prior = snapshot(projectPath);
             const mutations = commands.length;
+            const separator = page.getByRole("separator", {
+              name: "Resize editor panels",
+            });
+            const taller = page.getByRole("button", {
+              name: "Taller",
+              exact: true,
+            });
+            const maximumRem = Number(
+              await separator.getAttribute("aria-valuemax"),
+            );
+            const currentRem = Number(
+              await separator.getAttribute("aria-valuenow"),
+            );
+            expect(currentRem).toBeGreaterThanOrEqual(
+              Number(await separator.getAttribute("aria-valuemin")),
+            );
+            expect(currentRem).toBeLessThanOrEqual(maximumRem);
+            if (Math.abs(height - maximumRem * rem) < 2) {
+              await expect(taller).toBeDisabled();
+              await expect(taller).toHaveAccessibleDescription(
+                "Panel is at its tallest size.",
+              );
+              expect(
+                await page.evaluate(() =>
+                  localStorage.getItem("sharecut.tabsHeight"),
+                ),
+              ).toBeNull();
+              expect(snapshot(projectPath)).toEqual(prior);
+              expect(commands).toHaveLength(mutations);
+            }
+            if (cell.name === "desktop short large text Editor") {
+              const capacity = await panel.evaluate((element) => {
+                const shell = element.parentElement!;
+                const main = shell.querySelector(":scope > .daw-main")!;
+                const floorRem = Number.parseFloat(
+                  getComputedStyle(shell).getPropertyValue(
+                    "--shell-main-min-height",
+                  ),
+                );
+                const rootRem = Number.parseFloat(
+                  getComputedStyle(document.documentElement).fontSize,
+                );
+                return (
+                  element.getBoundingClientRect().height +
+                  main.getBoundingClientRect().height -
+                  floorRem * rootRem
+                );
+              });
+              expect(height).toBeCloseTo(capacity, 0);
+              await expect(taller).toBeDisabled();
+            }
             await activate(
-              page.getByRole("button", { name: "Taller", exact: true }),
+              page.getByRole("button", { name: "Shorter", exact: true }),
               cell.touch,
             );
             await expect
@@ -301,11 +381,26 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
                   (element) => element.getBoundingClientRect().height,
                 ),
               )
-              .toBeCloseTo(height + rem, 0);
+              .toBeCloseTo(height - rem, 0);
+            expect(
+              Number(
+                await page.evaluate(() =>
+                  localStorage.getItem("sharecut.tabsHeight"),
+                ),
+              ),
+            ).toBeCloseTo(height / rem - 1, 4);
+            await activate(taller, cell.touch);
+            await expect
+              .poll(() =>
+                panel.evaluate(
+                  (element) => element.getBoundingClientRect().height,
+                ),
+              )
+              .toBeCloseTo(height, 0);
             const stored = await page.evaluate(() =>
               localStorage.getItem("sharecut.tabsHeight"),
             );
-            expect(Number(stored)).toBeCloseTo(height / rem + 1, 4);
+            expect(Number(stored)).toBeCloseTo(height / rem, 4);
             await info.attach("panel-step", {
               body: await page.screenshot({
                 path: info.outputPath("panel-step.png"),
@@ -313,14 +408,22 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
               contentType: "image/png",
             });
             await page.reload();
+            await expect(separator).toBeVisible();
+            const admittedMin = Number(
+              await separator.getAttribute("aria-valuemin"),
+            );
+            const admittedMax = Number(
+              await separator.getAttribute("aria-valuemax"),
+            );
             expect(
-              await page.evaluate(() =>
-                localStorage.getItem("sharecut.tabsHeight"),
+              Number(
+                await page.evaluate(() =>
+                  localStorage.getItem("sharecut.tabsHeight"),
+                ),
               ),
-            ).toBe(stored);
-            await activate(
-              page.getByRole("button", { name: "Shorter", exact: true }),
-              cell.touch,
+            ).toBeCloseTo(
+              Math.min(admittedMax, Math.max(admittedMin, Number(stored))),
+              4,
             );
             await activate(
               page.getByRole("button", { name: "Reset panel size" }),
@@ -449,6 +552,113 @@ test("group pointer steps save exact 7/27 placements, refusal recovers and one U
       await info.attach("provenance.txt", {
         body: "Native mouse initiation, time steps, Apply and Undo. Modifier-assisted multi-selection. selectOption supplies the native select value. HTTP 409 refusal is injected. No physical-device proof.",
         contentType: "text/plain",
+      });
+    },
+    undefined,
+    placementFixture,
+  );
+});
+
+test("panel bounds preserve an oversized preference across passive banner and font changes", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.addInitScript(() =>
+    localStorage.setItem("sharecut.tabsHeight", "12"),
+  );
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      const before = snapshot(projectPath);
+      const commands: Command[] = [];
+      page.on("request", (request) => {
+        if (
+          request.method() === "POST" &&
+          new URL(request.url()).pathname.endsWith("/document/command")
+        )
+          commands.push(request.postDataJSON());
+      });
+      const panel = page.locator(".bottom-tabs");
+      const separator = page.getByRole("separator", {
+        name: "Resize editor panels",
+      });
+      const taller = page.getByRole("button", { name: "Taller", exact: true });
+      const preference = () =>
+        page.evaluate(() => localStorage.getItem("sharecut.tabsHeight"));
+      const height = () =>
+        panel.evaluate((element) => element.getBoundingClientRect().height);
+      const assertRange = async () => {
+        const actualRem = await panel.evaluate(
+          (element) =>
+            element.getBoundingClientRect().height /
+            Number.parseFloat(
+              getComputedStyle(document.documentElement).fontSize,
+            ),
+        );
+        await expect
+          .poll(async () =>
+            Number(await separator.getAttribute("aria-valuenow")),
+          )
+          .toBe(Math.round(actualRem * 10) / 10);
+        const current = Number(await separator.getAttribute("aria-valuenow"));
+        expect(current).toBeGreaterThanOrEqual(
+          Number(await separator.getAttribute("aria-valuemin")),
+        );
+        expect(current).toBeLessThanOrEqual(
+          Number(await separator.getAttribute("aria-valuemax")),
+        );
+      };
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "24px";
+      });
+      await assertRange();
+      expect(await preference()).toBe("12");
+      const beforeBanner = await height();
+      await page.locator(".daw-shell-banners").evaluate((element) => {
+        element.style.blockSize = "2rem";
+      });
+      await expect.poll(height).toBeLessThan(beforeBanner);
+      await assertRange();
+      await expect(taller).toBeDisabled();
+      await expect(taller).toHaveAccessibleDescription(
+        "Panel is at its tallest size.",
+      );
+      expect(await preference()).toBe("12");
+      const ceiling = await height();
+      await page.getByRole("button", { name: "Shorter", exact: true }).click();
+      await expect.poll(height).toBeCloseTo(ceiling - 24, 0);
+      await taller.click();
+      await expect.poll(height).toBeCloseTo(ceiling, 0);
+      const stepped = await preference();
+      expect(Number(stepped)).toBeCloseTo(ceiling / 24, 4);
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "20px";
+      });
+      await assertRange();
+      await expect(taller).toBeEnabled();
+      expect(await preference()).toBe(stepped);
+      await page.locator(".daw-shell-banners").evaluate((element) => {
+        element.style.removeProperty("block-size");
+      });
+      await assertRange();
+      expect(await preference()).toBe(stepped);
+      await page.getByRole("button", { name: "Reset panel size" }).click();
+      expect(await preference()).toBeNull();
+      expect(snapshot(projectPath)).toEqual(before);
+      expect(commands).toHaveLength(0);
+      await info.attach("passive-panel-layout-provenance.json", {
+        body: JSON.stringify({
+          storedRem: 12,
+          beforeBanner,
+          ceiling,
+          stepped,
+          syntheticAssistance: [
+            "24px and 20px root font",
+            "2rem existing banner row size",
+          ],
+          physicalDevice: false,
+        }),
+        contentType: "application/json",
       });
     },
     undefined,
