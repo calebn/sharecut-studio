@@ -191,6 +191,21 @@ available.
 
 Approved range mutes become occurrence-local, source-clock `mute_regions`. Rendering a shorter window preserves the original envelope endpoints so playback does not restart a fade inside an existing mute. Reviewed bleed proposals use this same exact-range contract. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
 
+`Clip.bleed_restore` is null or `{source_sha256, regions}`. Each region is a
+`SourceSpan` with nonnegative `start_s` and a greater finite `end_s`.
+Loading sorts regions and unions overlapping or adjacent intervals. The containing
+clip selects the recording. The lowercase SHA-256 binds choices to its exact bytes.
+Relocation and source pinning preserve choices. Changed bytes deactivate them.
+These choices affect timeline attenuation rendering and do not alter automatic
+gate evidence, source scope, transcript words, or manual `mute_regions`.
+
+Split, extract, duplicate, and clipboard operations copy the object independently
+and retain full saved source intervals. Trims retain intervals for later extension.
+A roll retains each neighbor's own choices. Fresh media clips start with null.
+History snapshots carry the object with the timeline. The core model and timeline
+renderer support this state. Host Restore commands and occurrence proxy variants
+require separate integration.
+
 `timeline.duration_sec` retains the pre-punch extent when a range Cut removes the
 last clips; duration and default Bounce still include the resulting silence.
 `TimelineComment.timeline_spans` optionally carries ordered selected islands;

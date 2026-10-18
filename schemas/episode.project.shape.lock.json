@@ -231,6 +231,17 @@
         },
         "Clip": {
           "properties": {
+            "bleed_restore": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipBleedRestore"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "fade_in_ms": {
               "default": 0,
               "type": "integer"
@@ -282,6 +293,25 @@
             "source_start",
             "source_end",
             "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ClipBleedRestore": {
+          "properties": {
+            "regions": {
+              "items": {
+                "$ref": "#/$defs/SourceSpan"
+              },
+              "type": "array"
+            },
+            "source_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_sha256",
+            "regions"
           ],
           "type": "object"
         },
@@ -1939,6 +1969,21 @@
           "required": [
             "id",
             "path"
+          ],
+          "type": "object"
+        },
+        "SourceSpan": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
           ],
           "type": "object"
         },
@@ -2951,6 +2996,17 @@
         },
         "Clip": {
           "properties": {
+            "bleed_restore": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipBleedRestore"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "fade_in_ms": {
               "default": 0,
               "type": "integer"
@@ -3002,6 +3058,25 @@
             "source_start",
             "source_end",
             "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ClipBleedRestore": {
+          "properties": {
+            "regions": {
+              "items": {
+                "$ref": "#/$defs/SourceSpan"
+              },
+              "type": "array"
+            },
+            "source_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_sha256",
+            "regions"
           ],
           "type": "object"
         },
@@ -4662,6 +4737,21 @@
           ],
           "type": "object"
         },
+        "SourceSpan": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
         "SpeakerIngestAlignment": {
           "properties": {
             "align_method": {
@@ -5450,6 +5540,7 @@
     "BalanceBasis": "ignore",
     "ChapterMarker": "ignore",
     "Clip": "ignore",
+    "ClipBleedRestore": "ignore",
     "ClipMuteRegion": "ignore",
     "CombinedTranscript": "ignore",
     "CombinedUtterance": "ignore",
@@ -5489,6 +5580,7 @@
     "SocialSection": "ignore",
     "SourceClippingRegion": "ignore",
     "SourceRecording": "ignore",
+    "SourceSpan": "ignore",
     "SpeakerIngestAlignment": "ignore",
     "SpeakerSplit": "ignore",
     "SpeakerTurnRecord": "ignore",

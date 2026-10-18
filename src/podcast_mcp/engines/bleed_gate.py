@@ -728,7 +728,9 @@ def build_bleed_gate_plan(
 ) -> BleedGatePlan:
     """Reuse immutable acoustic evidence until selected media, metadata, or policy changes."""
     serialized = project.model_dump_json(
-        by_alias=True, include={"version", "meta", "sources", "timeline", "transcript_data"}
+        by_alias=True,
+        include={"version", "meta", "sources", "timeline", "transcript_data"},
+        exclude={"timeline": {"clips": {"__all__": {"bleed_restore"}}}},
     )
     revision = json.dumps(
         bleed_gate_payload(project, track_id), sort_keys=True, separators=(",", ":")
@@ -901,7 +903,9 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
             {
                 "track_id": tid,
                 "media": media,
-                "clips": [span.clip.model_dump(mode="json") for span in clips],
+                "clips": [
+                    span.clip.model_dump(mode="json", exclude={"bleed_restore"}) for span in clips
+                ],
                 "transcribed_source_ids": [source_id for source_id, _ in words],
                 "words": [
                     {

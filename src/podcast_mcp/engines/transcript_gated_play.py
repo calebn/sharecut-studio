@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.edits.bleed_restore import RestoreSupport
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
 from podcast_mcp.models import EpisodeProject, TrackRole
@@ -332,6 +333,67 @@ def apply_bleed_gate_plan(
         plan=plan,
         timeline_start=timeline_start,
     )
+
+
+def apply_restored_bleed_gate_plan(
+    wav_path: Path,
+    without_path: Path,
+    plan: BleedGatePlan,
+    supports: tuple[RestoreSupport, ...],
+    *,
+    timeline_start: float,
+    timeline_end: float,
+) -> Path:
+    from podcast_mcp.edits.bleed_restore import restore_gains_for_frames, restored_pcm
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", dir=wav_path.parent, delete=False) as temporary:
+        target_path = Path(temporary.name)
+    try:
+        with wav_path.open("rb") as whole, without_path.open("rb") as without:
+            channels, rate, offset, size = _pcm16_wave_info(whole)
+            other_channels, other_rate, other_offset, other_size = _pcm16_wave_info(without)
+            if (channels, rate, size) != (other_channels, other_rate, other_size):
+                raise ValueError("bleed Restore counterfactual PCM extent or format differs")
+            if whole.seek(0, 2) < offset + size or without.seek(0, 2) < other_offset + other_size:
+                raise ValueError("bleed Restore requires complete PCM16 WAV data")
+            whole.seek(0)
+            without.seek(other_offset)
+            with target_path.open("wb") as target:
+                shutil.copyfileobj(whole, target, length=64 * 1024)
+                whole.seek(offset)
+                target.seek(offset)
+                frames = size // (channels * 2)
+                origin = round(timeline_start * rate)
+                last = min(frames, round((timeline_end - timeline_start) * rate))
+                for first in range(0, last, rate):
+                    count = min(rate, last - first)
+                    raw = whole.read(count * channels * 2)
+                    counterfactual = without.read(count * channels * 2)
+                    absolute_first = origin + first
+                    baseline = _gate_pcm_chunk(
+                        raw,
+                        [],
+                        first_frame=absolute_first,
+                        sample_rate=rate,
+                        channels=channels,
+                        plan=plan,
+                    )
+                    target.write(
+                        restored_pcm(
+                            baseline,
+                            raw,
+                            counterfactual,
+                            channels=channels,
+                            gate_gains=plan.gains_for_frames(absolute_first, count, rate),
+                            restore_gains=restore_gains_for_frames(
+                                supports, absolute_first, count, rate, fade_sec=plan.fade_sec
+                            ),
+                        )
+                    )
+        publish_completed_file(target_path, wav_path)
+    finally:
+        target_path.unlink(missing_ok=True)
+    return wav_path
 
 
 def dialogue_tracks_for_play(project: EpisodeProject) -> list[str]:

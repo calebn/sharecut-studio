@@ -199,6 +199,25 @@
         "fade_in_ms": { "type": "integer", "minimum": 0, "default": 5 }
       }
     },
+    "ClipBleedRestore": {
+      "type": "object",
+      "required": ["source_sha256", "regions"],
+      "description": "Occurrence-owned automatic attenuation Restore choices. The containing clip selects the recording. Regions are canonical full source intervals and apply only while the selected recording has this exact SHA-256.",
+      "properties": {
+        "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["start_s", "end_s"],
+            "properties": {
+              "start_s": { "type": "number", "minimum": 0 },
+              "end_s": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      }
+    },
     "Clip": {
       "type": "object",
       "required": ["id", "track_id", "source_start", "source_end", "timeline_start"],
@@ -215,6 +234,10 @@
           "type": "string",
           "enum": ["fade", "crossfade", "cut"],
           "default": "fade"
+        },
+        "bleed_restore": {
+          "oneOf": [{ "$ref": "#/$defs/ClipBleedRestore" }, { "type": "null" }],
+          "default": null
         },
         "mute_regions": {
           "type": "array",

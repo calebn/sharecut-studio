@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from heapq import heappop, heappush
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from podcast_mcp.edits.bleed_restore import RestoreSupport, active_restore_regions
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     clips_for_track,
@@ -19,16 +22,23 @@ from podcast_mcp.edits.mute_regions import (
 from podcast_mcp.engines.audio import (
     At,
     Audio,
+    BoundaryClock,
     CrossfadeAudio,
+    MaskAudio,
     MixAudio,
     RequestedExtent,
     SequenceAudio,
     SourceAudio,
     duration,
+    postorder,
+    rendered_sources,
+    sources,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.render_clock import read_render_clock
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.process import run
@@ -135,6 +145,17 @@ def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool) -> float:
     return clip.fade_out_ms / 1000.0
 
 
+def _restore_dependencies(project: EpisodeProject, track: Track):
+    if track.transcript_gate and any(
+        clip.track_id == track.id and clip.bleed_restore and clip.bleed_restore.regions
+        for clip in project.clips
+    ):
+        from podcast_mcp.engines.play_audit import RenderDependencies
+
+        return RenderDependencies.capture(project, track.id)
+    return None
+
+
 def render_track_from_timeline(
     project: EpisodeProject,
     track: Track,
@@ -146,6 +167,7 @@ def render_track_from_timeline(
     if not track.media:
         raise ValueError(f"track {track.id} has no media")
 
+    dependencies = _restore_dependencies(project, track)
     eng = engine or FFmpegEngine()
     primary = resolve_under_workspace(project, track.media.path)
 
@@ -179,6 +201,7 @@ def render_track_from_timeline(
         eng=eng,
         af=af,
         crossfade_curve=crossfade_curve,
+        dependencies=dependencies,
     )
 
 
@@ -206,6 +229,7 @@ class _Component:
 class _PlacedTrack:
     audio: Audio
     extent: RequestedExtent | None
+    bodies: tuple[tuple[str, Audio], ...] = ()
 
 
 def _place_clips(
@@ -258,6 +282,7 @@ def _place_clips(
     return _PlacedTrack(
         MixAudio(ats[0], tuple(ats[1:])),
         RequestedExtent(window_length - clock_shift) if window_length is not None else None,
+        tuple((item.clip.id, item.content.body) for item in prepared if item.content is not None),
     )
 
 
@@ -267,6 +292,8 @@ def placed_track_audio(
     sorted_clips: list[Clip],
     *,
     window: tuple[float, float] | None = None,
+    removed_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
+    mask_clocks: dict[str, tuple[BoundaryClock, int, int]] | None = None,
 ) -> _PlacedTrack:
     """Build the exact source, envelope and placement graph without rendering or saving."""
     prepared: list[_PreparedClip] = []
@@ -309,7 +336,16 @@ def placed_track_audio(
             source_id=clip.source_id,
         )
         tiles = _room_tone_under_mutes(project, track, clip, source_start, source_end)
-        body = MixAudio(At(0.0, leaf), tuple(tiles)) if tiles else leaf
+        body: Audio = MixAudio(At(0.0, leaf), tuple(tiles)) if tiles else leaf
+        if removed_regions and clip.id in removed_regions:
+            windows = tuple(
+                (start, end)
+                for start, end in removed_regions[clip.id]
+                if start < source_end and end > source_start
+            )
+            if windows:
+                clock, first_frame, source_rate = (mask_clocks or {})[clip.id]
+                body = MaskAudio(body, source_start, windows, clock, first_frame, source_rate)
         prepared.append(
             _PreparedClip(
                 clip,
@@ -333,6 +369,8 @@ def _render_placed_track(
     af: str,
     crossfade_curve: str = "tri",
     window: tuple[float, float] | None = None,
+    staging_gain_db: float = 0.0,
+    dependencies=None,
 ) -> Path:
     placed = placed_track_audio(
         project,
@@ -340,23 +378,151 @@ def _render_placed_track(
         sorted_clips,
         window=window,
     )
-    eng.render_timeline(
-        output_path,
-        placed.audio,
-        af,
-        crossfade_curve=crossfade_curve,
-        requested_extent=placed.extent,
-    )
-    if track.transcript_gate and window is None:
-        from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
+    start, end = window or (0.0, timeline_duration_sec(project))
+    removed: dict[str, tuple[tuple[float, float], ...]] = {}
+    clips = {clip.id: clip for clip in sorted_clips}
+    if dependencies is not None:
+        with batch_scope():
+            for source in sources(placed.audio):
+                if source.is_fill or source.clip_id is None:
+                    continue
+                regions = active_restore_regions(clips[source.clip_id], source.path)
+                if any(lo < source.src_end and hi > source.src_start for lo, hi in regions):
+                    removed[source.clip_id] = regions
+        dependencies.validate(project, track.id)
 
-        apply_track_transcript_gate(
-            project,
-            track.id,
-            output_path,
-            timeline_start=0.0,
-            timeline_end=timeline_duration_sec(project),
-        )
+    from podcast_mcp.engines.transcript_gated_play import (
+        apply_bleed_gate_plan,
+        apply_restored_bleed_gate_plan,
+        apply_track_transcript_gate,
+        build_bleed_gate_plan,
+    )
+
+    plan = build_bleed_gate_plan(project, track.id) if removed else None
+
+    def render(audio: Audio, target: Path, clock_path: Path | None = None) -> None:
+        temporary = target.with_suffix(".render_tmp.wav") if staging_gain_db else target
+        try:
+            options = {"clock_path": clock_path} if clock_path is not None else {}
+            eng.render_timeline(
+                temporary,
+                audio,
+                af,
+                crossfade_curve=crossfade_curve,
+                requested_extent=placed.extent,
+                **options,
+            )
+            if staging_gain_db:
+                eng.apply_gain(temporary, target, staging_gain_db)
+        finally:
+            if temporary != target:
+                temporary.unlink(missing_ok=True)
+
+    if plan is not None and plan.attenuation_spans:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(prefix=".bleed-restore-", dir=output_path.parent) as directory:
+            whole = Path(directory) / "whole.wav"
+            without = Path(directory) / "without.wav"
+            whole_clock_path = Path(directory) / "whole-clock.json"
+            without_clock_path = Path(directory) / "without-clock.json"
+            dependencies.validate(project, track.id)
+            render(placed.audio, whole, whole_clock_path)
+            dependencies.validate(project, track.id)
+            clock = read_render_clock(whole_clock_path)
+            rendered = rendered_sources(placed.audio, clock)
+            supports: list[RestoreSupport] = []
+            primary = {}
+            for rendered_source in rendered:
+                if rendered_source.source.is_fill or rendered_source.source.clip_id not in removed:
+                    continue
+                primary[rendered_source.source.clip_id] = rendered_source
+                rate = rendered_source.source_sample_rate
+                for lo, hi in removed[rendered_source.source.clip_id]:
+                    if (
+                        lo >= rendered_source.source.src_end
+                        or hi <= rendered_source.source.src_start
+                    ):
+                        continue
+                    supports.append(
+                        RestoreSupport(
+                            saved_first_frame=math.ceil(lo * rate),
+                            saved_last_frame=math.ceil(hi * rate),
+                            active_first_frame=max(
+                                math.ceil(lo * rate), rendered_source.source_first_frame
+                            ),
+                            active_last_frame=min(
+                                math.ceil(hi * rate), rendered_source.source_last_frame
+                            ),
+                            source_first_frame=rendered_source.source_first_frame,
+                            source_rate=rate,
+                            placement_frame=rendered_source.frame(
+                                rendered_source.source_first_frame
+                            ),
+                            placement_rate=clock.nodes[-1].consumer.sample_rate,
+                            timeline_origin_sec=start,
+                            transforms=rendered_source.transforms,
+                        )
+                    )
+            output_rate = clock.output.sample_rate
+            affected = any(
+                max(
+                    s.output_frame(s.active_first_frame, output_rate),
+                    math.ceil(lo * output_rate),
+                    round(start * output_rate),
+                )
+                < min(
+                    s.output_frame(s.active_last_frame, output_rate),
+                    math.ceil(hi * output_rate),
+                    round(end * output_rate),
+                )
+                for s in supports
+                for lo, hi in plan.attenuation_spans
+            )
+            if affected:
+                node_indices = {id(node): i for i, node in enumerate(postorder(placed.audio))}
+                mask_clocks = {
+                    clip_id: (
+                        clock.nodes[node_indices[id(body)]],
+                        primary[clip_id].source_first_frame,
+                        primary[clip_id].source_sample_rate,
+                    )
+                    for clip_id, body in placed.bodies
+                    if clip_id in primary
+                }
+                counterfactual = placed_track_audio(
+                    project,
+                    track,
+                    sorted_clips,
+                    window=window,
+                    removed_regions=removed,
+                    mask_clocks=mask_clocks,
+                )
+                render(counterfactual.audio, without, without_clock_path)
+                dependencies.validate(project, track.id)
+                if read_render_clock(without_clock_path) != clock:
+                    raise CodedValueError(
+                        "Bleed Restore render clocks differ", code="bleed_restore_clock_invalid"
+                    )
+                apply_restored_bleed_gate_plan(
+                    whole,
+                    without,
+                    plan,
+                    tuple(supports),
+                    timeline_start=start,
+                    timeline_end=end,
+                )
+            else:
+                apply_bleed_gate_plan(whole, plan, timeline_start=start, timeline_end=end)
+            from podcast_mcp.util.atomic_file import publish_completed_file
+
+            dependencies.validate(project, track.id)
+            publish_completed_file(whole, output_path)
+    else:
+        render(placed.audio, output_path)
+        if track.transcript_gate:
+            apply_track_transcript_gate(
+                project, track.id, output_path, timeline_start=start, timeline_end=end
+            )
     return output_path
 
 
@@ -434,6 +600,7 @@ def render_track_segment(
         raise CodedValueError(
             f"track {track_id!r} not found or has no media", code="track_not_found"
         )
+    dependencies = _restore_dependencies(project, track)
     track_clips = clips_for_track(project, track.id)
     if not track_clips and track.timeline_empty:
         return (engine or FFmpegEngine()).silence(output_path, timeline_end - timeline_start)
@@ -468,28 +635,16 @@ def render_track_segment(
     ):
         return eng.silence(output_path, timeline_end - timeline_start)
 
-    tmp = output_path.with_suffix(".render_tmp.wav") if track.gain_db else output_path
     _render_placed_track(
         project,
         track,
         track_clips,
-        tmp,
+        output_path,
         eng=eng,
         af=af,
         crossfade_curve=crossfade_curve,
         window=(timeline_start, timeline_end),
+        staging_gain_db=track.gain_db,
+        dependencies=dependencies,
     )
-    if track.gain_db:
-        eng.apply_gain(tmp, output_path, track.gain_db)
-        tmp.unlink(missing_ok=True)
-    if track.transcript_gate:
-        from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
-
-        apply_track_transcript_gate(
-            project,
-            track_id,
-            output_path,
-            timeline_start=timeline_start,
-            timeline_end=timeline_end,
-        )
     return output_path

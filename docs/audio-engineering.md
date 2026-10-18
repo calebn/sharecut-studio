@@ -1147,6 +1147,36 @@ The first default turned every copy down about 20 dB. On the gated Zoom lanes
 the owner still heard the copy as an echo ahead of the speaker, so those lanes
 now mute.
 
+### Occurrence Restore rendering
+
+The core timeline renderer honors content-bound `Clip.bleed_restore` choices.
+It preserves the complete legacy ungated PCM16 bus and renders the same request
+with selected binary source windows removed from prepared occurrence bodies.
+The latter includes each body's manual edits, room tone, and clip fades.
+The joint difference supplies the correction to the legacy gated bus inside
+saved Restore support. The output ramp uses the current plan's fade duration.
+Its edges stay at the original source bounds across splits and audition windows.
+Support follows observed prepared sample counts, including rounded placement
+delays, negotiated trim origins and both sides of resampling. Ordered placement
+and rescaling keep the saved bounds on the compiled clock. A graph-header query
+and source-only descriptor read add no track FX evaluation. Passive observers
+in the two audio passes measure actual emitted counts. The counterfactual's
+binary mask preserves the body's observed producer rate, format and channel
+layout around removal, then restores the body's observed consumer context.
+Unusable observations refuse publication and clean private render files.
+Several choices use one combined counterfactual. Arithmetic widens before
+subtraction and saturates to PCM16. Zero corrections preserve baseline bytes.
+
+Shared nonlinear FX can assign interactions to this joint marginal. The result
+does not represent separately processed wet clips. Full stems and segments retain
+their existing request contexts and staging gain rules. They do not gain a new
+arbitrary-window PCM parity guarantee. Empty, inactive, disabled, and disjoint
+choices use the legacy path. Changed recording bytes deactivate saved choices.
+Automatic detection, protection, abstention, and source scope remain authoritative.
+Media or render-dependency changes during the two passes refuse publication and
+preserve the previous completed artifact. Its hash uses the validated inputs.
+Host Restore commands and source-context proxy variants are separate integration.
+
 ### Known limitations of the bleed gate
 
 The gate decides that a stretch is another speaker's copy by matching the lane against the peer's track at a fixed lag, then checking the copy's timbre against the peer's speech ([how the copy is found](../.agents/skills/podcast-mute-bleed/SKILL.md#design)). Two kinds of own sound look like a copy to that check. The owner accepted these limitations on 2026-10-12. The gate still leaves own sound alone in the cases the decision above pins with tests. Before you trust a gated stem, run `apply_transcript_gate_tool` with `dry_run=true` and listen to the passages below.

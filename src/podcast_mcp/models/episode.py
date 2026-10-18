@@ -18,6 +18,7 @@ from podcast_mcp.models.words_revision import (
 )
 from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
@@ -222,6 +223,23 @@ class Track(BaseModel):
         return self.gain_db + self.fader_db
 
 
+class ClipBleedRestore(BaseModel):
+    """Occurrence-owned automatic attenuation choices bound to exact recording bytes."""
+
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    regions: list[SourceSpan]
+
+    @model_validator(mode="after")
+    def _canonical_regions(self) -> ClipBleedRestore:
+        if any(region.start_s < 0 for region in self.regions):
+            raise ValueError("bleed Restore regions require nonnegative source bounds")
+        self.regions = [
+            SourceSpan(start_s=start, end_s=end)
+            for start, end in merge_intervals((r.start_s, r.end_s) for r in self.regions)
+        ]
+        return self
+
+
 class Clip(BaseModel):
     id: str
     track_id: str
@@ -234,6 +252,7 @@ class Clip(BaseModel):
     join_in_mode: ClipJoinMode = ClipJoinMode.FADE
     # Source-media mute holes honoured at render (tighten.edit_mode=mute).
     mute_regions: list[ClipMuteRegion] = Field(default_factory=list)
+    bleed_restore: ClipBleedRestore | None = None
 
     @property
     def timeline_end(self) -> float:

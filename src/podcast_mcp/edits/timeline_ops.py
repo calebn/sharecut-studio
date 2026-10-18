@@ -675,6 +675,11 @@ def copy_segment(
             "fade_out_ms": clip.fade_out_ms,
             "join_in_mode": clip.join_in_mode.value,
             "mute_regions": mute_regions_payload(clip.mute_regions),
+            **(
+                {"bleed_restore": clip.bleed_restore.model_dump(mode="json")}
+                if clip.bleed_restore is not None
+                else {}
+            ),
         }
         for tid in tracks
         for clip in extract_clips_in_timeline_range(clips_for_track(project, tid), start, end)
@@ -765,6 +770,18 @@ def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str
                     parsed_mutes.append(ClipMuteRegion.model_validate(item))
                 except ValidationError:
                     continue
+        from podcast_mcp.models import ClipBleedRestore
+
+        try:
+            restore = (
+                ClipBleedRestore.model_validate(raw["bleed_restore"])
+                if raw.get("bleed_restore") is not None
+                else None
+            )
+        except ValidationError as exc:
+            raise PasteRejectedError(
+                "paste_bad_extract", f"extract {index} has invalid bleed Restore"
+            ) from exc
         by_track[tid].append(
             Clip(
                 id=new_clip_id(),
@@ -777,6 +794,7 @@ def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str
                 fade_out_ms=int(raw.get("fade_out_ms", 0) or 0),
                 join_in_mode=join_mode,
                 mute_regions=mute_regions_overlapping(parsed_mutes, src_start, src_end),
+                bleed_restore=restore,
             )
         )
     return by_track

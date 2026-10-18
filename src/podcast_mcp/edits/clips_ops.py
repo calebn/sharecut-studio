@@ -158,20 +158,22 @@ def split_clip_at(clip: Clip, timeline_time: float) -> tuple[Clip, Clip]:
     source_split = clip_timeline_point_to_source(clip, timeline_time)
     fade = join_micro_fade_ms()
     before = clip.model_copy(
+        deep=True,
         update={
             "id": new_clip_id(),
             "source_end": source_split,
             "fade_out_ms": max(clip.fade_out_ms, fade),
-        }
+        },
     )
     after = clip.model_copy(
+        deep=True,
         update={
             "id": new_clip_id(),
             "source_start": source_split,
             "timeline_start": timeline_time,
             "fade_in_ms": max(clip.fade_in_ms, fade),
             "join_in_mode": ClipJoinMode.FADE,
-        }
+        },
     )
     before.mute_regions = mute_regions_overlapping(
         clip.mute_regions, before.source_start, before.source_end
@@ -204,7 +206,9 @@ def remove_timeline_range_from_clips(
         if tl_end <= timeline_start + 1e-9 or clip.timeline_start >= timeline_end - 1e-9:
             if clip.timeline_start >= timeline_end - 1e-9:
                 out.append(
-                    clip.model_copy(update={"timeline_start": clip.timeline_start - duration})
+                    clip.model_copy(
+                        deep=True, update={"timeline_start": clip.timeline_start - duration}
+                    )
                 )
             else:
                 out.append(clip)
@@ -221,7 +225,11 @@ def remove_timeline_range_from_clips(
         tl_end = working.timeline_end
         if tl_end > timeline_end + 1e-9:
             _, after = split_clip_at(working, timeline_end)
-            out.append(after.model_copy(update={"timeline_start": after.timeline_start - duration}))
+            out.append(
+                after.model_copy(
+                    deep=True, update={"timeline_start": after.timeline_start - duration}
+                )
+            )
     return sorted(out, key=lambda c: c.timeline_start)
 
 
@@ -289,6 +297,9 @@ def extract_clips_in_timeline_range(
                 fade_out_ms=clip.fade_out_ms,
                 join_in_mode=clip.join_in_mode,
                 mute_regions=mute_regions_overlapping(clip.mute_regions, src_start, src_end),
+                bleed_restore=clip.bleed_restore.model_copy(deep=True)
+                if clip.bleed_restore
+                else None,
             )
         )
     return extracted
@@ -301,7 +312,8 @@ def place_clips_at(
 ) -> list[Clip]:
     """Insert extracted clips (relative timeline) at insert_at on a track."""
     placed = [
-        c.model_copy(update={"timeline_start": insert_at + c.timeline_start}) for c in extracted
+        c.model_copy(deep=True, update={"timeline_start": insert_at + c.timeline_start})
+        for c in extracted
     ]
     merged = clips + placed
     return sorted(merged, key=lambda c: c.timeline_start)

@@ -50,7 +50,8 @@
         "fade_in_ms": 0,
         "fade_out_ms": 0,
         "join_in_mode": "fade",
-        "mute_regions": []
+        "mute_regions": [],
+        "bleed_restore": null
       }
     ]
   },

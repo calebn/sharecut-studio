@@ -50,7 +50,16 @@
         "fade_in_ms": 0,
         "fade_out_ms": 0,
         "join_in_mode": "fade",
-        "mute_regions": []
+        "mute_regions": [],
+        "bleed_restore": {
+          "source_sha256": "60c0b6c740c791f5d9c1b7d688aa4e6719b93c8f4e7c4b7919ab86ad78b74068",
+          "regions": [
+            {
+              "start_s": 0.002,
+              "end_s": 0.008
+            }
+          ]
+        }
       }
     ]
   },

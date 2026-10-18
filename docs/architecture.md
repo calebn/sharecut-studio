@@ -2,6 +2,35 @@
 
 ## Layers
 
+Occurrence attenuation choices live in `Clip.bleed_restore` and pure support and
+PCM arithmetic in `edits/bleed_restore.py`. Timeline rendering keeps the legacy
+ungated PCM16 bus `W = F(X)` and evaluates one joint counterfactual `V = F(X-R)`.
+`MaskAudio` removes binary source windows around complete prepared clip bodies,
+including manual edits and fill, while preserving graph duration and topology.
+Both branches keep the request's continuous FX and staging conversion.
+The output is `saturate16(B + (1-g)*h*(W-V))`, where `B` is the legacy gate of `W`.
+The output ramp `h` uses the active plan's fade duration at saved source bounds,
+capped to half the saved interval. Split and window edges do not restart it.
+`engines/render_clock.py` observes actual trim, body, composition and delay
+counts during each branch, retaining both sides of conversions. A source-only
+descriptor read and FFprobe graph-header query configure those passive observers
+without another audio FX evaluation. Compiler bindings preserve filter creation
+order and conversion formats. `rendered_sources` carries the observed trim
+origins through ordered integer placements and rescaling. The counterfactual's
+mask preserves the complete body's observed producer format before and after
+removal, then restores its observed consumer format at that body's output edge.
+Malformed or inconsistent observations refuse publication. Clock files stay
+inside the private render directory. The authored `placed_sources` traversal
+stays unchanged.
+This is a joint marginal of quantized shared bus renders. Nonlinear FX interactions
+belong to that marginal. No arbitrary full versus segment PCM parity is promised.
+Inactive choices use legacy rendering. Detector payloads and the detector cache
+exclude Restore state. Affected timeline render identities include it explicitly.
+`RenderDependencies` validates prepared media, fill, gate evidence, and render
+metadata around both passes and publication. The stem publisher writes the
+validated fingerprint. A replacement after publication therefore makes the stem
+stale. Restore has its own render-policy revision, leaving ordinary stem keys intact.
+
 Whole-lane recorder latency is the last stage of pipeline `align_tracks`.
 `engines/envelope_lag.py` finds the lag between a voice's direct track and its copy
 on another mic from level envelopes, tested against shifted nulls. It abstains
