@@ -739,18 +739,26 @@ enforced-by:
 - gui/web/src/ui/compactSheet.test.ts::is invisible to every keep-clear helper, which look for the sheet class
 - gui/web/e2e-compat/inspector-column.spec.ts::a clip's Inspector is a column beside a whole timeline, and Close returns the shell
 - gui/web/e2e-compat/inspector-column.spec.ts::with the keyboard up the column shortens to the visible viewport and keeps its header
+- gui/web/e2e-compat/inspector-column.spec.ts::with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice
+- gui/web/e2e-compat/inspector-column.spec.ts::turning upright keeps an unsaved draft and its focus in the Inspector
+- gui/web/src/ui/BottomSheet.test.tsx::keeps the draft, the elements and the focus when the phone rotates and back
+- gui/web/src/layout/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
 -->
 
 On a coarse primary pointer at most 40rem tall and at least 40rem wide, the
 selection Inspector is a column on the inline end of the shell, not a bottom
 sheet. One hook, `useInspectorColumn`, owns the three conditions; below 40rem
 wide, in portrait, and with a fine pointer the sheet or compact strip stays.
-The column is `clamp(16rem, 32vw, 22rem)` wide, in place as a grid child of
-`.daw-shell` and never portaled. The timeline keeps the whole main row, and the
-tablet's tabs row and the phone's mode nav give way while it is open. It keeps
+The column is `clamp(16rem, 32vw, 22rem)` wide and a cell of `.daw-shell`. It
+portals into the same host element as the sheet, and only that host's parent
+changes, so turning the phone keeps the Inspector's drafts and focus. The
+timeline keeps the whole main row, and the tablet's tabs row and the phone's mode nav give way while it is open. It keeps
 the title, **Close**, Escape and focus restore, and drops the scrim, drawer,
 Expand and Collapse, and the slide-up. It carries none of the sheet classes, so
-the keep-clear helpers do nothing for it, and the keyboard only shortens it.
+the keep-clear helpers do nothing for it, and with the keyboard up it takes the
+visible band of the viewport (`--visual-viewport-top` and
+`--visual-viewport-height`), not the layout height minus the keyboard. Turning
+the phone upright shows the full Inspector, not the peek strip.
 This replaces the lane band and the compact strip on those screens, and no
 other. A gesture that needs the compact strip's Undo header does not exist
 there: Undo and Redo stay on the tool rail, which the column leaves usable.
