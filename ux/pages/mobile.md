@@ -228,6 +228,8 @@ preview, then choose **Apply move** or **Cancel**. A selected group moves togeth
 with each clip clamped at zero and the outer tracks. Exact input does not snap.
 Apply uses one existing move History action. Cancel and unchanged Apply save
 nothing. A refused save keeps a current draft and an error so you can retry.
+The **Moved clips** feedback offers **Undo** for the saved move, including the
+whole selected group. A move waiting to send offers no Undo.
 
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
 by a 1 rem request, subject to the current available bounds. Steps start at the

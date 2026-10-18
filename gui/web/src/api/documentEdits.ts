@@ -432,8 +432,10 @@ export async function moveClips(
     timeline_start: number;
     track_id: string;
   }>,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "MoveClips", { clips });
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, "MoveClips", { clips }),
+  );
 }
 
 /** Set a join's mode and both edge fades in one undo step. */

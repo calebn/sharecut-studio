@@ -251,6 +251,12 @@ head still lands without a refetch (`document/projectionDelta.ts`). Its click se
 first, the server refuses and the toast says "Can't undo: the project changed since.
 Nothing was undone." The reply, not the tab's store after the await, names the entry,
 because a peer's edit can reach the store while the command is in flight.
+Clip moves use this same reply-bound Undo, including a group moved with
+**Apply move**. `moveClips` returns `HistoryEntryId | null` through `replyHistoryHead`.
+The command captures `documentScope()` before entering the mutation queue and
+checks it before starting work and after success or failure. A retired opening
+cannot receive its feedback or optimistic rollback, including after the same
+project path is closed and reopened.
 
 **Mod+Z: the tab's own moves run one after another.** `history.undo` / `history.redo`
 (Mod+Z, Mod+Shift+Z, the History tab buttons, the toast Undo, the phone two-finger tap

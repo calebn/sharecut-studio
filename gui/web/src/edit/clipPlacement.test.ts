@@ -27,7 +27,7 @@ vi.mock("../services/commandQueue", () => ({
     client_seq: 1,
   })),
 }));
-vi.mock("../api", () => ({ moveClips: vi.fn(async () => undefined) }));
+vi.mock("../api", () => ({ moveClips: vi.fn(async () => null) }));
 const clip = (
   id: string,
   track_id: string,
@@ -53,8 +53,8 @@ function begin() {
 }
 function deferred() {
   let resolve = () => {};
-  const promise = new Promise<void>((done) => {
-    resolve = done;
+  const promise = new Promise<null>((done) => {
+    resolve = () => done(null);
   });
   return { promise, resolve };
 }
@@ -63,7 +63,7 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
   _resetTrackMutateChainForTests();
-  vi.mocked(moveClips).mockReset().mockResolvedValue(undefined);
+  vi.mocked(moveClips).mockReset().mockResolvedValue(null);
   useDawStore.getState().hydrate(
     "/tmp/placement",
     minimalProject({
