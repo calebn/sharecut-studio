@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
+
+from podcast_mcp.util.coded_error import CodedValueError
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
@@ -130,8 +132,8 @@ def test_apply_suggested_actions_tool_applies_every_listed_sound(tmp_path, sampl
 
 def test_approve_edits_tool_needs_ids(tmp_path) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(TypeError):
-        mcp_server.approve_edits_tool(path)  # type: ignore[call-arg]
+    with pytest.raises(CodedValueError, match="pass ids or all_pending=true"):
+        mcp_server.approve_edits_tool(path)
 
 
 def test_cli_apply_suggested_is_one_undo_step(tmp_path, ten_second_silence_wav) -> None:
