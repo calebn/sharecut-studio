@@ -101,7 +101,7 @@ def ripple_delete_text_tool(
         return to_json(
             EditService(ws).ripple_delete_text(
                 query,
-                use_inaudible_opt=use_inaudible_opt,
+                use_inaudible_opt=False if override_audio_checks else use_inaudible_opt,
             )
         )
 
@@ -324,20 +324,22 @@ def shorten_gaps_tool(
     project_path: str,
     max_gap_sec: float = 0.35,
     use_inaudible_opt: bool | None = None,
+    override_audio_checks: bool = False,
 ) -> str:
     """Shorten word gaps longer than max_gap_sec across the timeline.
 
     Each shortened pause ripples every dialogue track; another speaker talking in a
-    pause needs confirmation.
-    A ripple that cuts another track's speech stays unchanged for review.
+    pause needs confirmation. A ripple that cuts another track's speech stays unchanged
+    until you repeat with ``override_audio_checks=true`` (recorded).
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(
-        EditService(ws).shorten_word_gaps(
-            max_gap_sec,
-            use_inaudible_opt=use_inaudible_opt,
+    with audio_check_override("mcp:host", "host_mcp", enabled=override_audio_checks):
+        return to_json(
+            EditService(ws).shorten_word_gaps(
+                max_gap_sec,
+                use_inaudible_opt=use_inaudible_opt,
+            )
         )
-    )
 
 
 def split_clip_tool(

@@ -480,7 +480,9 @@ def edit_ripple_delete_cmd(
 
     def ripple_text() -> dict:
         with cli_override(override_checks):
-            return EditService(ws).ripple_delete_text(query or "", use_inaudible_opt=inaudible_opt)
+            return EditService(ws).ripple_delete_text(
+                query or "", use_inaudible_opt=inaudible_opt and not override_checks
+            )
 
     def ripple_range() -> dict:
         with cli_override(override_checks):
@@ -859,11 +861,15 @@ def edit_shorten_gaps_cmd(
     project: Path = typer.Option(..., "--project"),
     max_gap: float = typer.Option(0.35, "--max-gap"),
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
+    override_checks: bool = override_audio_checks_option(),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    result = require_cut_applied(
-        lambda: EditService(ws).shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt),
-    )
+
+    def shorten() -> dict:
+        with cli_override(override_checks):
+            return EditService(ws).shorten_word_gaps(max_gap, use_inaudible_opt=inaudible_opt)
+
+    result = require_cut_applied(shorten)
     typer.echo(json.dumps(result, indent=2))
 
 
