@@ -15,21 +15,29 @@ import sys
 
 TYPES = "feat|fix|perf|revert|docs|test|refactor|chore|ci|build|style"
 SUBJECT = re.compile(rf"^(?:{TYPES})(?:\([^)\s][^)]*\))?!?: \S")
+RELEASE_AS = re.compile(r"^Release-As:", re.MULTILINE | re.IGNORECASE)
 EXEMPT = re.compile(r'^(?:Revert "|fixup! |squash! )')
 
 
 def bad_subjects(range_spec: str) -> list[str]:
     out = subprocess.run(
-        ["git", "log", "--no-merges", "--format=%h %s", range_spec],
+        ["git", "log", "--no-merges", "--format=%h %s%x00%b%x1e", range_spec],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
     bad = []
-    for line in out.splitlines():
-        sha, _, subject = line.partition(" ")
+    for entry in out.split("\x1e"):
+        head, _, body = entry.strip("\n").partition("\x00")
+        if not head:
+            continue
+        sha, _, subject = head.partition(" ")
         if not SUBJECT.match(subject) and not EXEMPT.match(subject):
             bad.append(f"{sha} {subject}")
+        elif RELEASE_AS.search(body):
+            bad.append(
+                f"{sha} {subject} (Release-As footer: versions are bumped by the release PR only)"
+            )
     return bad
 
 

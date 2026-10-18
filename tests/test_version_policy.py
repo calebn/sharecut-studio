@@ -39,3 +39,12 @@ def test_release_config_keeps_pre_major_bumps_below_one() -> None:
     root = config["packages"]["."]
     assert root["bump-minor-pre-major"] is True
     assert root["bump-patch-for-minor-pre-major"] is True
+
+
+def test_release_config_pins_working_filters_and_forbids_release_as() -> None:
+    config = json.loads((SCRIPT.parents[1] / "release-please-config.json").read_text())
+    root = config["packages"]["."]
+    assert "release-as" not in root
+    filters = [e["jsonpath"] for e in root["extra-files"] if isinstance(e, dict)]
+    # release-please's toml updater wraps scalars as {value}, so the lockfile filter reads .value.
+    assert "$.package[?(@.name.value=='sharecut')].version" in filters
