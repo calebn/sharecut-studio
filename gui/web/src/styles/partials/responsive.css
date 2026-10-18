@@ -135,13 +135,14 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
    the save state and the polite live region (#1448, #1694). */
 /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
 @media (max-height: 24rem) {
-  html[data-shell="tablet"] :is(.marker-lane, .track-headers-chrome) {
+  html:is([data-shell="tablet"], [data-shell="phone"])
+    :is(.marker-lane, .track-headers-chrome) {
     position: relative;
     inset-block-start: auto;
     z-index: var(--z-content);
   }
 
-  html[data-shell="tablet"] .track-headers::before {
+  html:is([data-shell="tablet"], [data-shell="phone"]) .track-headers::before {
     content: "";
     position: sticky;
     inset-block-start: 0;

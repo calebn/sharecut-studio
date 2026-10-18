@@ -588,17 +588,41 @@ async function expectIdleMarkerPosition(
   page: Page,
   vp: { width: number; height: number },
   expected: "sticky" | "relative",
+  shell: "tablet" | "phone" = "tablet",
 ) {
   await page.setViewportSize(vp);
   await withDemoProject(async (projectPath) => {
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
+    if (shell === "phone") await openPhoneTimeline(page);
     const position = await page
       .locator(".marker-lane")
       .evaluate((el) => getComputedStyle(el).position);
     expect(position).toBe(expected);
   });
 }
+
+test("667x375 phone shell idle: the marker rows scroll with the lanes", async ({
+  page,
+}) => {
+  await expectIdleMarkerPosition(
+    page,
+    { width: 667, height: 375 },
+    "relative",
+    "phone",
+  );
+});
+
+test("667x500 phone shell idle: the marker rows stay pinned under the ruler", async ({
+  page,
+}) => {
+  await expectIdleMarkerPosition(
+    page,
+    { width: 667, height: 500 },
+    "sticky",
+    "phone",
+  );
+});
 
 test("914x331 idle: the marker rows scroll with the lanes", async ({
   page,
