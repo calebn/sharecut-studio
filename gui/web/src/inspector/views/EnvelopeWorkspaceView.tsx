@@ -386,7 +386,8 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
           )}
           <p className="envelope-workspace-help">
             Time is measured on the timeline. Level multiplies this track’s
-            volume: 1.00× is unchanged, 0 is silent, and 1.50× is the maximum.          </p>
+            volume: 1.00× is unchanged, 0 is silent, and 1.50× is the maximum.
+          </p>
           {points.length === 0 ? (
             <p className="envelope-workspace-help">
               No volume points. Add points to control this track’s volume over

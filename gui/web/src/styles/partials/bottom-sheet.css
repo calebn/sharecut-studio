@@ -535,4 +535,5 @@ html[data-shell="phone"] .bottom-sheet--half[data-phone-envelope] {
 }
 
 .bottom-sheet--full:has(.envelope-workspace--short) {
-  height: 100%;}
+  height: 100%;
+}
