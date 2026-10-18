@@ -1,4 +1,4 @@
-import { act, render, renderHook } from "@testing-library/react";
+import { act, cleanup, render, renderHook } from "@testing-library/react";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
@@ -45,8 +45,9 @@ describe("useFixedPlayheadScroll", () => {
   });
 
   afterEach(() => {
-    raf.fire(0);
+    cleanup();
     useRecordHostStore.getState().setSnapshot(null);
+    raf.fire(0);
     el.remove();
     timelineViewportRegistry.clear();
     vi.unstubAllGlobals();
@@ -205,6 +206,7 @@ describe("useFixedPlayheadScroll", () => {
     "Fit",
     "project switch",
     "preview end",
+    "absent preview end",
     "pointer zoom",
   ])("projects a constrained tablet pan through %s", (action) => {
     let clientWidth = 600;
@@ -250,7 +252,12 @@ describe("useFixedPlayheadScroll", () => {
     expect.soft(el.scrollLeft).toBe(573);
     expect.soft(useDawStore.getState().scrollLeft).toBe(573);
     expect(assignments).toBe(1);
-    const away = ["same-time seek", "Fit", "project switch"].includes(action);
+    const away = [
+      "same-time seek",
+      "Fit",
+      "project switch",
+      "absent preview end",
+    ].includes(action);
     if (away) tablet.unmount();
     if (action === "tablet scroll") {
       act(() => raf.fire(0));
@@ -281,6 +288,24 @@ describe("useFixedPlayheadScroll", () => {
             recordSnapshot({ state: "paused", recording_ms: 200_000 }),
           ),
       );
+    } else if (action === "absent preview end") {
+      act(() =>
+        useRecordHostStore
+          .getState()
+          .setSnapshot(recordSnapshot({ state: "stopped", server_time_ns: 2 })),
+      );
+      expect(useRecordHostStore.getState().snapshot?.state).toBe("stopped");
+      act(() =>
+        useRecordHostStore.getState().setSnapshot(
+          recordSnapshot({
+            state: "paused",
+            take_index: 1,
+            server_time_ns: 3,
+            recording_ms: 200_000,
+          }),
+        ),
+      );
+      expect(useRecordHostStore.getState().snapshot?.take_index).toBe(1);
     } else if (action === "pointer zoom") {
       timelineViewportRegistry.setTimelineElement(el);
       act(() => useDawStore.getState().applyAnchoredZoom(5, 250));
@@ -301,6 +326,9 @@ describe("useFixedPlayheadScroll", () => {
       );
       if (action === "pointer zoom") {
         expect(useDawStore.getState().scrollLeft).toBe(231.5);
+      } else if (action === "absent preview end") {
+        expect(useDawStore.getState().scrollLeft).toBe(0);
+        expect(timelineViewportRegistry.getVisualPan()).toBeNull();
       }
     }
     expect(useDawStore.getState().playheadSec).toBe(
@@ -309,6 +337,176 @@ describe("useFixedPlayheadScroll", () => {
     expect(useDawStore.getState().playheadSeekRevision).toBe(
       revision + (action === "same-time seek" ? 1 : 0),
     );
+  });
+
+  it.each([
+    { tabletWidth: 800, requestedLeft: 215.5, appliedLeft: 216 },
+    { tabletWidth: 768, requestedLeft: 231.5, appliedLeft: 232 },
+  ])(
+    "retains original preview geometry through integer rounding at $tabletWidth px",
+    ({ tabletWidth, requestedLeft, appliedLeft }) => {
+      let clientWidth = 600;
+      let headerWidth = 140;
+      let scrollWidth = 2030;
+      let left = 0;
+      let assignments = 0;
+      Object.defineProperties(el, {
+        clientWidth: { get: () => clientWidth },
+        scrollWidth: { get: () => scrollWidth },
+        scrollLeft: {
+          get: () => left,
+          set: (value: number) => {
+            assignments++;
+            left = Math.round(
+              Math.max(0, Math.min(value, scrollWidth - clientWidth)),
+            );
+          },
+        },
+      });
+      const header = document.createElement("div");
+      header.className = "track-headers";
+      Object.defineProperty(header, "offsetWidth", { get: () => headerWidth });
+      el.append(header);
+      useDawStore
+        .getState()
+        .hydrate(
+          "/tmp/scroll-hook.json",
+          minimalProject({ timeline_duration_sec: 120 }),
+        );
+      useRecordHostStore
+        .getState()
+        .setSnapshot(
+          recordSnapshot({ state: "paused", recording_ms: 120_000 }),
+        );
+      useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+      const revision = useDawStore.getState().playheadSeekRevision;
+      const phone = render(<MountedTimeline timeViewportPx={460} />);
+      act(() => raf.fire(0));
+      el.scrollLeft = 1430;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(
+        timelineViewportRegistry.getVisualPan()?.geometry.lineOffsetPx,
+      ).toBe(100);
+      phone.unmount();
+
+      clientWidth = tabletWidth;
+      scrollWidth = 1341;
+      left = 0;
+      const tablet = render(
+        <MountedTimeline
+          fixedPlayhead={false}
+          timeViewportPx={clientWidth - headerWidth}
+        />,
+      );
+      expect(useDawStore.getState().scrollLeft).toBe(scrollWidth - clientWidth);
+      timelineViewportRegistry.setTimelineElement(el);
+      scrollWidth = headerWidth + Math.max(120 * 5, clientWidth - headerWidth);
+      act(() => useDawStore.getState().applyAnchoredZoom(5, 250));
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(
+        timelineViewportRegistry.getLayoutProjection()?.requestedLeft,
+      ).toBe(requestedLeft);
+      tablet.unmount();
+
+      clientWidth = 390;
+      headerWidth = 64;
+      scrollWidth = headerWidth + 120 * 5 + 163 + 326;
+      left = 0;
+      assignments = 0;
+      const returned = render(<MountedTimeline timeViewportPx={326} />);
+      expect.soft(useDawStore.getState().scrollLeft).toBe(appliedLeft);
+      expect.soft(el.scrollLeft).toBe(appliedLeft + 163);
+      expect
+        .soft(timelineViewportRegistry.getVisualPan()?.geometry)
+        .toEqual({ scrollLeft: 1200, lineOffsetPx: 100, zoomPxPerSec: 10 });
+      expect.soft(assignments).toBe(1);
+      act(() => raf.fire(0));
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      returned.rerender(<MountedTimeline timeViewportPx={326} />);
+      expect.soft(assignments).toBe(1);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+    },
+  );
+
+  it.each(["stopped", null] as const)(
+    "recenters a mounted phone preview when its snapshot ends in %s",
+    (state) => {
+      useRecordHostStore
+        .getState()
+        .setSnapshot(recordSnapshot({ state: "paused", server_time_ns: 1 }));
+      useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+      const revision = useDawStore.getState().playheadSeekRevision;
+      render(<MountedTimeline />);
+      act(() => raf.fire(0));
+      el.scrollLeft = 750;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(useDawStore.getState().scrollLeft).toBe(550);
+      act(() =>
+        useRecordHostStore
+          .getState()
+          .setSnapshot(
+            state === null
+              ? null
+              : recordSnapshot({ state, server_time_ns: 2 }),
+          ),
+      );
+      expect(timelineViewportRegistry.getVisualPan()).toBeNull();
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(el.scrollLeft).toBe(200);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+    },
+  );
+
+  it("keeps a deliberate scrub from preview back into saved media at the chosen position", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "paused" }));
+    useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+    const revision = useDawStore.getState().playheadSeekRevision;
+    render(<MountedTimeline />);
+    act(() => raf.fire(0));
+    el.scrollLeft = 750;
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+    });
+    expect(useDawStore.getState().scrollLeft).toBe(550);
+    el.scrollLeft = 600;
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+    });
+    expect(timelineViewportRegistry.getVisualPan()).toBeNull();
+    expect(useDawStore.getState().scrollLeft).toBe(400);
+    expect(el.scrollLeft).toBe(600);
+    expect(useDawStore.getState().playheadSec).toBe(40);
+    expect(useDawStore.getState().playheadSeekRevision).toBe(revision + 1);
+  });
+
+  it("keeps deliberate subpixel scrubbing distinct from layout projection", () => {
+    useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+    const revision = useDawStore.getState().playheadSeekRevision;
+    render(<MountedTimeline />);
+    act(() => raf.fire(0));
+    el.scrollLeft = 305;
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+    });
+    expect(useDawStore.getState().playheadSec).toBe(20.5);
+    el.scrollLeft = 305.25;
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+    });
+    expect(useDawStore.getState().scrollLeft).toBe(105.25);
+    expect(useDawStore.getState().playheadSec).toBe(20.525);
+    expect(useDawStore.getState().playheadSeekRevision).toBe(revision + 2);
+    expect(timelineViewportRegistry.getLayoutProjection()).toBeNull();
   });
 
   it.each(["recording", "paused"] as const)(

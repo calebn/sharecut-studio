@@ -1549,6 +1549,12 @@ monotonic receipt time; the timeline leaf projects elapsed time via
 origin or clock samples produce no preview. New samples correct the anchor;
 old or duplicate timestamped samples do not reset it.
 
+The host store expires retained preview viewport navigation when an accepted
+snapshot ends the live preview or replaces its session or take, including while
+Timeline is closed. Clearing the snapshot also ends that preview lifetime.
+Rejected snapshots and a socket disconnect preserve it, as do Pause and Resume
+within the same take.
+
 The preview may extend the scrollable visual canvas, including fixed-playhead
 lead/end-pad geometry, but does not extend saved-media ruler/seek authority or
 scroll automatically. Playback position, transport timecode, committed clips,

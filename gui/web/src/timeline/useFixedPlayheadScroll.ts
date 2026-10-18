@@ -324,7 +324,7 @@ export function TimelineScrollSync({ binding }: { binding: ScrollBinding }) {
     }
     const appliedLeft = domToLogicalScrollLeft(el.scrollLeft, leadPx);
     timelineViewportRegistry.setLayoutProjection(
-      Math.abs(appliedLeft - requestedLeft) > SCROLL_SYNC_EPS_PX
+      appliedLeft !== requestedLeft
         ? {
             projectPath: state.projectPath,
             playheadSec: state.playheadSec,
@@ -382,6 +382,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     playhead: playheadSec,
     scroll: scrollLeft,
     requestedScroll: scrollLeft,
+    visualPan: false,
     seekRevision: playheadSeekRevision,
   });
 
@@ -399,9 +400,6 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     } = current;
     const recordState = useRecordHostStore.getState().snapshot?.state;
     const pan = timelineViewportRegistry.getVisualPan();
-    if (pan && recordState !== "recording" && recordState !== "paused") {
-      timelineViewportRegistry.setLayoutProjection(null);
-    }
     const requestedLeft = requestedScrollLeft(current);
     // Track every change, even while unpadded, so a later switch to a fixed
     // playhead does not read an old zoom as a pinch.
@@ -411,6 +409,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       playhead: playheadSec,
       scroll: scrollLeft,
       requestedScroll: requestedLeft,
+      visualPan: false,
       seekRevision: playheadSeekRevision,
     };
     const zoomChanged = prev.zoom !== zoomPxPerSec;
@@ -457,6 +456,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       geometry,
       sessionSec,
     );
+    prevRef.current.visualPan = visualOnlyScroll;
     timelineViewportRegistry.setVisualPan(
       visualOnlyScroll
         ? {
@@ -471,7 +471,9 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     );
     if (!fixedPlayhead) return;
     if (visualOnlyScroll && !playheadChanged && !seekRevisionChanged) return;
-    const panEnded = pan !== null && !visualOnlyScroll;
+    const previewEnded =
+      prev.visualPan && recordState !== "recording" && recordState !== "paused";
+    const panEnded = (pan !== null || previewEnded) && !visualOnlyScroll;
 
     if (zoomChanged && userZoomed) {
       const lineX = fixedLineOffsetPx(
