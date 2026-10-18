@@ -529,7 +529,13 @@ operator run this same script, so they produce identical artifacts:
 - Linux: the AppImage.
 
 In CI this runs only with an updater profile and `sign=true` on a source
-reachable from `main`. The workflow fails closed before the build when the
+reachable from `main`. A caller that cannot supply the Apple and Windows signing
+secrets sets `sign_updater=true` instead (with `sign=false`). That signs only the
+Windows NSIS installer and the Linux AppImage with the updater key, needs only
+`TAURI_SIGNING_PRIVATE_KEY` on those legs, and produces no macOS updater bundle:
+an unsigned `.app` must never reach the feed. The operator adds the two macOS
+bundles from the Developer ID signed and notarized apps (see
+[§ Local operator build](#in-app-updates)); `sign=true` still produces all four. The workflow fails closed before the build when the
 `TAURI_SIGNING_PRIVATE_KEY` secret is empty. Each leg uploads its bundle and
 `.sig` under a separate artifact name. The installer artifact names do not
 change.
