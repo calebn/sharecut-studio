@@ -724,6 +724,22 @@ kind on the phone, tablet and desktop shells and asserts a non-empty body, its
 actions in the one place the shell offers them, and no range control behind a
 sheet's scrim.
 
+Comment pins use the approved dense-target size exception through
+`ReachScan.sizeExempt`. Its selectors match the interactive element itself,
+so a pin's child controls still hold the 44 px floor. Pins remain subject to
+viewport, containment, and midpoint hit-test checks. Existing `dense` selectors
+retain their whole-target exclusion. `gui/web/e2e/reachability.test.ts` executes
+the scanner callback with explicit jsdom geometry to check these rules. Browser
+runs prove the layout and the clip midpoint tap's exact `Clip` selection.
+
+The compatibility matrix's offline comment replay and socket reconnect tests
+each use a private project through `withShareableProject`. Queue accounting
+and both reconnect pages use that project's path. Each producer compares the
+suite project's persisted `review.comments` before and after restoration.
+The replay identity, queue drain, rendered comments, and socket delivery
+assertions run inside the private project. The sweep still uses the suite
+project, so unexpected persisted comments remain observable.
+
 Both browser suites currently run serially against shared live project state.
 Do not raise `workers` or enable `fullyParallel` until each worker owns its GUI
 server, project, share registry and output directory. Retries are failure

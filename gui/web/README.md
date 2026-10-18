@@ -260,6 +260,15 @@ pointer opening from keyboard focus, Escape, and scrim dismissal, plus keyboard
 navigation that invalidates the sheet, in Chromium and WebKit. The same core
 flow retains the native mix edit and touch geometry checks.
 
+`e2e-compat/browser-matrix.spec.ts` gives offline comment replay and socket
+reconnect separate projects through `withShareableProject`, then asserts the
+suite project's persisted comments are unchanged. The reachability sweep keeps
+its actual clip midpoint tap and exact `Clip` assertion. Its comment-pin
+selectors use `ReachScan.sizeExempt` to waive only size on the matching element.
+Viewport, containment, and midpoint hit-test checks still run, and ordinary
+controls retain the 44 px floor. `e2e/reachability.test.ts` checks this contract
+through the real scanner callback with explicit jsdom geometry.
+
 Keep component state, validation and mocked error recovery in Vitest. Browser
 specs should protect layout/native input/media/storage/network seams or complete
 user outcomes. Before pruning a browser case, name its remaining coverage owner.

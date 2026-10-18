@@ -122,6 +122,8 @@ const DENSE = [
   ".bottom-sheet-detent",
 ];
 
+const SIZE_EXEMPT = [".comment-marker.pin"];
+
 /** The panels' interiors. */
 const PANELS = [".tab-content", ".mobile-text-mode", ".mobile-more-mode"];
 
@@ -191,7 +193,11 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
   const surface = sheet ? ".bottom-sheet" : "aside.inspector";
   await expect(page.locator(surface)).toBeVisible();
   await settle(page);
-  const failures = await reachFailures(page, { scope: surface, dense: DENSE });
+  const failures = await reachFailures(page, {
+    scope: surface,
+    dense: DENSE,
+    sizeExempt: SIZE_EXEMPT,
+  });
   if (sheet) {
     await page
       .locator(".bottom-sheet")
@@ -216,6 +222,7 @@ async function sweepCell(
   found["shell chrome"] = await reachFailures(page, {
     skip: [".bottom-sheet-root", ...PANELS],
     dense: DENSE,
+    sizeExempt: SIZE_EXEMPT,
   });
   const rows = sheet ? await railRows(page) : 1;
   if (rows !== 1) {
@@ -238,6 +245,7 @@ async function sweepCell(
   found["track surface"] = await reachFailures(page, {
     scope: surface,
     dense: DENSE,
+    sizeExempt: SIZE_EXEMPT,
   });
   if (sheet) {
     await page
@@ -259,6 +267,7 @@ async function sweepCell(
     found["armed range"] = await reachFailures(page, {
       scope: ".range-actions",
       dense: DENSE,
+      sizeExempt: SIZE_EXEMPT,
     });
     await page.getByRole("button", { name: "Cancel range selection" }).click();
   }
@@ -272,6 +281,7 @@ async function sweepCell(
     found.listen = await reachFailures(page, {
       skip: [".bottom-sheet-root"],
       dense: DENSE,
+      sizeExempt: SIZE_EXEMPT,
     });
   }
 
@@ -292,6 +302,7 @@ async function sweepCell(
     scope: PANELS.join(","),
     skip: [".bottom-sheet-root"],
     dense: DENSE,
+    sizeExempt: SIZE_EXEMPT,
   });
 
   if (phone) {
@@ -317,6 +328,7 @@ async function sweepCell(
     scope: PANELS.join(","),
     skip: [".bottom-sheet-root"],
     dense: DENSE,
+    sizeExempt: SIZE_EXEMPT,
   });
 
   // Phones comment from the Listen dock, swept above. The Comments panel is a tablet
@@ -334,6 +346,7 @@ async function sweepCell(
       scope: PANELS.join(","),
       skip: [".bottom-sheet-root"],
       dense: DENSE,
+      sizeExempt: SIZE_EXEMPT,
     });
   }
 
@@ -399,7 +412,11 @@ async function sweepSeededTrack(
       page.getByRole("checkbox", { name: /^Bypass / }).first(),
     ).toBeVisible();
     await settle(page);
-    const track = await reachFailures(page, { scope: surface, dense: DENSE });
+    const track = await reachFailures(page, {
+      scope: surface,
+      dense: DENSE,
+      sizeExempt: SIZE_EXEMPT,
+    });
     await page
       .getByRole("button", { name: "Edit volume envelope", exact: true })
       .click();
@@ -410,6 +427,7 @@ async function sweepSeededTrack(
     const envelope = await reachFailures(page, {
       scope: surface,
       dense: DENSE,
+      sizeExempt: SIZE_EXEMPT,
     });
     const failures = [...track, ...envelope];
     if (failures.length > 0) {
@@ -496,6 +514,7 @@ test("pending-edit and transcript-word sheet bodies keep every control reachable
         const failures = await reachFailures(page, {
           scope: surface,
           dense: DENSE,
+          sizeExempt: SIZE_EXEMPT,
         });
         if (failures.length > 0) {
           reports.push(`${cell.name}\n${describeReach(failures)}`);
