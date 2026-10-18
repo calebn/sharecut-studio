@@ -423,7 +423,6 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
             await expect(
               page.getByLabel("Timeline start (seconds)"),
             ).toHaveValue("7");
-            // Playwright cannot operate the OS option popup with portable pointer coordinates.
             await page
               .getByRole("combobox", { name: "Target track" })
               .selectOption("guest");
