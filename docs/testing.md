@@ -87,6 +87,34 @@ not add another test. Durations sum testcase or attempt times and can overlap
 when tests run in parallel. They are not job wall time. A missing or unreadable
 report appears as unavailable, and the summary does not change the test result.
 
+## Project and history compatibility
+
+The required `pytest` job always runs `scripts/project_compat.py check` and
+`tests/test_project_compat.py` before the full, web, or docs test selection.
+Its trusted base is the PR base SHA, the previous push SHA, or the checked-out
+SHA for scheduled and manual runs. The check cannot be skipped by a docs-only
+or web-only diff.
+
+Run the focused checks with:
+
+```bash
+uv run python scripts/project_compat.py check --base origin/main
+uv run pytest -q --no-cov tests/test_project_compat.py tests/test_project_format.py tests/test_history.py
+```
+
+The added tests protect persisted schema drift, snapshot replay and field loss,
+release-ledger and frozen-inventory preservation, producer provenance, and CI
+activation. Temporary Git repositories exercise the release policy with explicitly
+synthetic inputs. Test doubles exercise the dormant CLI runner's failure paths;
+they are not migration proof. These are JSON, file, and local Git checks. They do
+not render audio, download models, or add browser tests.
+
+The dedicated development fixture has complete history and a raw stub. Existing
+fixtures outside that corpus provide project-only round trips, including the AMI
+fixture whose referenced history files are absent. The released corpus is empty
+until an actual tester build is captured. See the
+[format policy and capture procedure](project-format.md#compatibility-boundary).
+
 ## Python quality tooling
 
 Local mirrors of the CI `pytest` job’s static checks (config in `pyproject.toml`):

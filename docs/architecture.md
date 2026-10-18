@@ -655,6 +655,15 @@ mutations and snapshots to services on worker threads, and serializes output thr
 the bounded WebSocket writer. Teardown shields finite subscription and membership
 cleanup from cancellation using AnyIO.
 
+## Persisted-format developer checks
+
+`scripts/project_compat.py` owns the generated project/history shape lock,
+release ledger, byte capture, and fixture replay policy. It uses current runtime
+readers and writers without adding compatibility paths to the application.
+Concrete snapshot sections come from the episode model annotations, alongside
+both validation and serialization schemas. Release evidence is append-only
+against the trusted Git base. See [project-format.md](project-format.md).
+
 ## Testing
 
 Pytest runs with a **95% coverage floor** (`pyproject.toml` → `[tool.pytest.ini_options]` / `[tool.coverage.report]`). See [testing.md](testing.md).

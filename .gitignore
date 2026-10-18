@@ -66,6 +66,8 @@ gui/desktop/dist-linux/
 !tests/fixtures/sharecut_ux_demo/**/*.wav
 !tests/fixtures/join_continuity/
 !tests/fixtures/join_continuity/**/*.wav
+!tests/fixtures/project_compat/
+!tests/fixtures/project_compat/**/*.wav
 examples/minimal_episode/artifacts/
 .cache/
 

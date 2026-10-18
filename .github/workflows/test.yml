@@ -84,6 +84,13 @@ jobs:
       - name: Type check (strict on timebase modules)
         run: mypy
 
+      - name: Project and history compatibility
+        env:
+          COMPAT_BASE: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+        run: |
+          python scripts/project_compat.py check --base "$COMPAT_BASE"
+          pytest -q --no-cov tests/test_project_compat.py
+
       - name: Record pytest run context
         run: |
           mkdir -p test-results

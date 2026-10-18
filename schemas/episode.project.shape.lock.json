@@ -1,0 +1,5504 @@
+{
+  "project_version": "2.0",
+  "schemas": {
+    "serialization": {
+      "$defs": {
+        "AppliedEditRecord": {
+          "properties": {
+            "applied_at": {
+              "type": "string"
+            },
+            "boundary_mode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "crossfade_ms": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "cut_confidence": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "decision_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "operation": {
+              "type": "string"
+            },
+            "params": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "applied_at",
+            "operation"
+          ],
+          "type": "object"
+        },
+        "ArchivedTranscriptWord": {
+          "properties": {
+            "ordinal": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "word": {
+              "$ref": "#/$defs/TranscriptWord"
+            }
+          },
+          "required": [
+            "ordinal",
+            "word"
+          ],
+          "type": "object"
+        },
+        "AutomationEnvelope": {
+          "properties": {
+            "parameter": {
+              "default": "volume",
+              "type": "string"
+            },
+            "points": {
+              "items": {
+                "$ref": "#/$defs/AutomationPoint"
+              },
+              "type": "array"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
+        },
+        "AutomationPoint": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "time": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "time",
+            "value"
+          ],
+          "type": "object"
+        },
+        "BalanceBasis": {
+          "properties": {
+            "digest": {
+              "type": "string"
+            },
+            "measured_lufs": {
+              "type": "number"
+            },
+            "speech_gated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "digest",
+            "measured_lufs",
+            "speech_gated"
+          ],
+          "type": "object"
+        },
+        "ChapterMarker": {
+          "properties": {
+            "image_url": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "time": {
+              "type": "number"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "time",
+            "title"
+          ],
+          "type": "object"
+        },
+        "Clip": {
+          "properties": {
+            "fade_in_ms": {
+              "default": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 0,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "join_in_mode": {
+              "$ref": "#/$defs/ClipJoinMode",
+              "default": "fade"
+            },
+            "mute_regions": {
+              "items": {
+                "$ref": "#/$defs/ClipMuteRegion"
+              },
+              "type": "array"
+            },
+            "source_end": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_start": {
+              "type": "number"
+            },
+            "timeline_start": {
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "track_id",
+            "source_start",
+            "source_end",
+            "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ClipJoinMode": {
+          "enum": [
+            "fade",
+            "crossfade",
+            "cut"
+          ],
+          "type": "string"
+        },
+        "ClipMuteRegion": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "fade_in_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fill": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RoomToneFill"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "gain_db": {
+              "anyOf": [
+                {
+                  "exclusiveMaximum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "CombinedTranscript": {
+          "properties": {
+            "utterances": {
+              "items": {
+                "$ref": "#/$defs/CombinedUtterance"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "CombinedUtterance": {
+          "properties": {
+            "end": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker": {
+              "type": "string"
+            },
+            "start": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "speaker",
+            "start",
+            "end",
+            "text"
+          ],
+          "type": "object"
+        },
+        "CommentActionItem": {
+          "properties": {
+            "completed_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "completed_by": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "done": {
+              "default": false,
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "text"
+          ],
+          "type": "object"
+        },
+        "CommentReply": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "body",
+            "author",
+            "created_at"
+          ],
+          "type": "object"
+        },
+        "ConcreteEditableSnapshot": {
+          "properties": {
+            "editorial": {
+              "$ref": "#/$defs/EditorialSection"
+            },
+            "meta": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SnapshotMeta"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "mix": {
+              "$ref": "#/$defs/MixSection"
+            },
+            "render_last_completed_step": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review": {
+              "$ref": "#/$defs/ReviewSection"
+            },
+            "social": {
+              "$ref": "#/$defs/SocialSection"
+            },
+            "sources": {
+              "items": {
+                "$ref": "#/$defs/SourceRecording"
+              },
+              "type": "array"
+            },
+            "timeline": {
+              "$ref": "#/$defs/TimelineSection"
+            },
+            "transcripts": {
+              "$ref": "#/$defs/TranscriptsSection"
+            }
+          },
+          "type": "object"
+        },
+        "CutIntent": {
+          "enum": [
+            "programmatic",
+            "human_boundaries"
+          ],
+          "type": "string"
+        },
+        "CutSpeech": {
+          "properties": {
+            "spans": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "tracks": {
+              "items": {
+                "$ref": "#/$defs/CutSpeechTrack"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "spans",
+            "tracks"
+          ],
+          "type": "object"
+        },
+        "CutSpeechTrack": {
+          "properties": {
+            "sound_spans": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "type": "array"
+            },
+            "speaker": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "words": {
+              "items": {
+                "$ref": "#/$defs/CutSpeechWord"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "track_id",
+            "speaker"
+          ],
+          "type": "object"
+        },
+        "CutSpeechWord": {
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "timeline_end": {
+              "type": "number"
+            },
+            "timeline_start": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "text",
+            "timeline_start",
+            "timeline_end"
+          ],
+          "type": "object"
+        },
+        "DocumentSyncSection": {
+          "properties": {
+            "last_command": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SavedDocumentCommand"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "EditDecision": {
+          "properties": {
+            "applied": {
+              "default": true,
+              "type": "boolean"
+            },
+            "author": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "boundary_intent": {
+              "$ref": "#/$defs/CutIntent",
+              "default": "programmatic"
+            },
+            "boundary_mode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "crossfade_ms": {
+              "default": 10,
+              "type": "integer"
+            },
+            "cut_confidence": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "cut_speech": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CutSpeech"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "type": "number"
+            },
+            "exact_range": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ExactRangeTarget"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "next_burst_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "proposal_origin": {
+              "$ref": "#/$defs/ProposalOrigin",
+              "default": "programmatic"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "replace_gap_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review_required": {
+              "default": false,
+              "type": "boolean"
+            },
+            "scope": {
+              "default": "session",
+              "type": "string"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_timeline_span": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RangeInterval"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            },
+            "timebase": {
+              "default": "source",
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "track_ids": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "type": {
+              "$ref": "#/$defs/EditDecisionType",
+              "default": "remove"
+            }
+          },
+          "required": [
+            "id",
+            "track_id",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "EditDecisionType": {
+          "enum": [
+            "remove",
+            "mute",
+            "split"
+          ],
+          "type": "string"
+        },
+        "EditorialSection": {
+          "properties": {
+            "chapters": {
+              "items": {
+                "$ref": "#/$defs/ChapterMarker"
+              },
+              "type": "array"
+            },
+            "edit_decisions": {
+              "items": {
+                "$ref": "#/$defs/EditDecision"
+              },
+              "type": "array"
+            },
+            "edit_log": {
+              "items": {
+                "$ref": "#/$defs/AppliedEditRecord"
+              },
+              "type": "array"
+            },
+            "retained_bleed_alignments": {
+              "items": {
+                "$ref": "#/$defs/RetainedBleedAlignmentDecision"
+              },
+              "type": "array"
+            },
+            "speaker_splits": {
+              "items": {
+                "$ref": "#/$defs/SpeakerSplit"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "EpisodeProject": {
+          "properties": {
+            "document_sync": {
+              "$ref": "#/$defs/DocumentSyncSection"
+            },
+            "editorial": {
+              "$ref": "#/$defs/EditorialSection"
+            },
+            "history": {
+              "$ref": "#/$defs/ProjectHistory"
+            },
+            "meta": {
+              "$ref": "#/$defs/ProjectMeta"
+            },
+            "mix": {
+              "$ref": "#/$defs/MixSection"
+            },
+            "render": {
+              "$ref": "#/$defs/RenderSection"
+            },
+            "review": {
+              "$ref": "#/$defs/ReviewSection"
+            },
+            "social": {
+              "$ref": "#/$defs/SocialSection"
+            },
+            "sources": {
+              "items": {
+                "$ref": "#/$defs/SourceRecording"
+              },
+              "type": "array"
+            },
+            "timeline": {
+              "$ref": "#/$defs/TimelineSection"
+            },
+            "transcripts": {
+              "$ref": "#/$defs/TranscriptsSection"
+            },
+            "version": {
+              "default": "2.0",
+              "type": "string"
+            }
+          },
+          "required": [
+            "meta"
+          ],
+          "type": "object"
+        },
+        "ExactRangeTarget": {
+          "additionalProperties": false,
+          "properties": {
+            "clips": {
+              "items": {
+                "$ref": "#/$defs/Clip"
+              },
+              "maxItems": 10000,
+              "type": "array"
+            },
+            "intervals": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "maxItems": 1000,
+              "minItems": 1,
+              "type": "array"
+            },
+            "kind": {
+              "const": "exact_range",
+              "default": "exact_range",
+              "type": "string"
+            },
+            "media_seals": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 1000,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "intervals",
+            "track_ids",
+            "clips",
+            "media_seals"
+          ],
+          "type": "object"
+        },
+        "GateFill": {
+          "properties": {
+            "fade_ms": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "filled_sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "holes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "level_db": {
+              "type": "number"
+            },
+            "media_mtime_ns": {
+              "type": "integer"
+            },
+            "media_size": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "noise_db": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "path": {
+              "type": "string"
+            },
+            "source": {
+              "$ref": "#/$defs/GateFillSource"
+            }
+          },
+          "required": [
+            "source",
+            "path",
+            "media_size",
+            "media_mtime_ns",
+            "holes",
+            "filled_sec",
+            "level_db",
+            "fade_ms"
+          ],
+          "type": "object"
+        },
+        "GateFillSource": {
+          "enum": [
+            "room_tone_bed",
+            "comfort_noise"
+          ],
+          "type": "string"
+        },
+        "HistoryEntry": {
+          "properties": {
+            "created_at": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "operation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "params": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "snapshot_file": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "snapshot_file"
+          ],
+          "type": "object"
+        },
+        "MediaAsset": {
+          "properties": {
+            "channels": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "path": {
+              "type": "string"
+            },
+            "sample_rate": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "MixSection": {
+          "properties": {
+            "automation_envelopes": {
+              "items": {
+                "$ref": "#/$defs/AutomationEnvelope"
+              },
+              "type": "array"
+            },
+            "processing_chains": {
+              "items": {
+                "$ref": "#/$defs/ProcessingChain"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "PipelineRun": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "started_at": {
+              "type": "string"
+            },
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/PipelineStepLog"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "started_at"
+          ],
+          "type": "object"
+        },
+        "PipelineStepLog": {
+          "properties": {
+            "finished_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "message": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "started_at": {
+              "type": "string"
+            },
+            "status": {
+              "default": "ok",
+              "type": "string"
+            },
+            "step": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "step",
+            "started_at"
+          ],
+          "type": "object"
+        },
+        "ProcessingChain": {
+          "properties": {
+            "effects": {
+              "items": {
+                "$ref": "#/$defs/ProcessingEffect"
+              },
+              "type": "array"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
+        },
+        "ProcessingEffect": {
+          "properties": {
+            "bypass": {
+              "default": false,
+              "type": "boolean"
+            },
+            "effect": {
+              "type": "string"
+            },
+            "params": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "required": [
+            "effect"
+          ],
+          "type": "object"
+        },
+        "ProjectHistory": {
+          "properties": {
+            "cursor": {
+              "default": -1,
+              "type": "integer"
+            },
+            "entries": {
+              "items": {
+                "$ref": "#/$defs/HistoryEntry"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectMeta": {
+          "properties": {
+            "created_at": {
+              "type": "string"
+            },
+            "ingest_alignment": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/SpeakerIngestAlignment"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "name": {
+              "type": "string"
+            },
+            "schema_id": {
+              "default": "podcast-mcp/episode/2",
+              "type": "string"
+            },
+            "workspace_dir": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "workspace_dir"
+          ],
+          "type": "object"
+        },
+        "ProjectStateSnapshot": {
+          "properties": {
+            "editorial": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "meta": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "mix": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "render_last_completed_step": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "social": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "sources": {
+              "items": {},
+              "type": "array"
+            },
+            "timeline": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "transcripts": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "ProposalOrigin": {
+          "enum": [
+            "programmatic",
+            "human"
+          ],
+          "type": "string"
+        },
+        "RangeInterval": {
+          "additionalProperties": false,
+          "properties": {
+            "end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "start": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "RenderArtifacts": {
+          "properties": {
+            "mastered": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "premix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "RenderInvalidation": {
+          "properties": {
+            "at": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "reason": {
+              "default": "other",
+              "type": "string"
+            },
+            "timeline_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "at"
+          ],
+          "type": "object"
+        },
+        "RenderSection": {
+          "properties": {
+            "artifacts": {
+              "$ref": "#/$defs/RenderArtifacts"
+            },
+            "invalidations": {
+              "items": {
+                "$ref": "#/$defs/RenderInvalidation"
+              },
+              "type": "array"
+            },
+            "last_completed_step": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "last_reconciliation_hash": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "pipeline_runs": {
+              "items": {
+                "$ref": "#/$defs/PipelineRun"
+              },
+              "type": "array"
+            },
+            "reconciliation_stale": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "RetainedBleedAlignmentDecision": {
+          "properties": {
+            "bleed_track_id": {
+              "type": "string"
+            },
+            "direct_track_id": {
+              "type": "string"
+            },
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "evidence_revision": {
+              "default": 1,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "media_key": {
+              "anyOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "mode": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "manual",
+                "declined"
+              ],
+              "type": "string"
+            },
+            "offset_sec": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "previous_timeline_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "provenance": {
+              "default": "automatic",
+              "enum": [
+                "automatic",
+                "requested_scoped_override"
+              ],
+              "type": "string"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "timeline_start": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s",
+            "id",
+            "direct_track_id",
+            "bleed_track_id",
+            "previous_timeline_start",
+            "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ReviewMixVersion": {
+          "properties": {
+            "audio_relpath": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "mp3_relpath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_key": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_uploaded_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "sha256": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "created_at",
+            "audio_relpath"
+          ],
+          "type": "object"
+        },
+        "ReviewSection": {
+          "properties": {
+            "active_version_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "comments": {
+              "items": {
+                "$ref": "#/$defs/TimelineComment"
+              },
+              "type": "array"
+            },
+            "versions": {
+              "items": {
+                "$ref": "#/$defs/ReviewMixVersion"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "RoomToneFill": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "SavedDocumentCommand": {
+          "properties": {
+            "base_server_seq": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "causation_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "client_id": {
+              "type": "string"
+            },
+            "client_seq": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "command_id": {
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "role": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command_id",
+            "client_id",
+            "role",
+            "type",
+            "base_server_seq"
+          ],
+          "type": "object"
+        },
+        "SnapshotMeta": {
+          "properties": {
+            "ingest_alignment": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/SpeakerIngestAlignment"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "SocialClipCandidate": {
+          "properties": {
+            "approved": {
+              "default": false,
+              "type": "boolean"
+            },
+            "caption_suggestion": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "type": "number"
+            },
+            "exported_path": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "reasons": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "review_required": {
+              "default": true,
+              "type": "boolean"
+            },
+            "score": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "speaker": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            },
+            "title_suggestion": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "transcript_excerpt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "track_id",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "SocialSection": {
+          "properties": {
+            "clip_candidates": {
+              "items": {
+                "$ref": "#/$defs/SocialClipCandidate"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "SourceClippingRegion": {
+          "properties": {
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "SourceRecording": {
+          "properties": {
+            "channels": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "clipping_regions": {
+              "items": {
+                "$ref": "#/$defs/SourceClippingRegion"
+              },
+              "type": "array"
+            },
+            "clipping_truncated": {
+              "default": false,
+              "type": "boolean"
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "offset_sec": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "path": {
+              "type": "string"
+            },
+            "sample_rate": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "path"
+          ],
+          "type": "object"
+        },
+        "SpeakerIngestAlignment": {
+          "properties": {
+            "align_method": {
+              "default": "unknown",
+              "type": "string"
+            },
+            "content_align_sec": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "session_start_in_file_sec": {
+              "default": 0.0,
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "SpeakerSplit": {
+          "properties": {
+            "backend": {
+              "type": "string"
+            },
+            "crosstalk_lane": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "crosstalk_mode": {
+              "enum": [
+                "owner",
+                "both",
+                "lane"
+              ],
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "lanes": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2,
+              "type": "array"
+            },
+            "media_path": {
+              "type": "string"
+            },
+            "method": {
+              "enum": [
+                "enroll",
+                "cluster"
+              ],
+              "type": "string"
+            },
+            "turns": {
+              "items": {
+                "$ref": "#/$defs/SpeakerTurnRecord"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "media_path",
+            "lanes",
+            "crosstalk_mode",
+            "backend",
+            "method"
+          ],
+          "type": "object"
+        },
+        "SpeakerTurnRecord": {
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "end_s": {
+              "type": "number"
+            },
+            "speakers": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s",
+            "speakers",
+            "confidence"
+          ],
+          "type": "object"
+        },
+        "TimelineComment": {
+          "properties": {
+            "action_items": {
+              "items": {
+                "$ref": "#/$defs/CommentActionItem"
+              },
+              "type": "array"
+            },
+            "author": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "edit_decision_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "replies": {
+              "items": {
+                "$ref": "#/$defs/CommentReply"
+              },
+              "type": "array"
+            },
+            "resolved": {
+              "default": false,
+              "type": "boolean"
+            },
+            "resolved_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "resolved_by": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review_version_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_spans": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "maxItems": 1000,
+              "type": "array"
+            },
+            "timeline_start": {
+              "type": "number"
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updated_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "body",
+            "author",
+            "created_at",
+            "timeline_start"
+          ],
+          "type": "object"
+        },
+        "TimelineSection": {
+          "properties": {
+            "clips": {
+              "items": {
+                "$ref": "#/$defs/Clip"
+              },
+              "type": "array"
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tracks": {
+              "items": {
+                "$ref": "#/$defs/Track"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "Track": {
+          "properties": {
+            "balance_basis": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BalanceBasis"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "fader_db": {
+              "default": 0.0,
+              "maximum": 12.0,
+              "minimum": -60.0,
+              "type": "number"
+            },
+            "gain_db": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "gate_fill": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GateFill"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "media": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MediaAsset"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "muted": {
+              "default": false,
+              "type": "boolean"
+            },
+            "proxy": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TrackProxy"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "role": {
+              "$ref": "#/$defs/TrackRole",
+              "default": "dialogue"
+            },
+            "room_tone": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MediaAsset"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_empty": {
+              "default": false,
+              "type": "boolean"
+            },
+            "transcript_gate": {
+              "default": false,
+              "type": "boolean"
+            },
+            "transcript_gate_scope": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/TranscriptGateScope"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "label"
+          ],
+          "type": "object"
+        },
+        "TrackProxy": {
+          "properties": {
+            "bitrate_kbps": {
+              "default": 64,
+              "type": "integer"
+            },
+            "chunk_count": {
+              "type": "integer"
+            },
+            "chunk_sec": {
+              "default": 60.0,
+              "type": "number"
+            },
+            "codec": {
+              "default": "mp3",
+              "type": "string"
+            },
+            "duration_sec": {
+              "type": "number"
+            },
+            "hash": {
+              "type": "string"
+            },
+            "object_store_prefix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_uploaded_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "overlap_ms": {
+              "default": 200,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hash",
+            "chunk_count",
+            "duration_sec"
+          ],
+          "type": "object"
+        },
+        "TrackRole": {
+          "enum": [
+            "dialogue",
+            "music",
+            "sfx",
+            "intro",
+            "outro"
+          ],
+          "type": "string"
+        },
+        "Transcript": {
+          "properties": {
+            "alignment_score_method": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "archived_words": {
+              "items": {
+                "$ref": "#/$defs/ArchivedTranscriptWord"
+              },
+              "type": "array"
+            },
+            "audio_mtime_ns": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "audio_sha256": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "audio_size": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "language": {
+              "default": "en",
+              "type": "string"
+            },
+            "silence_filter_fingerprint": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "user_edited": {
+              "default": false,
+              "type": "boolean"
+            },
+            "vocabulary_revision": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "word_aligner": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "words": {
+              "items": {
+                "$ref": "#/$defs/TranscriptWord"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
+        },
+        "TranscriptGateScope": {
+          "properties": {
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "TranscriptWord": {
+          "properties": {
+            "alignment_score": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "audibility_locked": {
+              "default": false,
+              "type": "boolean"
+            },
+            "audibility_status": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "confidence": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dominant_track": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "type": "number"
+            },
+            "ignored": {
+              "default": false,
+              "type": "boolean"
+            },
+            "overlong": {
+              "default": false,
+              "type": "boolean"
+            },
+            "snapped_from": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker_match_score": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker_match_track": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            },
+            "suppressed": {
+              "default": false,
+              "type": "boolean"
+            },
+            "suspect_hallucination": {
+              "default": false,
+              "type": "boolean"
+            },
+            "text": {
+              "type": "string"
+            },
+            "timing_edited": {
+              "default": false,
+              "type": "boolean"
+            },
+            "trimmed_from": {
+              "anyOf": [
+                {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "text",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "TranscriptsSection": {
+          "properties": {
+            "combined": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CombinedTranscript"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "per_track": {
+              "items": {
+                "$ref": "#/$defs/Transcript"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "history": {
+          "$ref": "#/$defs/ProjectHistory"
+        },
+        "project": {
+          "$ref": "#/$defs/EpisodeProject"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/ProjectStateSnapshot"
+        },
+        "snapshot_sections": {
+          "$ref": "#/$defs/ConcreteEditableSnapshot"
+        }
+      },
+      "required": [
+        "project",
+        "history",
+        "snapshot",
+        "snapshot_sections"
+      ],
+      "type": "object"
+    },
+    "validation": {
+      "$defs": {
+        "AppliedEditRecord": {
+          "properties": {
+            "applied_at": {
+              "type": "string"
+            },
+            "boundary_mode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "crossfade_ms": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "cut_confidence": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "decision_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "operation": {
+              "type": "string"
+            },
+            "params": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "applied_at",
+            "operation"
+          ],
+          "type": "object"
+        },
+        "ArchivedTranscriptWord": {
+          "properties": {
+            "ordinal": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "word": {
+              "$ref": "#/$defs/TranscriptWord"
+            }
+          },
+          "required": [
+            "ordinal",
+            "word"
+          ],
+          "type": "object"
+        },
+        "AutomationEnvelope": {
+          "properties": {
+            "parameter": {
+              "default": "volume",
+              "type": "string"
+            },
+            "points": {
+              "items": {
+                "$ref": "#/$defs/AutomationPoint"
+              },
+              "type": "array"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
+        },
+        "AutomationPoint": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "time": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "time",
+            "value"
+          ],
+          "type": "object"
+        },
+        "BalanceBasis": {
+          "properties": {
+            "digest": {
+              "type": "string"
+            },
+            "measured_lufs": {
+              "type": "number"
+            },
+            "speech_gated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "digest",
+            "measured_lufs",
+            "speech_gated"
+          ],
+          "type": "object"
+        },
+        "ChapterMarker": {
+          "properties": {
+            "image_url": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "time": {
+              "type": "number"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "time",
+            "title"
+          ],
+          "type": "object"
+        },
+        "Clip": {
+          "properties": {
+            "fade_in_ms": {
+              "default": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 0,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "join_in_mode": {
+              "$ref": "#/$defs/ClipJoinMode",
+              "default": "fade"
+            },
+            "mute_regions": {
+              "items": {
+                "$ref": "#/$defs/ClipMuteRegion"
+              },
+              "type": "array"
+            },
+            "source_end": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_start": {
+              "type": "number"
+            },
+            "timeline_start": {
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "track_id",
+            "source_start",
+            "source_end",
+            "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ClipJoinMode": {
+          "enum": [
+            "fade",
+            "crossfade",
+            "cut"
+          ],
+          "type": "string"
+        },
+        "ClipMuteRegion": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "fade_in_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fade_out_ms": {
+              "default": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fill": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RoomToneFill"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "gain_db": {
+              "anyOf": [
+                {
+                  "exclusiveMaximum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "CombinedTranscript": {
+          "properties": {
+            "utterances": {
+              "items": {
+                "$ref": "#/$defs/CombinedUtterance"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "CombinedUtterance": {
+          "properties": {
+            "end": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker": {
+              "type": "string"
+            },
+            "start": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "speaker",
+            "start",
+            "end",
+            "text"
+          ],
+          "type": "object"
+        },
+        "CommentActionItem": {
+          "properties": {
+            "completed_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "completed_by": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "done": {
+              "default": false,
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "text"
+          ],
+          "type": "object"
+        },
+        "CommentReply": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "body",
+            "author",
+            "created_at"
+          ],
+          "type": "object"
+        },
+        "ConcreteEditableSnapshot": {
+          "properties": {
+            "editorial": {
+              "$ref": "#/$defs/EditorialSection"
+            },
+            "meta": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SnapshotMeta"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "mix": {
+              "$ref": "#/$defs/MixSection"
+            },
+            "render_last_completed_step": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review": {
+              "$ref": "#/$defs/ReviewSection"
+            },
+            "social": {
+              "$ref": "#/$defs/SocialSection"
+            },
+            "sources": {
+              "items": {
+                "$ref": "#/$defs/SourceRecording"
+              },
+              "type": "array"
+            },
+            "timeline": {
+              "$ref": "#/$defs/TimelineSection"
+            },
+            "transcripts": {
+              "$ref": "#/$defs/TranscriptsSection"
+            }
+          },
+          "type": "object"
+        },
+        "CutIntent": {
+          "enum": [
+            "programmatic",
+            "human_boundaries"
+          ],
+          "type": "string"
+        },
+        "CutSpeech": {
+          "properties": {
+            "spans": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "tracks": {
+              "items": {
+                "$ref": "#/$defs/CutSpeechTrack"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "spans",
+            "tracks"
+          ],
+          "type": "object"
+        },
+        "CutSpeechTrack": {
+          "properties": {
+            "sound_spans": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "type": "array"
+            },
+            "speaker": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "words": {
+              "items": {
+                "$ref": "#/$defs/CutSpeechWord"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "track_id",
+            "speaker"
+          ],
+          "type": "object"
+        },
+        "CutSpeechWord": {
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "timeline_end": {
+              "type": "number"
+            },
+            "timeline_start": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "text",
+            "timeline_start",
+            "timeline_end"
+          ],
+          "type": "object"
+        },
+        "DocumentSyncSection": {
+          "properties": {
+            "last_command": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SavedDocumentCommand"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "EditDecision": {
+          "properties": {
+            "applied": {
+              "default": true,
+              "type": "boolean"
+            },
+            "author": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "boundary_intent": {
+              "$ref": "#/$defs/CutIntent",
+              "default": "programmatic"
+            },
+            "boundary_mode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "crossfade_ms": {
+              "default": 10,
+              "type": "integer"
+            },
+            "cut_confidence": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "cut_speech": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CutSpeech"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "type": "number"
+            },
+            "exact_range": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ExactRangeTarget"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "next_burst_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "proposal_origin": {
+              "$ref": "#/$defs/ProposalOrigin",
+              "default": "programmatic"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "replace_gap_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review_required": {
+              "default": false,
+              "type": "boolean"
+            },
+            "scope": {
+              "default": "session",
+              "type": "string"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_timeline_span": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RangeInterval"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            },
+            "timebase": {
+              "default": "source",
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "track_ids": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "type": {
+              "$ref": "#/$defs/EditDecisionType",
+              "default": "remove"
+            }
+          },
+          "required": [
+            "id",
+            "track_id",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "EditDecisionType": {
+          "enum": [
+            "remove",
+            "mute",
+            "split"
+          ],
+          "type": "string"
+        },
+        "EditorialSection": {
+          "properties": {
+            "chapters": {
+              "items": {
+                "$ref": "#/$defs/ChapterMarker"
+              },
+              "type": "array"
+            },
+            "edit_decisions": {
+              "items": {
+                "$ref": "#/$defs/EditDecision"
+              },
+              "type": "array"
+            },
+            "edit_log": {
+              "items": {
+                "$ref": "#/$defs/AppliedEditRecord"
+              },
+              "type": "array"
+            },
+            "retained_bleed_alignments": {
+              "items": {
+                "$ref": "#/$defs/RetainedBleedAlignmentDecision"
+              },
+              "type": "array"
+            },
+            "speaker_splits": {
+              "items": {
+                "$ref": "#/$defs/SpeakerSplit"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "EpisodeProject": {
+          "properties": {
+            "document_sync": {
+              "$ref": "#/$defs/DocumentSyncSection"
+            },
+            "editorial": {
+              "$ref": "#/$defs/EditorialSection"
+            },
+            "history": {
+              "$ref": "#/$defs/ProjectHistory"
+            },
+            "meta": {
+              "$ref": "#/$defs/ProjectMeta"
+            },
+            "mix": {
+              "$ref": "#/$defs/MixSection"
+            },
+            "render": {
+              "$ref": "#/$defs/RenderSection"
+            },
+            "review": {
+              "$ref": "#/$defs/ReviewSection"
+            },
+            "social": {
+              "$ref": "#/$defs/SocialSection"
+            },
+            "sources": {
+              "items": {
+                "$ref": "#/$defs/SourceRecording"
+              },
+              "type": "array"
+            },
+            "timeline": {
+              "$ref": "#/$defs/TimelineSection"
+            },
+            "transcripts": {
+              "$ref": "#/$defs/TranscriptsSection"
+            },
+            "version": {
+              "default": "2.0",
+              "type": "string"
+            }
+          },
+          "required": [
+            "meta"
+          ],
+          "type": "object"
+        },
+        "ExactRangeTarget": {
+          "additionalProperties": false,
+          "properties": {
+            "clips": {
+              "items": {
+                "$ref": "#/$defs/Clip"
+              },
+              "maxItems": 10000,
+              "type": "array"
+            },
+            "intervals": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "maxItems": 1000,
+              "minItems": 1,
+              "type": "array"
+            },
+            "kind": {
+              "const": "exact_range",
+              "default": "exact_range",
+              "type": "string"
+            },
+            "media_seals": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 1000,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "intervals",
+            "track_ids",
+            "clips",
+            "media_seals"
+          ],
+          "type": "object"
+        },
+        "GateFill": {
+          "properties": {
+            "fade_ms": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "filled_sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "holes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "level_db": {
+              "type": "number"
+            },
+            "media_mtime_ns": {
+              "type": "integer"
+            },
+            "media_size": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "noise_db": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "path": {
+              "type": "string"
+            },
+            "source": {
+              "$ref": "#/$defs/GateFillSource"
+            }
+          },
+          "required": [
+            "source",
+            "path",
+            "media_size",
+            "media_mtime_ns",
+            "holes",
+            "filled_sec",
+            "level_db",
+            "fade_ms"
+          ],
+          "type": "object"
+        },
+        "GateFillSource": {
+          "enum": [
+            "room_tone_bed",
+            "comfort_noise"
+          ],
+          "type": "string"
+        },
+        "HistoryEntry": {
+          "properties": {
+            "created_at": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "operation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "params": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "snapshot_file": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "snapshot_file"
+          ],
+          "type": "object"
+        },
+        "MediaAsset": {
+          "properties": {
+            "channels": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "path": {
+              "type": "string"
+            },
+            "sample_rate": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        "MixSection": {
+          "properties": {
+            "automation_envelopes": {
+              "items": {
+                "$ref": "#/$defs/AutomationEnvelope"
+              },
+              "type": "array"
+            },
+            "processing_chains": {
+              "items": {
+                "$ref": "#/$defs/ProcessingChain"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "PipelineRun": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "started_at": {
+              "type": "string"
+            },
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/PipelineStepLog"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "started_at"
+          ],
+          "type": "object"
+        },
+        "PipelineStepLog": {
+          "properties": {
+            "finished_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "message": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "started_at": {
+              "type": "string"
+            },
+            "status": {
+              "default": "ok",
+              "type": "string"
+            },
+            "step": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "step",
+            "started_at"
+          ],
+          "type": "object"
+        },
+        "ProcessingChain": {
+          "properties": {
+            "effects": {
+              "items": {
+                "$ref": "#/$defs/ProcessingEffect"
+              },
+              "type": "array"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
+        },
+        "ProcessingEffect": {
+          "properties": {
+            "bypass": {
+              "default": false,
+              "type": "boolean"
+            },
+            "effect": {
+              "type": "string"
+            },
+            "params": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "required": [
+            "effect"
+          ],
+          "type": "object"
+        },
+        "ProjectHistory": {
+          "properties": {
+            "cursor": {
+              "default": -1,
+              "type": "integer"
+            },
+            "entries": {
+              "items": {
+                "$ref": "#/$defs/HistoryEntry"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "ProjectMeta": {
+          "properties": {
+            "created_at": {
+              "type": "string"
+            },
+            "ingest_alignment": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/SpeakerIngestAlignment"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "name": {
+              "type": "string"
+            },
+            "schema_id": {
+              "default": "podcast-mcp/episode/2",
+              "type": "string"
+            },
+            "workspace_dir": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "workspace_dir"
+          ],
+          "type": "object"
+        },
+        "ProjectStateSnapshot": {
+          "properties": {
+            "editorial": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "meta": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "mix": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "render_last_completed_step": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "social": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "sources": {
+              "items": {},
+              "type": "array"
+            },
+            "timeline": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "transcripts": {
+              "additionalProperties": true,
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "ProposalOrigin": {
+          "enum": [
+            "programmatic",
+            "human"
+          ],
+          "type": "string"
+        },
+        "RangeInterval": {
+          "additionalProperties": false,
+          "properties": {
+            "end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "start": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "RenderArtifacts": {
+          "properties": {
+            "mastered": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "premix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "RenderInvalidation": {
+          "properties": {
+            "at": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "reason": {
+              "default": "other",
+              "type": "string"
+            },
+            "timeline_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "at"
+          ],
+          "type": "object"
+        },
+        "RenderSection": {
+          "properties": {
+            "artifacts": {
+              "$ref": "#/$defs/RenderArtifacts"
+            },
+            "invalidations": {
+              "items": {
+                "$ref": "#/$defs/RenderInvalidation"
+              },
+              "type": "array"
+            },
+            "last_completed_step": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "last_reconciliation_hash": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "pipeline_runs": {
+              "items": {
+                "$ref": "#/$defs/PipelineRun"
+              },
+              "type": "array"
+            },
+            "reconciliation_stale": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "RetainedBleedAlignmentDecision": {
+          "properties": {
+            "bleed_track_id": {
+              "type": "string"
+            },
+            "direct_track_id": {
+              "type": "string"
+            },
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "evidence_revision": {
+              "default": 1,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "media_key": {
+              "anyOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "mode": {
+              "default": "auto",
+              "enum": [
+                "auto",
+                "manual",
+                "declined"
+              ],
+              "type": "string"
+            },
+            "offset_sec": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "previous_timeline_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "provenance": {
+              "default": "automatic",
+              "enum": [
+                "automatic",
+                "requested_scoped_override"
+              ],
+              "type": "string"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "timeline_start": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s",
+            "id",
+            "direct_track_id",
+            "bleed_track_id",
+            "previous_timeline_start",
+            "timeline_start"
+          ],
+          "type": "object"
+        },
+        "ReviewMixVersion": {
+          "properties": {
+            "audio_relpath": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "mp3_relpath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_key": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_uploaded_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "sha256": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "created_at",
+            "audio_relpath"
+          ],
+          "type": "object"
+        },
+        "ReviewSection": {
+          "properties": {
+            "active_version_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "comments": {
+              "items": {
+                "$ref": "#/$defs/TimelineComment"
+              },
+              "type": "array"
+            },
+            "versions": {
+              "items": {
+                "$ref": "#/$defs/ReviewMixVersion"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "RoomToneFill": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "SavedDocumentCommand": {
+          "properties": {
+            "base_server_seq": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "causation_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "client_id": {
+              "type": "string"
+            },
+            "client_seq": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "command_id": {
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "role": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command_id",
+            "client_id",
+            "role",
+            "type",
+            "base_server_seq"
+          ],
+          "type": "object"
+        },
+        "SnapshotMeta": {
+          "properties": {
+            "ingest_alignment": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/SpeakerIngestAlignment"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "SocialClipCandidate": {
+          "properties": {
+            "approved": {
+              "default": false,
+              "type": "boolean"
+            },
+            "caption_suggestion": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "type": "number"
+            },
+            "exported_path": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "reasons": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "review_required": {
+              "default": true,
+              "type": "boolean"
+            },
+            "score": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "speaker": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            },
+            "title_suggestion": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "transcript_excerpt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "track_id",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "SocialSection": {
+          "properties": {
+            "clip_candidates": {
+              "items": {
+                "$ref": "#/$defs/SocialClipCandidate"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "SourceClippingRegion": {
+          "properties": {
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "SourceRecording": {
+          "properties": {
+            "channels": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "clipping_regions": {
+              "items": {
+                "$ref": "#/$defs/SourceClippingRegion"
+              },
+              "type": "array"
+            },
+            "clipping_truncated": {
+              "default": false,
+              "type": "boolean"
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "offset_sec": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "path": {
+              "type": "string"
+            },
+            "sample_rate": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "path"
+          ],
+          "type": "object"
+        },
+        "SpeakerIngestAlignment": {
+          "properties": {
+            "align_method": {
+              "default": "unknown",
+              "type": "string"
+            },
+            "content_align_sec": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "session_start_in_file_sec": {
+              "default": 0.0,
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "SpeakerSplit": {
+          "properties": {
+            "backend": {
+              "type": "string"
+            },
+            "crosstalk_lane": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "crosstalk_mode": {
+              "enum": [
+                "owner",
+                "both",
+                "lane"
+              ],
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "lanes": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2,
+              "type": "array"
+            },
+            "media_path": {
+              "type": "string"
+            },
+            "method": {
+              "enum": [
+                "enroll",
+                "cluster"
+              ],
+              "type": "string"
+            },
+            "turns": {
+              "items": {
+                "$ref": "#/$defs/SpeakerTurnRecord"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "media_path",
+            "lanes",
+            "crosstalk_mode",
+            "backend",
+            "method"
+          ],
+          "type": "object"
+        },
+        "SpeakerTurnRecord": {
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "end_s": {
+              "type": "number"
+            },
+            "speakers": {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s",
+            "speakers",
+            "confidence"
+          ],
+          "type": "object"
+        },
+        "TimelineComment": {
+          "properties": {
+            "action_items": {
+              "items": {
+                "$ref": "#/$defs/CommentActionItem"
+              },
+              "type": "array"
+            },
+            "author": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string"
+            },
+            "edit_decision_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "replies": {
+              "items": {
+                "$ref": "#/$defs/CommentReply"
+              },
+              "type": "array"
+            },
+            "resolved": {
+              "default": false,
+              "type": "boolean"
+            },
+            "resolved_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "resolved_by": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "review_version_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_spans": {
+              "items": {
+                "$ref": "#/$defs/RangeInterval"
+              },
+              "maxItems": 1000,
+              "type": "array"
+            },
+            "timeline_start": {
+              "type": "number"
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updated_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "body",
+            "author",
+            "created_at",
+            "timeline_start"
+          ],
+          "type": "object"
+        },
+        "TimelineSection": {
+          "properties": {
+            "clips": {
+              "items": {
+                "$ref": "#/$defs/Clip"
+              },
+              "type": "array"
+            },
+            "duration_sec": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tracks": {
+              "items": {
+                "$ref": "#/$defs/Track"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "Track": {
+          "properties": {
+            "balance_basis": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BalanceBasis"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "fader_db": {
+              "default": 0.0,
+              "maximum": 12.0,
+              "minimum": -60.0,
+              "type": "number"
+            },
+            "gain_db": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "gate_fill": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GateFill"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "media": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MediaAsset"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "muted": {
+              "default": false,
+              "type": "boolean"
+            },
+            "proxy": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TrackProxy"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "role": {
+              "$ref": "#/$defs/TrackRole",
+              "default": "dialogue"
+            },
+            "room_tone": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MediaAsset"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "timeline_empty": {
+              "default": false,
+              "type": "boolean"
+            },
+            "transcript_gate": {
+              "default": false,
+              "type": "boolean"
+            },
+            "transcript_gate_scope": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/$defs/TranscriptGateScope"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "label"
+          ],
+          "type": "object"
+        },
+        "TrackProxy": {
+          "properties": {
+            "bitrate_kbps": {
+              "default": 64,
+              "type": "integer"
+            },
+            "chunk_count": {
+              "type": "integer"
+            },
+            "chunk_sec": {
+              "default": 60.0,
+              "type": "number"
+            },
+            "codec": {
+              "default": "mp3",
+              "type": "string"
+            },
+            "duration_sec": {
+              "type": "number"
+            },
+            "hash": {
+              "type": "string"
+            },
+            "object_store_prefix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "object_store_uploaded_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "overlap_ms": {
+              "default": 200,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hash",
+            "chunk_count",
+            "duration_sec"
+          ],
+          "type": "object"
+        },
+        "TrackRole": {
+          "enum": [
+            "dialogue",
+            "music",
+            "sfx",
+            "intro",
+            "outro"
+          ],
+          "type": "string"
+        },
+        "Transcript": {
+          "properties": {
+            "alignment_score_method": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "archived_words": {
+              "items": {
+                "$ref": "#/$defs/ArchivedTranscriptWord"
+              },
+              "type": "array"
+            },
+            "audio_mtime_ns": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "audio_sha256": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "audio_size": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "language": {
+              "default": "en",
+              "type": "string"
+            },
+            "silence_filter_fingerprint": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "user_edited": {
+              "default": false,
+              "type": "boolean"
+            },
+            "vocabulary_revision": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "word_aligner": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "words": {
+              "items": {
+                "$ref": "#/$defs/TranscriptWord"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
+        },
+        "TranscriptGateScope": {
+          "properties": {
+            "end_s": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start_s": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
+        "TranscriptWord": {
+          "properties": {
+            "alignment_score": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "audibility_locked": {
+              "default": false,
+              "type": "boolean"
+            },
+            "audibility_status": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "confidence": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dominant_track": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "type": "number"
+            },
+            "ignored": {
+              "default": false,
+              "type": "boolean"
+            },
+            "overlong": {
+              "default": false,
+              "type": "boolean"
+            },
+            "snapped_from": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker_match_score": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "speaker_match_track": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            },
+            "suppressed": {
+              "default": false,
+              "type": "boolean"
+            },
+            "suspect_hallucination": {
+              "default": false,
+              "type": "boolean"
+            },
+            "text": {
+              "type": "string"
+            },
+            "timing_edited": {
+              "default": false,
+              "type": "boolean"
+            },
+            "trimmed_from": {
+              "anyOf": [
+                {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "text",
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "TranscriptsSection": {
+          "properties": {
+            "combined": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CombinedTranscript"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "per_track": {
+              "items": {
+                "$ref": "#/$defs/Transcript"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "history": {
+          "$ref": "#/$defs/ProjectHistory"
+        },
+        "project": {
+          "$ref": "#/$defs/EpisodeProject"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/ProjectStateSnapshot"
+        },
+        "snapshot_sections": {
+          "$ref": "#/$defs/ConcreteEditableSnapshot"
+        }
+      },
+      "required": [
+        "project",
+        "history",
+        "snapshot",
+        "snapshot_sections"
+      ],
+      "type": "object"
+    }
+  },
+  "unknown_fields": {
+    "AppliedEditRecord": "ignore",
+    "ArchivedTranscriptWord": "ignore",
+    "AutomationEnvelope": "ignore",
+    "AutomationPoint": "ignore",
+    "BalanceBasis": "ignore",
+    "ChapterMarker": "ignore",
+    "Clip": "ignore",
+    "ClipMuteRegion": "ignore",
+    "CombinedTranscript": "ignore",
+    "CombinedUtterance": "ignore",
+    "CommentActionItem": "ignore",
+    "CommentReply": "ignore",
+    "ConcreteEditableSnapshot": "ignore",
+    "CutSpeech": "ignore",
+    "CutSpeechTrack": "ignore",
+    "CutSpeechWord": "ignore",
+    "DocumentSyncSection": "ignore",
+    "EditDecision": "ignore",
+    "EditorialSection": "ignore",
+    "EpisodeProject": "ignore",
+    "ExactRangeTarget": "forbid",
+    "GateFill": "ignore",
+    "HistoryEntry": "ignore",
+    "MediaAsset": "ignore",
+    "MixSection": "ignore",
+    "PipelineRun": "ignore",
+    "PipelineStepLog": "ignore",
+    "ProcessingChain": "ignore",
+    "ProcessingEffect": "ignore",
+    "ProjectHistory": "ignore",
+    "ProjectMeta": "ignore",
+    "ProjectStateSnapshot": "ignore",
+    "RangeInterval": "forbid",
+    "RenderArtifacts": "ignore",
+    "RenderInvalidation": "ignore",
+    "RenderSection": "ignore",
+    "RetainedBleedAlignmentDecision": "ignore",
+    "ReviewMixVersion": "ignore",
+    "ReviewSection": "ignore",
+    "RoomToneFill": "ignore",
+    "SavedDocumentCommand": "ignore",
+    "SnapshotMeta": "ignore",
+    "SocialClipCandidate": "ignore",
+    "SocialSection": "ignore",
+    "SourceClippingRegion": "ignore",
+    "SourceRecording": "ignore",
+    "SpeakerIngestAlignment": "ignore",
+    "SpeakerSplit": "ignore",
+    "SpeakerTurnRecord": "ignore",
+    "TimelineComment": "ignore",
+    "TimelineSection": "ignore",
+    "Track": "ignore",
+    "TrackProxy": "ignore",
+    "Transcript": "ignore",
+    "TranscriptGateScope": "ignore",
+    "TranscriptWord": "ignore",
+    "TranscriptsSection": "ignore"
+  }
+}

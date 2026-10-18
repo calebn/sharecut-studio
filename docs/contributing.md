@@ -215,6 +215,16 @@ Existing required checks and test inventories remain in force. Moving or
 removing them requires an explicit policy decision and an equivalent-assurance
 rationale. A useful one-off proof does not itself justify recurring CI.
 
+### Persisted project and history changes
+
+Follow the [project-format compatibility policy](project-format.md#compatibility-boundary)
+when changing persisted models or history. Before the first tester delivery,
+refresh the generated shape lock. After that delivery, a structural change also
+requires a version bump and a real CLI upgrade test over every older released
+fixture. A version-only bump has the same upgrade requirement. Keep old formats
+unsupported in ordinary runtime loading. The compatibility guard runs on every
+PR, including docs-only and web-only changes.
+
 ### CI on a pull request
 
 A PR runs only what its diff can reach. `scripts/ci_plan.py` reads the diff

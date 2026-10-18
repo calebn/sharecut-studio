@@ -1,0 +1,6 @@
+{
+  "kind": "development-only",
+  "purpose": "Generated with current runtime models for guard coverage. Never shipped; no historical compatibility claim.",
+  "raw": "80 mono PCM silence samples at 8 kHz; no render or acoustic proof.",
+  "source_commit": "e696d9c318899a83b2f9035fd2bd587266480b0e"
+}
