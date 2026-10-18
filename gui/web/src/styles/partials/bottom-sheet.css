@@ -520,3 +520,9 @@ html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
   inline-size: var(--inspector-column-width);
   z-index: var(--z-sheet);
 }
+
+/* The portal host that keeps the column's tree alive when the screen turns
+   (BottomSheet): it takes no box, so the column is still a cell of the shell. */
+.bottom-sheet-column-host {
+  display: contents;
+}

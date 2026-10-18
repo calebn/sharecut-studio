@@ -5,6 +5,7 @@ import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
 import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
 import { Icon } from "./Icon";
+import { SheetHostPlacement, useSheetHost } from "./sheetHost";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
 
@@ -20,9 +21,10 @@ export type BottomSheetSize = DrawerDetent | "fit";
 export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
 /**
  * `sheet`: portaled over the shell, with a scrim, detents and a slide-up.
- * `column`: in place as a grid cell on the inline end of the shell (#1696),
- * for a phone held sideways. It has no scrim, drawer or resize buttons; the
- * title, Close, Escape and focus restore stay.
+ * `column`: a grid cell on the inline end of the shell (#1696), for a phone
+ * held sideways. It has no scrim, drawer or resize buttons; the title, Close,
+ * Escape and focus restore stay. Both portal into one host element that only
+ * changes parent (`sheetHost`), so turning the phone keeps the tree mounted.
  */
 export type SheetPlacement = "sheet" | "column";
 
@@ -111,6 +113,7 @@ export function BottomSheet({
   const swipe = useDrawerSwipe(panelRef, open ? drawer : undefined);
   const chromeRef = useRef<HTMLDivElement>(null);
   const hasDrawer = drawer != null;
+  const host = useSheetHost();
   useKeyboardInset(open);
   // A focused control is scrolled clear of the pinned header, which WebKit
   // does not do for a field it counts as partly in view.
@@ -145,7 +148,7 @@ export function BottomSheet({
     stackKey: title ?? "bottom-sheet",
   });
 
-  if (!open || typeof document === "undefined") {
+  if (!open || !host) {
     return null;
   }
 
@@ -244,15 +247,10 @@ export function BottomSheet({
     </div>
   );
 
-  if (column) return panel;
-
   return createPortal(
-    <div
-      className={`bottom-sheet-root${stowed ? " is-stowed" : ""}`}
-      inert={stowed}
-      role="presentation"
-    >
-      {backgroundPolicy === "interactive" ? (
+    <>
+      <SheetHostPlacement host={host} column={column} stowed={stowed} />
+      {column ? null : backgroundPolicy === "interactive" ? (
         <div
           className={`bottom-sheet-scrim bottom-sheet-scrim--interactive${current === "peek" ? " bottom-sheet-scrim--clear" : ""}`}
           aria-hidden="true"
@@ -266,7 +264,7 @@ export function BottomSheet({
         />
       )}
       {panel}
-    </div>,
-    document.body,
+    </>,
+    host,
   );
 }

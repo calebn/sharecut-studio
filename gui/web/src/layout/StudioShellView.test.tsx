@@ -314,7 +314,7 @@ describe("StudioShellView", () => {
     expect(shell).toHaveClass("daw-shell--inspector-column");
     const dialog = screen.getByRole("dialog", { name: "Inspector" });
     expect(shell?.contains(dialog)).toBe(true);
-    expect(dialog.parentElement).toBe(shell);
+    expect(dialog.parentElement?.parentElement).toBe(shell);
     expect(dialog.className).not.toContain("bottom-sheet--inspector");
     expect(document.querySelector(".bottom-sheet-root")).toBeNull();
     rerender(
