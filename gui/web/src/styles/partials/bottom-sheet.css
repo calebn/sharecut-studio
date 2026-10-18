@@ -517,14 +517,21 @@ html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
    auto` gives the shell's own box, which Safari scrolls with the page, so the
    top is `--visual-viewport-top` (the visual viewport's page offset) and the
    height is `--visual-viewport-height`, with no subtraction of the keyboard
-   from a layout height iOS already shrank. The column leaves the grid flow but
-   its track stays, so the timeline does not move. The root rule above assumes
-   a fixed slot, so the column has its own. */
+   from a layout height iOS already shrank. With Safari's chrome collapsed the
+   band can reach the shell's bottom edge, where the tablet status strip (and
+   the home indicator) paint over it, so the shell publishes `--column-floor`
+   (responsive.css) and the column ends there: the focused field and Close stay
+   clear of the strip. The column leaves the grid flow but its track stays, so
+   the timeline does not move. The root rule above assumes a fixed slot, so the
+   column has its own. */
 html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
   position: fixed;
   grid-area: auto;
   inset-block: var(--visual-viewport-top, 0) auto;
-  block-size: var(--visual-viewport-height, 100dvh);
+  block-size: min(
+    var(--visual-viewport-height, 100dvh),
+    calc(100% - var(--visual-viewport-top, 0px) - var(--column-floor, 0px))
+  );
   inset-inline-end: env(safe-area-inset-right);
   inline-size: var(--inspector-column-width);
   z-index: var(--z-sheet);

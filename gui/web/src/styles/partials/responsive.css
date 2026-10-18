@@ -137,11 +137,14 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
    full height. They return when the column closes. */
 .daw-shell.daw-shell--inspector-column {
   --shell-tabs-row: 0;
+  --column-floor: env(safe-area-inset-bottom);
 
   grid-template-columns: minmax(0, 1fr) var(--inspector-column-width);
 }
 
 .daw-shell.daw-shell--inspector-column.daw-shell--tablet {
+  --column-floor: calc(var(--status-height) + env(safe-area-inset-bottom));
+
   grid-template-areas:
     "banners banners"
     "follow follow"
