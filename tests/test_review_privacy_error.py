@@ -107,8 +107,8 @@ def test_guest_message_has_no_path_and_no_command(tmp_path: Path) -> None:
         error.guest_message()
         == "The host's review files need attention; ask the host to check them."
     )
-    assert "chmod" not in "The host's review files need attention; ask the host to check them."
-    assert "/" not in "The host's review files need attention; ask the host to check them."
+    assert "chmod" not in error.guest_message()
+    assert "/" not in error.guest_message()
 
 
 def test_staged_folder_check_picks_the_reason_from_the_folder(
