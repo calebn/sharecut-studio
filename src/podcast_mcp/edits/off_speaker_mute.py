@@ -64,6 +64,11 @@ LEAK_PERCENTILE = 40.0
 MIN_LEAK_SEC = 1.0
 MIN_REGION_SEC = 0.15
 MIN_HEARD_SEC = 0.08
+DOUBTFUL_WORD_MAX_SEC = 0.6
+DOUBTFUL_ISOLATION_SEC = 0.6
+COPY_WORD_CORRELATION_MIN = 0.7
+COPY_CORRELATION_REVIEW_MIN = 0.5
+COPY_WORD_LEVEL_SLACK_DB = 6.0
 # A turn's copy is told from this track's own sounds by its envelope following the peer's.
 COPY_CORRELATION_MIN = 0.6
 COPY_LAG_EARLY_SEC = 0.05
@@ -90,6 +95,7 @@ class OffSpeakerPlan:
     kept_gaps: list[dict[str, Any]] = field(default_factory=list)
     still_audible_sec: float = 0.0
     still_audible_copy_sec: float = 0.0
+    judged_words: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def audible_muted_sec(self) -> float:
@@ -115,6 +121,7 @@ class OffSpeakerPlan:
             "refusal": self.refusal,
             "still_audible_sec": round(self.still_audible_sec, 3),
             "still_audible_copy_sec": round(self.still_audible_copy_sec, 3),
+            "judged_words": self.judged_words,
             "kept_gaps": self.kept_gaps,
             "regions": self.regions,
         }
@@ -212,6 +219,61 @@ def _peer_turns(peers: list[PeerEvidence]) -> list[tuple[float, float]]:
     return [t for t in turns if any(a < t[1] and b > t[0] for a, b in words)]
 
 
+def _judge_doubtful_words(
+    own_words: list[tuple[float, float]],
+    levels: np.ndarray,
+    mine: np.ndarray,
+    theirs: np.ndarray,
+    peer_level: np.ndarray,
+    peer_mask: np.ndarray,
+    leak: float,
+) -> list[dict[str, Any]]:
+    """Judge from the audio each short, isolated own word inside another speaker's turn.
+
+    Reconcile can leave a one-word fragment of the other speaker unsuppressed between words it
+    did suppress. Such a word is a copy when this track's envelope follows the other speaker's
+    around it and it is no louder than a copy would be; ``review`` when only one of the two
+    holds, so a person can listen; otherwise it is the speaker's own and stays.
+    """
+    out = []
+    ordered = sorted(own_words)
+    for i, (a, b) in enumerate(ordered):
+        before = ordered[i - 1][1] if i else -np.inf
+        after = ordered[i + 1][0] if i + 1 < len(ordered) else np.inf
+        lo, hi = _frames(a), min(levels.size, _frames(b))
+        if (
+            b - a > DOUBTFUL_WORD_MAX_SEC
+            or a - before < DOUBTFUL_ISOLATION_SEC
+            or after - b < DOUBTFUL_ISOLATION_SEC
+            or hi <= lo
+            or peer_mask[lo:hi].mean() < 0.8
+        ):
+            continue
+        ctx = np.zeros(levels.size, dtype=bool)
+        ctx[max(0, lo - _frames(0.4)) : hi + _frames(0.4)] = True
+        ctx &= peer_mask
+        r, _ = _envelope_copy(mine, theirs, np.flatnonzero(ctx))
+        seen = np.isfinite(peer_level[lo:hi])
+        ratio = float(np.median((levels[lo:hi] - peer_level[lo:hi])[seen])) if seen.any() else None
+        quiet_enough = ratio is not None and ratio <= leak + COPY_WORD_LEVEL_SLACK_DB
+        if r >= COPY_WORD_CORRELATION_MIN and quiet_enough:
+            verdict = "copy"
+        elif r >= COPY_CORRELATION_REVIEW_MIN or quiet_enough:
+            verdict = "review"
+        else:
+            verdict = "own"
+        out.append(
+            {
+                "start": a,
+                "end": b,
+                "verdict": verdict,
+                "correlation": round(r, 2),
+                "level_over_peer_db": None if ratio is None else round(ratio, 1),
+            }
+        )
+    return out
+
+
 def plan_from_evidence(
     track_id: str,
     levels: np.ndarray,
@@ -219,6 +281,7 @@ def plan_from_evidence(
     own_words: list[tuple[float, float]],
     peers: list[PeerEvidence],
     rendered: np.ndarray | None = None,
+    _judged: list[dict[str, Any]] | None = None,
 ) -> OffSpeakerPlan:
     """The off-speaker mute plan from one track's levels, words and its peers' (all 10 ms frames).
 
@@ -281,6 +344,25 @@ def plan_from_evidence(
         return plan
     leak = float(np.percentile((levels - peer_level)[sample], LEAK_PERCENTILE))
     plan.leak_ratio_db = round(leak, 1)
+
+    if _judged is None:
+        judged = _judge_doubtful_words(own_words, levels, mine, theirs, peer_level, peer_mask, leak)
+        released = [j for j in judged if j["verdict"] == "copy"]
+        if released:
+            gone = {(j["start"], j["end"]) for j in released}
+            again = plan_from_evidence(
+                track_id,
+                levels,
+                profile,
+                [w for w in own_words if w not in gone],
+                peers,
+                rendered,
+                _judged=judged,
+            )
+            return again
+        plan.judged_words = judged
+    else:
+        plan.judged_words = _judged
 
     own_energy = (
         confirmed
@@ -437,6 +519,31 @@ def plan_off_speaker_mutes(
     _name_holding_words(project, track_id, plan)
     plan.own_word_overlap_sec = _overlap_sec(own_words, plan.regions)
     return plan
+
+
+def _name_judged_words(project: EpisodeProject, track_id: str, plan: OffSpeakerPlan) -> None:
+    """Put each judged word's text and source times beside its timeline span."""
+    if not plan.judged_words:
+        return
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.util.timebase import SourceSec
+
+    transcript = project.transcript_for_track(track_id)
+    if transcript is None:
+        return
+    words = [w for w in transcript.words if not w.suppressed]
+    mapped = SessionTimeline(project).map_source_spans(
+        track_id, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
+    )
+    for judged in plan.judged_words:
+        for w, spans in zip(words, mapped, strict=True):
+            if any(
+                abs(float(a) - judged["start"]) < 0.005 and abs(float(b) - judged["end"]) < 0.005
+                for a, b in spans
+            ):
+                judged["text"] = w.text
+                judged["source"] = [w.start, w.end]
+                break
 
 
 def _name_holding_words(project: EpisodeProject, track_id: str, plan: OffSpeakerPlan) -> None:
