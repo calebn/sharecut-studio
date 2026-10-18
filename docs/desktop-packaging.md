@@ -639,6 +639,38 @@ scripts/build_update_feed.py --version 0.2.0 --base-url "$BASE" \
 A Linux AppImage from `make desktop-linux-appimage-docker` is signed afterward
 with `scripts/sign_updater_bundle.sh <file>`.
 
+## Version bumps
+
+The version changes once per tester build, not per merge. The updater offers an update
+only when the feed's version is higher than the installed one, so each published feed
+needs a new number, and per-merge bumps would conflict across parallel PRs for nothing a
+tester can see.
+
+[release-please](../.github/workflows/release-please.yml) keeps one open "release" PR on
+`main`. It reads the Conventional Commit subjects merged since the last release
+(`feat`, `fix`, `perf`, `revert`, or a `!` breaking marker), proposes the next version and
+the changelog, and bumps `pyproject.toml`, `src/podcast_mcp/__init__.py`,
+`gui/desktop/package.json` and its lock, `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`
+together. Merging that PR is the decision to cut a build; it tags `vX.Y.Z` and builds
+nothing. The operator then builds from that tag and publishes the feed ([In-app
+updates](#in-app-updates)).
+
+- **Plain `MAJOR.MINOR.PATCH` only.** No `-beta.1`. The Windows MSI target accepts only
+  numeric pre-release parts, and the Mac bundle version is three integers. Beta is shown
+  in the product, not the version.
+- **Stays 0.x.** Below 1.0, a feature bumps the patch and a breaking change bumps the
+  minor (`bump-minor-pre-major`, `bump-patch-for-minor-pre-major` in
+  `release-please-config.json`). `scripts/version_policy.py`, run by
+  `tests/test_version_policy.py` in the required pytest job, fails when any version
+  location disagrees or the major is above `MAX_MAJOR` (0). A `Release-As: 1.0.0` commit
+  footer cannot get past it. Going to 1.0 means changing `MAX_MAJOR` on purpose.
+- **Commit subjects matter.** A subject release-please cannot parse is skipped without
+  a warning, so `scripts/check_conventional_commits.py` fails a PR with one. Merges are
+  rebase-only, so every PR commit reaches `main` as written.
+- **Token.** The release PR must start CI, which a PR opened with the default
+  `GITHUB_TOKEN` does not. Set the repository secret `RELEASE_PLEASE_TOKEN` (a PAT or app
+  token with contents and pull-requests write) and allow Actions to create pull requests.
+
 ## Freeze the project format before tester delivery
 
 Before sharing each beta tester build, including later builds with the same

@@ -15,6 +15,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from filelock import Timeout
 
+from podcast_mcp import __version__
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.bootstrap_jobs import shared_bootstrap_job_manager
 from podcast_mcp.gui.host_mcp import host_mcp_lifespan, mount_host_mcp
@@ -244,7 +245,7 @@ def create_app(
     }
     app = FastAPI(
         title="Podcast MCP Viewer",
-        version="0.1.0",
+        version=__version__,
         docs_url="/docs" if enable_openapi else None,
         redoc_url="/redoc" if enable_openapi else None,
         openapi_url="/openapi.json" if enable_openapi else None,

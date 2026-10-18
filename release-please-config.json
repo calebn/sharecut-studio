@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "podcast-mcp",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "revert", "section": "Reverts" }
+      ],
+      "extra-files": [
+        "src/podcast_mcp/__init__.py",
+        { "type": "json", "path": "gui/desktop/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "gui/desktop/package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "gui/desktop/package-lock.json", "jsonpath": "$.packages[''].version" },
+        { "type": "json", "path": "gui/desktop/src-tauri/tauri.conf.json", "jsonpath": "$.version" },
+        { "type": "toml", "path": "gui/desktop/src-tauri/Cargo.toml", "jsonpath": "$.package.version" },
+        {
+          "type": "toml",
+          "path": "gui/desktop/src-tauri/Cargo.lock",
+          "jsonpath": "$.package[?(@.name=='sharecut')].version"
+        }
+      ]
+    }
+  }
+}
