@@ -1029,3 +1029,18 @@ current placement, source identity, pad hulls, bounds and receipts remain mandat
 There is no confirmation-flag retry. Programmatic document commands, CLI and MCP
 retain fresh acoustic assessment. The domain completes cuts privately; the existing
 workspace mutation owns their single publication and History entry.
+
+## Move clips without dragging
+
+Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
+**Target track** and use **Earlier 10 ms**, **Later 10 ms**, or **Use playhead**.
+For an exact destination, enter **Timeline start (seconds)**. Review the timeline
+preview, then choose **Apply move** or **Cancel**. A selected group moves together,
+with each clip clamped at zero and the outer tracks. Exact input does not snap.
+Apply uses one existing move History action. Cancel and unchanged Apply save
+nothing. A refused save keeps a current draft and an error so you can retry.
+
+On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
+by 1 rem. **Reset panel size** clears the browser preference. These controls do
+not change the episode or History. Phone uses the sheet's **Expand** and
+**Collapse** controls and has no desktop splitter.

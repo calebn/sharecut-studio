@@ -10,6 +10,7 @@ import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { patchClipsMove } from "../document/projectPatch";
 import { getClipboard, setClipboard } from "../edit/clipboard";
+import { clipPlacementIsCurrent } from "../edit/clipPlacement";
 import { payloadFromSelection } from "../edit/selectionClipboard";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -364,6 +365,16 @@ export function registerClipMoveCommands(): void {
   registerCommand("edit.moveClips", async (args) => {
     return enqueueTrackMutate(async () => {
       const s = useDawStore.getState();
+      if (
+        args.placementToken !== undefined &&
+        (typeof args.placementToken !== "number" ||
+          !clipPlacementIsCurrent(args.placementToken))
+      ) {
+        return {
+          status: "disabled",
+          reason: "The clip placement changed. Reopen Move clip.",
+        };
+      }
       if (s.joinMutationInFlight) {
         return {
           status: "disabled",

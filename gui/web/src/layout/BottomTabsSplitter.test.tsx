@@ -219,6 +219,59 @@ describe("BottomTabsSplitter", () => {
     expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBeNull();
   });
 
+  it("steps from measured default, persists across remount and resets without project changes", async () => {
+    const before = useDawStore.getState().project;
+    const { unmount } = render(
+      <div className="bottom-tabs">
+        <BottomTabsSplitter />
+      </div>,
+    );
+    const sep = screen.getByRole("separator");
+    expect(sep.parentElement).toHaveClass("bottom-tabs");
+    const rect = vi
+      .spyOn(sep.parentElement!, "getBoundingClientRect")
+      .mockReturnValue({ height: 256 } as DOMRect);
+    await userEvent.click(screen.getByRole("button", { name: "Taller" }));
+    expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("17");
+    await userEvent.click(screen.getByRole("button", { name: "Shorter" }));
+    expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("16");
+    rect.mockRestore();
+    unmount();
+    render(
+      <div className="bottom-tabs">
+        <BottomTabsSplitter />
+      </div>,
+    );
+    expect(
+      document.documentElement.style.getPropertyValue("--tabs-height"),
+    ).toBe("16rem");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Reset panel size" }),
+    );
+    expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBeNull();
+    expect(
+      document.documentElement.style.getPropertyValue("--tabs-height"),
+    ).toBe("");
+    expect(useDawStore.getState().project).toBe(before);
+  });
+
+  it("a size button during a drag restores the preference and cannot commit a step", () => {
+    localStorage.setItem(TABS_HEIGHT_STORAGE_KEY, "18");
+    render(<BottomTabsSplitter />);
+    const sep = screen.getByRole("separator");
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 268 });
+    expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("20");
+    const taller = screen.getByRole("button", { name: "Taller" });
+    fireEvent.pointerDown(taller, { pointerId: 2, button: 0 });
+    fireEvent.click(taller);
+    fireEvent.pointerUp(sep, { pointerId: 1 });
+    expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("18");
+    fireEvent.pointerDown(taller, { pointerId: 3, button: 0 });
+    fireEvent.click(taller);
+    expect(localStorage.getItem(TABS_HEIGHT_STORAGE_KEY)).toBe("19");
+  });
+
   describe("collapse to the tool rail", () => {
     beforeEach(() => {
       clearRegisteredCommands();

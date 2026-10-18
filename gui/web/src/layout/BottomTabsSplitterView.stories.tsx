@@ -158,3 +158,27 @@ export const PhoneWidth: Story = {
     ).toHaveAttribute("aria-hidden");
   },
 };
+
+export const PointerButtons: Story = {
+  args: { heightRem: 14, userSet: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Taller" }));
+    await expect(canvas.getByRole("separator")).toHaveAttribute(
+      "aria-valuenow",
+      "15",
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Shorter" }));
+    await expect(canvas.getByRole("separator")).toHaveAttribute(
+      "aria-valuenow",
+      "14",
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Reset panel size" }),
+    );
+    await expect(canvas.getByRole("separator")).toHaveAttribute(
+      "aria-valuenow",
+      "12.5",
+    );
+  },
+};

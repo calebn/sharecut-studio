@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLayoutEffect, useState } from "react";
+import { userEvent, within } from "storybook/test";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import {
@@ -24,7 +25,7 @@ const clip: ClipRow = {
   join_in_mode: "fade",
 };
 
-function ClipStory() {
+function ClipStory({ readOnly = false }: { readOnly?: boolean }) {
   const [ready, setReady] = useState(false);
   useLayoutEffect(() => {
     const previous = useDawStore.getState();
@@ -32,6 +33,7 @@ function ClipStory() {
       "share:clip-story",
       minimalProject({
         tracks: [
+          sampleTrack({ id: "guest", label: "Guest track" }),
           sampleTrack({
             id: "host",
             label: "A long descriptive host track name",
@@ -40,11 +42,18 @@ function ClipStory() {
         clips: { tracks: { host: [clip] }, clip_count: 1 },
       }),
     );
+    useDawStore.setState({
+      guestMode: readOnly ? "view" : "edit",
+      shareCapabilities: readOnly ? ["view"] : ["edit"],
+    });
+    useDawStore
+      .getState()
+      .setSelection({ kind: "clip", id: clip.id, trackId: clip.track_id });
     setReady(true);
     return () => {
       useDawStore.setState(previous);
     };
-  }, []);
+  }, [readOnly]);
   return ready ? <ClipInspector clip={clip} /> : null;
 }
 
@@ -60,3 +69,29 @@ export const EnlargedTextShortLandscape: Story = {
   decorators: [inspectorSheetStoryDecorator],
   render: () => <ClipStory />,
 };
+
+export const PointerPlacement: Story = {
+  render: () => <ClipStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Move clip" }),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Later 10 ms" }));
+    await userEvent.selectOptions(
+      canvas.getByRole("combobox", { name: "Target track" }),
+      "guest",
+    );
+  },
+};
+export const PlacementInputError: Story = {
+  render: () => <ClipStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Move clip" }),
+    );
+    await userEvent.clear(canvas.getByLabelText("Timeline start (seconds)"));
+  },
+};
+export const PlacementViewer: Story = { render: () => <ClipStory readOnly /> };

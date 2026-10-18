@@ -213,3 +213,18 @@ layouts. Closing a focused feedback action returns focus to the current usable
 inspector Close. Navigating to another selection or project ends that focus
 intent; a selection the agent makes or one you follow does not (no other client's selection reaches your phone). If a peer's edit removes the
 focused Undo, focus goes to the sheet Close. An open modal keeps its own focus.
+
+## Move clips without dragging
+
+Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
+**Target track** and use **Earlier 10 ms**, **Later 10 ms**, or **Use playhead**.
+For an exact destination, enter **Timeline start (seconds)**. Review the timeline
+preview, then choose **Apply move** or **Cancel**. A selected group moves together,
+with each clip clamped at zero and the outer tracks. Exact input does not snap.
+Apply uses one existing move History action. Cancel and unchanged Apply save
+nothing. A refused save keeps a current draft and an error so you can retry.
+
+On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
+by 1 rem. **Reset panel size** clears the browser preference. These controls do
+not change the episode or History. Phone uses the sheet's **Expand** and
+**Collapse** controls and has no desktop splitter.
