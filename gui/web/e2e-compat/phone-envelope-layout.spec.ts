@@ -278,6 +278,8 @@ for (const viewport of layouts) {
         await expect(controls.level).toHaveValue("0.75");
         await expect(controls.level).toBeFocused();
         await page.setViewportSize({ width: 667, height: 375 });
+        await expect(controls.time).toBeInViewport({ ratio: 1 });
+        await expect(controls.level).toBeInViewport({ ratio: 1 });
         await expectPointerControl(controls.time);
         await expectPointerControl(controls.level);
         await expect(controls.level).toBeFocused();
