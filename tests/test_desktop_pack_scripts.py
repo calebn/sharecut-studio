@@ -27,7 +27,7 @@ def test_cli_launchers_are_bundled_and_release_staged() -> None:
     assert '"gui/desktop/binaries/podcast-mcp-${triple}.exe"' in workflow
     assert "--bundles deb" in workflow
     assert "sharecut-linux-deb" in workflow
-    assert 'grep -Eq "\\./usr/bin/${stem}$"' in workflow
+    assert 'grep -Eq "(^|[[:space:]])(\\./)?usr/bin/${stem}$"' in workflow
     smoke = (ROOT / "scripts/smoke_linux_appimage.sh").read_text(encoding="utf-8")
     assert "for stem in podcast podcast-mcp; do" in smoke
 
