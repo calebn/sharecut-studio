@@ -501,8 +501,28 @@ class EditService:
         )
         held: list[HeldEdit] = []
         asked: list[AskedEdits] = []
-        apply_on_copy(scratch, wanted, held_out=held, asked_out=asked)
+        try:
+            apply_on_copy(scratch, wanted, held_out=held, asked_out=asked)
+        except ScopeChangedAtApproval as refused:
+            # A held edit a neighbouring pending edit leans on refuses the whole batch;
+            # for a listing, name each hold instead of failing.
+            listed = {item.edit_id for item in held}
+            held.extend(
+                HeldEdit(
+                    hold.edit_id,
+                    refused.cuts.get(hold.edit_id) or self._edit_label(hold.edit_id),
+                    refused.reason_for(hold),
+                )
+                for hold in refused.held
+                if hold.edit_id not in listed
+            )
         return held, asked
+
+    def _edit_label(self, edit_id: str) -> str:
+        from podcast_mcp.edits.source_removals import cut_label
+
+        edit = next((e for e in self.ws.project.edit_decisions if e.id == edit_id), None)
+        return cut_label(self.ws.project, edit) if edit is not None else edit_id
 
     def approve(
         self,

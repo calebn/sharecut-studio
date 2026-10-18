@@ -147,3 +147,24 @@ def test_override_keeps_pending_update_bounds_exactly_as_given(tmp_path, monkeyp
         edit = EditService(ws).update_pending(decision.id, start=start, end=end, snap=True)
 
     assert (edit.start, edit.end) == (start, end)
+
+
+def test_held_listing_names_holds_even_when_a_neighbour_refuses_the_batch(tmp_path, monkeypatch):
+    from podcast_mcp.edits import cut_application
+    from podcast_mcp.edits.cut_safety import CutScopeHold
+    from podcast_mcp.services.document import EditService
+
+    result, decision = _blocked_filler(tmp_path, monkeypatch)
+    ws = workspace(result)
+
+    def refuse(project, ids, **_kwargs):
+        raise ScopeChangedAtApproval(
+            [CutScopeHold(decision.id, (), "acoustic_edge", detail="breath_edge")], {}
+        )
+
+    monkeypatch.setattr(cut_application, "approve_edits", refuse)
+
+    held, asked = EditService(ws).held_by_checks()
+
+    assert [(h.edit_id, "breath" in h.reason) for h in held] == [(decision.id, True)]
+    assert asked == []
