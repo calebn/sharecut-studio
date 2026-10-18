@@ -116,8 +116,15 @@ def test_initial_adoption_and_incomplete_base_fail_closed(synthetic_repo) -> Non
         compat.check(root, incomplete)
 
 
-def test_release_capture_preserves_bytes_and_producer(synthetic_repo) -> None:
+@pytest.mark.parametrize("harmless_paths", [False, True])
+def test_release_capture_preserves_bytes_and_producer(synthetic_repo, harmless_paths) -> None:
     root, base = synthetic_repo
+    if harmless_paths:
+        (root / ".git/info/exclude").write_text("__pycache__/\n", encoding="utf-8")
+        bytecode = root / "src/__pycache__/producer.cpython-313.pyc"
+        bytecode.parent.mkdir(parents=True)
+        bytecode.write_bytes(b"synthetic ignored bytecode")
+        (root / "capture-notes.txt").write_text("Synthetic capture notes\n", encoding="utf-8")
     source = root / compat.CORPUS / "development"
     before = compat.inventory(source)
     destination = capture_synthetic(root, base)
@@ -424,12 +431,15 @@ def test_release_metadata_cannot_claim_an_upgrade(synthetic_repo) -> None:
         compat.check(root, base)
 
 
-def test_capture_rejects_a_dirty_producer(synthetic_repo) -> None:
+@pytest.mark.parametrize("dirty_source", ["tracked", "untracked"])
+def test_capture_rejects_a_dirty_producer(synthetic_repo, dirty_source) -> None:
     root, _ = synthetic_repo
     runtime = root / "src/producer.py"
     runtime.parent.mkdir()
     runtime.write_text("version = 'committed'\n", encoding="utf-8")
     producer = commit(root)
+    if dirty_source == "untracked":
+        runtime = root / "src/untracked_producer.py"
     runtime.write_text("version = 'dirty'\n", encoding="utf-8")
     with pytest.raises(ValueError, match="unchanged producer runtime"):
         capture_synthetic(root, producer)

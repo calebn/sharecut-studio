@@ -104,7 +104,9 @@ uv run pytest -q --no-cov tests/test_project_compat.py tests/test_project_format
 
 The added tests protect persisted schema drift, snapshot replay and field loss,
 release-ledger and frozen-inventory preservation, producer provenance, and CI
-activation. Temporary Git repositories exercise the release policy with explicitly
+activation. Producer checks reject tracked changes and untracked runtime source,
+while allowing ignored bytecode and untracked files outside the runtime paths.
+Temporary Git repositories exercise the release policy with explicitly
 synthetic inputs. Test doubles exercise the dormant CLI runner's failure paths;
 they are not migration proof. These are JSON, file, and local Git checks. They do
 not render audio, download models, or add browser tests.

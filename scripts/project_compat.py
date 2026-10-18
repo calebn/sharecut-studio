@@ -484,7 +484,7 @@ def freeze(root: Path, source: Path, release: ReleaseProvenance) -> None:
             root,
             "status",
             "--porcelain",
-            "--untracked-files=no",
+            "--untracked-files=all",
             "--",
             "src",
             "pyproject.toml",
