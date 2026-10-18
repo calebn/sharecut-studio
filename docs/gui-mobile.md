@@ -113,9 +113,9 @@ held sideways) compact the editor:
   `envelopePoint` selection (`editedLaneTrack`, class `bottom-sheet--lane-band`)
   takes the bottom tabs' row on the tablet shell (`responsive.css`, the same
   `max-height: 40rem` exception as the compact strip) and rests on the status
-  row. On the phone shell (up to 767 px wide, so an iPhone SE or mini held
+  row. On the phone shell held sideways (up to 767 px wide, so an iPhone SE or mini held
   sideways at 667×375) the sheet takes the Primary nav row instead
-  (`--mobile-nav-height: 0` while the sheet is open, since the sheet rests on it)
+  (`--mobile-nav-height: 0rem` while the sheet is open, since the sheet rests on it)
   and the status chip overlays the timeline as ever; **Done** brings the nav back. The marker rows
   (chapters, comments, social clips) stop pinning under the ruler while it is
   open, so the lane sits right below the ruler and the rows are one scroll up
