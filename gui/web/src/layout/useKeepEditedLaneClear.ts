@@ -24,7 +24,7 @@ import {
 /** The cap never leaves the sheet less than its pinned header and a form row. */
 const MIN_SHEET_REM = 9;
 
-const laneSelector = (trackId: string) =>
+export const laneSelector = (trackId: string) =>
   `.lane-row[data-track-id=${JSON.stringify(trackId)}]`;
 
 function fit(trackId: string): void {

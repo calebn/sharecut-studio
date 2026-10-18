@@ -75,11 +75,15 @@ function laneBand(page: Page, index: number) {
     const ruler = document
       .querySelector(".marker-lane")!
       .getBoundingClientRect();
-    const sheet = document
-      .querySelector(".bottom-sheet")!
-      .getBoundingClientRect();
+    const panel = document.querySelector(".bottom-sheet")!;
+    // A column sits beside the timeline, so the lane is limited by the
+    // timeline's own bottom edge, not by the panel's top (#1696).
+    const limit = panel.classList.contains("bottom-sheet--column")
+      ? document.querySelector(".timeline-scroll")!.getBoundingClientRect()
+          .bottom
+      : panel.getBoundingClientRect().top;
     const top = Math.max(lane.top, ruler.bottom);
-    const bottom = Math.min(lane.bottom, sheet.top);
+    const bottom = Math.min(lane.bottom, limit);
     return {
       laneHeight: Math.round(lane.height),
       visible: Math.round(Math.max(0, bottom - top)),
@@ -88,14 +92,25 @@ function laneBand(page: Page, index: number) {
   }, index);
 }
 
-/** Does `control` sit wholly inside the sheet's visible area and the viewport? */
+/**
+ * Does `control` sit wholly inside the sheet's visible area and the viewport?
+ * A column's body scrolls like any form, so a control in one is first
+ * scrolled into the column (#1696); a sheet's controls must already be there.
+ */
 async function expectInSheet(control: Locator, label: string) {
+  if (await control.evaluate((el) => !!el.closest(".bottom-sheet--column")))
+    await control.scrollIntoViewIfNeeded();
   const geometry = await control.evaluate((el) => {
     const r = el.getBoundingClientRect();
     const sheet = el.closest(".bottom-sheet")!.getBoundingClientRect();
-    const slot = el.closest(".bottom-sheet-root")!.getBoundingClientRect();
-    let top = Math.max(sheet.top, slot.top, 0);
-    let bottom = Math.min(sheet.bottom, slot.bottom, innerHeight);
+    // A column has no slot: the viewport bounds it (#1696).
+    const slot = el.closest(".bottom-sheet-root")?.getBoundingClientRect();
+    let top = Math.max(sheet.top, slot?.top ?? 0, 0);
+    let bottom = Math.min(
+      sheet.bottom,
+      slot?.bottom ?? innerHeight,
+      innerHeight,
+    );
     for (
       let parent = el.parentElement;
       parent && parent !== el.closest(".bottom-sheet")!.parentElement;
@@ -507,11 +522,16 @@ test("rotating a phone to 844x390 with the form open leaves the edited lane full
   await demoRotationKeepsLane(page, DEMO_VIEWPORTS[2]!);
 });
 
-async function formLayout(page: Page, vp: { width: number; height: number }) {
+async function formLayout(
+  page: Page,
+  vp: { width: number; height: number },
+  shell: "tablet" | "phone" = "tablet",
+) {
   await page.setViewportSize(vp);
   return withShareableProject(async (projectPath) => {
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await expect(page.locator(".daw-shell--tablet")).toBeVisible();
+    await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
+    if (shell === "phone") await openPhoneTimeline(page);
     await seed(page, projectPath);
     await openEnvelope(page);
     await page.getByRole("button", { name: "Add point", exact: true }).tap();
@@ -537,12 +557,20 @@ test("1194x834 iPad landscape keeps the regular envelope form and its visible he
   expect(layout.helpHeight).toBeGreaterThan(8);
 });
 
-test("932x430 phone landscape shows the dense one-row envelope form without the help copy", async ({
+test("568x320 phone landscape shows the dense one-row envelope form without the help copy", async ({
+  page,
+}) => {
+  const layout = await formLayout(page, { width: 568, height: 320 }, "phone");
+  expect(layout.oneRow).toBe(true);
+  expect(layout.helpHeight).toBeLessThanOrEqual(1);
+});
+
+test("932x430 phone landscape keeps the regular stacked form and its help, in the Inspector column (#1696)", async ({
   page,
 }) => {
   const layout = await formLayout(page, { width: 932, height: 430 });
-  expect(layout.oneRow).toBe(true);
-  expect(layout.helpHeight).toBeLessThanOrEqual(1);
+  expect(layout.oneRow).toBe(false);
+  expect(layout.helpHeight).toBeGreaterThan(8);
 });
 
 test("914x331 idle: a touch tap on the guest track header opens its details and reaches Add volume envelope", async ({
