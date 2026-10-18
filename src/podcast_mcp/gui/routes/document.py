@@ -33,6 +33,34 @@ from podcast_mcp.util.proxy_paths import is_relayed_request
 router = APIRouter()
 
 
+@router.get("/api/clips/{clip_id}/bleed")
+def get_clip_bleed(
+    clip_id: str,
+    request: Request,
+    path: str = Query(...),
+    track_id: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
+    from podcast_mcp.gui.routes.deps import require_host
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import EditService
+
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    try:
+        return (
+            EditService(ws).inspect_clip_bleed(clip_id, track_id=track_id).model_dump(mode="json")
+        )
+    except BleedRestoreChangedError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers={"X-Sharecut-Error-Code": exc.code},
+        ) from exc
+
+
 @router.get("/api/document/comments")
 def get_document_comments(
     request: Request,

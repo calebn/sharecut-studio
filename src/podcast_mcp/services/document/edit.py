@@ -41,6 +41,7 @@ from podcast_mcp.edits.audio_quality import (
 from podcast_mcp.edits.audio_quality import (
     low_audibility_words as audit_low_audibility_words,
 )
+from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.chapters import (
     add_chapter,
     delete_chapter,
@@ -193,6 +194,12 @@ from podcast_mcp.models import CutIntent, EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.bleed_inspection import (
+    BleedRestoreResult,
+    ClipBleedInspection,
+    inspect_clip_bleed,
+    restore_clip_bleed,
+)
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
@@ -1281,6 +1288,12 @@ class EditService:
                 "fade_ms": fade_ms,
             },
         )
+
+    def inspect_clip_bleed(self, clip_id: str, *, track_id: str) -> ClipBleedInspection:
+        return inspect_clip_bleed(self.ws, clip_id, track_id=track_id)
+
+    def restore_clip_bleed(self, target: BleedRestoreTarget) -> BleedRestoreResult:
+        return restore_clip_bleed(self.ws, target)
 
     def set_clip_fade(
         self,

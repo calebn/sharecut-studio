@@ -59,6 +59,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean) |
 | `ResolveComment` | `by` (string), `comment_id` (string) | `resolved` (boolean) |
 | `RestoreAppliedEdit` | `id` (string) | — |
+| `RestoreClipBleed` | `target` (object) | — |
 | `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetClipFade` | `clip_id` (string), `expected` (object), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
@@ -83,7 +84,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 51 command types._
+_Generated 52 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

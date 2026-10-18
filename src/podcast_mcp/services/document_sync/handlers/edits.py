@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaseline
@@ -72,6 +73,10 @@ def update_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
 
 def restore_applied_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return EditService(ws).revert_applied(p["id"])
+
+
+def restore_clip_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return dict(EditService(ws).restore_clip_bleed(BleedRestoreTarget.model_validate(p["target"])))
 
 
 def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

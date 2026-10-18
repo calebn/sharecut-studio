@@ -2179,7 +2179,9 @@
           "apply_transcript_gate_tool",
           "mute_off_speaker_tool",
           "align_retained_bleed_tool",
-          "set_retained_bleed_alignment_mode_tool"
+          "set_retained_bleed_alignment_mode_tool",
+          "inspect_clip_bleed_tool",
+          "restore_clip_bleed_tool"
         ],
         "cli": "podcast edit",
         "skill": "podcast-audio-cleanup"
