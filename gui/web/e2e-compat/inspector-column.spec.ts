@@ -93,19 +93,28 @@ async function selectEnvelopePoint({
   await finger.up();
 }
 
-async function setKeyboard(page: Page, px: number | null) {
-  await page.evaluate((inset) => {
+/**
+ * The keyboard as `useKeyboardInset` publishes it: the visible band of the
+ * layout viewport, `top` to `top + height`, plus the covered inset.
+ */
+async function setKeyboard(
+  page: Page,
+  band: { top: number; height: number; inset: number } | null,
+) {
+  await page.evaluate((next) => {
     const root = document.documentElement;
-    if (inset === null) {
+    if (next === null) {
       delete root.dataset.keyboard;
       root.style.removeProperty("--keyboard-inset");
       root.style.removeProperty("--visual-viewport-top");
+      root.style.removeProperty("--visual-viewport-height");
     } else {
       root.dataset.keyboard = "open";
-      root.style.setProperty("--keyboard-inset", `${inset}px`);
-      root.style.setProperty("--visual-viewport-top", "0px");
+      root.style.setProperty("--keyboard-inset", `${next.inset}px`);
+      root.style.setProperty("--visual-viewport-top", `${next.top}px`);
+      root.style.setProperty("--visual-viewport-height", `${next.height}px`);
     }
-  }, px);
+  }, band);
 }
 
 /** The column's place, the timeline's, and what the shell hid for it. */
@@ -125,13 +134,21 @@ function geometry(page: Page) {
         : null;
     };
     const shell = document.querySelector(".daw-shell");
+    // A box-less host (display: contents) does not stand between a grid item
+    // and its grid.
+    const gridParent = (el: Element | null) => {
+      let parent = el?.parentElement ?? null;
+      while (parent && getComputedStyle(parent).display === "contents")
+        parent = parent.parentElement;
+      return parent;
+    };
     const column = document.querySelector(".bottom-sheet--column");
     const hidden = (selector: string) => {
       const el = document.querySelector(selector);
       return !el || getComputedStyle(el).display === "none";
     };
     return {
-      inGrid: column?.parentElement === shell,
+      inGrid: gridParent(column) === shell,
       shellClass: shell?.className ?? "",
       column: box(column),
       position: column ? getComputedStyle(column).position : null,
@@ -357,7 +374,11 @@ for (const [name, view] of Object.entries(COLUMN)) {
       );
       const resting = await geometry(page);
       const keyboard = Math.round(view.height * 0.4);
-      await setKeyboard(page, keyboard);
+      await setKeyboard(page, {
+        top: 0,
+        height: view.height - keyboard,
+        inset: keyboard,
+      });
       const g = await geometry(page);
       expect(
         g.position,
@@ -403,6 +424,100 @@ for (const [name, view] of Object.entries(COLUMN)) {
           `${name}: clear of the home indicator`,
         ).toBeLessThanOrEqual(view.height - insets.bottom + 1);
       }
+    });
+  });
+}
+
+test("with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice", async ({
+  page,
+}) => {
+  // An iPhone 15 Plus on its real keypad reports innerHeight 249, a visual
+  // viewport 122 tall at offsetTop 98 and a covered inset of 127. Fixed content
+  // sits in that shrunk layout viewport, so subtracting the inset again left
+  // a 21px column.
+  const view = COLUMN["932x430 tablet shell"];
+  await open(page, view, false);
+  await page.locator(".clip-hit").first().tap();
+  await expectColumn(page, view, "932x430");
+  await page.setViewportSize({ width: view.width, height: 249 });
+  await page.waitForFunction(() => innerHeight === 249);
+  // Let the viewport's own resize event pass: the hook clears a keyboard that
+  // is not covering anything.
+  await page.evaluate(
+    () =>
+      new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done)),
+      ),
+  );
+  await setKeyboard(page, { top: 98, height: 122, inset: 127 });
+  const g = await geometry(page);
+  expect(g.position).toBe("fixed");
+  // A grid-area would make Safari resolve the offsets against the grid cell,
+  // which put the column at the left edge and 52px low on an iPhone.
+  expect(
+    await page
+      .locator(".bottom-sheet--column")
+      .evaluate((el) => getComputedStyle(el).gridRowStart),
+  ).toBe("auto");
+  expect(g.column!.right).toBeLessThanOrEqual(view.width + 1);
+  expect(g.column!.left).toBeGreaterThan(view.width / 2);
+  expect(g.column!.top).toBeCloseTo(98, 0);
+  expect(g.column!.height).toBeCloseTo(122, 0);
+  expect(g.column!.bottom).toBeCloseTo(220, 0);
+  const close = page
+    .locator(".bottom-sheet--column")
+    .getByRole("button", { name: "Close" });
+  await expect(close).toBeInViewport({ ratio: 1 });
+  await setKeyboard(page, null);
+});
+
+for (const [name, view] of Object.entries(COLUMN).filter(
+  ([, v]) => v.width !== 932,
+)) {
+  test.describe(name, () => {
+    test("turning upright keeps an unsaved draft and its focus in the Inspector", async ({
+      page,
+    }) => {
+      await open(page, view, false);
+      await page.locator(".clip-hit").first().tap();
+      await expectColumn(page, view, name);
+      const level = page
+        .locator(".bottom-sheet--column")
+        .getByRole("spinbutton")
+        .first();
+      const typed = String(Number(await level.inputValue()) + 1);
+      await level.fill(typed);
+      await level.evaluate((el) => {
+        (window as unknown as { __draft: Element }).__draft = el;
+      });
+      await expect(level).toBeFocused();
+      await page.setViewportSize({ width: view.width, height: 700 });
+      await expect(page.locator(".bottom-sheet--column")).toHaveCount(0);
+      await expect(page.locator(".bottom-sheet--inspector")).toBeVisible();
+      const kept = await page.evaluate(() => {
+        const el = (window as unknown as { __draft: HTMLInputElement }).__draft;
+        return {
+          same: document.activeElement === el,
+          connected: el.isConnected,
+          value: el.value,
+        };
+      });
+      expect(kept, `${name}: the same field, focused, with its draft`).toEqual({
+        same: true,
+        connected: true,
+        value: typed,
+      });
+      await page.setViewportSize({ width: view.width, height: view.height });
+      await expect(page.locator(".bottom-sheet--column")).toBeVisible();
+      expect(
+        await page.evaluate(
+          () =>
+            document.activeElement ===
+            (window as unknown as { __draft: Element }).__draft,
+        ),
+        `${name}: still the same focused field after turning back`,
+      ).toBe(true);
+      await expect(level).toHaveValue(typed);
     });
   });
 }

@@ -24,6 +24,7 @@ function track(viewport: VisualViewport): () => void {
     delete root.dataset.keyboard;
     root.style.removeProperty("--keyboard-inset");
     root.style.removeProperty("--visual-viewport-top");
+    root.style.removeProperty("--visual-viewport-height");
   };
   const update = () => {
     const layoutHeight = Math.max(window.innerHeight, root.clientHeight);
@@ -40,6 +41,7 @@ function track(viewport: VisualViewport): () => void {
     root.dataset.keyboard = "open";
     root.style.setProperty("--keyboard-inset", `${inset}px`);
     root.style.setProperty("--visual-viewport-top", `${viewport.offsetTop}px`);
+    root.style.setProperty("--visual-viewport-height", `${viewport.height}px`);
     reveal();
   };
   viewport.addEventListener("resize", update);
@@ -69,7 +71,11 @@ function acquire(viewport: VisualViewport): () => void {
 /**
  * While `active`, publish how much of the layout viewport the software keyboard
  * covers (`--keyboard-inset`) and where the visible part starts
- * (`--visual-viewport-top`), with `data-keyboard="open"` on `<html>`.
+ * (`--visual-viewport-top`) and how tall it is (`--visual-viewport-height`),
+ * with `data-keyboard="open"` on `<html>`. Fixed content is positioned in the
+ * layout viewport, where the visible band is exactly top plus height whether or
+ * not iOS shrank `innerHeight`, so the Inspector column (#1696) sizes from
+ * those two and never subtracts the keyboard from a height iOS already cut.
  * Mobile Safari shrinks only the visual viewport, so a fixed sheet sized from the
  * layout viewport slides its header under the browser chrome (#1335).
  * iOS 17 also shrinks `innerHeight` with the keyboard and pans the visual
