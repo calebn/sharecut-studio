@@ -216,3 +216,28 @@ def test_service_mutes_the_copy_and_leaves_the_guests_words(tmp_path):
     assert all(r.end_s <= 5.0 or r.start_s >= 7.5 for r in regions)
     assert not any(r.start_s < 6.9 and r.end_s > 6.1 for r in regions)
     assert all(not c.mute_regions for c in ws.project.clips if c.track_id == "host")
+
+
+def test_a_clap_between_the_other_speakers_words_is_held_closed():
+    rng = np.random.default_rng(11)
+    peer = _levels(10.0)
+    _set(peer, 2.0, 8.0, SPEECH)
+    peer[200:800] += rng.uniform(-8.0, 0.0, size=600)
+    track = _levels(10.0)
+    track[200:800] = peer[200:800] - 40.0
+    words = [(2.0, 4.8), (5.2, 8.0)]
+    plan = _call(own_words=[], peer_words=words, track=track, peer=peer)
+    assert _covered(plan.regions, 5.0)
+    assert len(plan.regions) == 1
+
+
+def test_a_gap_with_the_guests_own_word_stays_open_and_is_reported():
+    rng = np.random.default_rng(13)
+    peer = _levels(10.0)
+    _set(peer, 2.0, 8.0, SPEECH)
+    peer[200:800] += rng.uniform(-8.0, 0.0, size=600)
+    track = _levels(10.0)
+    track[200:800] = peer[200:800] - 40.0
+    plan = _call(own_words=[(4.9, 5.1)], peer_words=[(2.0, 8.0)], track=track, peer=peer)
+    assert not _covered(plan.regions, 5.0)
+    assert [g["reason"] for g in plan.kept_gaps] == ["own_word"]

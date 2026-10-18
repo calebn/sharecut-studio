@@ -19,6 +19,7 @@ Evidence per stretch, all relative to the recordings' own levels (``level_profil
 
 from __future__ import annotations
 
+import itertools
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,6 +69,10 @@ COPY_LAG_EARLY_SEC = 0.05
 COPY_LAG_LATE_SEC = 0.3
 MIN_TURN_SEC = 0.25
 AUDIBLE_FOOTPRINT_PAD_SEC = 0.1
+ACTIVE_UNDER_SPEECH_DB = 15.0
+ACTIVE_MIN_SEC = 0.03
+# A gate holds closed across a pause this short inside a turn unless the lane's own voice is in it.
+HOLD_CLOSED_SEC = 0.5
 
 
 @dataclass
@@ -81,6 +86,7 @@ class OffSpeakerPlan:
     already_quiet_sec: float = 0.0
     own_word_overlap_sec: float = 0.0
     kept_uncorrelated_sec: float = 0.0
+    kept_gaps: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def audible_muted_sec(self) -> float:
@@ -104,6 +110,7 @@ class OffSpeakerPlan:
             "kept_own_energy_sec": round(self.kept_own_energy_sec, 3),
             "already_quiet_sec": round(self.already_quiet_sec, 3),
             "refusal": self.refusal,
+            "kept_gaps": self.kept_gaps,
             "regions": self.regions,
         }
 
@@ -178,6 +185,28 @@ def _envelope_copy(mine: np.ndarray, theirs: np.ndarray, idx: np.ndarray) -> tup
     return best
 
 
+def _active_spans(p: PeerEvidence) -> list[tuple[float, float]]:
+    """Seconds where the peer's own track sounds at speech level, word or not (a clap, a laugh)."""
+    loud = p.levels > p.profile.speech_db - ACTIVE_UNDER_SPEECH_DB
+    return [
+        (lo * LEVEL_FRAME_SEC, hi * LEVEL_FRAME_SEC)
+        for lo, hi in _runs(loud)
+        if hi - lo >= _frames(ACTIVE_MIN_SEC)
+    ]
+
+
+def _peer_turns(peers: list[PeerEvidence]) -> list[tuple[float, float]]:
+    """Turns of the other speakers: their words, held together across pauses and loud non-word sounds.
+
+    A sound on the peer's track counts only when it joins a turn that has words, so a peer
+    that is loud for another reason never opens a turn alone.
+    """
+    words = [w for p in peers for w in p.words]
+    active = [a for p in peers for a in _active_spans(p)]
+    turns = _merge(words + active, PEER_MERGE_GAP_SEC)
+    return [t for t in turns if any(a < t[1] and b > t[0] for a, b in words)]
+
+
 def plan_from_evidence(
     track_id: str,
     levels: np.ndarray,
@@ -188,7 +217,7 @@ def plan_from_evidence(
     """The off-speaker mute plan from one track's levels, words and its peers' (all 10 ms frames)."""
     plan = OffSpeakerPlan(track_id)
     n = levels.size
-    peer_spans = _merge([w for p in peers for w in p.words], PEER_MERGE_GAP_SEC)
+    peer_spans = _peer_turns(peers)
     own_word_mask = _mask(own_words, n, OWN_WORD_PAD_SEC)
     peer_mask = _mask(peer_spans, n, PEER_PAD_SEC)
     candidate = peer_mask & ~own_word_mask
@@ -203,7 +232,7 @@ def plan_from_evidence(
     loud = np.zeros(n, dtype=bool)
     for p in peers:
         m = min(n, p.levels.size)
-        speaking = _mask(p.words, n, PEER_PAD_SEC)[:m]
+        speaking = _mask([*p.words, *_active_spans(p)], n, PEER_PAD_SEC)[:m]
         lv = np.maximum(p.levels[:m], p.profile.room_db)
         theirs[:m] = np.where(speaking, np.maximum(theirs[:m], lv - p.profile.room_db), theirs[:m])
         peer_level[:m] = np.where(speaking, np.maximum(peer_level[:m], lv), peer_level[:m])
@@ -252,8 +281,17 @@ def plan_from_evidence(
     plan.kept_own_energy_sec = float((confirmed & keep).sum()) * LEVEL_FRAME_SEC
 
     # Only where the track sounds: a silent gap between two copies needs no region.
-    mute = confirmed & ~keep & _dilate(audible, _frames(AUDIBLE_FOOTPRINT_PAD_SEC))
-    for lo, hi in _runs(mute):
+    closable = confirmed & ~keep
+    mute = closable & _dilate(audible, _frames(AUDIBLE_FOOTPRINT_PAD_SEC))
+    runs = _runs(mute)
+    for (_, prev_hi), (next_lo, _) in itertools.pairwise(runs):
+        if next_lo - prev_hi <= _frames(HOLD_CLOSED_SEC) and closable[prev_hi:next_lo].all():
+            mute[prev_hi:next_lo] = True
+    runs = _runs(mute)
+    plan.kept_gaps = _kept_gaps(
+        runs, candidate, confirmed, keep, own_word_mask, peer_mask, audible, n
+    )
+    for lo, hi in runs:
         duration = (hi - lo) * LEVEL_FRAME_SEC
         if duration < MIN_REGION_SEC:
             continue
@@ -271,6 +309,42 @@ def plan_from_evidence(
             }
         )
     return plan
+
+
+def _kept_gaps(
+    runs: list[tuple[int, int]],
+    candidate: np.ndarray,
+    confirmed: np.ndarray,
+    keep: np.ndarray,
+    own_word_mask: np.ndarray,
+    peer_mask: np.ndarray,
+    audible: np.ndarray,
+    n: int,
+) -> list[dict[str, Any]]:
+    """Each audible stretch left open between two muted regions under a second apart, and why."""
+    gaps = []
+    for (_, prev_hi), (next_lo, _) in itertools.pairwise(runs):
+        if next_lo - prev_hi > _frames(1.0) or not audible[prev_hi:next_lo].any():
+            continue
+        span = slice(prev_hi, next_lo)
+        if own_word_mask[span].any():
+            reason = "own_word"
+        elif keep[span].any():
+            reason = "own_energy"
+        elif not peer_mask[span].any():
+            reason = "other_speaker_silent"
+        elif not confirmed[span].all():
+            reason = "no_copy_evidence"
+        else:
+            reason = "short_region"
+        gaps.append(
+            {
+                "start": round(prev_hi * LEVEL_FRAME_SEC, 3),
+                "end": round(next_lo * LEVEL_FRAME_SEC, 3),
+                "reason": reason,
+            }
+        )
+    return gaps[:200]
 
 
 def _timeline_levels(
