@@ -212,11 +212,12 @@ async function sweepCell(
   page: Page,
   cell: Cell,
   theme: Theme,
+  projectPath: string,
 ): Promise<string> {
   const phone = cell.width <= 767;
   const sheet = cell.width <= 1194;
   const found: Record<string, Reach[]> = {};
-  await arrive(page, cell);
+  await arrive(page, cell, (p) => openHostShare(p, projectPath));
   await setTheme(page, theme);
 
   found["shell chrome"] = await reachFailures(page, {
@@ -438,14 +439,16 @@ async function sweepSeededTrack(
 }
 
 async function sweep(page: Page, cells: readonly Cell[]): Promise<string> {
-  const reports: string[] = [];
-  for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
-    await page.emulateMedia({
-      reducedMotion: reducedMotion ? "reduce" : "no-preference",
-    });
-    reports.push(await sweepCell(page, cell, theme));
-  }
-  return reports.filter(Boolean).join("\n\n");
+  return withShareableProject(async (projectPath) => {
+    const reports: string[] = [];
+    for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
+      await page.emulateMedia({
+        reducedMotion: reducedMotion ? "reduce" : "no-preference",
+      });
+      reports.push(await sweepCell(page, cell, theme, projectPath));
+    }
+    return reports.filter(Boolean).join("\n\n");
+  });
 }
 
 test("phone shells keep every control a finger can use at 360, 390 and 767 wide", async ({
