@@ -240,10 +240,13 @@
 
 .transport-play {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   max-inline-size: 100%;
+}
+
+.transport-play:has(.transport-play-reason) {
+  flex-wrap: wrap;
 }
 
 .transport-play-reason {
