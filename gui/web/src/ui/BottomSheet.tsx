@@ -18,6 +18,13 @@ export type DrawerDetent = "peek" | "half" | "full";
  */
 export type BottomSheetSize = DrawerDetent | "fit";
 export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
+/**
+ * `sheet`: portaled over the shell, with a scrim, detents and a slide-up.
+ * `column`: in place as a grid cell on the inline end of the shell (#1696),
+ * for a phone held sideways. It has no scrim, drawer or resize buttons; the
+ * title, Close, Escape and focus restore stay.
+ */
+export type SheetPlacement = "sheet" | "column";
 
 /** How each detent reads to a screen reader and on the buttons' names. */
 const DETENT_TEXT: Record<DrawerDetent, string> = {
@@ -68,6 +75,7 @@ type Props = {
   stowed?: boolean;
   /** Extra class on the panel (the compact inspector's strip and sheet). */
   className?: string;
+  placement?: SheetPlacement;
 };
 
 /**
@@ -90,10 +98,13 @@ export function BottomSheet({
   resizeLabels,
   compactHeaderActions,
   compactResizeIcons = false,
-  drawer,
+  drawer: requestedDrawer,
   stowed = false,
   className,
+  placement = "sheet",
 }: Props) {
+  const column = placement === "column";
+  const drawer = column ? undefined : requestedDrawer;
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -168,7 +179,7 @@ export function BottomSheet({
         </Button>
       ) : null}
     </>
-  ) : onExpandedChange ? (
+  ) : onExpandedChange && !column ? (
     <Button
       className="bottom-sheet-resize-action"
       variant="link"
@@ -179,6 +190,61 @@ export function BottomSheet({
       {isExpanded ? "Collapse" : "Expand"}
     </Button>
   ) : null;
+
+  const panel = (
+    <div
+      ref={panelRef}
+      className={`bottom-sheet ${column ? "bottom-sheet--column" : `bottom-sheet--${current}`}${className ? ` ${className}` : ""}`}
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby={title ? titleId : undefined}
+    >
+      <div
+        ref={chromeRef}
+        className={`bottom-sheet-chrome${drawer ? " bottom-sheet-chrome--drawer" : ""}`}
+        {...(drawer ? swipe : {})}
+      >
+        {drawer ? (
+          <label className="bottom-sheet-grabber">
+            <span className="sr-only">{drawer.label}</span>
+            <input
+              className="bottom-sheet-detent sr-only"
+              type="range"
+              min={0}
+              max={drawer.detents.length - 1}
+              step={1}
+              value={at}
+              aria-valuetext={DETENT_TEXT[drawer.detent]}
+              onChange={(event) => {
+                const next = drawer.detents[Number(event.target.value)];
+                if (next) drawer.onDetentChange(next);
+              }}
+            />
+          </label>
+        ) : null}
+        <div className="bottom-sheet-header">
+          {title ? (
+            <h2 id={titleId} className="bottom-sheet-title">
+              {title}
+            </h2>
+          ) : (
+            <span className="bottom-sheet-title-spacer" />
+          )}
+          <div className="bottom-sheet-header-actions">
+            {compactHeaderActions}
+            {resizeButtons}
+            <CloseButton ref={closeRef} onClick={dismiss} />
+          </div>
+        </div>
+      </div>
+      <div className="bottom-sheet-body">
+        {bodyHeader}
+        {children}
+      </div>
+    </div>
+  );
+
+  if (column) return panel;
 
   return createPortal(
     <div
@@ -199,56 +265,7 @@ export function BottomSheet({
           onClick={dismiss}
         />
       )}
-      <div
-        ref={panelRef}
-        className={`bottom-sheet bottom-sheet--${current}${className ? ` ${className}` : ""}`}
-        role="dialog"
-        aria-modal="false"
-        aria-labelledby={title ? titleId : undefined}
-      >
-        <div
-          ref={chromeRef}
-          className={`bottom-sheet-chrome${drawer ? " bottom-sheet-chrome--drawer" : ""}`}
-          {...(drawer ? swipe : {})}
-        >
-          {drawer ? (
-            <label className="bottom-sheet-grabber">
-              <span className="sr-only">{drawer.label}</span>
-              <input
-                className="bottom-sheet-detent sr-only"
-                type="range"
-                min={0}
-                max={drawer.detents.length - 1}
-                step={1}
-                value={at}
-                aria-valuetext={DETENT_TEXT[drawer.detent]}
-                onChange={(event) => {
-                  const next = drawer.detents[Number(event.target.value)];
-                  if (next) drawer.onDetentChange(next);
-                }}
-              />
-            </label>
-          ) : null}
-          <div className="bottom-sheet-header">
-            {title ? (
-              <h2 id={titleId} className="bottom-sheet-title">
-                {title}
-              </h2>
-            ) : (
-              <span className="bottom-sheet-title-spacer" />
-            )}
-            <div className="bottom-sheet-header-actions">
-              {compactHeaderActions}
-              {resizeButtons}
-              <CloseButton ref={closeRef} onClick={dismiss} />
-            </div>
-          </div>
-        </div>
-        <div className="bottom-sheet-body">
-          {bodyHeader}
-          {children}
-        </div>
-      </div>
+      {panel}
     </div>,
     document.body,
   );

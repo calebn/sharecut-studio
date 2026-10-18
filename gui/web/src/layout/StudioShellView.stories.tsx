@@ -209,6 +209,7 @@ function StudioPreview(args: PreviewProps) {
                   </div>
                 ),
                 sheet: {
+                  placement: "sheet",
                   open: inspector,
                   expanded,
                   content: <ShellStoryInspector />,

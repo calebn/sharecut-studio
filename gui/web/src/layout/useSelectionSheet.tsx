@@ -14,6 +14,7 @@ import type {
 } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import type { Selection } from "../types/project";
+import type { SheetPlacement } from "../ui/BottomSheet";
 import {
   editedLaneTrack,
   INSPECTOR_SHEET_CLASS,
@@ -24,6 +25,7 @@ import {
   compactSheetProps,
   useCompactInspector,
 } from "./useCompactInspector";
+import { useInspectorColumn } from "./useInspectorColumn";
 import { useKeepEditedLaneClear } from "./useKeepEditedLaneClear";
 
 /**
@@ -69,10 +71,12 @@ export function selectionSheetOpen(s: SheetOpenState): boolean {
 
 export interface SelectionSheet {
   open: boolean;
+  /** A bottom sheet, or a column on the inline end of a short landscape screen. */
+  placement: SheetPlacement;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onClose: () => void;
-  /** The panel's class when it is not the compact inspector. */
+  /** The panel's class when it is not the compact inspector; none in a column. */
   className: string;
   compact: CompactSheetProps | undefined;
   /** The editing rail is inert while a full-height compact sheet covers it. */
@@ -89,7 +93,8 @@ const readLandscape = () =>
 
 /** The selection sheet for `shell`; closed for a shell without one. */
 export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
-  const compact = useCompactInspector(shell);
+  const column = useInspectorColumn();
+  const compact = useCompactInspector(shell, column);
   const {
     selection,
     rangeArmed,
@@ -131,9 +136,10 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
   // A phone in portrait has the rows to show the lane and the form; held
   // sideways it does not (#1714). The tablet shell keeps the lane band on any
   // short screen.
+  // A side column leaves the lane its whole height instead (#1696).
   const laneBand = shell === "tablet" || (shell === "phone" && landscape);
   const laneTrack =
-    open && laneBand && !compact ? editedLaneTrack(selection) : null;
+    open && laneBand && !compact && !column ? editedLaneTrack(selection) : null;
   useKeepEditedLaneClear(laneTrack);
   const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
   const rangeActionsInSheet =
@@ -143,6 +149,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       (shell === "tablet" && sessionRegion != null));
   return {
     open,
+    placement: column ? "column" : "sheet",
     rangeActionsInSheet,
     expanded: sheetExpanded,
     onExpandedChange: setSheetExpanded,
@@ -151,8 +158,9 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       setSelection(null);
       setSheetExpanded(false);
     },
-    className:
-      laneTrack === null
+    className: column
+      ? ""
+      : laneTrack === null
         ? INSPECTOR_SHEET_CLASS
         : `${INSPECTOR_SHEET_CLASS} ${LANE_BAND_SHEET_CLASS}`,
     compact: compact ? compactSheetProps(compact) : undefined,

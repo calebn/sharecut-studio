@@ -545,6 +545,7 @@ function MobileShellAdapter({
   const sheet: MobileSheet = selectionSheet.open
     ? {
         kind: "inspector",
+        placement: selectionSheet.placement,
         expanded: selectionSheet.expanded,
         onExpandedChange: selectionSheet.onExpandedChange,
         onClose: selectionSheet.onClose,

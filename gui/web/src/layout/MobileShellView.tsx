@@ -2,12 +2,16 @@ import type { ReactNode, Ref, RefCallback } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab } from "../presence/followSync";
 import type { MobileMode, MoreDestination } from "../state/types";
-import { BottomSheet } from "../ui/BottomSheet";
+import { BottomSheet, type SheetPlacement } from "../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../ui/compactSheet";
 import { Icon, type IconName } from "../ui/Icon";
 import { StatusLiveRegion } from "../ui/StatusLiveRegion";
 import { ToggleButton } from "../ui/ToggleButton";
-import type { ShellAppearance, ShellNotices } from "./shellPresentation";
+import {
+  INSPECTOR_COLUMN_SHELL_CLASS,
+  type ShellAppearance,
+  type ShellNotices,
+} from "./shellPresentation";
 import type { CompactSheetProps } from "./useCompactInspector";
 
 const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
@@ -34,6 +38,8 @@ export type MobileSheet =
   | { kind: "mix"; content: ReactNode; onClose: () => void }
   | {
       kind: "inspector";
+      /** `column`: beside the timeline on the inline end, not a bottom sheet. */
+      placement: SheetPlacement;
       content: ReactNode;
       expanded: boolean;
       onExpandedChange: (expanded: boolean) => void;
@@ -79,10 +85,40 @@ export function MobileShellView({
   const allowedMore =
     screen.kind === "more" &&
     (!appearance.guestShare || !isHostOnlyTab(screen.destination));
+  const inspectorColumn =
+    sheet.kind === "inspector" && sheet.placement === "column";
+  const sheetPanel = (
+    <BottomSheet
+      key={sheet.kind}
+      backgroundPolicy={sheet.kind === "mix" ? "dismiss" : "interactive"}
+      open={sheet.kind !== "closed"}
+      onClose={sheet.kind === "closed" ? () => {} : sheet.onClose}
+      title={sheet.kind === "mix" ? "Mix" : "Inspector"}
+      size={sheet.kind === "mix" ? "full" : "half"}
+      placement={sheet.kind === "inspector" ? sheet.placement : "sheet"}
+      className={
+        sheet.kind === "inspector"
+          ? (sheet.className ?? INSPECTOR_SHEET_CLASS)
+          : undefined
+      }
+      expanded={sheet.kind === "inspector" ? sheet.expanded : undefined}
+      onExpandedChange={
+        sheet.kind === "inspector" ? sheet.onExpandedChange : undefined
+      }
+      {...(sheet.kind === "inspector" ? sheet.compact : undefined)}
+      bodyHeader={
+        sheet.kind === "inspector" && sheet.compact && !sheet.compact.stowed ? (
+          <div ref={feedbackHostRef} className="compact-feedback-slot" />
+        ) : null
+      }
+    >
+      {sheet.kind !== "closed" ? sheet.content : null}
+    </BottomSheet>
+  );
   return (
     <div
       ref={bindings?.root}
-      className={`daw-shell daw-shell--phone${screen.kind === "listen" ? " daw-shell--listen" : ""}${appearance.guestShare ? " daw-shell-guest" : " daw-shell--attention"}${appearance.following ? " daw-shell--following" : ""}`}
+      className={`daw-shell daw-shell--phone${inspectorColumn ? ` ${INSPECTOR_COLUMN_SHELL_CLASS}` : ""}${screen.kind === "listen" ? " daw-shell--listen" : ""}${appearance.guestShare ? " daw-shell-guest" : " daw-shell--attention"}${appearance.following ? " daw-shell--following" : ""}`}
       data-shell="phone"
     >
       <div className="daw-shell-banners">{chrome.notices.banners}</div>
@@ -137,6 +173,7 @@ export function MobileShellView({
           </div>
         )}
       </main>
+      {sheetPanel}
       {screen.kind === "listen" && screen.dock ? (
         <div className="mobile-dock">{screen.dock}</div>
       ) : null}
@@ -153,33 +190,6 @@ export function MobileShellView({
           </ToggleButton>
         ))}
       </nav>
-      <BottomSheet
-        key={sheet.kind}
-        backgroundPolicy={sheet.kind === "mix" ? "dismiss" : "interactive"}
-        open={sheet.kind !== "closed"}
-        onClose={sheet.kind === "closed" ? () => {} : sheet.onClose}
-        title={sheet.kind === "mix" ? "Mix" : "Inspector"}
-        size={sheet.kind === "mix" ? "full" : "half"}
-        className={
-          sheet.kind === "inspector"
-            ? (sheet.className ?? INSPECTOR_SHEET_CLASS)
-            : undefined
-        }
-        expanded={sheet.kind === "inspector" ? sheet.expanded : undefined}
-        onExpandedChange={
-          sheet.kind === "inspector" ? sheet.onExpandedChange : undefined
-        }
-        {...(sheet.kind === "inspector" ? sheet.compact : undefined)}
-        bodyHeader={
-          sheet.kind === "inspector" &&
-          sheet.compact &&
-          !sheet.compact.stowed ? (
-            <div ref={feedbackHostRef} className="compact-feedback-slot" />
-          ) : null
-        }
-      >
-        {sheet.kind !== "closed" ? sheet.content : null}
-      </BottomSheet>
       {chrome.overlay}
     </div>
   );

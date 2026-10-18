@@ -151,6 +151,10 @@
   --status-height: 1.75rem;
   --tabs-height: 12.5rem;
   --mobile-nav-height: 3.25rem;
+  /* The Inspector column beside the timeline on a phone held sideways (#1696):
+     a third of the width, never narrower than a readable form or wider than
+     the form needs. vw, not %, so the keyboard rule can size it as fixed. */
+  --inspector-column-width: clamp(16rem, 32vw, 22rem);
   --menu-available-height: 90dvh;
   --menu-available-width: calc(100dvw - 2 * var(--menu-edge-margin));
   /* Clear space a Menu panel keeps from every viewport edge, and from its trigger. */

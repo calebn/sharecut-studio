@@ -6,10 +6,11 @@ import type { PresenceTab } from "../types/session";
 import { BottomSheet } from "../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../ui/compactSheet";
 import { ToggleButton } from "../ui/ToggleButton";
-import type {
-  SheetPresentation,
-  ShellAppearance,
-  ShellNotices,
+import {
+  INSPECTOR_COLUMN_SHELL_CLASS,
+  type SheetPresentation,
+  type ShellAppearance,
+  type ShellNotices,
 } from "./shellPresentation";
 import { TAB_LABELS } from "./tabLabels";
 
@@ -69,6 +70,31 @@ export function StudioShellView({
   inspector,
   bindings,
 }: StudioShellViewProps) {
+  const inspectorColumn =
+    inspector.kind === "tablet" &&
+    inspector.sheet.open &&
+    inspector.sheet.placement === "column";
+  const sheet =
+    inspector.kind === "tablet" ? (
+      <BottomSheet
+        backgroundPolicy="interactive"
+        open={inspector.sheet.open}
+        onClose={inspector.sheet.onClose}
+        title="Inspector"
+        placement={inspector.sheet.placement}
+        className={inspector.sheet.className ?? INSPECTOR_SHEET_CLASS}
+        expanded={inspector.sheet.expanded}
+        onExpandedChange={inspector.sheet.onExpandedChange}
+        {...inspector.sheet.compact}
+        bodyHeader={
+          inspector.sheet.compact && !inspector.sheet.compact.stowed ? (
+            <div ref={feedbackHostRef} className="compact-feedback-slot" />
+          ) : null
+        }
+      >
+        {inspector.sheet.content}
+      </BottomSheet>
+    ) : null;
   return (
     <div
       ref={bindings?.root}
@@ -79,6 +105,7 @@ export function StudioShellView({
         appearance.following ? "daw-shell--following" : "",
         `daw-shell--${inspector.kind}`,
         layout !== "default" ? `daw-shell--layout-${layout}` : "",
+        inspectorColumn ? INSPECTOR_COLUMN_SHELL_CLASS : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -147,6 +174,7 @@ export function StudioShellView({
         )}
         {inspector.kind === "tablet" ? inspector.tools : inspector.content}
       </main>
+      {sheet}
       <section
         ref={bindings?.panels}
         className="bottom-tabs"
@@ -176,25 +204,6 @@ export function StudioShellView({
       </section>
       {layout === "timeline" ? panels.reopenHandle : null}
       {chrome.footer}
-      {inspector.kind === "tablet" ? (
-        <BottomSheet
-          backgroundPolicy="interactive"
-          open={inspector.sheet.open}
-          onClose={inspector.sheet.onClose}
-          title="Inspector"
-          className={inspector.sheet.className ?? INSPECTOR_SHEET_CLASS}
-          expanded={inspector.sheet.expanded}
-          onExpandedChange={inspector.sheet.onExpandedChange}
-          {...inspector.sheet.compact}
-          bodyHeader={
-            inspector.sheet.compact && !inspector.sheet.compact.stowed ? (
-              <div ref={feedbackHostRef} className="compact-feedback-slot" />
-            ) : null
-          }
-        >
-          {inspector.sheet.content}
-        </BottomSheet>
-      ) : null}
       {chrome.overlay}
     </div>
   );

@@ -129,6 +129,46 @@ html[data-shell="tablet"]:has(.bottom-sheet--compact)
   }
 }
 
+/* The Inspector as a column on the inline end of a phone held sideways
+   (#1696; BottomSheet placement="column"). The class comes from the shell
+   view, so no media query lives here. Transport, banners and status keep the
+   whole width; the timeline keeps the whole main row; the tabs row (tablet)
+   and the mode nav (phone) give way, so the column and the timeline have the
+   full height. They return when the column closes. */
+.daw-shell.daw-shell--inspector-column {
+  --shell-tabs-row: 0;
+
+  grid-template-columns: minmax(0, 1fr) var(--inspector-column-width);
+}
+
+.daw-shell.daw-shell--inspector-column.daw-shell--tablet {
+  grid-template-areas:
+    "banners banners"
+    "follow follow"
+    "transport transport"
+    "main inspector"
+    "tabs inspector"
+    "status status";
+}
+
+.daw-shell.daw-shell--inspector-column.daw-shell--phone {
+  grid-template-areas:
+    "banners banners"
+    "follow follow"
+    "transport transport"
+    "main inspector"
+    "dock dock"
+    "nav nav";
+}
+
+.daw-shell--inspector-column > :is(.bottom-tabs, .mobile-nav) {
+  display: none;
+}
+
+html[data-shell="phone"]:has(.daw-shell--inspector-column) {
+  --mobile-nav-height: 0rem;
+}
+
 /* A phone held sideways at its shortest (914x331) cannot spare 72px of lane
    for pinned marker rows even when idle: they scroll with the lanes, one scroll
    up, and only the ruler stays pinned. The status line stays, because it holds

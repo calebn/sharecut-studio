@@ -472,3 +472,51 @@ html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
   height: 100%;
   max-block-size: 100%;
 }
+
+/* The Inspector as a column beside the timeline (#1696): a grid cell on the
+   inline end of the shell (responsive.css), not a portaled sheet, so it has no
+   scrim, detents or slide. The header stays pinned and the body scrolls inside
+   the column. It carries none of the sheet classes the keep-clear helpers look
+   for, so the timeline is never scrolled or capped for it. The shell already
+   pads for the notch and the home indicator. */
+.bottom-sheet.bottom-sheet--column {
+  grid-area: inspector;
+  inline-size: auto;
+  max-block-size: none;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+  border-block-start: none;
+  border-inline-start: 1px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+.bottom-sheet.bottom-sheet--column .bottom-sheet-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.bottom-sheet.bottom-sheet--column .bottom-sheet-body > :not(.inspector),
+.bottom-sheet.bottom-sheet--column .bottom-sheet-body .inspector,
+.bottom-sheet.bottom-sheet--column .bottom-sheet-body .modifier-inspector {
+  flex: 0 0 auto;
+  min-block-size: auto;
+  block-size: auto;
+  overflow: visible;
+}
+
+/* With the keyboard up the column takes the visible part of the viewport, so
+   the header and Close stay on screen and the body scrolls above the keyboard.
+   It leaves the grid flow but its cell stays, so the timeline does not move.
+   The root rule above assumes a fixed slot, so the column has its own. */
+html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
+  position: fixed;
+  inset-block: var(--visual-viewport-top, 0) var(--keyboard-inset, 0);
+  inset-inline-end: env(safe-area-inset-right);
+  inline-size: var(--inspector-column-width);
+  z-index: var(--z-sheet);
+}

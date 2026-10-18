@@ -11,7 +11,7 @@ const FLOOR_SELECTORS = [
   ".mobile-dock",
   ".daw-shell--phone .editing-tool-rail",
   ".join-edit-rail",
-  ".bottom-sheet",
+  ".bottom-sheet:not(.bottom-sheet--column)",
 ] as const;
 
 /** Phone chrome docked to the top edge; the toast stays below it. */
@@ -84,6 +84,12 @@ function shownRects(selectors: readonly string[]): DOMRect[] {
   );
 }
 
+/** The mode nav's top; a nav hidden for the Inspector column leaves the viewport bottom. */
+function navTop(nav: HTMLElement): number {
+  const rect = nav.getBoundingClientRect();
+  return rect.height > 0 ? rect.top : window.innerHeight;
+}
+
 /** Where the person just pressed a control (not Undo or Dismiss in a toast). */
 function pressedExtent(): DOMRect | null {
   const rect = lastPressedRect();
@@ -125,7 +131,7 @@ export function usePhoneToastDock(
           ...shownRects(CEILING_SELECTORS).map((rect) => rect.bottom),
         ),
         floorTopsPx: shownRects(FLOOR_SELECTORS).map((rect) => rect.top),
-        navTopPx: nav.getBoundingClientRect().top,
+        navTopPx: navTop(nav),
         toastHeightPx: card.getBoundingClientRect().height,
         gapPx: gapRem * rootPx,
         pressedPx: pressedExtent(),

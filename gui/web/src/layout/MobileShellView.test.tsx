@@ -40,6 +40,7 @@ describe("MobileShellView", () => {
     const compact = { className: "bottom-sheet--compact", stowed: false };
     const sheet = {
       kind: "inspector",
+      placement: "sheet",
       content: <p>Fields</p>,
       expanded: false,
       onExpandedChange: vi.fn(),
@@ -80,6 +81,7 @@ describe("MobileShellView", () => {
   it("marks a lane-editing inspector sheet with the class it is given", () => {
     const sheet = {
       kind: "inspector",
+      placement: "sheet",
       content: <p>Fields</p>,
       expanded: false,
       onExpandedChange: vi.fn(),
@@ -225,6 +227,7 @@ describe("MobileShellView", () => {
     const onExpandedChange = vi.fn();
     props.sheet = {
       kind: "inspector",
+      placement: "sheet",
       expanded: false,
       content: <p>Selected track</p>,
       onClose,
@@ -244,5 +247,50 @@ describe("MobileShellView", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(vi.mocked(onClose).mock.calls).toEqual([[]]);
     await expectNoA11yViolations(document.body);
+  });
+
+  it("places the Inspector in the shell as a column and hides the mode bar", () => {
+    const props = presentation();
+    const sheet = {
+      kind: "inspector",
+      placement: "column",
+      content: <p>Fields</p>,
+      expanded: false,
+      onExpandedChange: vi.fn(),
+      onClose: vi.fn(),
+      className: "",
+    } satisfies MobileShellViewProps["sheet"];
+    const { container, rerender } = render(
+      <MobileShellView {...props} sheet={sheet} />,
+    );
+    const shell = container.querySelector(".daw-shell");
+    expect(shell).toHaveClass(
+      "daw-shell--phone",
+      "daw-shell--inspector-column",
+    );
+    const dialog = screen.getByRole("dialog", { name: "Inspector" });
+    expect(dialog.parentElement).toBe(shell);
+    expect(document.querySelector(".bottom-sheet-root")).toBeNull();
+    rerender(
+      <MobileShellView {...props} sheet={{ ...sheet, placement: "sheet" }} />,
+    );
+    expect(container.querySelector(".daw-shell")).not.toHaveClass(
+      "daw-shell--inspector-column",
+    );
+    expect(document.querySelector(".bottom-sheet-root")).not.toBeNull();
+  });
+
+  it("keeps the Mix sheet a sheet", () => {
+    const props = presentation();
+    const { container } = render(
+      <MobileShellView
+        {...props}
+        sheet={{ kind: "mix", content: <p>Faders</p>, onClose: vi.fn() }}
+      />,
+    );
+    expect(container.querySelector(".daw-shell")).not.toHaveClass(
+      "daw-shell--inspector-column",
+    );
+    expect(document.querySelector(".bottom-sheet-root")).not.toBeNull();
   });
 });

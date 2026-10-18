@@ -1,10 +1,16 @@
 import type { ReactNode } from "react";
+import type { SheetPlacement } from "../ui/BottomSheet";
 import type { CompactSheetProps } from "./useCompactInspector";
+
+/** On `.daw-shell` while the Inspector is a column beside the timeline (#1696). */
+export const INSPECTOR_COLUMN_SHELL_CLASS = "daw-shell--inspector-column";
 
 export type ShellAppearance = { guestShare: boolean; following: boolean };
 export type ShellNotices = { banners: ReactNode; follow: ReactNode };
 export type SheetPresentation = {
   open: boolean;
+  /** `column`: in place on the inline end of the shell, not a bottom sheet. */
+  placement: SheetPlacement;
   expanded: boolean;
   content: ReactNode;
   onClose: () => void;
