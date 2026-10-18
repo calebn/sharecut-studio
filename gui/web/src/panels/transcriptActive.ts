@@ -69,7 +69,7 @@ export function buildTranscriptActiveIndex(
       start = Math.min(start, span.start);
       end = Math.max(end, span.end);
     }
-    if (wordLo > wordHi) {
+    if (!words.some(isWordAudible)) {
       // No audible word: a muted bleed row never takes the highlight.
       return;
     }

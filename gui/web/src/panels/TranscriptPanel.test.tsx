@@ -2008,7 +2008,9 @@ describe("TranscriptPanel virtualization", () => {
 
   it("never follows a muted bleed word (#1754)", () => {
     const p = largeProject();
-    p.transcript.utterances[1000]!.words![0]!.suppressed = true;
+    Object.assign(p.transcript.utterances[1000]!.words![0]!, {
+      suppressed: true,
+    });
     useDawStore.setState({ transcriptFollowPlayhead: true, project: p });
     render(<TranscriptPanel />);
     act(() => {
