@@ -37,9 +37,11 @@ existing owners.
 
 Desktop and tablet have native **Shorter**, **Taller**, and **Reset panel size**
 buttons outside the separator. Each step starts at the rendered panel height,
-including when a saved preference exceeds the available space. Steps move 1 rem
-or the remaining distance to a bound. Buttons, keyboard, drag clamps, and separator
-values share measured panel geometry and fresh viewport policy. The desktop grid
+including when a saved preference exceeds the available space. Buttons request
+a 1 rem step or the remaining distance to a bound. When passive layout changes
+leave the retained preference outside fresh bounds, the next step can clamp by
+more than 1 rem. Buttons, keyboard, drag clamps, and separator values share
+measured panel geometry and fresh viewport policy. The desktop grid
 floor comes from `--shell-main-min-height`, used by CSS and read by the view.
 Banner and root-font changes refresh bounds through `useResizeObserver` without
 rewriting the saved preference. Props-only stories use explicit policy bounds

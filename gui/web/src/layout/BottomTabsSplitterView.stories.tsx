@@ -62,7 +62,7 @@ function SplitterPreview({
     >
       <BottomTabsSplitterView
         {...args}
-        heightRem={heightRem}
+        heightRem={Math.min(heightRem, capacityRem)}
         userSet={userSet}
         onResize={(rem) => {
           setHeightRem(

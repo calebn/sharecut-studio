@@ -665,3 +665,77 @@ test("panel bounds preserve an oversized preference across passive banner and fo
     placementFixture,
   );
 });
+
+test("Shorter clamps a retained panel preference to fresh bounds", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(() =>
+    localStorage.setItem("sharecut.tabsHeight", "30"),
+  );
+  await withShareableProject(async (projectPath) => {
+    await openHostShare(page, projectPath);
+    const before = snapshot(projectPath);
+    const commands: Command[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        new URL(request.url()).pathname.endsWith("/document/command")
+      )
+        commands.push(request.postDataJSON());
+    });
+    const panel = page.locator(".bottom-tabs");
+    const preference = () =>
+      page.evaluate(() => localStorage.getItem("sharecut.tabsHeight"));
+    const height = () =>
+      panel.evaluate((element) => element.getBoundingClientRect().height);
+
+    expect(
+      await page.evaluate(() =>
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+      ),
+    ).toBe(16);
+    await expect.poll(height).toBeCloseTo(480, 0);
+    const initialVisibleHeightPx = await height();
+    expect(await preference()).toBe("30");
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "24px";
+    });
+    await expect.poll(height).toBeCloseTo(594, 0);
+    const passiveVisibleHeightPx = await height();
+    expect(await preference()).toBe("30");
+
+    await page.getByRole("button", { name: "Shorter", exact: true }).click();
+    await expect.poll(height).toBeCloseTo(464.4, 0);
+    expect(Number(await preference())).toBeCloseTo(19.35, 2);
+    expect(snapshot(projectPath)).toEqual(before);
+    expect(commands).toEqual([]);
+
+    const metrics = {
+      viewport: { width: 1440, height: 900 },
+      storedPreferenceBefore: 30,
+      initialVisibleHeightPx,
+      syntheticRootFontPx: 24,
+      preferenceAfterPassiveFontChange: 30,
+      visibleHeightAfterPassiveFontChangePx: passiveVisibleHeightPx,
+      preferenceAfterShorter: Number(await preference()),
+      visibleHeightAfterShorterPx: await height(),
+      documentCommands: commands,
+      projectAndHistoryUnchanged: snapshot(projectPath),
+      physicalDevice: "not verified",
+      listening: "not verified",
+    };
+    const metricsPath = info.outputPath("retained-panel-bound-metrics.json");
+    fs.writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
+    await info.attach("retained-panel-bound-metrics.json", {
+      path: metricsPath,
+      contentType: "application/json",
+    });
+    const screenshot = info.outputPath("retained-panel-bound.png");
+    await page.screenshot({ path: screenshot });
+    await info.attach("retained-panel-bound.png", {
+      path: screenshot,
+      contentType: "image/png",
+    });
+  });
+});
