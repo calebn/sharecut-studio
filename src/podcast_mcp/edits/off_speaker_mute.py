@@ -53,7 +53,7 @@ OWN_WORD_PAD_SEC = 0.12
 # A frame is this track's own sound when it is this far over what a copy would be.
 OWN_OVER_LEAK_DB = 12.0
 # Held open around own-energy runs, which must last this long to count (not a click).
-OWN_ENERGY_MIN_SEC = 0.05
+OWN_ENERGY_MIN_SEC = 0.03
 OWN_ENERGY_PAD_SEC = 0.06
 # This track is audible, so there is something to mute, over its room by this much.
 AUDIBLE_OVER_ROOM_DB = 6.0
@@ -365,11 +365,12 @@ def plan_from_evidence(
     else:
         plan.judged_words = _judged
 
+    # Where the other speaker is silent (a pause inside their turn) there is no copy to compare
+    # with, so any sound on this lane there is its own.
     own_energy = (
         confirmed
         & audible
-        & np.isfinite(peer_level)
-        & (levels > peer_level + leak + OWN_OVER_LEAK_DB)
+        & (~np.isfinite(peer_level) | (levels > peer_level + leak + OWN_OVER_LEAK_DB))
     )
     keep = np.zeros(n, dtype=bool)
     for lo, hi in _runs(own_energy):
@@ -387,7 +388,9 @@ def plan_from_evidence(
             mute[prev_hi:next_lo] = True
     runs = _runs(mute)
     plan.still_audible_sec = float((candidate & heard_now & ~mute).sum()) * LEVEL_FRAME_SEC
-    plan.still_audible_copy_sec = float((confirmed & heard_now & ~mute & ~keep).sum()) * LEVEL_FRAME_SEC
+    plan.still_audible_copy_sec = (
+        float((confirmed & heard_now & ~mute & ~keep).sum()) * LEVEL_FRAME_SEC
+    )
     plan.kept_gaps = _kept_gaps(
         runs, candidate, confirmed, keep, own_word_mask, peer_mask, heard_now, n
     )

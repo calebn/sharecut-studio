@@ -378,3 +378,18 @@ def test_judged_words_report_how_far_over_a_copy_they_are():
     plan = _word_case(word_db_over_peer=-40.0, follows=True)
     word = next(j for j in plan.judged_words if (j["start"], j["end"]) == (5.9, 6.1))
     assert word["over_copy_db"] == round(word["level_over_peer_db"] - plan.leak_ratio_db, 1)
+
+
+def test_own_sound_in_a_pause_of_the_other_speaker_is_kept():
+    rng = np.random.default_rng(29)
+    peer = _levels(12.0)
+    _set(peer, 1.0, 5.0, SPEECH)
+    _set(peer, 5.6, 10.0, SPEECH)
+    peer[100:1000] += rng.uniform(-8.0, 0.0, size=900)
+    track = _levels(12.0)
+    track[100:500] = peer[100:500] - 40.0
+    track[560:1000] = peer[560:1000] - 40.0
+    _set(track, 5.1, 5.3, SPEECH - 30.0)
+    plan = _call(own_words=[], peer_words=[(1.0, 5.0), (5.6, 10.0)], track=track, peer=peer)
+    assert not _covered(plan.regions, 5.2)
+    assert _covered(plan.regions, 3.0)
