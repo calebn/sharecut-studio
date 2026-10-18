@@ -1,5 +1,22 @@
 # Touch editor decisions
 
+## Non-drag placement and panel sizing follow-up #1033
+
+The implementation plan adds a visible clip placement flow to the existing clip
+inspector. Time and destination track changes preview together before Apply move.
+Earlier, Later, and Use playhead provide a pointer-only time path. Cancel discards
+the preview. Apply uses the existing move command and History. Existing drag,
+long-press arming, and two-finger cancellation keep their current contracts.
+
+Desktop and tablet panel sizing gains visible Shorter, Taller, and Reset panel
+size controls beside the separator. They use the measured panel height and the
+existing browser preference. Resizing creates no document History. Phone keeps
+its existing sheet controls.
+
+These are planned controls, not shipped behavior or acceptance evidence. The
+follow-up must retain browser evidence of initiation, intermediate geometry,
+saved destination, cancellation, failure, and recovery before closing #1033.
+
 The [touch input grammar](#decision-one-touch-input-grammar-for-timeline-editing)
 (#1051) is the current rule for every timeline touch interaction. The original
 #951 decision below records the touch affordance repair shipped
