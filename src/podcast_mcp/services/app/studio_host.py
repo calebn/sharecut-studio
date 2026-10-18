@@ -276,10 +276,17 @@ def hand_off(
                 ) from exc
             if not line:
                 raise HandoffLost(_lost_message(host, run_id, "it closed the connection"))
-            event = json.loads(line)
+            try:
+                event = json.loads(line)
+            except ValueError as exc:
+                raise HandoffLost(
+                    _lost_message(host, run_id, "it sent output this command cannot read")
+                ) from exc
             kind = event.get("t")
             if kind == "start":
                 run_id = str(event["run"])
+                if interrupted:
+                    _cancel(host, run_id)
             elif kind == "out":
                 out.write(_plain(event["s"]))
                 out.flush()

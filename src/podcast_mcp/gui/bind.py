@@ -108,8 +108,31 @@ def run_gui_server(
             log_level=log_level,
             ws_per_message_deflate=True,
         )
-        uvicorn.Server(config).run(sockets=[sock])
+        server = uvicorn.Server(config)
+        _cancel_handed_off_commands_on_exit(server, app)
+        server.run(sockets=[sock])
     finally:
         if listen_written is not None:
             listen_written.unlink(missing_ok=True)
         sock.close()
+
+
+def _cancel_handed_off_commands_on_exit(server: Any, app: Any) -> None:
+    """Stop CLI commands handed to this Studio as soon as it is asked to quit.
+
+    uvicorn runs the app's shutdown only after every open connection has closed, and a
+    handed-off command's stream is such a connection, so the lifespan hook alone would wait
+    for the command to finish.
+    """
+    state = getattr(app, "state", None)
+    if getattr(state, "studio_host", None) is None:
+        return
+    from podcast_mcp.gui.routes import handoff
+
+    original = server.handle_exit
+
+    def handle_exit(sig: int, frame: Any) -> None:
+        handoff.stopped(app)
+        original(sig, frame)
+
+    server.handle_exit = handle_exit

@@ -150,3 +150,23 @@ def test_relayed_output_loses_terminal_control_characters() -> None:
     from podcast_mcp.services.app.studio_host import _plain
 
     assert _plain("ok\x1b]0;pwned\x07 line\n\ttab\r") == "ok]0;pwned line\n\ttab\r"
+
+
+def test_quit_signal_cancels_handed_off_commands_before_uvicorn_drains() -> None:
+    from types import SimpleNamespace
+
+    from podcast_mcp.gui.bind import _cancel_handed_off_commands_on_exit
+    from podcast_mcp.gui.routes import handoff
+
+    state = handoff.StudioHostState("127.0.0.1")
+    run = handoff._Run(id="r1")
+    state.runs["r1"] = run
+    app = SimpleNamespace(state=SimpleNamespace(studio_host=state))
+    seen: list[int] = []
+    server = SimpleNamespace(handle_exit=lambda sig, frame: seen.append(sig))
+
+    _cancel_handed_off_commands_on_exit(server, app)
+    server.handle_exit(2, None)
+
+    assert run.cancel.is_set()
+    assert seen == [2]

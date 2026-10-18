@@ -93,6 +93,8 @@ class StudioHostState:
         self.announced: Path | None = None
         self.runs: dict[str, _Run] = {}
         self.lock = threading.Lock()
+        # Serializes announce/withdraw so overlapping pins and a shutdown cannot orphan a file.
+        self.announce_lock = threading.RLock()
 
     @property
     def address(self) -> str | None:
@@ -116,6 +118,11 @@ def set_served_project(app: Any, project_path: Path | None) -> None:
 def _announce(app: Any) -> None:
     """Announce the served project to local CLIs, and withdraw the one it replaces."""
     state = _state(app)
+    with state.announce_lock:
+        _announce_locked(app, state)
+
+
+def _announce_locked(app: Any, state: StudioHostState) -> None:
     served = app.state.served_project
     previous, state.announced = state.announced, None
     if previous is not None and previous != served:
@@ -156,10 +163,11 @@ def listening(app: Any, *, port: int) -> None:
 def stopped(app: Any) -> None:
     """The server is going down: withdraw the announcement."""
     state = _state(app)
-    announced, state.announced = state.announced, None
-    state.port = None
-    if announced is not None:
-        _withdraw(announced, state)
+    with state.announce_lock:
+        announced, state.announced = state.announced, None
+        state.port = None
+        if announced is not None:
+            _withdraw(announced, state)
     for run in list(state.runs.values()):
         run.cancel.set()
 
