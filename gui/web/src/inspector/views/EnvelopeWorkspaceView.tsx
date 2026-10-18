@@ -1,5 +1,6 @@
 import {
   type KeyboardEvent,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -142,6 +143,97 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
     touchRef.current = props.touch;
   }, [props.touch]);
   const formHeading = useRef<HTMLHeadingElement>(null);
+  const compactTitle = useRef<HTMLHeadingElement>(null);
+  const inspectorTitle = useRef<HTMLHeadingElement>(null);
+  const ordinaryDone = useRef<HTMLButtonElement>(null);
+  const compactDone = useRef<HTMLButtonElement>(null);
+  const pendingFocus = useRef<{
+    from: "compact" | "ordinary";
+    role: "heading" | "done" | "help";
+    element: HTMLElement;
+  } | null>(null);
+  const ordinaryHeadingRef = useCallback((node: HTMLHeadingElement | null) => {
+    if (!node) return;
+    formHeading.current = node;
+    return () => {
+      if (node.ownerDocument.activeElement === node)
+        pendingFocus.current = {
+          from: "ordinary",
+          role: "heading",
+          element: node,
+        };
+      if (formHeading.current === node) formHeading.current = null;
+    };
+  }, []);
+  const compactHeadingRef = useCallback((node: HTMLHeadingElement | null) => {
+    if (!node) return;
+    formHeading.current = node;
+    compactTitle.current = node;
+    return () => {
+      if (node.ownerDocument.activeElement === node)
+        pendingFocus.current = {
+          from: "compact",
+          role: "heading",
+          element: node,
+        };
+      if (formHeading.current === node) formHeading.current = null;
+      if (compactTitle.current === node) compactTitle.current = null;
+    };
+  }, []);
+  const ordinaryDoneRef = useCallback((node: HTMLButtonElement | null) => {
+    if (!node) return;
+    ordinaryDone.current = node;
+    return () => {
+      if (node.ownerDocument.activeElement === node)
+        pendingFocus.current = {
+          from: "ordinary",
+          role: "done",
+          element: node,
+        };
+      if (ordinaryDone.current === node) ordinaryDone.current = null;
+    };
+  }, []);
+  const compactDoneRef = useCallback((node: HTMLButtonElement | null) => {
+    if (!node) return;
+    compactDone.current = node;
+    return () => {
+      if (node.ownerDocument.activeElement === node)
+        pendingFocus.current = { from: "compact", role: "done", element: node };
+      if (compactDone.current === node) compactDone.current = null;
+    };
+  }, []);
+  const compactHelpRef = useCallback((node: HTMLButtonElement | null) => {
+    if (!node) return;
+    return () => {
+      if (node.ownerDocument.activeElement === node)
+        pendingFocus.current = { from: "compact", role: "help", element: node };
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const pending = pendingFocus.current;
+    pendingFocus.current = null;
+    if (!pending || pending.from === (compact ? "compact" : "ordinary")) return;
+    const active = pending.element.ownerDocument.activeElement;
+    if (
+      active !== pending.element &&
+      active !== pending.element.ownerDocument.body
+    )
+      return;
+    if (pending.role !== "done" && !form) return;
+    let target: HTMLElement | null =
+      pending.role === "done"
+        ? compact
+          ? compactDone.current
+          : ordinaryDone.current
+        : formHeading.current;
+    if (pending.role === "done" && !isValidFocusTarget(target))
+      target = form
+        ? formHeading.current
+        : compact
+          ? compactTitle.current
+          : inspectorTitle.current;
+    if (isValidFocusTarget(target)) focusAndReveal(target);
+  });
   const select = useRef<HTMLSelectElement>(null);
   const add = useRef<HTMLButtonElement>(null);
   const priorForm = useRef(form != null);
@@ -217,6 +309,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
     nudgeRun?.saving === true;
   return (
     <ModifierInspector
+      ref={inspectorTitle}
       badge="Volume envelope"
       title={trackName}
       subtitle={editable ? "Editing volume envelope" : "Volume envelope"}
@@ -227,6 +320,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
           : [
               {
                 label: "Done",
+                ref: ordinaryDoneRef,
                 disabledReason: controlsBusy ? BUSY_REASON : undefined,
                 onClick: props.onDone,
               },
@@ -236,7 +330,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       {compact && (
         <SheetHeaderContent
           title={
-            <h2 ref={form ? formHeading : undefined} tabIndex={-1}>
+            <h2 ref={compactHeadingRef} tabIndex={-1}>
               {form
                 ? `${form.kind === "add" ? "Add" : "Edit"} point · ${trackName}`
                 : `Volume envelope · ${trackName}`}
@@ -245,6 +339,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
         >
           {form && (
             <Button
+              ref={compactHelpRef}
               aria-label="Volume envelope help"
               aria-expanded={helpOpen}
               aria-controls={`${id}-context`}
@@ -254,6 +349,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
             </Button>
           )}
           <Button
+            ref={compactDoneRef}
             disabledReason={controlsBusy ? BUSY_REASON : undefined}
             onClick={props.onDone}
           >
@@ -394,9 +490,11 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
               props.onSave();
             }}
           >
-            <h3 ref={compact ? undefined : formHeading} tabIndex={-1}>
-              {form.kind === "add" ? "Add point" : "Edit point"}
-            </h3>
+            {!compact && (
+              <h3 ref={ordinaryHeadingRef} tabIndex={-1}>
+                {form.kind === "add" ? "Add point" : "Edit point"}
+              </h3>
+            )}
             {form.notice && <p>{form.notice}</p>}
             <label htmlFor={`${id}-time`}>
               Time (seconds on timeline)

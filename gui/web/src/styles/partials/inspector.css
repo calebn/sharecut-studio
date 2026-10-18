@@ -752,10 +752,6 @@ html[data-shell="phone"]
   order: -1;
 }
 
-.envelope-workspace--short form h3 {
-  display: none;
-}
-
 .envelope-workspace--short form > label {
   flex: 2 1 11rem;
 }

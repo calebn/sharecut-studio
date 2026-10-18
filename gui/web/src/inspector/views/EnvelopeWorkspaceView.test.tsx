@@ -3,6 +3,7 @@ import { StrictMode, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasValidFocusedFeedbackAction } from "../../feedback/feedbackActionFocus";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { SheetHeaderContext } from "../../ui/BottomSheetHeader";
 import { registerFocusHold } from "../../ui/focusHold";
 import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { useDialogModal } from "../../ui/useDialogModal";
@@ -81,6 +82,159 @@ describe("envelope initial focus", () => {
     extraNodes.push(button);
     return button;
   }
+
+  it.each(
+    (["add", "edit"] as const).flatMap((kind) =>
+      (["heading", "Done", "Help"] as const).map((owner) => ({ kind, owner })),
+    ),
+  )(
+    "retains $owner focus for $kind when the phone header moves between short and portrait layouts",
+    ({ kind, owner }) => {
+      const title = document.createElement("div");
+      const actions = document.createElement("div");
+      document.body.append(title, actions);
+      extraNodes.push(title, actions);
+      const view = (shortPhone: boolean) => (
+        <StrictMode>
+          <SheetHeaderContext
+            value={{ title, actions, root: null, shortPhone }}
+          >
+            <EnvelopeWorkspaceView
+              {...props}
+              touch
+              form={{ kind, pointId: "new", time: "1", level: "0.75" }}
+            />
+          </SheetHeaderContext>
+        </StrictMode>
+      );
+      const { rerender } = render(view(true));
+      const heading = screen.getByRole("heading", {
+        name: `${kind === "add" ? "Add" : "Edit"} point · Host`,
+      });
+      expect(heading).toHaveFocus();
+      const outgoing =
+        owner === "heading"
+          ? heading
+          : screen.getByRole("button", {
+              name: owner === "Help" ? "Volume envelope help" : "Done",
+            });
+      if (owner !== "heading")
+        act(() =>
+          screen
+            .getByRole("button", {
+              name: owner === "Help" ? "Volume envelope help" : "Done",
+            })
+            .focus(),
+        );
+      const time = screen.getByLabelText("Time (seconds on timeline)");
+      const level = screen.getByLabelText("Level (×)");
+      rerender(view(false));
+      expect(heading.isConnected).toBe(false);
+      expect(outgoing.isConnected).toBe(false);
+      const portraitTarget =
+        owner === "Done"
+          ? screen.getByRole("button", { name: "Done" })
+          : screen.getByRole("heading", {
+              name: `${kind === "add" ? "Add" : "Edit"} point`,
+            });
+      expect(portraitTarget).toHaveFocus();
+      expect(screen.getByLabelText("Time (seconds on timeline)")).toBe(time);
+      expect(screen.getByLabelText("Level (×)")).toBe(level);
+      expect(time).toHaveValue("1");
+      expect(level).toHaveValue("0.75");
+      rerender(view(true));
+      expect(portraitTarget.isConnected).toBe(false);
+      expect(
+        owner === "Done"
+          ? screen.getByRole("button", { name: "Done" })
+          : screen.getByRole("heading", {
+              name: `${kind === "add" ? "Add" : "Edit"} point · Host`,
+            }),
+      ).toHaveFocus();
+      expect(screen.getByLabelText("Time (seconds on timeline)")).toBe(time);
+      expect(screen.getByLabelText("Level (×)")).toBe(level);
+    },
+  );
+
+  it("keeps input identity and focus in both phone rotation directions and yields to outside focus", () => {
+    const title = document.createElement("div");
+    const actions = document.createElement("div");
+    document.body.append(title, actions);
+    extraNodes.push(title, actions);
+    const view = (shortPhone: boolean) => (
+      <SheetHeaderContext value={{ title, actions, root: null, shortPhone }}>
+        <EnvelopeWorkspaceView {...props} touch />
+      </SheetHeaderContext>
+    );
+    const { rerender } = render(view(true));
+    const time = screen.getByLabelText("Time (seconds on timeline)");
+    const level = screen.getByLabelText("Level (×)");
+    act(() => time.focus());
+    rerender(view(false));
+    expect(time).toHaveFocus();
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toBe(time);
+    act(() => level.focus());
+    rerender(view(true));
+    expect(level).toHaveFocus();
+    expect(screen.getByLabelText("Level (×)")).toBe(level);
+    for (const name of ["Save point", "Cancel"]) {
+      const control = screen.getByRole("button", { name });
+      act(() => control.focus());
+      rerender(view(false));
+      expect(control).toHaveFocus();
+      rerender(view(true));
+      expect(screen.getByRole("button", { name })).toBe(control);
+      expect(control).toHaveFocus();
+    }
+    const outside = outsideControl();
+    act(() => outside.focus());
+    rerender(view(false));
+    expect(outside).toHaveFocus();
+    rerender(view(true));
+    const heading = screen.getByRole("heading", { name: "Add point · Host" });
+    act(() => heading.focus());
+    act(() => heading.blur());
+    rerender(view(false));
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("falls back to the heading when rotated Done becomes disabled and preserves normal form exit", () => {
+    const title = document.createElement("div");
+    const actions = document.createElement("div");
+    document.body.append(title, actions);
+    extraNodes.push(title, actions);
+    const view = (shortPhone: boolean, busy: boolean, form = props.form) => (
+      <SheetHeaderContext value={{ title, actions, root: null, shortPhone }}>
+        <EnvelopeWorkspaceView {...props} touch busy={busy} form={form} />
+      </SheetHeaderContext>
+    );
+    const { rerender } = render(view(true, false));
+    act(() => screen.getByRole("button", { name: "Done" }).focus());
+    rerender(view(false, true));
+    expect(screen.getByRole("heading", { name: "Add point" })).toHaveFocus();
+    rerender(view(true, false));
+    expect(
+      screen.getByRole("heading", { name: "Add point · Host" }),
+    ).toHaveFocus();
+    rerender(view(false, false, null));
+    expect(screen.getByRole("button", { name: "Add point" })).toHaveFocus();
+  });
+
+  it("keeps desktop form focus on ordinary rerenders", () => {
+    const { rerender } = render(<EnvelopeWorkspaceView {...props} />);
+    const time = screen.getByLabelText("Time (seconds on timeline)");
+    expect(time).toHaveFocus();
+    const save = screen.getByRole("button", { name: "Save point" });
+    act(() => save.focus());
+    rerender(
+      <EnvelopeWorkspaceView
+        {...props}
+        form={{ ...props.form!, level: "0.75" }}
+      />,
+    );
+    expect(save).toHaveFocus();
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toBe(time);
+  });
 
   it("waits through detached feedback host registration and yields after the native action returns", () => {
     const feedback = document.createElement("div");

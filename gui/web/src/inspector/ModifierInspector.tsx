@@ -1,4 +1,4 @@
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef, type ReactNode, type Ref } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { Button } from "../ui/Button";
 import { InlineError } from "../ui/InlineError";
@@ -6,6 +6,7 @@ import { InlineError } from "../ui/InlineError";
 export type ModifierAction = {
   label: string;
   onClick: () => void;
+  ref?: Ref<HTMLButtonElement>;
   /** Why the action is unavailable; omit when it can run. */
   disabledReason?: string;
   variant?: "primary" | "danger" | "default";
@@ -58,6 +59,7 @@ export const ModifierInspector = forwardRef<
           {primaryActions.map((action) => (
             <Button
               key={action.label}
+              ref={action.ref}
               variant={action.variant ?? "default"}
               disabledReason={action.disabledReason}
               onClick={action.onClick}

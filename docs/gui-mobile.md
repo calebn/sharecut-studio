@@ -51,6 +51,10 @@ with Help, Done, Expand, and Close. Time, Level, Save point, and Cancel use one
 row at their normal touch sizes. Help reveals the explanation and point context
 inside the scrolling body; notices and errors remain outside Help.
 
+When rotation moves the header, focus follows the form heading or Done. A
+focused Help button returns to the form heading in portrait. Fields retain
+their DOM identity and focus through either phone layout.
+
 Narrow portrait keeps the ordinary inspector and deliberate scrolling. Expanding
 the sheet gives its body the full slot. When a software keyboard leaves too
 little height for both the lane and the form, the form takes priority and its

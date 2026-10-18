@@ -161,6 +161,36 @@ for (const viewport of layouts) {
           .getByRole("dialog")
           .getByRole("button", { name: "Expand", exact: true }),
       };
+      if (viewport.width === 667 && !viewport.label) {
+        for (const owner of ["heading", "Done", "Help"]) {
+          const outgoing =
+            owner === "heading"
+              ? page.getByRole("heading", {
+                  name: `Add point · ${track.label}`,
+                  exact: true,
+                })
+              : page.getByRole("button", {
+                  name: owner === "Help" ? "Volume envelope help" : "Done",
+                  exact: true,
+                });
+          await outgoing.focus();
+          await page.setViewportSize({ width: 390, height: 844 });
+          const portrait =
+            owner === "Done"
+              ? controls.done
+              : page.getByRole("heading", { name: "Add point", exact: true });
+          await expect(portrait).toBeFocused();
+          await page.setViewportSize({ width: 667, height: 375 });
+          await expect(
+            owner === "Done"
+              ? controls.done
+              : page.getByRole("heading", {
+                  name: `Add point · ${track.label}`,
+                  exact: true,
+                }),
+          ).toBeFocused();
+        }
+      }
       const geometry = await envelopeGeometry(page, track.id);
       await info.attach("phone-envelope-geometry", {
         body: JSON.stringify(
@@ -246,9 +276,11 @@ for (const viewport of layouts) {
         await page.setViewportSize({ width: 390, height: 844 });
         await expect(controls.time).toHaveValue("1");
         await expect(controls.level).toHaveValue("0.75");
+        await expect(controls.level).toBeFocused();
         await page.setViewportSize({ width: 667, height: 375 });
         await expectPointerControl(controls.time);
         await expectPointerControl(controls.level);
+        await expect(controls.level).toBeFocused();
       }
       await acceptedEnvelopeCommand(page, "SetEnvelope", () =>
         controls.save.tap(),

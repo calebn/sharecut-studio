@@ -59,10 +59,27 @@ async function openWorkspace(
   await page
     .getByRole("button", { name: "Show volume envelope", exact: true })
     .click();
+  const workspace = page.getByRole("group", {
+    name: "Volume envelope controls",
+    exact: true,
+  });
+  await expect(workspace).toBeVisible();
+  const heading = page
+    .getByRole("heading", { name: track.label, exact: true })
+    .or(
+      page.getByRole("heading", {
+        name: `Volume envelope · ${track.label}`,
+        exact: true,
+      }),
+    );
+  await expect(heading).toHaveCount(1);
+  await expect(heading).toBeVisible();
   await expect(
-    page.getByText("Editing volume envelope", { exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".modifier-inspector h2")).toHaveText(track.label);
+    workspace.getByRole("button", {
+      name: "Hide volume envelope",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
   return track;
 }
 async function projectHistoryShortcut(
