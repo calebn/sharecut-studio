@@ -43,6 +43,7 @@ def test_bleed_under_the_other_speaker_is_muted_where_the_track_has_no_word():
     track = _levels(10.0)
     _set(track, 2.0, 5.0, SPEECH - 25.0)
     _set(track, 7.0, 8.0, SPEECH - 25.0)
+    _set(track, 7.2, 7.8, SPEECH - 4.0)
     plan = _call(
         own_words=[(7.2, 7.8)], peer_words=[(2.0, 5.0), (7.0, 8.0)], track=track, peer=peer
     )
@@ -239,6 +240,7 @@ def test_a_gap_with_the_guests_own_word_stays_open_and_is_reported():
     peer[200:800] += rng.uniform(-8.0, 0.0, size=600)
     track = _levels(10.0)
     track[200:800] = peer[200:800] - 40.0
+    _set(track, 4.9, 5.1, SPEECH - 4.0)
     plan = _call(own_words=[(4.9, 5.1)], peer_words=[(2.0, 8.0)], track=track, peer=peer)
     assert not _covered(plan.regions, 5.0)
     assert [g["reason"] for g in plan.kept_gaps] == ["own_word"]
@@ -335,3 +337,38 @@ def test_own_words_are_read_on_the_timeline_clock_across_clips():
     ]
     spans = word_intervals(project, "dani", 0.0, 4.0, merge_gap_sec=0.0)
     assert [(round(a, 2), round(b, 2)) for a, b in spans] == [(0.5, 0.9), (2.5, 2.9)]
+
+
+def _word_case(*, word_db_over_peer: float | None, follows: bool):
+    rng = np.random.default_rng(23)
+    peer = _levels(12.0)
+    _set(peer, 2.0, 10.0, SPEECH)
+    peer[200:1000] += rng.uniform(-8.0, 0.0, size=800)
+    track = _levels(12.0)
+    track[200:1000] = peer[200:1000] - 40.0
+    if word_db_over_peer is not None:
+        track[590:610] = peer[590:610] + word_db_over_peer
+    if not follows:
+        track[550:650] = SPEECH - 10.0 + rng.uniform(-10.0, 0.0, size=100)
+    words = [(2.0, 2.4), (5.9, 6.1), (9.6, 10.0)]
+    return plan_from_evidence(
+        "dani",
+        track,
+        _profile(),
+        words,
+        [PeerEvidence("vicky", peer, _profile(), [(2.0, 10.0)])],
+    )
+
+
+def test_a_short_isolated_word_that_is_a_copy_is_released_and_muted():
+    plan = _word_case(word_db_over_peer=-40.0, follows=True)
+    verdicts = {(j["start"], j["end"]): j["verdict"] for j in plan.judged_words}
+    assert verdicts[(5.9, 6.1)] == "copy"
+    assert _covered(plan.regions, 6.0)
+    assert plan.own_word_overlap_sec == 0.0
+
+
+def test_a_short_isolated_word_louder_than_a_copy_stays_and_is_not_muted():
+    plan = _word_case(word_db_over_peer=-5.0, follows=False)
+    assert all(j["verdict"] != "copy" for j in plan.judged_words)
+    assert not _covered(plan.regions, 6.0)
