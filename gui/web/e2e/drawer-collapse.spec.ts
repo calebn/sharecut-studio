@@ -11,7 +11,7 @@ const drawerHeight = (page: Page) =>
     .locator(".bottom-tabs")
     .evaluate((el) => el.getBoundingClientRect().height);
 
-async function dragSplitterDown(page: Page, distance: number) {
+async function dragSplitterDown(page: Page, distance: number, steps = 8) {
   const box = (await page
     .getByRole("separator", { name: "Resize editor panels" })
     .boundingBox())!;
@@ -19,7 +19,7 @@ async function dragSplitterDown(page: Page, distance: number) {
   const y = box.y + box.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x, y + distance, { steps: 8 });
+  await page.mouse.move(x, y + distance, { steps });
   return () => page.mouse.up();
 }
 
@@ -126,7 +126,7 @@ for (const collapse of ["control", "shortcut", "splitter"] as const) {
     } else if (collapse === "shortcut") {
       await page.keyboard.press("ControlOrMeta+2");
     } else {
-      const release = await dragSplitterDown(page, before);
+      const release = await dragSplitterDown(page, before, 1);
       await expect(
         page.getByRole("separator", { name: "Resize editor panels" }),
       ).toHaveAttribute("data-collapse-armed", "");
