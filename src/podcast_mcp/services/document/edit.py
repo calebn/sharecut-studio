@@ -504,7 +504,7 @@ class EditService:
         try:
             apply_on_copy(scratch, wanted, held_out=held, asked_out=asked)
         except ScopeChangedAtApproval as refused:
-            # A held edit a neighbouring pending edit leans on refuses the whole batch;
+            # A batch that is not partial still refuses whole on a hold;
             # for a listing, name each hold instead of failing.
             listed = {item.edit_id for item in held}
             held.extend(

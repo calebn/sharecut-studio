@@ -52,7 +52,16 @@ def test_a_single_approve_still_asks_before_anything_applies(tmp_path, monkeypat
     assert ws.project.model_dump(mode="json") == before
 
 
-def test_a_cut_beside_the_asked_one_keeps_the_whole_batch_asking(tmp_path, monkeypatch):
+def _waits_with_the_asked_one(ws, asked):
+    """A cut beside a left-pending one may lean on it, so it waits; nothing applies on a guess."""
+    reply = approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
+
+    assert reply["count"] == 0
+    assert {row["id"] for row in reply["held"]} == {"plain", asked.id}
+    assert {e.id for e in load_project(ws.path).edit_decisions} == {"plain", asked.id}
+
+
+def test_a_cut_beside_the_asked_one_waits_with_it(tmp_path, monkeypatch):
     result, asked = _with_plain_cut(tmp_path, monkeypatch)
     near = next(e for e in result.edit_decisions if e.id == "plain")
     result.edit_decisions.remove(near)
@@ -60,16 +69,11 @@ def test_a_cut_beside_the_asked_one_keeps_the_whole_batch_asking(tmp_path, monke
         result, "host", asked.end + 0.1, asked.end + 0.3, decision_id="plain", reason="nl:range"
     )
     ws = workspace(result)
-    before = ws.project.model_dump(mode="json")
 
-    with pytest.raises(ScopeChangedAtApproval):
-        approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
-    assert ws.project.model_dump(mode="json") == before
+    _waits_with_the_asked_one(ws, asked)
 
 
-def test_a_cut_overlapping_the_asked_one_on_the_timeline_keeps_the_batch_asking(
-    tmp_path, monkeypatch
-):
+def test_a_cut_overlapping_the_asked_one_on_the_timeline_waits_with_it(tmp_path, monkeypatch):
     # Different tracks can shift source time, so closeness is judged on the timeline too.
     from podcast_mcp.edits import cut_application as decisions
 
@@ -85,10 +89,7 @@ def test_a_cut_overlapping_the_asked_one_on_the_timeline_keeps_the_batch_asking(
     )
     ws = workspace(result)
 
-    before = ws.project.model_dump(mode="json")
-    with pytest.raises(ScopeChangedAtApproval):
-        approve_edits(ws, {"ids": ["plain", asked.id], "hold_blocked": True})
-    assert ws.project.model_dump(mode="json") == before
+    _waits_with_the_asked_one(ws, asked)
 
 
 def test_approving_several_cuts_at_once_leaves_one_history_entry(tmp_path, monkeypatch):
