@@ -1,11 +1,12 @@
 import { act, render, renderHook } from "@testing-library/react";
-import { useLayoutEffect, useRef } from "react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import { minimalProject, recordSnapshot } from "../test/fixtures";
 import { stubRaf } from "../test/raf";
+import { FixedPlayheadNeedle } from "./FixedPlayheadNeedle";
 import {
   FixedPlayheadRecenter,
   TimelineScrollSync,
@@ -46,6 +47,188 @@ describe("useFixedPlayheadScroll", () => {
     timelineViewportRegistry.clear();
     vi.unstubAllGlobals();
   });
+
+  function MountedTimeline({ children }: { children?: ReactNode }) {
+    const zoomPxPerSec = useDawStore((s) => s.zoomPxPerSec);
+    const scroll = useFixedPlayheadScroll({ ...input, zoomPxPerSec });
+    useLayoutEffect(() => {
+      el.addEventListener("scroll", scroll.onScroll);
+      return () => el.removeEventListener("scroll", scroll.onScroll);
+    }, [scroll.onScroll]);
+    return (
+      <>
+        <TimelineScrollSync binding={scroll.binding} />
+        <FixedPlayheadRecenter binding={scroll.binding} />
+        <FixedPlayheadNeedle headerOffsetPx={0} timeViewportPx={400} />
+        {children}
+      </>
+    );
+  }
+
+  it.each(["recording", "paused"] as const)(
+    "recenters a cold %s snapshot whose visible line is inside saved media",
+    (state) => {
+      useRecordHostStore.getState().setSnapshot(recordSnapshot({ state }));
+      useDawStore.setState({ playheadSec: 20, scrollLeft: 300 });
+      const revision = useDawStore.getState().playheadSeekRevision;
+      render(<MountedTimeline />);
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(el.scrollLeft).toBe(200);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+    },
+  );
+
+  describe.each(["recording", "paused", "inactive"] as const)(
+    "%s saved-end pan boundary",
+    (state) => {
+      it.each([
+        { logicalLeft: 499, savedTime: 59.9, beyondSavedEnd: false },
+        { logicalLeft: 500, savedTime: 60, beyondSavedEnd: false },
+        { logicalLeft: 501, savedTime: 60, beyondSavedEnd: true },
+        { logicalLeft: 550, savedTime: 60, beyondSavedEnd: true },
+      ])("keeps the intended time and view at $logicalLeft px", (pan) => {
+        useRecordHostStore
+          .getState()
+          .setSnapshot(state === "inactive" ? null : recordSnapshot({ state }));
+        useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+        const view = render(<MountedTimeline />);
+        act(() => raf.fire(0));
+        const revision = useDawStore.getState().playheadSeekRevision;
+        const visualOnly = state !== "inactive" && pan.beyondSavedEnd;
+        const expectedTime = visualOnly ? 20 : pan.savedTime;
+        const expectedRevision = revision + (visualOnly ? 0 : 1);
+        el.scrollLeft = pan.logicalLeft + 200;
+        act(() => {
+          el.dispatchEvent(new Event("scroll"));
+        });
+        expect(useDawStore.getState().playheadSec).toBeCloseTo(expectedTime);
+        expect(useDawStore.getState().playheadSeekRevision).toBe(
+          expectedRevision,
+        );
+        expect(useDawStore.getState().scrollLeft).toBe(pan.logicalLeft);
+        expect(el.scrollLeft).toBe(pan.logicalLeft + 200);
+
+        act(() => {
+          const project = useDawStore.getState().project;
+          if (!project) throw new Error("Expected the hydrated project");
+          useDawStore.setState({
+            project: {
+              ...project,
+              meta: { ...project.meta, name: "Renamed episode" },
+            },
+          });
+          view.rerender(<MountedTimeline />);
+        });
+        expect(useDawStore.getState().playheadSec).toBeCloseTo(expectedTime);
+        expect(useDawStore.getState().playheadSeekRevision).toBe(
+          expectedRevision,
+        );
+        expect(useDawStore.getState().scrollLeft).toBe(pan.logicalLeft);
+        expect(el.scrollLeft).toBe(pan.logicalLeft + 200);
+
+        act(() => useDawStore.getState().setPlayheadSec(expectedTime));
+        expect(useDawStore.getState().playheadSeekRevision).toBe(
+          expectedRevision + 1,
+        );
+        expect(useDawStore.getState().playheadSec).toBeCloseTo(expectedTime);
+        const recoveredScroll = visualOnly ? 0 : expectedTime * 10 - 200;
+        expect(useDawStore.getState().scrollLeft).toBeCloseTo(recoveredScroll);
+        expect(el.scrollLeft).toBeCloseTo(recoveredScroll + 200);
+      });
+    },
+  );
+
+  it("publishes corrected pointer-zoom time at the first layout boundary", () => {
+    const samples: { time: number; scroll: number; revision: number }[] = [];
+    function ZoomObserver() {
+      const zoom = useDawStore((s) => s.zoomPxPerSec);
+      useLayoutEffect(() => {
+        if (zoom !== 20) return;
+        const state = useDawStore.getState();
+        samples.push({
+          time: state.playheadSec,
+          scroll: state.scrollLeft,
+          revision: state.playheadSeekRevision,
+        });
+      }, [zoom]);
+      return null;
+    }
+    useDawStore.setState({ playheadSec: 15 });
+    Object.defineProperty(el, "clientWidth", { value: 400 });
+    timelineViewportRegistry.setTimelineElement(el);
+    const revision = useDawStore.getState().playheadSeekRevision;
+    const view = render(
+      <MountedTimeline>
+        <ZoomObserver />
+      </MountedTimeline>,
+    );
+    act(() => useDawStore.getState().applyAnchoredZoom(20, 250));
+    expect.soft(samples[0]).toEqual({
+      time: 20,
+      scroll: 250,
+      revision: revision + 1,
+    });
+    expect(useDawStore.getState().playheadSec).toBe(20);
+    expect(useDawStore.getState().scrollLeft).toBe(250);
+    expect(useDawStore.getState().playheadSeekRevision).toBe(revision + 1);
+    expect(el.scrollLeft).toBe(450);
+    expect((250 + useDawStore.getState().scrollLeft) / 20).toBe(25);
+    expect(
+      view.container
+        .querySelector<HTMLElement>(".playhead--fixed")
+        ?.style.getPropertyValue("--timeline-fixed-line"),
+    ).toBe("150px");
+  });
+
+  describe.each(["recording", "paused"] as const)(
+    "%s preview-pan pointer zoom",
+    (state) => {
+      it.each([
+        { zoom: 20, anchoredScroll: 1200, recoveredScroll: 200 },
+        { zoom: 5, anchoredScroll: 150, recoveredScroll: 0 },
+      ])(
+        "retains saved time through zoom to $zoom until a seek",
+        (geometry) => {
+          useRecordHostStore.getState().setSnapshot(recordSnapshot({ state }));
+          useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+          Object.defineProperty(el, "clientWidth", { value: 400 });
+          timelineViewportRegistry.setTimelineElement(el);
+          const revision = useDawStore.getState().playheadSeekRevision;
+          const view = render(<MountedTimeline />);
+          act(() => raf.fire(0));
+          el.scrollLeft = 750;
+          act(() => {
+            el.dispatchEvent(new Event("scroll"));
+          });
+          expect(useDawStore.getState().scrollLeft).toBe(550);
+          expect(useDawStore.getState().playheadSec).toBe(20);
+          expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+
+          act(() =>
+            useDawStore.getState().applyAnchoredZoom(geometry.zoom, 250),
+          );
+          view.rerender(<MountedTimeline />);
+          expect(useDawStore.getState().scrollLeft).toBe(
+            geometry.anchoredScroll,
+          );
+          expect(el.scrollLeft).toBe(geometry.anchoredScroll + 200);
+          expect(useDawStore.getState().playheadSec).toBe(20);
+          expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+
+          act(() => useDawStore.getState().setPlayheadSec(20));
+          expect(useDawStore.getState().playheadSec).toBe(20);
+          expect(useDawStore.getState().playheadSeekRevision).toBe(
+            revision + 1,
+          );
+          expect(useDawStore.getState().scrollLeft).toBe(
+            geometry.recoveredScroll,
+          );
+          expect(el.scrollLeft).toBe(geometry.recoveredScroll + 200);
+        },
+      );
+    },
+  );
 
   it("uses committed fixed canvas and clears the lead and negative scroll on unmount", () => {
     const hook = renderHook(() => useFixedPlayheadScroll(input));
