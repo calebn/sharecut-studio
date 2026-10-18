@@ -43,3 +43,50 @@ def test_other_subjects_fail(subject: str) -> None:
 def test_revert_and_fixup_are_exempt() -> None:
     assert lint.EXEMPT.match('Revert "fix(x): y"')
     assert lint.EXEMPT.match("fixup! fix: y")
+
+
+def test_release_as_footer_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    git(
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "chore: base",
+    )
+    git(
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "feat: x",
+        "-m",
+        "Release-As: 1.0.0",
+    )
+    git(
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "fix: ok",
+    )
+    monkeypatch.chdir(tmp_path)
+    bad = lint.bad_subjects("HEAD~2..HEAD")
+    assert len(bad) == 1 and "Release-As" in bad[0]

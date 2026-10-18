@@ -3,6 +3,7 @@
   "packages": {
     ".": {
       "release-type": "python",
+      "bootstrap-sha": "735e76a1549ddfb04f28e776b3e0e9f868625218",
       "package-name": "podcast-mcp",
       "include-component-in-tag": false,
       "bump-minor-pre-major": true,
@@ -23,7 +24,7 @@
         {
           "type": "toml",
           "path": "gui/desktop/src-tauri/Cargo.lock",
-          "jsonpath": "$.package[?(@.name=='sharecut')].version"
+          "jsonpath": "$.package[?(@.name.value=='sharecut')].version"
         }
       ]
     }
