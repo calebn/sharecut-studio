@@ -651,7 +651,8 @@ tester can see.
 (`feat`, `fix`, `perf`, `revert`, or a `!` breaking marker), proposes the next version and
 the changelog, and bumps `pyproject.toml`, `src/podcast_mcp/__init__.py`,
 `gui/desktop/package.json` and its lock, `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`
-together. Merging that PR is the decision to cut a build; it tags `vX.Y.Z` and builds
+and `uv.lock` together (CI installs with `uv export --locked`, which fails on a stale project
+version in `uv.lock`). Merging that PR is the decision to cut a build; it tags `vX.Y.Z` and builds
 nothing. The operator then builds from that tag and publishes the feed ([In-app
 updates](#in-app-updates)).
 

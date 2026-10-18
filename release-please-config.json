@@ -23,6 +23,11 @@
         { "type": "toml", "path": "gui/desktop/src-tauri/Cargo.toml", "jsonpath": "$.package.version" },
         {
           "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='podcast-mcp')].version"
+        },
+        {
+          "type": "toml",
           "path": "gui/desktop/src-tauri/Cargo.lock",
           "jsonpath": "$.package[?(@.name.value=='sharecut')].version"
         }
