@@ -1041,6 +1041,10 @@ Apply uses one existing move History action. Cancel and unchanged Apply save
 nothing. A refused save keeps a current draft and an error so you can retry.
 
 On desktop and tablet, **Shorter** and **Taller** change the bottom editor panels
-by 1 rem. **Reset panel size** clears the browser preference. These controls do
-not change the episode or History. Phone uses the sheet's **Expand** and
+by 1 rem, or to the available bound. Steps start at the visible height even when
+a saved preference is taller than the space available. A disabled direction
+explains the size limit and saves nothing. Banners and root-text changes refresh
+the bounds without rewriting the preference. Buttons, keyboard, drag clamps, and
+separator values use the same measured geometry. **Reset panel size** clears the
+browser preference. These controls do not change the episode or History. Phone uses the sheet's **Expand** and
 **Collapse** controls and has no desktop splitter.

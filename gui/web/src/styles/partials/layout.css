@@ -27,7 +27,8 @@ html[data-shell] body {
  * layout or a banner never shifts another child. Layouts change only
  * --shell-main-row / --shell-tabs-row (responsive.css). */
 .daw-shell {
-  --shell-main-row: minmax(0, 1fr);
+  --shell-main-min-height: 0rem;
+  --shell-main-row: minmax(var(--shell-main-min-height), 1fr);
   --shell-tabs-row: var(--tabs-height);
 
   display: grid;
@@ -62,7 +63,8 @@ html[data-shell] body {
  * Reject. `:where` keeps the layouts' own rows (responsive.css) in charge. The
  * touch shells size their sheets from `--tabs-height`, so they keep it whole. */
 :where(html[data-shell="desktop"]) .daw-shell {
-  --shell-main-row: minmax(7.5rem, 1fr);
+  --shell-main-min-height: var(--editor-main-min-height);
+  --shell-main-row: minmax(var(--shell-main-min-height), 1fr);
   --shell-tabs-row: minmax(0, var(--tabs-height));
 }
 
@@ -1991,4 +1993,12 @@ button.save-dot {
     min-height: 2.75rem;
     min-width: 2.75rem;
   }
+}
+
+.splitter-rem-signal {
+  position: absolute;
+  inline-size: 1rem;
+  block-size: 1rem;
+  visibility: hidden;
+  pointer-events: none;
 }
