@@ -17,6 +17,7 @@ from podcast_mcp.cli.cut_speech import (
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
+from podcast_mcp.edits.source_removals import STALE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
@@ -166,7 +167,7 @@ def edit_approve_cmd(
     n = require_cut_applied(approve)
     typer.echo(f"Approved {n} edit(s).")
     _echo_held(held, asked)
-    if held or asked:
+    if asked or any(item.reason != STALE_REASON for item in held):
         typer.echo(
             "Held edits stay pending. Repeat with --ids <id,...> --override-audio-checks "
             "to apply them as they are.",

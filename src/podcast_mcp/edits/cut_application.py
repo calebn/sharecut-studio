@@ -46,6 +46,7 @@ from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.source_removals import (
+    STALE_REASON,
     ScopeChangedAtApproval,
     cut_label,
 )
@@ -741,7 +742,7 @@ def approve_edits(
             HeldEdit(
                 edit_id,
                 cut_label(project, next(e for e in project.edit_decisions if e.id == edit_id)),
-                "its audio was already cut away, so it no longer plays",
+                STALE_REASON,
             )
             for edit_id in unplayed
         )

@@ -51,6 +51,9 @@ def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
     )
 
 
+STALE_REASON = "its audio was already cut away, so it no longer plays"
+
+
 def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
     """People's name for a pending cut: whose, what kind and where in the recording."""
     track = project.track_by_id(edit.track_id)

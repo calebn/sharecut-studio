@@ -189,7 +189,7 @@ def test_applying_auto_edits_leaves_a_cut_a_peer_speaks_through_pending(tmp_path
     assert _lane_ends(project) == {"host": 29.0, "guest": 29.0}
 
 
-def test_the_approve_tool_refuses_a_held_cut_and_leaves_the_project_as_it_was(
+def test_the_approve_tool_holds_a_held_cut_and_leaves_the_project_as_it_was(
     tmp_path: Path,
 ) -> None:
     from podcast_mcp.mcp import server as mcp_server
@@ -200,9 +200,10 @@ def test_the_approve_tool_refuses_a_held_cut_and_leaves_the_project_as_it_was(
     path = tmp_path / "episode.project.json"
     save_project(project, path)
 
-    with pytest.raises(ScopeChangedAtApproval, match="not applied"):
-        mcp_server.approve_edits_tool(str(path), ["b"])
+    reply = json.loads(mcp_server.approve_edits_tool(str(path), ["b"]))
 
+    assert reply["approved_count"] == 0
+    assert [row["id"] for row in reply["held"]] == ["b"]
     saved = load_project(path)
     assert [e.id for e in saved.edit_decisions] == ["b"]
     assert _lane_ends(saved) == {"host": 30.0, "guest": 30.0}

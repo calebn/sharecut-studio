@@ -518,6 +518,19 @@ class EditService:
             )
         return held, asked
 
+    def _all_unplayed(self, ids: list[str], held_out: list[HeldEdit]) -> bool:
+        """True (after listing them as held) when every selected proposal's audio is cut away."""
+        from podcast_mcp.edits.decisions import unplayed_pending_ids
+        from podcast_mcp.edits.source_removals import STALE_REASON
+
+        project = self.ws.project
+        selected = {e.id for e in project.edit_decisions if e.id in set(ids)}
+        stale = set(unplayed_pending_ids(project, selected))
+        if not selected or stale != selected:
+            return False
+        held_out.extend(HeldEdit(i, self._edit_label(i), STALE_REASON) for i in sorted(stale))
+        return True
+
     def _edit_label(self, edit_id: str) -> str:
         from podcast_mcp.edits.source_removals import cut_label
 
@@ -566,6 +579,10 @@ class EditService:
         def on_failure(outcome: RollbackOutcome) -> None:
             nonlocal restored
             restored = outcome is RollbackOutcome.RESTORED
+
+        if held_out is not None and self._all_unplayed(ids, held_out):
+            # Nothing in the selection can apply, so there is nothing to save or undo.
+            return 0
 
         try:
             with batch_scope():
