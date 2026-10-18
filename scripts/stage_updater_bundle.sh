@@ -45,6 +45,6 @@ if [[ ${#extracted[@]} -ne 1 || "$(basename "${extracted[0]}")" != "$app_name" ]
 fi
 if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
   codesign --verify --deep --strict "${extracted[0]}"
-  xcrun stapler validate "${extracted[0]}"
+  xcrun stapler validate "${extracted[0]}" >&2
 fi
 echo "$OUT/$name"

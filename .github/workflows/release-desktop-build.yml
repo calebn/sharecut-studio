@@ -37,6 +37,11 @@ on:
         type: boolean
         required: false
         default: false
+      require_windows_signing:
+        description: With sign=true, fail the Windows leg when the Authenticode secrets are missing. Set false to sign macOS (and updater bundles) while shipping Windows unsigned.
+        type: boolean
+        required: false
+        default: true
       sign_updater:
         description: Sign only the Windows NSIS and Linux AppImage updater bundles with the updater key (needs TAURI_SIGNING_PRIVATE_KEY and an updater profile). Needs no Apple or Windows signing secrets, and macOS legs produce no updater bundle (a Mac-signed one is added by the operator). `sign` already implies this.
         type: boolean
@@ -562,7 +567,7 @@ jobs:
               fi
               ;;
             nsis)
-              if [[ "${{ steps.signing.outputs.windows }}" != "yes" ]]; then
+              if [[ "${{ inputs.require_windows_signing }}" == "true" && "${{ steps.signing.outputs.windows }}" != "yes" ]]; then
                 echo "::error::sign=true but Windows signing secrets are incomplete" >&2
                 exit 1
               fi

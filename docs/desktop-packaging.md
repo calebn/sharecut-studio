@@ -536,7 +536,7 @@ Windows NSIS installer and the Linux AppImage with the updater key, needs only
 an unsigned `.app` must never reach the feed. The operator adds the two macOS
 bundles from the Developer ID signed and notarized apps (see
 [§ Local operator build](#in-app-updates)); `sign=true` still produces all four. The workflow fails closed before the build when the
-`TAURI_SIGNING_PRIVATE_KEY` secret is empty. Each leg uploads its bundle and
+`TAURI_SIGNING_PRIVATE_KEY` secret is empty. With `sign=true`, the Windows leg also fails closed when the Authenticode secrets are missing; a caller that ships Windows unsigned (the beta) passes `require_windows_signing: false` to sign macOS and updater bundles only. Each leg uploads its bundle and
 `.sig` under a separate artifact name. The installer artifact names do not
 change.
 
