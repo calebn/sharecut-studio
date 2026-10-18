@@ -28,6 +28,7 @@ import {
   canSuggestStructuralOnProject,
   guestHearsMixOnly,
 } from "../shareMode";
+import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
 import type { AuditionMode } from "../types/session";
 import {
@@ -104,6 +105,7 @@ export function TransportBar({
   const {
     project,
     isPlaying,
+    playStartSec,
     auditionMode,
     audioError,
     sessionRegion,
@@ -122,6 +124,7 @@ export function TransportBar({
   } = useDaw((s) => ({
     project: s.project,
     isPlaying: s.isPlaying,
+    playStartSec: s.playStartSec,
     auditionMode: s.auditionMode,
     audioError: s.audioError,
     sessionRegion: s.sessionRegion,
@@ -166,7 +169,11 @@ export function TransportBar({
   });
 
   const loading = project == null;
-  const emptyProject = (project?.tracks.length ?? 0) === 0;
+  const availability = transportAvailability({
+    project,
+    isPlaying,
+    playStartSec,
+  });
   const projectBreakdown = useStaleRenderBreakdown(project);
   const breakdown = project ? projectBreakdown : null;
   const stale = breakdown?.stale ?? false;
@@ -662,13 +669,7 @@ export function TransportBar({
       <TransportZone position="center">
         <TransportPlayControls
           playing={isPlaying}
-          disabledReason={
-            !project
-              ? "Loading project…"
-              : emptyProject
-                ? "Import audio to play."
-                : undefined
-          }
+          availability={availability}
           {...transportPlayHandlers}
         />
         {showRecordingChip ? <RecordTransportChip /> : null}

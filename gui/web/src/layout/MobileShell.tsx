@@ -31,6 +31,7 @@ import {
   canManageProjects,
   guestShareBannerLabel,
 } from "../shareMode";
+import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
 import { SoloChip } from "../tracks/SoloChip";
@@ -205,6 +206,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   const {
     project,
     isPlaying,
+    playStartSec,
     setActiveTab,
     setSelection,
     pipelineJob,
@@ -213,6 +215,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   } = useDaw((s) => ({
     project: s.project,
     isPlaying: s.isPlaying,
+    playStartSec: s.playStartSec,
     setActiveTab: s.setActiveTab,
     setSelection: s.setSelection,
     pipelineJob: s.pipelineJob,
@@ -220,6 +223,11 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     activityRunningCount: s.activityRunningCount,
   }));
   const mixBreakdown = useStaleRenderBreakdown(project);
+  const availability = transportAvailability({
+    project,
+    isPlaying,
+    playStartSec,
+  });
 
   if (!project) {
     return (
@@ -229,7 +237,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           controls={
             <TransportPlayControls
               playing={false}
-              disabledReason="Loading project…"
+              availability={availability}
               {...transportPlayHandlers}
             />
           }
@@ -241,7 +249,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   }
 
   const duration = project.timeline_duration_sec;
-  const emptyProject = project.tracks.length === 0;
   const comments = [...(project.comments ?? [])].sort(
     (a, b) => a.timeline_start - b.timeline_start,
   );
@@ -257,7 +264,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
         controls={
           <TransportPlayControls
             playing={isPlaying}
-            disabledReason={emptyProject ? "Import audio to play." : undefined}
+            availability={availability}
             {...transportPlayHandlers}
           />
         }

@@ -63,6 +63,7 @@ function TransportTemplate({
           <TransportZone position="center">
             <TransportPlayControls
               playing={playing}
+              availability={{ togglePlay: undefined, stop: undefined }}
               onTogglePlay={() => setPlaying((value) => !value)}
               onStop={() => setPlaying(false)}
             />
