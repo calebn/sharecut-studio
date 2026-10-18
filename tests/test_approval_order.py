@@ -189,7 +189,7 @@ def test_applying_auto_edits_leaves_a_cut_a_peer_speaks_through_pending(tmp_path
     assert _lane_ends(project) == {"host": 29.0, "guest": 29.0}
 
 
-def test_the_approve_tool_holds_a_held_cut_and_leaves_the_project_as_it_was(
+def test_the_approve_tool_refuses_a_held_cut_and_leaves_the_project_as_it_was(
     tmp_path: Path,
 ) -> None:
     from podcast_mcp.mcp import server as mcp_server
