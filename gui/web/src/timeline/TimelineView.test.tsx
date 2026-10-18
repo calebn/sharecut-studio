@@ -305,6 +305,7 @@ describe("TimelineView fixed playhead (#385)", () => {
     vi.unstubAllGlobals();
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollWidth");
   });
 
   /** Mount with a scroller whose scrollLeft is plain storage (jsdom's isn't). */
@@ -478,6 +479,33 @@ describe("TimelineView fixed playhead (#385)", () => {
     act(() => useDawStore.getState().setPlayheadSec(15, "playback"));
     expect(view.scroller.scrollLeft).toBe(200);
     expect(useDawStore.getState().scrollLeft).toBe(0);
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+  });
+
+  it("restores the stored pan when an ordinary timeline mounts with room to scroll", () => {
+    stubElementSize(800, 600);
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get: () => 2141,
+    });
+    useDawStore.setState({ scrollLeft: 550, playheadSec: 20 });
+    useRecordHostStore.getState().setSnapshot(
+      recordSnapshot({
+        state: "paused",
+        timeline_start_sec: 0,
+        recording_ms: 200_000,
+      }),
+    );
+    const revision = useDawStore.getState().playheadSeekRevision;
+    const view = render(<TimelineView />);
+    const scroller = view.container.querySelector(
+      ".timeline-scroll",
+    ) as HTMLElement;
+    expect(scroller.scrollWidth - scroller.clientWidth).toBeGreaterThan(550);
+    expect.soft(scroller.scrollLeft).toBe(550);
+    expect(useDawStore.getState().scrollLeft).toBe(550);
+    expect(useDawStore.getState().playheadSec).toBe(20);
+    expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
     act(() => useRecordHostStore.getState().setSnapshot(null));
   });
 
