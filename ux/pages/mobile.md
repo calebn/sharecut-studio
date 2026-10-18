@@ -30,7 +30,7 @@ While a take is recording or paused, an aggregate band and needle shows its
 provisional timeline span even when the Record room sheet is closed. On phones,
 the pan range grows with the take so you can scroll to the live needle beyond
 saved media; that visual-only pan leaves playback position and saved-media seek
-bounds unchanged, including while you pinch to zoom. An explicit seek returns to
+bounds unchanged, including while you pinch to zoom or leave Timeline and return. An explicit seek returns to
 normal playback follow. Stop clears the preview, and landing shows the finalized clips.
 
 A playback meter beneath each track's initials shows its output peak. The clip

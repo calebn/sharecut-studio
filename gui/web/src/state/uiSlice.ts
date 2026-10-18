@@ -824,6 +824,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     fitToWindow: (viewportWidth) => {
       const duration = sessionSecOf(get());
       if (duration > 0 && viewportWidth > 0) {
+        timelineViewportRegistry.setVisualPan(null);
         const zoom = fitZoomPxPerSec(viewportWidth, duration);
         // The whole session fits, so a fit starts at time 0 and the playhead
         // sits at its place in it, fixed playhead or not.

@@ -14,6 +14,7 @@ import type { ProjectView } from "../types/project";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { zoomReclampPatch } from "./storeMath";
+import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type { DawStore } from "./types";
 
 type TrimTarget = {
@@ -258,6 +259,7 @@ export const createProjectSlice: StateCreator<
   ) => {
     const samePath = get().projectPath === projectPath;
     if (!samePath) {
+      timelineViewportRegistry.setVisualPan(null);
       resetDocumentAuthority(projectPath);
       resetServerClock();
     }
