@@ -27,6 +27,7 @@ import {
 } from "./useCompactInspector";
 import { useInspectorColumn } from "./useInspectorColumn";
 import { useKeepEditedLaneClear } from "./useKeepEditedLaneClear";
+import { useRevealEditedLane } from "./useRevealEditedLane";
 
 /**
  * The shells that carry a selection sheet. `armedOpens`: Select range alone
@@ -141,6 +142,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
   const laneTrack =
     open && laneBand && !compact && !column ? editedLaneTrack(selection) : null;
   useKeepEditedLaneClear(laneTrack);
+  useRevealEditedLane(open && column ? editedLaneTrack(selection) : null);
   const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
   const rangeActionsInSheet =
     open &&
