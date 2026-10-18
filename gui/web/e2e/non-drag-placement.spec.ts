@@ -762,7 +762,9 @@ test("group pointer steps save exact 7/27 placements, refusal recovers and one U
         movedToast.getByRole("button", { name: "Undo", exact: true }),
       ).toBeVisible();
       await info.attach("moved-clips-undo", {
-        body: await movedToast.screenshot(),
+        body: await page.screenshot({
+          path: info.outputPath("moved-clips-undo.png"),
+        }),
         contentType: "image/png",
       });
       await movedToast
