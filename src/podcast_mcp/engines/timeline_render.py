@@ -622,17 +622,23 @@ def render_source_with_chain(
     output_path: Path,
     *,
     engine: FFmpegEngine | None = None,
+    selected_source_path: Path | None = None,
 ) -> Path:
     """Render FX + optional transcript gate on the full raw source (no timeline edits).
 
     Used for guest proxy media. Excludes envelope and gain - the client applies
     gain; envelopes are a known approximation on the guest path.
+    A selected recording retains the track's FX, source gate, and fill eligibility.
     """
-    if not track.media:
+    if selected_source_path is not None:
+        stored_path = str(selected_source_path)
+    elif track.media is not None:
+        stored_path = track.media.path
+    else:
         raise ValueError(f"track {track.id} has no media")
 
     eng = engine or FFmpegEngine()
-    src = resolve_under_workspace(project, track.media.path)
+    src = resolve_under_workspace(project, stored_path)
     if not src.is_file():
         raise FileNotFoundError(f"source media missing for track {track.id}: {src}")
 
