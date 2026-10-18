@@ -93,6 +93,32 @@ describe("useFixedPlayheadScroll", () => {
   );
 
   it.each(["recording", "paused"] as const)(
+    "preserves a %s visual pan through a viewport resize until an explicit seek",
+    (state) => {
+      useRecordHostStore.getState().setSnapshot(recordSnapshot({ state }));
+      useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+      const revision = useDawStore.getState().playheadSeekRevision;
+      const view = render(<MountedTimeline />);
+      act(() => raf.fire(0));
+      el.scrollLeft = 750;
+      act(() => el.dispatchEvent(new Event("scroll")));
+      expect(useDawStore.getState().scrollLeft).toBe(550);
+
+      view.rerender(<MountedTimeline timeViewportPx={420} />);
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+      expect(useDawStore.getState().scrollLeft).toBe(550);
+      expect(el.scrollLeft).toBe(760);
+
+      act(() => useDawStore.getState().setPlayheadSec(20));
+      expect(useDawStore.getState().playheadSec).toBe(20);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(revision + 1);
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(el.scrollLeft).toBe(210);
+    },
+  );
+
+  it.each(["recording", "paused"] as const)(
     "restores a %s visual pan after tab unmount and same-project refresh",
     (state) => {
       useRecordHostStore.getState().setSnapshot(recordSnapshot({ state }));
