@@ -96,7 +96,7 @@ export function MobileShellView({
           {chrome.transport}
         </div>
       ) : null}
-      <main className="mobile-mode-body" tabIndex={-1}>
+      <main className="mobile-mode-body" tabIndex={-1} data-focus-fallback>
         <div
           className={
             screen.kind === "listen"
