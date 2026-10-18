@@ -269,6 +269,7 @@ def _judge_doubtful_words(
                 "verdict": verdict,
                 "correlation": round(r, 2),
                 "level_over_peer_db": None if ratio is None else round(ratio, 1),
+                "over_copy_db": None if ratio is None else round(ratio - leak, 1),
             }
         )
     return out
@@ -516,8 +517,12 @@ def plan_off_speaker_mutes(
         plan.refusal = "no_peer_speech"
         return plan
     plan = plan_from_evidence(track_id, levels, profile, own_words, peers, rendered)
+    released = {(j["start"], j["end"]) for j in plan.judged_words if j["verdict"] == "copy"}
+    plan.own_word_overlap_sec = _overlap_sec(
+        [w for w in own_words if w not in released], plan.regions
+    )
+    _name_judged_words(project, track_id, plan)
     _name_holding_words(project, track_id, plan)
-    plan.own_word_overlap_sec = _overlap_sec(own_words, plan.regions)
     return plan
 
 
