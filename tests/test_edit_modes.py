@@ -843,7 +843,7 @@ def test_cli_trim_holds_without_a_confirmation_flag(episode):
     refused = runner.invoke(app, args)
     assert refused.exit_code == 1
     assert GUEST_WORDS + CUT_REVIEW in refused.stderr
-    assert "Review and approve this cut in Sharecut Studio." in refused.stderr
+    assert "repeat the command with --override-audio-checks." in refused.stderr
     assert _geometry(episode) == before
 
     obsolete = runner.invoke(app, [*args, "--yes"])
@@ -879,7 +879,7 @@ def test_cli_text_consent_cannot_authorize_a_cut(episode):
     before = _geometry(episode)
     result = CliRunner().invoke(app, [*args, "--no-inaudible-opt"], input="y\n")
     assert result.exit_code == 1
-    assert "Review and approve this cut in Sharecut Studio." in result.stderr
+    assert "repeat the command with --override-audio-checks." in result.stderr
     assert "Cut anyway? [y/N]: " not in result.stdout
     assert _geometry(episode) == before
 

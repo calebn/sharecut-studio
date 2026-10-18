@@ -131,3 +131,48 @@ def test_a_mute_a_peer_speaks_over_still_applies_in_place_without_asking(tmp_pat
     saved = load_project(ws.path)
     assert _lengths(saved) == pytest.approx(before)
     assert primary_spans(saved, "guest") == [pytest.approx((0, 6, 0))]
+
+
+def test_audio_check_override_lets_programmatic_callers_approve_and_records_who(
+    tmp_path, monkeypatch
+):
+    from podcast_mcp.edits.audio_check_override import audio_check_override
+
+    result, decision = _blocked_filler(tmp_path, monkeypatch)
+    ws = workspace(result)
+    with pytest.raises(ScopeChangedAtApproval):
+        EditService(ws).approve([decision.id])
+
+    with audio_check_override("cli:owner", "cli"):
+        assert EditService(ws).approve([decision.id]) == 1
+
+    saved = load_project(ws.path)
+    (record,) = saved.editorial.edit_log
+    assert record.params["audio_check_override"] == {
+        "kind": "owner_override",
+        "actor": "cli:owner",
+        "surface": "cli",
+    }
+    assert saved.edit_decisions == [] or all(e.applied for e in saved.edit_decisions)
+
+
+def test_cli_approve_names_the_override_and_all_applies_it(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    result, _decision = _blocked_filler(tmp_path, monkeypatch)
+    ws = workspace(result)
+    base = ["edit", "approve", "--project", str(ws.path)]
+    runner = CliRunner()
+
+    held = runner.invoke(app, [*base, "--all"])
+    assert held.exit_code != 0
+    assert "--override-audio-checks" in str(held.exception) + held.output
+
+    done = runner.invoke(app, [*base, "--all", "--override-audio-checks"])
+    assert done.exit_code == 0, done.output
+    assert "Approved 1 edit(s)." in done.output
+    (record,) = load_project(ws.path).editorial.edit_log
+    assert record.params["audio_check_override"]["surface"] == "cli"
+    assert record.params["audio_check_override"]["actor"].startswith("cli:")

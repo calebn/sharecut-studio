@@ -7,7 +7,12 @@ from typing import Literal, cast
 import typer
 
 from podcast_mcp.cli.context import get_progress
-from podcast_mcp.cli.cut_speech import require_cut_applied
+from podcast_mcp.cli.cut_speech import (
+    cli_actor,
+    cli_override,
+    override_audio_checks_option,
+    require_cut_applied,
+)
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.models import EditMode
@@ -127,15 +132,27 @@ def edit_cut_utterance_cmd(
 def edit_approve_cmd(
     project: Path = typer.Option(..., "--project"),
     ids: str | None = typer.Option(None, "--ids", help="Comma-separated edit ids"),
+    all_pending: bool = typer.Option(
+        False, "--all", help="Approve every pending proposal (a held one is named and stays)"
+    ),
+    override: bool = override_audio_checks_option(),
 ) -> None:
+    """Approve pending proposals; checks hold unclear ones unless --override-audio-checks."""
     ws = ProjectWorkspace.open(project)
-    id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
-    if id_list is None:
-        raise typer.BadParameter("pass --ids (or use apply-suggested for every pending sound)")
-    edit_ids = id_list
-    n = require_cut_applied(
-        lambda: EditService(ws).approve(edit_ids, allow_exact=True),
-    )
+    if all_pending == (ids is not None):
+        raise typer.BadParameter("pass --ids or --all (apply-suggested gives each its own action)")
+    if all_pending:
+        edit_ids = [
+            e.id for e in EditService(ws).list_decisions(applied=False, review_required=True)
+        ]
+    else:
+        edit_ids = [x.strip() for x in (ids or "").split(",") if x.strip()]
+
+    def approve() -> int:
+        with cli_override(override):
+            return EditService(ws).approve(edit_ids, allow_exact=True)
+
+    n = require_cut_applied(approve)
     typer.echo(f"Approved {n} edit(s).")
     if n == 0:
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
@@ -156,6 +173,7 @@ def edit_apply_suggested_cmd(
         help="Change sounds of the latest batch: step back to before it and apply it again "
         "with --override on top, as one undo step (takes no --ids)",
     ),
+    override_checks: bool = override_audio_checks_option(),
 ) -> None:
     """Apply every pending sound's suggested action in one undo step."""
     overrides: dict[str, str] = {}
@@ -166,7 +184,10 @@ def edit_apply_suggested_cmd(
         overrides[edit_id] = action
     ws = ProjectWorkspace.open(project)
     id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
-    result = EditService(ws).apply_suggested_actions(id_list, overrides=overrides, revise=revise)
+    with cli_override(override_checks):
+        result = EditService(ws).apply_suggested_actions(
+            id_list, overrides=overrides, revise=revise
+        )
     typer.echo(result["summary"])
 
 
@@ -402,23 +423,29 @@ def edit_ripple_delete_cmd(
         [], "--track", help="Track whose speech this cut removes (repeatable)"
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit the full per-detector result as JSON"),
+    override_checks: bool = override_audio_checks_option(),
 ) -> None:
-    """Ripple-delete a range on every dialogue track; asks before cutting other speech."""
+    """Ripple-delete a range on every dialogue track; the audio checks hold a harsh cut."""
     ws = ProjectWorkspace.open(project)
-    if query:
-        result = require_cut_applied(
-            lambda: EditService(ws).ripple_delete_text(query, use_inaudible_opt=inaudible_opt),
-        )
-    elif start is not None and end is not None:
-        result = require_cut_applied(
-            lambda: EditService(ws).cut_range(
-                start,
-                end,
+
+    def ripple_text() -> dict:
+        with cli_override(override_checks):
+            return EditService(ws).ripple_delete_text(query or "", use_inaudible_opt=inaudible_opt)
+
+    def ripple_range() -> dict:
+        with cli_override(override_checks):
+            return EditService(ws).cut_range(
+                start or 0.0,
+                end or 0.0,
                 mode=EditMode.RIPPLE,
                 track_ids=list(track),
-                use_inaudible_opt=inaudible_opt,
-            ),
-        )
+                use_inaudible_opt=inaudible_opt and not override_checks,
+            )
+
+    if query:
+        result = require_cut_applied(ripple_text)
+    elif start is not None and end is not None:
+        result = require_cut_applied(ripple_range)
     else:
         raise typer.BadParameter("provide --start and --end, or --query")
     if as_json:
@@ -471,8 +498,9 @@ def edit_delete_clips_cmd(
         "--mode",
         help="gap: each clip leaves silence; ripple: every dialogue track closes the span",
     ),
+    override_checks: bool = override_audio_checks_option(),
 ) -> None:
-    """Delete whole clips; a ripple asks before it cuts speech outside them."""
+    """Delete whole clips; the audio checks hold a harsh ripple unless overridden."""
     from podcast_mcp.services.document_sync import (
         host_command_result,
         submit_host_document_command,
@@ -481,9 +509,15 @@ def edit_delete_clips_cmd(
     clip_ids = [x.strip() for x in ids.split(",") if x.strip()]
 
     def delete() -> dict:
-        payload: dict = {"clip_ids": clip_ids, "mode": mode.value}
+        payload: dict = {
+            "clip_ids": clip_ids,
+            "mode": mode.value,
+            "override_audio_checks": override_checks,
+        }
         return host_command_result(
-            submit_host_document_command(project, "DeleteClip", payload, client_id="cli")
+            submit_host_document_command(
+                project, "DeleteClip", payload, client_id=cli_actor(), role="cli"
+            )
         )
 
     typer.echo(json.dumps(require_cut_applied(delete), indent=2))
@@ -646,6 +680,7 @@ def edit_trim_clip_cmd(
         "--mode",
         help="ripple: every dialogue track moves with the edge; gap: only this edge moves",
     ),
+    override_checks: bool = override_audio_checks_option(),
 ) -> None:
     """Move one clip edge; `play context` suggests the value."""
     if edge not in ("in", "out"):
@@ -654,7 +689,7 @@ def edit_trim_clip_cmd(
     ws = ProjectWorkspace.open(project)
 
     def trim() -> dict:
-        with ws.transaction():
+        with cli_override(override_checks), ws.transaction():
             service = EditService(ws)
             revision = service.boundary_context(
                 TrimBoundaryTarget(clip_id=clip, edge=trim_edge, mode=mode)

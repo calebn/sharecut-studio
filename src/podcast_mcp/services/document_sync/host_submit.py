@@ -8,7 +8,11 @@ from typing import Any
 
 from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document_sync.commands import DocumentCommand, DocumentCommandType
+from podcast_mcp.services.document_sync.commands import (
+    ClientRole,
+    DocumentCommand,
+    DocumentCommandType,
+)
 from podcast_mcp.services.document_sync.payloads import validate_payload
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.util.coded_error import CodedValueError
@@ -21,6 +25,7 @@ def submit_host_document_command(
     *,
     client_id: str = "mcp-agent",
     command_id: str | None = None,
+    role: ClientRole = "agent",
 ) -> dict[str, Any]:
     """Apply via DocumentSyncService so the GUI sees the same command log."""
     validated = validate_payload(command_type, payload)
@@ -30,7 +35,7 @@ def submit_host_document_command(
         type=command_type,
         payload=validated,
         client_id=client_id,
-        role="agent",
+        role=role,
         client_seq=None,  # server-assigned: separate CLI/MCP processes never collide
     )
     if command_id is not None:

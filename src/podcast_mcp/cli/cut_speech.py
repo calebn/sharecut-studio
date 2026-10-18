@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import getpass
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from typing import Any, TypeVar
 
 import typer
 
+from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 
 T = TypeVar("T")
@@ -24,5 +27,31 @@ def require_cut_applied(run: Callable[[], T]) -> T:
     if pending is None:
         return result
     typer.echo(str(pending["message"]), err=True)
-    typer.echo("Nothing changed. Review and approve this cut in Sharecut Studio.", err=True)
+    typer.echo(
+        "Nothing changed. To apply this cut as is, repeat the command with "
+        "--override-audio-checks.",
+        err=True,
+    )
     raise typer.Exit(1)
+
+
+def override_audio_checks_option() -> Any:
+    return typer.Option(
+        False,
+        "--override-audio-checks",
+        help=(
+            "Apply even if the automatic audio-quality and cut-position checks would hold "
+            "this edit (a mid-word or harsh cut you want anyway). Recorded in the edit log."
+        ),
+    )
+
+
+def cli_actor() -> str:
+    try:
+        return f"cli:{getpass.getuser()}"
+    except (KeyError, OSError):
+        return "cli:unknown"
+
+
+def cli_override(enabled: bool) -> AbstractContextManager[Any]:
+    return audio_check_override(cli_actor(), "cli", enabled=enabled)

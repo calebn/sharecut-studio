@@ -483,7 +483,9 @@ def test_a_lane_problem_reads_as_a_sentence(cause: str, sentence: str) -> None:
     assert message == (
         "Host's cut at 0:04.0 was not applied because the pause cannot retain enough original "
         f"quiet audio safely ({sentence}). "
-        "Select the part to cut on the timeline, or reject the held cuts."
+        "Select the part to cut on the timeline, or reject the held cuts. "
+        "To apply it as is, repeat the call with the audio-check override "
+        "(CLI --override-audio-checks, MCP override_audio_checks=true)."
     )
 
 

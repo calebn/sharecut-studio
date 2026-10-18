@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from podcast_mcp.edits.audio_check_override import OVERRIDE_FLAG, audio_check_override
 from podcast_mcp.edits.clip_fades import ClipFadeChangedError
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
@@ -811,7 +812,12 @@ class DocumentSyncService:
         if command.type in AUTHORED_COMMANDS:
             payload["_author"] = author
         try:
-            return apply_command(self.ws, command.type, payload)
+            with audio_check_override(
+                author or command.client_id,
+                command.role,
+                enabled=payload.get(OVERRIDE_FLAG) is True,
+            ):
+                return apply_command(self.ws, command.type, payload)
         except STALE_TARGET_ERRORS as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 

@@ -43,6 +43,11 @@ _SOUND_WINDOW_SEC = 0.5
 # Past this many window reads, decode each track once instead.
 _WINDOW_READS_MAX = 8
 
+APPLY_ANYWAY = (
+    "To apply it as is, repeat the call with override_audio_checks=true "
+    "(CLI --override-audio-checks)."
+)
+
 
 class CutSpeechConfirmation(BaseModel):
     """A programmatic cut held for interactive review; nothing changed."""
@@ -58,6 +63,7 @@ class CutSpeechConfirmation(BaseModel):
             "operation": operation,
             "unchanged": True,
             "needs_confirmation": self.model_dump(mode="json"),
+            "apply_anyway": APPLY_ANYWAY,
         }
 
 
