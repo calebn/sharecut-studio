@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing as mp
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from filelock import FileLock, Timeout
@@ -25,14 +27,18 @@ from podcast_mcp.services.document_sync.service import (
 )
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
+from podcast_mcp.util.file_locks import file_lock_holder_pid
 from podcast_mcp.util.project_state import (
     LOCK_BUSY_MESSAGE,
+    PROJECT_BUSY_CODE,
+    LockContention,
     ProjectBusyError,
     RenderBusyError,
     busy_message,
     project_commit_lock,
     project_commit_lock_path,
 )
+from podcast_mcp.util.tool_refusal import guest_failure_detail, tool_refusal
 from process_helpers import observe_failed_commit_lock_attempt, reap
 from review_platform import requires_safe_failed_cleanup
 from review_platform import (
@@ -112,8 +118,13 @@ def test_commit_lock_acquire_timeout_raises_project_busy_error(minimal_project, 
     finally:
         release.set()
         reap(proc, 30)
-    # Never names the lock path.
     assert str(lock_path) not in str(excinfo.value)
+    contention = excinfo.value.contention
+    assert contention is not None
+    assert contention.waited_seconds >= 0.3
+    if sys.platform == "linux":
+        assert contention.holder_pid == proc.pid
+        assert file_lock_holder_pid(lock_path) is None
 
 
 def test_commit_lock_does_not_rewrap_a_timeout_raised_in_the_held_body(minimal_project):
@@ -461,3 +472,51 @@ def test_external_mutate_from_another_process_advances_meta_server_seq(minimal_p
         store.close()
     assert len(rows) == 1
     assert rows[0]["type"] == "ExternalMutate"
+
+
+@pytest.mark.parametrize("error", [ProjectBusyError, RenderBusyError])
+def test_contention_diagnostics_stay_out_of_shared_and_guest_refusals(error):
+    fixed = error("/private/host/episode.project.json.lock")
+    observed = error(
+        "/private/host/episode.project.json.lock", contention=LockContention(30.25, 4242)
+    )
+    assert str(observed) == str(fixed)
+    assert busy_message(observed) == busy_message(fixed)
+    for for_guest in (False, True):
+        refusal = tool_refusal(observed, for_guest=for_guest)
+        assert refusal == tool_refusal(fixed, for_guest=for_guest)
+        assert refusal is not None
+        assert refusal.code == PROJECT_BUSY_CODE
+        for private_detail in ("4242", "30.25", "/private/host"):
+            assert private_detail not in refusal.message
+    assert guest_failure_detail(observed) == guest_failure_detail(fixed)
+
+
+def test_commit_contention_measures_only_file_lock_wait(minimal_project, monkeypatch):
+    project = load_project(minimal_project)
+    clock = [100.0]
+
+    @contextlib.contextmanager
+    def state_lock(_project):
+        clock[0] += 20
+        yield
+
+    def acquire(*, timeout):
+        assert timeout == 30.0
+        clock[0] += 3
+        raise Timeout("busy.lock")
+
+    def observe(_path):
+        clock[0] += 10
+        return 4242
+
+    monkeypatch.setattr(project_state, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    monkeypatch.setattr(project_state, "project_state_lock", state_lock)
+    monkeypatch.setattr(
+        project_state, "shared_file_lock", lambda _path: SimpleNamespace(acquire=acquire)
+    )
+    monkeypatch.setattr(project_state, "file_lock_holder_pid", observe)
+    with pytest.raises(ProjectBusyError) as info:
+        with project_commit_lock(project):
+            pytest.fail("contended body ran")
+    assert info.value.contention == LockContention(waited_seconds=3.0, holder_pid=4242)

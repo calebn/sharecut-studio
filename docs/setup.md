@@ -763,6 +763,18 @@ including unset, keeps the one-line message. A bug that is not a domain conditio
 (`TypeError`, a bad unpack, `NotImplementedError`) always shows its traceback — the
 one-line message only replaces `ValueError` / `RuntimeError`.
 
+For a busy project commit or render lock, the host CLI reports the measured
+file-lock wait when available. This excludes CLI startup and time spent waiting
+for the in-process state lock. On Linux, a readable `/proc/locks` can identify a
+single kernel-observed holder PID at timeout. That holder can change immediately.
+Other platforms, inaccessible procfs, or an uncertain observation report an unknown
+holder. Activity, lock hold duration, and remaining time are unknown.
+
+Wait for ongoing CLI or Studio work to finish, then retry the same command.
+If unsure, check Studio progress. Do not delete the lock file or kill a process
+to clear the message. Lock ordering and wait limits are unchanged. Guest and
+shared error messages retain their fixed text without PID or timing details.
+
 ## Troubleshooting
 
 The CLI and host Help share diagnostics-bundle creation through

@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
 from typing import Concatenate, ParamSpec, TypeVar
@@ -15,7 +16,7 @@ from typing import Concatenate, ParamSpec, TypeVar
 from filelock import Timeout
 
 from podcast_mcp.models import EpisodeProject, project_file_path, workspace_artifacts_dir
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import file_lock_holder_pid, shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import CancelledProgress
 
@@ -59,6 +60,12 @@ _render_cancel_check: ContextVar[Callable[[], bool] | None] = ContextVar(
 )
 
 
+@dataclass(frozen=True)
+class LockContention:
+    waited_seconds: float
+    holder_pid: int | None
+
+
 class ProjectBusyError(Timeout):
     """``project_commit_lock`` timed out waiting for another process's commit (#488).
 
@@ -67,6 +74,10 @@ class ProjectBusyError(Timeout):
     point (CLI ``BusyErrorGroup``, MCP ``install_tool_errors``, guest remote MCP, and the
     GUI's app-wide exception handler) maps it to the same ``project_busy`` code.
     """
+
+    def __init__(self, lock_file: str, *, contention: LockContention | None = None) -> None:
+        super().__init__(lock_file)
+        self.contention = contention
 
     def __str__(self) -> str:
         return PROJECT_BUSY_MESSAGE
@@ -178,10 +189,15 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     lock_path = project_commit_lock_path(project)
     lock = shared_file_lock(lock_path)
     with project_state_lock(project):
+        started = time.monotonic()
         try:
             lock.acquire(timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC)
         except Timeout as exc:
-            raise ProjectBusyError(str(lock_path)) from exc
+            waited = time.monotonic() - started
+            raise ProjectBusyError(
+                str(lock_path),
+                contention=LockContention(waited, file_lock_holder_pid(lock_path)),
+            ) from exc
         try:
             yield
         finally:
@@ -253,7 +269,8 @@ def render_lock(
             "lock, then the project locks (#482)"
         )
     check = cancel_check if cancel_check is not None else current_cancel_check()
-    deadline = time.monotonic() + timeout
+    started = time.monotonic()
+    deadline = started + timeout
     try:
         lock.acquire(timeout=0)
     except Timeout:
@@ -263,7 +280,12 @@ def render_lock(
                 raise CancelledProgress("cancelled while waiting for another render") from None
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise RenderBusyError(str(render_lock_path(project))) from None
+                waited = time.monotonic() - started
+                lock_path = render_lock_path(project)
+                raise RenderBusyError(
+                    str(lock_path),
+                    contention=LockContention(waited, file_lock_holder_pid(lock_path)),
+                ) from None
             try:
                 lock.acquire(timeout=min(RENDER_LOCK_POLL_SEC, remaining))
                 break

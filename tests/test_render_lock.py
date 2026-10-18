@@ -53,6 +53,8 @@ def test_a_render_lock_wait_past_its_timeout_raises_render_busy(minimal_project)
             pass
     assert isinstance(info.value, Timeout)
     assert "another render" in str(info.value)
+    assert info.value.contention is not None
+    assert info.value.contention.waited_seconds >= 0.3
     assert time.monotonic() - started < 5
 
 
@@ -174,3 +176,12 @@ def test_project_commit_lock_holds_the_state_lock(minimal_project) -> None:
         t.start()
         t.join(5)
     assert got == [False]
+
+
+def test_render_lock_preserves_a_timeout_from_the_held_body(minimal_project):
+    project = load_project(minimal_project)
+    inner = Timeout("another.lock")
+    with pytest.raises(Timeout) as info:
+        with render_lock(project):
+            raise inner
+    assert info.value is inner

@@ -37,7 +37,7 @@ from filelock import Timeout
 from typer.core import TyperGroup
 
 from podcast_mcp.util.coded_error import CodedError, describe_error
-from podcast_mcp.util.project_state import busy_message
+from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError, busy_message
 
 _DEBUG_ENV_VAR = "PODCAST_DEBUG"
 _DEBUG_HINT = f"(set {_DEBUG_ENV_VAR}=1 for the traceback)"
@@ -64,6 +64,28 @@ def _debug_enabled() -> bool:
     return os.environ.get(_DEBUG_ENV_VAR, "").strip().lower() in _DEBUG_TRUE_VALUES
 
 
+def _host_busy_message(exc: Timeout) -> str:
+    if not isinstance(exc, ProjectBusyError):
+        return busy_message(exc)
+    details = [busy_message(exc) + "."]
+    contention = exc.contention
+    if contention is not None:
+        kind = "render" if isinstance(exc, RenderBusyError) else "project commit"
+        details.append(f"Waited {contention.waited_seconds:.1f}s for the {kind} lock.")
+    if contention is not None and contention.holder_pid is not None:
+        details.append(
+            f"Kernel-observed holder PID {contention.holder_pid} at timeout; the holder may change."
+        )
+    else:
+        details.append("Holder unknown; no PID is available.")
+    details.append("Activity, lock hold duration, and remaining time are unknown.")
+    details.append(
+        "Wait for the other command or Studio job to finish, then retry the same command. "
+        "If unsure, check Studio progress."
+    )
+    return " ".join(details)
+
+
 class BusyErrorGroup(TyperGroup):
     """See module docstring: the CLI's one choke point for a busy lock or domain error."""
 
@@ -75,7 +97,7 @@ class BusyErrorGroup(TyperGroup):
         except Timeout as exc:
             if _debug_enabled():
                 raise
-            typer.echo(f"Error: {busy_message(exc)} {_DEBUG_HINT}", err=True)
+            typer.echo(f"Error: {_host_busy_message(exc)} {_DEBUG_HINT}", err=True)
             raise typer.Exit(1) from exc
         except _DOMAIN_ERRORS as exc:
             if _debug_enabled():
