@@ -483,7 +483,9 @@ Speaker labels in the transcript open a name editor for hosts and shares with th
 
 ### Transcript find and replace
 
-Hosts can open **Find and replace** in the Transcript toolbar or command palette. Enter a word or phrase and its replacement, choose **Match case** if needed, then select **Preview replacements**. Search matches whole word tokens, ignores surrounding punctuation for matching, and keeps existing edge punctuation unless the replacement explicitly supplies that edge. Case matching is off by default; replacement case is exactly what the host enters. Regular expressions and partial-word replacement are not supported.
+Hosts can open **Find and replace** in the Transcript toolbar or command palette. On desktop and tablet, the palette action reveals Transcript when the editor panels are hidden, including after reload. The panels return at their previous height and stay visible on the next reload. The transcript layout stays in place when it already shows Transcript. Running the action again closes the form.
+
+Enter a word or phrase and its replacement, choose **Match case** if needed, then select **Preview replacements**. Search matches whole word tokens, ignores surrounding punctuation for matching, and keeps existing edge punctuation unless the replacement explicitly supplies that edge. Case matching is off by default; replacement case is exactly what the host enters. Regular expressions and partial-word replacement are not supported.
 
 The preview lists before/after text with track, source recording, and source-media time. It searches every stored source transcript, including cut-away text. Suppressed and ignored words are skipped and cannot bridge a phrase; the preview reports their count. Unchanged replacements do not create history. Preview rows load into the list in groups of 100; **Show more replacements** reveals the next group, while **Replace all** applies the complete counted set.
 
