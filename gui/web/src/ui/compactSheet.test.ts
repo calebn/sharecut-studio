@@ -3,6 +3,9 @@ import {
   capInspectorSheet,
   capInspectorSheetForLane,
   editedLaneTrack,
+  inspectorSheetBottom,
+  inspectorSheetPanel,
+  inspectorSheetTop,
 } from "./compactSheet";
 
 describe("editedLaneTrack", () => {
@@ -36,5 +39,24 @@ describe("capInspectorSheet", () => {
     capInspectorSheet(null);
     expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("144px");
     expect(panel.style.getPropertyValue("--sheet-cap")).toBe("");
+  });
+});
+
+describe("the Inspector column", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("is invisible to every keep-clear helper, which look for the sheet class", () => {
+    const panel = document.createElement("div");
+    panel.className = "bottom-sheet bottom-sheet--column";
+    document.body.append(panel);
+    expect(inspectorSheetPanel()).toBeNull();
+    expect(inspectorSheetTop()).toBeNull();
+    expect(inspectorSheetBottom()).toBeNull();
+    capInspectorSheet(120);
+    capInspectorSheetForLane(120);
+    expect(panel.style.getPropertyValue("--sheet-cap")).toBe("");
+    expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("");
   });
 });

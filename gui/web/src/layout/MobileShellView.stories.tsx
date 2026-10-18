@@ -196,6 +196,7 @@ function PhonePreview(args: PreviewProps) {
             : inspector
               ? {
                   kind: "inspector",
+                  placement: "sheet",
                   expanded,
                   content: <ShellStoryInspector />,
                   onClose: () => {

@@ -44,6 +44,7 @@ describe("StudioShellView", () => {
     const props = presentation();
     const ref = vi.fn();
     const sheet = {
+      placement: "sheet" as const,
       open: true,
       expanded: false,
       content: <p>Fields</p>,
@@ -264,6 +265,7 @@ describe("StudioShellView", () => {
       kind: "tablet",
       tools: <p>Select tool rail</p>,
       sheet: {
+        placement: "sheet",
         open: true,
         expanded: true,
         content: <p>Selected track</p>,
@@ -289,5 +291,69 @@ describe("StudioShellView", () => {
     );
     expect(onClose.mock.calls).toEqual([[]]);
     await expectNoA11yViolations(document.body);
+  });
+
+  it("places the Inspector in the shell as a column and hides the tabs row", () => {
+    const props = presentation();
+    const sheet = {
+      placement: "column" as const,
+      open: true,
+      expanded: false,
+      content: <p>Fields</p>,
+      onClose: vi.fn(),
+      onExpandedChange: vi.fn(),
+      className: "",
+    };
+    const { container, rerender } = render(
+      <StudioShellView
+        {...props}
+        inspector={{ kind: "tablet", tools: null, sheet }}
+      />,
+    );
+    const shell = container.querySelector(".daw-shell");
+    expect(shell).toHaveClass("daw-shell--inspector-column");
+    const dialog = screen.getByRole("dialog", { name: "Inspector" });
+    expect(shell?.contains(dialog)).toBe(true);
+    expect(dialog.parentElement).toBe(shell);
+    expect(dialog.className).not.toContain("bottom-sheet--inspector");
+    expect(document.querySelector(".bottom-sheet-root")).toBeNull();
+    rerender(
+      <StudioShellView
+        {...props}
+        inspector={{
+          kind: "tablet",
+          tools: null,
+          sheet: { ...sheet, open: false },
+        }}
+      />,
+    );
+    expect(container.querySelector(".daw-shell")).not.toHaveClass(
+      "daw-shell--inspector-column",
+    );
+  });
+
+  it("leaves the shell alone for a sheet", () => {
+    const props = presentation();
+    const { container } = render(
+      <StudioShellView
+        {...props}
+        inspector={{
+          kind: "tablet",
+          tools: null,
+          sheet: {
+            placement: "sheet",
+            open: true,
+            expanded: false,
+            content: <p>Fields</p>,
+            onClose: vi.fn(),
+            onExpandedChange: vi.fn(),
+          },
+        }}
+      />,
+    );
+    expect(container.querySelector(".daw-shell")).not.toHaveClass(
+      "daw-shell--inspector-column",
+    );
+    expect(document.querySelector(".bottom-sheet-root")).not.toBeNull();
   });
 });

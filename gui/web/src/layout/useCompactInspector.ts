@@ -7,7 +7,8 @@
  * stows it until release.
  *
  * Phone-sized: the phone shell's Timeline mode, or the tablet shell on a
- * short screen (a phone held sideways). Real tablets keep their sheet.
+ * short screen (a phone held sideways). Real tablets keep their sheet. Where
+ * the Inspector is a side column (#1696) there is no sheet to peek from.
  */
 import {
   type ComponentProps,
@@ -108,10 +109,11 @@ function clearClearance(): void {
 /**
  * The compact inspector for `shell` (Timeline mode on the phone shell, or a
  * short tablet shell; null for the desktop shell), or null where the usual
- * sheet applies.
+ * sheet or the side `column` applies.
  */
 export function useCompactInspector(
   shell: "phone" | "tablet" | null,
+  column: boolean,
 ): CompactInspector | null {
   const short = useShortScreen();
   const {
@@ -137,6 +139,7 @@ export function useCompactInspector(
   }));
   // Armed, the sheet carries the In and Out fields at full size, not a strip.
   const applies =
+    !column &&
     !rangeArmed &&
     (shell === "phone"
       ? mobileMode === "timeline"

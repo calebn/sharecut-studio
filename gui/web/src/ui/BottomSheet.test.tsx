@@ -681,4 +681,85 @@ describe("BottomSheet", () => {
       ).toHaveFocus();
     });
   });
+
+  describe("as a column", () => {
+    const drawer = {
+      detents: ["peek", "half", "full"] as const,
+      detent: "half" as const,
+      onDetentChange: vi.fn(),
+      label: "Inspector height",
+    };
+
+    it("renders in place with no scrim, drawer or resize buttons", () => {
+      const onExpandedChange = vi.fn();
+      const { container } = render(
+        <main>
+          <BottomSheet
+            open
+            placement="column"
+            onClose={vi.fn()}
+            backgroundPolicy="interactive"
+            title="Inspector"
+            drawer={drawer}
+            onExpandedChange={onExpandedChange}
+            compactResizeIcons
+          >
+            <p>Fields</p>
+          </BottomSheet>
+        </main>,
+      );
+      const dialog = screen.getByRole("dialog", { name: "Inspector" });
+      expect(container.contains(dialog)).toBe(true);
+      expect(dialog).toHaveAttribute("aria-modal", "false");
+      expect(dialog).toHaveClass("bottom-sheet", "bottom-sheet--column");
+      expect(dialog.className).not.toMatch(/bottom-sheet--(half|full|peek)/);
+      expect(document.querySelector(".bottom-sheet-root")).toBeNull();
+      expect(document.querySelector(".bottom-sheet-scrim")).toBeNull();
+      expect(screen.queryByRole("slider")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: /expand|collapse/i }),
+      ).toBeNull();
+      expect(within(dialog).getByText("Fields")).toBeVisible();
+    });
+
+    it("keeps the header, Close and Escape", async () => {
+      const onClose = vi.fn();
+      render(
+        <BottomSheet
+          open
+          placement="column"
+          onClose={onClose}
+          backgroundPolicy="interactive"
+          title="Inspector"
+        >
+          <p>Fields</p>
+        </BottomSheet>,
+      );
+      expect(
+        screen.getByRole("heading", { name: "Inspector" }),
+      ).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(onClose).toHaveBeenCalledTimes(2);
+    });
+
+    it("has no accessibility violations", async () => {
+      const { container } = render(
+        <BottomSheet
+          open
+          placement="column"
+          onClose={vi.fn()}
+          backgroundPolicy="interactive"
+          title="Inspector"
+        >
+          <label>
+            Gain
+            <input type="number" />
+          </label>
+        </BottomSheet>,
+      );
+      await expectNoA11yViolations(container);
+    });
+  });
 });
