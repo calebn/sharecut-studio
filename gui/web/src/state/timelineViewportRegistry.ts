@@ -11,11 +11,21 @@ export type VisualPan = Readonly<{
   projectPath: string;
 }>;
 
+export type LayoutScrollProjection = Readonly<{
+  projectPath: string;
+  playheadSec: number;
+  seekRevision: number;
+  zoomPxPerSec: number;
+  requestedLeft: number;
+  appliedLeft: number;
+}>;
+
 /** Mounted timeline elements are ephemeral and never part of reactive DAW state. */
 let timelineElement: HTMLElement | null = null;
 let lanesElement: HTMLElement | null = null;
 let leadPx = 0;
 let visualPan: VisualPan | null = null;
+let layoutProjection: LayoutScrollProjection | null = null;
 
 export const timelineViewportRegistry = {
   getTimelineElement: () => timelineElement,
@@ -34,10 +44,15 @@ export const timelineViewportRegistry = {
   setVisualPan: (pan: VisualPan | null) => {
     visualPan = pan;
   },
+  getLayoutProjection: () => layoutProjection,
+  setLayoutProjection: (projection: LayoutScrollProjection | null) => {
+    layoutProjection = projection;
+  },
   clear: () => {
     timelineElement = null;
     lanesElement = null;
     leadPx = 0;
     visualPan = null;
+    layoutProjection = null;
   },
 };

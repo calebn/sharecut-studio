@@ -24,6 +24,7 @@ import {
   fixedPlayheadLeadPx,
   followScrollLeft,
   logicalToDomScrollLeft,
+  measureTimelineColumns,
   minLogicalScrollLeft,
   PLAYHEAD_MOVE_MIN_PX,
   SCROLL_SYNC_EPS_PX,
@@ -72,6 +73,22 @@ type ScrollBinding = Readonly<{
   /** The playhead time a person's own scroll set; the follow leaves it be. */
   scrubSecRef: RefObject<number | null>;
 }>;
+
+function requestedScrollLeft(state: ReturnType<typeof useDawStore.getState>) {
+  const projection = timelineViewportRegistry.getLayoutProjection();
+  if (
+    projection &&
+    projection.projectPath === state.projectPath &&
+    projection.playheadSec === state.playheadSec &&
+    projection.seekRevision === state.playheadSeekRevision &&
+    projection.zoomPxPerSec === state.zoomPxPerSec &&
+    projection.appliedLeft === state.scrollLeft
+  ) {
+    return projection.requestedLeft;
+  }
+  timelineViewportRegistry.setLayoutProjection(null);
+  return state.scrollLeft;
+}
 
 type ScrollResult = Readonly<{
   leadPx: number;
@@ -138,6 +155,7 @@ export function useFixedPlayheadScroll({
     (el: HTMLElement, logical: number, lead: number) => {
       const dom = logicalToDomScrollLeft(logical, lead);
       if (Math.abs(el.scrollLeft - dom) <= SCROLL_SYNC_EPS_PX) {
+        lastWrittenScrollRef.current = el.scrollLeft;
         return;
       }
       // The flag covers this frame's scroll event; the marker a late one.
@@ -159,6 +177,12 @@ export function useFixedPlayheadScroll({
     if (!el) {
       return;
     }
+    const columns = measureTimelineColumns(el);
+    if (
+      Math.abs(columns.timeViewportPx - timeViewportPx) > SCROLL_SYNC_EPS_PX
+    ) {
+      return;
+    }
     const dom = el.scrollLeft;
     const logicalLeft = domToLogicalScrollLeft(dom, leadPx);
     // Only a person's scroll unfollows or seeks. Fit, recentering and follow
@@ -170,6 +194,8 @@ export function useFixedPlayheadScroll({
       Math.abs(dom - lastWrittenScrollRef.current) <= SCROLL_SYNC_EPS_PX;
     if (!anchoringZoom.current && !isProgrammaticScroll() && !echo) {
       lastWrittenScrollRef.current = null;
+      timelineViewportRegistry.setLayoutProjection(null);
+      timelineViewportRegistry.setVisualPan(null);
       if (followingClientId) {
         stopFollow("local");
       }
@@ -266,16 +292,58 @@ export function useFixedPlayheadScroll({
  * content (no clamp to the old width, zoom anchoring kept).
  */
 export function TimelineScrollSync({ binding }: { binding: ScrollBinding }) {
-  const { scrollRef, leadPx, writeScroll } = binding;
+  const { scrollRef, leadPx, timeViewportPx, writeScroll } = binding;
   const scrollLeft = useDawStore((s) => s.scrollLeft);
   const zoomPxPerSec = useDawStore((s) => s.zoomPxPerSec);
+  const geometryRef = useRef<{
+    leadPx: number;
+    timeViewportPx: number;
+    zoomPxPerSec: number;
+  } | null>(null);
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) {
       return;
     }
-    writeScroll(el, scrollLeft, leadPx);
-  }, [scrollLeft, zoomPxPerSec, leadPx, writeScroll, scrollRef]);
+    const previous = geometryRef.current;
+    const geometryChanged =
+      !previous ||
+      previous.leadPx !== leadPx ||
+      previous.timeViewportPx !== timeViewportPx ||
+      previous.zoomPxPerSec !== zoomPxPerSec;
+    geometryRef.current = { leadPx, timeViewportPx, zoomPxPerSec };
+    const state = useDawStore.getState();
+    const requestedLeft = requestedScrollLeft(state);
+    if (
+      geometryChanged ||
+      Math.abs(
+        el.scrollLeft - logicalToDomScrollLeft(state.scrollLeft, leadPx),
+      ) > SCROLL_SYNC_EPS_PX
+    ) {
+      writeScroll(el, requestedLeft, leadPx);
+    }
+    const appliedLeft = domToLogicalScrollLeft(el.scrollLeft, leadPx);
+    timelineViewportRegistry.setLayoutProjection(
+      Math.abs(appliedLeft - requestedLeft) > SCROLL_SYNC_EPS_PX
+        ? {
+            projectPath: state.projectPath,
+            playheadSec: state.playheadSec,
+            seekRevision: state.playheadSeekRevision,
+            zoomPxPerSec: state.zoomPxPerSec,
+            requestedLeft,
+            appliedLeft,
+          }
+        : null,
+    );
+    if (appliedLeft !== state.scrollLeft) state.setScrollLeft(appliedLeft);
+  }, [
+    scrollLeft,
+    zoomPxPerSec,
+    leadPx,
+    timeViewportPx,
+    writeScroll,
+    scrollRef,
+  ]);
   return null;
 }
 
@@ -313,11 +381,28 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     zoom: zoomPxPerSec,
     playhead: playheadSec,
     scroll: scrollLeft,
+    requestedScroll: scrollLeft,
     seekRevision: playheadSeekRevision,
   });
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
+    const current = useDawStore.getState();
+    const {
+      playheadSec,
+      playheadSeekRevision,
+      zoomPxPerSec,
+      scrollLeft,
+      userZoomed,
+      project,
+      projectPath,
+    } = current;
+    const recordState = useRecordHostStore.getState().snapshot?.state;
+    const pan = timelineViewportRegistry.getVisualPan();
+    if (pan && recordState !== "recording" && recordState !== "paused") {
+      timelineViewportRegistry.setLayoutProjection(null);
+    }
+    const requestedLeft = requestedScrollLeft(current);
     // Track every change, even while unpadded, so a later switch to a fixed
     // playhead does not read an old zoom as a pinch.
     const prev = prevRef.current;
@@ -325,6 +410,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       zoom: zoomPxPerSec,
       playhead: playheadSec,
       scroll: scrollLeft,
+      requestedScroll: requestedLeft,
       seekRevision: playheadSeekRevision,
     };
     const zoomChanged = prev.zoom !== zoomPxPerSec;
@@ -332,7 +418,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     const seekRevisionChanged =
       prev.seekRevision !== playheadSeekRevision &&
       playheadSeekRevision !== scrubRevisionRef.current;
-    if (!fixedPlayhead || !project) {
+    if (!project) {
       timelineViewportRegistry.setVisualPan(null);
       return;
     }
@@ -343,25 +429,25 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     const firstLook = !readyRef.current;
     readyRef.current = true;
 
-    const pan = timelineViewportRegistry.getVisualPan();
     const retainsOriginalPanGeometry =
       pan !== null &&
-      pan.playheadSec === playheadSec &&
-      pan.seekRevision === playheadSeekRevision &&
-      pan.projectPath === projectPath &&
-      ((pan.scrollLeft === scrollLeft && pan.zoomPxPerSec === zoomPxPerSec) ||
+      pan.playheadSec === current.playheadSec &&
+      pan.seekRevision === current.playheadSeekRevision &&
+      pan.projectPath === current.projectPath &&
+      ((pan.scrollLeft === requestedLeft &&
+        pan.zoomPxPerSec === current.zoomPxPerSec) ||
         (zoomChanged &&
           userZoomed &&
-          pan.scrollLeft === prev.scroll &&
+          pan.scrollLeft === prev.requestedScroll &&
           pan.zoomPxPerSec === prev.zoom));
     const geometry = retainsOriginalPanGeometry
       ? pan.geometry
       : {
-          scrollLeft,
+          scrollLeft: requestedLeft,
           lineOffsetPx: fixedLineOffsetPx(
             playheadSec,
             zoomPxPerSec,
-            scrollLeft,
+            requestedLeft,
             timeViewportPx,
           ),
           zoomPxPerSec,
@@ -375,7 +461,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       visualOnlyScroll
         ? {
             geometry,
-            scrollLeft,
+            scrollLeft: requestedLeft,
             zoomPxPerSec,
             playheadSec,
             seekRevision: playheadSeekRevision,
@@ -383,6 +469,7 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
           }
         : null,
     );
+    if (!fixedPlayhead) return;
     if (visualOnlyScroll && !playheadChanged && !seekRevisionChanged) return;
     const panEnded = pan !== null && !visualOnlyScroll;
 
@@ -435,8 +522,8 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     const offView = rawLineX < -edge || rawLineX > timeViewportPx + edge;
     if (!seekRevisionChanged && !pastCenter && !offView) return;
     const target = followScrollLeft(playheadSec, zoomPxPerSec, timeViewportPx);
-    const current = domToLogicalScrollLeft(el.scrollLeft, leadPx);
-    if (Math.abs(current - target) > PLAYHEAD_MOVE_MIN_PX) {
+    const currentLeft = domToLogicalScrollLeft(el.scrollLeft, leadPx);
+    if (Math.abs(currentLeft - target) > PLAYHEAD_MOVE_MIN_PX) {
       writeScroll(el, target, leadPx);
       setScrollLeft(target);
     }

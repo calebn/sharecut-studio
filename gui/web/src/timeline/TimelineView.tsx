@@ -818,7 +818,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         aria-busy="true"
         aria-label="Loading timeline"
       >
-        {scrollLeaves}
         <div className="timeline-scroll" ref={scrollRef}>
           <div
             className={
@@ -844,6 +843,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
             </div>
           </div>
         </div>
+        {scrollLeaves}
       </div>
     );
   }
@@ -925,7 +925,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               } as CSSProperties
             }
           >
-            {scrollLeaves}
             <WaveformStatusSync />
             {layers.showProsody ? (
               <ProsodyStatusAnnouncer overlay={prosodyLatest} />
@@ -1163,6 +1162,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                 />
               </div>
             </div>
+            {scrollLeaves}
             {/* After the scroller on purpose: at the lane floor's z, tree order
               paints the edges over it, and clips and markers stay above. */}
             {chooser && hitRouter ? (

@@ -21,6 +21,10 @@ describe("useFixedPlayheadScroll", () => {
   beforeEach(() => {
     raf = stubRaf();
     el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", {
+      value: 400,
+      configurable: true,
+    });
     document.body.append(el);
     useDawStore.getState().hydrate("/tmp/scroll-hook.json", minimalProject());
     useDawStore.setState({
@@ -81,56 +85,83 @@ describe("useFixedPlayheadScroll", () => {
     );
   }
 
-  it("keeps saved-end intent when a resize clamps the browser before measurement", () => {
-    let clientWidth = 600;
-    let scrollWidth = 2030;
-    let left = 0;
-    Object.defineProperties(el, {
-      clientWidth: { get: () => clientWidth },
-      scrollWidth: { get: () => scrollWidth },
-      scrollLeft: {
-        get: () => left,
-        set: (value: number) => {
-          left = Math.max(0, Math.min(value, el.scrollWidth - clientWidth));
+  it.each([false, true])(
+    "keeps saved-end intent when a resize clamps the browser before measurement, delayed echo %s",
+    (delayedEcho) => {
+      let clientWidth = 600;
+      let scrollWidth = 2030;
+      let left = 0;
+      Object.defineProperties(el, {
+        clientWidth: { get: () => clientWidth },
+        scrollWidth: { get: () => scrollWidth },
+        scrollLeft: {
+          get: () => left,
+          set: (value: number) => {
+            left = Math.max(0, Math.min(value, el.scrollWidth - clientWidth));
+          },
         },
-      },
-    });
-    useDawStore
-      .getState()
-      .hydrate(
-        "/tmp/scroll-hook.json",
-        minimalProject({ timeline_duration_sec: 120 }),
-      );
-    useDawStore.setState({
-      scrollLeft: 1200,
-      playheadSec: 120,
-      playheadSeekRevision: 3,
-      followingClientId: "leader",
-    });
-    input = { ...input, sessionSec: 120, followingClientId: "leader" };
-    const view = render(<MountedTimeline timeViewportPx={460} />);
-    act(() => raf.fire(0));
-    expect(el.scrollLeft).toBe(1430);
+      });
+      const header = document.createElement("div");
+      header.className = "track-headers";
+      Object.defineProperty(header, "offsetWidth", { value: 140 });
+      el.append(header);
+      useDawStore
+        .getState()
+        .hydrate(
+          "/tmp/scroll-hook.json",
+          minimalProject({ timeline_duration_sec: 120 }),
+        );
+      useDawStore.setState({
+        scrollLeft: 1200,
+        playheadSec: 120,
+        playheadSeekRevision: 3,
+        followingClientId: "leader",
+      });
+      input = { ...input, sessionSec: 120, followingClientId: "leader" };
+      const view = render(<MountedTimeline timeViewportPx={460} />);
+      act(() => raf.fire(0));
+      expect(el.scrollLeft).toBe(1430);
 
-    // Native layout clamps against the old extent before ResizeObserver measures.
-    clientWidth = 640;
-    left = Math.min(left, el.scrollWidth - clientWidth);
-    expect(el.scrollLeft).toBe(1390);
-    act(() => el.dispatchEvent(new Event("scroll")));
-    expect.soft(useDawStore.getState().playheadSec).toBe(120);
-    expect.soft(useDawStore.getState().playheadSeekRevision).toBe(3);
-    expect.soft(useDawStore.getState().followingClientId).toBe("leader");
-    expect.soft(useDawStore.getState().scrollLeft).toBe(1200);
+      // Native layout clamps against the old extent before ResizeObserver measures.
+      clientWidth = 640;
+      left = Math.min(left, el.scrollWidth - clientWidth);
+      expect(el.scrollLeft).toBe(1390);
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect.soft(useDawStore.getState().playheadSec).toBe(120);
+      expect.soft(useDawStore.getState().playheadSeekRevision).toBe(3);
+      expect.soft(useDawStore.getState().followingClientId).toBe("leader");
+      expect.soft(useDawStore.getState().scrollLeft).toBe(1200);
 
-    scrollWidth = 2090;
-    view.rerender(<MountedTimeline timeViewportPx={500} />);
-    expect(useDawStore.getState().playheadSec).toBe(120);
-    expect(useDawStore.getState().playheadSeekRevision).toBe(3);
-    expect(useDawStore.getState().scrollLeft).toBe(1200);
-    expect(el.scrollLeft).toBe(1450);
-  });
+      scrollWidth = 2090;
+      view.rerender(<MountedTimeline timeViewportPx={500} />);
+      expect(useDawStore.getState().playheadSec).toBe(120);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(3);
+      expect(useDawStore.getState().scrollLeft).toBe(1200);
+      expect(el.scrollLeft).toBe(1450);
+      act(() => raf.fire(0));
+      if (delayedEcho) {
+        act(() => {
+          el.dispatchEvent(new Event("scroll"));
+        });
+        expect(useDawStore.getState().playheadSec).toBe(120);
+        expect(useDawStore.getState().playheadSeekRevision).toBe(3);
+        expect(useDawStore.getState().followingClientId).toBe("leader");
+      }
+      el.scrollLeft = 1400;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(useDawStore.getState().playheadSec).toBe(115);
+      expect(useDawStore.getState().playheadSeekRevision).toBe(4);
+      expect(useDawStore.getState().scrollLeft).toBe(1150);
+      expect(useDawStore.getState().followingClientId).toBeNull();
+    },
+  );
 
   it("restores a preview pan after an ordinary tablet timeline mounts", () => {
+    Object.defineProperty(el, "clientWidth", { value: 460 });
     useRecordHostStore.getState().setSnapshot(
       recordSnapshot({
         state: "paused",
@@ -143,7 +174,9 @@ describe("useFixedPlayheadScroll", () => {
     const phone = render(<MountedTimeline timeViewportPx={460} />);
     act(() => raf.fire(0));
     el.scrollLeft = 780;
-    act(() => el.dispatchEvent(new Event("scroll")));
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+    });
     expect(useDawStore.getState().scrollLeft).toBe(550);
     expect(useDawStore.getState().playheadSec).toBe(20);
     expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
@@ -163,6 +196,119 @@ describe("useFixedPlayheadScroll", () => {
     expect.soft(el.scrollLeft).toBe(780);
     expect(useDawStore.getState().playheadSec).toBe(20);
     expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+  });
+
+  it.each([
+    "return",
+    "tablet scroll",
+    "same-time seek",
+    "Fit",
+    "project switch",
+    "preview end",
+    "pointer zoom",
+  ])("projects a constrained tablet pan through %s", (action) => {
+    let clientWidth = 600;
+    let scrollWidth = 2830;
+    let left = 0;
+    let assignments = 0;
+    Object.defineProperties(el, {
+      clientWidth: { get: () => clientWidth },
+      scrollWidth: { get: () => scrollWidth },
+      scrollLeft: {
+        get: () => left,
+        set: (value: number) => {
+          assignments++;
+          left = Math.max(0, Math.min(value, scrollWidth - clientWidth));
+        },
+      },
+    });
+    const header = document.createElement("div");
+    header.className = "track-headers";
+    Object.defineProperty(header, "offsetWidth", { value: 140 });
+    el.append(header);
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "paused", recording_ms: 200_000 }));
+    useDawStore.setState({ playheadSec: 20, scrollLeft: 100 });
+    const revision = useDawStore.getState().playheadSeekRevision;
+    const phone = render(<MountedTimeline timeViewportPx={460} />);
+    act(() => raf.fire(0));
+    el.scrollLeft = 1430;
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+    });
+    expect(useDawStore.getState().scrollLeft).toBe(1200);
+    phone.unmount();
+
+    clientWidth = 768;
+    scrollWidth = 1341;
+    left = 0;
+    assignments = 0;
+    const tablet = render(
+      <MountedTimeline fixedPlayhead={false} timeViewportPx={628} />,
+    );
+    expect.soft(el.scrollLeft).toBe(573);
+    expect.soft(useDawStore.getState().scrollLeft).toBe(573);
+    expect(assignments).toBe(1);
+    const away = ["same-time seek", "Fit", "project switch"].includes(action);
+    if (away) tablet.unmount();
+    if (action === "tablet scroll") {
+      act(() => raf.fire(0));
+      el.scrollLeft = 400;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      el.scrollLeft = 573;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+    } else if (action === "same-time seek") {
+      act(() => useDawStore.getState().setPlayheadSec(20));
+    } else if (action === "Fit") {
+      act(() => useDawStore.getState().fitToWindow(628));
+    } else if (action === "project switch") {
+      act(() =>
+        useDawStore
+          .getState()
+          .hydrate("/tmp/another-scroll-hook.json", minimalProject()),
+      );
+    } else if (action === "preview end") {
+      act(() => useRecordHostStore.getState().setSnapshot(null));
+      act(() =>
+        useRecordHostStore
+          .getState()
+          .setSnapshot(
+            recordSnapshot({ state: "paused", recording_ms: 200_000 }),
+          ),
+      );
+    } else if (action === "pointer zoom") {
+      timelineViewportRegistry.setTimelineElement(el);
+      act(() => useDawStore.getState().applyAnchoredZoom(5, 250));
+    }
+    if (!away) tablet.unmount();
+    clientWidth = action === "pointer zoom" ? 390 : 600;
+    scrollWidth = 2830;
+    left = 0;
+    const returnedWidth = clientWidth - 140;
+    render(<MountedTimeline timeViewportPx={returnedWidth} />);
+    if (action === "return") {
+      expect.soft(el.scrollLeft).toBe(1430);
+      expect.soft(useDawStore.getState().scrollLeft).toBe(1200);
+    } else {
+      expect(useDawStore.getState().scrollLeft).not.toBe(1200);
+      expect(el.scrollLeft).toBe(
+        useDawStore.getState().scrollLeft + returnedWidth / 2,
+      );
+      if (action === "pointer zoom") {
+        expect(useDawStore.getState().scrollLeft).toBe(231.5);
+      }
+    }
+    expect(useDawStore.getState().playheadSec).toBe(
+      action === "project switch" ? 0 : 20,
+    );
+    expect(useDawStore.getState().playheadSeekRevision).toBe(
+      revision + (action === "same-time seek" ? 1 : 0),
+    );
   });
 
   it.each(["recording", "paused"] as const)(
