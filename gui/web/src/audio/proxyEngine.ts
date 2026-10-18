@@ -1,6 +1,7 @@
 import type { ClipRow } from "../types/project";
 import { dbToLinear, trackIsAudible, trackOutputGainDb } from "../utils/audio";
 import { createChannelPeakTap } from "./channelPeakTap";
+import { enterPlaybackSession, leavePlaybackSession } from "./playbackSession";
 import {
   buildSchedule,
   type ProxyManifest,
@@ -136,6 +137,8 @@ export class ProxyEngine {
     this.playing = true;
     this.originTimelineSec = fromTimelineSec;
     this.originCtxTime = this.ctx.currentTime;
+    // iPhone mutes Web Audio on the silent switch unless the page is in a playback session.
+    enterPlaybackSession();
     void this.ctx.resume();
     void this.scheduleAround(fromTimelineSec);
   }
@@ -156,6 +159,7 @@ export class ProxyEngine {
     this.scheduleGeneration += 1;
     this.stopSources();
     this.originTimelineSec = t;
+    leavePlaybackSession();
     void this.ctx.suspend();
     return t;
   }
