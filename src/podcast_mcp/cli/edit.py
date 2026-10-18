@@ -1156,6 +1156,27 @@ def edit_apply_bleed_mute_cmd(
     )
 
 
+@edit_app.command("mute-off-speaker")
+def edit_mute_off_speaker_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str | None = typer.Option(None, "--track"),
+    speaker: str | None = typer.Option(None, "--speaker"),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="List the stretches without muting them",
+    ),
+) -> None:
+    """Mute a track wherever another speaker talks and its own speaker does not."""
+    ws = ProjectWorkspace.open(project)
+    typer.echo(
+        json.dumps(
+            EditService(ws).mute_off_speaker(track_id=track, speaker=speaker, apply=not dry_run),
+            indent=2,
+        )
+    )
+
+
 @edit_app.command("overlap-duplicates")
 def edit_overlap_duplicates_cmd(
     project: Path = typer.Option(..., "--project"),

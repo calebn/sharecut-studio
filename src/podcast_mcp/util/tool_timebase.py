@@ -59,6 +59,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "bleed_words_tool": "source",
     "apply_bleed_suppression_tool": "source",
     "apply_transcript_gate_tool": "timeline",
+    "mute_off_speaker_tool": "timeline",
     "propose_range_mute_tool": "timeline",
     "propose_range_cut_tool": "timeline",
     "align_retained_bleed_tool": "timeline",
