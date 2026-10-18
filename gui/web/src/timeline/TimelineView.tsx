@@ -342,7 +342,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   >(null);
   const movePlacements =
     dragMovePlacements ??
-    (placement.kind === "preview" ? placement.placements : null);
+    (placement.kind !== "idle" ? placement.placements : null);
   const canMoveClips =
     toolMode === "select" &&
     !commentMode &&
