@@ -364,15 +364,17 @@ def test_saved_joint_anchors_with_filled_fades(tmp_path, monkeypatch, effect, ra
 
 
 def test_peer_recording_change_refuses_publication(tmp_path, monkeypatch):
-    p, _, clip, plan = _project(tmp_path, monkeypatch)
+    p, _, clip, _ = _project(tmp_path, monkeypatch)
     _write(tmp_path / "peer.wav", hz=887)
     p.tracks.append(Track(id="peer", label="Peer", media=MediaAsset(path="peer.wav")))
+    render = proxy.render_source_with_chain
 
-    def changed(*_a, **_k):
+    def changed(*args, **kwargs):
+        result = render(*args, **kwargs)
         _write(tmp_path / "peer.wav", hz=991)
-        return plan
+        return result
 
-    monkeypatch.setattr(transcript_gated_play, "build_bleed_gate_plan", changed)
+    monkeypatch.setattr(proxy, "render_source_with_chain", changed)
     target = tmp_path / "variant.wav"
     target.write_bytes(b"old complete variant")
     with pytest.raises(CodedValueError):

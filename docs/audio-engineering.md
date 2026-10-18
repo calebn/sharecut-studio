@@ -1191,6 +1191,13 @@ source gate, and eligible gate fill. An affected secondary recording is selected
 before inactive-choice or unity-gate shortcuts. Empty choices retain the legacy
 primary-source path. Existing proxy manifests and chunk routing remain unchanged.
 
+`SourceProxyInputs.capture_legacy` seals a track's primary baseline without
+inventing a clip. `capture_occurrence` seals the selected occurrence and its
+effective preparation. Both expose a content-based input identity and retain
+separate project, file, and logical-reference guards. `render_source_proxy_inputs`
+consumes that exact capture, including its FX recipe, eligible fill, and source
+gate. Default legacy callers retain their existing render command and behavior.
+
 Private `W` and `V` decode the complete source through EOF. Ordinary masks,
 ignored words, room tone, gate fill, and automatic envelopes prepare the selected
 body. `W` bypasses automatic gain inside the joint saved windows. `V` removes

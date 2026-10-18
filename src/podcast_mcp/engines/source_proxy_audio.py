@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, replace
+import shutil
+from dataclasses import asdict, dataclass, replace
 from fractions import Fraction
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal
+from typing import Any, Literal
 
 from podcast_mcp.edits.bleed_restore import (
+    RESTORE_RENDER_REV,
     RestoreSupport,
     active_restore_regions,
     restore_gains_for_frames,
@@ -23,6 +25,7 @@ from podcast_mcp.edits.mute_regions import (
 from podcast_mcp.engines.audio import (
     At,
     FrameTransform,
+    MuteEnvelope,
     MuteSampleEnvelope,
     ObservedAudio,
     SourceAudio,
@@ -49,6 +52,7 @@ from podcast_mcp.engines.render_clock import (
 )
 from podcast_mcp.engines.session_timeline import origin_track_id_for_clip
 from podcast_mcp.engines.timeline_render import (
+    SourceChainProcessing,
     _room_tone_under_mutes,
     gate_fill_paths,
     render_source_with_chain,
@@ -59,7 +63,8 @@ from podcast_mcp.engines.transcript_gated_play import _pcm16_wave_info
 from podcast_mcp.models import EpisodeProject, Track
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
+from podcast_mcp.util.hashing import sha256_file, short_digest
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
@@ -572,21 +577,73 @@ def _combine(
             b.write(result)
 
 
-def render_source_proxy_restore(
-    project: EpisodeProject, clip_id: str, output_path: Path, *, engine: FFmpegEngine | None = None
-) -> Path:
-    """Render one occurrence's bounded source variant without publishing a proxy manifest."""
-    eng = engine or FFmpegEngine()
-    with render_lock(project):
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+@dataclass(frozen=True)
+class SourceProxyInputs:
+    """Sealed source inputs shared by semantic identity, rendering, and publication."""
+
+    selector: Literal["legacy", "occurrence"]
+    clip_id: str | None
+    context_track_id: str
+    source: Path
+    fill: Path | None
+    affected: bool
+    regions: tuple[tuple[float, float], ...]
+    source_start: float
+    source_end: float
+    ordinary: tuple[MuteEnvelope, ...]
+    automatic: tuple[SourceMuteEnvelope, ...]
+    room: tuple[At, ...]
+    gate: BleedGatePlan
+    recipe: str
+    engine_commands: tuple[str, str]
+    dependencies: _Dependencies
+    identity_json: str
+
+    @property
+    def identity_payload(self) -> dict[str, Any]:
+        return json.loads(self.identity_json)
+
+    @property
+    def input_hash(self) -> str:
+        return short_digest(self.identity_json, 64)
+
+    @classmethod
+    def capture_legacy(
+        cls, project: EpisodeProject, track_id: str, engine: FFmpegEngine
+    ) -> SourceProxyInputs:
+        return cls._capture(project, engine, track_id=track_id)
+
+    @classmethod
+    def capture_occurrence(
+        cls, project: EpisodeProject, clip_id: str, engine: FFmpegEngine
+    ) -> SourceProxyInputs:
+        return cls._capture(project, engine, clip_id=clip_id)
+
+    @classmethod
+    def _capture(
+        cls,
+        project: EpisodeProject,
+        engine: FFmpegEngine,
+        *,
+        track_id: str | None = None,
+        clip_id: str | None = None,
+    ) -> SourceProxyInputs:
         snapshot = snapshot_project(project)
-        clip = next((clip for clip in snapshot.clips if clip.id == clip_id), None)
-        if clip is None:
+        clip = next((c for c in snapshot.clips if c.id == clip_id), None)
+        if clip_id is not None and clip is None:
             raise ValueError(f"clip {clip_id!r} not found")
-        destination = snapshot.track_by_id(clip.track_id)
-        context = snapshot.track_by_id(origin_track_id_for_clip(snapshot, clip))
+        context_id = origin_track_id_for_clip(snapshot, clip) if clip is not None else track_id
+        context = snapshot.track_by_id(context_id) if context_id is not None else None
+        destination = snapshot.track_by_id(clip.track_id) if clip is not None else context
         if destination is None or context is None:
             raise ValueError("Source proxy track is missing")
-        affected = clip.bleed_restore is not None and bool(clip.bleed_restore.regions)
+        affected = (
+            clip is not None and clip.bleed_restore is not None and bool(clip.bleed_restore.regions)
+        )
 
         def recording_path(track: Track, source_id: str | None) -> Path:
             recording = snapshot.source_by_id(source_id) if source_id else track.media
@@ -594,17 +651,18 @@ def render_source_proxy_restore(
                 raise _inputs_changed()
             return snapshot.workspace_path() / Path(recording.path).expanduser()
 
-        if affected:
+        if affected and clip is not None:
             source = resolve_clip_audio_path(snapshot, destination, clip)
         elif context.media is not None:
             source = resolve_under_workspace(snapshot, context.media.path)
         else:
             raise ValueError("Source proxy context has no media")
-        regions = active_restore_regions(clip, source) if affected else ()
+        regions = active_restore_regions(clip, source) if affected and clip is not None else ()
         bindings: tuple[tuple[Path, Path], ...] = (
             (
                 recording_path(
-                    destination if affected else context, clip.source_id if affected else None
+                    destination if affected else context,
+                    clip.source_id if affected and clip else None,
                 ),
                 source,
             ),
@@ -616,7 +674,7 @@ def render_source_proxy_restore(
                     snapshot, destination, clip, clip.source_start, clip.source_end
                 )
             )
-            if regions
+            if regions and clip is not None
             else ()
         )
         paths = (
@@ -637,40 +695,187 @@ def render_source_proxy_restore(
             bindings += (
                 (snapshot.workspace_path() / Path(context.gate_fill.path).expanduser(), fill),
             )
-        if not regions and context.media is not None:
-            baseline_fill = gate_fill_paths(snapshot, context, [paths[-1]])[0]
-            paths += (baseline_fill,) if baseline_fill is not None else ()
         chain = next((c for c in snapshot.processing_chains if c.track_id == context.id), None)
-        recipe = eng.build_track_filter(chain, None)
-        if chain is not None:
-            for effect in chain.effects:
+        recipe = engine.build_track_filter(chain, None)
+        semantic_chain = chain.model_copy(deep=True) if chain is not None else None
+        models = []
+        if chain is not None and semantic_chain is not None:
+            for effect, semantic_effect in zip(chain.effects, semantic_chain.effects, strict=True):
                 if not effect.bypass and effect.effect == "arnndn":
                     logical = (
                         Path(str(effect.params["model"])).expanduser()
                         if effect.params.get("model")
                         else resolve_rnnoise_model()
                     )
-                    paths += (logical.resolve(),)
-                    bindings += ((logical, logical.resolve()),)
+                    sealed = logical.resolve()
+                    paths += (sealed,)
+                    bindings += ((logical, sealed),)
+                    models.append((semantic_effect, sealed))
+        binaries = tuple(
+            Path(shutil.which(command) or command).resolve()
+            for command in (engine.ffmpeg, engine.ffprobe)
+        )
+        paths += binaries
+        bindings += tuple(
+            (Path(shutil.which(command) or command).absolute(), sealed)
+            for command, sealed in zip((engine.ffmpeg, engine.ffprobe), binaries, strict=True)
+        )
+        ordinary = (
+            mute_spans_for_source_window(
+                clip, 0, math.inf, extra=IgnoredWordRegions(snapshot).for_clip(clip)
+            )
+            if regions and clip is not None
+            else ()
+        )
+        automatic = (
+            tuple(
+                SourceMuteEnvelope(e.start_s, e.end_s, e.fade_out_ms / 1000, e.fade_in_ms / 1000)
+                for e in clip.off_speaker_mute_regions
+            )
+            if regions and clip is not None
+            else ()
+        )
         dependencies = _Dependencies.capture(snapshot, paths, context.id, bindings)
-        if output_path.resolve() in {path.resolve() for path, _, _ in dependencies.media}:
-            raise ValueError("Source proxy output must not replace an input")
+        digests = {path: digest for path, _, digest in dependencies.media}
+        for semantic_effect, model in models:
+            semantic_effect.params["model"] = "sha256_" + str(digests[model])
+        gate = (
+            build_bleed_gate_plan(snapshot, context.id, source_clock=True)
+            if context.transcript_gate
+            else BleedGatePlan()
+        )
         if (
             regions
+            and clip is not None
             and clip.bleed_restore is not None
             and sha256_file(source) != clip.bleed_restore.source_sha256
         ):
             raise _inputs_changed()
 
+        def content(path: Path | None) -> str | None:
+            return digests[path.resolve()] if path is not None else None
+
+        gate_identity = None
+        if dependencies.gate_context is not None:
+            gate_identity = json.loads(dependencies.gate_context[1])
+            for lane in gate_identity["inputs"]:
+                lane["media"] = sorted(
+                    (content(Path(media["path"])) for media in lane["media"]), key=str
+                )
+                for row in lane["clips"]:
+                    for key in (
+                        "id",
+                        "timeline_start",
+                        "fade_in_ms",
+                        "fade_out_ms",
+                        "join_in_mode",
+                    ):
+                        row.pop(key, None)
+        payload = {
+            "revision": "source-proxy-inputs-v1",
+            "clock_policy": "packed-source-proxy-v1",
+            "restore_revision": RESTORE_RENDER_REV,
+            "baseline_encoding": "pcm_s16le",
+            "ffmpeg_policy": ffmpeg_policy(),
+            "binaries": [content(path) for path in binaries],
+            "context_track_id": context.id,
+            "recording": {
+                "source_id": clip.source_id if affected and clip else None,
+                "primary_track_id": None if affected and clip and clip.source_id else context.id,
+                "sha256": content(source),
+            },
+            "context_primary": content(primary) if context.media is not None else None,
+            "fill": content(fill),
+            "recipe": engine.build_track_filter(semantic_chain, None),
+            "gate": asdict(gate),
+            "gate_dependencies": gate_identity,
+        }
+        if affected and clip is not None:
+            payload["restore"] = {
+                "anchors": [(r.start_s, r.end_s) for r in clip.bleed_restore.regions]
+                if clip.bleed_restore
+                else [],
+                "active": regions,
+                "membership": (clip.source_start, clip.source_end) if regions else None,
+                "ordinary": [asdict(e) for e in ordinary],
+                "automatic": [asdict(e) for e in automatic],
+                "room": [
+                    {
+                        "source_id": tile.audio.source_id,
+                        "sha256": content(tile.audio.path),
+                        "start": tile.start_sec,
+                        "source_start": tile.audio.src_start,
+                        "source_end": tile.audio.src_end,
+                        "fade_in": tile.audio.fade_in_sec,
+                        "fade_out": tile.audio.fade_out_sec,
+                    }
+                    for tile in room
+                    if isinstance(tile.audio, SourceAudio)
+                ],
+            }
+        captured = cls(
+            "occurrence" if clip is not None else "legacy",
+            clip_id,
+            context.id,
+            source,
+            fill,
+            affected,
+            regions,
+            clip.source_start if clip else 0,
+            clip.source_end if clip else 0,
+            ordinary,
+            automatic,
+            room,
+            gate,
+            recipe,
+            (engine.ffmpeg, engine.ffprobe),
+            dependencies,
+            _canonical(payload),
+        )
+        captured.validate(project, engine)
+        return captured
+
+    def validate(self, project: EpisodeProject, engine: FFmpegEngine) -> None:
+        self.dependencies.validate(project)
+        if (
+            engine.ffmpeg,
+            engine.ffprobe,
+        ) != self.engine_commands or ffmpeg_policy() != self.identity_payload["ffmpeg_policy"]:
+            raise _inputs_changed()
+        snapshot = EpisodeProject.model_validate_json(self.dependencies.project_json, by_name=True)
+        context = snapshot.track_by_id(self.context_track_id)
+        if context is None:
+            raise _inputs_changed()
+        chain = next((c for c in snapshot.processing_chains if c.track_id == context.id), None)
+        try:
+            recipe = engine.build_track_filter(chain, None)
+            fill = gate_fill_paths(snapshot, context, [self.source])[0]
+        except OSError as error:
+            raise _inputs_changed() from error
+        if recipe != self.recipe or fill != self.fill:
+            raise _inputs_changed()
+
+
+def render_source_proxy_inputs(
+    project: EpisodeProject,
+    inputs: SourceProxyInputs,
+    output_path: Path,
+    *,
+    engine: FFmpegEngine,
+) -> Path:
+    """Render precisely one sealed legacy or occurrence capture."""
+    with render_lock(project):
+        snapshot = EpisodeProject.model_validate_json(
+            inputs.dependencies.project_json, by_name=True
+        )
+        context = snapshot.track_by_id(inputs.context_track_id)
+        if context is None:
+            raise _inputs_changed()
+        if output_path.resolve() in {path.resolve() for path, _, _ in inputs.dependencies.media}:
+            raise ValueError("Source proxy output must not replace an input")
+
         def validate() -> None:
-            dependencies.validate(project)
-            try:
-                current_recipe = eng.build_track_filter(chain, None)
-                current_fill = gate_fill_paths(snapshot, context, [source])[0]
-            except OSError as error:
-                raise _inputs_changed() from error
-            if current_recipe != recipe or current_fill != fill:
-                raise _inputs_changed()
+            inputs.validate(project, engine)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix=".source-proxy-", dir=output_path.parent) as temporary:
@@ -681,55 +886,50 @@ def render_source_proxy_restore(
                 snapshot,
                 context,
                 baseline,
-                engine=eng,
-                **({"selected_source_path": source} if affected else {}),
+                engine=engine,
+                selected_source_path=inputs.source,
+                processing=SourceChainProcessing(inputs.recipe, inputs.fill, inputs.gate),
             )
             validate()
-            if regions:
-                gate = (
-                    build_bleed_gate_plan(snapshot, context.id, source_clock=True)
-                    if context.transcript_gate
-                    else BleedGatePlan()
-                )
-                if gate.attenuation_spans and gate.floor_gain < 1:
-                    native = _decode_clock(eng, source, directory)
-                    ordinary = mute_spans_for_source_window(
-                        clip,
-                        0,
+            if inputs.regions and inputs.gate.attenuation_spans and inputs.gate.floor_gain < 1:
+                native = _decode_clock(engine, inputs.source, directory)
+                spec = SourceProxySpec(
+                    inputs.clip_id or "",
+                    context.id,
+                    inputs.source,
+                    inputs.fill,
+                    inputs.regions,
+                    inputs.source_start,
+                    inputs.source_end,
+                    sample_mute_envelopes(
+                        inputs.ordinary,
                         native.audio.frames / native.audio.sample_rate,
-                        extra=IgnoredWordRegions(snapshot).for_clip(clip),
-                    )
-                    spec = SourceProxySpec(
-                        clip.id,
-                        context.id,
-                        source,
-                        fill,
-                        regions,
-                        clip.source_start,
-                        clip.source_end,
-                        sample_mute_envelopes(
-                            ordinary,
-                            native.audio.frames / native.audio.sample_rate,
-                            native.audio.sample_rate,
-                        ),
-                        tuple(
-                            SourceMuteEnvelope(
-                                e.start_s, e.end_s, e.fade_out_ms / 1000, e.fade_in_ms / 1000
-                            )
-                            for e in clip.off_speaker_mute_regions
-                        ),
-                        room,
-                        gate,
-                    )
-                    af = recipe or "anull"
-                    whole, without, clock = _render_pair(eng, spec, af, directory, native, validate)
-                    if (
-                        _native_format(eng.ffmpeg, baseline).channel_layout
-                        != clock.output.audio.channel_layout
-                    ):
-                        raise clock_error()
-                    _combine(baseline, whole, without, spec, clock)
+                        native.audio.sample_rate,
+                    ),
+                    inputs.automatic,
+                    inputs.room,
+                    inputs.gate,
+                )
+                whole, without, clock = _render_pair(
+                    engine, spec, inputs.recipe or "anull", directory, native, validate
+                )
+                if (
+                    _native_format(engine.ffmpeg, baseline).channel_layout
+                    != clock.output.audio.channel_layout
+                ):
+                    raise clock_error()
+                _combine(baseline, whole, without, spec, clock)
             with project_state_lock(project):
                 validate()
                 publish_completed_file(baseline, output_path, before_replace=validate)
     return output_path
+
+
+def render_source_proxy_restore(
+    project: EpisodeProject, clip_id: str, output_path: Path, *, engine: FFmpegEngine | None = None
+) -> Path:
+    """Render one occurrence's bounded source variant without publishing a proxy manifest."""
+    eng = engine or FFmpegEngine()
+    with render_lock(project):
+        inputs = SourceProxyInputs.capture_occurrence(project, clip_id, eng)
+        return render_source_proxy_inputs(project, inputs, output_path, engine=eng)

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from heapq import heappop, heappush
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING
 
 from podcast_mcp.edits.bleed_restore import RestoreSupport, active_restore_regions
 from podcast_mcp.edits.clips_ops import (
@@ -47,6 +48,9 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.process import run
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
+
+if TYPE_CHECKING:
+    from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
 RENDER_SEMANTICS_REV = 16
 
@@ -624,6 +628,13 @@ def source_fill_mix_filter(
     return f"{primary_label}{fill_label}amix=inputs=2:normalize=0:duration=first{restore}"
 
 
+@dataclass(frozen=True)
+class SourceChainProcessing:
+    recipe: str
+    fill: Path | None
+    gate: BleedGatePlan
+
+
 def render_source_with_chain(
     project: EpisodeProject,
     track: Track,
@@ -631,6 +642,7 @@ def render_source_with_chain(
     *,
     engine: FFmpegEngine | None = None,
     selected_source_path: Path | None = None,
+    processing: SourceChainProcessing | None = None,
 ) -> Path:
     """Render FX + optional transcript gate on the full raw source (no timeline edits).
 
@@ -651,9 +663,9 @@ def render_source_with_chain(
         raise FileNotFoundError(f"source media missing for track {track.id}: {src}")
 
     chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
-    af = eng.build_track_filter(chain, None)
+    af = eng.build_track_filter(chain, None) if processing is None else processing.recipe
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fill = gate_fill_paths(project, track, [src])[0]
+    fill = gate_fill_paths(project, track, [src])[0] if processing is None else processing.fill
     if fill is None:
         inputs = ["-i", str(src), "-af", af if af else "anull"]
     else:
@@ -663,13 +675,17 @@ def render_source_with_chain(
     run(cmd, check=True, capture_output=True)
 
     probe = eng.probe(output_path)
-    if track.transcript_gate:
+    if track.transcript_gate or processing is not None:
         from podcast_mcp.engines.transcript_gated_play import (
             apply_bleed_gate_plan,
             build_bleed_gate_plan,
         )
 
-        plan = build_bleed_gate_plan(project, track.id, source_clock=True)
+        plan = (
+            build_bleed_gate_plan(project, track.id, source_clock=True)
+            if processing is None
+            else processing.gate
+        )
         apply_bleed_gate_plan(
             output_path,
             plan,
