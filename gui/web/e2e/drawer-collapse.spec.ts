@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { openHostProject } from "./overlayReachability";
+import { openDialogFromMenu, openHostProject } from "./overlayReachability";
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -113,3 +113,70 @@ test("the reopen handle never covers the tool rail's Undo and Redo on a phone he
     expect(covered, name).toBe(false);
   }
 });
+
+for (const collapse of ["control", "shortcut", "splitter"] as const) {
+  test(`Find and replace reveals Transcript after ${collapse} collapse and reload`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openHostProject(page);
+    const before = await drawerHeight(page);
+    if (collapse === "control") {
+      await page.getByRole("button", { name: "Maximize timeline" }).click();
+    } else if (collapse === "shortcut") {
+      await page.keyboard.press("ControlOrMeta+2");
+    } else {
+      const release = await dragSplitterDown(page, before);
+      await release();
+    }
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-layout",
+      "timeline",
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("sharecut.tabsCollapsed")),
+      )
+      .toBe("1");
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-layout",
+      "timeline",
+    );
+
+    const openFindReplace = async () => {
+      await openDialogFromMenu(page, "Commands and shortcuts");
+      const palette = page.getByRole("dialog", {
+        name: "Commands and shortcuts",
+      });
+      await palette.getByRole("combobox").fill("Find and replace");
+      await palette
+        .getByRole("option", { name: /Find and replace transcript/ })
+        .click();
+    };
+    await openFindReplace();
+    const form = page.getByRole("region", {
+      name: "Find and replace transcript",
+    });
+    await expect(form).toBeVisible();
+    const find = form.getByRole("textbox", { name: "Find", exact: true });
+    await find.fill("delighted");
+    await expect(find).toBeFocused();
+    await expect(page.locator("html")).not.toHaveAttribute("data-layout", /.+/);
+    await expect.poll(() => drawerHeight(page)).toBeCloseTo(before, 0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("sharecut.tabsCollapsed")),
+      )
+      .toBeNull();
+    await openFindReplace();
+    await expect(form).toBeHidden();
+    await openFindReplace();
+    await expect(form).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator(".bottom-tabs")).toBeVisible();
+    await expect(page.locator("html")).not.toHaveAttribute("data-layout", /.+/);
+    await expect.poll(() => drawerHeight(page)).toBeCloseTo(before, 0);
+  });
+}
