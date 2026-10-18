@@ -235,8 +235,14 @@ describe("TransportBar collapsed", () => {
         <TransportBar />
       </DawProvider>,
     );
-    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Play" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Stop" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(
       document.querySelector('[data-presence-anchor="transport:play"]'),
     ).toBeTruthy();
@@ -878,8 +884,8 @@ describe("TransportBar wide layout", () => {
       </DawProvider>,
     );
     const play = screen.getByRole("button", { name: "Play" });
-    expect(play).toBeDisabled();
-    expect(play).toHaveAttribute("title", "Import audio to play");
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    expect(play).toHaveAttribute("title", "Import audio to play.");
   });
 
   it("offers waveform scale radios, Auto by default", async () => {
