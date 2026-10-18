@@ -23,12 +23,14 @@ from podcast_mcp.engines.audio import (
     MaskAudio,
     MixAudio,
     MuteEnvelope,
+    MuteSampleEnvelope,
     OffSpeakerAudio,
     RequestedExtent,
     SequenceAudio,
     SilenceAudio,
     SourceAudio,
     SourceFrameMapping,
+    SourceMuteEnvelope,
     delay_milliseconds,
     fade_duration,
     postorder,
@@ -91,6 +93,77 @@ _UNTRUSTED_PROTOCOLS = "file,crypto,data"
 
 
 log = logging.getLogger(__name__)
+
+
+def mute_gain_expression(envelopes: tuple[MuteSampleEnvelope, ...]) -> str:
+    gains: list[tuple[str, str]] = []
+    for samples in envelopes:
+        first, last = samples.first, samples.last
+        fade_out, fade_in = samples.fade_out, samples.fade_in
+        floor = samples.gain
+        if fade_out + fade_in > last - first:
+            gains.append((str(first), f"if(gte(n,{first})*lt(n,{last}),{floor:g},1)"))
+            continue
+        span = 1.0 - floor
+        expr = "1"
+        if fade_in > 0:
+            expr = (
+                f"if(between(n,{last - fade_in},{last}),"
+                f"{floor:g}+{span:g}*(n-({last - fade_in}))/{fade_in},1)"
+            )
+        expr = f"if(between(n,{first + fade_out},{last - fade_in}),{floor:g},{expr})"
+        if fade_out > 0:
+            expr = (
+                f"if(between(n,{first},{first + fade_out}),"
+                f"1-{span:g}*(n-({first}))/{fade_out},{expr})"
+            )
+        gains.append((str(first), expr))
+    if not gains:
+        return "1"
+
+    def interval_tree(items: list[tuple[str, str]]) -> str:
+        if len(items) == 1:
+            return items[0][1]
+        middle = len(items) // 2
+        return (
+            f"if(lt(n,{items[middle][0]}),"
+            f"{interval_tree(items[:middle])},{interval_tree(items[middle:])})"
+        )
+
+    return interval_tree(gains)
+
+
+def automatic_gain_expression(
+    envelopes: tuple[SourceMuteEnvelope, ...],
+    mapping: SourceFrameMapping,
+    bypass_windows: tuple[tuple[float, float], ...] = (),
+) -> str:
+    gains = []
+    for envelope in envelopes:
+        first, fall, rise, last = (
+            mapping.endpoint(envelope.start),
+            mapping.endpoint(envelope.start + envelope.fade_out_sec),
+            mapping.endpoint(envelope.end - envelope.fade_in_sec),
+            mapping.endpoint(envelope.end),
+        )
+        if fall > rise:
+            fall, rise = first, last
+        falling = f"({fall}-n)/{fall - first}" if fall > first else "0"
+        rising = f"(n-{rise})/{last - rise}" if last > rise else "1"
+        gains.append(
+            f"if(lt(n,{first}),1,if(lt(n,{fall}),{falling},if(lt(n,{rise}),0,if(lt(n,{last}),{rising},1))))"
+        )
+    gain = gains[0] if gains else "1"
+    for other in gains[1:]:
+        gain = f"min({gain},{other})"
+    if bypass_windows:
+        selected = "+".join(
+            f"gte(n,{mapping.endpoint(start, ceil=True)})*lt(n,{mapping.endpoint(end, ceil=True)})"
+            for start, end in bypass_windows
+        )
+        gain = f"if({selected},1,{gain})"
+    return gain
+
 
 # 3: use the completed graph's true-peak summary for headroom trim (#855).
 MIX_SEMANTICS_REV = 3
@@ -725,43 +798,12 @@ class FFmpegEngine:
         """
         from podcast_mcp.edits.mute_regions import sample_mute_envelopes
 
-        gains: list[tuple[str, str]] = []
-        for samples in sample_mute_envelopes(
+        envelopes = sample_mute_envelopes(
             mute_spans, seg_duration, sample_rate, source_start=source_start, origin=origin
-        ):
-            first, last = samples.first, samples.last
-            fade_out, fade_in = samples.fade_out, samples.fade_in
-            floor = samples.gain
-            if fade_out + fade_in > last - first:
-                gains.append((str(first), f"if(gte(n,{first})*lt(n,{last}),{floor:g},1)"))
-                continue
-            span = 1.0 - floor
-            expr = "1"
-            if fade_in > 0:
-                expr = (
-                    f"if(between(n,{last - fade_in},{last}),"
-                    f"{floor:g}+{span:g}*(n-({last - fade_in}))/{fade_in},1)"
-                )
-            expr = f"if(between(n,{first + fade_out},{last - fade_in}),{floor:g},{expr})"
-            if fade_out > 0:
-                expr = (
-                    f"if(between(n,{first},{first + fade_out}),"
-                    f"1-{span:g}*(n-({first}))/{fade_out},{expr})"
-                )
-            gains.append((str(first), expr))
-        if not gains:
+        )
+        if not envelopes:
             return []
-
-        def interval_tree(items: list[tuple[str, str]]) -> str:
-            if len(items) == 1:
-                return items[0][1]
-            middle = len(items) // 2
-            return (
-                f"if(lt(n,{items[middle][0]}),"
-                f"{interval_tree(items[:middle])},{interval_tree(items[middle:])})"
-            )
-
-        expr = interval_tree(gains)
+        expr = mute_gain_expression(envelopes)
         return [f"aeval=exprs='val(ch)*({expr})':c=same"]
 
     def render_timeline(
@@ -1078,31 +1120,7 @@ class FFmpegEngine:
                         origin,
                         tuple(FrameTransform(before, after) for before, after in pairwise(rates)),
                     )
-                    gains = []
-                    for envelope in node.envelopes:
-                        first, fall, rise, last = (
-                            mapping.endpoint(envelope.start),
-                            mapping.endpoint(envelope.start + envelope.fade_out_sec),
-                            mapping.endpoint(envelope.end - envelope.fade_in_sec),
-                            mapping.endpoint(envelope.end),
-                        )
-                        if fall > rise:
-                            fall = first
-                            rise = last
-                        falling = f"({fall}-n)/{fall - first}" if fall > first else "0"
-                        rising = f"(n-{rise})/{last - rise}" if last > rise else "1"
-                        gains.append(
-                            f"if(lt(n,{first}),1,if(lt(n,{fall}),{falling},if(lt(n,{rise}),0,if(lt(n,{last}),{rising},1))))"
-                        )
-                    gain = gains[0]
-                    for other in gains[1:]:
-                        gain = f"min({gain},{other})"
-                    if node.bypass_windows:
-                        selected = "+".join(
-                            f"gte(n,{mapping.endpoint(start, ceil=True)})*lt(n,{mapping.endpoint(end, ceil=True)})"
-                            for start, end in node.bypass_windows
-                        )
-                        gain = f"if({selected},1,{gain})"
+                    gain = automatic_gain_expression(node.envelopes, mapping, node.bypass_windows)
                     filters[filter_index] = filters[filter_index].replace(
                         "val(ch)*(1)", f"val(ch)*({gain})"
                     )

@@ -1183,6 +1183,39 @@ Media or render-dependency changes refuse publication and preserve the previous
 completed artifact. Host Restore commands and source-context proxy variants
 remain separate integration work.
 
+#### Source proxy PCM
+
+`engines/source_proxy_audio.py` renders a private source-context variant for one
+occurrence. Its independent `B0` uses the legacy source renderer, origin FX,
+source gate, and eligible gate fill. An affected secondary recording is selected
+before inactive-choice or unity-gate shortcuts. Empty choices retain the legacy
+primary-source path. Existing proxy manifests and chunk routing remain unchanged.
+
+Private `W` and `V` decode the complete source through EOF. Ordinary masks,
+ignored words, room tone, gate fill, and automatic envelopes prepare the selected
+body. `W` bypasses automatic gain inside the joint saved windows. `V` removes
+those windows from the complete prepared body before the same FX chain. Client
+clip fades and output gain remain outside this preparation.
+
+The source variant uses `saturate16(B0 + (1-g0)*h*(W-V))`. It has no timeline
+`L-B` term. Zero correction preserves exact `B0` bytes. Saved ramp anchors stay
+whole when active occurrence membership crops their support.
+
+The `packed-source-proxy-v1` clock maps native source frames through the observed
+prepared producer, the observed FX consumer, and the packed `B0` WAV grid.
+Each owned conversion uses the existing half-up frame rescaling rule. Internal
+FX rate changes add no editorial endpoint conversions. Binary removal uses the
+producer grid. Final eligibility uses the complete mapped support. Packet
+timestamps and acoustic latency do not move these endpoints. Stateful filters
+can emit padded tails or discontinuous packet timestamps, so equal formats and
+sample counts alone do not establish physical source ownership.
+
+The renderer validates actual private clocks and PCM extents, checks project and
+media dependencies, and replaces only a completed private output. A failure
+retains the previous output. This entry point does not create an occurrence
+manifest, upload chunks, or change guest playback bindings. Those integrations
+and their native and listening acceptance remain separate work.
+
 ### Known limitations of the bleed gate
 
 The gate decides that a stretch is another speaker's copy by matching the lane against the peer's track at a fixed lag, then checking the copy's timbre against the peer's speech ([how the copy is found](../.agents/skills/podcast-mute-bleed/SKILL.md#design)). Two kinds of own sound look like a copy to that check. The owner accepted these limitations on 2026-10-12. The gate still leaves own sound alone in the cases the decision above pins with tests. Before you trust a gated stem, run `apply_transcript_gate_tool` with `dry_run=true` and listen to the passages below.

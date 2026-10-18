@@ -616,6 +616,14 @@ def _render_placed_track(
     return output_path
 
 
+def source_fill_mix_filter(
+    engine: FFmpegEngine, source: Path, primary_label: str, fill_label: str
+) -> str:
+    fmt = engine.probe(source).sample_fmt
+    restore = f",aformat=sample_fmts={fmt}" if fmt else ""
+    return f"{primary_label}{fill_label}amix=inputs=2:normalize=0:duration=first{restore}"
+
+
 def render_source_with_chain(
     project: EpisodeProject,
     track: Track,
@@ -649,9 +657,7 @@ def render_source_with_chain(
     if fill is None:
         inputs = ["-i", str(src), "-af", af if af else "anull"]
     else:
-        fmt = eng.probe(src).sample_fmt
-        restore = f",aformat=sample_fmts={fmt}" if fmt else ""
-        graph = f"[0:a][1:a]amix=inputs=2:normalize=0:duration=first{restore},{af or 'anull'}"
+        graph = f"{source_fill_mix_filter(eng, src, '[0:a]', '[1:a]')},{af or 'anull'}"
         inputs = ["-i", str(src), "-i", str(fill), "-filter_complex", graph]
     cmd = [eng.ffmpeg, "-y", *inputs, "-acodec", "pcm_s16le", str(output_path)]
     run(cmd, check=True, capture_output=True)
