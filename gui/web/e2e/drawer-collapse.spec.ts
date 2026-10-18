@@ -127,6 +127,9 @@ for (const collapse of ["control", "shortcut", "splitter"] as const) {
       await page.keyboard.press("ControlOrMeta+2");
     } else {
       const release = await dragSplitterDown(page, before);
+      await expect(
+        page.getByRole("separator", { name: "Resize editor panels" }),
+      ).toHaveAttribute("data-collapse-armed", "");
       await release();
     }
     await expect(page.locator("html")).toHaveAttribute(
