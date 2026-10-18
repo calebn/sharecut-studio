@@ -46,6 +46,8 @@ PING_TIMEOUT_SEC = 1.0
 #: Studio sends a heartbeat every few seconds; silence for this long means it is wedged.
 STREAM_SILENCE_TIMEOUT_SEC = 30.0
 CANCEL_GRACE_SEC = 30.0
+#: What a direct run exits with after Ctrl+C.
+_CANCELLED_EXIT_CODE = 130
 #: Terminal control characters (escape sequences, bell) never pass through from Studio.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
@@ -271,10 +273,16 @@ def hand_off(
                     conn.sock.settimeout(CANCEL_GRACE_SEC)
                 continue
             except (OSError, http.client.HTTPException) as exc:
+                if interrupted:
+                    return _CANCELLED_EXIT_CODE
                 raise HandoffLost(
                     _lost_message(host, run_id, f"it stopped answering ({exc})")
                 ) from exc
             if not line:
+                if interrupted:
+                    # An interrupted read can end the stream; Studio is stopping the command.
+                    err.write("Cancelled. Studio is stopping the command.\n")
+                    return _CANCELLED_EXIT_CODE
                 raise HandoffLost(_lost_message(host, run_id, "it closed the connection"))
             try:
                 event = json.loads(line)
