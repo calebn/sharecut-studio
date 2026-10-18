@@ -530,7 +530,7 @@ html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
   inset-block: var(--visual-viewport-top, 0) auto;
   block-size: min(
     var(--visual-viewport-height, 100dvh),
-    calc(100% - var(--visual-viewport-top, 0px) - var(--column-floor, 0px))
+    calc(100% - var(--visual-viewport-top, 0rem) - var(--column-floor, 0rem))
   );
   inset-inline-end: env(safe-area-inset-right);
   inline-size: var(--inspector-column-width);
