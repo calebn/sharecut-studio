@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
+from podcast_mcp.edits.audio_check_override import OVERRIDE_PARAM, active_override, stamp_params
 from podcast_mcp.edits.decisions import retire_unplayed_pending
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile
 from podcast_mcp.engines.play_audit import (
@@ -117,6 +118,10 @@ def _run_mutation_locked(
         on_failure=on_failure,
     ):
         result = mutate(project)
+        override = active_override()
+        if override is not None:
+            for record in project.editorial.edit_log[log_len_before:]:
+                record.params[OVERRIDE_PARAM] = override.record()
         _record_audio_changes(
             project,
             fingerprint_before=fingerprint_before,
@@ -127,7 +132,7 @@ def _run_mutation_locked(
         # record() and commit() each take the re-entrant lock; this outer hold makes
         # record(after) + commit one cross-process step so no other commit lands between them.
         with project_commit_lock(project):
-            mgr.record(project, label_after, operation=operation, params=params)
+            mgr.record(project, label_after, operation=operation, params=stamp_params(params))
             checkpoint.start_commit(project)
             store.commit(project)
     return result

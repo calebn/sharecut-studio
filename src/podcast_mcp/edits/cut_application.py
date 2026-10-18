@@ -10,6 +10,7 @@ from typing import Any
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import cut_safety
 from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.audio_check_override import is_human_intent
 from podcast_mcp.edits.clips_ops import (
     abutting_pairs,
     clip_split_origin,
@@ -196,7 +197,7 @@ def apply_trim(
         defaults=load_defaults(),
         peers=cut_safety.PeerObservations(None, speech),
         owned=bool(plan.removal and plan.removal.selected),
-        manual_ids=ids if application_intent is CutIntent.HUMAN_BOUNDARIES else frozenset(),
+        manual_ids=ids if is_human_intent(application_intent) else frozenset(),
         mode="ripple" if plan.mode is EditMode.RIPPLE else "mute",
     )
     if held:
@@ -250,7 +251,7 @@ def apply_timeline_cut(
         defaults=load_defaults(),
         peers=cut_safety.PeerObservations(None, speech),
         owned=bool(request.removal.selected),
-        manual_ids=ids if application_intent is CutIntent.HUMAN_BOUNDARIES else frozenset(),
+        manual_ids=ids if is_human_intent(application_intent) else frozenset(),
         mode="ripple" if request.mode is EditMode.RIPPLE else "mute",
     )
     if held:
@@ -371,10 +372,7 @@ def _apply_source_remove(
     candidate = project.model_copy(deep=True)
     cfg = load_defaults() if defaults is None else defaults
     pads: list[cut_safety.PadEffect] = []
-    manual = (
-        application_intent is CutIntent.HUMAN_BOUNDARIES
-        or edit.boundary_intent is CutIntent.HUMAN_BOUNDARIES
-    )
+    manual = is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
     with ExitStack() as proof:
         proof.enter_context(frozen_state())
         caches = shared_source_audio_caches(project)
@@ -684,8 +682,7 @@ def _apply_mute_edit(
         ids,
         defaults=defaults,
         manual_ids=ids
-        if application_intent is CutIntent.HUMAN_BOUNDARIES
-        or edit.boundary_intent is CutIntent.HUMAN_BOUNDARIES
+        if is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
         else frozenset(),
         observation=observed,
     )
@@ -1046,7 +1043,7 @@ def apply_prefix_edits(
             frozenset(remove_ids - held),
             defaults=cfg_all,
             manual_ids=frozenset(
-                e.id for e in applied_decisions if e.boundary_intent is CutIntent.HUMAN_BOUNDARIES
+                e.id for e in applied_decisions if is_human_intent(e.boundary_intent)
             ),
             contributors_by_clip=fades["contributors"],
         )
@@ -1167,8 +1164,7 @@ def _range_candidate(
         manual_ids=frozenset(
             edit.id
             for edit in edits
-            if application_intent is CutIntent.HUMAN_BOUNDARIES
-            or edit.boundary_intent is CutIntent.HUMAN_BOUNDARIES
+            if is_human_intent(application_intent) or is_human_intent(edit.boundary_intent)
         ),
     )
     if held:
@@ -1282,8 +1278,7 @@ def apply_lower(
         observation=observation,
         mode="mute",
         manual_ids=ids
-        if application_intent is CutIntent.HUMAN_BOUNDARIES
-        or decision.boundary_intent is CutIntent.HUMAN_BOUNDARIES
+        if is_human_intent(application_intent) or is_human_intent(decision.boundary_intent)
         else frozenset(),
     )
     if held:

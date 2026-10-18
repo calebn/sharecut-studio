@@ -31,6 +31,17 @@ _LANE_PROBLEMS = {
 }
 _UNCHECKED_LANE = "could not be checked"
 _SELECT_OR_REJECT = "Select the part to cut on the timeline, or reject the held cuts."
+_APPLY_ANYWAY = (
+    "To apply it as is, repeat the call with the audio-check override "
+    "(CLI --override-audio-checks, MCP override_audio_checks=true)."
+)
+_EDGE_FINDINGS = {
+    "join_continuity": "the join would be audible",
+    "review_required": "the join needs a listen",
+    "audio_unavailable": "the audio could not be read",
+    "mid_word": "the cut lands inside a word",
+    "breath_edge": "the cut lands on a breath",
+}
 
 
 def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
@@ -65,7 +76,7 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         for hold in held:
             label = self.cuts.get(hold.edit_id, "A selected cut")
             details.append(f"{label} was not applied because {self.reason_for(hold)}.")
-        super().__init__(" ".join([*details, _SELECT_OR_REJECT]))
+        super().__init__(" ".join([*details, _SELECT_OR_REJECT, _APPLY_ANYWAY]))
 
     def reason_for(self, hold: CutScopeHold) -> str:
         """Why this one cut was held, in words the list can show beside it."""
@@ -82,6 +93,12 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             "pause_join": "the final pause join did not pass its audio checks",
             "acoustic_edge": "the held edges need audio review",
         }
+        if hold.reason == "acoustic_edge" and hold.detail:
+            findings = [
+                _EDGE_FINDINGS.get(label, label.replace("_", " "))
+                for label in dict.fromkeys(hold.detail.split(","))
+            ]
+            return f"{reasons['acoustic_edge']} ({'; '.join(findings)})"
         peers = ", ".join(self.speakers.get(peer, peer) for peer in hold.peers)
         why = reasons.get(
             hold.reason,

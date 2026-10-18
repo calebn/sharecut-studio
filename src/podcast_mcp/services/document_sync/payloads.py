@@ -135,6 +135,14 @@ class RedoHistoryPayload(_HistoryMovePayload):
     pass
 
 
+OVERRIDE_DESCRIPTION = (
+    "Apply even if the automatic audio-quality and cut-position checks would hold this "
+    "edit (a mid-word or harsh cut the owner wants anyway). Allowed for any caller that "
+    "may run the command; the history entry and applied edits record who overrode and "
+    "through which surface."
+)
+
+
 class ApproveEditsPayload(BaseModel):
     ids: list[str]
     hold_blocked: bool = Field(
@@ -147,6 +155,10 @@ class ApproveEditsPayload(BaseModel):
             "override that acoustic hold. Without `hold_blocked`, one held cut refuses "
             "the whole batch."
         ),
+    )
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
     )
 
 
@@ -174,6 +186,10 @@ class ApplySuggestedActionsPayload(BaseModel):
             "undo step. Takes no `ids`."
         ),
     )
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
+    )
 
 
 class UpdatePendingEditPayload(BaseModel):
@@ -190,6 +206,10 @@ class UpdatePendingEditPayload(BaseModel):
             "Saved pending-edit identity and bounds. A changed, applied, or removed target "
             "returns a 409 conflict without a mutation. Omit for an unconditional nudge."
         ),
+    )
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
     )
 
 
@@ -213,6 +233,10 @@ class TrimClipEdgePayload(BaseModel):
     source_sec: float = Field(allow_inf_nan=False)
     mode: EditModeField
     expected_token: str = Field(min_length=1)
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
+    )
 
 
 class RollClipJoinPayload(BaseModel):
@@ -423,6 +447,10 @@ class EditSelectedRangePayload(BaseModel):
 
     action: Literal["cut", "mute"]
     target: ExactRangeTarget
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
+    )
 
 
 class SuggestPendingEditPayload(BaseModel):
@@ -450,6 +478,10 @@ class DeleteClipPayload(BaseModel):
     clip_ids: list[str] | None = None
     mode: EditModeField
     reason: str | None = None
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
+    )
 
 
 class DuplicateSegmentPayload(BaseModel):
@@ -493,6 +525,10 @@ class CutRangePayload(BaseModel):
             "cutting anyone's. A gap cut punches only these (every dialogue track when "
             "none are named)."
         ),
+    )
+    override_audio_checks: bool = Field(
+        default=False,
+        description=OVERRIDE_DESCRIPTION,
     )
 
     @model_validator(mode="after")
