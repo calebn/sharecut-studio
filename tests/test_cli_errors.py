@@ -213,3 +213,20 @@ def test_describe_error_leaves_an_uncoded_error_unchanged():
     from podcast_mcp.util.coded_error import describe_error
 
     assert describe_error(ValueError("bad input")) == "bad input"
+
+
+def test_busy_project_without_holder_details_explains_how_to_retry():
+    from podcast_mcp.util.project_state import ProjectBusyError
+
+    demo = _build_app()
+
+    @demo.command("boom-busy")
+    def _boom_busy() -> None:
+        raise ProjectBusyError("/private/workspace/episode.project.json.lock")
+
+    result = runner.invoke(demo, ["boom-busy"])
+    assert result.exit_code == 1
+    assert "Holder unknown" in result.stderr
+    assert "Wait for the other command or Studio job to finish, then retry" in result.stderr
+    assert "/private/workspace" not in result.stderr
+    assert "Traceback" not in result.stderr
