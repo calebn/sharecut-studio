@@ -39,6 +39,11 @@ export function activeWordId(
   return `${utteranceIndex}.${wordIndex}`;
 }
 
+/** Muted bleed and ignored words are heard by no one, so they never take the highlight. */
+function isWordAudible(w: TranscriptWordView): boolean {
+  return w.mappable !== false && !w.suppressed && !w.ignored;
+}
+
 export function buildTranscriptActiveIndex(
   utterances: readonly CombinedUtterance[],
 ): TranscriptActiveIndex {
@@ -51,7 +56,7 @@ export function buildTranscriptActiveIndex(
     let wordLo = Number.POSITIVE_INFINITY;
     let wordHi = Number.NEGATIVE_INFINITY;
     for (const w of words) {
-      if (w.mappable === false || w.timeline_start == null) {
+      if (!isWordAudible(w) || w.timeline_start == null) {
         continue;
       }
       const end = w.timeline_end ?? w.timeline_start;
@@ -63,6 +68,10 @@ export function buildTranscriptActiveIndex(
     for (const span of utteranceTimelineSpans(utterance)) {
       start = Math.min(start, span.start);
       end = Math.max(end, span.end);
+    }
+    if (wordLo > wordHi) {
+      // No audible word: a muted bleed row never takes the highlight.
+      return;
     }
     if (start <= end) {
       entries.push({
@@ -127,7 +136,7 @@ export function transcriptActiveKey(
       continue;
     }
     uw.forEach((w, wi) => {
-      if (isWordActive(w, sec)) {
+      if (isWordAudible(w) && isWordActive(w, sec)) {
         words.push(activeWordId(rowIndex, wi));
       }
     });
