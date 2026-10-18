@@ -154,7 +154,9 @@ is the fix, enforced in copy review.
   and what to do), and the control is disabled, titled and described
   with it. Only `undefined` means enabled; an empty or whitespace-only
   reason uses "This action is unavailable right now." `CommandButton`
-  preserves an explicit blank reason and guards pointer activation. A
+  preserves an explicit blank reason and guards pointer activation. These
+  generic shared controls still use native disabled buttons with title-based
+  reasons; broader keyboard and touch discovery remains open under #1686. A
   focusable control such as transport Play or Stop uses `aria-disabled`,
   keeps the same node, guards activation, and points to a visible reason
   beside the controls. Remove the reason to restore activation. Applies to
