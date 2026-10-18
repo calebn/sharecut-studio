@@ -114,7 +114,7 @@ export function useSelectionSheet(shell: SheetShell | null): SelectionSheet {
       moreDestination,
     });
   const laneTrack =
-    open && shell === "tablet" && !compact ? editedLaneTrack(selection) : null;
+    open && shell != null && !compact ? editedLaneTrack(selection) : null;
   useKeepEditedLaneClear(laneTrack);
   const armedOpens = shell != null && SHEET_SHELLS[shell].armedOpens;
   const rangeActionsInSheet =

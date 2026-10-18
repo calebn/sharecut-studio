@@ -77,6 +77,23 @@ describe("MobileShellView", () => {
     expect(document.querySelector(".compact-feedback-slot")).toBeNull();
   });
 
+  it("marks a lane-editing inspector sheet with the class it is given", () => {
+    const sheet = {
+      kind: "inspector",
+      content: <p>Fields</p>,
+      expanded: false,
+      onExpandedChange: vi.fn(),
+      onClose: vi.fn(),
+      className: "bottom-sheet--inspector bottom-sheet--lane-band",
+    } satisfies MobileShellViewProps["sheet"];
+    render(<MobileShellView {...presentation()} sheet={sheet} />);
+    expect(
+      document.querySelector(
+        ".bottom-sheet--inspector.bottom-sheet--lane-band",
+      ),
+    ).not.toBeNull();
+  });
+
   it("renders Listen with one heading, recording first, and all primary modes", async () => {
     const props = presentation();
     const { container } = render(<MobileShellView {...props} />);

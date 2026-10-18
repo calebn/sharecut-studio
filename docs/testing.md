@@ -1702,6 +1702,9 @@ test; other rows are whole tests.
 | 914x331: Add point, Save and Cancel run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a typed envelope draft survives rotating from portrait to landscape | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the bottom panel splitter can shrink a short window's default panel | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 667x375 phone shell (iPhone SE): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 740x360 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 767x375 phone shell (widest phone width): the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 914x331 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 932x430 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 844x390 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |

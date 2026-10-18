@@ -108,11 +108,15 @@ held sideways) compact the editor:
 - The tablet timeline row takes all spare height and the tool rail keeps its
   own (`grid-template-rows: minmax(0, 1fr) auto`), with 2px of block padding
   (`@container app (max-height: 40rem)`).
-- **A volume-envelope sheet leaves its lane in view (#1694).** On the tablet
-  shell, at most 40rem tall, the regular inspector sheet for an `envelope` or
+- **A volume-envelope sheet leaves its lane in view (#1694, #1714).** On the
+  tablet shell and the phone shell, at most 40rem tall, the regular inspector sheet for an `envelope` or
   `envelopePoint` selection (`editedLaneTrack`, class `bottom-sheet--lane-band`)
-  takes the bottom tabs' row (`responsive.css`, the same `max-height: 40rem`
-  exception as the compact strip) and rests on the status row. The marker rows
+  takes the bottom tabs' row on the tablet shell (`responsive.css`, the same
+  `max-height: 40rem` exception as the compact strip) and rests on the status
+  row. On the phone shell (up to 767 px wide, so an iPhone SE or mini held
+  sideways at 667×375) the sheet takes the Primary nav row instead
+  (`--mobile-nav-height: 0` while the sheet is open, since the sheet rests on it)
+  and the status chip overlays the timeline as ever; **Done** brings the nav back. The marker rows
   (chapters, comments, social clips) stop pinning under the ruler while it is
   open, so the lane sits right below the ruler and the rows are one scroll up
   (`.marker-lane` and the header column's chrome lose `position: sticky`; a pinned
