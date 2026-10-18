@@ -23,7 +23,8 @@ export interface BottomTabsSplitterViewProps {
   /** Live adapter reads fresh viewport policy; props-only shells use explicit bounds. */
   getPolicyBounds?: () => TabsHeightBounds;
   /**
-   * Whether a stored preference exists, for exact rollback of an owned drag.
+   * Whether a stored preference exists, so the caller can restore it through
+   * its resize policy after canceling an owned drag.
    */
   userSet: boolean;
   /** Requested height in rem; the live adapter clamps, persists and applies it. */
@@ -32,8 +33,8 @@ export interface BottomTabsSplitterViewProps {
   onReset: () => void;
   /**
    * Collapse the drawer to the tool rail: End, or a drag released more than
-   * `COLLAPSE_OVERSHOOT_REM` below the minimum. The stored height stays, so
-   * reopening returns to it.
+   * `COLLAPSE_OVERSHOOT_REM` below the minimum. The preference stays saved for
+   * reopening; overshoot rollback goes through `onResize` and its resize policy.
    */
   onCollapse: () => void;
 }
