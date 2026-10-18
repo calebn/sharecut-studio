@@ -61,6 +61,12 @@ LOUD_UNDER_SPEECH_DB = 12.0
 LEAK_PERCENTILE = 40.0
 MIN_LEAK_SEC = 1.0
 MIN_REGION_SEC = 0.15
+# A turn's copy is told from this track's own sounds by its envelope following the peer's.
+COPY_CORRELATION_MIN = 0.6
+COPY_LAG_EARLY_SEC = 0.05
+COPY_LAG_LATE_SEC = 0.3
+MIN_TURN_SEC = 0.25
+AUDIBLE_FOOTPRINT_PAD_SEC = 0.1
 
 
 @dataclass
@@ -72,6 +78,12 @@ class OffSpeakerPlan:
     kept_own_word_sec: float = 0.0
     kept_own_energy_sec: float = 0.0
     already_quiet_sec: float = 0.0
+    own_word_overlap_sec: float = 0.0
+    kept_uncorrelated_sec: float = 0.0
+
+    @property
+    def audible_muted_sec(self) -> float:
+        return round(sum(r["audible_sec"] for r in self.regions), 3)
 
     @property
     def muted_sec(self) -> float:
@@ -82,6 +94,10 @@ class OffSpeakerPlan:
             "track_id": self.track_id,
             "region_count": len(self.regions),
             "muted_sec": self.muted_sec,
+            "audible_muted_sec": self.audible_muted_sec,
+            "quiet_muted_sec": round(self.muted_sec - self.audible_muted_sec, 3),
+            "own_word_overlap_sec": round(self.own_word_overlap_sec, 3),
+            "kept_uncorrelated_sec": round(self.kept_uncorrelated_sec, 3),
             "leak_ratio_db": self.leak_ratio_db,
             "kept_own_word_sec": round(self.kept_own_word_sec, 3),
             "kept_own_energy_sec": round(self.kept_own_energy_sec, 3),
@@ -138,6 +154,29 @@ def _merge(spans: list[tuple[float, float]], gap: float) -> list[tuple[float, fl
     return out
 
 
+def _envelope_copy(mine: np.ndarray, theirs: np.ndarray, idx: np.ndarray) -> tuple[float, int]:
+    """Best correlation of this track's level envelope with the peer's at ``idx`` (and its lag, frames).
+
+    A copy of the peer's voice rises and falls with it, a little later; a breath or a laugh
+    of this track's own speaker does not. Lags run from slightly early to a room's delay.
+    """
+    best = (-1.0, 0)
+    x_all = mine
+    for lag in range(-_frames(COPY_LAG_EARLY_SEC), _frames(COPY_LAG_LATE_SEC) + 1):
+        j = idx + lag
+        ok = (j >= 0) & (j < theirs.size)
+        if ok.sum() < _frames(MIN_TURN_SEC):
+            continue
+        x = x_all[idx[ok]]
+        y = theirs[j[ok]]
+        if x.std() < 1e-6 or y.std() < 1e-6:
+            continue
+        r = float(np.corrcoef(x, y)[0, 1])
+        if r > best[0]:
+            best = (r, lag)
+    return best
+
+
 def plan_from_evidence(
     track_id: str,
     levels: np.ndarray,
@@ -149,34 +188,57 @@ def plan_from_evidence(
     plan = OffSpeakerPlan(track_id)
     n = levels.size
     peer_spans = _merge([w for p in peers for w in p.words], PEER_MERGE_GAP_SEC)
-    peer_mask = _mask(peer_spans, n, PEER_PAD_SEC)
     own_word_mask = _mask(own_words, n, OWN_WORD_PAD_SEC)
+    peer_mask = _mask(peer_spans, n, PEER_PAD_SEC)
     candidate = peer_mask & ~own_word_mask
     plan.kept_own_word_sec = float((peer_mask & own_word_mask).sum()) * LEVEL_FRAME_SEC
     if not candidate.any():
         return plan
 
     audible = levels > profile.room_db + AUDIBLE_OVER_ROOM_DB
+    mine = np.maximum(levels - profile.room_db, 0.0)
+    theirs = np.zeros(n)
     peer_level = np.full(n, -np.inf)
     loud = np.zeros(n, dtype=bool)
     for p in peers:
         m = min(n, p.levels.size)
         speaking = _mask(p.words, n, PEER_PAD_SEC)[:m]
         lv = np.maximum(p.levels[:m], p.profile.room_db)
+        theirs[:m] = np.where(speaking, np.maximum(theirs[:m], lv - p.profile.room_db), theirs[:m])
         peer_level[:m] = np.where(speaking, np.maximum(peer_level[:m], lv), peer_level[:m])
         loud[:m] |= speaking & (p.levels[:m] > p.profile.speech_db - LOUD_UNDER_SPEECH_DB)
 
-    sample = candidate & audible & loud & np.isfinite(peer_level)
+    confirmed = np.zeros(n, dtype=bool)
+    uncorrelated_sec = 0.0
+    for a, b in peer_spans:
+        lo, hi = max(0, _frames(a - PEER_PAD_SEC)), min(n, _frames(b + PEER_PAD_SEC))
+        turn = np.zeros(n, dtype=bool)
+        turn[lo:hi] = True
+        turn &= candidate
+        heard = turn & audible
+        if heard.sum() < _frames(MIN_REGION_SEC):
+            plan.already_quiet_sec += float(turn.sum()) * LEVEL_FRAME_SEC
+            continue
+        r, _lag = _envelope_copy(mine, theirs, np.flatnonzero(turn))
+        if r >= COPY_CORRELATION_MIN:
+            confirmed |= turn
+        else:
+            uncorrelated_sec += float(heard.sum()) * LEVEL_FRAME_SEC
+    plan.kept_uncorrelated_sec = uncorrelated_sec
+    if not confirmed.any():
+        if uncorrelated_sec > 0:
+            plan.refusal = "no_copy_evidence"
+        return plan
+
+    sample = confirmed & audible & loud & np.isfinite(peer_level)
     if sample.sum() * LEVEL_FRAME_SEC < MIN_LEAK_SEC:
-        plan.already_quiet_sec = float((candidate & ~audible).sum()) * LEVEL_FRAME_SEC
-        if (candidate & audible).any():
-            plan.refusal = "no_leak_evidence"
+        plan.refusal = "no_leak_evidence"
         return plan
     leak = float(np.percentile((levels - peer_level)[sample], LEAK_PERCENTILE))
     plan.leak_ratio_db = round(leak, 1)
 
     own_energy = (
-        candidate
+        confirmed
         & audible
         & np.isfinite(peer_level)
         & (levels > peer_level + leak + OWN_OVER_LEAK_DB)
@@ -186,15 +248,12 @@ def plan_from_evidence(
         if hi - lo >= _frames(OWN_ENERGY_MIN_SEC):
             keep[lo:hi] = True
     keep = _dilate(keep, _frames(OWN_ENERGY_PAD_SEC))
-    plan.kept_own_energy_sec = float((candidate & keep).sum()) * LEVEL_FRAME_SEC
+    plan.kept_own_energy_sec = float((confirmed & keep).sum()) * LEVEL_FRAME_SEC
 
-    mute = candidate & ~keep
+    # Only where the track sounds: a silent gap between two copies needs no region.
+    mute = confirmed & ~keep & _dilate(audible, _frames(AUDIBLE_FOOTPRINT_PAD_SEC))
     for lo, hi in _runs(mute):
-        seg_audible = audible[lo:hi]
         duration = (hi - lo) * LEVEL_FRAME_SEC
-        if not seg_audible.any():
-            plan.already_quiet_sec += duration
-            continue
         if duration < MIN_REGION_SEC:
             continue
         start, end = lo * LEVEL_FRAME_SEC, hi * LEVEL_FRAME_SEC
@@ -206,7 +265,8 @@ def plan_from_evidence(
                 "peer_tracks": sorted(
                     p.track_id for p in peers if any(a < end and b > start for a, b in p.words)
                 ),
-                "audible_sec": round(float(seg_audible.sum()) * LEVEL_FRAME_SEC, 3),
+                "audible_sec": round(float(audible[lo:hi].sum()) * LEVEL_FRAME_SEC, 3),
+                "peak_db": round(float(levels[lo:hi].max()), 1),
             }
         )
     return plan
@@ -257,7 +317,14 @@ def plan_off_speaker_mutes(project: EpisodeProject, track_id: str) -> OffSpeaker
     if not peers:
         plan.refusal = "no_peer_speech"
         return plan
-    return plan_from_evidence(track_id, levels, profile, own_words, peers)
+    plan = plan_from_evidence(track_id, levels, profile, own_words, peers)
+    plan.own_word_overlap_sec = _overlap_sec(own_words, plan.regions)
+    return plan
+
+
+def _overlap_sec(words: list[tuple[float, float]], regions: list[dict[str, Any]]) -> float:
+    """Seconds of the track's own words (timeline clock) a region covers: the self-check, 0 when sound."""
+    return sum(max(0.0, min(b, r["end"]) - max(a, r["start"])) for a, b in words for r in regions)
 
 
 def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> dict[str, Any]:
@@ -271,7 +338,7 @@ def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> di
     from podcast_mcp.edits.cut_application import apply_ranges
     from podcast_mcp.edits.range_edits import build_range_target
     from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
-    from podcast_mcp.models import EditDecision, EditDecisionType
+    from podcast_mcp.models import CutIntent, EditDecision, EditDecisionType
     from podcast_mcp.models.episode import RangeInterval
 
     edits: list[EditDecision] = []
@@ -299,26 +366,36 @@ def apply_off_speaker_mutes(project: EpisodeProject, plan: OffSpeakerPlan) -> di
                 exact_range=target,
             )
         )
-    held: list[dict[str, Any]] = []
+    held: dict[str, dict[str, Any]] = {}
     by_id = {e.id: e for e in edits}
     while edits:
         try:
-            apply_ranges(project, edits)
+            # The plan's own audio evidence (copy envelope, leak ratio, own-energy check)
+            # is the audio check, so its chosen edges stand; scope and geometry holds still hold.
+            apply_ranges(project, edits, application_intent=CutIntent.HUMAN_BOUNDARIES)
             break
         except ScopeChangedAtApproval as exc:
-            held_ids = set(exc.ids)
-            if not held_ids & {e.id for e in edits}:
+            held_ids = set(exc.ids) & {e.id for e in edits}
+            if not held_ids:
                 raise
-            held.extend(
-                {"start": by_id[i].start, "end": by_id[i].end, "reason": h.reason}
-                for h in exc.held
-                for i in [h.edit_id]
-                if i in by_id
-            )
+            for hold in exc.held:
+                if hold.edit_id in held_ids:
+                    edit = by_id[hold.edit_id]
+                    held.setdefault(
+                        hold.edit_id,
+                        {
+                            "start": edit.start,
+                            "end": edit.end,
+                            "reason": hold.reason,
+                            **({"detail": hold.detail} if hold.detail else {}),
+                        },
+                    )
             edits = [e for e in edits if e.id not in held_ids]
+    held_rows = sorted(held.values(), key=lambda row: row["start"])
     return {
         "applied_count": len(edits),
         "applied_sec": round(sum(e.end - e.start for e in edits), 3),
-        "held": held,
-        "edit_ids": [e.id for e in edits],
+        "held_count": len(held_rows),
+        "held_sec": round(sum(row["end"] - row["start"] for row in held_rows), 3),
+        "held": held_rows,
     }
