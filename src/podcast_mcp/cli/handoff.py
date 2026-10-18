@@ -100,7 +100,8 @@ def takes_path(param: Parameter) -> bool:
 
 
 def _absolute(value: str, cwd: Path) -> str:
-    return os.path.abspath(cwd / Path(value).expanduser())
+    # Resolve symlinks first, as the OS does for a direct run (``link/..`` is not lexical).
+    return os.path.realpath(cwd / Path(value).expanduser())
 
 
 def _split_root_options(root: Command, argv: list[str]) -> tuple[list[str], list[str]] | None:

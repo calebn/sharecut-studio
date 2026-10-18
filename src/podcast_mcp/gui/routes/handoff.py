@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import contextvars
 import functools
+import ipaddress
 import logging
 import os
 import queue
@@ -57,7 +58,18 @@ HEARTBEAT_SEC = 5.0
 #: A handed-off command that has run this long is probably waiting for Studio's own job.
 BUSY_NOTICE_AFTER_SEC = 2.0
 BUSY_NOTICE_EVERY_SEC = 30.0
-_LOOPBACK_BIND_HOSTS = {"", "0.0.0.0", "localhost", "127.0.0.1", "::1"}
+
+
+def _binds_loopback(bind_host: str) -> bool:
+    """True when a server bound to ``bind_host`` answers on this computer's loopback address
+    (a wildcard bind does too)."""
+    if bind_host in {"", "localhost"}:
+        return True
+    try:
+        address = ipaddress.ip_address(bind_host)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_unspecified
 
 
 @dataclass
@@ -85,7 +97,7 @@ class StudioHostState:
     @property
     def address(self) -> str | None:
         """The loopback address local processes reach this Studio at, if it has one."""
-        if self.bind_host not in _LOOPBACK_BIND_HOSTS:
+        if not _binds_loopback(self.bind_host):
             return None
         return "::1" if self.bind_host == "::1" else "127.0.0.1"
 
@@ -271,8 +283,6 @@ async def _stream(state: StudioHostState, handed: _Run) -> Any:
     finally:
         # The caller went away (or the command ended): a command still running stops.
         handed.cancel.set()
-        with state.lock:
-            state.runs.pop(handed.id, None)
 
 
 @router.post("/api/handoff/cancel")
@@ -347,5 +357,8 @@ def _work(app: Any, handed: _Run, argv: list[str], project: str) -> None:
         handed.emit("err", s="Error: the command crashed inside Studio (see Studio's log).\n")
     finally:
         finished.set()
+        # The slot is held until the command itself ends, not just until the caller leaves.
+        with _state(app).lock:
+            _state(app).runs.pop(handed.id, None)
         with contextlib.suppress(Exception):
             handed.emit("exit", code=code)

@@ -447,6 +447,7 @@ def test_no_project_command_reads_its_paths_in_a_way_the_planner_cannot_follow()
 
 
 def test_plan_makes_paths_absolute_and_keeps_everything_else(tmp_path: Path) -> None:
+    tmp_path = tmp_path.resolve()
     root = typer.main.get_command(cli_app)
     plan = plan_handoff(
         root,
@@ -458,6 +459,17 @@ def test_plan_makes_paths_absolute_and_keeps_everything_else(tmp_path: Path) -> 
     assert plan.project == tmp_path / "ep" / "episode.project.json"
     assert plan.argv[:5] == ["--no-progress", "comment", "add", "--project", str(plan.project)]
     assert plan.argv[5:] == ["--body=x", "--author", "a", "--start", "-1.5"]
+
+
+def test_plan_resolves_symlinks_before_dotdot(tmp_path: Path) -> None:
+    tmp_path = tmp_path.resolve()
+    (tmp_path / "real").mkdir()
+    (tmp_path / "here").mkdir()
+    (tmp_path / "here" / "link").symlink_to(tmp_path / "real")
+    root = typer.main.get_command(cli_app)
+    plan = plan_handoff(root, ["comment", "list", "--project", "link/../p.json"], tmp_path / "here")
+    assert plan is not None
+    assert plan.project == tmp_path / "p.json"
 
 
 @pytest.mark.parametrize(

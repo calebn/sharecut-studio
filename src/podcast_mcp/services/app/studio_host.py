@@ -18,6 +18,7 @@ import http.client
 import json
 import logging
 import os
+import re
 import secrets
 import stat
 from collections.abc import Callable, Mapping
@@ -45,6 +46,8 @@ PING_TIMEOUT_SEC = 1.0
 #: Studio sends a heartbeat every few seconds; silence for this long means it is wedged.
 STREAM_SILENCE_TIMEOUT_SEC = 30.0
 CANCEL_GRACE_SEC = 30.0
+#: Terminal control characters (escape sequences, bell) never pass through from Studio.
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 #: Environment variables that never decide whether a command may run in Studio.
 _ENV_PREFIX = "PODCAST_"
@@ -121,8 +124,11 @@ def withdraw_studio_host(project_path: Path | str, instance: str) -> None:
 
 
 def read_studio_host(project_path: Path | str) -> StudioHost | None:
+    path = studio_host_path(project_path)
     try:
-        raw = json.loads(studio_host_path(project_path).read_text(encoding="utf-8"))
+        if not _owned_privately(path):
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
         host = StudioHost(
             instance=str(raw["instance"]),
             pid=int(raw["pid"]),
@@ -136,6 +142,18 @@ def read_studio_host(project_path: Path | str) -> StudioHost | None:
     if host.host not in _LOOPBACK_HOSTS or not 0 < host.port < 65536 or not host.token:
         return None
     return host
+
+
+def _owned_privately(path: Path) -> bool:
+    """The announcement is ours alone: a file another user (or a shared folder) planted is no pointer."""
+    if not hasattr(os, "getuid"):
+        return True
+    info = path.stat()
+    return info.st_uid == os.getuid() and not info.st_mode & (stat.S_IRWXG | stat.S_IRWXO)
+
+
+def _plain(text: str) -> str:
+    return _CONTROL_CHARS.sub("", text)
 
 
 def _connection(host: StudioHost, timeout: float) -> http.client.HTTPConnection:
@@ -263,10 +281,10 @@ def hand_off(
             if kind == "start":
                 run_id = str(event["run"])
             elif kind == "out":
-                out.write(event["s"])
+                out.write(_plain(event["s"]))
                 out.flush()
             elif kind == "err":
-                err.write(event["s"])
+                err.write(_plain(event["s"]))
                 err.flush()
             elif kind == "exit":
                 return int(event["code"])
