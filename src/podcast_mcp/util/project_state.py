@@ -169,6 +169,30 @@ def live_project(project: EpisodeProject) -> EpisodeProject:
 
 
 @contextmanager
+def _hold_state_lock(project: EpisodeProject) -> Iterator[None]:
+    """Hold ``project_state_lock``; a wait stops once the context's cancel check turns true.
+
+    Another thread of this process (Studio's mix build) can hold the lock for minutes while
+    a handed-off CLI command waits here (#1733). With a cancel check bound (a request, a
+    pipeline run, a handed-off command) the wait polls it, so Ctrl+C ends the command
+    instead of leaving it to run once the lock frees.
+    """
+    state_lock = project_state_lock(project)
+    check = current_cancel_check()
+    if check is None:
+        with state_lock:
+            yield
+        return
+    while not state_lock.acquire(timeout=RENDER_LOCK_POLL_SEC):
+        if check():
+            raise CancelledProgress("cancelled while waiting for the project")
+    try:
+        yield
+    finally:
+        state_lock.release()
+
+
+@contextmanager
 def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     """Serialize history-index + project-JSON commits across threads and processes.
 
@@ -188,7 +212,7 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     """
     lock_path = project_commit_lock_path(project)
     lock = shared_file_lock(lock_path)
-    with project_state_lock(project):
+    with _hold_state_lock(project):
         started = time.monotonic()
         try:
             lock.acquire(timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC)
