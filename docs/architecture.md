@@ -304,8 +304,12 @@ the same seek path.
 `runPointerCommand` dispatches without keyboard `when` gates and returns `void`;
 `executePointerCommand` exposes the same dispatch promise for completion and
 result handling. Keyboard input evaluates its gates in the keymap listener,
-while WebMCP play awaits `execute` in its agent adapter and WebMCP seek awaits
-the shared seek helper. Configurable `CommandButton` gates remain in the UI
+while WebMCP `play_pause` returns the original `execute` result in its agent adapter.
+Its reply is `{ status: "ok" }` on success, `{ status: "disabled", reason }` on
+refusal, or `{ status: "unknown" }` when the command is unavailable. Disabled
+replies preserve command metadata such as `announced`, and command errors reject
+the tool promise unchanged. WebMCP seek awaits the shared seek helper.
+Configurable `CommandButton` gates remain in the UI
 bridge. See [the frontend command adapters](../gui/web/README.md#api-adapters).
 
 `ProjectStore.transcript_vocabulary_state()` keeps a bounded process-local cache of
