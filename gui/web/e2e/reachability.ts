@@ -22,6 +22,8 @@ export type ReachScan = {
    * measured, because their hit area and equivalent controls are.
    */
   dense?: readonly string[];
+  /** Exact element matches exempt from size only; all geometry checks still run. */
+  sizeExempt?: readonly string[];
 };
 
 const INTERACTIVE = [
@@ -56,7 +58,7 @@ export async function reachFailures(
   scan: ReachScan = {},
 ): Promise<Reach[]> {
   return page.evaluate(
-    ({ selector, floor, scope, skip, dense }) => {
+    ({ selector, floor, scope, skip, dense, sizeExempt }) => {
       const describe = (el: Element) => {
         const name = (el.getAttribute("aria-label") ?? el.textContent ?? "")
           .trim()
@@ -118,7 +120,10 @@ export async function reachFailures(
           bottom: box.bottom,
         };
         const base = { control: describe(el), layout, rect };
-        if (layout.width < floor - 0.5 || layout.height < floor - 0.5) {
+        if (
+          !sizeExempt.some((selector) => el.matches(selector)) &&
+          (layout.width < floor - 0.5 || layout.height < floor - 0.5)
+        ) {
           out.push({ failure: "small", ...base });
         }
         const slop = 1;
@@ -154,6 +159,7 @@ export async function reachFailures(
       scope: scan.scope ?? "",
       skip: [...(scan.skip ?? [])],
       dense: [...(scan.dense ?? [])],
+      sizeExempt: [...(scan.sizeExempt ?? [])],
     },
   );
 }

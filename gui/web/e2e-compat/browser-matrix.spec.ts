@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { devices, expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "../e2e/axe";
 import { e2eProjectPath } from "../e2e/env";
@@ -15,6 +16,7 @@ import {
   openRecordLink,
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
+import { openHostShare } from "../e2e/shareNavigation";
 import {
   stubSyntheticMicrophone,
   syntheticMicrophoneRequested,
@@ -47,122 +49,141 @@ test.describe("browser compatibility matrix", () => {
   test("persists an offline comment across reload and replays its command", async ({
     page,
   }) => {
-    const note = `Cross-browser queued note ${crypto.randomUUID()}`;
-    const { commands, forwarded, setOffline } =
-      await interceptCommentCommands(page);
-    await openHostProject(page);
-    await postHostComment(page, note);
-    await expect.poll(() => commands.length).toBe(1);
-    const queuedCount = () => hostOfflineQueueCount(page, e2eProjectPath);
-    await expect.poll(queuedCount).toBe(1);
-    await page.reload();
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /aligned dialogue/i,
-    );
-    await expect.poll(queuedCount).toBe(1);
-    setOffline(false);
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await expect
-      .poll(() =>
-        forwarded.some(
-          (command) =>
-            command.command_id === commands[0]?.command_id &&
-            command.client_id === commands[0]?.client_id &&
-            command.client_seq === commands[0]?.client_seq &&
-            command.type === "AddComment",
-        ),
-      )
-      .toBe(true);
-    await expect.poll(queuedCount).toBe(0);
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("button", { name: "Comments" })
-      .click();
-    await expect(page.getByText(note, { exact: true }).first()).toBeVisible();
+    const suiteComments = JSON.parse(fs.readFileSync(e2eProjectPath, "utf8"))
+      .review.comments;
+    await withShareableProject(async (projectPath) => {
+      const note = `Cross-browser queued note ${crypto.randomUUID()}`;
+      const { commands, forwarded, setOffline } =
+        await interceptCommentCommands(page);
+      await openHostShare(page, projectPath);
+      await postHostComment(page, note);
+      await expect.poll(() => commands.length).toBe(1);
+      const queuedCount = () => hostOfflineQueueCount(page, projectPath);
+      await expect.poll(queuedCount).toBe(1);
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        /aligned dialogue/i,
+      );
+      await expect.poll(queuedCount).toBe(1);
+      setOffline(false);
+      await page.evaluate(() => window.dispatchEvent(new Event("online")));
+      await expect
+        .poll(() =>
+          forwarded.some(
+            (command) =>
+              command.command_id === commands[0]?.command_id &&
+              command.client_id === commands[0]?.client_id &&
+              command.client_seq === commands[0]?.client_seq &&
+              command.type === "AddComment",
+          ),
+        )
+        .toBe(true);
+      await expect.poll(queuedCount).toBe(0);
+      await page
+        .getByLabel("Editor panels")
+        .getByRole("button", { name: "Comments" })
+        .click();
+      await expect(page.getByText(note, { exact: true }).first()).toBeVisible();
+    });
+    expect(
+      JSON.parse(fs.readFileSync(e2eProjectPath, "utf8")).review.comments,
+    ).toEqual(suiteComments);
   });
 
   test("applies document updates after the socket reconnects", async ({
     page,
     browser,
   }) => {
-    await page.addInitScript(() => {
-      const NativeWebSocket = window.WebSocket;
-      const sockets: WebSocket[] = [];
-      const received: string[] = [];
-      class TrackedWebSocket extends NativeWebSocket {
-        constructor(url: string | URL, protocols?: string | string[]) {
-          super(url, protocols);
-          if (String(url).includes("/api/host/ws")) {
-            sockets.push(this);
-            this.addEventListener("message", (event) =>
-              received.push(String(event.data)),
-            );
+    const suiteComments = JSON.parse(fs.readFileSync(e2eProjectPath, "utf8"))
+      .review.comments;
+    await withShareableProject(async (projectPath) => {
+      await page.addInitScript(() => {
+        const NativeWebSocket = window.WebSocket;
+        const sockets: WebSocket[] = [];
+        const received: string[] = [];
+        class TrackedWebSocket extends NativeWebSocket {
+          constructor(url: string | URL, protocols?: string | string[]) {
+            super(url, protocols);
+            if (String(url).includes("/api/host/ws")) {
+              sockets.push(this);
+              this.addEventListener("message", (event) =>
+                received.push(String(event.data)),
+              );
+            }
           }
         }
-      }
-      Object.defineProperty(window, "WebSocket", { value: TrackedWebSocket });
-      Object.assign(window, {
-        __documentSockets: sockets,
-        __documentMessages: received,
+        Object.defineProperty(window, "WebSocket", { value: TrackedWebSocket });
+        Object.assign(window, {
+          __documentSockets: sockets,
+          __documentMessages: received,
+        });
       });
-    });
-    await openHostProject(page);
-    // The receiver must learn about the later mutation through document sync.
-    // A successful metadata poll would otherwise hydrate the same comment.
-    await page.route("**/api/project/meta?*", (route) => route.abort("failed"));
-    const socketCount = () =>
-      page.evaluate(
-        () =>
-          (
-            window as unknown as Window & { __documentSockets: WebSocket[] }
-          ).__documentSockets.filter(
-            (socket) => socket.readyState === WebSocket.OPEN,
-          ).length,
+      await openHostShare(page, projectPath);
+      // The receiver must learn about the later mutation through document sync.
+      // A successful metadata poll would otherwise hydrate the same comment.
+      await page.route("**/api/project/meta?*", (route) =>
+        route.abort("failed"),
       );
-    await expect.poll(socketCount).toBe(1);
-    await page.evaluate(() =>
-      (
-        window as unknown as Window & { __documentSockets: WebSocket[] }
-      ).__documentSockets[0]?.close(),
-    );
-    await expect
-      .poll(
-        () =>
-          page.evaluate(
-            () =>
-              (window as unknown as Window & { __documentSockets: WebSocket[] })
-                .__documentSockets.length,
-          ),
-        { timeout: 8_000 },
-      )
-      .toBeGreaterThan(1);
-    await expect.poll(socketCount).toBe(1);
-    const note = `After reconnect ${crypto.randomUUID()}`;
-    const sender = await browser.newPage();
-    try {
-      await openHostProject(sender);
-      await postHostComment(sender, note);
+      const socketCount = () =>
+        page.evaluate(
+          () =>
+            (
+              window as unknown as Window & { __documentSockets: WebSocket[] }
+            ).__documentSockets.filter(
+              (socket) => socket.readyState === WebSocket.OPEN,
+            ).length,
+        );
+      await expect.poll(socketCount).toBe(1);
+      await page.evaluate(() =>
+        (
+          window as unknown as Window & { __documentSockets: WebSocket[] }
+        ).__documentSockets[0]?.close(),
+      );
       await expect
-        .poll(() =>
-          page.evaluate(
-            (body) =>
-              (
-                window as unknown as Window & { __documentMessages: string[] }
-              ).__documentMessages.some((message) => message.includes(body)),
-            note,
-          ),
+        .poll(
+          () =>
+            page.evaluate(
+              () =>
+                (
+                  window as unknown as Window & {
+                    __documentSockets: WebSocket[];
+                  }
+                ).__documentSockets.length,
+            ),
+          { timeout: 8_000 },
         )
-        .toBe(true);
-      await page
-        .getByLabel("Editor panels")
-        .getByRole("button", { name: "Comments" })
-        .click();
-      await expect(
-        page.locator(".comment-card-body").getByText(note, { exact: true }),
-      ).toBeVisible();
-    } finally {
-      await sender.close();
-    }
+        .toBeGreaterThan(1);
+      await expect.poll(socketCount).toBe(1);
+      const note = `After reconnect ${crypto.randomUUID()}`;
+      const sender = await browser.newPage();
+      try {
+        await openHostShare(sender, projectPath);
+        await postHostComment(sender, note);
+        await expect
+          .poll(() =>
+            page.evaluate(
+              (body) =>
+                (
+                  window as unknown as Window & { __documentMessages: string[] }
+                ).__documentMessages.some((message) => message.includes(body)),
+              note,
+            ),
+          )
+          .toBe(true);
+        await page
+          .getByLabel("Editor panels")
+          .getByRole("button", { name: "Comments" })
+          .click();
+        await expect(
+          page.locator(".comment-card-body").getByText(note, { exact: true }),
+        ).toBeVisible();
+      } finally {
+        await sender.close();
+      }
+    });
+    expect(
+      JSON.parse(fs.readFileSync(e2eProjectPath, "utf8")).review.comments,
+    ).toEqual(suiteComments);
   });
 
   test("rasterizes waveform tiles on every engine", async ({ page }) => {
