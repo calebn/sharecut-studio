@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
 from collections.abc import AsyncIterator
@@ -33,6 +34,7 @@ from podcast_mcp.gui.routes import (
     diagnostics,
     document,
     export_routes,
+    handoff,
     host,
     media,
     pipeline,
@@ -209,12 +211,17 @@ def _project_mismatch_page(request: Request, served: Path) -> HTMLResponse:
 
 @asynccontextmanager
 async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Run the host MCP session manager for the app's life, then stop the
+    """Run the host MCP session manager for the app's life, announce the served project to
+    local CLIs once the server accepts connections (#1733), then withdraw that and stop the
     cross-process watchers on shutdown (#695)."""
     try:
         async with host_mcp_lifespan(app):
+            port = getattr(app.state, "listen_port", None)
+            if port is not None:
+                await asyncio.to_thread(handoff.listening, app, port=port)
             yield
     finally:
+        await asyncio.to_thread(handoff.stopped, app)
         cross_process_bridge().stop_all()
 
 
@@ -254,8 +261,10 @@ def create_app(
     app.state.jobs = jobs
     app.state.bootstrap_jobs = bootstrap_jobs
     app.state.diagnostics_bundles = {}
-    app.state.served_project = served_project.resolve() if served_project is not None else None
-    jobs.set_served_project(app.state.served_project)
+    app.state.studio_host = handoff.StudioHostState(bind_host)
+    handoff.set_served_project(
+        app, served_project.resolve() if served_project is not None else None
+    )
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     # App-wide fallback for a route that does not map its own busy-lock contract (#488).
     app.add_exception_handler(Timeout, project_busy_exception_handler)
@@ -278,6 +287,7 @@ def create_app(
     app.include_router(waveform.router)
     app.include_router(session.router)
     app.include_router(host.router)
+    app.include_router(handoff.router)
     app.include_router(transcript.router)
     app.include_router(record_host.router)
     app.include_router(document.router)
