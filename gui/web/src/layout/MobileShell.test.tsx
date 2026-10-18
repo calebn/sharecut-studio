@@ -1028,12 +1028,12 @@ describe("MobileShell", () => {
     expect(
       screen
         .getAllByRole("button", { name: "Play" })
-        .every((el) => el.hasAttribute("disabled")),
+        .every((el) => el.getAttribute("aria-disabled") === "true"),
     ).toBe(true);
     expect(
       screen
         .getAllByRole("button", { name: "Stop" })
-        .every((el) => el.hasAttribute("disabled")),
+        .every((el) => el.getAttribute("aria-disabled") === "true"),
     ).toBe(true);
     expect(document.querySelector(".listen-hero .play-btn")).toHaveAttribute(
       "aria-label",
@@ -1054,9 +1054,13 @@ describe("MobileShell", () => {
       name: project.meta.name,
     });
     const play = within(hero).getByRole("button", { name: "Play" });
-    expect(play).toBeDisabled();
-    expect(play).toHaveAttribute("title", "Import audio to play");
-    expect(within(hero).getByRole("button", { name: "Stop" })).toBeDisabled();
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    expect(play).toHaveAccessibleDescription("Import audio to play.");
+    const stop = within(hero).getByRole("button", { name: "Stop" });
+    expect(stop).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(play);
+    fireEvent.click(stop);
+    expect(useDawStore.getState().isPlaying).toBe(false);
   });
 
   it("announces follow status in a live region", () => {

@@ -329,18 +329,21 @@ describe("TransportBar desktop edit controls", () => {
     const user = userEvent.setup();
     const project = minimalProject();
     useDawStore.getState().hydrate("/tmp/p.json", project);
-    render(<TransportBar />);
+    const { container } = render(<TransportBar />);
+    const historyStatus = within(
+      container.querySelector<HTMLElement>(".compact-history-controls")!,
+    ).getByRole("status");
     const undo = screen.getByRole("button", { name: "Undo" });
     const redo = screen.getByRole("button", { name: "Redo" });
     expect(undo).toHaveAttribute("aria-disabled", "true");
     expect(redo).toHaveAccessibleDescription("Nothing to redo");
     await user.click(undo);
-    expect(screen.getByRole("status")).toHaveTextContent("Nothing to undo");
+    expect(historyStatus).toHaveTextContent("Nothing to undo");
     expect(undo.querySelector(".compact-history-caption")).toHaveTextContent(
       "Noundo",
     );
     await user.click(redo);
-    expect(screen.getByRole("status")).toHaveTextContent("Nothing to redo");
+    expect(historyStatus).toHaveTextContent("Nothing to redo");
     expect(execute).not.toHaveBeenCalled();
     act(() => {
       useDawStore.setState({
@@ -352,7 +355,7 @@ describe("TransportBar desktop edit controls", () => {
     });
     expect(undo).not.toHaveAttribute("aria-disabled");
     expect(redo).not.toHaveAttribute("aria-disabled");
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(historyStatus).toBeEmptyDOMElement();
   });
 
   it("prevents zoom commands at both session limits", async () => {

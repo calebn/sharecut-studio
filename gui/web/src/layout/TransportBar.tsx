@@ -664,7 +664,7 @@ export function TransportBar({
           playing={isPlaying}
           disabledReason={
             !project
-              ? "Loading the project. Playback will be available when loading finishes."
+              ? "Loading project…"
               : emptyProject
                 ? "Import audio to play."
                 : undefined
