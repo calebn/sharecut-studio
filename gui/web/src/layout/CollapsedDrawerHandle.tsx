@@ -1,11 +1,12 @@
-import { type PointerEvent, useRef } from "react";
-import { runPointerCommand } from "../commands/pointer";
+import { type PointerEvent, useEffect, useRef } from "react";
+import { executePointerCommand } from "../commands/pointer";
 
 /** An upward swipe this long (px) reopens, so a thumb never has to land a tap. */
 export const REOPEN_SWIPE_PX = 8;
 
 export interface CollapsedDrawerHandleViewProps {
-  onReopen: () => void;
+  /** `byKeyboard` is true for Enter and Space, so focus can follow the drawer back. */
+  onReopen: (byKeyboard: boolean) => void;
 }
 
 /**
@@ -17,6 +18,16 @@ export function CollapsedDrawerHandleView({
   onReopen,
 }: CollapsedDrawerHandleViewProps) {
   const swipe = useRef<{ pointerId: number; startY: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // Collapsing from the splitter unmounts the focused control; the handle
+    // that replaces it takes the focus so a keyboard user is not sent to the
+    // top of the page.
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      buttonRef.current?.focus({ preventScroll: true });
+    }
+  }, []);
   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     swipe.current = { pointerId: e.pointerId, startY: e.clientY };
   };
@@ -25,7 +36,7 @@ export function CollapsedDrawerHandleView({
     if (!s || s.pointerId !== e.pointerId) return;
     if (s.startY - e.clientY >= REOPEN_SWIPE_PX) {
       swipe.current = null;
-      onReopen();
+      onReopen(false);
     }
   };
   const end = () => {
@@ -34,11 +45,12 @@ export function CollapsedDrawerHandleView({
   return (
     <div className="drawer-reopen">
       <button
+        ref={buttonRef}
         type="button"
         className="drawer-reopen-handle"
         aria-label="Show editor panels"
         title="Show editor panels · Tap or swipe up"
-        onClick={onReopen}
+        onClick={(e) => onReopen(e.detail === 0)}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={end}
@@ -54,7 +66,16 @@ export function CollapsedDrawerHandleView({
 export function CollapsedDrawerHandle() {
   return (
     <CollapsedDrawerHandleView
-      onReopen={() => runPointerCommand("layout.default")}
+      onReopen={(byKeyboard) => {
+        void executePointerCommand("layout.default").then(() => {
+          if (!byKeyboard) return;
+          requestAnimationFrame(() =>
+            document
+              .querySelector<HTMLElement>(".bottom-tabs-splitter")
+              ?.focus({ preventScroll: true }),
+          );
+        });
+      }}
     />
   );
 }

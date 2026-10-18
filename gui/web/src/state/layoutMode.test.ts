@@ -83,4 +83,13 @@ describe("layoutMode store", () => {
     expect(useDawStore.getState().moreDestination).toBe("impact");
     expect(useDawStore.getState().activeTab).toBe("impact");
   });
+
+  it("a commenting share guest opens on Comments with the drawer showing, even from a collapsed browser", () => {
+    const st = () => useDawStore.getState();
+    st().hydrate("/tmp/p.json", minimalProject());
+    st().setLayoutMode("timeline");
+    st().hydrate("share:abc", minimalProject(), "commenter", ["comment"]);
+    expect(st().activeTab).toBe("comments");
+    expect(st().layoutMode).toBe("default");
+  });
 });
