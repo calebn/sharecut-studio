@@ -77,7 +77,7 @@ function TransportPreview({
   }
   return (
     <>
-      <div style={{ blockSize: "var(--transport-height)" }}>
+      <div className="daw-shell-transport">
         <TransportFrame playing={playing}>
           <TransportZone position="start">
             <h1>Episode 12: Field notes</h1>
