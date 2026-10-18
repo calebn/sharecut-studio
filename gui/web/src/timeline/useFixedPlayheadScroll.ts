@@ -12,7 +12,10 @@ import {
 } from "../presence/followSync";
 import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
-import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
+import {
+  timelineViewportRegistry,
+  type VisualPan,
+} from "../state/timelineViewportRegistry";
 import {
   domToLogicalScrollLeft,
   fixedLineOffsetPx,
@@ -38,21 +41,7 @@ type Inputs = Readonly<{
   followingClientId: string | null;
 }>;
 
-type PanGeometry = Readonly<{
-  scrollLeft: number;
-  lineOffsetPx: number;
-  zoomPxPerSec: number;
-}>;
-
-type VisualPan = Readonly<{
-  geometry: PanGeometry;
-  scrollLeft: number;
-  zoomPxPerSec: number;
-  playheadSec: number;
-  seekRevision: number;
-  projectPath: string;
-  timeViewportPx: number;
-}>;
+type PanGeometry = VisualPan["geometry"];
 
 type RecordState = NonNullable<
   ReturnType<typeof useRecordHostStore.getState>["snapshot"]
@@ -82,7 +71,6 @@ type ScrollBinding = Readonly<{
   scrubRevisionRef: RefObject<number>;
   /** The playhead time a person's own scroll set; the follow leaves it be. */
   scrubSecRef: RefObject<number | null>;
-  visualPanRef: RefObject<VisualPan | null>;
 }>;
 
 type ScrollResult = Readonly<{
@@ -111,7 +99,6 @@ export function useFixedPlayheadScroll({
   // person put it, so the recenter skips this revision.
   const scrubRevisionRef = useRef(-1);
   const scrubSecRef = useRef<number | null>(null);
-  const visualPanRef = useRef<VisualPan | null>(null);
   // Set while a pinch or wheel zoom applies its anchored scroll, so the
   // scroll events it causes neither seek nor unfollow.
   const anchoringZoom = useRef(false);
@@ -213,17 +200,19 @@ export function useFixedPlayheadScroll({
           geometry,
           project?.timeline_duration_sec ?? sessionSec,
         );
-        visualPanRef.current = visualOnlyScroll
-          ? {
-              geometry,
-              scrollLeft: logicalLeft,
-              zoomPxPerSec,
-              playheadSec,
-              seekRevision: playheadSeekRevision,
-              projectPath,
-              timeViewportPx,
-            }
-          : null;
+        timelineViewportRegistry.setVisualPan(
+          visualOnlyScroll
+            ? {
+                geometry,
+                scrollLeft: logicalLeft,
+                zoomPxPerSec,
+                playheadSec,
+                seekRevision: playheadSeekRevision,
+                projectPath,
+                timeViewportPx,
+              }
+            : null,
+        );
         const sec = scrollLeftToLineSec(
           logicalLeft,
           lineX,
@@ -258,7 +247,6 @@ export function useFixedPlayheadScroll({
       writeScroll,
       scrubRevisionRef,
       scrubSecRef,
-      visualPanRef,
     }),
     [scrollRef, fixedPlayhead, timeViewportPx, leadPx, writeScroll],
   );
@@ -310,7 +298,6 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     timeViewportPx,
     scrubRevisionRef,
     scrubSecRef,
-    visualPanRef,
   } = binding;
   const playheadSec = useDawStore((s) => s.playheadSec);
   const playheadSeekRevision = useDawStore((s) => s.playheadSeekRevision);
@@ -346,17 +333,18 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     const seekRevisionChanged =
       prev.seekRevision !== playheadSeekRevision &&
       playheadSeekRevision !== scrubRevisionRef.current;
-    if (!el || !fixedPlayhead || !project || timeViewportPx <= 0) {
-      visualPanRef.current = null;
+    if (!fixedPlayhead || !project) {
+      timelineViewportRegistry.setVisualPan(null);
       return;
     }
+    if (!el || timeViewportPx <= 0) return;
     const sessionSec = project.timeline_duration_sec;
     // The first look at a mounted timeline (a tab switch, a loaded project)
     // follows a playhead that moved while it was away.
     const firstLook = !readyRef.current;
     readyRef.current = true;
 
-    const pan = visualPanRef.current;
+    const pan = timelineViewportRegistry.getVisualPan();
     const retainsOriginalPanGeometry =
       pan !== null &&
       pan.playheadSec === playheadSec &&
@@ -385,17 +373,19 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
       geometry,
       sessionSec,
     );
-    visualPanRef.current = visualOnlyScroll
-      ? {
-          geometry,
-          scrollLeft,
-          zoomPxPerSec,
-          playheadSec,
-          seekRevision: playheadSeekRevision,
-          projectPath,
-          timeViewportPx,
-        }
-      : null;
+    timelineViewportRegistry.setVisualPan(
+      visualOnlyScroll
+        ? {
+            geometry,
+            scrollLeft,
+            zoomPxPerSec,
+            playheadSec,
+            seekRevision: playheadSeekRevision,
+            projectPath,
+            timeViewportPx,
+          }
+        : null,
+    );
     if (visualOnlyScroll && !playheadChanged && !seekRevisionChanged) return;
     const panEnded = pan !== null && !visualOnlyScroll;
 
@@ -471,7 +461,6 @@ export function FixedPlayheadRecenter({ binding }: { binding: ScrollBinding }) {
     scrollRef,
     scrubRevisionRef,
     scrubSecRef,
-    visualPanRef,
   ]);
   return null;
 }
