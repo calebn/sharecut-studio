@@ -229,6 +229,7 @@ def test_a_clap_between_the_other_speakers_words_is_held_closed():
     plan = _call(own_words=[], peer_words=words, track=track, peer=peer)
     assert _covered(plan.regions, 5.0)
     assert len(plan.regions) == 1
+    assert plan.still_audible_sec < 0.2
 
 
 def test_a_gap_with_the_guests_own_word_stays_open_and_is_reported():
