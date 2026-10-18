@@ -1038,4 +1038,39 @@ describe("useDialogModal hidden return target on a phone shell", () => {
     await settle();
     expect(screen.getByTestId("body")).toHaveFocus();
   });
+
+  it("leaves focus alone when the shell has no fallback landmark", async () => {
+    function Sheet({ onClose }: { onClose: () => void }) {
+      const panelRef = useRef<HTMLDivElement>(null);
+      useDialogModal({ open: true, onClose, panelRef, mode: "sheet" });
+      return (
+        <div ref={panelRef} role="dialog" aria-label="Envelope">
+          <button type="button">Done</button>
+        </div>
+      );
+    }
+    function App() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <nav aria-label="Primary" data-testid="nav">
+            <button type="button" onClick={() => setOpen(true)}>
+              Timeline
+            </button>
+          </nav>
+          <main tabIndex={-1} data-testid="body" />
+          {open ? <Sheet onClose={() => setOpen(false)} /> : null}
+        </>
+      );
+    }
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Timeline" }));
+    await settle();
+    screen.getByTestId("nav").style.display = "none";
+    act(() => screen.getByRole("button", { name: "Done" }).focus());
+    await user.keyboard("{Escape}");
+    await settle();
+    expect(screen.getByTestId("body")).not.toHaveFocus();
+  });
 });

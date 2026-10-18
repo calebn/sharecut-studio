@@ -56,6 +56,11 @@ export type UseDialogModalOptions = {
   stackKey?: string;
 };
 
+function focusFallbackLandmark(): void {
+  const landmark = document.querySelector<HTMLElement>("[data-focus-fallback]");
+  if (isValidFocusTarget(landmark)) landmark.focus({ preventScroll: true });
+}
+
 /**
  * Overlay a11y without Radix.
  *
@@ -65,11 +70,6 @@ export type UseDialogModalOptions = {
  * while a modal is open the Daw keymap runs none of its shortcuts but the
  * ones the modal hands on (`shortcuts`).
  */
-function focusFallbackLandmark(): void {
-  const landmark = document.querySelector<HTMLElement>("[data-focus-fallback]");
-  if (isValidFocusTarget(landmark)) landmark.focus({ preventScroll: true });
-}
-
 export function useDialogModal({
   open,
   onClose,
