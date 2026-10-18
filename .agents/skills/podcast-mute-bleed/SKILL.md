@@ -38,6 +38,8 @@ Reconcile can measure bleed from mapped raw media when stems are absent. Automat
 
 **CLI:** `podcast edit apply-bleed-mute` (`--dry-run` to preview; `--track` / `--speaker` to scope)
 
+**Leftover copy where the lane's own speaker never spoke:** `mute_off_speaker_tool` / `podcast edit mute-off-speaker --track <lane> [--dry-run]` mutes the lane wherever another dialogue lane has words, this lane has none and holds nothing louder than a copy (#1740). Run it after the gate when you still hear the other speaker pop in and out; each stretch is a visible muted region with Restore. See `docs/audio-engineering.md` § Off-speaker mute.
+
 ## Workflow
 
 1. Confirm transcript reconcile: `overlap_duplicates_tool` → `text_match_count == 0` on the `echo_risk` pairs (co-speech elsewhere stays, #774).
