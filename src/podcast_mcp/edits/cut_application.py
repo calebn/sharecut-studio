@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
 from typing import Any
@@ -792,6 +792,16 @@ def approve_edits(
     mute_base = project.model_copy(deep=True)
     mute_ids = applied_ids.copy()
     excluded: set[str] = set()
+    demoted: list[str] = []
+
+    def _beside(a: str, x: str) -> bool:
+        return x in extents and (
+            _near(extents[a], extents[x]) or _near_on_timeline(on_timeline[a], on_timeline[x])
+        )
+
+    def _beside_any(a: str, others: Iterable[str]) -> bool:
+        return any(_beside(a, x) for x in others)
+
     while True:
         project = mute_base.model_copy(deep=True)
         applied_ids = mute_ids.copy()
@@ -843,23 +853,40 @@ def approve_edits(
                 continue
             applied_ids.add(edit.id)
             applied_removes.append(edit.id)
-        if not newly_held:
-            break
+        # Only a cut applied before the hold was found counted that edit as removed;
+        # one further away is unchanged by running the pass again.
         excluded.update(newly_held)
+        if any(_beside(a, x) for a in applied_removes for x in newly_held):
+            continue
+        leaning = (
+            [a for a in applied_removes if _beside_any(a, (*asked_ids, *(h.edit_id for h in held)))]
+            if partial and not accept_leaned_on
+            else []
+        )
+        if not leaning:
+            break
+        # A partial batch holds back the cuts that sit beside a held one too, so the rest
+        # still apply and nothing is applied on a guess.
+        demoted.extend(leaning)
+        excluded.update(leaning)
     # An applied cut beside a left-pending one may have cleared speech on the assumption
     # that the other removes it: then nothing applies on a guess, as before.
     left_pending = (*asked_ids, *(h.edit_id for h in held))
-    leaned_on = not accept_leaned_on and any(
-        _near(extents[a], extents[x]) or _near_on_timeline(on_timeline[a], on_timeline[x])
-        for a in applied_removes
-        for x in left_pending
-        if x in extents
-    )
+    leaned_on = not accept_leaned_on and any(_beside_any(a, left_pending) for a in applied_removes)
     if asked:
         confirmation = confirmation_for(merge_cut_speech([a.speech for a in asked]))
         if asked_out is None or not partial or leaned_on:
             raise UnconfirmedCutSpeech(confirmation)
         asked_out.append(AskedEdits(tuple(asked_ids), confirmation))
+    if held_out is not None and demoted and not leaned_on:
+        held_out.extend(
+            HeldEdit(
+                edit_id,
+                labels.get(edit_id, ""),
+                "it sits right beside a held cut, so it waits with it",
+            )
+            for edit_id in demoted
+        )
     if held:
         error = ScopeChangedAtApproval(
             held,
