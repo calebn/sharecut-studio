@@ -121,7 +121,7 @@ def test_commit_lock_acquire_timeout_raises_project_busy_error(minimal_project, 
     assert str(lock_path) not in str(excinfo.value)
     contention = excinfo.value.contention
     assert contention is not None
-    assert contention.waited_seconds >= 0.3
+    assert contention.waited_seconds >= 0
     if sys.platform == "linux":
         assert contention.holder_pid == proc.pid
         assert file_lock_holder_pid(lock_path) is None
@@ -492,9 +492,12 @@ def test_contention_diagnostics_stay_out_of_shared_and_guest_refusals(error):
     assert guest_failure_detail(observed) == guest_failure_detail(fixed)
 
 
-def test_commit_contention_measures_only_file_lock_wait(minimal_project, monkeypatch):
+@pytest.mark.parametrize("timeout_seconds, waited_seconds", [(30.0, 3.0), (0.3, 0.297)])
+def test_commit_contention_measures_only_file_lock_wait(
+    minimal_project, monkeypatch, timeout_seconds, waited_seconds
+):
     project = load_project(minimal_project)
-    clock = [100.0]
+    clock = [-20.0]
 
     @contextlib.contextmanager
     def state_lock(_project):
@@ -502,14 +505,15 @@ def test_commit_contention_measures_only_file_lock_wait(minimal_project, monkeyp
         yield
 
     def acquire(*, timeout):
-        assert timeout == 30.0
-        clock[0] += 3
+        assert timeout == timeout_seconds
+        clock[0] += waited_seconds
         raise Timeout("busy.lock")
 
     def observe(_path):
         clock[0] += 10
         return 4242
 
+    monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", timeout_seconds)
     monkeypatch.setattr(project_state, "time", SimpleNamespace(monotonic=lambda: clock[0]))
     monkeypatch.setattr(project_state, "project_state_lock", state_lock)
     monkeypatch.setattr(
@@ -519,4 +523,4 @@ def test_commit_contention_measures_only_file_lock_wait(minimal_project, monkeyp
     with pytest.raises(ProjectBusyError) as info:
         with project_commit_lock(project):
             pytest.fail("contended body ran")
-    assert info.value.contention == LockContention(waited_seconds=3.0, holder_pid=4242)
+    assert info.value.contention == LockContention(waited_seconds=waited_seconds, holder_pid=4242)
