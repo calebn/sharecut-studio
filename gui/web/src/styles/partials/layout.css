@@ -420,7 +420,8 @@ html[data-shell="phone"] .guest-attention-dismiss {
 
 /* Timeline layout: the drawer is collapsed (its row is 0). The handle sits on
  * the row's line, the main area's bottom edge, and its hit area reaches up
- * over the timeline like the splitter's does. */
+ * over the timeline like the splitter's does. It is a centered grip, not a
+ * full-width strip, so it never covers the tool rail's lowest buttons. */
 .daw-shell > .drawer-reopen {
   grid-area: tabs;
   align-self: end;
@@ -431,8 +432,10 @@ html[data-shell="phone"] .guest-attention-dismiss {
 
 .drawer-reopen-handle {
   position: absolute;
-  inset-inline: 0;
+  inset-inline-start: 50%;
   inset-block-end: 0;
+  inline-size: min(100%, 12rem);
+  transform: translateX(-50%);
   block-size: var(--touch-min);
   display: flex;
   align-items: flex-end;
