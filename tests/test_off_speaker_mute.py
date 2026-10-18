@@ -372,3 +372,9 @@ def test_a_short_isolated_word_louder_than_a_copy_stays_and_is_not_muted():
     plan = _word_case(word_db_over_peer=-5.0, follows=False)
     assert all(j["verdict"] != "copy" for j in plan.judged_words)
     assert not _covered(plan.regions, 6.0)
+
+
+def test_judged_words_report_how_far_over_a_copy_they_are():
+    plan = _word_case(word_db_over_peer=-40.0, follows=True)
+    word = next(j for j in plan.judged_words if (j["start"], j["end"]) == (5.9, 6.1))
+    assert word["over_copy_db"] == round(word["level_over_peer_db"] - plan.leak_ratio_db, 1)
