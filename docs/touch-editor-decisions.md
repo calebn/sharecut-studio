@@ -741,6 +741,7 @@ enforced-by:
 - gui/web/e2e-compat/inspector-column.spec.ts::with the keyboard up the column shortens to the visible viewport and keeps its header
 - gui/web/e2e-compat/inspector-column.spec.ts::with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice
 - gui/web/e2e-compat/inspector-column.spec.ts::turning upright keeps an unsaved draft and its focus in the Inspector
+- gui/web/e2e-compat/inspector-column.spec.ts::with Safari's chrome collapsed the column stops above the status strip, not over the focused field
 - gui/web/src/ui/BottomSheet.test.tsx::keeps the draft, the elements and the focus when the phone rotates and back
 - gui/web/src/layout/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
 -->
@@ -757,7 +758,8 @@ the title, **Close**, Escape and focus restore, and drops the scrim, drawer,
 Expand and Collapse, and the slide-up. It carries none of the sheet classes, so
 the keep-clear helpers do nothing for it, and with the keyboard up it takes the
 visible band of the viewport (`--visual-viewport-top` and
-`--visual-viewport-height`), not the layout height minus the keyboard. Turning
+`--visual-viewport-height`), not the layout height minus the keyboard, and it
+ends above the tablet's status strip. Turning
 the phone upright shows the full Inspector, not the peek strip.
 This replaces the lane band and the compact strip on those screens, and no
 other. A gesture that needs the compact strip's Undo header does not exist
